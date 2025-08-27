@@ -30,7 +30,6 @@ import io.boomerang.security.service.UserValidationService;
 import io.boomerang.service.UserIdentityService;
 import io.boomerang.service.crud.TeamService;
 
-
 @RestController
 @RequestMapping("/workflow/manage")
 public class ManagementController {
@@ -76,7 +75,6 @@ public class ManagementController {
     }
     return new FlowUserEntity();
   }
-
 
   @GetMapping(value = "/users")
   public UserQueryResult getUsers(@RequestParam(required = false) String query,
@@ -129,7 +127,6 @@ public class ManagementController {
     }
   }
 
-
   @PatchMapping(value = "/teams/{teamId}/members")
   public void updateTeamMembers(@PathVariable String teamId,
       @RequestBody List<String> teamMembers) {
@@ -141,6 +138,7 @@ public class ManagementController {
   @PatchMapping("/teams/{teamId}/labels")
   public TeamEntity updateTeamLabels(@PathVariable String teamId,
       @RequestBody List<KeyValuePair> labels) {
+    userValidationService.validateUserAdminOrOperator();
     if (isTeamManagementAvaliable()) {
       return teamService.updateTeamLabels(teamId, labels);
     }
