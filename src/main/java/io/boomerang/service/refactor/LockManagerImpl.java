@@ -42,6 +42,8 @@ public class LockManagerImpl implements LockManager {
     String key = null;
 
     if (taskExecution != null) {
+    	
+    	LOGGER.info("taskExecution: " + taskExecution.getWorkflowId());
       
       String workflowId = taskExecution.getWorkflowId();
 
@@ -58,9 +60,14 @@ public class LockManagerImpl implements LockManager {
         ControllerRequestProperties propertiesList =
             propertyManager.buildRequestPropertyLayering(null, activityId, workflowId);
         key = propertyManager.replaceValueWithProperty(key, activityId, propertiesList);
-      }
+      }      
+      
+      LOGGER.info("after key retrieval");
       
       if (key != null) {
+      	
+      	LOGGER.info("key: " + key);
+      	
         final String test = key;
         Supplier<String> supplier = () -> test;
         String storeID = mongoConfiguration.fullCollectionName("tasks_locks");
@@ -70,8 +77,11 @@ public class LockManagerImpl implements LockManager {
         keys.add(storeId);
 
         final String token = mongoLock.acquire(keys, storeID, timeout);
+        
+        LOGGER.info("token: " + token);
 
         if (StringUtils.isEmpty(token)) {
+        	LOGGER.info("token: [empty]");
           /** TODO: What to do here. */
           throw new LockNotAvailableException(
               String.format("Lock not available for keys: %s in store %s", keys, storeId));
@@ -80,6 +90,9 @@ public class LockManagerImpl implements LockManager {
         RetryTemplate retryTemplate = getRetryTemplate();
         retryTemplate.execute(ctx -> {
           final boolean lockExists = mongoLock.exists(storeID, token);
+          
+          LOGGER.info("lockExists: " + lockExists);
+          
           if (lockExists) {
             throw new LockNotAvailableException(
                 String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
