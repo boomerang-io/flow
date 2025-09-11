@@ -76,7 +76,7 @@ public class LockManagerImpl implements LockManager {
 
         LOGGER.info("Start acquire lock");
 //        final String token = mongoLock.acquire(keys, storeID, timeout);
-        final String token = mongoLock.acquire(keys, storeID, Long.MAX_VALUE);
+        final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration
         LOGGER.info("End acquire lock");
 
         if (StringUtils.isEmpty(token)) {
