@@ -74,31 +74,27 @@ public class LockManagerImpl implements LockManager {
         String storeId = key;
         final List<String> keys = new LinkedList<>();
         keys.add(storeId);
+        
+        final String keyToCheck = key;
               	
         RetryTemplate retryTemplate = getRetryTemplate(timeout);
-        retryTemplate.execute(ctx -> {
+        retryTemplate.execute(ctx -> {        	        	        	
+	        final boolean lockExists = mongoLock.exists(storeID, keyToCheck);	        
+	        if (lockExists) {
+	        	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+	          throw new LockNotAvailableException(
+	              String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
+	        }
         	
-        	final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration
-        	
+        	final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration        	
         	if (StringUtils.isEmpty(token)) {
-          	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+          	LOGGER.info("Lock not acquired for keys: " + keys + " in store: " + storeId);
             throw new LockNotAvailableException(
-                String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));          		
+                String.format("Lock not acquired for keys %s in store %s", keys, storeId));          		
         	}
         	
         	LOGGER.info("Lock acquired for keys: " + keys + " in store: " + storeId);
         	return true;
-        	
-//          final boolean lockExists = mongoLock.exists(storeID, token);
-//          
-//          if (lockExists) {
-//          	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
-//            throw new LockNotAvailableException(
-//                String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
-//          }
-//          
-//          LOGGER.info("Lock acquired for keys: " + keys + " in store: " + storeId);
-//          return lockExists;
         });
       } else {
         LOGGER.info("No Acquire Lock Key Found!");
