@@ -74,29 +74,32 @@ public class LockManagerImpl implements LockManager {
         String storeId = key;
         final List<String> keys = new LinkedList<>();
         keys.add(storeId);
-        
-        LOGGER.info("Start acquire lock");
-        final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration
-        LOGGER.info("End acquire lock");
-
-        if (StringUtils.isEmpty(token)) {
-        	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+              	
+        RetryTemplate retryTemplate = getRetryTemplate(timeout);
+        retryTemplate.execute(ctx -> {
         	
-          RetryTemplate retryTemplate = getRetryTemplate(timeout);
-          retryTemplate.execute(ctx -> {
-            final boolean lockExists = mongoLock.exists(storeID, token);
-            
-            if (lockExists) {
-            	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
-              throw new LockNotAvailableException(
-                  String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
-            }
-            return lockExists;
-          });
-        }
-        else {
-        	LOGGER.info("Lock acquired with token: " + token);	
-        }
+        	final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration
+        	
+        	if (StringUtils.isEmpty(token)) {
+          	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+            throw new LockNotAvailableException(
+                String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));          		
+        	}
+        	
+        	LOGGER.info("Lock acquired for keys: " + keys + " in store: " + storeId);
+        	return true;
+        	
+//          final boolean lockExists = mongoLock.exists(storeID, token);
+//          
+//          if (lockExists) {
+//          	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+//            throw new LockNotAvailableException(
+//                String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
+//          }
+//          
+//          LOGGER.info("Lock acquired for keys: " + keys + " in store: " + storeId);
+//          return lockExists;
+        });
       } else {
         LOGGER.info("No Acquire Lock Key Found!");
       }
