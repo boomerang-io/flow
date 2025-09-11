@@ -4,6 +4,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -12,9 +13,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.retry.backoff.FixedBackOffPolicy;
 import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.retry.policy.TimeoutRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
+
 import com.github.alturkovic.lock.exception.LockNotAvailableException;
+
 import io.boomerang.model.Task;
 import io.boomerang.mongo.service.MongoConfiguration;
 import io.boomerang.service.PropertyManager;
@@ -38,7 +42,7 @@ public class LockManagerImpl implements LockManager {
   public void acquireLock(Task taskExecution, String activityId) {
 
 
-    long timeout = 60000;
+    long timeout = 7200000L;	// 2 hours timeout default
     String key = null;
 
     if (taskExecution != null) {
@@ -51,7 +55,7 @@ public class LockManagerImpl implements LockManager {
       if (properties.get("timeout") != null) {
         String timeoutStr = properties.get("timeout");
         if (!timeoutStr.isBlank() && NumberUtils.isCreatable(timeoutStr)) {
-          timeout = Long.valueOf(timeoutStr);
+          timeout = Long.valueOf(timeoutStr) * 1000L;
         }
       }
       
@@ -62,10 +66,7 @@ public class LockManagerImpl implements LockManager {
         key = propertyManager.replaceValueWithProperty(key, activityId, propertiesList);
       }      
       
-      if (key != null) {
-      	
-      	LOGGER.info("Lock key: " + key);
-      	
+      if (key != null) {      	
         final String test = key;
         Supplier<String> supplier = () -> test;
         String storeID = mongoConfiguration.fullCollectionName("tasks_locks");
@@ -73,42 +74,36 @@ public class LockManagerImpl implements LockManager {
         String storeId = key;
         final List<String> keys = new LinkedList<>();
         keys.add(storeId);
-
+        
         LOGGER.info("Start acquire lock");
-//        final String token = mongoLock.acquire(keys, storeID, timeout);
         final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration
         LOGGER.info("End acquire lock");
 
         if (StringUtils.isEmpty(token)) {
-        	LOGGER.info("token: [empty]");
-          /** TODO: What to do here. */
-          throw new LockNotAvailableException(
-              String.format("Lock not available for keys: %s in store %s", keys, storeId));
+        	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+        	
+          RetryTemplate retryTemplate = getRetryTemplate(timeout);
+          retryTemplate.execute(ctx -> {
+            final boolean lockExists = mongoLock.exists(storeID, token);
+            
+            if (lockExists) {
+            	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+              throw new LockNotAvailableException(
+                  String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
+            }
+            return lockExists;
+          });
         }
-        
-        LOGGER.info("Lock acquired with token: " + token);
-
-        RetryTemplate retryTemplate = getRetryTemplate();
-        retryTemplate.execute(ctx -> {
-          final boolean lockExists = mongoLock.exists(storeID, token);
-          
-          LOGGER.info("Lock exists: " + lockExists);
-          
-          if (lockExists) {
-          	LOGGER.info("Lock exists: LockNotAvailableException");
-            throw new LockNotAvailableException(
-                String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
-          }
-          return lockExists;
-        });
-
+        else {
+        	LOGGER.info("Lock acquired with token: " + token);	
+        }
       } else {
         LOGGER.info("No Acquire Lock Key Found!");
       }
     }
   }
 
-  private RetryTemplate getRetryTemplate() {
+  private RetryTemplate getRetryTemplate(long timeout) {
     RetryTemplate retryTemplate = new RetryTemplate();
     FixedBackOffPolicy fixedBackOffPolicy = new FixedBackOffPolicy();
     fixedBackOffPolicy.setBackOffPeriod(10000l);
@@ -116,6 +111,9 @@ public class LockManagerImpl implements LockManager {
     SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy();
     retryPolicy.setMaxAttempts(Integer.MAX_VALUE);
     retryTemplate.setRetryPolicy(retryPolicy);
+    TimeoutRetryPolicy policy = new TimeoutRetryPolicy();
+    policy.setTimeout(timeout);
+    retryTemplate.setRetryPolicy(policy);
     return retryTemplate;
   }
 
