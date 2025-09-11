@@ -43,7 +43,7 @@ public class LockManagerImpl implements LockManager {
 
     if (taskExecution != null) {
     	
-    	LOGGER.info("taskExecution: " + taskExecution.getWorkflowId());
+    	LOGGER.info("taskExecution.taskActivityId: " + taskExecution.getTaskActivityId());
       
       String workflowId = taskExecution.getWorkflowId();
 
@@ -62,11 +62,9 @@ public class LockManagerImpl implements LockManager {
         key = propertyManager.replaceValueWithProperty(key, activityId, propertiesList);
       }      
       
-      LOGGER.info("after key retrieval");
-      
       if (key != null) {
       	
-      	LOGGER.info("key: " + key);
+      	LOGGER.info("Lock key: " + key);
       	
         final String test = key;
         Supplier<String> supplier = () -> test;
@@ -76,9 +74,10 @@ public class LockManagerImpl implements LockManager {
         final List<String> keys = new LinkedList<>();
         keys.add(storeId);
 
-        final String token = mongoLock.acquire(keys, storeID, timeout);
-        
-        LOGGER.info("token: " + token);
+        LOGGER.info("Start acquire lock");
+//        final String token = mongoLock.acquire(keys, storeID, timeout);
+        final String token = mongoLock.acquire(keys, storeID, Long.MAX_VALUE);
+        LOGGER.info("End acquire lock");
 
         if (StringUtils.isEmpty(token)) {
         	LOGGER.info("token: [empty]");
@@ -86,14 +85,17 @@ public class LockManagerImpl implements LockManager {
           throw new LockNotAvailableException(
               String.format("Lock not available for keys: %s in store %s", keys, storeId));
         }
+        
+        LOGGER.info("Lock acquired with token: " + token);
 
         RetryTemplate retryTemplate = getRetryTemplate();
         retryTemplate.execute(ctx -> {
           final boolean lockExists = mongoLock.exists(storeID, token);
           
-          LOGGER.info("lockExists: " + lockExists);
+          LOGGER.info("Lock exists: " + lockExists);
           
           if (lockExists) {
+          	LOGGER.info("Lock exists: LockNotAvailableException");
             throw new LockNotAvailableException(
                 String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
           }
