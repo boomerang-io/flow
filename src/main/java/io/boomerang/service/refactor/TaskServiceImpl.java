@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,8 +21,10 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
 import com.github.alturkovic.lock.Lock;
 import com.github.alturkovic.lock.exception.LockNotAvailableException;
+
 import io.boomerang.model.ApprovalStatus;
 import io.boomerang.model.RequestFlowExecution;
 import io.boomerang.model.Task;
@@ -356,13 +359,15 @@ public class TaskServiceImpl implements TaskService {
 
     LOGGER.debug("[{}] Creating lock: ", task.getTaskActivityId());
 
-    lockManager.acquireLock(task, activity.getId());
-
-    LOGGER.debug("[{}] Finishing lock: ", task.getTaskActivityId());
-
     InternalTaskResponse response = new InternalTaskResponse();
     response.setActivityId(task.getTaskActivityId());
-    response.setStatus(TaskStatus.completed);
+    try {
+    	lockManager.acquireLock(task, activity.getId());
+      response.setStatus(TaskStatus.completed);
+    }
+    catch (LockNotAvailableException e) {
+      response.setStatus(TaskStatus.failure);
+    }
     this.endTask(response);
   }
 

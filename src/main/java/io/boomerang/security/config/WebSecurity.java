@@ -72,7 +72,7 @@ public class WebSecurity {
     return authConfig.getAuthenticationManager();
   }
 
-  @Bean
+  // @Bean
   public SecurityFilterChain setupJWT(HttpSecurity http)
       throws Exception {
     final FlowAuthorizationFilter jwtFilter = new FlowAuthorizationFilter(tokenService,
@@ -92,7 +92,7 @@ public class WebSecurity {
 
   }
 
-  @Bean
+  // @Bean
   public SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
     return http.csrf(csrf -> csrf.disable())
         .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin"))).build();

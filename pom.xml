@@ -14,7 +14,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.3.9</version>
+		<version>3.4.5</version>
 		<relativePath />
 	</parent>
 
@@ -67,6 +67,21 @@
 				<groupId>org.springframework.security</groupId>
 				<artifactId>spring-security-crypto</artifactId>
 				<version>6.3.8</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-core</artifactId>
+				<version>10.1.42</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springframework</groupId>
+				<artifactId>spring-web</artifactId>
+				<version>6.2.8</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springframework.security</groupId>
+				<artifactId>spring-security-core</artifactId>
+				<version>6.4.6</version>
 			</dependency>
 
 		</dependencies>
@@ -149,6 +164,7 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-context</artifactId>
+			<version>6.2.7</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
@@ -284,8 +300,13 @@
 		<dependency>
 			<groupId>org.apache.httpcomponents.client5</groupId>
 			<artifactId>httpclient5</artifactId>
-			<version>5.2</version>
+			<!-- <version>5.2</version> -->
 		</dependency>
+		<!-- <dependency>
+			<groupId>org.apache.httpcomponents.core5</groupId>
+			<artifactId>httpcore5-h2</artifactId>
+			<version>5.2</version>
+		</dependency> -->
 		<dependency>
 			<groupId>io.boomerang</groupId>
 			<artifactId>lib-eventing</artifactId>
