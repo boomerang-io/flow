@@ -67,19 +67,17 @@ public class LockManagerImpl implements LockManager {
       }      
       
       if (key != null) {      	
-        final String test = key;
-        Supplier<String> supplier = () -> test;
+        final String lockKey = key;
+        Supplier<String> supplier = () -> lockKey;
         String storeID = mongoConfiguration.fullCollectionName("tasks_locks");
         FlowMongoLock mongoLock = new FlowMongoLock(supplier, this.mongoTemplate);
         String storeId = key;
         final List<String> keys = new LinkedList<>();
         keys.add(storeId);
-        
-        final String keyToCheck = key;
               	
         RetryTemplate retryTemplate = getRetryTemplate(timeout);
         retryTemplate.execute(ctx -> {        	        	        	
-	        final boolean lockExists = mongoLock.exists(storeID, keyToCheck);	        
+	        final boolean lockExists = mongoLock.exists(storeID, lockKey);	        
 	        if (lockExists) {
 	        	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
 	          throw new LockNotAvailableException(
