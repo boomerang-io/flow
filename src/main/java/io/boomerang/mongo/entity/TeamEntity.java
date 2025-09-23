@@ -10,6 +10,7 @@ import io.boomerang.mongo.model.ApproverGroup;
 import io.boomerang.mongo.model.KeyValuePair;
 import io.boomerang.mongo.model.Quotas;
 import io.boomerang.mongo.model.Settings;
+import javax.validation.constraints.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)

@@ -29,6 +29,8 @@ import io.boomerang.mongo.model.KeyValuePair;
 import io.boomerang.security.service.UserValidationService;
 import io.boomerang.service.UserIdentityService;
 import io.boomerang.service.crud.TeamService;
+import javax.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 
 
 @RestController
