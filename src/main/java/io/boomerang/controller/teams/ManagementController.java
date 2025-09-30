@@ -29,9 +29,8 @@ import io.boomerang.mongo.model.KeyValuePair;
 import io.boomerang.security.service.UserValidationService;
 import io.boomerang.service.UserIdentityService;
 import io.boomerang.service.crud.TeamService;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
-
 
 @RestController
 @RequestMapping("/workflow/manage")
@@ -79,7 +78,6 @@ public class ManagementController {
     }
     return new FlowUserEntity();
   }
-
 
   @GetMapping(value = "/users")
   public UserQueryResult getUsers(@RequestParam(required = false) String query,
@@ -131,7 +129,6 @@ public class ManagementController {
       teamService.deactivateTeam(teamId);
     }
   }
-
 
   @PatchMapping(value = "/teams/{teamId}/members")
   public void updateTeamMembers(@PathVariable String teamId,
