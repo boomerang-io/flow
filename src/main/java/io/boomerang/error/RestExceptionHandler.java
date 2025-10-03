@@ -27,9 +27,9 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
   @Autowired
   private MessageSource messageSource;
 
-  @ExceptionHandler({ BoomerangException.class })
-  public ResponseEntity<Object> handleBoomerangException(
-      BoomerangException ex, WebRequest request) {
+  @ExceptionHandler({BoomerangException.class})
+  public ResponseEntity<Object> handleBoomerangException(BoomerangException ex,
+      WebRequest request) {
 
     BoomerangError error = new BoomerangError();
     ErrorDetail errorDetail = new ErrorDetail();
@@ -41,13 +41,12 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     error.setError(errorDetail);
 
-    return new ResponseEntity<>(
-        error, new HttpHeaders(), ex.getHttpStatus());
+    return new ResponseEntity<>(error, new HttpHeaders(), ex.getHttpStatus());
   }
 
   @Override
-  protected ResponseEntity<Object> handleMethodArgumentNotValid(
-      MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+  protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+      HttpHeaders headers, HttpStatusCode status, WebRequest request) {
 
     // Create response structure
     Map<String, Object> response = new HashMap<>();

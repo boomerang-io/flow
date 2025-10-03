@@ -22,8 +22,9 @@ public class TeamEntity {
   @Id
   private String id;
   private Boolean isActive;
-
-  @Pattern(regexp = "^[a-zA-Z0-9 _.-]+$", message = "Name can only contain letters, numbers, spaces, dashes (-), underscores (_), and periods (.)")
+  
+  @Pattern(regexp = "^[a-zA-Z0-9 _.-]+$",
+      message = "Name can only contain letters, numbers, spaces, dashes (-), underscores (_), and periods (.)")
   private String name;
 
   private Settings settings;
