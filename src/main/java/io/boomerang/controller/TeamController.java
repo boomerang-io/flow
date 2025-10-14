@@ -110,6 +110,7 @@ public class TeamController {
 
   @PutMapping(value = "/teams/{teamId}/quotas/default")
   public WorkflowQuotas resetTeamQuotas(@PathVariable String teamId) {
+    userValidationService.validateUserForTeam(teamId);
     return flowTeamService.resetTeamQuotas(teamId);
   }
 

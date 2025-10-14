@@ -141,6 +141,7 @@ public class ManagementController {
   @PatchMapping("/teams/{teamId}/labels")
   public TeamEntity updateTeamLabels(@PathVariable String teamId,
       @RequestBody List<KeyValuePair> labels) {
+    userValidationService.validateUserAdminOrOperator();
     if (isTeamManagementAvaliable()) {
       return teamService.updateTeamLabels(teamId, labels);
     }

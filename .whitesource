@@ -1,0 +1,19 @@
+{
+    "settingsInheritedFrom": "whitesource-config/whitesource-config@master",
+    "scanSettingsSAST": {
+        "enableScan": true
+    },
+    "remediateSettings": {
+        "workflowRules": {
+            "enabled": true
+        },
+        "enableRenovate": true,
+        "extends": [
+            "config:recommended",
+            "mergeConfidence:all-badges"
+        ]
+    },
+    "leastVulnerablePackageSettings": {
+        "enabled": true
+    }
+}
