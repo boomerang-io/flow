@@ -10,6 +10,7 @@ import io.boomerang.mongo.model.ApproverGroup;
 import io.boomerang.mongo.model.KeyValuePair;
 import io.boomerang.mongo.model.Quotas;
 import io.boomerang.mongo.model.Settings;
+import jakarta.validation.constraints.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
@@ -21,7 +22,9 @@ public class TeamEntity {
   @Id
   private String id;
   private Boolean isActive;
-
+  
+  @Pattern(regexp = "^[a-zA-Z0-9 _.-]+$",
+      message = "Name can only contain letters, numbers, spaces, dashes (-), underscores (_), and periods (.)")
   private String name;
 
   private Settings settings;
@@ -30,7 +33,7 @@ public class TeamEntity {
   private List<ApproverGroup> approverGroups;
 
   private List<KeyValuePair> labels;
-  
+
   private List<String> userRoles;
 
   public String getHigherLevelGroupId() {
@@ -102,7 +105,7 @@ public class TeamEntity {
   }
 
   public void setUserRoles(List<String> userRoles) {
-	this.userRoles = userRoles;
+    this.userRoles = userRoles;
   }
 
 }

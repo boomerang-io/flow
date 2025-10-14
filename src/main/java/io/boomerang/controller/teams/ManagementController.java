@@ -29,9 +29,12 @@ import io.boomerang.mongo.model.KeyValuePair;
 import io.boomerang.security.service.UserValidationService;
 import io.boomerang.service.UserIdentityService;
 import io.boomerang.service.crud.TeamService;
+import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 
 @RestController
 @RequestMapping("/workflow/manage")
+@Validated
 public class ManagementController {
 
   @Value("${flow.externalUrl.team}")
@@ -111,7 +114,7 @@ public class ManagementController {
   }
 
   @PostMapping(value = "/teams")
-  public FlowTeam addTeam(@RequestBody FlowTeam flowTeam) {
+  public FlowTeam addTeam(@Valid @RequestBody FlowTeam flowTeam) {
     userValidationService.validateUserAdminOrOperator();
     if (isTeamManagementAvaliable()) {
       String teamName = flowTeam.getName();
