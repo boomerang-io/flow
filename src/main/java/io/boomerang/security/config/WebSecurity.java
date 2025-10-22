@@ -63,7 +63,6 @@ public class WebSecurity {
     } else {
       return setupNone(http);
     }
-     
 
   }
 
@@ -79,11 +78,11 @@ public class WebSecurity {
         authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)), flowUserService,
         flowSettingsService, basicPassword);
 
-    return http.csrf(csrf -> csrf.disable())
+    return http.csrf(csrf -> csrf.ignoringRequestMatchers("/internal/**"))
         .authorizeHttpRequests(
-        		authorize -> authorize
-            .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
-            .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll())
+            authorize -> authorize
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+                .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll())
         .authorizeHttpRequests(request -> {
           request.anyRequest().authenticated();
         })
@@ -94,7 +93,7 @@ public class WebSecurity {
 
   // @Bean
   public SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
-    return http.csrf(csrf -> csrf.disable())
+    return http.csrf(csrf -> csrf.ignoringRequestMatchers("/internal/**"))
         .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin"))).build();
   }
 
