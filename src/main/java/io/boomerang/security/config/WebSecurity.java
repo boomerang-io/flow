@@ -26,15 +26,10 @@ import jakarta.servlet.DispatcherType;
 public class WebSecurity {
 
   private static final String INFO = "/info";
-
   private static final String API_DOCS = "/apis/docs/**";
-
   private static final String HEALTH = "/health";
-
   private static final String INTERNAL = "/internal/**";
-
   private static final String WEBJARS = "/webjars/**";
-
   private static final String SLACK_INSTALL = "/apis/v1/extensions/slack/install";
 
   @Value("${jwt.secret:secret}")
@@ -56,45 +51,53 @@ public class WebSecurity {
   private String basicPassword;
 
   @Bean
-  public SecurityFilterChain configure(HttpSecurity http) throws Exception {
+  public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+    return authConfig.getAuthenticationManager();
+  }
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
     if (boomerangAuthorization) {
       return setupJWT(http);
     } else {
       return setupNone(http);
     }
-
   }
 
-  @Bean
-  public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-    return authConfig.getAuthenticationManager();
-  }
+  private SecurityFilterChain setupJWT(HttpSecurity http) throws Exception {
+    final FlowAuthorizationFilter jwtFilter = new FlowAuthorizationFilter(
+        tokenService,
+        authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)),
+        flowUserService,
+        flowSettingsService,
+        basicPassword);
 
-  // @Bean
-  public SecurityFilterChain setupJWT(HttpSecurity http)
-      throws Exception {
-    final FlowAuthorizationFilter jwtFilter = new FlowAuthorizationFilter(tokenService,
-        authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)), flowUserService,
-        flowSettingsService, basicPassword);
+    http
+        // Disable CSRF for internal calls and async dispatchers
+        .csrf(csrf -> csrf.ignoringRequestMatchers(INTERNAL, HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL))
 
-    return http.csrf(csrf -> csrf.disable())
-        .authorizeHttpRequests(
-            authorize -> authorize
-                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
-                .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll())
-        .authorizeHttpRequests(request -> {
-          request.anyRequest().authenticated();
-        })
+        // Authorize requests in one chain (important in 6.5+)
+        .authorizeHttpRequests(auth -> auth
+            .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+            .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll()
+            .anyRequest().authenticated())
+
         .addFilterBefore(jwtFilter, BasicAuthenticationFilter.class)
-        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).build();
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+    return http.build();
   }
 
-  // @Bean
-  public SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
-    return http.csrf(csrf -> csrf.disable())
-        .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin"))).build();
-  }
+  private SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
+    http
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(auth -> auth
+            .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+            .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll()
+            .anyRequest().permitAll())
+        .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin")));
 
+    return http.build();
+  }
 }
