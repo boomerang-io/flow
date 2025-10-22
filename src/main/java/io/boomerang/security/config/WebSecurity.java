@@ -78,7 +78,7 @@ public class WebSecurity {
         authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)), flowUserService,
         flowSettingsService, basicPassword);
 
-    return http.csrf(csrf -> csrf.ignoringRequestMatchers("/internal/**"))
+    return http.csrf(csrf -> csrf.disable())
         .authorizeHttpRequests(
             authorize -> authorize
                 .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
@@ -93,7 +93,7 @@ public class WebSecurity {
 
   // @Bean
   public SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
-    return http.csrf(csrf -> csrf.ignoringRequestMatchers("/internal/**"))
+    return http.csrf(csrf -> csrf.disable())
         .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin"))).build();
   }
 
