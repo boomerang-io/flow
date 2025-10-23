@@ -57,13 +57,11 @@ public class WebSecurity {
 
   @Bean
   public SecurityFilterChain configure(HttpSecurity http) throws Exception {
-
     if (boomerangAuthorization) {
       return setupJWT(http);
     } else {
       return setupNone(http);
     }
-
   }
 
   @Bean
@@ -71,9 +69,7 @@ public class WebSecurity {
     return authConfig.getAuthenticationManager();
   }
 
-  // @Bean
-  public SecurityFilterChain setupJWT(HttpSecurity http)
-      throws Exception {
+  private SecurityFilterChain setupJWT(HttpSecurity http) throws Exception {
     final FlowAuthorizationFilter jwtFilter = new FlowAuthorizationFilter(tokenService,
         authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)), flowUserService,
         flowSettingsService, basicPassword);
@@ -84,14 +80,13 @@ public class WebSecurity {
             .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll()
             .anyRequest().authenticated())
         .addFilterBefore(jwtFilter, BasicAuthenticationFilter.class)
-        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).build();
-
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .build();
   }
 
-  // @Bean
-  public SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
+  private SecurityFilterChain setupNone(HttpSecurity http) throws Exception {
     return http.csrf(csrf -> csrf.disable())
-        .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin"))).build();
+        .anonymous(a -> a.authorities(AuthorityUtils.createAuthorityList("ROLE_admin")))
+        .build();
   }
-
 }
