@@ -79,13 +79,10 @@ public class WebSecurity {
         flowSettingsService, basicPassword);
 
     return http.csrf(csrf -> csrf.disable())
-        .authorizeHttpRequests(
-            authorize -> authorize
-                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
-                .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll())
-        .authorizeHttpRequests(request -> {
-          request.anyRequest().authenticated();
-        })
+        .authorizeHttpRequests(authorize -> authorize
+            .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+            .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll()
+            .anyRequest().authenticated())
         .addFilterBefore(jwtFilter, BasicAuthenticationFilter.class)
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).build();
 
