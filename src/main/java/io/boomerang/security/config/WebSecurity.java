@@ -13,6 +13,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import io.boomerang.mongo.service.FlowSettingsService;
 import io.boomerang.mongo.service.FlowTokenService;
@@ -81,11 +82,15 @@ public class WebSecurity {
     return http.csrf(csrf -> csrf.disable())
         .authorizeHttpRequests(authorize -> authorize
             .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
-            .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL).permitAll()
+            .requestMatchers(new AntPathRequestMatcher(HEALTH)).permitAll()
+            .requestMatchers(new AntPathRequestMatcher(API_DOCS)).permitAll()
+            .requestMatchers(new AntPathRequestMatcher(INFO)).permitAll()
+            .requestMatchers(new AntPathRequestMatcher(INTERNAL)).permitAll()
+            .requestMatchers(new AntPathRequestMatcher(WEBJARS)).permitAll()
+            .requestMatchers(new AntPathRequestMatcher(SLACK_INSTALL)).permitAll()
             .anyRequest().authenticated())
         .addFilterBefore(jwtFilter, BasicAuthenticationFilter.class)
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).build();
-
   }
 
   // @Bean
