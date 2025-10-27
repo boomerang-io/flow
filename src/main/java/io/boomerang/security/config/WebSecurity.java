@@ -87,9 +87,10 @@ public class WebSecurity {
             .requestMatchers(new AntPathRequestMatcher(INFO)).permitAll()
             .requestMatchers(new AntPathRequestMatcher(INTERNAL)).permitAll()
             .requestMatchers(new AntPathRequestMatcher(WEBJARS)).permitAll()
-            .requestMatchers(new AntPathRequestMatcher(SLACK_INSTALL)).permitAll())
-        .authorizeHttpRequests(authorize -> authorize
-            .anyRequest().authenticated())
+            .requestMatchers(new AntPathRequestMatcher(SLACK_INSTALL)).permitAll()
+        		.anyRequest().authenticated())
+//        .authorizeHttpRequests(authorize -> authorize
+//            .anyRequest().authenticated())
         .addFilterBefore(jwtFilter, BasicAuthenticationFilter.class)
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).build();
   }
