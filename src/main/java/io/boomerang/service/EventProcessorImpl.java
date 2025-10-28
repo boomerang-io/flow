@@ -8,13 +8,18 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import javax.inject.Inject;
+import javax.validation.Validator;
+
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -28,6 +33,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+
 import io.boomerang.model.FlowActivity;
 import io.boomerang.model.FlowExecutionRequest;
 import io.boomerang.model.eventing.EventResponse;
@@ -37,8 +43,8 @@ import io.boomerang.mongo.model.Triggers;
 import io.boomerang.mongo.model.WorkflowProperty;
 import io.boomerang.service.crud.WorkflowService;
 import io.boomerang.service.refactor.TaskService;
-import io.boomerang.util.ParameterMapper;
 import io.boomerang.util.DataAdapterUtil.FieldType;
+import io.boomerang.util.ParameterMapper;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.v1.AttributesImpl;
 import io.cloudevents.v1.CloudEventBuilder;
@@ -60,6 +66,9 @@ public class EventProcessorImpl implements EventProcessor {
 
   @Autowired
   private TaskService taskService;
+  
+  @Inject
+  private Validator validator;
 
   @Override
   public CloudEventImpl<EventResponse> processHTTPEvent(Map<String, Object> headers,
@@ -139,7 +148,7 @@ public class EventProcessorImpl implements EventProcessor {
       String subject, ZonedDateTime time, EventResponse responseData) {
     final CloudEventImpl<EventResponse> response =
         CloudEventBuilder.<EventResponse>builder().withId(id).withType(type).withSource(source)
-            .withData(responseData).withSubject(subject).withTime(time).build();
+            .withData(responseData).withSubject(subject).withTime(time).withValidator(validator).build();
 
     return response;
   }
