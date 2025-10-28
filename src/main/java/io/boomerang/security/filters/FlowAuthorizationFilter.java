@@ -74,15 +74,19 @@ public class FlowAuthorizationFilter extends BasicAuthenticationFilter {
       MultiReadHttpServletRequest multiReadRequest = new MultiReadHttpServletRequest(req);
       Authentication authentication = null;
       if (multiReadRequest.getHeader(AUTHORIZATION_HEADER) != null) {
+      	LOGGER.info("Found AUTHORIZATION_HEADER");
         authentication = getUserAuthentication(req);
-      } else if (multiReadRequest.getHeader(X_FORWARDED_EMAIL) != null) { 
+      } else if (multiReadRequest.getHeader(X_FORWARDED_EMAIL) != null) {
+      	LOGGER.info("Found X_FORWARDED_EMAIL");
         authentication = getGithubUserAuthentication(req);
       }
       else if (multiReadRequest.getHeader(X_ACCESS_TOKEN) != null || req.getParameter(TOKEN_URL_PARAM_NAME) != null) {
+      	LOGGER.info("Found X_ACCESS_TOKEN/TOKEN_URL_PARAM_NAME");
         authentication = getTokenBasedAuthentication(req);
       }
 
       if (multiReadRequest.getHeader(X_SLACK_SIGNATURE) != null) {
+      	LOGGER.info("Found X_SLACK_SIGNATURE");
         InputStream inputStream = multiReadRequest.getInputStream();
         byte[] body = StreamUtils.copyToByteArray(inputStream);
         String signature = multiReadRequest.getHeader(X_SLACK_SIGNATURE);
@@ -123,11 +127,13 @@ public class FlowAuthorizationFilter extends BasicAuthenticationFilter {
     if (token != null) {
       final List<GrantedAuthority> authorities = new ArrayList<>();
       if (token.getScope() == TokenScope.global) {
+      	LOGGER.error("Token: TokenScope.global");
         Token t = new GlobalToken();
         final FlowAuthenticationToken authToken = new FlowAuthenticationToken(authorities);
         authToken.setDetails(t);
         return authToken;
       } else if (token.getScope() == TokenScope.team) {
+      	LOGGER.error("Token: TokenScope.team");
         TeamToken t = new TeamToken();
         String teamId = token.getTeamId();
         t.setTeamId(teamId);
@@ -136,6 +142,7 @@ public class FlowAuthorizationFilter extends BasicAuthenticationFilter {
         authToken.setDetails(t);
         return authToken;
       } else if (token.getScope() == TokenScope.user) {
+      	LOGGER.error("Token: TokenScope.user");
         String userId = token.getUserId();
         Optional<FlowUserEntity> user = flowUserService.getUserById(userId);
         if (user.isPresent()) {
