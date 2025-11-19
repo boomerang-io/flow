@@ -11,8 +11,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import javax.inject.Inject;
-import javax.validation.Validator;
+import jakarta.validation.Validator;
 
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
@@ -67,7 +66,7 @@ public class EventProcessorImpl implements EventProcessor {
   @Autowired
   private TaskService taskService;
   
-  @Inject
+  @Autowired
   private Validator validator;
 
   @Override
@@ -148,7 +147,7 @@ public class EventProcessorImpl implements EventProcessor {
       String subject, ZonedDateTime time, EventResponse responseData) {
     final CloudEventImpl<EventResponse> response =
         CloudEventBuilder.<EventResponse>builder().withId(id).withType(type).withSource(source)
-            .withData(responseData).withSubject(subject).withTime(time).withValidator(validator).build();
+            .withData(responseData).withSubject(subject).withTime(time).build();
 
     return response;
   }
