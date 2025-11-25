@@ -6,7 +6,7 @@
 
 	<groupId>net.boomerangplatform</groupId>
 	<artifactId>service-flow</artifactId>
-	<version>3.4.5</version>
+	<version>${version.name}</version>
 	<packaging>jar</packaging>
 	<name>service-flow</name>
 	<description>Service for Flow</description>
