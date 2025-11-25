@@ -11,7 +11,8 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import jakarta.validation.Validator;
+import javax.validation.Validator;
+import javax.inject.Inject;
 
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
@@ -65,8 +66,8 @@ public class EventProcessorImpl implements EventProcessor {
 
   @Autowired
   private TaskService taskService;
-  
-  @Autowired
+
+  @Inject
   private Validator validator;
 
   @Override
@@ -74,8 +75,7 @@ public class EventProcessorImpl implements EventProcessor {
       JsonNode payload) {
 
     ZonedDateTime now = ZonedDateTime.now();
-    String formattedDate =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS").format(now) + 'Z';
+    String formattedDate = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS").format(now) + 'Z';
     JsonNode timeNode = new TextNode(formattedDate);
     ((ObjectNode) payload).set("time", timeNode);
 
@@ -145,9 +145,9 @@ public class EventProcessorImpl implements EventProcessor {
 
   private CloudEventImpl<EventResponse> createResponseEvent(String id, String type, URI source,
       String subject, ZonedDateTime time, EventResponse responseData) {
-    final CloudEventImpl<EventResponse> response =
-        CloudEventBuilder.<EventResponse>builder().withId(id).withType(type).withSource(source)
-            .withData(responseData).withSubject(subject).withTime(time).build();
+    final CloudEventImpl<EventResponse> response = CloudEventBuilder.<EventResponse>builder().withId(id).withType(type)
+        .withSource(source)
+        .withData(responseData).withSubject(subject).withTime(time).withValidator(validator).build();
 
     return response;
   }
@@ -163,9 +163,7 @@ public class EventProcessorImpl implements EventProcessor {
 
     EventResponse response = new EventResponse();
 
-
     String subject = event.getAttributes().getSubject().orElse("");
-
 
     logger.info("Logging extension: {}", event.getExtensions());
     if (event.getExtensions() != null) {
@@ -230,8 +228,7 @@ public class EventProcessorImpl implements EventProcessor {
         outputProperties.put("eventPayload", json);
       }
 
-      List<String> taskActivityId =
-          taskService.updateTaskActivityForTopic(workflowActivityId, topic);
+      List<String> taskActivityId = taskService.updateTaskActivityForTopic(workflowActivityId, topic);
       for (String id : taskActivityId) {
         taskService.submitActivity(id, status, outputProperties);
       }
@@ -247,10 +244,12 @@ public class EventProcessorImpl implements EventProcessor {
   }
 
   /*
-   * Loop through a Workflow's parameters and if a JsonPath is set read the event payload and
+   * Loop through a Workflow's parameters and if a JsonPath is set read the event
+   * payload and
    * attempt to find a payload.
    * 
-   * Notes: - We drop exceptions to ensure Workflow continues executing - We return null if path not
+   * Notes: - We drop exceptions to ensure Workflow continues executing - We
+   * return null if path not
    * found using DEFAULT_PATH_LEAF_TO_NULL.
    * 
    * Reference: - https://github.com/json-path/JsonPath#tweaking-configuration
@@ -259,8 +258,7 @@ public class EventProcessorImpl implements EventProcessor {
     Configuration jsonConfig = Configuration.builder().mappingProvider(new JacksonMappingProvider())
         .jsonProvider(new JacksonJsonNodeJsonProvider()).options(Option.DEFAULT_PATH_LEAF_TO_NULL)
         .build();
-    List<WorkflowProperty> inputProperties =
-        workflowService.getWorkflow(workflowId).getProperties();
+    List<WorkflowProperty> inputProperties = workflowService.getWorkflow(workflowId).getProperties();
     Map<String, String> properties = new HashMap<>();
     DocumentContext jsonContext = JsonPath.using(jsonConfig).parse(eventData);
     if (inputProperties != null) {
@@ -288,7 +286,8 @@ public class EventProcessorImpl implements EventProcessor {
     }
     ObjectMapper mapper = new ObjectMapper();
     Map<String, String> payloadProperties = mapper.convertValue(eventData.get("properties"),
-        new TypeReference<Map<String, String>>() {});
+        new TypeReference<Map<String, String>>() {
+        });
     if (payloadProperties != null) {
       properties.putAll(payloadProperties);
     }
@@ -302,7 +301,8 @@ public class EventProcessorImpl implements EventProcessor {
       List<KeyValuePair> propertyList = ParameterMapper.mapToKeyValuePairList(properties);
       Map<String, WorkflowProperty> workflowPropMap = workflow.getProperties().stream().collect(
           Collectors.toMap(WorkflowProperty::getKey, WorkflowProperty -> WorkflowProperty));
-      // Use default value for password-type parameter when user input value is null when executing
+      // Use default value for password-type parameter when user input value is null
+      // when executing
       // workflow.
       propertyList.stream().forEach(p -> {
         if (workflowPropMap.get(p.getKey()) != null
@@ -342,7 +342,8 @@ public class EventProcessorImpl implements EventProcessor {
         if (triggers.getCustom().getEnable()) {
           return topic
               .equals(workflowService.getWorkflow(workflowId).getTriggers().getCustom().getTopic());
-        } ;
+        }
+        ;
     }
     return false;
   }
