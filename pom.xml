@@ -6,7 +6,7 @@
 
 	<groupId>net.boomerangplatform</groupId>
 	<artifactId>service-flow</artifactId>
-	<version>${version.name}</version>
+	<version>1.0.0</version>
 	<packaging>jar</packaging>
 	<name>service-flow</name>
 	<description>Service for Flow</description>
@@ -71,7 +71,7 @@
 			<dependency>
 				<groupId>org.apache.tomcat.embed</groupId>
 				<artifactId>tomcat-embed-core</artifactId>
-				<version>11.0.11</version>
+				<version>11.0.21</version>
 			</dependency>
 			<dependency>
 				<groupId>org.springframework</groupId>
