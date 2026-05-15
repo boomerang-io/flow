@@ -6,7 +6,7 @@
 
 	<groupId>net.boomerangplatform</groupId>
 	<artifactId>service-flow</artifactId>
-	<version>1.0.0</version>
+	<version>${version.name}</version>
 	<packaging>jar</packaging>
 	<name>service-flow</name>
 	<description>Service for Flow</description>
@@ -71,7 +71,7 @@
 			<dependency>
 				<groupId>org.apache.tomcat.embed</groupId>
 				<artifactId>tomcat-embed-core</artifactId>
-				<version>11.0.21</version>
+				<version>11.0.22</version>
 			</dependency>
 			<dependency>
 				<groupId>org.springframework</groupId>
@@ -82,6 +82,16 @@
 				<groupId>org.springframework.security</groupId>
 				<artifactId>spring-security-core</artifactId>
 				<version>6.5.4</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.thrift</groupId>
+				<artifactId>libthrift</artifactId>
+				<version>0.23.0</version>
+			</dependency>
+			<dependency>
+				<groupId>com.mchange</groupId>
+				<artifactId>mchange-commons-java</artifactId>
+				<version>0.4.0</version>
 			</dependency>
 			<!--<dependency>
 				<groupId>org.springframework.boot</groupId>
