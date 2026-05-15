@@ -14,7 +14,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.14</version>
+		<version>3.4.5</version>
 		<relativePath />
 	</parent>
 
@@ -71,7 +71,7 @@
 			<dependency>
 				<groupId>org.apache.tomcat.embed</groupId>
 				<artifactId>tomcat-embed-core</artifactId>
-				<version>11.0.22</version>
+				<version>11.0.11</version>
 			</dependency>
 			<dependency>
 				<groupId>org.springframework</groupId>
@@ -82,16 +82,6 @@
 				<groupId>org.springframework.security</groupId>
 				<artifactId>spring-security-core</artifactId>
 				<version>6.5.4</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.thrift</groupId>
-				<artifactId>libthrift</artifactId>
-				<version>0.23.0</version>
-			</dependency>
-			<dependency>
-				<groupId>com.mchange</groupId>
-				<artifactId>mchange-commons-java</artifactId>
-				<version>0.4.0</version>
 			</dependency>
 			<!--<dependency>
 				<groupId>org.springframework.boot</groupId>
