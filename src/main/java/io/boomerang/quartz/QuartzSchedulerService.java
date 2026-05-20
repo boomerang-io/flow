@@ -3,6 +3,8 @@ package io.boomerang.quartz;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +40,23 @@ public class QuartzSchedulerService {
   @Autowired
   private WorkflowScheduleService workflowScheduleService;
 
+  private static final TimeZone DEFAULT_TIMEZONE = TimeZone.getTimeZone("UTC");
+
+  private TimeZone resolveTimeZone(String timezone, String scheduleId) {
+    if (timezone == null || timezone.trim().isEmpty()) {
+      logger.warn("Missing timezone for schedule {}. Defaulting to UTC.", scheduleId);
+      return DEFAULT_TIMEZONE;
+    }
+    try {
+      ZoneId zoneId = ZoneId.of(timezone.trim());
+      return TimeZone.getTimeZone(zoneId);
+    } catch (DateTimeException e) {
+      logger.warn("Invalid timezone '{}' for schedule {}. Defaulting to UTC.", timezone,
+          scheduleId);
+      return DEFAULT_TIMEZONE;
+    }
+  }
+
   /**
    * Get the Quartz Scheduler instance with null-safety check
    */
@@ -63,8 +82,7 @@ public class QuartzSchedulerService {
 
   public void createOrUpdateCronJob(WorkflowScheduleEntity schedule) {
     String cronString = schedule.getCronSchedule();
-    String timezone = schedule.getTimezone();
-    if (cronString != null && timezone != null) {
+    if (cronString != null) {
       boolean validCron = org.quartz.CronExpression.isValidExpression(cronString);
       if (!validCron) {
         logger.info("Invalid CRON: {}. Attempting to convert.", cronString);
@@ -77,9 +95,9 @@ public class QuartzSchedulerService {
           return;
         }
       }
-      TimeZone timeZone = TimeZone.getTimeZone(timezone);
       String scheduleId = schedule.getId();
       String workflowId = schedule.getWorkflowId();
+      TimeZone timeZone = resolveTimeZone(schedule.getTimezone(), scheduleId);
       Scheduler scheduler;
       try {
         scheduler = getScheduler();
@@ -90,10 +108,11 @@ public class QuartzSchedulerService {
       JobDetail jobDetail =
           JobBuilder.newJob(WorkflowExecuteJob.class).withIdentity(scheduleId, workflowId).build();         
 //    TODO: determine if we add a calendar entry for excluded dates
-    CronScheduleBuilder cronScheduleBuilder =
-        CronScheduleBuilder.cronSchedule(cronString).inTimeZone(timeZone);
-    CronTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId)
-        .withSchedule(cronScheduleBuilder).build();
+        CronScheduleBuilder cronScheduleBuilder =
+          CronScheduleBuilder.cronSchedule(cronString).inTimeZone(timeZone)
+            .withMisfireHandlingInstructionFireAndProceed();
+        CronTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId)
+          .withSchedule(cronScheduleBuilder).build();
     
       try {
         if (!scheduler.checkExists(jobDetail.getKey())) {
@@ -115,7 +134,8 @@ public class QuartzSchedulerService {
     String workflowId = schedule.getWorkflowId();
     Scheduler scheduler = getScheduler();
     JobDetail jobDetail = JobBuilder.newJob(WorkflowExecuteJob.class).withIdentity(scheduleId, workflowId).build();
-    SimpleScheduleBuilder simpleScheduleBuilder = SimpleScheduleBuilder.simpleSchedule().withRepeatCount(0);
+    SimpleScheduleBuilder simpleScheduleBuilder = SimpleScheduleBuilder.simpleSchedule()
+        .withRepeatCount(0).withMisfireHandlingInstructionFireNow();
     SimpleTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId).startAt(schedule.getDateSchedule())
         .withSchedule(simpleScheduleBuilder).build();
     try {
