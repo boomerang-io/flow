@@ -34,6 +34,7 @@ public class QuartzConfiguration {
     SchedulerFactoryBean scheduler = new SchedulerFactoryBean();
     scheduler.setApplicationContextSchedulerContextKey("applicationContext");
     scheduler.setWaitForJobsToCompleteOnShutdown(true);
+    scheduler.setAutoStartup(true);
     scheduler.setQuartzProperties(quartzProperties());
     return scheduler;
   }

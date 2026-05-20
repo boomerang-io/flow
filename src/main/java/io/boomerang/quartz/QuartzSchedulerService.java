@@ -71,8 +71,8 @@ public class QuartzSchedulerService {
           scheduler.scheduleJob(jobDetail, trigger);
           logger.info("Scheduled Cron Schedule: {} for Workflow: {}.", scheduleId, workflowId);
         } else {
-          scheduler.rescheduleJob(new TriggerKey(schedule.getId(), schedule.getWorkflowId()),trigger);
-          logger.info("Updated RunOnce Schedule: {} for Workflow: {}.", scheduleId, workflowId);
+          scheduler.rescheduleJob(new TriggerKey(scheduleId, workflowId), trigger);
+          logger.info("Updated Cron Schedule: {} for Workflow: {}.", scheduleId, workflowId);
         }
       } catch (SchedulerException e1) {
         logger.error("Unable to schedule workflow");
