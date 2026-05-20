@@ -38,6 +38,29 @@ public class QuartzSchedulerService {
   @Autowired
   private WorkflowScheduleService workflowScheduleService;
 
+  /**
+   * Get the Quartz Scheduler instance with null-safety check
+   */
+  private Scheduler getScheduler() throws SchedulerException {
+    if (schedulerFactoryBean == null) {
+      throw new SchedulerException("SchedulerFactoryBean is not initialized");
+    }
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    if (scheduler == null) {
+      throw new SchedulerException("Scheduler could not be obtained from SchedulerFactoryBean. Ensure flow.scheduling.enabled=true");
+    }
+    if (!scheduler.isStarted()) {
+      logger.warn("Scheduler is not started, attempting to start it now");
+      try {
+        scheduler.start();
+      } catch (SchedulerException e) {
+        logger.error("Failed to start scheduler", e);
+        throw e;
+      }
+    }
+    return scheduler;
+  }
+
   public void createOrUpdateCronJob(WorkflowScheduleEntity schedule) {
     String cronString = schedule.getCronSchedule();
     String timezone = schedule.getTimezone();
@@ -57,7 +80,13 @@ public class QuartzSchedulerService {
       TimeZone timeZone = TimeZone.getTimeZone(timezone);
       String scheduleId = schedule.getId();
       String workflowId = schedule.getWorkflowId();
-      Scheduler scheduler = schedulerFactoryBean.getScheduler();
+      Scheduler scheduler;
+      try {
+        scheduler = getScheduler();
+      } catch (SchedulerException e) {
+        logger.error("Failed to get scheduler instance", e);
+        return;
+      }
       JobDetail jobDetail =
           JobBuilder.newJob(WorkflowExecuteJob.class).withIdentity(scheduleId, workflowId).build();         
 //    TODO: determine if we add a calendar entry for excluded dates
@@ -84,7 +113,7 @@ public class QuartzSchedulerService {
   public void createOrUpdateRunOnceJob(WorkflowScheduleEntity schedule) throws Exception {
     String scheduleId = schedule.getId();
     String workflowId = schedule.getWorkflowId();
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    Scheduler scheduler = getScheduler();
     JobDetail jobDetail = JobBuilder.newJob(WorkflowExecuteJob.class).withIdentity(scheduleId, workflowId).build();
     SimpleScheduleBuilder simpleScheduleBuilder = SimpleScheduleBuilder.simpleSchedule().withRepeatCount(0);
     SimpleTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId).startAt(schedule.getDateSchedule())
@@ -104,29 +133,29 @@ public class QuartzSchedulerService {
   }
   
   public void pauseJob(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    Scheduler scheduler = getScheduler();
     scheduler.pauseJob(new JobKey(schedule.getId(), schedule.getWorkflowId()));
   }
   
   public void resumeJob(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    Scheduler scheduler = getScheduler();
     scheduler.resumeJob(new JobKey(schedule.getId(), schedule.getWorkflowId()));
   }
   
   public void cancelJob(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    Scheduler scheduler = getScheduler();
     scheduler.deleteJob(new JobKey(schedule.getId(), schedule.getWorkflowId()));
   }
   
   public List<Date> getJobTriggerDates(WorkflowScheduleEntity schedule, Date fromDate, Date toDate) throws SchedulerException {
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    Scheduler scheduler = getScheduler();
     Trigger trigger = scheduler.getTrigger(new TriggerKey(schedule.getId(), schedule.getWorkflowId()));
     logger.info("Retrieving Dates from: " + fromDate.toString() + ", to: " + toDate.toString() + ", for Schedule: " + schedule.getId());
     return org.quartz.TriggerUtils.computeFireTimesBetween((OperableTrigger) trigger, new BaseCalendar(), fromDate, toDate);
   }
   
   public Date getNextTriggerDate(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
+    Scheduler scheduler = getScheduler();
     Trigger trigger = scheduler.getTrigger(new TriggerKey(schedule.getId(), schedule.getWorkflowId()));
     logger.info("Retrieving Next Schedule Date for Schedule: " + schedule.getId());
     return trigger.getNextFireTime();

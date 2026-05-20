@@ -386,7 +386,7 @@
 			<version>3.0.3</version>
 		</dependency>
 		
-		<!-- Explicit Quartz dependency for Spring Boot 3.5.12 compatibility -->
+		<!-- Explicit Quartz dependency for Spring Boot 3.5.14 compatibility -->
 		<dependency>
 			<groupId>org.quartz-scheduler</groupId>
 			<artifactId>quartz</artifactId>
