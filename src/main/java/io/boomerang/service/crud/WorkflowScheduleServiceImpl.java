@@ -203,9 +203,14 @@ public class WorkflowScheduleServiceImpl implements WorkflowScheduleService {
             scheduleEntity.setParameters(propertyList);
           }
           Boolean enableJob = false;
-          if (WorkflowScheduleStatus.active.equals(schedule.getStatus()) && wfEntity.getTriggers().getScheduler().getEnable()) {
-            scheduleEntity.setStatus(WorkflowScheduleStatus.trigger_disabled);
-            enableJob = true;
+          if (WorkflowScheduleStatus.active.equals(schedule.getStatus())) {
+            if (!wfEntity.getTriggers().getScheduler().getEnable()) {
+              // Workflow's scheduler trigger is disabled — mark schedule accordingly
+              scheduleEntity.setStatus(WorkflowScheduleStatus.trigger_disabled);
+            } else {
+              // Trigger is enabled — keep active status and enable the Quartz job
+              enableJob = true;
+            }
           }
           workflowScheduleRepository.saveSchedule(scheduleEntity);
           createOrUpdateSchedule(scheduleEntity, enableJob);
