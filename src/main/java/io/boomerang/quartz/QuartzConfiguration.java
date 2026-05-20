@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.scheduling.quartz.SchedulerFactoryBean;
 import io.boomerang.mongo.service.MongoConfiguration;
+import io.boomerang.scheduler.AutowiringSpringBeanJobFactory;
 
 @Configuration
 @ConditionalOnProperty(
@@ -36,7 +37,13 @@ public class QuartzConfiguration {
     scheduler.setWaitForJobsToCompleteOnShutdown(true);
     scheduler.setAutoStartup(true);
     scheduler.setQuartzProperties(quartzProperties());
+    scheduler.setJobFactory(autowiringSpringBeanJobFactory());
     return scheduler;
+  }
+  
+  @Bean
+  public AutowiringSpringBeanJobFactory autowiringSpringBeanJobFactory() {
+    return new AutowiringSpringBeanJobFactory();
   }
 
 
