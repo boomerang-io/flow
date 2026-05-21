@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.mockito.Mock;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -40,7 +40,7 @@ import io.boomerang.tests.IntegrationTests;
 @WithUserDetails("mdroy@us.ibm.com")
 class ManualTaskExecuteTests extends IntegrationTests {
 
-  @MockBean
+  @Mock
   private UserIdentityService service;
 
   @Test
