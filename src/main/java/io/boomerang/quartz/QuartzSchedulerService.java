@@ -3,8 +3,6 @@ package io.boomerang.quartz;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
-import java.time.DateTimeException;
-import java.time.ZoneId;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,49 +38,10 @@ public class QuartzSchedulerService {
   @Autowired
   private WorkflowScheduleService workflowScheduleService;
 
-  private static final TimeZone DEFAULT_TIMEZONE = TimeZone.getTimeZone("UTC");
-
-  private TimeZone resolveTimeZone(String timezone, String scheduleId) {
-    if (timezone == null || timezone.trim().isEmpty()) {
-      logger.warn("Missing timezone for schedule {}. Defaulting to UTC.", scheduleId);
-      return DEFAULT_TIMEZONE;
-    }
-    try {
-      ZoneId zoneId = ZoneId.of(timezone.trim());
-      return TimeZone.getTimeZone(zoneId);
-    } catch (DateTimeException e) {
-      logger.warn("Invalid timezone '{}' for schedule {}. Defaulting to UTC.", timezone,
-          scheduleId);
-      return DEFAULT_TIMEZONE;
-    }
-  }
-
-  /**
-   * Get the Quartz Scheduler instance with null-safety check
-   */
-  private Scheduler getScheduler() throws SchedulerException {
-    if (schedulerFactoryBean == null) {
-      throw new SchedulerException("SchedulerFactoryBean is not initialized");
-    }
-    Scheduler scheduler = schedulerFactoryBean.getScheduler();
-    if (scheduler == null) {
-      throw new SchedulerException("Scheduler could not be obtained from SchedulerFactoryBean. Ensure flow.scheduling.enabled=true");
-    }
-    if (!scheduler.isStarted()) {
-      logger.warn("Scheduler is not started, attempting to start it now");
-      try {
-        scheduler.start();
-      } catch (SchedulerException e) {
-        logger.error("Failed to start scheduler", e);
-        throw e;
-      }
-    }
-    return scheduler;
-  }
-
   public void createOrUpdateCronJob(WorkflowScheduleEntity schedule) {
     String cronString = schedule.getCronSchedule();
-    if (cronString != null) {
+    String timezone = schedule.getTimezone();
+    if (cronString != null && timezone != null) {
       boolean validCron = org.quartz.CronExpression.isValidExpression(cronString);
       if (!validCron) {
         logger.info("Invalid CRON: {}. Attempting to convert.", cronString);
@@ -95,32 +54,25 @@ public class QuartzSchedulerService {
           return;
         }
       }
+      TimeZone timeZone = TimeZone.getTimeZone(timezone);
       String scheduleId = schedule.getId();
       String workflowId = schedule.getWorkflowId();
-      TimeZone timeZone = resolveTimeZone(schedule.getTimezone(), scheduleId);
-      Scheduler scheduler;
-      try {
-        scheduler = getScheduler();
-      } catch (SchedulerException e) {
-        logger.error("Failed to get scheduler instance", e);
-        return;
-      }
+      Scheduler scheduler = schedulerFactoryBean.getScheduler();
       JobDetail jobDetail =
           JobBuilder.newJob(WorkflowExecuteJob.class).withIdentity(scheduleId, workflowId).build();         
 //    TODO: determine if we add a calendar entry for excluded dates
-        CronScheduleBuilder cronScheduleBuilder =
-          CronScheduleBuilder.cronSchedule(cronString).inTimeZone(timeZone)
-            .withMisfireHandlingInstructionFireAndProceed();
-        CronTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId)
-          .withSchedule(cronScheduleBuilder).build();
+    CronScheduleBuilder cronScheduleBuilder =
+        CronScheduleBuilder.cronSchedule(cronString).inTimeZone(timeZone);
+    CronTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId)
+        .withSchedule(cronScheduleBuilder).build();
     
       try {
         if (!scheduler.checkExists(jobDetail.getKey())) {
           scheduler.scheduleJob(jobDetail, trigger);
           logger.info("Scheduled Cron Schedule: {} for Workflow: {}.", scheduleId, workflowId);
         } else {
-          scheduler.rescheduleJob(new TriggerKey(scheduleId, workflowId), trigger);
-          logger.info("Updated Cron Schedule: {} for Workflow: {}.", scheduleId, workflowId);
+          scheduler.rescheduleJob(new TriggerKey(schedule.getId(), schedule.getWorkflowId()),trigger);
+          logger.info("Updated RunOnce Schedule: {} for Workflow: {}.", scheduleId, workflowId);
         }
       } catch (SchedulerException e1) {
         logger.error("Unable to schedule workflow");
@@ -132,10 +84,9 @@ public class QuartzSchedulerService {
   public void createOrUpdateRunOnceJob(WorkflowScheduleEntity schedule) throws Exception {
     String scheduleId = schedule.getId();
     String workflowId = schedule.getWorkflowId();
-    Scheduler scheduler = getScheduler();
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
     JobDetail jobDetail = JobBuilder.newJob(WorkflowExecuteJob.class).withIdentity(scheduleId, workflowId).build();
-    SimpleScheduleBuilder simpleScheduleBuilder = SimpleScheduleBuilder.simpleSchedule()
-        .withRepeatCount(0).withMisfireHandlingInstructionFireNow();
+    SimpleScheduleBuilder simpleScheduleBuilder = SimpleScheduleBuilder.simpleSchedule().withRepeatCount(0);
     SimpleTrigger trigger = TriggerBuilder.newTrigger().withIdentity(scheduleId, workflowId).startAt(schedule.getDateSchedule())
         .withSchedule(simpleScheduleBuilder).build();
     try {
@@ -153,29 +104,29 @@ public class QuartzSchedulerService {
   }
   
   public void pauseJob(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = getScheduler();
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
     scheduler.pauseJob(new JobKey(schedule.getId(), schedule.getWorkflowId()));
   }
   
   public void resumeJob(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = getScheduler();
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
     scheduler.resumeJob(new JobKey(schedule.getId(), schedule.getWorkflowId()));
   }
   
   public void cancelJob(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = getScheduler();
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
     scheduler.deleteJob(new JobKey(schedule.getId(), schedule.getWorkflowId()));
   }
   
   public List<Date> getJobTriggerDates(WorkflowScheduleEntity schedule, Date fromDate, Date toDate) throws SchedulerException {
-    Scheduler scheduler = getScheduler();
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
     Trigger trigger = scheduler.getTrigger(new TriggerKey(schedule.getId(), schedule.getWorkflowId()));
     logger.info("Retrieving Dates from: " + fromDate.toString() + ", to: " + toDate.toString() + ", for Schedule: " + schedule.getId());
     return org.quartz.TriggerUtils.computeFireTimesBetween((OperableTrigger) trigger, new BaseCalendar(), fromDate, toDate);
   }
   
   public Date getNextTriggerDate(WorkflowScheduleEntity schedule) throws SchedulerException {
-    Scheduler scheduler = getScheduler();
+    Scheduler scheduler = schedulerFactoryBean.getScheduler();
     Trigger trigger = scheduler.getTrigger(new TriggerKey(schedule.getId(), schedule.getWorkflowId()));
     logger.info("Retrieving Next Schedule Date for Schedule: " + schedule.getId());
     return trigger.getNextFireTime();

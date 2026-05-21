@@ -53,17 +53,6 @@ public class WorkflowScheduleServiceImpl implements WorkflowScheduleService {
   
   @Autowired
   private FilterService filterService;
-
-  private static final String DEFAULT_SCHEDULE_TIMEZONE = "UTC";
-
-  private void normalizeCronTimezone(WorkflowScheduleEntity scheduleEntity) {
-    if (WorkflowScheduleType.cron.equals(scheduleEntity.getType())) {
-      String timezone = scheduleEntity.getTimezone();
-      if (timezone == null || timezone.trim().isEmpty()) {
-        scheduleEntity.setTimezone(DEFAULT_SCHEDULE_TIMEZONE);
-      }
-    }
-  }
   
   /*
    * Provides an all encompassing schedule retrieval method with optional filters. Ignores deleted schedules.
@@ -213,16 +202,10 @@ public class WorkflowScheduleServiceImpl implements WorkflowScheduleService {
             List<KeyValuePair> propertyList = ParameterMapper.mapToKeyValuePairList(schedule.getParametersMap());
             scheduleEntity.setParameters(propertyList);
           }
-          normalizeCronTimezone(scheduleEntity);
           Boolean enableJob = false;
-          if (WorkflowScheduleStatus.active.equals(schedule.getStatus())) {
-            if (!wfEntity.getTriggers().getScheduler().getEnable()) {
-              // Workflow's scheduler trigger is disabled — mark schedule accordingly
-              scheduleEntity.setStatus(WorkflowScheduleStatus.trigger_disabled);
-            } else {
-              // Trigger is enabled — keep active status and enable the Quartz job
-              enableJob = true;
-            }
+          if (WorkflowScheduleStatus.active.equals(schedule.getStatus()) && wfEntity.getTriggers().getScheduler().getEnable()) {
+            scheduleEntity.setStatus(WorkflowScheduleStatus.trigger_disabled);
+            enableJob = true;
           }
           workflowScheduleRepository.saveSchedule(scheduleEntity);
           createOrUpdateSchedule(scheduleEntity, enableJob);
@@ -253,7 +236,6 @@ public class WorkflowScheduleServiceImpl implements WorkflowScheduleService {
           List<KeyValuePair> propertyList = ParameterMapper.mapToKeyValuePairList(patchSchedule.getParametersMap());
           scheduleEntity.setParameters(propertyList);
         }
-        normalizeCronTimezone(scheduleEntity);
         
         /*
          * Complex Status checking to determine what can and can't be enabled
