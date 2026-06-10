@@ -119,15 +119,21 @@
 				<version>6.2.10</version>
 			</dependency>
 			<!-- https://mvnrepository.com/artifact/io.netty/netty-codec -->
+			<!-- CVE-2026-45416: netty-handler fixed in 4.2.15.Final -->
 			<dependency>
 				<groupId>io.netty</groupId>
 				<artifactId>netty-codec</artifactId>
-				<version>4.2.13.Final</version>
+				<version>4.2.15.Final</version>
 			</dependency>
 			<dependency>
 				<groupId>io.netty</groupId>
 				<artifactId>netty-codec-dns</artifactId>
-				<version>4.2.13.Final</version>
+				<version>4.2.15.Final</version>
+			</dependency>
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-handler</artifactId>
+				<version>4.2.15.Final</version>
 			</dependency>
 
 		</dependencies>
