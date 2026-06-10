@@ -1,7 +1,4 @@
-FROM eclipse-temurin:17-jdk-alpine
-
-RUN apk update && \
-    apk upgrade --no-cache binutils
+FROM eclipse-temurin:17-jre-alpine
     
 ARG BMRG_TAG
 ENV JAVA_OPTS=""
