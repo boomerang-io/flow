@@ -495,5 +495,16 @@
 			<id>jitpack.io</id>
 			<url>https://jitpack.io</url>
 		</repository>
+		<repository>
+        	<id>central</id>
+        	<name>Maven Central</name>
+        	<url>https://repo.maven.apache.org/maven2</url>
+        	<releases>
+            	<enabled>true</enabled>
+        	</releases>
+        	<snapshots>
+        	    <enabled>false</enabled>
+        	</snapshots>
+    	</repository>
 	</repositories>
 </project>
