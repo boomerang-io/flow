@@ -487,11 +487,6 @@
 
 	<repositories>
 		<repository>
-			<id>boomeranglib-maven</id>
-			<url>
-				https://tools.boomerangplatform.net/artifactory/boomeranglib-maven</url>
-		</repository>
-		<repository>
 			<id>jitpack.io</id>
 			<url>https://jitpack.io</url>
 		</repository>
@@ -506,5 +501,10 @@
         	    <enabled>false</enabled>
         	</snapshots>
     	</repository>
+		<repository>
+			<id>boomeranglib-maven</id>
+			<url>
+				https://tools.boomerangplatform.net/artifactory/boomeranglib-maven</url>
+		</repository>
 	</repositories>
 </project>
