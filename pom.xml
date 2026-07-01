@@ -186,7 +186,7 @@
 			<artifactId>jackson-dataformat-yaml</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.github.alturkovic</groupId>
+                        <groupId>com.github.alturkovic.distributed-lock</groupId>
 			<artifactId>distributed-lock-mongo</artifactId>
 			<version>3.0.0</version>
 		</dependency>
