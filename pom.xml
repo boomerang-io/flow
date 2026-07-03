@@ -30,7 +30,7 @@
 		<sonar.jacoco.reportPath>${jacoco.out.path}/jacoco.exec</sonar.jacoco.reportPath>
 		<jacoco.version>0.8.9</jacoco.version>
 		<jsonwebtoken.version>0.11.5</jsonwebtoken.version>
-		<spring-security.version>6.5.9</spring-security.version>
+		<spring-security.version>6.5.11</spring-security.version>
 		<!-- <jackson.databind.version>2.13.4</jackson.databind.version> -->
 		<!-- <log4j2.version>2.17.1</log4j2.version> -->
 		<jackson.version>2.18.6</jackson.version>
