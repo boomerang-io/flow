@@ -117,7 +117,7 @@ public class LaunchpadNavigationServiceImpl implements LaunchpadNavigationServic
   }
   
   private NavigationResponse getExternalNavigationResponse(String email) {
-    UriComponents uriComponents = UriComponentsBuilder.fromHttpUrl(platformNavigationUrl).build();
+    UriComponents uriComponents = UriComponentsBuilder.fromUriString(platformNavigationUrl).build();
     HttpHeaders headers = buildHeaders(email);
     HttpEntity<String> requestUpdate = new HttpEntity<>("", headers);
     ResponseEntity<NavigationResponse> response =

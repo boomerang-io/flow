@@ -23,6 +23,7 @@
 		<java.version>21</java.version>
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
+		<spring-framework.version>7.0.7</spring-framework.version>
 		<http.proxyHost />
 		<http.proxyPort />
 		<jacoco.out.paths>${project.build.directory}</jacoco.out.paths>
@@ -91,7 +92,7 @@
 			<dependency>
 				<groupId>org.springframework</groupId>
 				<artifactId>spring-web</artifactId>
-				<version>6.2.8</version>
+				<version>${spring-framework.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.springframework.security</groupId>
@@ -116,7 +117,7 @@
 			<dependency>
 				<groupId>org.springframework</groupId>
 				<artifactId>spring-beans</artifactId>
-				<version>6.2.10</version>
+				<version>${spring-framework.version}</version>
 			</dependency>
 			<!-- https://mvnrepository.com/artifact/io.netty/netty-codec -->
 			<!-- CVE-2026-45416: netty-handler fixed in 4.2.15.Final -->
@@ -168,8 +169,8 @@
 		</dependency>-->
 		<dependency>
 			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-ui</artifactId>
-			<version>1.8.0</version>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.3</version>
 		</dependency>
 		<dependency>
 			<groupId>org.webjars</groupId>
@@ -239,7 +240,7 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-core</artifactId>
-			<version>6.2.11</version>
+			<version>${spring-framework.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -248,7 +249,7 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-context</artifactId>
-			<version>6.2.7</version>
+			<version>${spring-framework.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
@@ -303,13 +304,13 @@
 		<dependency>
 			<groupId>de.flapdoodle.embed</groupId>
 			<artifactId>de.flapdoodle.embed.mongo</artifactId>
-			<version>4.12.0</version>
+			<version>4.33.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>de.flapdoodle.embed</groupId>
-			<artifactId>de.flapdoodle.embed.mongo.spring3x</artifactId>
-			<version>4.14.0</version>
+			<artifactId>de.flapdoodle.embed.mongo.spring4x</artifactId>
+			<version>4.33.0</version>
 			<scope>test</scope>
 		</dependency>
 

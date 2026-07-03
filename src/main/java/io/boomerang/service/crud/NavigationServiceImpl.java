@@ -191,7 +191,7 @@ public class NavigationServiceImpl implements NavigationService {
     else {
 
       UriComponentsBuilder uriComponentsBuilder =
-          UriComponentsBuilder.fromHttpUrl(flowExternalUrlNavigation);
+          UriComponentsBuilder.fromUriString(flowExternalUrlNavigation);
       UriComponents uriComponents = null;
 
       if (teamId == null || teamId.isBlank()) {

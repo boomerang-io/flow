@@ -40,7 +40,7 @@ public class ExternalUserServiceImpl implements ExternalUserService {
   public UserProfile getInternalUserProfile() {
     try {
       String userEmail = userDetailsService.getUserDetails().getEmail();
-      UriComponents uriComponents = UriComponentsBuilder.fromHttpUrl(externalUserUrl).
+      UriComponents uriComponents = UriComponentsBuilder.fromUriString(externalUserUrl).
           queryParam("userEmail", userEmail).build();
       HttpHeaders headers = buildHeaders(userEmail);
     
@@ -56,7 +56,7 @@ public class ExternalUserServiceImpl implements ExternalUserService {
 
   @Override
   public UserProfile getUserProfileById(String id) {
-    UriComponents uriComponents = UriComponentsBuilder.fromHttpUrl(externalUserUrl).
+    UriComponents uriComponents = UriComponentsBuilder.fromUriString(externalUserUrl).
         queryParam("userId", id).build();
     HttpHeaders headers = buildHeaders(null);
   
