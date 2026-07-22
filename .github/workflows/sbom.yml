@@ -1,0 +1,64 @@
+name: SBOM
+on:
+  # Manual trigger from the Actions tab
+  workflow_dispatch:
+  # Weekly posture scan
+  schedule:
+    - cron: '0 6 * * 1'
+  # Scan on every release tag so a release always has a fresh report behind it
+  push:
+    tags:
+      - 'flow@**'
+      - 'engine@**'
+      - 'agent@**'
+jobs:
+  vuln-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Java and Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+          server-id: github
+          settings-path: ${{ github.workspace }}
+
+      # Build so the scan sees the actual shipped jars (fat jars) and resolved deps
+      - name: Maven Package
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: mvn clean package --batch-mode -Dmaven.test.skip=true -s settings.xml
+
+      - name: Install syft + grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM (CycloneDX)
+        run: syft dir:. -o cyclonedx-json=sbom.cdx.json
+
+      - name: Scan for vulnerabilities
+        run: |
+          # Do not fail the job on findings — this is a reporting workflow.
+          grype sbom:sbom.cdx.json -o json  > grype-report.json || true
+          grype sbom:sbom.cdx.json -o table > grype-table.txt   || true
+
+      - name: Render review to job summary
+        run: |
+          python3 .claude/skills/cve-review/cve-review.py . >> "$GITHUB_STEP_SUMMARY" || \
+            echo "cve-review.py failed to render; see the grype-report.json artifact." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload cve-report
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: cve-report
+          path: |
+            grype-report.json
+            sbom.cdx.json
+            grype-table.txt
+          retention-days: 90

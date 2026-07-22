@@ -1,4 +1,4 @@
-package io.boomerang.core.model;
+package io.boomerang.security.model;
 
 import io.boomerang.security.enums.AuthScope;
 import java.util.List;

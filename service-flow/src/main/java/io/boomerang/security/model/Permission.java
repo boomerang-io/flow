@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 public class Permission {
-  private PermissionResource scope;
+  private PermissionResource resource;
   private PermissionAction action;
 
   public Permission() {}
@@ -16,12 +16,12 @@ public class Permission {
     PermissionResource.valueOf(spread[0]);
   }
 
-  public Permission(PermissionResource scope, PermissionAction action) {
-    this.scope = scope;
+  public Permission(PermissionResource resource, PermissionAction action) {
+    this.resource = resource;
     this.action = action;
   }
 
   public String toString() {
-    return scope + "\\" + action;
+    return resource + "\\" + action;
   }
 }

@@ -15,18 +15,12 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.security.enums.AuthScope;
 import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.security.model.ResolvedPermissions;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -104,7 +98,7 @@ public class TokenService {
     }
 
     // Validate permissions matches the REGEX
-    if (!AuthScope.user.equals(request.getType())) {
+    if (!AuthScope.user.equals(request.getType()) && Objects.isNull(request.getRole())) {
       request
           .getPermissions()
           .forEach(
@@ -113,7 +107,7 @@ public class TokenService {
                   throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
                 }
                 String[] pSplit = p.split("/");
-                LOGGER.debug("Scope: " + PermissionResource.valueOfLabel(pSplit[0]));
+                LOGGER.debug("Resource: " + PermissionResource.valueOfLabel(pSplit[0]));
                 if (PermissionResource.valueOfLabel(pSplit[0]) == null) {
                   throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
                 }
@@ -243,7 +237,6 @@ public class TokenService {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
     List<Criteria> criteriaList = new ArrayList<>();
-
     if (from.isPresent() && !to.isPresent()) {
       Criteria criteria = Criteria.where("creationDate").gte(from.get());
       criteriaList.add(criteria);
