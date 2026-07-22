@@ -1,13 +1,15 @@
 package io.boomerang;
 
+import io.boomerang.engine.AbstractEngineIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class ApplicationTests {
+/*
+ * Extends AbstractEngineIntegrationTest so the context boots against the hermetic Testcontainers
+ * MongoDB rather than requiring a Mongo on localhost:27017 (the JobRunr StorageProvider connects
+ * at context creation).
+ */
+class ApplicationTests extends AbstractEngineIntegrationTest {
 
-	@Test
-	void contextLoads() {
-	}
-
+  @Test
+  void contextLoads() {}
 }

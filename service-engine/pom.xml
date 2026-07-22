@@ -23,6 +23,22 @@
         <sonar.jacoco.reportPath>${jacoco.out.path}/jacoco.exec</sonar.jacoco.reportPath>
         <jacoco.version>0.8.2</jacoco.version>
     </properties>
+    <!-- v5 E0: Testcontainers BOM (test infrastructure only - versions for the test-scoped
+         org.testcontainers dependencies below). No main-scope dependency changes. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <!-- 1.21.x minimum: brings docker-java 3.5.x with API-version negotiation.
+                     Spring Boot 3.4.4's managed 1.20.x pins docker-java 3.4.0 (API 1.32),
+                     which current Docker engines reject (min API 1.40). -->
+                <version>1.21.3</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <dependencies>
         <dependency>
             <groupId>io.boomerang</groupId>
@@ -45,6 +61,24 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- v5 E0 baseline safety net: Testcontainers MongoDB + Awaitility (test scope only).
+             Versions come from the Testcontainers BOM (dependencyManagement) and the
+             Spring Boot parent respectively. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mongodb</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
