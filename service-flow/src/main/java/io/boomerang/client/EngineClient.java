@@ -157,6 +157,11 @@ public class EngineClient {
   @Qualifier("internalRestTemplate")
   public RestTemplate restTemplate;
 
+  // Log streaming: long idle read so quiet streams are not cut; control templates stay at 60s.
+  @Autowired
+  @Qualifier("streamingRestTemplate")
+  public RestTemplate streamingRestTemplate;
+
   /*
    * ************************************** WorkflowRun endpoints
    * **************************************
@@ -871,7 +876,7 @@ public class EngineClient {
       ResponseExtractor<Void> responseExtractor = getResponseExtractor(outputStream, printWriter);
       LOGGER.info("Starting TaskRun[{}] log stream...", taskRunId);
       try {
-        restTemplate.execute(url, HttpMethod.GET, requestCallback, responseExtractor);
+        streamingRestTemplate.execute(url, HttpMethod.GET, requestCallback, responseExtractor);
       } catch (Exception ex) {
         LOGGER.error(ex.toString());
         throw new BoomerangException(

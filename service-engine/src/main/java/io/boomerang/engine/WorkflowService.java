@@ -8,6 +8,7 @@ import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
@@ -589,11 +590,16 @@ public class WorkflowService {
   }
 
   /*
-   * Deletes the Workflow and its Revisions. Cascades to the WorkflowRuns and TaskRuns
+   * Deletes the Workflow and its Revisions. Cascades to the WorkflowRuns and TaskRuns.
+   * Refuses while any WorkflowRun is still executing so running work is not orphaned.
    */
   public void delete(String workflowId) {
     if (workflowId == null || workflowId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    }
+    if (workflowRunRepository.existsByWorkflowRefAndPhaseIn(
+        workflowId, List.of(RunPhase.pending, RunPhase.queued, RunPhase.running))) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_DELETE_IN_FLIGHT_RUNS);
     }
     actionRepository.deleteByWorkflowRef(workflowId);
     taskRunRepository.deleteByWorkflowRef(workflowId);

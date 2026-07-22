@@ -20,6 +20,8 @@ public interface TaskRunRepository extends MongoRepository<TaskRunEntity, String
 
   void deleteByWorkflowRunRef(String workflowRunRef);
 
+  boolean existsByTaskRefAndPhaseIn(String taskRef, List<RunPhase> phases);
+
   List<TaskRunEntity> findByPhaseInAndStatusInAndTypeIn(
       List<RunPhase> phase, List<RunStatus> statuses, List<TaskType> types);
 

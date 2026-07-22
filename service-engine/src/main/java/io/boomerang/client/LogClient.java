@@ -34,8 +34,9 @@ public class LogClient {
   @Value("${flow.agent.logstream.url}")
   private String logStreamURL;
 
+  // Log streaming: long idle read so quiet streams are not cut; control templates stay at 60s.
   @Autowired
-  @Qualifier("insecureRestTemplate")
+  @Qualifier("streamingRestTemplate")
   public RestTemplate restTemplate;
 
   public StreamingResponseBody streamLog(

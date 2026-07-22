@@ -12,6 +12,8 @@ public interface WorkflowRunRepository extends MongoRepository<WorkflowRunEntity
 
   void deleteByWorkflowRef(String workflowRef);
 
+  boolean existsByWorkflowRefAndPhaseIn(String workflowRef, List<RunPhase> phases);
+
   @Query("{ '$or': [ { 'phase': { $in: ?0 }, 'status': { $in: ?1 } }, { 'phase': { $in: ?2 }} ]}")
   List<WorkflowRunEntity> findByPhaseInAndStatusInOrPhaseIn(
       List<RunPhase> phase, List<RunStatus> statuses, List<RunPhase> phaseOr);

@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.common.entity.TaskEntity;
 import io.boomerang.common.entity.TaskRevisionEntity;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskStatus;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
@@ -9,6 +10,7 @@ import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.engine.repository.TaskRepository;
 import io.boomerang.engine.repository.TaskRevisionRepository;
+import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import java.io.UnsupportedEncodingException;
@@ -57,14 +59,17 @@ public class TaskService {
 
   private final TaskRepository taskRepository;
   private final TaskRevisionRepository taskRevisionRepository;
+  private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
 
   public TaskService(
       TaskRepository taskRepository,
       TaskRevisionRepository taskRevisionRepository,
+      TaskRunRepository taskRunRepository,
       MongoTemplate mongoTemplate) {
     this.taskRepository = taskRepository;
     this.taskRevisionRepository = taskRevisionRepository;
+    this.taskRunRepository = taskRunRepository;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -352,7 +357,15 @@ public class TaskService {
     return task;
   }
 
+  /*
+   * Deletes the Task and its revisions. Refuses while any in-flight TaskRun references it —
+   * unpinned workflow tasks resolve "latest" at run time and would lose their definition.
+   */
   public void delete(String name) {
+    if (taskRunRepository.existsByTaskRefAndPhaseIn(
+        name, List.of(RunPhase.pending, RunPhase.queued, RunPhase.running))) {
+      throw new BoomerangException(BoomerangError.TASK_DELETE_IN_USE);
+    }
     taskRevisionRepository.deleteByParentRef(name);
     taskRepository.deleteById(name);
   }

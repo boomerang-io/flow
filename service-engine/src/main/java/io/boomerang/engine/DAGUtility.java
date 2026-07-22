@@ -184,16 +184,17 @@ public class DAGUtility {
             taskRunEntity.setParams(wfRevisionTask.getParams());
           }
           LOGGER.debug("[{}] Task Run Params: {}", wfRunEntity.getId(), taskRunEntity.getParams());
-          Long timeout = 0L;
-          if (wfRunEntity.getAnnotations() != null
-              && !wfRunEntity.getAnnotations().isEmpty()
-              && wfRunEntity.getAnnotations().containsKey("boomerang.io/task-timeout")) {
-            timeout =
-                Long.valueOf(
-                    wfRunEntity.getAnnotations().get("boomerang.io/task-timeout").toString());
-          }
-          if (!Objects.isNull(wfRevisionTask.getTimeout())
-              && wfRevisionTask.getTimeout() < timeout) {
+          // Timeout = the platform default (boomerang.io/task-timeout), or the task's own
+          // value when set and not greater. 0 = unguarded.
+          long timeout =
+              wfRunEntity.getAnnotations() != null
+                      && wfRunEntity.getAnnotations().get("boomerang.io/task-timeout") != null
+                  ? Long.parseLong(
+                      wfRunEntity.getAnnotations().get("boomerang.io/task-timeout").toString())
+                  : 0L;
+          if (wfRevisionTask.getTimeout() != null
+              && wfRevisionTask.getTimeout() > 0
+              && (timeout <= 0 || wfRevisionTask.getTimeout() < timeout)) {
             timeout = wfRevisionTask.getTimeout();
           }
           taskRunEntity.setTimeout(timeout);

@@ -32,6 +32,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 
+/*
+ * Every template carries real transport timeouts: connect 10s, idle read 60s, pool-lease 10s.
+ * Log streaming uses the dedicated streamingRestTemplate (long idle read), never a control template.
+ */
 @Component
 public class RestConfig {
 
@@ -43,10 +47,11 @@ public class RestConfig {
 
   private static final int MAX_ROUTE_CONNECTIONS = 200;
   private static final int MAX_TOTAL_CONNECTIONS = 200;
-  private static final int DEFAULT_KEEP_ALIVE_TIME = Integer.MAX_VALUE;
-  private static final int CONNECTION_TIMEOUT = Integer.MAX_VALUE;
-  private static final int REQUEST_TIMEOUT = Integer.MAX_VALUE;
-  private static final int SOCKET_TIMEOUT = Integer.MAX_VALUE;
+  private static final int CONNECT_TIMEOUT_SECONDS = 10;
+  private static final int READ_TIMEOUT_SECONDS = 60;
+  private static final int POOL_LEASE_TIMEOUT_SECONDS = 10;
+  private static final int STREAMING_READ_MINUTES = 10;
+  private static final int KEEP_ALIVE_MINUTES = 5;
 
   @Bean
   @Qualifier("externalRestTemplate")
@@ -63,6 +68,9 @@ public class RestConfig {
                           "http",
                           this.boomerangProxyHost.get(),
                           Integer.valueOf(this.boomerangProxyPort.get())))
+                  .setDefaultRequestConfig(controlRequestConfig())
+                  .setConnectionManager(poolingConnectionManager())
+                  .setKeepAliveStrategy(connectionKeepAliveStrategy())
                   .build());
       return new RestTemplate(clientHttpRequestFactory);
     }
@@ -73,21 +81,8 @@ public class RestConfig {
   @Qualifier("insecureRestTemplate")
   public RestTemplate insecureRestTemplate()
       throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
-
-    final TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
-    final SSLContext sslContext =
-        SSLContextBuilder.create().loadTrustMaterial(null, acceptingTrustStrategy).build();
-
-    final SSLConnectionSocketFactory csf = new SSLConnectionSocketFactory(sslContext);
-    final CloseableHttpClient httpClient =
-        HttpClients.custom()
-            .setConnectionManager(
-                PoolingHttpClientConnectionManagerBuilder.create().setSSLSocketFactory(csf).build())
-            .build();
-    final HttpComponentsClientHttpRequestFactory requestFactory =
-        new HttpComponentsClientHttpRequestFactory();
-    requestFactory.setHttpClient(httpClient);
-    final RestTemplate restTemplate = new RestTemplate(requestFactory);
+    final RestTemplate restTemplate =
+        new RestTemplate(insecureRequestFactory(Timeout.ofSeconds(READ_TIMEOUT_SECONDS)));
     setRestTemplateInterceptors(restTemplate);
     return restTemplate;
   }
@@ -101,11 +96,49 @@ public class RestConfig {
   @Bean
   @Qualifier("selfRestTemplate")
   public RestTemplate selfRestTemplate() {
-    final HttpComponentsClientHttpRequestFactory requestFactory =
-        new HttpComponentsClientHttpRequestFactory();
-    final RestTemplate template = new RestTemplate(requestFactory);
+    final RestTemplate template = new RestTemplate(clientHttpRequestFactory());
     setRestTemplateInterceptors(template);
     return template;
+  }
+
+  /*
+   * Log/byte streaming: long idle read so quiet-but-healthy streams are not cut at the 60s
+   * control read timeout; trust-all SSL as agents may present self-signed certs.
+   */
+  @Bean
+  @Qualifier("streamingRestTemplate")
+  public RestTemplate streamingRestTemplate()
+      throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
+    final RestTemplate restTemplate =
+        new RestTemplate(insecureRequestFactory(Timeout.ofMinutes(STREAMING_READ_MINUTES)));
+    setRestTemplateInterceptors(restTemplate);
+    return restTemplate;
+  }
+
+  private HttpComponentsClientHttpRequestFactory insecureRequestFactory(Timeout socketTimeout)
+      throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
+    final TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
+    final SSLContext sslContext =
+        SSLContextBuilder.create().loadTrustMaterial(null, acceptingTrustStrategy).build();
+    final SSLConnectionSocketFactory csf = new SSLConnectionSocketFactory(sslContext);
+    final CloseableHttpClient httpClient =
+        HttpClients.custom()
+            .setDefaultRequestConfig(controlRequestConfig())
+            .setConnectionManager(
+                PoolingHttpClientConnectionManagerBuilder.create()
+                    .setSSLSocketFactory(csf)
+                    .setDefaultConnectionConfig(
+                        ConnectionConfig.custom()
+                            .setSocketTimeout(socketTimeout)
+                            .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS))
+                            .build())
+                    .build())
+            .setKeepAliveStrategy(connectionKeepAliveStrategy())
+            .build();
+    final HttpComponentsClientHttpRequestFactory requestFactory =
+        new HttpComponentsClientHttpRequestFactory();
+    requestFactory.setHttpClient(httpClient);
+    return requestFactory;
   }
 
   private void setRestTemplateInterceptors(RestTemplate restTemplate) {
@@ -124,15 +157,17 @@ public class RestConfig {
   }
 
   public CloseableHttpClient httpClient() {
-
-    RequestConfig requestConfig =
-        RequestConfig.custom()
-            .setConnectionRequestTimeout(Timeout.ofMinutes(CONNECTION_TIMEOUT))
-            .build();
     return HttpClients.custom()
-        .setDefaultRequestConfig(requestConfig)
+        .setDefaultRequestConfig(controlRequestConfig())
         .setConnectionManager(poolingConnectionManager())
         .setKeepAliveStrategy(connectionKeepAliveStrategy())
+        .build();
+  }
+
+  private RequestConfig controlRequestConfig() {
+    // Pool-lease: fail fast when the pool is exhausted instead of stacking blocked threads.
+    return RequestConfig.custom()
+        .setConnectionRequestTimeout(Timeout.ofSeconds(POOL_LEASE_TIMEOUT_SECONDS))
         .build();
   }
 
@@ -143,15 +178,13 @@ public class RestConfig {
     poolingConnectionManager.setDefaultMaxPerRoute(MAX_ROUTE_CONNECTIONS);
     poolingConnectionManager.setDefaultConnectionConfig(
         ConnectionConfig.custom()
-            .setSocketTimeout(Timeout.ofMinutes(1))
-            .setConnectTimeout(Timeout.ofMinutes(1))
+            .setSocketTimeout(Timeout.ofSeconds(READ_TIMEOUT_SECONDS))
+            .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS))
             .build());
     return poolingConnectionManager;
   }
 
   public ConnectionKeepAliveStrategy connectionKeepAliveStrategy() {
-    return (httpResponse, httpContext) -> {
-      return TimeValue.MAX_VALUE;
-    };
+    return (httpResponse, httpContext) -> TimeValue.ofMinutes(KEEP_ALIVE_MINUTES);
   }
 }
