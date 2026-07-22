@@ -2,8 +2,8 @@ package io.boomerang.engine;
 
 import static java.util.stream.Collectors.groupingBy;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -626,7 +626,7 @@ public class WorkflowRunService {
       String payload = objectMapper.writeValueAsString(request);
       LOGGER.info("Received Request Payload: ");
       LOGGER.info(payload);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       LOGGER.error(e.getStackTrace());
     }
   }

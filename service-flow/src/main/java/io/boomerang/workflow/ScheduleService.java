@@ -562,7 +562,7 @@ public class ScheduleService {
     if (cronSchedule != null && timezone != null) {
       CronExpression cronExpression;
       try {
-        cronExpression = CronExpression.create(cronSchedule);
+        cronExpression = new CronExpression(cronSchedule);
       } catch (Exception e) {
         LOGGER.error("Error validating / creating CRON expression: {}", cronSchedule, e);
         throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_CRON);
@@ -676,7 +676,7 @@ public class ScheduleService {
     ZonedDateTime now = ZonedDateTime.now();
     if (cronString != null && timezone != null) {
       try {
-        CronExpression cronExpression = CronExpression.create(cronString);
+        CronExpression cronExpression = new CronExpression(cronString);
         Instant next =
             cronExpression.next(
                 schedule.getCreationDate().toInstant(),

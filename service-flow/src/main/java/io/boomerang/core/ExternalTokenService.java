@@ -1,13 +1,12 @@
 package io.boomerang.core;
 
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.InvalidKeyException;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.util.Calendar;
 import java.util.Date;
+import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -31,12 +30,12 @@ public class ExternalTokenService {
   private String createToken(String subject, Date expiryDate) {
     String jwt;
     try {
-      Key key = Keys.hmacShaKeyFor(apiToken.getBytes(StandardCharsets.UTF_8));
+      SecretKey key = Keys.hmacShaKeyFor(apiToken.getBytes(StandardCharsets.UTF_8));
       jwt =
           Jwts.builder()
               .claim("email", subject)
-              .setExpiration(expiryDate)
-              .signWith(key, SignatureAlgorithm.HS256)
+              .expiration(expiryDate)
+              .signWith(key, Jwts.SIG.HS256)
               .compact();
     } catch (InvalidKeyException e) {
       return null;

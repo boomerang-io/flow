@@ -22,7 +22,7 @@ jobs:
       - name: Install Java and Maven
         uses: actions/setup-java@v3
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
           server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
@@ -48,7 +48,7 @@ jobs:
       - name: Install Java and Maven
         uses: actions/setup-java@v3
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
           server-id: github # Value of the distributionManagement/repository/id field of the pom.xml

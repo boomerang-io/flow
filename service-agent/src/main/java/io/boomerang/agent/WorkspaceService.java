@@ -1,6 +1,6 @@
 package io.boomerang.agent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.boomerang.agent.model.Response;
 import io.boomerang.agent.model.WorkspaceRequest;
 import io.boomerang.common.model.WorkflowWorkspaceSpec;

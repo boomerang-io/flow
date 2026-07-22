@@ -2,8 +2,8 @@ package io.boomerang.workflow.tekton;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 import io.boomerang.common.model.ParamSpec;
 import io.boomerang.common.model.Task;
 import java.io.IOException;
@@ -91,7 +91,7 @@ class TektonConverterTests {
     String yamlString =
         StreamUtils.copyToString(
             new ClassPathResource(file).getInputStream(), StandardCharsets.UTF_8);
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = new YAMLMapper();
     return mapper.readValue(yamlString, TektonTask.class);
   }
 }

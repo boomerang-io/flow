@@ -16,12 +16,12 @@
     </parent>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <jacoco.out.paths>${project.build.directory}</jacoco.out.paths>
         <sonar.jacoco.reportPath>${jacoco.out.path}/jacoco.exec</sonar.jacoco.reportPath>
-        <jacoco.version>0.8.13</jacoco.version>
+        <jacoco.version>0.8.15</jacoco.version>
     </properties>
     <!-- v5 E0: Testcontainers BOM (test infrastructure only - versions for the test-scoped
          org.testcontainers dependencies below). No main-scope dependency changes. -->
@@ -89,8 +89,8 @@
         </dependency>
         <dependency>
             <groupId>org.jobrunr</groupId>
-            <artifactId>jobrunr-spring-boot-3-starter</artifactId>
-            <version>7.4.1</version>
+            <artifactId>jobrunr-spring-boot-4-starter</artifactId>
+            <version>8.7.1</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.retry</groupId>
@@ -110,7 +110,7 @@
         <dependency>
             <groupId>com.github.alturkovic.distributed-lock</groupId>
             <artifactId>distributed-lock-mongo</artifactId>
-            <version>1.4.3</version>
+            <version>3.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -132,7 +132,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.8.14</version>
+            <version>3.0.3</version>
         </dependency>
         <dependency>
             <groupId>io.cloudevents</groupId>
@@ -166,6 +166,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                    <proc>full</proc>
                     <release>${java.version}</release>
                 </configuration>
             </plugin>

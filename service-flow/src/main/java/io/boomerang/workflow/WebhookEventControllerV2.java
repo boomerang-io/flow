@@ -1,6 +1,6 @@
 package io.boomerang.workflow;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.boomerang.security.AuthCriteria;
 import io.boomerang.security.enums.AuthScope;
 import io.boomerang.security.enums.PermissionAction;

@@ -16,7 +16,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.apache.hc.core5.ssl.TrustStrategy;
@@ -24,7 +24,7 @@ import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
@@ -120,13 +120,13 @@ public class RestConfig {
     final TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
     final SSLContext sslContext =
         SSLContextBuilder.create().loadTrustMaterial(null, acceptingTrustStrategy).build();
-    final SSLConnectionSocketFactory csf = new SSLConnectionSocketFactory(sslContext);
+    final DefaultClientTlsStrategy tlsStrategy = new DefaultClientTlsStrategy(sslContext);
     final CloseableHttpClient httpClient =
         HttpClients.custom()
             .setDefaultRequestConfig(controlRequestConfig())
             .setConnectionManager(
                 PoolingHttpClientConnectionManagerBuilder.create()
-                    .setSSLSocketFactory(csf)
+                    .setTlsSocketStrategy(tlsStrategy)
                     .setDefaultConnectionConfig(
                         ConnectionConfig.custom()
                             .setSocketTimeout(socketTimeout)

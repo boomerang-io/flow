@@ -9,6 +9,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class YamlConfiguration implements WebMvcConfigurer {
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
-        converters.add(new YamlJackson2HttpMessageConverter());
+        converters.add(new YamlJacksonHttpMessageConverter());
     }
 }

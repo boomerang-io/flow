@@ -3,7 +3,7 @@ package io.boomerang.workflow;
 import static io.cloudevents.core.CloudEventUtils.mapData;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.boomerang.client.EngineClient;
 import io.boomerang.common.enums.ParamType;

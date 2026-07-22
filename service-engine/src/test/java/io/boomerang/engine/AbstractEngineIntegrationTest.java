@@ -41,7 +41,7 @@ public abstract class AbstractEngineIntegrationTest {
 
   @DynamicPropertySource
   static void engineTestProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.data.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
+    registry.add("spring.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
     registry.add("flow.mongo.collection.prefix", () -> "flowtest");
     // Keep the JobRunr JobScheduler bean (required at boot) without running background jobs.
     registry.add("org.jobrunr.background-job-server.enabled", () -> "false");

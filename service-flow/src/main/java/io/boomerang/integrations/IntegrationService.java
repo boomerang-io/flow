@@ -1,6 +1,6 @@
 package io.boomerang.integrations;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;

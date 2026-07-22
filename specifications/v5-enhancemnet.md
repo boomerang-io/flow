@@ -731,8 +731,8 @@ evidence (file/class or measurement).
 | JaCoCo              | 0.8.2 (cannot instrument Java 21+) | **0.8.15**                 | 🟡 |
 | Testcontainers      | none (flapdoodle embedded)      | **2.0.5** (`testcontainers-mongodb`, replaces flapdoodle) | 🟡 |
 | cron-utils          | 9.2.1                           | 9.2.1 (dormant but stable)    | ✅ |
-| JobRunr             | 7.4.1                           | ⏸️ defer (Q-227; note: Modulith 2.1 ships JobRunr event externalization — a point FOR keeping it) | ⏸️ |
-| distributed-lock    | 1.4.3                           | ⚠️ delete (Phase 3, post-gating-list) | — |
+| JobRunr             | ~~7.4.1~~ **8.7.1** (forced by Boot 4 — the 3-starter CNFEs on relocated autoconfig; PR3) | ⏸️ deletion still deferred (Q-227). **⚠️ OPS NOTE: JobRunr 8 runs Mongo schema migrations M001–M007 on first boot against production collections** | ⏸️ |
+| distributed-lock    | ~~1.4.3~~ **3.0.0** (forced by Boot 4; PR3 — lock classes compile unchanged) | ⚠️ delete (Phase 3, post-gating-list) | — |
 | lib-scheduling/Quartz | 3.0.3 (Quartz 2.3.2 transitive) | remove (with the scheduling decision) | ⏸️ |
 | Stale pins to delete | spring-retry 1.3.3, snakeyaml 1.33 pin, log4j-web 2.17.1, wiremock-jre8, opentracing/jaeger (archived → Micrometer Tracing), assorted Boot-managed pins | per PR 1/PR 3 | 🟡 |
 

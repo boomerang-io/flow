@@ -8,7 +8,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.logging.log4j.LogManager;
@@ -98,54 +97,49 @@ public class LogService {
       try {
         while (moreLogsAvailable.equals(Boolean.TRUE)) {
           HttpGet request = new HttpGet(uri + start);
-          JSONObject currentLogBatch;
 
-          CloseableHttpResponse response = httpClient.execute(request);
-          try {
-            if (response.getEntity() != null) {
+          // TODO check if result is in JSON format
+          JSONObject currentLogBatch =
+              httpClient.execute(
+                  request,
+                  response ->
+                      (response.getEntity() != null)
+                          ? new JSONObject(EntityUtils.toString(response.getEntity()))
+                          : null);
 
-              // TODO check if result is in JSON format
-              currentLogBatch = new JSONObject(EntityUtils.toString(response.getEntity()));
+          if (currentLogBatch == null) {
+            printWriter.println(getMessageUnableToAccessLogs());
+            printWriter.flush();
+            printWriter.close();
+            return;
+          }
 
-              JSONArray queryResults = currentLogBatch.getJSONObject("data").getJSONArray("result");
-              JSONArray logArray;
-              String logEntry;
+          JSONArray queryResults = currentLogBatch.getJSONObject("data").getJSONArray("result");
+          JSONArray logArray;
+          String logEntry;
 
-              if (queryResults.length() == 0) {
-                printWriter.println(getMessageUnableToAccessLogs());
-                printWriter.flush();
-                printWriter.close();
-                return;
-              }
+          if (queryResults.length() == 0) {
+            printWriter.println(getMessageUnableToAccessLogs());
+            printWriter.flush();
+            printWriter.close();
+            return;
+          }
 
-              if (queryResults.length() > 0) {
-                logArray = queryResults.getJSONObject(0).optJSONArray("values");
+          logArray = queryResults.getJSONObject(0).optJSONArray("values");
 
-                int index = 1;
-                if (start.equals("&start=0")) index = 0; // no prior log line to overlap
+          int index = 1;
+          if (start.equals("&start=0")) index = 0; // no prior log line to overlap
 
-                for (; index < logArray.length(); index++) { // print line by line
-                  logEntry = logArray.getJSONArray(index).get(1).toString();
-                  printWriter.print(logEntry); // TODO: can I generate multiline payloads?
-                }
+          for (; index < logArray.length(); index++) { // print line by line
+            logEntry = logArray.getJSONArray(index).get(1).toString();
+            printWriter.print(logEntry); // TODO: can I generate multiline payloads?
+          }
 
-                if (logArray.length() < limit) { // check if the current iteration is the last one
-                  moreLogsAvailable = Boolean.FALSE;
-                } else {
-                  JSONArray lastEntry = logArray.getJSONArray(logArray.length() - 1);
-                  start = "&start=" + lastEntry.get(0).toString();
-                }
-              } else {
-                moreLogsAvailable = Boolean.FALSE;
-              }
-            } else {
-              printWriter.println(getMessageUnableToAccessLogs());
-              printWriter.flush();
-              printWriter.close();
-              return;
-            }
-          } finally {
-            response.close();
+          if (logArray.length() < limit) { // check if the current iteration is the last one
+            moreLogsAvailable = Boolean.FALSE;
+          } else {
+            JSONArray lastEntry = logArray.getJSONArray(logArray.length() - 1);
+            start = "&start=" + lastEntry.get(0).toString();
           }
         }
       } catch (Exception e) {

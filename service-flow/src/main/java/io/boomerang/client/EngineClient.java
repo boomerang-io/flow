@@ -210,7 +210,7 @@ public class EngineClient {
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(queryWorkflowRunURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryWorkflowRunURL);
       if (queryPage.isPresent()) {
         urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
       }
@@ -278,7 +278,7 @@ public class EngineClient {
       Optional<Long> fromDate,
       Optional<Long> toDate) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(insightWorkflowRunURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(insightWorkflowRunURL);
       if (fromDate.isPresent()) {
         urlBuilder.queryParam("fromDate", fromDate.get());
       }
@@ -322,7 +322,7 @@ public class EngineClient {
       Optional<Long> fromDate,
       Optional<Long> toDate) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(countWorkflowRunURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(countWorkflowRunURL);
       if (fromDate.isPresent()) {
         urlBuilder.queryParam("fromDate", fromDate.get());
       }
@@ -546,7 +546,7 @@ public class EngineClient {
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryWorkflows) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(queryWorkflowURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryWorkflowURL);
       if (queryPage.isPresent()) {
         urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
       }
@@ -593,7 +593,7 @@ public class EngineClient {
       Optional<Long> fromDate,
       Optional<Long> toDate) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(countWorkflowURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(countWorkflowURL);
       if (fromDate.isPresent()) {
         urlBuilder.queryParam("fromDate", fromDate.get());
       }
@@ -948,7 +948,7 @@ public class EngineClient {
       Optional<List<String>> queryStatus,
       List<String> queryRefs) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(queryTaskURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryTaskURL);
       if (queryPage.isPresent()) {
         urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
       }
@@ -1136,7 +1136,7 @@ public class EngineClient {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryNames) {
     try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromHttpUrl(queryWorkflowTemplateURL);
+      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryWorkflowTemplateURL);
       if (queryPage.isPresent()) {
         urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
       }

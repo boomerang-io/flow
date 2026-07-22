@@ -1,9 +1,7 @@
 package io.boomerang.integrations;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.boomerang.integrations.model.GHLinkRequest;
 import io.boomerang.integrations.model.Integration;
 import io.boomerang.security.AuthCriteria;
@@ -138,7 +136,7 @@ public class IntegrationControllerV2 {
       // @RequestHeader("x-slack-request-timestamp") String timestamp,
       // @RequestHeader("x-slack-signature") String signature,
       // @RequestParam MultiValueMap<String, String> slackEvent
-      ) throws JsonMappingException, JsonProcessingException {
+      ) {
     // LOGGER.debug(slackEvent);
     ObjectMapper mapper = new ObjectMapper();
     // JsonNode payload = mapper.readTree(slackEvent.get("payload").get(0));
@@ -169,8 +167,7 @@ public class IntegrationControllerV2 {
       HttpServletRequest request,
       @RequestHeader("x-slack-request-timestamp") String timestamp,
       @RequestHeader("x-slack-signature") String signature,
-      @RequestBody JsonNode payload)
-      throws JsonMappingException, JsonProcessingException {
+      @RequestBody JsonNode payload) {
     LOGGER.info(payload);
     if (payload.has("challenge")) {
       LOGGER.info("Challenge: " + payload.get("challenge"));

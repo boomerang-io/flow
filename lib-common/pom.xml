@@ -10,13 +10,13 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.16</version>
+        <version>4.1.0</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
     </properties>
     <dependencies>
         <dependency>
@@ -24,7 +24,7 @@
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <groupId>tools.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
         <dependency>
@@ -39,6 +39,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                    <proc>full</proc>
                     <release>${maven.compiler.release}</release>
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
