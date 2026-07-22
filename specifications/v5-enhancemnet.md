@@ -833,6 +833,14 @@ Rejected: stay-split + async decoupling (branch B, preserved in the proposal). /
 independent engine version line; `engine@` alias tags for the embedder deprecation
 window. / Rejected: per-service tags + compatibility-set manifest. / 2026-07-22.
 
+**DD-05: The merged deployable module is named `service-core`** — executed during E8's
+Modulith restructuring (`service-flow` → `service-core` via git mv; engine code moves in
+per the nine-module layout; `service-engine` dissolves; CI/image names updated in the
+same change). / Rationale: matches the ARCHIE/CHEER `service-core` convention; keeps
+"engine" unambiguous (an internal module + a `flow.mode` value, never also the app
+name). / Rejected: `service-engine` as the merged name (overloads "engine" three ways);
+renaming immediately (churns CI/poms mid-PR-train). / 2026-07-23.
+
 **DD-04: Frontend joins the monorepo after the merged image ships** — v5 re-baseline of
 `flow.client.web` 3.12.x into the product version; path-filtered CI; webapp only in
 `full`/`standalone` modes. / Rejected: immediate move (would run alongside the heaviest

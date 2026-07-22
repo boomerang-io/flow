@@ -65,6 +65,15 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
   operational data carries `workspaceId` directly and skips the graph.
 - **Do not over-abstract ahead of proven need** (ARCHIE meta-lesson).
 
+## Deployment Constraint — Custom HTTP Client Config Is a Product Requirement
+
+Enterprises run Flow behind private networks, reverse proxies, and internal CAs. The
+custom `RestConfig` (proxy host/port support, trust-all template for self-signed internal
+certs, explicit per-template timeouts, dedicated streaming template) is **a product
+requirement, not incidental plumbing** — every framework upgrade (including any
+RestTemplate → RestClient migration in Boot 4+) must preserve these knobs with equivalent
+behaviour, never "simplify" onto framework defaults.
+
 ## Architecture Invariants — Do Not Violate
 
 - **Status is the only external-facing field.** Phase is internal orchestration state and is

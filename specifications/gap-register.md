@@ -156,6 +156,7 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 | H14 | Frontend fold-in | M | DD-04 after merged image | POST |
 | H15 | **Standing constraint**: no PAUSED/SUPERSEDED statuses; superseded excluded from default responses | guard | Enforce in review | BEFORE (standing) |
 | H16 | Standalone enablers (compose, Docker agent, no-op relationships) | M | Per J8/I3 | POST (Phase 4) |
+| H17 | **Live bug (found by test uplift, 2026-07-23):** `TektonConverter.convertTektonTaskToTaskTemplate` throws ClassCastException whenever a `boomerang.io/params` annotation is present (Jackson yields `List<LinkedHashMap>` blindly cast to `List<AbstractParam>`) — Tekton YAML task import via `TaskControllerV2` fails; two quarantined tests in `TektonConverterTests` flip when fixed | M | Fix with `ObjectMapper.convertValue`; re-enable the quarantined tests | BEFORE (early bugfix, independent) |
 
 ### I. Documentation
 | ID | Gap | Sev | Fix | Tag |
