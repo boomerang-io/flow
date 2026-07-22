@@ -29,7 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -47,7 +47,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 @Disabled
 public class RunWorkflowExecutionTest extends IntegrationTests {
 
-  @SpyBean private TaskClient taskClient;
+  @MockitoSpyBean private TaskClient taskClient;
 
   @Test
   public void testExecution() throws Exception {

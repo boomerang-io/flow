@@ -10,7 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.context.support.WithUserDetails;
@@ -32,7 +32,7 @@ class InsightsControllerTests extends FlowTests {
 
   @Autowired private InsightsController insightsController;
 
-  @MockBean private IdentityService service;
+  @MockitoBean private IdentityService service;
 
   @Test
   void testGetInsightsTeamAndWorkflowFiltered() {

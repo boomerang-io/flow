@@ -9,8 +9,8 @@
     <description>Common library for Flow services</description>
     <parent>
         <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-parent</artifactId>
-        <version>3.2.8</version>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.16</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <properties>
@@ -30,7 +30,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.36</version>
         </dependency>
     </dependencies>
     <build>
