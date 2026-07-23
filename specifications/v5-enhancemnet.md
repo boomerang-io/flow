@@ -849,6 +849,18 @@ Rejected: stay-split + async decoupling (branch B, preserved in the proposal). /
 independent engine version line; `engine@` alias tags for the embedder deprecation
 window. / Rejected: per-service tags + compatibility-set manifest. / 2026-07-22.
 
+**DD-07: Database migrations — flow-loader joins the monorepo, rewritten on Flamingock**
+— a `service-loader` module in this repo, running as today's pre-deploy container/Job
+(one execution per deploy — no N-instance question by construction). Baseline changeunit
+maps the existing loader changelog so live Flow instances no-op through history; all
+changeunits existence-checked/idempotent; heavy data backfills become watcher due-work,
+never loader-blocking. E3's ruled schema ships as this module's first changeunits.
+**Deferred:** folding migrations in-app (run-at-boot inside service-core) is re-decided
+AFTER the E8/E10 merge — if adopted then, Flamingock's migration lock answers "which
+instance runs it" (first-wins, rest wait-and-verify; bootstrap-scope lock, outside the
+zero-runtime-locks doctrine). / Rejected for now: in-app-immediately; keeping the
+separate flow-loader repo/mechanism. / 2026-07-23.
+
 **DD-06: The worker tier is renamed `agent` → `dispatcher` at E7/E8** — the accurate
 name for what it does: registers, polls, claims, **dispatches to a runtime** (Tekton /
 Docker), relays results; it does not host the work. Renames land with the protocol-v2 /
