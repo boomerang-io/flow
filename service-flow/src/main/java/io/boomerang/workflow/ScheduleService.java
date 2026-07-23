@@ -29,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 import org.jobrunr.jobs.JobId;
 import org.jobrunr.scheduling.JobScheduler;
 import org.jobrunr.scheduling.cron.CronExpression;
-import org.quartz.*;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,7 +42,7 @@ import org.springframework.stereotype.Service;
 
 /*
  * Workflow Schedule Service provides all the methods for both the Schedules page and the individual Workflow Schedule
- * and abstracts the quartz implementation.
+ * and abstracts the JobRunr implementation.
  *
  * @since Flow 3.6.0
  */
@@ -437,25 +436,14 @@ public class ScheduleService {
         scheduleRepository.findByWorkflowRefInAndStatusIn(
             List.of(workflowId), List.of(WorkflowScheduleStatus.trigger_disabled));
     if (entities.isPresent()) {
-      entities
-          .get()
-          .forEach(
-              s -> {
-                try {
-                  enableSchedule(team, s.getId());
-                } catch (SchedulerException e) {
-                  // TODO Auto-generated catch block
-                  e.printStackTrace();
-                }
-              });
+      entities.get().forEach(s -> enableSchedule(team, s.getId()));
     }
   }
 
   /*
    * Enables a specific schedule
    */
-  private void enableSchedule(final String team, final String scheduleId)
-      throws SchedulerException {
+  private void enableSchedule(final String team, final String scheduleId) {
     Optional<WorkflowScheduleEntity> optSchedule = scheduleRepository.findById(scheduleId);
     if (optSchedule.isPresent()) {
       WorkflowScheduleEntity scheduleEntity = optSchedule.get();
@@ -507,7 +495,7 @@ public class ScheduleService {
   }
 
   /*
-   * Mark all schedules as deleted and cancel the quartz jobs. This is used when a workflow is deleted.
+   * Mark all schedules as deleted and cancel the scheduled jobs. This is used when a workflow is deleted.
    */
   protected void deleteAllForWorkflow(final String workflowId) {
     final Optional<List<WorkflowScheduleEntity>> entities =
@@ -523,7 +511,7 @@ public class ScheduleService {
   }
 
   /*
-   * Mark a single schedule as deleted and cancel the quartz jobs. Used by the UI when deleting a schedule.
+   * Mark a single schedule as deleted and cancel the scheduled jobs. Used by the UI when deleting a schedule.
    */
   public void delete(String team, final String scheduleId) {
     final Optional<WorkflowScheduleEntity> schedule = scheduleRepository.findById(scheduleId);

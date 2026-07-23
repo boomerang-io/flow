@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -32,10 +32,6 @@ public abstract class AbstractEngineIntegrationTest {
       new MongoDBContainer(DockerImageName.parse("mongo:7.0"));
 
   static {
-    // docker-java's default Docker API version (1.32) is rejected by current Docker engines.
-    if (System.getProperty("api.version") == null && System.getenv("DOCKER_API_VERSION") == null) {
-      System.setProperty("api.version", "1.44");
-    }
     MONGO.start();
   }
 

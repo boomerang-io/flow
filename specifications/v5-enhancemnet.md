@@ -833,6 +833,17 @@ Rejected: stay-split + async decoupling (branch B, preserved in the proposal). /
 independent engine version line; `engine@` alias tags for the embedder deprecation
 window. / Rejected: per-service tags + compatibility-set manifest. / 2026-07-22.
 
+**DD-06: The worker tier is renamed `agent` → `dispatcher` at E7/E8** — the accurate
+name for what it does: registers, polls, claims, **dispatches to a runtime** (Tekton /
+Docker), relays results; it does not host the work. Renames land with the protocol-v2 /
+module restructure: `DispatcherProtocol`, `dispatcherRef`, deployables
+`dispatcher-tekton` / `dispatcher-docker` (per J8); v1 wire paths keep `/agent/` until
+protocol v1 retires at the major. "Agent" is thereby freed unambiguously for the AI task
+types (Q-110 direction). / Rationale: runner/worker/executor all imply hosting the work
+(maintainer objection); Jenkins/Azure/Buildkite "agent" precedent rejected due to the AI
+overload. / Rejected: runner, worker, executor, handler (v3 vocabulary), keeping agent. /
+2026-07-23.
+
 **DD-05: The merged deployable module is named `service-core`** — executed during E8's
 Modulith restructuring (`service-flow` → `service-core` via git mv; engine code moves in
 per the nine-module layout; `service-engine` dissolves; CI/image names updated in the

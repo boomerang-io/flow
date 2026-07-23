@@ -44,7 +44,7 @@ public class InternalController {
   @Autowired private TokenService tokenService;
 
   // Used by Engine for RunScheduledWorkflow task
-  // Team will be blank and the QuartzSchedulerJob will handle it
+  // Team will be blank and the scheduled job will handle it
   @PostMapping(value = "/workflow/schedule")
   @Operation(summary = "Create a Schedule.")
   public WorkflowScheduleEntity createSchedule(@RequestBody WorkflowSchedule schedule) {

@@ -27,6 +27,8 @@ separate deployables. **v5 reverses that split — see the confirmed decisions b
 | DD-02 | **MERGE `service-flow` + `service-engine`** into ONE Spring Modulith deployable with `flow.mode = full \| engine \| standalone`. Agent stays separate. Sequenced BEHIND the Phase 3 execution rebuild; falsifiability conditions F1–F5 stay live. |
 | DD-03 | **Unified product versioning** — one tag builds the compatible image set; no independent engine version line (`engine@` alias tags during the embedder deprecation window).         |
 | DD-04 | **Frontend (`flow.client.web`) joins this monorepo** — after the merged image ships; v5 re-baselines its 3.12.x history; webapp served only in `full`/`standalone` modes.           |
+| DD-05 | **Merged deployable module = `service-core`** (executed at E8; ARCHIE/CHEER convention; "engine" stays an internal module + mode name only).                                        |
+| DD-06 | **Worker tier renamed `agent` → `dispatcher` at E7/E8** (`DispatcherProtocol`, `dispatcherRef`, `dispatcher-tekton`/`dispatcher-docker`; v1 wire keeps `/agent/` until retirement). "Agent" is reserved for the AI task types. |
 
 The full architecture record — nine-module layout, interaction classification, mode matrix,
 embedded-engine contract, 14 ruled judgement calls, migration plan — is

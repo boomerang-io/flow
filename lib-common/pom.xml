@@ -19,9 +19,13 @@
         <maven.compiler.target>25</maven.compiler.target>
     </properties>
     <dependencies>
+        <!-- Optional: needed only to compile the entity annotations. Services that persist
+             (flow, engine) declare their own data-mongodb starter; consumers that don't (agent)
+             must not inherit a Mongo driver whose auto-configured client dials localhost. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>tools.jackson.dataformat</groupId>
