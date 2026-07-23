@@ -4,6 +4,7 @@ import io.boomerang.core.model.Token;
 import io.boomerang.security.enums.AuthScope;
 import io.boomerang.security.enums.PermissionAction;
 import io.boomerang.security.enums.PermissionResource;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
@@ -22,9 +23,11 @@ public class SecurityInterceptor implements HandlerInterceptor {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private IdentityService identityService;
+  private MeterRegistry meterRegistry;
 
-  public SecurityInterceptor(IdentityService identityService) {
+  public SecurityInterceptor(IdentityService identityService, MeterRegistry meterRegistry) {
     this.identityService = identityService;
+    this.meterRegistry = meterRegistry;
   }
 
   @Override
@@ -60,6 +63,7 @@ public class SecurityInterceptor implements HandlerInterceptor {
             "SecurityInterceptor - Unauthorized Assigned Scope. Needed: {}, Provided: {}",
             Arrays.toString(assignableScopes),
             accessToken.getType().toString());
+        count("flow.security.denied", authCriteria, accessToken);
         response.getWriter().write("");
         response.setStatus(401);
         return false;
@@ -71,21 +75,34 @@ public class SecurityInterceptor implements HandlerInterceptor {
       PermissionAction requiredAccess = authCriteria.action();
       String requiredRegex =
           "(\\*{2}|" + requiredScope.getLabel() + ")\\/(\\*{2}|" + requiredAccess.getLabel() + ")";
-      LOGGER.info(
-          "SecurityInterceptor - Permission needed: {}, Provided: {}",
-          requiredScope.getLabel() + "/" + requiredAccess.getLabel(),
-          accessToken.getPermissions().toString());
       if (!accessToken.getPermissions().stream()
           .anyMatch(p -> (p.getActions().stream().anyMatch(a -> (a.matches(requiredRegex)))))) {
-        LOGGER.error("SecurityInterceptor - Unauthorized Permission.");
-        // TODO set this to return false
-        //      response.getWriter().write("");
-        //      response.setStatus(401);
+        // Shadow enforcement: record the would-be denial but allow the request through
+        LOGGER.warn(
+            "SecurityInterceptor - would deny principal: {}, token type: {}, required: {}/{}",
+            accessToken.getPrincipal(),
+            accessToken.getType(),
+            requiredScope.getLabel(),
+            requiredAccess.getLabel());
+        count("flow.security.would.deny", authCriteria, accessToken);
         return true;
       }
       return true;
     } else {
       return true;
     }
+  }
+
+  private void count(String metric, AuthCriteria authCriteria, Token accessToken) {
+    meterRegistry
+        .counter(
+            metric,
+            "resource",
+            authCriteria.resource().getLabel(),
+            "action",
+            authCriteria.action().getLabel(),
+            "type",
+            accessToken.getType().toString())
+        .increment();
   }
 }

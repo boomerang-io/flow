@@ -13,7 +13,8 @@ public class Permission {
 
   public Permission(String permission) {
     String[] spread = permission.split("/");
-    PermissionResource.valueOf(spread[0]);
+    this.resource = PermissionResource.valueOfLabel(spread[0]);
+    this.action = PermissionAction.valueOfLabel(spread[1]);
   }
 
   public Permission(PermissionResource resource, PermissionAction action) {

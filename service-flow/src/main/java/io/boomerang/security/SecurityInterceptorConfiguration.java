@@ -1,5 +1,6 @@
 package io.boomerang.security;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
@@ -12,10 +13,13 @@ public class SecurityInterceptorConfiguration implements WebMvcConfigurer {
 
   @Autowired
   private IdentityService identityService;
-  
+
+  @Autowired
+  private MeterRegistry meterRegistry;
+
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
-     registry.addInterceptor(new SecurityInterceptor(identityService));
+     registry.addInterceptor(new SecurityInterceptor(identityService, meterRegistry));
   }
 
 }

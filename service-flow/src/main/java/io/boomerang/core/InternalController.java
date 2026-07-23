@@ -7,8 +7,6 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.core.model.TokenCreateRequest;
-import io.boomerang.core.model.TokenCreateResponse;
 import io.boomerang.workflow.ScheduleService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.model.SettingConfig;
@@ -40,8 +38,6 @@ public class InternalController {
   @Autowired private WorkflowService workflowService;
 
   @Autowired private RelationshipService relationshipService;
-
-  @Autowired private TokenService tokenService;
 
   // Used by Engine for RunScheduledWorkflow task
   // Team will be blank and the scheduled job will handle it
@@ -123,11 +119,4 @@ public class InternalController {
     }
   }
 
-  // Used to create debug token
-  // TODO add greater checks and limitations
-  @PostMapping(value = "/token")
-  @Operation(summary = "Create a Debug Token")
-  public TokenCreateResponse createToken(@RequestBody TokenCreateRequest request) {
-    return tokenService.create(request);
-  }
 }
