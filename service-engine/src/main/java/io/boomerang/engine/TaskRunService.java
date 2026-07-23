@@ -45,19 +45,16 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  private final TaskExecutionClient taskExecutionClient;
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
   private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
 
   public TaskRunService(
-      @Lazy TaskExecutionClient taskExecutionClient,
       @Lazy TaskExecutionService taskExecutionService,
       @Lazy LogClient logClient,
       TaskRunRepository taskRunRepository,
       MongoTemplate mongoTemplate) {
-    this.taskExecutionClient = taskExecutionClient;
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
     this.taskRunRepository = taskRunRepository;
@@ -181,9 +178,16 @@ public class TaskRunService {
               && optRunRequest.get().getTimeout() != 0) {
             taskRunEntity.setTimeout(optRunRequest.get().getTimeout());
           }
+          // Persist the request merge for the handler to re-read. The handler only acts on a
+          // pending or queued TaskRun, so any other phase keeps its record untouched.
+          if (RunPhase.pending.equals(taskRunEntity.getPhase())
+              || RunPhase.queued.equals(taskRunEntity.getPhase())) {
+            taskRunRepository.save(taskRunEntity);
+          }
         }
-        taskExecutionClient.start(taskExecutionService, taskRunEntity);
-        TaskRun taskRun = new TaskRun(taskRunEntity);
+        taskExecutionService.start(taskRunId);
+        // Retrieve the refreshed state
+        TaskRun taskRun = new TaskRun(taskRunRepository.findById(taskRunId).get());
         return ResponseEntity.ok(taskRun);
       }
     }
@@ -216,7 +220,12 @@ public class TaskRunService {
             taskRunEntity.setStatus(optRunRequest.get().getStatus());
           }
         }
-        taskExecutionClient.end(taskExecutionService, taskRunEntity);
+        // Persist the request merge for the handler to re-read. The handler ignores an end
+        // request for a completed TaskRun, so a terminal record stays untouched.
+        if (!RunPhase.completed.equals(taskRunEntity.getPhase())) {
+          taskRunRepository.save(taskRunEntity);
+        }
+        taskExecutionService.end(taskRunId);
         TaskRun taskRun = new TaskRun(taskRunEntity);
         return ResponseEntity.ok(taskRun);
       }
@@ -230,8 +239,13 @@ public class TaskRunService {
       if (optTaskRunEntity.isPresent()) {
         TaskRunEntity taskRunEntity = optTaskRunEntity.get();
         taskRunEntity.setStatus(RunStatus.cancelled);
-        taskExecutionClient.end(taskExecutionService, taskRunEntity);
-        TaskRun taskRun = new TaskRun(optTaskRunEntity.get());
+        // Persist the cancelled status for the handler to re-read. The handler ignores an end
+        // request for a completed TaskRun, so a terminal record stays untouched.
+        if (!RunPhase.completed.equals(taskRunEntity.getPhase())) {
+          taskRunRepository.save(taskRunEntity);
+        }
+        taskExecutionService.end(taskRunId);
+        TaskRun taskRun = new TaskRun(taskRunEntity);
         return ResponseEntity.ok(taskRun);
       }
     }

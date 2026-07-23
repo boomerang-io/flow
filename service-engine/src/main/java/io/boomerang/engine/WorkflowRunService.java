@@ -57,7 +57,6 @@ public class WorkflowRunService {
   private final TaskRunRepository taskRunRepository;
   private final TaskRunService taskRunService;
   private final ActionRepository actionRepository;
-  private final WorkflowExecutionClient workflowExecutionClient;
   private final WorkflowExecutionService workflowExecutionService;
   private final MongoTemplate mongoTemplate;
 
@@ -68,7 +67,6 @@ public class WorkflowRunService {
       TaskRunRepository taskRunRepository,
       TaskRunService taskRunService,
       ActionRepository actionRepository,
-      WorkflowExecutionClient workflowExecutionClient,
       WorkflowExecutionService workflowExecutionService,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
@@ -77,7 +75,6 @@ public class WorkflowRunService {
     this.taskRunRepository = taskRunRepository;
     this.taskRunService = taskRunService;
     this.actionRepository = actionRepository;
-    this.workflowExecutionClient = workflowExecutionClient;
     this.workflowExecutionService = workflowExecutionService;
     this.mongoTemplate = mongoTemplate;
   }
@@ -378,12 +375,14 @@ public class WorkflowRunService {
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
     workflowRunRepository.save(wfRunEntity);
-    workflowExecutionClient.queue(workflowExecutionService, wfRunEntity);
+    workflowExecutionService.queue(wfRunEntity.getId());
 
     if (start) {
       return this.start(wfRunEntity.getId(), Optional.empty());
     } else {
-      return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
+      // Retrieve the refreshed status
+      return ConvertUtil.entityToModel(
+          workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
     }
   }
 
@@ -406,7 +405,7 @@ public class WorkflowRunService {
         wfRunEntity.getWorkspaces().addAll(optRunRequest.get().getWorkspaces());
         workflowRunRepository.save(wfRunEntity);
       }
-      workflowExecutionClient.start(workflowExecutionService, wfRunEntity);
+      workflowExecutionService.start(workflowRunId);
 
       // Retrieve the refreshed status
       WorkflowRunEntity updatedWfRunEntity = workflowRunRepository.findById(workflowRunId).get();
@@ -423,10 +422,10 @@ public class WorkflowRunService {
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isPresent()) {
-      WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
-
-      workflowExecutionClient.end(workflowExecutionService, wfRunEntity);
-      return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
+      workflowExecutionService.end(workflowRunId);
+      // Retrieve the refreshed status
+      return ConvertUtil.entityToModel(
+          workflowRunRepository.findById(workflowRunId).get(), WorkflowRun.class);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
@@ -439,10 +438,10 @@ public class WorkflowRunService {
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isPresent()) {
-      WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
-
-      workflowExecutionClient.cancel(workflowExecutionService, wfRunEntity);
-      return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
+      workflowExecutionService.cancel(workflowRunId);
+      // Retrieve the refreshed status
+      return ConvertUtil.entityToModel(
+          workflowRunRepository.findById(workflowRunId).get(), WorkflowRun.class);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
@@ -464,7 +463,7 @@ public class WorkflowRunService {
           .put("boomerang.io/timeout-cause", taskRunTimeout ? "TaskRun" : "WorkflowRun");
       wfRunEntity.setStatus(RunStatus.timedout);
       workflowRunRepository.save(wfRunEntity);
-      workflowExecutionClient.timeout(workflowExecutionService, wfRunEntity);
+      workflowExecutionService.timeout(workflowRunId);
       return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
@@ -494,12 +493,14 @@ public class WorkflowRunService {
       }
       workflowRunRepository.save(wfRunEntity);
 
-      workflowExecutionClient.queue(workflowExecutionService, wfRunEntity);
+      workflowExecutionService.queue(wfRunEntity.getId());
 
       if (start) {
         return this.start(wfRunEntity.getId(), Optional.empty());
       } else {
-        return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
+        // Retrieve the refreshed status
+        return ConvertUtil.entityToModel(
+            workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
       }
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);

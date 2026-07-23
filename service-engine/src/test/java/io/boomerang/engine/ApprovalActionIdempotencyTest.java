@@ -14,19 +14,17 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 /**
- * Approval Action creation must be idempotent per TaskRun. RED-LINE: flips in E4 (B6; E3 adds the
- * unique actions(taskRunRef) index). Passes today by demonstrating the current defect
- * (idempotency-audit.md #12/#8): execute() has no admission guard and createActionTask always
- * inserts, so a duplicate dispatch of one approval TaskRun (which the agent-queue claim race
- * produces) yields duplicate approval records for a single gate. When E3+E4 land, invert: exactly
- * one ActionEntity.
+ * Approval Action creation must be idempotent per TaskRun. Passes today by demonstrating the
+ * current defect: execute() has no admission guard and createActionTask always inserts, so a
+ * duplicate dispatch of one approval TaskRun (which the agent-queue claim race produces) yields
+ * duplicate approval records for a single gate. Once a unique actions(taskRunRef) index and an
+ * execution admission guard land, invert: exactly one ActionEntity.
  */
 class ApprovalActionIdempotencyTest extends AbstractEngineIntegrationTest {
 
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private MongoTemplate mongoTemplate;
 
-  // RED-LINE: flips in E4 (B6 idempotency key: unique actions(taskRunRef) + find-before-create).
   @Test
   void duplicateDispatchCreatesDuplicateApprovalActions() {
     WorkflowRunEntity wfRun =
@@ -41,14 +39,10 @@ class ApprovalActionIdempotencyTest extends AbstractEngineIntegrationTest {
                 wfRun.getId())
             .getId();
 
-    // Two dispatches of the SAME TaskRun, each with its own stale snapshot - exactly what the
-    // claim race produces. execute() is @Async, so both run like real duplicate dispatches.
-    taskExecutionService.execute(
-        taskRunRepository.findById(taskRunId).orElseThrow(),
-        workflowRunRepository.findById(wfRun.getId()).orElseThrow());
-    taskExecutionService.execute(
-        taskRunRepository.findById(taskRunId).orElseThrow(),
-        workflowRunRepository.findById(wfRun.getId()).orElseThrow());
+    // Two dispatches of the SAME TaskRun - exactly what the claim race produces. execute() is
+    // @Async behind the proxy, so both run like real duplicate dispatches.
+    taskExecutionService.execute(taskRunId);
+    taskExecutionService.execute(taskRunId);
 
     Query byTaskRunRef = new Query(Criteria.where("taskRunRef").is(taskRunId));
     awaitEngine("both executes to create their ActionEntity")
@@ -56,8 +50,8 @@ class ApprovalActionIdempotencyTest extends AbstractEngineIntegrationTest {
     assertEquals(
         2,
         mongoTemplate.count(byTaskRunRef, ActionEntity.class),
-        "DEFECT (audit #12/#8): each execute() of the same approval TaskRun creates a new"
-            + " ActionEntity - duplicate approvals for one gate. When E3's unique index + E4's"
-            + " execution CAS land, flip this to expect exactly 1.");
+        "DEFECT: each execute() of the same approval TaskRun creates a new ActionEntity -"
+            + " duplicate approvals for one gate. When the unique actions(taskRunRef) index and"
+            + " execution admission guard land, flip this to expect exactly 1.");
   }
 }

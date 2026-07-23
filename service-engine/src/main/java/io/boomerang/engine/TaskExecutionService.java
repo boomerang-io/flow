@@ -65,7 +65,8 @@ public class TaskExecutionService {
 
   @Autowired private ParameterManager paramManager;
 
-  @Autowired private TaskExecutionClient taskExecutionClient;
+  // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
+  @Autowired @Lazy private TaskExecutionService self;
 
   @Autowired private JobScheduler jobScheduler;
 
@@ -74,8 +75,19 @@ public class TaskExecutionService {
   @Qualifier("asyncTaskExecutor")
   TaskExecutor asyncTaskExecutor;
 
+  /*
+   * Callers pass TaskRun ids only; the method re-reads the document at entry so every transition
+   * acts on fresh state. Any new information a caller holds must be persisted before handing off
+   * the id.
+   */
   @Async("asyncTaskExecutor")
-  public void queue(TaskRunEntity taskExecution) {
+  public void queue(String taskRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to queue.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     LOGGER.info("[{}] Recieved queue task request: {}", taskExecutionId, taskExecution.getName());
 
@@ -132,12 +144,14 @@ public class TaskExecutionService {
           && !TaskType.custom.equals(taskExecution.getType())
           && !TaskType.generic.equals(taskExecution.getType())) {
         LOGGER.debug("[{}] Moving task to Executing: {}", taskExecutionId, taskExecution.getName());
-        taskExecutionClient.execute(this, taskExecution, wfRunEntity.get());
+        self.execute(taskExecutionId);
       }
     } else {
       LOGGER.debug("[{}] Skipping task: {}", taskExecutionId, taskExecution.getName());
+      // Persist the skipped status for end() to re-read.
       taskExecution.setStatus(RunStatus.skipped);
-      taskExecutionClient.end(this, taskExecution);
+      taskRunRepository.save(taskExecution);
+      self.end(taskExecutionId);
     }
   }
 
@@ -152,7 +166,13 @@ public class TaskExecutionService {
    * integration may believe the task has started and therefore be able to run and end the task
    * prior to an asynchronous version of this method actually completing.
    */
-  public void start(TaskRunEntity taskExecution) {
+  public void start(String taskRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to start.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     LOGGER.info("[{}] Recieved start task request.", taskExecutionId);
 
@@ -214,7 +234,7 @@ public class TaskExecutionService {
     lockManager.releaseLock(taskExecutionId, lockId);
     LOGGER.info("[{}] Released TaskRun lock", taskExecutionId);
 
-    taskExecutionClient.execute(this, taskExecution, wfRunEntity.get());
+    self.execute(taskExecutionId);
   }
 
   /*
@@ -223,7 +243,19 @@ public class TaskExecutionService {
    * No status checks are performed as part of this method. They are handled in start().
    */
   @Async("asyncTaskExecutor")
-  public void execute(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+  public void execute(String taskRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to execute.", taskRunId);
+      return;
+    }
+    WorkflowRunEntity wfRunEntity =
+        workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(null);
+    if (wfRunEntity == null) {
+      LOGGER.error("[{}] Unable to find WorkflowRun to execute TaskRun against.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     boolean endTask = false;
     TaskType taskType = taskExecution.getType();
@@ -300,7 +332,9 @@ public class TaskExecutionService {
     // TODO migrate to a scheduled task rather than using Future so that it works across horizontal
     // scaling
     if (endTask) {
-      taskExecutionClient.end(this, taskExecution);
+      // Persist the type-specific outcome (status, results, decision value) for end() to re-read.
+      taskRunRepository.save(taskExecution);
+      self.end(taskExecutionId);
     } else if (!Objects.isNull(taskExecution.getTimeout()) && taskExecution.getTimeout() != 0) {
       LOGGER.debug(
           "[{}] TaskRun Timeout provided of {} minutes. Creating future timeout check.",
@@ -320,7 +354,13 @@ public class TaskExecutionService {
    * task to finish.
    */
   @Async("asyncTaskExecutor")
-  public void end(TaskRunEntity taskExecution) {
+  public void end(String taskRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to end.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     LOGGER.info("[{}] Recieved end task request.", taskExecutionId);
 
@@ -444,8 +484,10 @@ public class TaskExecutionService {
         // Only need to check if Running - otherwise nothing to timeout
         if (RunPhase.running.equals(taskExecution.getPhase())) {
           LOGGER.info("[{}] Timeout Task Async...", taskRunId);
+          // Persist the timedout status for end() to re-read.
           taskExecution.setStatus(RunStatus.timedout);
-          taskExecutionClient.end(this, taskExecution);
+          taskRunRepository.save(taskExecution);
+          self.end(taskRunId);
         }
       }
       return true;
@@ -932,7 +974,7 @@ public class TaskExecutionService {
         if (!taskRunEntity.isPresent()) {
           LOGGER.error("Reached node which should not be executed.");
         } else {
-          taskExecutionClient.queue(this, next);
+          self.queue(next.getId());
         }
       } else {
         LOGGER.debug(
@@ -958,8 +1000,15 @@ public class TaskExecutionService {
           Optional<TaskRunEntity> taskRunEntity =
               this.taskRunRepository.findFirstByNameAndWorkflowRunRef(
                   dep.getTaskRef(), wfRunEntity.getId());
-          if (!taskRunEntity.isPresent() && taskRunEntity != null) {
-            continue;
+          if (taskRunEntity.isEmpty()) {
+            // Every DAG node is materialised as a TaskRun at queue time; a missing dependency
+            // is a broken invariant and can never count as finished.
+            LOGGER.error(
+                "[{}] No TaskRun found for dependency: {}. A missing dependency cannot be"
+                    + " treated as finished.",
+                wfRunEntity.getId(),
+                dep.getTaskRef());
+            return false;
           }
 
           RunPhase phase = taskRunEntity.get().getPhase();
@@ -982,11 +1031,19 @@ public class TaskExecutionService {
       Optional<TaskRunEntity> taskRunEntity =
           this.taskRunRepository.findFirstByNameAndWorkflowRunRef(
               dep.getTaskRef(), wfRunEntity.getId());
-      if (taskRunEntity.isPresent()) {
-        RunPhase phase = taskRunEntity.get().getPhase();
-        if (!RunPhase.completed.equals(phase)) {
-          return false;
-        }
+      if (taskRunEntity.isEmpty()) {
+        // Every DAG node is materialised as a TaskRun at queue time; a missing dependency is a
+        // broken invariant and can never count as satisfied.
+        LOGGER.error(
+            "[{}] No TaskRun found for dependency: {}. TaskRun {} is not executable.",
+            wfRunEntity.getId(),
+            dep.getTaskRef(),
+            next.getName());
+        return false;
+      }
+      RunPhase phase = taskRunEntity.get().getPhase();
+      if (!RunPhase.completed.equals(phase)) {
+        return false;
       }
     }
     return true;

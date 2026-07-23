@@ -44,9 +44,7 @@ public class WorkflowExecutionService {
 
   @Autowired private DAGUtility dagUtility;
 
-  @Autowired @Lazy private TaskExecutionService taskService;
-
-  @Autowired private TaskExecutionClient taskClient;
+  @Autowired @Lazy private TaskExecutionService taskExecutionService;
 
   @Autowired private ParameterManager paramManager;
 
@@ -61,7 +59,12 @@ public class WorkflowExecutionService {
   @Qualifier("asyncWorkflowExecutor")
   TaskExecutor asyncWorkflowExecutor;
 
-  public void queue(WorkflowRunEntity wfRunEntity) {
+  public void queue(String wfRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    WorkflowRunEntity wfRunEntity =
+        workflowRunRepository
+            .findById(wfRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     LOGGER.debug("[{}] Received queue WorkflowRun request.", wfRunEntity.getId());
     // Resolve Parameter Substitutions
     // TODO: check if we need this
@@ -92,7 +95,12 @@ public class WorkflowExecutionService {
         wfRunEntity.getId());
   }
 
-  public CompletableFuture<Boolean> start(WorkflowRunEntity wfRunEntity) {
+  public CompletableFuture<Boolean> start(String wfRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    WorkflowRunEntity wfRunEntity =
+        workflowRunRepository
+            .findById(wfRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     LOGGER.debug("[{}] Received start WorkflowRun request.", wfRunEntity.getId());
 
     // Check if Phase is valid.
@@ -112,12 +120,22 @@ public class WorkflowExecutionService {
         executeWorkflowAsync(wfRunEntity.getId(), start, end, graph, tasks), asyncWorkflowExecutor);
   }
 
-  public void end(WorkflowRunEntity workflowExecution) {
+  public void end(String wfRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    WorkflowRunEntity workflowExecution =
+        workflowRunRepository
+            .findById(wfRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     workflowExecution.setPhase(RunPhase.finalized);
     workflowRunRepository.save(workflowExecution);
   }
 
-  public void cancel(WorkflowRunEntity workflowExecution) {
+  public void cancel(String wfRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    WorkflowRunEntity workflowExecution =
+        workflowRunRepository
+            .findById(wfRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     long duration = 0;
     if (workflowExecution.getStartTime() != null) {
       duration = new Date().getTime() - workflowExecution.getStartTime().getTime();
@@ -132,7 +150,13 @@ public class WorkflowExecutionService {
   }
 
   @Async("asyncWorkflowExecutor")
-  public void timeout(WorkflowRunEntity workflowExecution) {
+  public void timeout(String wfRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    WorkflowRunEntity workflowExecution = workflowRunRepository.findById(wfRunId).orElse(null);
+    if (workflowExecution == null) {
+      LOGGER.error("[{}] Unable to find WorkflowRun to timeout.", wfRunId);
+      return;
+    }
     if (RunStatus.timedout.equals(workflowExecution.getStatus())
         || (!Objects.isNull(workflowExecution.getTimeout())
             && workflowExecution.getTimeout() != 0)) {
@@ -191,7 +215,7 @@ public class WorkflowExecutionService {
                 GraphProcessor.createOrderedTaskList(graph, start.getId(), end.getId());
             if (nodes.contains(next.getId())) {
               LOGGER.debug("[{}] Creating TaskRun ({})...", wfRunEntity.getId(), next.getId());
-              taskClient.queue(taskService, next);
+              taskExecutionService.queue(next.getId());
             }
           }
         } catch (Exception e) {
@@ -297,7 +321,7 @@ public class WorkflowExecutionService {
     if (runningTasks.size() > 0) {
       runningTasks.forEach(
           t -> {
-            taskClient.end(taskService, t);
+            taskExecutionService.end(t.getId());
           });
     }
     // Check pending tasks and queue to force them to skip - will be
@@ -308,7 +332,7 @@ public class WorkflowExecutionService {
     if (pendingTasks.size() > 0) {
       pendingTasks.forEach(
           t -> {
-            taskClient.queue(taskService, t);
+            taskExecutionService.queue(t.getId());
           });
     }
   }
