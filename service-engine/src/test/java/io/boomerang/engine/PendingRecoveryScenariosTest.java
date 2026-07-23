@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  */
 class PendingRecoveryScenariosTest {
 
-  // Claim-epoch fencing at start/end is implemented and covered by TaskClaimFencingTest.
+  // Claim-seq fencing at start/end is implemented and covered by TaskClaimFencingTest.
 
   // Requires pauseRequestedAt (E3 schema, C6) with claim-query exclusion and resume-as-reconcile
   // (E4). Constraint H15: no PAUSED RunStatus - pause is an orthogonal flag, excluded at the query.
