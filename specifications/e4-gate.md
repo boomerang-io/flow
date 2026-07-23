@@ -1,3 +1,21 @@
+> ✅ **GATE RULED (2026-07-23) with maintainer amendments — this note supersedes the
+> corresponding sections below:**
+> 1. **Simple outbox**: rows only on real status changes, written by the CAS winner,
+>    ObjectId identity. `transitionSeq`, `lastOutboxedSeq`, and the heal-sweep are
+>    DELETED from the design — rare crash-window event loss is accepted and documented
+>    (the DB is the source of truth per J4; supersedes multi-instance-model §2b's
+>    `(ref, seq)` key).
+> 2. **No `tombstonedAt`** — `WorkflowStatus` gains `deleted`; delete = status marker →
+>    watcher wind-down → physical purge once all runs finalise (retention knob decided
+>    in slice F).
+> 3. `task_locks` confirmed as specified (TTL doc per user-facing lock name).
+> 4. **Interim worker protection = `timeoutAt` budget only** until E7's renew endpoint;
+>    inline classes get full lease-reaping immediately.
+> 5. **Working mode**: branch `e4` off `feat-v5`; per-slice review-and-approve before
+>    the next slice starts; approved slices merge back. Slices renamed in outcome
+>    language: A fresh-reads · B one-winner · C self-healing · D events/pause/queues ·
+>    E retry-from-step · F lock-free + safe delete.
+
 # E4 Gate — Execution-Model Rebuild (G1 Touch Analysis + G2 Data-Model Proposal + Slice Plan)
 
 **Status:** 🟡 PROPOSED — the standing-gate stop for E4 (gap-register §3). No E4 code lands
