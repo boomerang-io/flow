@@ -1,3 +1,11 @@
+> **Slice C scope amendment (maintainer-ruled, 2026-07-24):** Compare-And-Set winners
+> publish domain ApplicationEvents (ids + from/to only); two listeners replace the
+> save()-aspects, which are DELETED in C: (1) a CloudEvents bridge invoking
+> EventSinkService (slice D upgrades its delivery to the outbox), (2) the audit writer
+> (per J4). This closes slice B's interim emission/audit gap in C instead of D. C also
+> absorbs: engine-internal finalize for workspace-less completed runs (the redelivery
+> bug was accidentally load-bearing).
+
 > ✅ **GATE RULED (2026-07-23) with maintainer amendments — this note supersedes the
 > corresponding sections below:**
 > 1. **Simple outbox**: rows only on real status changes, written by the CAS winner,
