@@ -98,7 +98,11 @@ behaviour, never "simplify" onto framework defaults.
 
 - `SecurityInterceptor` **soft-fails permission checks** (logs and returns `true`) — only
   token-scope mismatch is enforced. Enforcement flips via shadow-logging → token backfill →
-  flag → default-on at the major. The riskiest flip in v5.
+  flag → default-on at the major. The riskiest flip in v5. **Shadow telemetry is LIVE
+  (E1/E6, 2026-07-23)**: `flow.security.would.deny` counts both the interceptor layer and
+  the relationship layer (`layer=relationship` tag) — watch these before the A2 flip.
+- ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
+  2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
 - Agent endpoints (`AgentControllerV1`) are **unauthenticated**; engine is `permitAll()`.
 - Two properties gate security halves: `flow.auth.enabled` AND `flow.authorization.enabled`
   (to be unified; mode-derived default).
