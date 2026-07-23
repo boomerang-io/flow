@@ -64,12 +64,12 @@ public interface TaskRunRepositoryCustom {
   List<TaskRunEntity> findReapable(Date now, int limit);
 
   /**
-   * Timeout Compare-And-Set: a queued/running TaskRun past its deadline gets status timedout,
-   * fenced on the observed claim seq ({@code null} = the run must be unclaimed). The phase is left
-   * for the normal end path to complete. Returns the pre-image, or {@code null} when fenced out or
-   * already transitioned.
+   * Timeout Compare-And-Set: a queued/running TaskRun past its deadline gets status timedout and
+   * the given statusMessage in the same atomic write, fenced on the observed claim seq
+   * ({@code null} = the run must be unclaimed). The phase is left for the normal end path to
+   * complete. Returns the pre-image, or {@code null} when fenced out or already transitioned.
    */
-  TaskRunEntity tryTimeout(String id, Long observedClaimSeq);
+  TaskRunEntity tryTimeout(String id, Long observedClaimSeq, String statusMessage);
 
   /**
    * Requeue Compare-And-Set: clears {@code claim.by}/{@code claim.at}/{@code claim.leaseExpiresAt}

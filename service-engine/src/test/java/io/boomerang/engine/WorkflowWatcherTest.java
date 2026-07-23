@@ -127,6 +127,9 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
               TaskRunEntity reaped = taskRunRepository.findById(taskRunId).orElseThrow();
               assertEquals(RunStatus.timedout, reaped.getStatus());
               assertEquals(RunPhase.completed, reaped.getPhase());
+              assertNotNull(
+                  reaped.getStatusMessage(),
+                  "the timeout reason is written atomically with the status");
             });
     awaitEngine("the final task timeout to time out the run")
         .untilAsserted(

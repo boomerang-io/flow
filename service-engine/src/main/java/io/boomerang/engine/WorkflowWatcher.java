@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -96,7 +97,14 @@ public class WorkflowWatcher {
             LOGGER.info(
                 "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
           }
-        } else if (taskRunRepository.tryTimeout(taskRun.getId(), observedSeq) != null) {
+        } else if (taskRunRepository.tryTimeout(
+                taskRun.getId(),
+                observedSeq,
+                MessageFormatter.format(
+                        "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
+                        taskRun.getTimeout())
+                    .getMessage())
+            != null) {
           LOGGER.info("[{}] TaskRun timed out. Retry budget exhausted.", taskRun.getId());
           taskExecutionService.end(taskRun.getId());
         }

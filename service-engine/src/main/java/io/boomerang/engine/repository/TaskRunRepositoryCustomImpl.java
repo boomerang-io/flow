@@ -191,7 +191,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
   }
 
   @Override
-  public TaskRunEntity tryTimeout(String id, Long observedClaimSeq) {
+  public TaskRunEntity tryTimeout(String id, Long observedClaimSeq, String statusMessage) {
     Criteria criteria =
         Criteria.where("_id")
             .is(id)
@@ -200,7 +200,11 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
             .and("timeoutAt")
             .lte(new Date());
     fence(criteria, observedClaimSeq);
-    Update update = new Update().set("status", RunStatus.timedout).unset("timeoutAt");
+    Update update =
+        new Update()
+            .set("status", RunStatus.timedout)
+            .set("statusMessage", statusMessage)
+            .unset("timeoutAt");
     TaskRunEntity preImage =
         mongoTemplate.findAndModify(
             Query.query(criteria),
