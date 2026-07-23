@@ -2,7 +2,7 @@
 > publish domain ApplicationEvents (ids + from/to only); two listeners replace the
 > save()-aspects, which are DELETED in C: (1) a CloudEvents bridge invoking
 > EventSinkService (slice D upgrades its delivery to the outbox), (2) the audit writer
-> (per J4). This closes slice B's interim emission/audit gap in C instead of D. C also
+> (per J4). This closes slice B's interim emission gap in C instead of D. **Audit ruling (2026-07-24): the ARCHIE/CHEER @Audited controller-boundary pattern is adopted for user-action audit (ported with the core audit component); engine transitions feed the CloudEvents bridge ONLY — no transition-audit listener.** C also
 > absorbs: engine-internal finalize for workspace-less completed runs (the redelivery
 > bug was accidentally load-bearing).
 
@@ -23,6 +23,11 @@
 >    the next slice starts; approved slices merge back. Slices renamed in outcome
 >    language: A fresh-reads · B one-winner · C self-healing · D events/pause/queues ·
 >    E retry-from-step · F lock-free + safe delete.
+
+> **Maintainer ruling (2026-07-24):** references below to a top-level `claimEpoch` are
+> superseded — the fencing token lives inside the claim block as `claim.seq`; requeue
+> clears `claim.by`/`claim.at`/`claim.leaseExpiresAt` only (seq never cleared) and
+> eligibility keys on `"claim.by": {$exists: false}`.
 
 # E4 Gate — Execution-Model Rebuild (G1 Touch Analysis + G2 Data-Model Proposal + Slice Plan)
 
@@ -84,7 +89,7 @@ either way.
 | `start` | :155 | #7 | alturkovic lock, guards on stale entity, execute dispatched after release → re-read by id; fencing validation (claim.by/claimEpoch, B16); no lock; admission moves to execute-entry CAS | REWRITE |
 | `execute` | :226 | #8 | **no guard** ("handled in start()") + full-doc save to running → **execution-entry CAS** `ready/queued → running`; null CAS = return (duplicate dispatch harmless); type switch preserved | REWRITE |
 | `end` | :323 | #9 | lock but **no re-read inside**; save-then-advance; both racers run finishedAll+executeNextStep → **THE gating fix**: `findAndModify(running → terminal)` returning pre-image, results/duration/statusMessage set inside the CAS; **winner-only advance, advance = reconcile()**; fencing at entry (B16) | REWRITE |
-| `timeoutTaskAsync` | :439 | #20 | in-memory `CompletableFuture` delayed timer, lost on crash → **DELETE** — watcher sweep 2c reaps on `timeoutAt` (durable, per-class, epoch-fenced) | DELETE |
+| `timeoutTaskAsync` | :439 | #20 | in-memory `CompletableFuture` delayed timer, lost on crash → **DELETE** — watcher sweep 2c reaps on `timeoutAt` (durable, per-class, seq-fenced) | DELETE |
 | `finishWorkflow` | :870 | #10 | lock-only, full-doc save, double CloudEvent → completion CAS `running → completed` + transitionSeq/outbox row; end-task terminalisation via CAS | REWRITE |
 | `executeNextStep` | :905 | #11 | queue decision unguarded (join queued by both parents) → converges on admission CAS; body becomes reconcile-driven | REWRITE |
 | `canExecuteTask` | :978 | C8 | **missing dependency TaskRun = satisfied** (`:985-990`) → INVERTED: missing dep = broken invariant, log-and-reconcile, never "satisfied". Step 2, before any supersede code | REWRITE |

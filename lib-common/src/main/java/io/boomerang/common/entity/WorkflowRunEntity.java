@@ -48,11 +48,10 @@ public class WorkflowRunEntity {
   private String workflowRevisionRef;
   private String agentRef;
 
-  // Claim ownership for the workflow-level claimables (provision and teardown). Absent =
-  // unclaimed and eligible; written only by the claim Compare-And-Set. The epoch increments
-  // on every claim and is never reset.
+  // Claim ownership for the workflow-level claimables (provision and teardown). claim.by
+  // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.epoch
+  // increments on every claim and is never cleared.
   @JsonIgnore private RunClaim claim;
-  @JsonIgnore private Long claimEpoch;
   private String trigger;
   private String initiatedByRef;
   private List<RunParam> params = new LinkedList<>();

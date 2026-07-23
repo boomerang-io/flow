@@ -27,7 +27,7 @@ import org.springframework.http.ResponseEntity;
 /**
  * Agent task-queue claim semantics: each ready TaskRun is claimed via a per-document
  * Compare-And-Set, so exactly one agent receives it and the claim records ownership (claim block,
- * incremented claim epoch, agentRef alias). Terminal runs are not eligible and are never
+ * incremented claim seq, agentRef alias). Terminal runs are not eligible and are never
  * redelivered.
  */
 class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
@@ -90,7 +90,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
   }
 
   // Two agents polling for the same ready TaskRun: the per-document Compare-And-Set claim admits
-  // exactly one winner, which owns the claim block and the incremented claim epoch.
+  // exactly one winner, which owns the claim block and the incremented claim seq.
   @Test
   void exactlyOneAgentReceivesAReadyTaskRun() throws Exception {
     String agentA = registerAgent("race-agent-a");
@@ -125,7 +125,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
       assertNotNull(claimed.getClaim(), "the winner's claim block must be recorded");
       assertEquals((aGotIt ? agentA : agentB), claimed.getClaim().getBy());
       assertEquals((aGotIt ? agentA : agentB), claimed.getAgentRef());
-      assertEquals(1L, claimed.getClaimEpoch());
+      assertEquals(1L, claimed.getClaim().getSeq());
     } finally {
       pool.shutdownNow();
     }

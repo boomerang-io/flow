@@ -54,5 +54,5 @@ public interface TaskRunRepositoryCustom {
       Optional<String> statusMessage,
       long duration,
       Optional<String> claimedBy,
-      Optional<Long> claimEpoch);
+      Optional<Long> claimSeq);
 }

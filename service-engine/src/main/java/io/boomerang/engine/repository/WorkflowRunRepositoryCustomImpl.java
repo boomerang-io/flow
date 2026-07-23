@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+// Requeue contract: a requeue clears claim.by/claim.at/claim.leaseExpiresAt, never claim.seq.
 @Component
 public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCustom {
 
@@ -31,7 +32,7 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
                     .is(RunStatus.ready)
                     .and("phase")
                     .is(RunPhase.pending)
-                    .and("claim")
+                    .and("claim.by")
                     .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
@@ -45,7 +46,7 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
         Query.query(
                 Criteria.where("phase")
                     .is(RunPhase.completed)
-                    .and("claim")
+                    .and("claim.by")
                     .exists(false)
                     .and("workspaces.0")
                     .exists(true))
@@ -64,7 +65,7 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
                 .is(RunStatus.ready)
                 .and("phase")
                 .is(RunPhase.pending)
-                .and("claim")
+                .and("claim.by")
                 .exists(false));
     Update update =
         new Update()
@@ -72,7 +73,7 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
             .set("claim.by", claimedBy)
             .set("claim.at", new Date())
             .set("agentRef", claimedBy)
-            .inc("claimEpoch", 1);
+            .inc("claim.seq", 1);
     return mongoTemplate.findAndModify(
         query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
   }
@@ -85,7 +86,7 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
                 .is(id)
                 .and("phase")
                 .is(RunPhase.completed)
-                .and("claim")
+                .and("claim.by")
                 .exists(false)
                 .and("workspaces.0")
                 .exists(true));
@@ -94,7 +95,7 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
             .set("claim.by", claimedBy)
             .set("claim.at", new Date())
             .set("agentRef", claimedBy)
-            .inc("claimEpoch", 1);
+            .inc("claim.seq", 1);
     return mongoTemplate.findAndModify(
         query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
   }
@@ -116,8 +117,8 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
 
   @Override
   public WorkflowRunEntity tryStart(String id, Date startTime) {
-    // Clearing the dispatch claim frees the completed-phase teardown claimable; the epoch is
-    // top-level and survives.
+    // Clearing the dispatch claim frees the completed-phase teardown claimable; claim.seq is
+    // never cleared and survives.
     Query query =
         Query.query(
             Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.queued));
@@ -126,7 +127,9 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
             .set("status", RunStatus.running)
             .set("phase", RunPhase.running)
             .set("startTime", startTime)
-            .unset("claim");
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt");
     return mongoTemplate.findAndModify(
         query, update, FindAndModifyOptions.options().returnNew(true), WorkflowRunEntity.class);
   }

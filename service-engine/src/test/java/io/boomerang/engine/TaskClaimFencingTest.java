@@ -22,10 +22,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.ResponseEntity;
 
 /**
- * Claim-epoch fencing at the task start/end handlers. Every claim increments the top-level claim
- * epoch, so a dispatch still carrying a superseded claim identifies itself and is rejected; the
- * current claimant proceeds. A request with no claimant identity (the v1 agent protocol) is
- * accepted as legacy.
+ * Claim-seq fencing at the task start/end handlers. Every claim increments {@code claim.seq},
+ * so a dispatch still carrying a superseded claim identifies itself and is rejected; the current
+ * claimant proceeds. A request with no claimant identity (the v1 agent protocol) is accepted as
+ * legacy.
  */
 class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
 
@@ -46,7 +46,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void staleClaimEpochDispatchIsRejected() {
+  void staleClaimSeqDispatchIsRejected() {
     WorkflowRunEntity wfRun = savedWorkflowRun("fencing-wf", RunStatus.running, RunPhase.running);
     String taskRunId =
         savedTaskRun(
@@ -60,24 +60,27 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
     String agentA = registerAgent("fencing-agent-a");
     String agentB = registerAgent("fencing-agent-b");
 
-    // First claim: agent A owns epoch 1.
+    // First claim: agent A owns seq 1.
     assertTrue(containsId(agentService.getTaskQueue(agentA), taskRunId));
-    assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaimEpoch());
+    assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaim().getSeq());
 
-    // A requeue clears the claim but never the epoch; agent B's claim then owns epoch 2.
+    // A requeue clears claim.by/claim.at/claim.leaseExpiresAt but never claim.seq; agent B's
+    // claim then owns seq 2.
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(taskRunId)),
         new Update()
-            .unset("claim")
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt")
             .set("status", RunStatus.ready)
             .set("phase", RunPhase.pending),
         TaskRunEntity.class);
     assertTrue(containsId(agentService.getTaskQueue(agentB), taskRunId));
     TaskRunEntity reclaimed = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(agentB, reclaimed.getClaim().getBy());
-    assertEquals(2L, reclaimed.getClaimEpoch());
+    assertEquals(2L, reclaimed.getClaim().getSeq());
 
-    // Agent A's stale start (epoch 1) is rejected: the TaskRun never enters running.
+    // Agent A's stale start (seq 1) is rejected: the TaskRun never enters running.
     taskExecutionService.start(taskRunId, Optional.of(agentA), Optional.of(1L));
     TaskRunEntity afterStaleStart = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunPhase.queued, afterStaleStart.getPhase());
@@ -94,7 +97,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
               assertEquals(RunPhase.running, running.getPhase());
             });
 
-    // Agent A's stale end (epoch 1) is rejected: the TaskRun stays running under agent B.
+    // Agent A's stale end (seq 1) is rejected: the TaskRun stays running under agent B.
     taskExecutionService.end(taskRunId, Optional.of(agentA), Optional.of(1L));
     TaskRunEntity afterStaleEnd = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunPhase.running, afterStaleEnd.getPhase());

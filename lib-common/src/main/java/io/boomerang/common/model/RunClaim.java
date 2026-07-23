@@ -6,9 +6,9 @@ import java.util.Date;
 import lombok.Data;
 
 /**
- * Ownership block written by a Compare-And-Set claim. Absent on a run means unclaimed and
- * eligible; the paired top-level {@code claimEpoch} fencing token lives outside this block so it
- * survives when a requeue clears the claim.
+ * Ownership block written by a Compare-And-Set claim. {@code by} absent on a run means unclaimed
+ * and eligible. A requeue clears {@code by}/{@code at}/{@code leaseExpiresAt} only; {@code seq}
+ * increments on every claim and is never cleared, so it fences out superseded claimants.
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -18,4 +18,5 @@ public class RunClaim {
   private String by;
   private Date at;
   private Date leaseExpiresAt;
+  private Long seq;
 }

@@ -176,7 +176,7 @@ public class TaskExecutionService {
    * Start with claimant identity. The execution-entry Compare-And-Set in execute() makes a
    * duplicate start harmless; fencing rejects a start carrying a superseded claim.
    */
-  public void start(String taskRunId, Optional<String> claimedBy, Optional<Long> claimEpoch) {
+  public void start(String taskRunId, Optional<String> claimedBy, Optional<Long> claimSeq) {
     // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
     TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
     if (taskExecution == null) {
@@ -194,7 +194,7 @@ public class TaskExecutionService {
       return;
     }
 
-    if (!claimantIsValid(taskExecution, claimedBy, claimEpoch)) {
+    if (!claimantIsValid(taskExecution, claimedBy, claimSeq)) {
       return;
     }
 
@@ -361,7 +361,7 @@ public class TaskExecutionService {
    * terminal status can never be overwritten - and only the winner advances the graph. A loser
    * (duplicate end, or an end racing a timeout) logs and returns.
    */
-  public void end(String taskRunId, Optional<String> claimedBy, Optional<Long> claimEpoch) {
+  public void end(String taskRunId, Optional<String> claimedBy, Optional<Long> claimSeq) {
     // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
     TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
     if (taskExecution == null) {
@@ -377,7 +377,7 @@ public class TaskExecutionService {
       return;
     }
 
-    if (!claimantIsValid(taskExecution, claimedBy, claimEpoch)) {
+    if (!claimantIsValid(taskExecution, claimedBy, claimSeq)) {
       return;
     }
 
@@ -397,7 +397,7 @@ public class TaskExecutionService {
           Optional.of("Unable to find WorkflowRun"),
           duration,
           claimedBy,
-          claimEpoch);
+          claimSeq);
       return;
     }
     WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
@@ -414,7 +414,7 @@ public class TaskExecutionService {
           Optional.of(statusMessage),
           duration,
           claimedBy,
-          claimEpoch);
+          claimSeq);
       return;
     }
 
@@ -438,7 +438,7 @@ public class TaskExecutionService {
                 : Optional.empty()),
             duration,
             claimedBy,
-            claimEpoch);
+            claimSeq);
     if (preImage == null) {
       LOGGER.info(
           "[{}] TaskRun already completed. Only the completion winner advances.", taskExecutionId);
@@ -487,9 +487,9 @@ public class TaskExecutionService {
    * no identity is the legacy protocol and is accepted with a log line.
    */
   private boolean claimantIsValid(
-      TaskRunEntity taskExecution, Optional<String> claimedBy, Optional<Long> claimEpoch) {
-    if (claimedBy.isEmpty() && claimEpoch.isEmpty()) {
-      if (taskExecution.getClaim() != null) {
+      TaskRunEntity taskExecution, Optional<String> claimedBy, Optional<Long> claimSeq) {
+    if (claimedBy.isEmpty() && claimSeq.isEmpty()) {
+      if (taskExecution.getClaim() != null && taskExecution.getClaim().getBy() != null) {
         LOGGER.info(
             "[{}] Request carries no claimant identity for a claimed TaskRun. Accepting as legacy protocol.",
             taskExecution.getId());
@@ -499,15 +499,17 @@ public class TaskExecutionService {
     boolean valid =
         taskExecution.getClaim() != null
             && claimedBy.map(by -> by.equals(taskExecution.getClaim().getBy())).orElse(true)
-            && claimEpoch.map(epoch -> epoch.equals(taskExecution.getClaimEpoch())).orElse(true);
+            && claimSeq
+                .map(seq -> seq.equals(taskExecution.getClaim().getSeq()))
+                .orElse(true);
     if (!valid) {
       LOGGER.error(
-          "[{}] Rejecting request from superseded claimant {} (epoch {}). Current claim is {} (epoch {}).",
+          "[{}] Rejecting request from superseded claimant {} (seq {}). Current claim is {} (seq {}).",
           taskExecution.getId(),
           claimedBy.orElse(null),
-          claimEpoch.orElse(null),
+          claimSeq.orElse(null),
           (taskExecution.getClaim() != null ? taskExecution.getClaim().getBy() : null),
-          taskExecution.getClaimEpoch());
+          (taskExecution.getClaim() != null ? taskExecution.getClaim().getSeq() : null));
     }
     return valid;
   }

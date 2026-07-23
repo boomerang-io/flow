@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+// Requeue contract: a requeue clears claim.by/claim.at/claim.leaseExpiresAt, never claim.seq.
 @Component
 public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
 
@@ -35,7 +36,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
                     .is(RunPhase.pending)
                     .and("type")
                     .in(types)
-                    .and("claim")
+                    .and("claim.by")
                     .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
@@ -53,7 +54,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
                 .is(RunStatus.ready)
                 .and("phase")
                 .is(RunPhase.pending)
-                .and("claim")
+                .and("claim.by")
                 .exists(false));
     Update update =
         new Update()
@@ -61,7 +62,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
             .set("claim.by", claimedBy)
             .set("claim.at", new Date())
             .set("agentRef", claimedBy)
-            .inc("claimEpoch", 1);
+            .inc("claim.seq", 1);
     return mongoTemplate.findAndModify(
         query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
   }
@@ -107,14 +108,14 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
       Optional<String> statusMessage,
       long duration,
       Optional<String> claimedBy,
-      Optional<Long> claimEpoch) {
+      Optional<Long> claimSeq) {
     Criteria criteria =
         Criteria.where("_id")
             .is(id)
             .and("phase")
             .in(RunPhase.pending, RunPhase.queued, RunPhase.running);
     claimedBy.ifPresent(by -> criteria.and("claim.by").is(by));
-    claimEpoch.ifPresent(epoch -> criteria.and("claimEpoch").is(epoch));
+    claimSeq.ifPresent(seq -> criteria.and("claim.seq").is(seq));
     Update update = new Update().set("phase", RunPhase.completed).set("duration", duration);
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));

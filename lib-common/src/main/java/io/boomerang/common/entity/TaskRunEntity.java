@@ -60,11 +60,10 @@ public class TaskRunEntity {
   @Indexed private String workflowRunRef; // Indexed when retrieving task runs for a workflow run
   private String agentRef;
 
-  // Claim ownership. Absent = unclaimed and eligible; written only by the claim
-  // Compare-And-Set. The epoch increments on every claim and is never reset, fencing
+  // Claim ownership. claim.by absent = unclaimed and eligible; written only by the claim
+  // Compare-And-Set. claim.epoch increments on every claim and is never cleared, fencing
   // out dispatches that carry a superseded claim.
   @JsonIgnore private RunClaim claim;
-  @JsonIgnore private Long claimEpoch;
 
   @Override
   public String toString() {
