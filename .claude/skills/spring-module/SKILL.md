@@ -222,6 +222,10 @@ only document where this repo diverges from defaults.)
   `messages.properties` had none and lines concatenated.
 - Agent designs a Mongo partial unique index with `$exists: false` → unsupported; use a
   full compound unique index or a positive-value partial filter.
+- Agent asserts a library/framework incompatibility from jar metadata or docs → **check
+  the reference repos first** (ARCHIE at `~/Workspaces/tlawrie/asdr`, CHEER at
+  `~/Workspaces/walkaboutdev/cheer.dev`) — a working deployment beats inferred metadata
+  (e.g. flamingock-springboot-integration was claimed Boot-3-only; CHEER runs it on Boot 4).
 
 ## Config / dependencies
 

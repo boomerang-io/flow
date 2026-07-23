@@ -5,6 +5,11 @@ Database migrations for Boomerang Flow (DD-07), rewritten on
 all v5+ schema changes: indexes, bounded backfills, and data reconciliation for the MongoDB
 collections shared by the Flow services.
 
+The standalone runner is a design choice, not a compatibility workaround: a run-once Job
+needs no Spring context. If migrations ever fold in-app (the deferred DD-07 re-decision),
+`flamingock-springboot-integration` is proven on Spring Boot 4 — CHEER runs exactly that
+combination in production.
+
 ## How it runs
 
 The loader runs as a **pre-deploy container/Job — one execution per deploy**, before the
