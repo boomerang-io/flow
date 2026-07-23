@@ -21,9 +21,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TimeZone;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -31,9 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.jobrunr.scheduling.JobScheduler;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -69,11 +64,6 @@ public class TaskExecutionService {
   @Autowired @Lazy private TaskExecutionService self;
 
   @Autowired private JobScheduler jobScheduler;
-
-  @Autowired
-  @Lazy
-  @Qualifier("asyncTaskExecutor")
-  TaskExecutor asyncTaskExecutor;
 
   /*
    * Callers pass TaskRun ids only; the method re-reads the document at entry so every transition
@@ -225,12 +215,6 @@ public class TaskExecutionService {
           wfRunEntity.get().getId(),
           wfRunEntity.get().getStatus());
       return;
-    } else if (hasWorkflowRunExceededTimeout(wfRunEntity.get())) {
-      // Checking WorkflowRun Timeout
-      // prior to starting the TaskRun before further execution can happen
-      // Timeout will mark the task as skipped.
-      workflowRunService.timeout(wfRunEntity.get().getId(), false);
-      return;
     }
 
     self.execute(taskExecutionId);
@@ -259,9 +243,11 @@ public class TaskExecutionService {
     String wfRunId = wfRunEntity.getId();
     LOGGER.info("[{}] Recieved Execute task request for type: {}.", taskExecutionId, taskType);
 
-    // Execution-entry Compare-And-Set: ready becomes running exactly once. A duplicate
-    // dispatch of the same TaskRun loses here and performs no side effects.
-    taskExecution = taskRunRepository.tryStartExecution(taskExecutionId, new Date());
+    // Execution-entry Compare-And-Set: ready becomes running exactly once, baking the durable
+    // timeoutAt deadline. A duplicate dispatch of the same TaskRun loses here and performs no
+    // side effects.
+    taskExecution =
+        taskRunRepository.tryStartExecution(taskExecutionId, new Date(), taskExecution.getTimeout());
     if (taskExecution == null) {
       LOGGER.info("[{}] TaskRun already executing or completed. Nothing to do.", taskExecutionId);
       return;
@@ -328,23 +314,12 @@ public class TaskExecutionService {
       default -> throw new BoomerangException(BoomerangError.TASKRUN_INVALID_TYPE, taskType);
     }
 
-    // Check if task has a timeout set and task is not auto ending
-    // If set, create Timeout Delayed CompletableFuture
-    // TODO migrate to a scheduled task rather than using Future so that it works across horizontal
-    // scaling
+    // Timeouts are owned by the watcher sweep on the durable timeoutAt deadline - there are no
+    // in-memory timers to lose on a crash.
     if (endTask) {
       // Persist the type-specific outcome (status, results, decision value) for end() to re-read.
       taskRunRepository.save(taskExecution);
       self.end(taskExecutionId);
-    } else if (!Objects.isNull(taskExecution.getTimeout()) && taskExecution.getTimeout() != 0) {
-      LOGGER.debug(
-          "[{}] TaskRun Timeout provided of {} minutes. Creating future timeout check.",
-          taskExecution.getId(),
-          taskExecution.getTimeout());
-      CompletableFuture.supplyAsync(
-          timeoutTaskAsync(taskExecution.getId()),
-          CompletableFuture.delayedExecutor(
-              taskExecution.getTimeout(), TimeUnit.MINUTES, asyncTaskExecutor));
     }
   }
 
@@ -418,10 +393,9 @@ public class TaskExecutionService {
       return;
     }
 
-    // The TaskRun timed out when the caller marked it so, or its wall clock ran over the budget.
-    boolean taskTimedOut =
-        RunStatus.timedout.equals(taskExecution.getStatus())
-            || hasTaskRunExceededTimeout(taskExecution);
+    // The TaskRun timed out when the caller (or the watcher's reap) marked it so; wall-clock
+    // checks are gone - the durable timeoutAt deadline is the single timeout path.
+    boolean taskTimedOut = RunStatus.timedout.equals(taskExecution.getStatus());
 
     // Completion Compare-And-Set: the caller-persisted terminal status stands unless the task
     // timed out. Losing means another end already completed this TaskRun.
@@ -449,24 +423,14 @@ public class TaskExecutionService {
         taskExecutionId,
         (taskTimedOut ? RunStatus.timedout : taskExecution.getStatus()));
 
-    // Winner-only follow-on: no further graph advance can happen once a run has run over.
-    if (hasWorkflowRunExceededTimeout(wfRunEntity)) {
-      // This will update the Workflow status and then call back to this method to be trapped by
-      // above WorkflowRun checks
-      workflowRunService.timeout(wfRunEntity.getId(), false);
-      return;
-    } else if (taskTimedOut) {
+    // Winner-only follow-on: a final task timeout times out the run rather than advancing it.
+    if (taskTimedOut) {
       workflowRunService.timeout(wfRunEntity.getId(), true);
       return;
     }
 
-    // Winner-only graph advance. The workflow-level lock serialises concurrent advances of the
-    // same run (two different tasks completing together) until those writes are field-scoped.
-    LOGGER.info(
-        "[{}] Attempting to get WorkflowRun ({}) lock", taskExecutionId, wfRunEntity.getId());
-    String tokenId = lockManager.acquireLock(wfRunEntity.getId());
-    LOGGER.info("[{}] Obtained WorkflowRun ({}) lock", taskExecutionId, wfRunEntity.getId());
-
+    // Winner-only graph advance. No workflow-level lock: admission and completion
+    // Compare-And-Set transitions make a duplicate or concurrent advance a no-op.
     List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.getId());
     boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, taskExecution);
     LOGGER.debug("[{}] Finished all TaskRuns? {}", taskExecutionId, finishedAllDependencies);
@@ -477,9 +441,28 @@ public class TaskExecutionService {
     updatePendingApprovalStatus(wfRunEntity);
 
     executeNextStep(wfRunEntity, tasks, taskExecution, finishedAllDependencies);
+  }
 
-    lockManager.releaseLock(wfRunEntity.getId(), tokenId);
-    LOGGER.info("[{}] Released WorkflowRun ({}) lock", taskExecutionId, wfRunEntity.getId());
+  /*
+   * Re-drive the graph advance for a run whose advancing winner was lost (for example a crash
+   * between completing a task and queueing its dependants). Safe to call at any time: admission
+   * and completion Compare-And-Set transitions make a duplicate advance a no-op.
+   */
+  public void advance(String wfRunId) {
+    WorkflowRunEntity wfRunEntity = workflowRunRepository.findById(wfRunId).orElse(null);
+    if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
+      return;
+    }
+    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunId);
+    for (TaskRunEntity completed :
+        tasks.stream()
+            .filter(
+                t ->
+                    RunPhase.completed.equals(t.getPhase()) && !TaskType.end.equals(t.getType()))
+            .toList()) {
+      boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, completed);
+      executeNextStep(wfRunEntity, tasks, completed, finishedAllDependencies);
+    }
   }
 
   /*
@@ -512,33 +495,6 @@ public class TaskExecutionService {
           (taskExecution.getClaim() != null ? taskExecution.getClaim().getSeq() : null));
     }
     return valid;
-  }
-
-  /*
-   * An async method to execute Timeout checks with DelayedExecutor
-   *
-   * The CompletableFuture.orTimeout() method can't be used as the TaskRun Async thread will finish
-   * and hand over to the Handler and wait for callback.
-   *
-   * TODO: save error block TODO: implement via quartz Note: Implements same locks as
-   * TaskExecutionService
-   */
-  private Supplier<Boolean> timeoutTaskAsync(String taskRunId) {
-    return () -> {
-      final Optional<TaskRunEntity> optTaskExecution = this.taskRunRepository.findById(taskRunId);
-      if (optTaskExecution.isPresent()) {
-        TaskRunEntity taskExecution = optTaskExecution.get();
-        // Only need to check if Running - otherwise nothing to timeout
-        if (RunPhase.running.equals(taskExecution.getPhase())) {
-          LOGGER.info("[{}] Timeout Task Async...", taskRunId);
-          // Persist the timedout status for end() to re-read.
-          taskExecution.setStatus(RunStatus.timedout);
-          taskRunRepository.save(taskExecution);
-          self.end(taskRunId);
-        }
-      }
-      return true;
-    };
   }
 
   /*
@@ -602,28 +558,6 @@ public class TaskExecutionService {
     wfRunEntity.setAwaitingApproval(existingApprovals);
     // Field-scoped write so a level-triggered recompute can never stomp concurrent run state.
     this.workflowRunRepository.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
-  }
-
-  private boolean hasWorkflowRunExceededTimeout(WorkflowRunEntity wfRunEntity) {
-    if (!Objects.isNull(wfRunEntity.getTimeout()) && wfRunEntity.getTimeout() != 0) {
-      long duration = new Date().getTime() - wfRunEntity.getStartTime().getTime();
-      long timeout = TimeUnit.MINUTES.toMillis(wfRunEntity.getTimeout());
-      if (duration >= timeout) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private boolean hasTaskRunExceededTimeout(TaskRunEntity taskRunEntity) {
-    if (!Objects.isNull(taskRunEntity.getTimeout()) && taskRunEntity.getTimeout() != 0) {
-      long duration = new Date().getTime() - taskRunEntity.getStartTime().getTime();
-      long timeout = TimeUnit.MINUTES.toMillis(taskRunEntity.getTimeout());
-      if (duration >= timeout) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private void saveWorkflowStatus(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -958,38 +892,42 @@ public class TaskExecutionService {
   }
 
   private void finishWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
-    // Updates the status of end task
+    // Terminalise the end node via the completion Compare-And-Set (a no-op on re-drive).
     tasks.stream()
         .filter(t -> TaskType.end.equals(t.getType()))
         .forEach(
-            t -> {
-              t.setStatus(RunStatus.succeeded);
-              t.setPhase(RunPhase.completed);
-              taskRunRepository.save(t);
-            });
+            t ->
+                taskRunRepository.tryComplete(
+                    t.getId(),
+                    Optional.of(RunStatus.succeeded),
+                    Optional.empty(),
+                    0,
+                    Optional.empty(),
+                    Optional.empty()));
     // Validate all paths have been taken
     // It also updates the status of each task and checks dependencies.
     boolean workflowCompleted = dagUtility.validateWorkflow(wfRunEntity, tasks);
 
-    // Set WorkflowRun status and phase
-    if (wfRunEntity.getStatusOverride() != null) {
-      wfRunEntity.setStatus(wfRunEntity.getStatusOverride());
-    } else {
-      if (workflowCompleted) {
-        wfRunEntity.setStatus(RunStatus.succeeded);
-      } else {
-        wfRunEntity.setStatus(RunStatus.failed);
-      }
+    RunStatus status =
+        wfRunEntity.getStatusOverride() != null
+            ? wfRunEntity.getStatusOverride()
+            : (workflowCompleted ? RunStatus.succeeded : RunStatus.failed);
+    long duration =
+        wfRunEntity.getStartTime() != null
+            ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
+            : 0;
+
+    // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
+    // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
+    if (workflowRunRepository.tryComplete(
+            wfRunEntity.getId(), List.of(RunPhase.running), status, null, duration)
+        == null) {
+      LOGGER.info(
+          "[{}] WorkflowRun already completed. Only the completion winner finishes.",
+          wfRunEntity.getId());
+      return;
     }
-    wfRunEntity.setPhase(RunPhase.completed);
-
-    // Calc Duration
-    long duration = new Date().getTime() - wfRunEntity.getStartTime().getTime();
-    wfRunEntity.setDuration(duration);
-
-    this.workflowRunRepository.save(wfRunEntity);
-    LOGGER.info(
-        "[{}] Completed Workflow with status: {}.", wfRunEntity.getId(), wfRunEntity.getStatus());
+    LOGGER.info("[{}] Completed Workflow with status: {}.", wfRunEntity.getId(), status);
   }
 
   private void executeNextStep(

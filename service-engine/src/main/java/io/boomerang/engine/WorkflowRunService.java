@@ -454,20 +454,20 @@ public class WorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    final Optional<WorkflowRunEntity> optWfRunEntity =
-        workflowRunRepository.findById(workflowRunId);
-    if (optWfRunEntity.isPresent()) {
-      WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
-      wfRunEntity
-          .getAnnotations()
-          .put("boomerang.io/timeout-cause", taskRunTimeout ? "TaskRun" : "WorkflowRun");
-      wfRunEntity.setStatus(RunStatus.timedout);
-      workflowRunRepository.save(wfRunEntity);
+    // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
+    // can never overwrite a terminal status. Only the winner drives the timeout to completion.
+    if (workflowRunRepository.tryMarkTimedOut(
+            workflowRunId, taskRunTimeout ? "TaskRun" : "WorkflowRun")
+        != null) {
       workflowExecutionService.timeout(workflowRunId);
-      return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
     } else {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      LOGGER.info("[{}] WorkflowRun not running. Nothing to timeout.", workflowRunId);
     }
+    return ConvertUtil.entityToModel(
+        workflowRunRepository
+            .findById(workflowRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF)),
+        WorkflowRun.class);
   }
 
   public WorkflowRun retry(String workflowRunId, boolean start, long retryCount) {

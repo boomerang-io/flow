@@ -52,6 +52,12 @@ public class WorkflowRunEntity {
   // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.seq
   // increments on every claim and is never cleared.
   @JsonIgnore private RunClaim claim;
+
+  // Denormalised absolute deadline written at the start Compare-And-Set; absent = unguarded.
+  // The watcher reaps on an indexed range scan - there are no in-memory timers.
+  @JsonIgnore
+  @Indexed(sparse = true)
+  private Date timeoutAt;
   private String trigger;
   private String initiatedByRef;
   private List<RunParam> params = new LinkedList<>();

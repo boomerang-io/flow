@@ -48,8 +48,6 @@ public class WorkflowExecutionService {
 
   @Autowired private ParameterManager paramManager;
 
-  @Autowired @Lazy private LockManager lockManager;
-
   @Autowired @Lazy private WorkflowRunService workflowRunService;
 
   @Autowired private JobScheduler jobScheduler;
@@ -120,17 +118,24 @@ public class WorkflowExecutionService {
     final TaskRunEntity end = dagUtility.getTaskByType(tasks, TaskType.end);
     final Graph<String, DefaultEdge> graph = dagUtility.createGraph(tasks);
     return CompletableFuture.supplyAsync(
-        executeWorkflowAsync(wfRunEntity.getId(), start, end, graph, tasks), asyncWorkflowExecutor);
+        executeWorkflowAsync(
+            wfRunEntity.getId(), wfRunEntity.getTimeout(), start, end, graph, tasks),
+        asyncWorkflowExecutor);
   }
 
   public void end(String wfRunId) {
-    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
     WorkflowRunEntity workflowExecution =
         workflowRunRepository
             .findById(wfRunId)
             .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    workflowExecution.setPhase(RunPhase.finalized);
-    workflowRunRepository.save(workflowExecution);
+    // Finalize Compare-And-Set: only a completed run can be finalized, so an early or duplicate
+    // finalize can never stomp a run that is still executing.
+    if (workflowRunRepository.tryFinalize(wfRunId) == null) {
+      LOGGER.info(
+          "[{}] WorkflowRun not completed (phase: {}). Nothing to finalize.",
+          wfRunId,
+          workflowExecution.getPhase());
+    }
   }
 
   public void cancel(String wfRunId) {
@@ -143,10 +148,18 @@ public class WorkflowExecutionService {
     if (workflowExecution.getStartTime() != null) {
       duration = new Date().getTime() - workflowExecution.getStartTime().getTime();
     }
-    workflowExecution.setDuration(duration);
-    String statusMessage = "The WorkflowRun was requested to be cancelled.";
-    updateStatusAndSaveWorkflow(
-        workflowExecution, RunStatus.cancelled, RunPhase.completed, Optional.of(statusMessage));
+    // Completion Compare-And-Set: only a run that has not yet completed can be cancelled - a
+    // terminal status is never overwritten.
+    if (workflowRunRepository.tryComplete(
+            wfRunId,
+            List.of(RunPhase.pending, RunPhase.queued, RunPhase.running),
+            RunStatus.cancelled,
+            "The WorkflowRun was requested to be cancelled.",
+            duration)
+        == null) {
+      LOGGER.info("[{}] WorkflowRun already completed. Nothing to cancel.", wfRunId);
+      return;
+    }
 
     // Cancel Running & Pending Tasks
     cancelPendingAndRunningTasks(workflowExecution);
@@ -169,15 +182,16 @@ public class WorkflowExecutionService {
 
   private Supplier<Boolean> executeWorkflowAsync(
       String wfRunId,
+      final Long timeout,
       final TaskRunEntity start,
       final TaskRunEntity end,
       final Graph<String, DefaultEdge> graph,
       final List<TaskRunEntity> tasksToRun) {
     return () -> {
-      // Start Compare-And-Set: pending/queued becomes running exactly once. Only the winner
-      // queues the first tasks and schedules the timeout; a duplicate start performs no side
-      // effects. From this point, the duration needs to be calculated.
-      WorkflowRunEntity wfRunEntity = workflowRunRepository.tryStart(wfRunId, new Date());
+      // Start Compare-And-Set: pending/queued becomes running exactly once, baking the durable
+      // timeoutAt deadline. Only the winner queues the first tasks and schedules the timeout; a
+      // duplicate start performs no side effects.
+      WorkflowRunEntity wfRunEntity = workflowRunRepository.tryStart(wfRunId, new Date(), timeout);
       if (wfRunEntity == null) {
         LOGGER.info("[{}] WorkflowRun already started. Only the start winner proceeds.", wfRunId);
         return true;
@@ -188,9 +202,9 @@ public class WorkflowExecutionService {
             "[{}] WorkflowRun Timeout provided of {} minutes. Creating future timeout check.",
             wfRunEntity.getId(),
             wfRunEntity.getTimeout());
-        Long timeout = (wfRunEntity.getTimeout() * 60) + 5;
+        Long timeoutSeconds = (wfRunEntity.getTimeout() * 60) + 5;
         jobScheduler.schedule(
-            Instant.now().plus(timeout, ChronoUnit.SECONDS),
+            Instant.now().plus(timeoutSeconds, ChronoUnit.SECONDS),
             () -> timeoutWorkflow(wfRunEntity.getId()));
       }
       LOGGER.info("[{}] Executing Workflow Async...", wfRunEntity.getId());
@@ -223,67 +237,54 @@ public class WorkflowExecutionService {
   }
 
   /*
-   * An async method to execute Timeout checks with DelayedExecutor
-   *
-   * The CompletableFuture.orTimeout() method can't be used as the WorkflowRun async thread will
-   * finish and hand over to TaskRun threads and thus never reaches timeout.
-   *
-   * TODO: save error block
-   * Note: Implements same locks as TaskExecutionService
+   * Times out a running WorkflowRun. Reached from the scheduled per-run job, the watcher sweep
+   * and the task-timeout path - all idempotent against each other.
    */
   @Job(name = "Workflow Timeout")
   public void timeoutWorkflow(String wfRunId) {
     LOGGER.debug("[{}] Commencing Timeout Workflow Async...", wfRunId);
-    final Optional<WorkflowRunEntity> optWorkflowRunEntity =
-        this.workflowRunRepository.findById(wfRunId);
-    LOGGER.debug("[{}] Retrieve Workflow to timeout...", wfRunId);
-    if (optWorkflowRunEntity.isPresent()) {
-      WorkflowRunEntity wfRunEntity = optWorkflowRunEntity.get();
-      // Only need to check if Workflow is running - otherwise nothing to timeout
-      if (RunPhase.running.equals(wfRunEntity.getPhase())) {
-        LOGGER.info("[{}] Timeout Workflow Async...", wfRunId);
-        String tokenId = lockManager.acquireLock(wfRunId);
-        LOGGER.debug("[{}] Obtained WorkflowRun lock", wfRunId);
+    WorkflowRunEntity wfRunEntity = this.workflowRunRepository.findById(wfRunId).orElse(null);
+    if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
+      return;
+    }
+    LOGGER.info("[{}] Timeout Workflow Async...", wfRunId);
+    long duration =
+        wfRunEntity.getStartTime() != null
+            ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
+            : 0;
+    String statusMessage =
+        "TaskRun".equals(wfRunEntity.getAnnotations().get("boomerang.io/timeout-cause"))
+            ? "A TaskRun exceeded it's timeout."
+            : MessageFormatter.format(
+                    "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
+                    wfRunEntity.getTimeout())
+                .getMessage();
 
-        long duration = new Date().getTime() - wfRunEntity.getStartTime().getTime();
-        wfRunEntity.setDuration(duration);
-        String statusMessage =
-            "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes";
-        if (wfRunEntity.getAnnotations().containsKey("boomerang.io/timeout-cause")
-            && "TaskRun".equals(wfRunEntity.getAnnotations().get("boomerang.io/timeout-cause"))) {
-          statusMessage = "A TaskRun exceeded it's timeout.";
-        } else {
-          wfRunEntity.getAnnotations().put("boomerang.io/timeout-cause", "WorkflowRun");
-        }
-        updateStatusAndSaveWorkflow(
-            wfRunEntity,
-            RunStatus.timedout,
-            RunPhase.completed,
-            Optional.of(statusMessage),
-            wfRunEntity.getTimeout());
-        lockManager.releaseLock(wfRunId, tokenId);
-        LOGGER.debug("[{}] Released WorkflowRun lock", wfRunId);
+    // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
+    // completed; only the winner cancels tasks and evaluates the auto-retry, so a duplicate
+    // timeout can never spawn a duplicate retry.
+    if (workflowRunRepository.tryComplete(
+            wfRunId, List.of(RunPhase.running), RunStatus.timedout, statusMessage, duration)
+        == null) {
+      LOGGER.info("[{}] WorkflowRun already completed. Only the timeout winner acts.", wfRunId);
+      return;
+    }
 
-        // Cancel Running & Pending Tasks
-        cancelPendingAndRunningTasks(wfRunEntity);
+    // Cancel Running & Pending Tasks
+    cancelPendingAndRunningTasks(wfRunEntity);
 
-        // Retry workflow and set required details
-        if (!Objects.isNull(wfRunEntity.getRetries())
-            && wfRunEntity.getRetries() != -1
-            && wfRunEntity.getRetries() != 0) {
-          long retryCount = 0;
-          if (wfRunEntity.getAnnotations().containsKey("boomerang.io/retry-count")) {
-            retryCount = (long) wfRunEntity.getAnnotations().get("boomerang.io/retry-count");
-          }
-          if (retryCount < wfRunEntity.getRetries()) {
-            boolean start = false;
-            if (wfRunEntity.getAnnotations().containsKey("boomerang.io/submit-with-start")) {
-              start = true;
-            }
-            retryCount++;
-            workflowRunService.retry(wfRunId, start, retryCount);
-          }
-        }
+    // Winner-only auto-retry
+    if (!Objects.isNull(wfRunEntity.getRetries())
+        && wfRunEntity.getRetries() != -1
+        && wfRunEntity.getRetries() != 0) {
+      long retryCount = 0;
+      if (wfRunEntity.getAnnotations().containsKey("boomerang.io/retry-count")) {
+        retryCount = (long) wfRunEntity.getAnnotations().get("boomerang.io/retry-count");
+      }
+      if (retryCount < wfRunEntity.getRetries()) {
+        boolean start = wfRunEntity.getAnnotations().containsKey("boomerang.io/submit-with-start");
+        retryCount++;
+        workflowRunService.retry(wfRunId, start, retryCount);
       }
     }
   }

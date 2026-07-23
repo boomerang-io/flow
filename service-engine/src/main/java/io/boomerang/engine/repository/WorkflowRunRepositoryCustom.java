@@ -1,6 +1,8 @@
 package io.boomerang.engine.repository;
 
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.RunParam;
 import java.util.Date;
 import java.util.List;
@@ -8,7 +10,8 @@ import java.util.List;
 /**
  * Compare-And-Set transitions for WorkflowRuns. Every method is a single-document atomic operation
  * whose query encodes the expected prior state; a {@code null} return means another caller won the
- * transition and this caller must perform no side effects.
+ * transition and this caller must perform no side effects. Every winning transition publishes a
+ * {@code WorkflowRunTransition} ApplicationEvent (ids and from/to state only).
  */
 public interface WorkflowRunRepositoryCustom {
 
@@ -42,11 +45,50 @@ public interface WorkflowRunRepositoryCustom {
   WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams);
 
   /**
-   * Start Compare-And-Set: pending/queued becomes running with the given start time. The dispatch
+   * Start Compare-And-Set: pending/queued becomes running with the given start time, baking
+   * {@code timeoutAt} from the given budget (minutes, {@code null} or 0 = unguarded). The dispatch
    * claim is cleared so the completed-phase teardown claimable becomes eligible later. Returns the
-   * updated document, or {@code null} when another caller already started the run.
+   * document with the transition applied, or {@code null} when another caller already started the
+   * run.
    */
-  WorkflowRunEntity tryStart(String id, Date startTime);
+  WorkflowRunEntity tryStart(String id, Date startTime, Long timeoutMinutes);
+
+  /**
+   * Completion Compare-And-Set: one of the given phases becomes completed with the given terminal
+   * status and duration. Exactly one racing completer (advance winner, cancel, timeout) wins - a
+   * terminal status can never be overwritten. Returns the pre-image, or {@code null} when the run
+   * already completed.
+   */
+  WorkflowRunEntity tryComplete(
+      String id, List<RunPhase> fromPhases, RunStatus status, String statusMessage, long duration);
+
+  /**
+   * Mark a running run as timed out (status only; completion follows through the timeout path),
+   * recording the cause annotation. Returns the pre-image, or {@code null} when the run is no
+   * longer running - a terminal status is never overwritten.
+   */
+  WorkflowRunEntity tryMarkTimedOut(String id, String cause);
+
+  /**
+   * Finalize Compare-And-Set: completed becomes finalized. Returns the pre-image, or {@code null}
+   * when the run is not completed (never started, still running, or already finalized).
+   */
+  WorkflowRunEntity tryFinalize(String id);
+
+  /** Return the page of running WorkflowRuns whose baked deadline has passed. */
+  List<WorkflowRunEntity> findTimedOut(Date now, int limit);
+
+  /**
+   * Return the page of running WorkflowRuns started before the given cutoff - the candidates the
+   * stalled-run sweep checks for lost graph advances.
+   */
+  List<WorkflowRunEntity> findRunningStartedBefore(Date startedBefore, int limit);
+
+  /**
+   * Return the page of completed, workspace-less WorkflowRuns. With nothing to tear down no agent
+   * ever claims them, so the engine finalizes them itself.
+   */
+  List<WorkflowRunEntity> findFinalizableWithoutWorkspaces(int limit);
 
   /** Set the awaiting-approval flag without rewriting the rest of the document. */
   void setAwaitingApproval(String id, boolean awaitingApproval);

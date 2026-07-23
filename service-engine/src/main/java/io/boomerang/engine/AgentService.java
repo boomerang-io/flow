@@ -175,7 +175,9 @@ public class AgentService {
         List<TaskRun> taskRuns = new LinkedList<>();
         for (TaskRunEntity candidate :
             taskRunRepository.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
-          TaskRunEntity claimed = taskRunRepository.tryClaim(candidate.getId(), agentId);
+          // The claim bakes the durable timeoutAt deadline from the task's timeout budget.
+          TaskRunEntity claimed =
+              taskRunRepository.tryClaim(candidate.getId(), agentId, candidate.getTimeout());
           if (claimed != null) {
             taskRuns.add(new TaskRun(claimed));
           }

@@ -44,6 +44,8 @@ public abstract class AbstractEngineIntegrationTest {
     registry.add("org.jobrunr.dashboard.enabled", () -> "false");
     registry.add("flow.events.sink.enabled", () -> "false");
     registry.add("flow.audit.enabled", () -> "false");
+    // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
+    registry.add("flow.watcher.enabled", () -> "false");
   }
 
   @Autowired protected TaskRunRepository taskRunRepository;

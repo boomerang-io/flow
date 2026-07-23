@@ -8,6 +8,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
@@ -64,6 +65,16 @@ public class TaskRunEntity {
   // Compare-And-Set. claim.seq increments on every claim and is never cleared, fencing
   // out dispatches that carry a superseded claim.
   @JsonIgnore private RunClaim claim;
+
+  // Denormalised absolute deadline (budget + grace) written at claim/start; absent = unguarded.
+  // The watcher reaps on an indexed range scan - there are no in-memory timers.
+  @JsonIgnore
+  @Indexed(sparse = true)
+  private Date timeoutAt;
+
+  // Retry state. Absent = fully eligible; retry.after gates claim eligibility until the backoff
+  // elapses. Written only by the fenced requeue, which never clears claim.seq.
+  @JsonIgnore private RunRetry retry;
 
   @Override
   public String toString() {
