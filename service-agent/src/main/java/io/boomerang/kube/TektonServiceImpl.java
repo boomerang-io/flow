@@ -9,7 +9,7 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
-import io.fabric8.knative.internal.pkg.apis.Condition;
+import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.ConfigMapProjection;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.Duration;
@@ -23,18 +23,18 @@ import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.VolumeProjection;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.Watch;
-import io.fabric8.tekton.client.DefaultTektonClient;
 import io.fabric8.tekton.client.TektonClient;
-import io.fabric8.tekton.pipeline.v1beta1.ArrayOrString;
-import io.fabric8.tekton.pipeline.v1beta1.Param;
-import io.fabric8.tekton.pipeline.v1beta1.ParamSpec;
-import io.fabric8.tekton.pipeline.v1beta1.Step;
-import io.fabric8.tekton.pipeline.v1beta1.TaskRun;
-import io.fabric8.tekton.pipeline.v1beta1.TaskRunBuilder;
-import io.fabric8.tekton.pipeline.v1beta1.TaskRunResult;
-import io.fabric8.tekton.pipeline.v1beta1.WorkspaceBinding;
-import io.fabric8.tekton.pipeline.v1beta1.WorkspaceDeclaration;
+import io.fabric8.tekton.v1.Param;
+import io.fabric8.tekton.v1.ParamSpec;
+import io.fabric8.tekton.v1.ParamValue;
+import io.fabric8.tekton.v1.Step;
+import io.fabric8.tekton.v1.TaskRun;
+import io.fabric8.tekton.v1.TaskRunBuilder;
+import io.fabric8.tekton.v1.TaskRunResult;
+import io.fabric8.tekton.v1.WorkspaceBinding;
+import io.fabric8.tekton.v1.WorkspaceDeclaration;
 import java.lang.reflect.Type;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -108,7 +108,7 @@ public class TektonServiceImpl implements TektonService {
   TektonClient client = null;
 
   public TektonServiceImpl() {
-    this.client = new DefaultTektonClient();
+    this.client = new KubernetesClientBuilder().build().adapt(TektonClient.class);
   }
 
   @Override
@@ -368,9 +368,7 @@ public class TektonServiceImpl implements TektonService {
           taskSpecParams.add(taskSpecParam);
           Param taskParam = new Param();
           taskParam.setName(p.getName());
-          ArrayOrString valueString = new ArrayOrString();
-          valueString.setStringVal((String) p.getValue());
-          taskParam.setValue(valueString);
+          taskParam.setValue(new ParamValue((String) p.getValue()));
           taskParams.add(taskParam);
           //      TODO Determine if we need this.
           //      envVars.add(helperKubeService.createEnvVar("PARAM_" + key.toUpperCase(), value));
@@ -415,13 +413,14 @@ public class TektonServiceImpl implements TektonService {
     /*
      * Define TaskResults and copy from internal model
      */
-    List<io.fabric8.tekton.pipeline.v1beta1.TaskResult> tknTaskResults = new ArrayList<>();
+    List<io.fabric8.tekton.v1.TaskResult> tknTaskResults = new ArrayList<>();
     if (results != null) {
       results.forEach(
           result -> {
-            tknTaskResults.add(
-                new io.fabric8.tekton.pipeline.v1beta1.TaskResult(
-                    result.getDescription(), result.getName()));
+            io.fabric8.tekton.v1.TaskResult tknTaskResult = new io.fabric8.tekton.v1.TaskResult();
+            tknTaskResult.setName(result.getName());
+            tknTaskResult.setDescription(result.getDescription());
+            tknTaskResults.add(tknTaskResult);
           });
     }
 
@@ -471,9 +470,9 @@ public class TektonServiceImpl implements TektonService {
 
     LOGGER.info(taskRun);
 
-    TaskRun result = client.v1beta1().taskRuns().create(taskRun);
+    TaskRun result = client.v1().taskRuns().resource(taskRun).create();
 
-    //    client.v1beta1().taskRuns().withLabels(helperKubeService.getTaskLabels(workflowId,
+    //    client.v1().taskRuns().withLabels(helperKubeService.getTaskLabels(workflowId,
     // workflowActivityId, taskId, taskActivityId, customLabels)).waitUntilReady(waitSeconds,
     // TimeUnit.SECONDS);
 
@@ -496,7 +495,7 @@ public class TektonServiceImpl implements TektonService {
 
     try (Watch ignore =
         client
-            .v1beta1()
+            .v1()
             .taskRuns()
             .withLabels(
                 helperKubeService.getTaskLabels(
@@ -546,7 +545,10 @@ public class TektonServiceImpl implements TektonService {
     List<RunResult> results = new ArrayList<>();
     tknResults.forEach(
         tr -> {
-          results.add(new RunResult(tr.getName(), tr.getValue()));
+          // Tekton v1 result values are ParamValue wrappers; tasks emit string results.
+          results.add(
+              new RunResult(
+                  tr.getName(), (tr.getValue() != null) ? tr.getValue().getStringVal() : null));
         });
 
     return results;
@@ -562,7 +564,7 @@ public class TektonServiceImpl implements TektonService {
     LOGGER.debug("Deleting Task...");
 
     client
-        .v1beta1()
+        .v1()
         .taskRuns()
         .withLabels(
             helperKubeService.getTaskLabels(
@@ -592,7 +594,7 @@ public class TektonServiceImpl implements TektonService {
 
     LOGGER.info("Cancelling Task with labels: " + labels.toString());
 
-    List<TaskRun> taskRuns = client.v1beta1().taskRuns().withLabels(labels).list().getItems();
+    List<TaskRun> taskRuns = client.v1().taskRuns().withLabels(labels).list().getItems();
 
     if (taskRuns != null && !taskRuns.isEmpty()) {
       TaskRun taskRun = taskRuns.get(0);
@@ -607,7 +609,7 @@ public class TektonServiceImpl implements TektonService {
 
       taskRun.getStatus().setConditions(taskRunConditions);
 
-      client.v1beta1().taskRuns().replaceStatus(taskRun);
+      client.v1().taskRuns().resource(taskRun).updateStatus();
     } else if (taskRuns != null && taskRuns.isEmpty()) {
       throw new BoomerangException(
           BoomerangError.TASK_EXECUTION_ERROR,

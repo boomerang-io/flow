@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import io.fabric8.knative.internal.pkg.apis.Condition;
+import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.WatcherException;
-import io.fabric8.tekton.pipeline.v1beta1.TaskRun;
-import io.fabric8.tekton.pipeline.v1beta1.TaskRunResult;
+import io.fabric8.tekton.v1.TaskRun;
+import io.fabric8.tekton.v1.TaskRunResult;
 
 public class TaskWatcher implements Watcher<TaskRun> {
 
@@ -54,7 +54,7 @@ public class TaskWatcher implements Watcher<TaskRun> {
       for (Condition condition : resource.getStatus().getConditions()) {
         LOGGER.info(" TaskRun Condition: " + condition.toString());
       }
-      results = resource.getStatus().getTaskResults();
+      results = resource.getStatus().getResults();
       LOGGER.info(" TaskRun Results: " + results.toString());
       switch (action.name()) {
         case "DELETED":

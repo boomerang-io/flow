@@ -17,8 +17,8 @@
         <jacoco.out.paths>${project.build.directory}</jacoco.out.paths>
         <sonar.jacoco.reportPath>${jacoco.out.path}/jacoco.exec</sonar.jacoco.reportPath>
         <jacoco.version>0.8.15</jacoco.version>
-        <kubernetes.version>5.12.4</kubernetes.version>
-        <tekton.version>5.12.4</tekton.version>
+        <kubernetes.version>7.8.0</kubernetes.version>
+        <tekton.version>7.8.0</tekton.version>
     </properties>
     <parent>
         <groupId>io.boomerang</groupId>
@@ -114,21 +114,6 @@
             <groupId>io.fabric8</groupId>
             <artifactId>tekton-client</artifactId>
             <version>${tekton.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.fabric8</groupId>
-            <artifactId>tekton-model-v1beta1</artifactId>
-            <version>${tekton.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.fabric8</groupId>
-            <artifactId>tekton-model-triggers</artifactId>
-            <version>${tekton.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.fabric8</groupId>
-            <artifactId>knative-model</artifactId>
-            <version>${kubernetes.version}</version>
         </dependency>
         <dependency>
             <groupId>io.fabric8</groupId>

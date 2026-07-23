@@ -9,8 +9,8 @@ import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaimList;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.Quantity;
-import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +70,7 @@ public class KubeServiceImpl implements KubeService {
   protected KubernetesClient client = null;
 
   public KubeServiceImpl() {
-    this.client = new DefaultKubernetesClient();
+    this.client = new KubernetesClientBuilder().build();
   }
 
   //  Using setter instead of Constructor due to autowiring issues
@@ -187,7 +187,8 @@ public class KubeServiceImpl implements KubeService {
             .endSpec()
             .build();
 
-    PersistentVolumeClaim result = client.persistentVolumeClaims().create(persistentVolumeClaim);
+    PersistentVolumeClaim result =
+        client.persistentVolumeClaims().resource(persistentVolumeClaim).create();
 
     client
         .resource(result)
@@ -338,7 +339,7 @@ public class KubeServiceImpl implements KubeService {
 
     LOGGER.debug("ConfigMap: " + configMap.toString());
 
-    ConfigMap result = client.configMaps().create(configMap);
+    ConfigMap result = client.configMaps().resource(configMap).create();
 
     LOGGER.info(result.toString());
 
