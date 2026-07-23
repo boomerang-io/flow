@@ -130,10 +130,10 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 ### G. Relationship Layer
 | ID | Gap | Sev | Fix | Tag |
 |---|---|---|---|---|
-| G1 | JGraphT singleton = authz bug under N | C | Direct-query walk; JGraphT deleted; behavioural-fix release note | BEFORE (7) |
-| G2 | Slug-ignores-type precedence bug | H | Retired by rewrite (verify no equivalent) | BEFORE (7) |
-| G3 | No per-request memoisation | M | Request-scoped memo | BEFORE (7) |
-| G4 | No write-ordering/orphan repair | M | Defined ordering + watcher-adjacent repair | BEFORE (7) |
+| G1 | ✅ **FIXED (E6, 2026-07-23):** JGraphT singleton deleted; anchored direct-query walk (3–7 indexed queries/decision, zero rebuilds); 24 signatures preserved; two-instance parity proven by test; flow 17/0/0 | C | done | ✅ |
+| G2 | ✅ Retired — every resolve type-scoped; cross-type slug-collision regression test | H | done | ✅ |
+| G3 | ✅ Request-scoped memo (no-op on scheduler threads; invalidated on mutations) | M | done | ✅ |
+| G4 | ✅ All mutation sites audited domain-write-first; ordering rule in the service header | M | done | ✅ |
 | G5 | Hot data traverses graph | M | workspaceId-direct rubric | BEFORE (7) |
 | G6 | Edge role data unverified | L | Pre-cutover check | BEFORE (7 gate) |
 
