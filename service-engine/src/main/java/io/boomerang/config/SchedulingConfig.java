@@ -5,8 +5,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Enable the watcher's scheduled sweeps. Disabling {@code flow.watcher.enabled} stops the
- * schedule (and the startup pass) while leaving the watcher bean available.
+ * Enable the watcher's scheduled sweeps. {@code flow.watcher.enabled=false} exists solely so tests
+ * can invoke sweeps deterministically — never disable in production: the watcher is the recovery
+ * path, and recovery must not be switchable off.
  */
 @Configuration
 @EnableScheduling

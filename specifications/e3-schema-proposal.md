@@ -13,6 +13,13 @@ changesets implement exactly this ruled shape.
 **Maintainer ruling (2026-07-24):** the fencing token moves INSIDE the claim block as
 `claim.seq`; requeue clears `claim.by`/`claim.at`/`claim.leaseExpiresAt` only — seq is
 never cleared — and eligibility keys on `"claim.by": {$exists: false}`.
+**Maintainer ruling (2026-07-24, slice C review):** (1) `retry.class`/`RetryClass` is
+DROPPED until E7 — no producer exists before the agent protocol reports failure classes;
+`retry` = `{after, count}` with one backoff curve (10s base, ×2, 5m ceiling, 3 attempts).
+Reintroduce additively at E7 (absent = generic, zero migration). (2) `timeout` stays the
+user-entered budget on both run entities; `timeoutAt` is baked ONLY at execution start
+(engine `tryStartExecution` / the agent's `PUT /{id}/start`), never at claim — queue time
+never consumes the budget. Claimed-never-started crash window is covered at E7 (leases).
 **Scope:** the E3 row of the gate table — additive claim/supersede/pause schema + indexes
 (migration step 4). E4's additions (`transitionSeq`, `lastOutboxedSeq`, `events_outbox`,
 `events_ingress`, `task_locks`, `tombstonedAt`) come in E4's own G2. Schedule fields

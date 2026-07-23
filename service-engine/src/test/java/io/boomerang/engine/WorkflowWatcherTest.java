@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.common.enums.RetryClass;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -23,7 +22,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 /**
- * The watcher's self-healing sweeps: durable timeout reaping with per-class retry (which is also
+ * The watcher's self-healing sweeps: durable timeout reaping with retry backoff (which is also
  * the crash recovery for a killed claimant - one sweep pass recovers the task), stalled-run
  * re-drive, and engine-internal finalize of workspace-less completed runs. Every sweep action
  * goes through a Compare-And-Set, so the sweeps are exercised by direct invocation - one call is
@@ -57,10 +56,9 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     assertNull(requeued.getClaim().getBy(), "requeue must clear the claim ownership");
     assertEquals(1L, requeued.getClaim().getSeq(), "requeue must never clear claim.seq");
     assertNull(requeued.getAgentRef());
-    assertNull(requeued.getTimeoutAt(), "the deadline is re-baked at the next claim");
+    assertNull(requeued.getTimeoutAt(), "the deadline is baked at the next execution start");
     assertNotNull(requeued.getRetry());
     assertEquals(1, requeued.getRetry().getCount());
-    assertEquals(RetryClass.generic, requeued.getRetry().getClazz());
     assertTrue(
         requeued.getRetry().getAfter().after(new Date()),
         "the retry backoff must gate the next attempt");
@@ -75,12 +73,12 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void timeoutReapContinuesTheTaskRetryClass() {
+  void timeoutReapContinuesTheRetryCount() {
     WorkflowRunEntity wfRun =
-        savedWorkflowRun("ratelimit-wf", RunStatus.running, RunPhase.running);
+        savedWorkflowRun("recount-wf", RunStatus.running, RunPhase.running);
     String taskRunId =
         savedTaskRun(
-                "ratelimited",
+                "recount",
                 TaskType.template,
                 RunStatus.ready,
                 RunPhase.pending,
@@ -90,15 +88,14 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     claimWithExpiredDeadline(taskRunId, "dead-agent", 3L);
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(taskRunId)),
-        new Update().set("retry.count", 5).set("retry.class", RetryClass.ratelimit),
+        new Update().set("retry.count", 1),
         TaskRunEntity.class);
 
     watcher.reapTaskTimeouts();
 
     TaskRunEntity requeued = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunStatus.ready, requeued.getStatus());
-    assertEquals(RetryClass.ratelimit, requeued.getRetry().getClazz());
-    assertEquals(6, requeued.getRetry().getCount());
+    assertEquals(2, requeued.getRetry().getCount());
     assertEquals(3L, requeued.getClaim().getSeq());
   }
 
@@ -116,10 +113,10 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
                 wfRun.getId())
             .getId();
     claimWithExpiredDeadline(taskRunId, "dead-agent", 2L);
-    // All generic attempts consumed - the reap goes terminal through the normal end path.
+    // All retry attempts consumed - the reap goes terminal through the normal end path.
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(taskRunId)),
-        new Update().set("retry.count", 3).set("retry.class", RetryClass.generic),
+        new Update().set("retry.count", 3),
         TaskRunEntity.class);
 
     watcher.reapTaskTimeouts();

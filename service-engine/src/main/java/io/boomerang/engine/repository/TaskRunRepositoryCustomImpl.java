@@ -1,7 +1,6 @@
 package io.boomerang.engine.repository;
 
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.enums.RetryClass;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -56,7 +55,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
   }
 
   @Override
-  public TaskRunEntity tryClaim(String id, String claimedBy, Long timeoutMinutes) {
+  public TaskRunEntity tryClaim(String id, String claimedBy) {
     // Re-checks full eligibility between page and claim; racing claimants cannot both win.
     Date now = new Date();
     Query query =
@@ -80,10 +79,6 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1)
             .unset("retry.after");
-    Date timeoutAt = timeoutAt(now, timeoutMinutes);
-    if (timeoutAt != null) {
-      update.set("timeoutAt", timeoutAt);
-    }
     TaskRunEntity preImage =
         mongoTemplate.findAndModify(
             query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
@@ -219,8 +214,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
   }
 
   @Override
-  public TaskRunEntity tryRequeue(
-      String id, Long observedClaimSeq, Date retryAfter, int retryCount, RetryClass retryClass) {
+  public TaskRunEntity tryRequeue(String id, Long observedClaimSeq, Date retryAfter, int retryCount) {
     Criteria criteria =
         Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
     fence(criteria, observedClaimSeq);
@@ -230,7 +224,6 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
             .set("phase", RunPhase.pending)
             .set("retry.after", retryAfter)
             .set("retry.count", retryCount)
-            .set("retry.class", retryClass)
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt")

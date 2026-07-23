@@ -2,7 +2,6 @@ package io.boomerang.engine;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.common.enums.RetryClass;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -39,6 +38,8 @@ public class WorkflowWatcher {
   // claimant. Gates, waits and inline system tasks time out terminally, as they always have.
   private static final Set<TaskType> REQUEUEABLE_TYPES =
       EnumSet.of(TaskType.template, TaskType.custom, TaskType.script, TaskType.generic);
+
+  private static final int MAX_RETRIES = 3;
 
   private final TaskRunRepository taskRunRepository;
   private final WorkflowRunRepository workflowRunRepository;
@@ -87,24 +88,13 @@ public class WorkflowWatcher {
     for (TaskRunEntity taskRun : taskRunRepository.findReapable(new Date(), PAGE_SIZE)) {
       try {
         Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
-        RetryClass retryClass =
-            (taskRun.getRetry() != null && taskRun.getRetry().getClazz() != null)
-                ? taskRun.getRetry().getClazz()
-                : RetryClass.generic;
         int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
-        if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && canRetry(retryClass, attempts)) {
+        if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
           if (taskRunRepository.tryRequeue(
-                  taskRun.getId(),
-                  observedSeq,
-                  nextRetryAt(retryClass, attempts),
-                  attempts + 1,
-                  retryClass)
+                  taskRun.getId(), observedSeq, nextRetryAt(attempts), attempts + 1)
               != null) {
             LOGGER.info(
-                "[{}] TaskRun timed out. Requeued as attempt {} ({}).",
-                taskRun.getId(),
-                attempts + 1,
-                retryClass);
+                "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
           }
         } else if (taskRunRepository.tryTimeout(taskRun.getId(), observedSeq) != null) {
           LOGGER.info("[{}] TaskRun timed out. Retry budget exhausted.", taskRun.getId());
@@ -165,21 +155,10 @@ public class WorkflowWatcher {
     }
   }
 
-  // Retry policy per class: generic 10s base, x2, cap 3, ceiling 5m; ratelimit 30s base, x2,
-  // cap 6, ceiling 10m; terminal never retries. Classification is typed - never string-matched.
-  private static boolean canRetry(RetryClass retryClass, int attempts) {
-    return switch (retryClass) {
-      case generic -> attempts < 3;
-      case ratelimit -> attempts < 6;
-      case terminal -> false;
-    };
-  }
-
-  private static Date nextRetryAt(RetryClass retryClass, int attempts) {
-    long base = (RetryClass.ratelimit == retryClass) ? 30000 : 10000;
-    long ceiling = (RetryClass.ratelimit == retryClass) ? 600000 : 300000;
-    long jitter = ThreadLocalRandom.current().nextLong((RetryClass.ratelimit == retryClass) ? 15000 : 5000);
-    long backoff = Math.min(base * (1L << Math.min(attempts, 30)), ceiling);
+  // Backoff: 10s base, x2 per attempt, 5m ceiling, jittered.
+  private static Date nextRetryAt(int attempts) {
+    long backoff = Math.min(10000L * (1L << Math.min(attempts, 30)), 300000);
+    long jitter = ThreadLocalRandom.current().nextLong(5000);
     return new Date(System.currentTimeMillis() + backoff + jitter);
   }
 }

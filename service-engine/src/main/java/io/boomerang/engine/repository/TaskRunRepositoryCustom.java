@@ -1,7 +1,6 @@
 package io.boomerang.engine.repository;
 
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.enums.RetryClass;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
@@ -25,12 +24,12 @@ public interface TaskRunRepositoryCustom {
 
   /**
    * Claim one eligible TaskRun for the given claimant: sets phase to queued, writes the claim
-   * ownership block (plus {@code agentRef} as the protocol-v1 alias), increments the claim epoch,
-   * clears the consumed retry backoff and bakes {@code timeoutAt} from the given budget (minutes,
-   * {@code null} or 0 = unguarded). Returns the pre-claim document (the wire shape the claimant
-   * executes), or {@code null} when another claimant won.
+   * ownership block (plus {@code agentRef} as the protocol-v1 alias), increments the claim epoch
+   * and clears the consumed retry backoff. The deadline is not baked here - {@code timeoutAt} is
+   * set when execution starts, so queue time never consumes the budget. Returns the pre-claim
+   * document (the wire shape the claimant executes), or {@code null} when another claimant won.
    */
-  TaskRunEntity tryClaim(String id, String claimedBy, Long timeoutMinutes);
+  TaskRunEntity tryClaim(String id, String claimedBy);
 
   /**
    * Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params in
@@ -40,9 +39,9 @@ public interface TaskRunRepositoryCustom {
 
   /**
    * Execution-entry Compare-And-Set: ready + pending/queued becomes running with the given start
-   * time, re-baking {@code timeoutAt} from the given budget so the runtime holds its full budget
-   * from actual start. Returns the document with the transition applied, or {@code null} on a
-   * duplicate dispatch.
+   * time, baking {@code timeoutAt} from the given budget (minutes, {@code null} or 0 = unguarded)
+   * so the runtime holds its full budget from actual start. Returns the document with the
+   * transition applied, or {@code null} on a duplicate dispatch.
    */
   TaskRunEntity tryStartExecution(String id, Date startTime, Long timeoutMinutes);
 
@@ -78,8 +77,7 @@ public interface TaskRunRepositoryCustom {
    * back at ready/pending. Fenced on the observed claim seq so a stale claimant cannot requeue the
    * next attempt. Returns the pre-image, or {@code null} when fenced out or already transitioned.
    */
-  TaskRunEntity tryRequeue(
-      String id, Long observedClaimSeq, Date retryAfter, int retryCount, RetryClass retryClass);
+  TaskRunEntity tryRequeue(String id, Long observedClaimSeq, Date retryAfter, int retryCount);
 
   /**
    * Return whether the run has any in-flight TaskRun: claimed or executing (phase queued/running)
