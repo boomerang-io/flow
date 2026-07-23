@@ -156,6 +156,7 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 | H14 | Frontend fold-in | M | DD-04 after merged image | POST |
 | H15 | **Standing constraint**: no PAUSED/SUPERSEDED statuses; superseded excluded from default responses | guard | Enforce in review | BEFORE (standing) |
 | H16 | Standalone enablers (compose, Docker agent, no-op relationships) | M | Per J8/I3 | POST (Phase 4) |
+| H18 | **Live bug (found by Q-403, 2026-07-23):** the `workflowRun`-scoped workspace lifecycle filters on the typo `"workfowRun"` (`WorkflowService.java:45,96`, `WorkspaceService.java:51` in service-agent) — per-run workspace PVCs are never provisioned or cleaned; feature silently inert in production. Also noted: `TaskWatcher` calls `System.exit(1)` on watch error (kills the whole dispatcher for one task's watch failure) | M | Decide: fix the typo (activates a long-dormant feature — behaviour change!) or formally retire per-run workspaces with the Phase 4 storage design; replace the exit(1) with per-task failure. Ruling belongs to E7/Phase 4 | E7/Phase 4 |
 | H17 | ✅ **FIXED (2026-07-23):** TektonConverter params CCE — `convertValue` + TypeReference; quarantined tests re-enabled (4/4 green). Residual notes: (a) adjacent `(Integer)` cast on `boomerang.io/version` would CCE on string YAML values (unexercised); (b) legacy v3 `key:`-style annotation params import with default metadata (lossless v3-YAML import would be a product decision) | M | done | ✅ |
 
 ### I. Documentation

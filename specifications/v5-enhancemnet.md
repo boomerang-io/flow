@@ -715,8 +715,28 @@ evidence (file/class or measurement).
 ### Phase 4 — Runtime evolution
 
 - **Q-401** Which Tekton features does the agent ACTUALLY use (inventory by code, not docs)?
+  - ✅ **Answered (2026-07-23):** 14 spec/lifecycle features + 3 plain-K8s side objects,
+    all from `TektonServiceImpl` — every execution is a standalone TaskRun with an inline
+    taskSpec, single step. NOT used: Pipelines, Task CRDs, Triggers, sidecars, retries,
+    remote resolution, array/object params, secrets, resource limits (dead
+    `kube.resource.*` config), and even Tekton's own cancellation (cancel is a legacy
+    status-overwrite hack). `specifications/runtime-contract.md` Part 1.
 - **Q-402** The task contract: params, secrets, storage, results (size limits), logs, exit mapping, resources, timeout, cancel — what does every task truly need?
+  - ✅ **Answered (2026-07-23):** 13-row contract (C1–C13) in `runtime-contract.md` Part 2.
+    Headlines: params via three channels (interpolation, `/params` ConfigMap files, env);
+    **no secret handling exists at all**; results capped **4096 bytes** (kept as THE
+    portable cap); exit mapping is binary (v2 protocol must surface raw evidence for
+    `failureClass`). SPI sketch incl. the normative Q-406 hook: deterministic
+    `externalId = {prefix}-{taskRunId}-e{claimEpoch}` (today's random generateName means
+    re-claims can't adopt), adopt-or-supersede, and `abandon(handle)` on lease rejection.
+    Docker divergences enumerated (agent-side substitution, file-based results,
+    dispatcher-armed timeout, named volumes).
 - **Q-403** Which catalogue tasks depend on shared-workspace/PVC semantics, and what is the storage story on serverless targets?
+  - ✅ **Answered — scoping (2026-07-23):** dependence is low and partially broken — the
+    `workflowRun` workspace lifecycle filters on the typo **`"workfowRun"`** so per-run
+    PVCs are never provisioned/cleaned (silently, without complaint — gap H18).
+    Workspaces stay a capability-gated extension; object-storage staging deferred to
+    Phase 4 design; result-only tasks run anywhere unchanged.
 - **Q-404** Compatibility matrix per candidate runtime (cold start, max duration, payload limits, image pull, cost, quotas) — which serverless target first?
 - **Q-405** AgentRuntime SPI shape validated against local Docker, one serverless target, AND Tekton-behind-SPI?
 - **Q-406** How does claim fencing (Q-129) extend to runtime-side execution identity (deterministic naming, adopt-or-supersede on re-claim)?
