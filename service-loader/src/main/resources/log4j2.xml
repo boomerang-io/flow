@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+   <Appenders>
+    <Console name="Console" target="SYSTEM_OUT" follow="true">
+        <PatternLayout pattern="[%d{yyyy-MM-dd HH:mm:ss.SSS}] [%5p] [%25.25t] [%-25.25C{1.}] : %m%n%wEx"/>
+    </Console>
+   </Appenders>
+   <Loggers>
+      <Root level="info">
+         <AppenderRef ref="Console" />
+      </Root>
+      <Logger name="org.mongodb.driver" level="warn" additivity="false">
+         <AppenderRef ref="Console" />
+      </Logger>
+   </Loggers>
+</Configuration>

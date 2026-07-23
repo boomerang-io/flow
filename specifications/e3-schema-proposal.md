@@ -14,8 +14,9 @@ changesets implement exactly this ruled shape.
 (migration step 4). E4's additions (`transitionSeq`, `lastOutboxedSeq`, `events_outbox`,
 `events_ingress`, `task_locks`, `tombstonedAt`) come in E4's own G2. Schedule fields
 (`nextFireAt` etc.) come with the deferred Q-227 decision at E5.
-**Logistics note:** the changesets land in the separate `flow.loader` repo
-(`boomerangio/flow-loader`), not this one.
+**Logistics note (superseded by DD-07):** implemented as the `service-loader` module in
+THIS repo — Flamingock changeunits `_0001`–`_0006` (the legacy `flow.loader` repo remains
+only for the fresh-install seed during its deprecation window).
 
 ## 1. New fields — all absent-as-eligible (zero document backfill)
 
