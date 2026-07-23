@@ -322,14 +322,30 @@ a pluggable runtime interface. New default posture: the engine speaks an
 All open questions, numbered for tracking. Answer in place; each answer links to
 evidence (file/class or measurement).
 
-### Phase 0 — Baseline
+### Phase 0 — Baseline — ✅ COMPLETE (2026-07-23, PRs 1–5 on feat-v5)
 
 - **Q-001** Current version of every managed dependency? (→ Version Matrix)
+  - ✅ Matrix filled and executed.
 - **Q-002** Latest stable Java LTS / Spring Boot at execution time — and which Boot has a stable Spring Modulith release (the deciding constraint)?
+  - ✅ Java 25 LTS + Boot 4.1.0 (Modulith 2.1.0 tracks 4.1 — no cap needed). Landed.
 - **Q-003** Which major-version breaking changes actually touch this codebase (by usage grep)?
+  - ✅ Handled across PRs 2–4: Jackson 2→3 (with a deliberate Jackson-2 boundary for
+    CloudEvents payloads/json-path), Security 7, modularized starters,
+    `spring.data.mongodb.*`→`spring.mongodb.*` + mandatory UUID representation, fabric8
+    6.0 DSL + 7.0 Vert.x + Tekton v1 models, jjwt 0.12, `<proc>full</proc>` for JDK 23+
+    annotation processing. Forced bumps: JobRunr 8.7.1 (⚠️ Mongo schema migration
+    M001–M007 on first prod boot), distributed-lock 3.0.0.
 - **Q-004** Is integration test coverage sufficient to catch upgrade regressions on submit→claim→transition→complete paths; if not, what Testcontainers suite is needed first?
+  - ✅ Built first (E0 safety net): green-path lifecycle + defect red-lines + stubs;
+    held 11/0/5 through every upgrade PR. Flow 9/0/2, agent 2/0/0.
 - **Q-005** Do virtual threads measurably improve poller/agent throughput (before/after)?
+  - ⏸️ **Deferred to E4 deliberately**: the current pollers are deleted by the execution
+    rebuild — measure VT on the NEW claim pollers (Java 25's JEP 491 makes them safe on
+    the Mongo driver's synchronized paths).
 - **Q-006** Which dependencies should be removed rather than upgraded?
+  - ✅ Removed: Quartz (via lib-scheduling), flapdoodle, OpenTracing/Jaeger, wiremock
+    (unused), tekton-model-v1beta1/triggers, stale pins. Still-slated: alturkovic
+    (E4, post-gating-list), JobRunr (Q-227 deferred decision).
 
 ### Phase 1 — DAG semantics
 
