@@ -49,7 +49,7 @@ public class WorkflowRunEntity {
   private String agentRef;
 
   // Claim ownership for the workflow-level claimables (provision and teardown). claim.by
-  // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.epoch
+  // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.seq
   // increments on every claim and is never cleared.
   @JsonIgnore private RunClaim claim;
   private String trigger;

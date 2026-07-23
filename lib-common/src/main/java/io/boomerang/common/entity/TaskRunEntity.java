@@ -61,7 +61,7 @@ public class TaskRunEntity {
   private String agentRef;
 
   // Claim ownership. claim.by absent = unclaimed and eligible; written only by the claim
-  // Compare-And-Set. claim.epoch increments on every claim and is never cleared, fencing
+  // Compare-And-Set. claim.seq increments on every claim and is never cleared, fencing
   // out dispatches that carry a superseded claim.
   @JsonIgnore private RunClaim claim;
 
