@@ -1,10 +1,12 @@
 package io.boomerang.common.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.WorkflowWorkspace;
@@ -45,6 +47,12 @@ public class WorkflowRunEntity {
   private Integer workflowVersion;
   private String workflowRevisionRef;
   private String agentRef;
+
+  // Claim ownership for the workflow-level claimables (provision and teardown). Absent =
+  // unclaimed and eligible; written only by the claim Compare-And-Set. The epoch increments
+  // on every claim and is never reset.
+  @JsonIgnore private RunClaim claim;
+  @JsonIgnore private Long claimEpoch;
   private String trigger;
   private String initiatedByRef;
   private List<RunParam> params = new LinkedList<>();

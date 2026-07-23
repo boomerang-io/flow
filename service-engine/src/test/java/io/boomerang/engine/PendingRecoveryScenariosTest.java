@@ -12,13 +12,7 @@ import org.junit.jupiter.api.Test;
  */
 class PendingRecoveryScenariosTest {
 
-  // Requires the claim ownership block (claimedBy/claimedAt/leaseExpiresAt/claimEpoch, E3 schema
-  // + Q-129) and handler-entry fencing (B16/D9) - lands in E4.
-  @Disabled("Fencing does not exist until E3 schema + E4 (B16/D9) land - gap-register scenario #6")
-  @Test
-  void staleClaimEpochDispatchIsRejected() {
-    fail("Implement with E4: stale claimEpoch rejected at start/end; sweep guard N cannot reap N+1");
-  }
+  // Claim-epoch fencing at start/end is implemented and covered by TaskClaimFencingTest.
 
   // Requires pauseRequestedAt (E3 schema, C6) with claim-query exclusion and resume-as-reconcile
   // (E4). Constraint H15: no PAUSED RunStatus - pause is an orthogonal flag, excluded at the query.

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
@@ -58,6 +59,12 @@ public class TaskRunEntity {
   private String workflowRevisionRef;
   @Indexed private String workflowRunRef; // Indexed when retrieving task runs for a workflow run
   private String agentRef;
+
+  // Claim ownership. Absent = unclaimed and eligible; written only by the claim
+  // Compare-And-Set. The epoch increments on every claim and is never reset, fencing
+  // out dispatches that carry a superseded claim.
+  @JsonIgnore private RunClaim claim;
+  @JsonIgnore private Long claimEpoch;
 
   @Override
   public String toString() {

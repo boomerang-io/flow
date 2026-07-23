@@ -2,8 +2,8 @@ package io.boomerang.engine;
 
 import static io.boomerang.util.ConvertUtil.entityToModel;
 
-import io.boomerang.common.enums.RunPhase;
-import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
@@ -14,8 +14,8 @@ import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Instant;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +27,7 @@ public class AgentService {
 
   private static final Integer MAX_POLL_INTERVAL = 30000;
   private static final Integer MAX_SLEEP_INTERVAL = 1000; // 1 sec
+  private static final int PAGE_SIZE = 20;
 
   private final AgentRepository agentRepository;
   private final WorkflowRunRepository wfRunRepository;
@@ -77,10 +78,12 @@ public class AgentService {
   }
 
   /**
-   * Retrieves the workflowruns and taskruns for the agent. This is a long poll endpoint.
+   * Long-poll endpoint dispatching WorkflowRuns to the agent.
    *
-   * <p>TODO: figure out how to have multiple agents, probably a centralised lock, so no chance of
-   * collision in retrieving and assigning
+   * <p>Each cycle pages the eligible candidates (provision and workspace teardown) and claims
+   * each one individually via a Compare-And-Set; racing agents cannot both win a run and the
+   * response contains only the documents this agent actually claimed. Claimed and terminal runs
+   * are not redelivered.
    *
    * @param agentId
    * @return
@@ -93,12 +96,6 @@ public class AgentService {
     }
     agentRepository.updateLastConnected(agentId, new Date());
     // TODO add in future filtering of workflows based on labels or a setting
-    //    AgentEntity entity = agentRepository.findTaskTypesByAgentId(agentId);
-    //    if (entity != null && entity.getTaskTypes() != null && entity.getTaskTypes().isEmpty()) {
-    //      LOGGER.warn("Agent {} has no task types defined. Returning 204.", agentId);
-    //      return ResponseEntity.noContent().build();
-    //    }
-    //    LOGGER.debug("Entity: {}", entity);
 
     // Long poll logic
     Instant endTime = Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open
@@ -106,24 +103,26 @@ public class AgentService {
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug("Checking queue for agent: {}", agentId);
       try {
-        // Retrieve workflows and tasks for the agent filtered as per agents capabilities
-        // Stream, convert, and collect WorkflowRunEntity to WorkflowRun
-        List<WorkflowRun> workflowRuns =
-            wfRunRepository
-                .findByPhaseInAndStatusInOrPhaseIn(
-                    List.of(RunPhase.pending),
-                    List.of(RunStatus.ready),
-                    List.of(RunPhase.completed))
-                .stream()
-                .map((e) -> entityToModel(e, WorkflowRun.class))
-                .collect(Collectors.toList());
+        // The claimed pre-images carry the wire shape the agent acts on: pending/ready to
+        // provision and start, completed to tear down and finalize.
+        List<WorkflowRun> workflowRuns = new LinkedList<>();
+        for (WorkflowRunEntity candidate : wfRunRepository.findClaimableForProvision(PAGE_SIZE)) {
+          WorkflowRunEntity claimed =
+              wfRunRepository.tryClaimForProvision(candidate.getId(), agentId);
+          if (claimed != null) {
+            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
+          }
+        }
+        for (WorkflowRunEntity candidate : wfRunRepository.findClaimableForTeardown(PAGE_SIZE)) {
+          WorkflowRunEntity claimed =
+              wfRunRepository.tryClaimForTeardown(candidate.getId(), agentId);
+          if (claimed != null) {
+            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
+          }
+        }
 
-        // Update the WorkflowRuns so that they are assigned to the agent and set to queued phase
-        wfRunRepository.updatePhaseAndAgentRef(
-            List.of(RunPhase.pending), List.of(RunStatus.ready), agentId, RunPhase.queued);
-
-        LOGGER.debug("Found {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
-        if (workflowRuns.size() > 0) {
+        LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
+        if (!workflowRuns.isEmpty()) {
           return ResponseEntity.ok(workflowRuns);
         }
         // Sleep for a short interval before checking again
@@ -137,10 +136,12 @@ public class AgentService {
   }
 
   /**
-   * Retrieves the workflowruns and taskruns for the agent. This is a long poll endpoint.
+   * Long-poll endpoint dispatching TaskRuns to the agent.
    *
-   * <p>TODO: figure out how to have multiple agents, probably a centralised lock, so no chance of
-   * collision in retrieving and assigning
+   * <p>Each cycle pages the eligible candidates (ready, pending, unclaimed, of the agent's task
+   * types) and claims each one individually via a Compare-And-Set; racing agents cannot both win
+   * a TaskRun and the response contains only the documents this agent actually claimed. Terminal
+   * runs are never redelivered.
    *
    * @param agentId
    * @return
@@ -168,29 +169,20 @@ public class AgentService {
       LOGGER.debug(
           "Checking queue for agent: {} with task types: {}", agentId, entity.getTaskTypes());
       try {
-        // Stream, convert, and collect TaskRuns that are ready
-        List<TaskRun> taskRuns =
-            taskRunRepository
-                .findByPhaseInAndStatusInAndTypeIn(
-                    List.of(RunPhase.pending, RunPhase.completed),
-                    List.of(RunStatus.ready, RunStatus.cancelled, RunStatus.timedout),
-                    entity.getTaskTypes())
-                .stream()
-                .map((e) -> new TaskRun(e))
-                .collect(Collectors.toList());
+        // Page then claim: the Compare-And-Set re-checks eligibility per document, so a
+        // candidate another agent claimed between page and claim is simply skipped. The
+        // returned pre-images carry the pending/ready wire shape the agent executes.
+        List<TaskRun> taskRuns = new LinkedList<>();
+        for (TaskRunEntity candidate :
+            taskRunRepository.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
+          TaskRunEntity claimed = taskRunRepository.tryClaim(candidate.getId(), agentId);
+          if (claimed != null) {
+            taskRuns.add(new TaskRun(claimed));
+          }
+        }
 
-        taskRuns.forEach(tr -> LOGGER.debug("TaskRun: {}", tr));
-
-        // Update the TaskRuns so that they are assigned to the agent and set to queued phase
-        taskRunRepository.updatePhaseAndAgentRef(
-            List.of(RunPhase.pending),
-            List.of(RunStatus.ready),
-            entity.getTaskTypes(),
-            agentId,
-            RunPhase.queued);
-
-        LOGGER.debug("Found {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
-        if (taskRuns.size() > 0) {
+        LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
+        if (!taskRuns.isEmpty()) {
           return ResponseEntity.ok(taskRuns);
         }
         // Sleep for a short interval before checking again

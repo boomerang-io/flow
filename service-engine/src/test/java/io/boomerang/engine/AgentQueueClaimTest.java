@@ -1,5 +1,7 @@
 package io.boomerang.engine;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,17 +25,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 
 /**
- * Agent task-queue claim semantics. RED-LINE: flips in E4 (B2/B16 per-document findAndModify
- * claim with ownership fields, Q-129). These tests pass today by demonstrating the current
- * defects (idempotency-audit.md #28/#29): getTaskQueue is find-then-bulk-update, so racing agents
- * can both receive the same ready TaskRun and terminal runs are redelivered on every poll. When
- * E4 lands, invert: exactly one agent receives a ready TaskRun, terminal runs are never redelivered.
+ * Agent task-queue claim semantics: each ready TaskRun is claimed via a per-document
+ * Compare-And-Set, so exactly one agent receives it and the claim records ownership (claim block,
+ * incremented claim epoch, agentRef alias). Terminal runs are not eligible and are never
+ * redelivered.
  */
 class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
 
   private static final Logger LOGGER = LogManager.getLogger();
-
-  private static final int MAX_RACE_ATTEMPTS = 8;
 
   @Autowired private AgentService agentService;
 
@@ -68,74 +67,65 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
         && response.getBody().stream().anyMatch(t -> id.equals(t.getId()));
   }
 
-  // RED-LINE: flips in E4 (B2). Terminal runs (completed/cancelled) match getTaskQueue's find
-  // criteria with no delivery bookkeeping, so every agent gets them on every poll (audit #29).
+  // Terminal runs (completed/cancelled) are not claimable, so a poll never redelivers them. Each
+  // poll gets a fresh ready beacon so it returns immediately instead of holding the long poll.
   @Test
-  void terminalTaskRunIsRedeliveredToEveryAgentOnEveryPoll() {
+  void terminalTaskRunIsNeverDelivered() {
     String agentA = registerAgent("terminal-agent-a");
     String agentB = registerAgent("terminal-agent-b");
     String terminalId = savedTerminalTaskRun().getId();
 
-    assertTrue(
-        containsId(agentService.getTaskQueue(agentA), terminalId),
-        "DEFECT (audit #29): terminal TaskRun expected to be dispatched to agent A");
-    assertTrue(
-        containsId(agentService.getTaskQueue(agentA), terminalId),
-        "DEFECT (audit #29): terminal TaskRun expected to be re-dispatched to agent A");
-    assertTrue(
-        containsId(agentService.getTaskQueue(agentB), terminalId),
-        "DEFECT (audit #29): terminal TaskRun expected to be dispatched to agent B as well");
+    for (String agent : List.of(agentA, agentA, agentB)) {
+      String beaconId = savedReadyTaskRun().getId();
+      ResponseEntity<List<TaskRun>> response = agentService.getTaskQueue(agent);
+      assertTrue(containsId(response, beaconId), "poll should have claimed its ready beacon");
+      assertFalse(
+          containsId(response, terminalId),
+          "a terminal TaskRun must never be delivered to any agent");
+    }
+
+    TaskRunEntity terminalAfter = taskRunRepository.findById(terminalId).orElseThrow();
+    assertEquals(RunStatus.cancelled, terminalAfter.getStatus());
+    assertEquals(RunPhase.completed, terminalAfter.getPhase());
   }
 
-  // RED-LINE: flips in E4 (B2/B16). getTaskQueue finds first, bulk-updates second, and returns
-  // the find result, so the claim loser still dispatches (audit #28/#29). Timing-dependent: a
-  // terminal "beacon" run keeps every poll returning immediately (no 30 s long-poll), and we
-  // retry synchronized starts up to MAX_RACE_ATTEMPTS.
+  // Two agents polling for the same ready TaskRun: the per-document Compare-And-Set claim admits
+  // exactly one winner, which owns the claim block and the incremented claim epoch.
   @Test
-  void twoAgentsCanBothReceiveTheSameReadyTaskRun() throws Exception {
+  void exactlyOneAgentReceivesAReadyTaskRun() throws Exception {
     String agentA = registerAgent("race-agent-a");
     String agentB = registerAgent("race-agent-b");
-    savedTerminalTaskRun(); // beacon
+    String raceId = savedReadyTaskRun().getId();
+    assertNotNull(raceId);
 
     ExecutorService pool = Executors.newFixedThreadPool(2);
     try {
-      boolean duplicateDispatchObserved = false;
-      for (int attempt = 1; attempt <= MAX_RACE_ATTEMPTS && !duplicateDispatchObserved; attempt++) {
-        String raceId = savedReadyTaskRun().getId();
-        assertNotNull(raceId);
+      CountDownLatch startGun = new CountDownLatch(1);
+      Future<ResponseEntity<List<TaskRun>>> resultA =
+          pool.submit(
+              () -> {
+                startGun.await();
+                return agentService.getTaskQueue(agentA);
+              });
+      Future<ResponseEntity<List<TaskRun>>> resultB =
+          pool.submit(
+              () -> {
+                startGun.await();
+                return agentService.getTaskQueue(agentB);
+              });
+      startGun.countDown();
 
-        CountDownLatch startGun = new CountDownLatch(1);
-        Future<ResponseEntity<List<TaskRun>>> resultA =
-            pool.submit(
-                () -> {
-                  startGun.await();
-                  return agentService.getTaskQueue(agentA);
-                });
-        Future<ResponseEntity<List<TaskRun>>> resultB =
-            pool.submit(
-                () -> {
-                  startGun.await();
-                  return agentService.getTaskQueue(agentB);
-                });
-        startGun.countDown();
+      boolean aGotIt = containsId(resultA.get(45, TimeUnit.SECONDS), raceId);
+      boolean bGotIt = containsId(resultB.get(45, TimeUnit.SECONDS), raceId);
+      LOGGER.info("Claim race: agentA={}, agentB={} for TaskRun {}", aGotIt, bGotIt, raceId);
+      assertTrue(aGotIt ^ bGotIt, "exactly one agent must receive the ready TaskRun");
 
-        boolean aGotIt = containsId(resultA.get(45, TimeUnit.SECONDS), raceId);
-        boolean bGotIt = containsId(resultB.get(45, TimeUnit.SECONDS), raceId);
-        LOGGER.info(
-            "Claim race attempt {}: agentA={}, agentB={} for TaskRun {}",
-            attempt,
-            aGotIt,
-            bGotIt,
-            raceId);
-        duplicateDispatchObserved = aGotIt && bGotIt;
-      }
-
-      assertTrue(
-          duplicateDispatchObserved,
-          "DEFECT (audit #28/#29): expected BOTH agents to receive the same ready TaskRun via the"
-              + " find-then-update race. If E4's claim rework has landed, flip this to assert"
-              + " exactly one winner; if it has not, the race window has narrowed - widen the"
-              + " attempts rather than deleting this red-line.");
+      TaskRunEntity claimed = taskRunRepository.findById(raceId).orElseThrow();
+      assertEquals(RunPhase.queued, claimed.getPhase());
+      assertNotNull(claimed.getClaim(), "the winner's claim block must be recorded");
+      assertEquals((aGotIt ? agentA : agentB), claimed.getClaim().getBy());
+      assertEquals((aGotIt ? agentA : agentB), claimed.getAgentRef());
+      assertEquals(1L, claimed.getClaimEpoch());
     } finally {
       pool.shutdownNow();
     }
