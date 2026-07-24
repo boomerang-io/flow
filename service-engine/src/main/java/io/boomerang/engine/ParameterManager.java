@@ -227,8 +227,7 @@ public class ParameterManager {
         String taskName = separatedKey[1];
         String resultName = separatedKey[3];
         Optional<TaskRunEntity> taskRunEntity =
-            taskRunRepository.findFirstByNameAndWorkflowRunRefAndSupersededAtIsNull(
-                taskName, wfRunId);
+            taskRunRepository.findFirstByNameAndWorkflowRunRef(taskName, wfRunId);
         if (taskRunEntity.isPresent()) {
           List<RunResult> taskRunResults = taskRunEntity.get().getResults();
           if (!taskRunResults.isEmpty()) {

@@ -4,14 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.boomerang.client.WorkflowClient;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
-import io.boomerang.engine.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
@@ -23,9 +21,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TimeZone;
-import org.jgrapht.Graph;
-import org.jgrapht.graph.DefaultEdge;
-import org.jgrapht.traverse.BreadthFirstIterator;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -58,8 +53,6 @@ public class TaskExecutionService {
   @Autowired private WorkflowService workflowService;
 
   @Autowired private TaskRunRepository taskRunRepository;
-
-  @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
 
   @Autowired private ActionRepository actionRepository;
 
@@ -480,67 +473,6 @@ public class TaskExecutionService {
   }
 
   /*
-   * Re-run from a step: retire the target node and its downstream closure (superseded stamped,
-   * attempt numbered), then re-create them fresh at the live generation copying spec from the
-   * pinned revision. Idempotent - a target already superseded, or absent from the live graph, is
-   * a no-op. The caller re-drives the graph (advance) once the fresh generation exists.
-   */
-  public void supersedeFrom(String taskRunId) {
-    TaskRunEntity target = taskRunRepository.findById(taskRunId).orElse(null);
-    if (target == null) {
-      LOGGER.error("[{}] Unable to find TaskRun to supersede.", taskRunId);
-      return;
-    }
-    if (target.getSuperseded() != null && target.getSuperseded().getAt() != null) {
-      LOGGER.info("[{}] TaskRun already superseded. Nothing to re-run.", taskRunId);
-      return;
-    }
-    String wfRunId = target.getWorkflowRunRef();
-    List<TaskRunEntity> liveTasks = dagUtility.retrieveTaskList(wfRunId);
-    Graph<String, DefaultEdge> graph = dagUtility.createGraph(liveTasks);
-    if (!graph.containsVertex(taskRunId)) {
-      LOGGER.info("[{}] TaskRun not in the live graph. Nothing to re-run.", taskRunId);
-      return;
-    }
-
-    // Downstream closure: the target plus every node reachable from it (skipped nodes included).
-    BreadthFirstIterator<String, DefaultEdge> iterator =
-        new BreadthFirstIterator<>(graph, taskRunId);
-    while (iterator.hasNext()) {
-      String nodeId = iterator.next();
-      TaskRunEntity node =
-          liveTasks.stream().filter(t -> nodeId.equals(t.getId())).findFirst().orElse(null);
-      if (node == null || TaskType.start.equals(node.getType())) {
-        continue;
-      }
-      taskRunRepository.supersede(nodeId, nextAttempt(node.getName(), wfRunId), wfRunId);
-    }
-
-    // Re-create the retired nodes fresh at the live generation - createTaskList finds no live
-    // generation for the superseded names and creates them, copying spec from the pinned revision.
-    WorkflowRunEntity wfRun =
-        workflowRunRepository
-            .findById(wfRunId)
-            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    WorkflowRevisionEntity revision =
-        workflowRevisionRepository
-            .findById(wfRun.getWorkflowRevisionRef())
-            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    dagUtility.createTaskList(revision, wfRun);
-  }
-
-  // The next attempt number for a node: one past the highest attempt across all its generations.
-  private int nextAttempt(String name, String wfRunId) {
-    int max = 0;
-    for (TaskRunEntity t : taskRunRepository.findByNameAndWorkflowRunRef(name, wfRunId)) {
-      if (t.getAttempt() != null && t.getAttempt() > max) {
-        max = t.getAttempt();
-      }
-    }
-    return max + 1;
-  }
-
-  /*
    * Fencing: a request carrying claimant identity must match the current claim; a request with
    * no identity is the legacy protocol and is accepted with a log line.
    */
@@ -581,9 +513,8 @@ public class TaskExecutionService {
     List<String> ids = new LinkedList<>();
 
     LOGGER.info("[{}] Finding taskRunId based on topic.", workflowRunId);
-    // Live generation only - a superseded eventwait must not receive events.
     List<TaskRunEntity> taskRunEntities =
-        this.taskRunRepository.findByWorkflowRunRefAndSupersededAtIsNull(workflowRunId);
+        this.taskRunRepository.findByWorkflowRunRef(workflowRunId);
 
     for (TaskRunEntity taskRun : taskRunEntities) {
       if (TaskType.eventwait.equals(taskRun.getType())) {

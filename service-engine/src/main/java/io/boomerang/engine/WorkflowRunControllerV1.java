@@ -384,23 +384,6 @@ public class WorkflowRunControllerV1 {
     return workflowRunService.retry(workflowRunId, start, 1);
   }
 
-  @PutMapping(value = "/{workflowRunId}/retry-from/{taskRunId}")
-  @Operation(summary = "Re-run a WorkflowRun from a specific TaskRun (supersedes its downstream).")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
-      })
-  public WorkflowRun retryFromTask(
-      @Parameter(name = "workflowRunId", description = "ID of the WorkflowRun.", required = true)
-          @PathVariable(required = true)
-          String workflowRunId,
-      @Parameter(name = "taskRunId", description = "ID of the TaskRun to re-run from.", required = true)
-          @PathVariable(required = true)
-          String taskRunId) {
-    return workflowRunService.retryFromTask(workflowRunId, taskRunId);
-  }
-
   @DeleteMapping(value = "/{workflowRunId}")
   @Operation(
       summary =

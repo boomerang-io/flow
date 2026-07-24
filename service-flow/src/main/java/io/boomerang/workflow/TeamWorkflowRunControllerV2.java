@@ -449,41 +449,4 @@ public class TeamWorkflowRunControllerV2 {
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
     return workflowRunService.retry(team, workflowRunId);
   }
-
-  @PutMapping(value = "/{workflowRunId}/retry-from/{taskRunId}")
-  @AuthCriteria(
-      action = PermissionAction.ACTION,
-      resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.team,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
-  @Operation(summary = "Re-run a WorkflowRun from a specific TaskRun.")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
-      })
-  public ResponseEntity<WorkflowRun> retryFromTask(
-      @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
-              required = true)
-          @PathVariable
-          String team,
-      @Parameter(name = "workflowRunId", description = "ID of the WorkflowRun.", required = true)
-          @PathVariable(required = true)
-          String workflowRunId,
-      @Parameter(
-              name = "taskRunId",
-              description = "ID of the TaskRun to re-run from.",
-              required = true)
-          @PathVariable(required = true)
-          String taskRunId) {
-    return workflowRunService.retryFromTask(team, workflowRunId, taskRunId);
-  }
 }

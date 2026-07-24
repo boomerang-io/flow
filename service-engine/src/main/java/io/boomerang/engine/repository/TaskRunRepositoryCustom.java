@@ -85,12 +85,4 @@ public interface TaskRunRepositoryCustom {
    * the graph advance was lost and must be re-driven.
    */
   boolean existsInFlightByWorkflowRunRef(String workflowRunRef);
-
-  /**
-   * Supersede Compare-And-Set: retire the live generation of a node, stamping {@code superseded.at}
-   * /{@code superseded.by} and the given {@code attempt} number. Fenced on {@code superseded.at}
-   * absent so a repeated re-run cannot re-supersede an already-retired generation. Returns the
-   * pre-image, or {@code null} when the node was already superseded.
-   */
-  TaskRunEntity supersede(String id, int attempt, String by);
 }

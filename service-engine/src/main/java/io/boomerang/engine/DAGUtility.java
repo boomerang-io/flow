@@ -90,10 +90,8 @@ public class DAGUtility {
     return GraphProcessor.createGraph(vertices, edgeList);
   }
 
-  // The live generation only. Gating and advance run over this so a superseded generation never
-  // adds a duplicate graph node. Full-generation history is read via findByWorkflowRunRef.
   public List<TaskRunEntity> retrieveTaskList(String wfRunId) {
-    return taskRunRepository.findByWorkflowRunRefAndSupersededAtIsNull(wfRunId);
+    return taskRunRepository.findByWorkflowRunRef(wfRunId);
   }
 
   // TODO: determine a better way to handle the start and end task without saving them as a
@@ -103,7 +101,7 @@ public class DAGUtility {
     final List<TaskRunEntity> taskList = new LinkedList<>();
     for (final WorkflowTask wfRevisionTask : wfRevisionEntity.getTasks()) {
       Optional<TaskRunEntity> existingTaskRunEntity =
-          taskRunRepository.findFirstByNameAndWorkflowRunRefAndSupersededAtIsNull(
+          taskRunRepository.findFirstByNameAndWorkflowRunRef(
               wfRevisionTask.getName(), wfRunEntity.getId());
       if (existingTaskRunEntity.isPresent() && existingTaskRunEntity.get() != null) {
         taskList.add(existingTaskRunEntity.get());

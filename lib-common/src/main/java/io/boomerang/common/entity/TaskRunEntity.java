@@ -10,7 +10,6 @@ import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.RunSupersede;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.common.model.WorkflowTaskDependency;
@@ -76,14 +75,6 @@ public class TaskRunEntity {
   // Retry state. Absent = fully eligible; retry.after gates claim eligibility until the backoff
   // elapses. Written only by the fenced requeue, which never clears claim.seq.
   @JsonIgnore private RunRetry retry;
-
-  // Generation state. superseded absent = the live generation; a re-run from a step retires the
-  // node's downstream closure (superseded stamped, attempt numbered 1..n) and re-creates it live.
-  private RunSupersede superseded;
-  private Integer attempt;
-
-  // Fan-out element index; null for normal tasks. Set later when placeholder-expand fan-out lands.
-  private Integer mapIndex;
 
   @Override
   public String toString() {

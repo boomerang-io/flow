@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.common.enums.TimeoutCause;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -68,10 +67,9 @@ public class WorkflowRunEntity {
   private String trigger;
   private String initiatedByRef;
 
-  // Auto-retry attempt count (absent/null = 0). initiatedByRef + trigger=retry carry the lineage;
-  // timeoutCause records what tripped a timeout. All typed - never boomerang.io/* annotations.
+  // Auto-retry attempt count (absent/null = 0). initiatedByRef + trigger=retry carry the retry
+  // lineage - all typed, never boomerang.io/* annotations.
   private Long retryCount;
-  private TimeoutCause timeoutCause;
 
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();

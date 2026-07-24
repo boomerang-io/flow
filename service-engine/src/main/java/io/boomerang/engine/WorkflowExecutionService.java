@@ -6,7 +6,6 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.enums.TimeoutCause;
 import io.boomerang.engine.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
@@ -167,7 +166,7 @@ public class WorkflowExecutionService {
   }
 
   @Async("asyncWorkflowExecutor")
-  public void timeout(String wfRunId) {
+  public void timeout(String wfRunId, String statusMessage) {
     // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
     WorkflowRunEntity workflowExecution = workflowRunRepository.findById(wfRunId).orElse(null);
     if (workflowExecution == null) {
@@ -177,7 +176,7 @@ public class WorkflowExecutionService {
     if (RunStatus.timedout.equals(workflowExecution.getStatus())
         || (!Objects.isNull(workflowExecution.getTimeout())
             && workflowExecution.getTimeout() != 0)) {
-      timeoutWorkflow(workflowExecution.getId());
+      timeoutWorkflow(workflowExecution.getId(), statusMessage);
     }
   }
 
@@ -204,9 +203,14 @@ public class WorkflowExecutionService {
             wfRunEntity.getId(),
             wfRunEntity.getTimeout());
         Long timeoutSeconds = (wfRunEntity.getTimeout() * 60) + 5;
+        String timeoutMessage =
+            MessageFormatter.format(
+                    "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
+                    wfRunEntity.getTimeout())
+                .getMessage();
         jobScheduler.schedule(
             Instant.now().plus(timeoutSeconds, ChronoUnit.SECONDS),
-            () -> timeoutWorkflow(wfRunEntity.getId()));
+            () -> timeoutWorkflow(wfRunEntity.getId(), timeoutMessage));
       }
       LOGGER.info("[{}] Executing Workflow Async...", wfRunEntity.getId());
       try {
@@ -242,7 +246,7 @@ public class WorkflowExecutionService {
    * and the task-timeout path - all idempotent against each other.
    */
   @Job(name = "Workflow Timeout")
-  public void timeoutWorkflow(String wfRunId) {
+  public void timeoutWorkflow(String wfRunId, String statusMessage) {
     LOGGER.debug("[{}] Commencing Timeout Workflow Async...", wfRunId);
     WorkflowRunEntity wfRunEntity = this.workflowRunRepository.findById(wfRunId).orElse(null);
     if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
@@ -253,13 +257,6 @@ public class WorkflowExecutionService {
         wfRunEntity.getStartTime() != null
             ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
             : 0;
-    String statusMessage =
-        TimeoutCause.task.equals(wfRunEntity.getTimeoutCause())
-            ? "A TaskRun exceeded it's timeout."
-            : MessageFormatter.format(
-                    "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
-                    wfRunEntity.getTimeout())
-                .getMessage();
 
     // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
     // completed; only the winner cancels tasks and evaluates the auto-retry, so a duplicate

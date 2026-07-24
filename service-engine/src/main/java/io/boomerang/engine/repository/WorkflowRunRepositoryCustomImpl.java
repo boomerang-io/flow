@@ -3,7 +3,6 @@ package io.boomerang.engine.repository;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.common.enums.TimeoutCause;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.engine.model.WorkflowRunTransition;
 import java.util.Date;
@@ -204,35 +203,14 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
   }
 
   @Override
-  public WorkflowRunEntity tryMarkTimedOut(String id, TimeoutCause cause) {
+  public WorkflowRunEntity tryMarkTimedOut(String id) {
     Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
-    Update update = new Update().set("status", RunStatus.timedout).set("timeoutCause", cause);
+    Update update = new Update().set("status", RunStatus.timedout);
     WorkflowRunEntity preImage =
         mongoTemplate.findAndModify(
             query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  @Override
-  public WorkflowRunEntity tryReopen(String id) {
-    // Re-run from a step: a completed/finalized run returns to running so the freshly re-created
-    // generation can execute. The stale deadline is cleared - start re-bakes it.
-    Query query =
-        Query.query(
-            Criteria.where("_id").is(id).and("phase").in(RunPhase.completed, RunPhase.finalized));
-    Update update =
-        new Update()
-            .set("status", RunStatus.running)
-            .set("phase", RunPhase.running)
-            .unset("timeoutAt");
-    WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
-    if (preImage != null) {
-      publish(preImage, RunStatus.running, RunPhase.running);
     }
     return preImage;
   }

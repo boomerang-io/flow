@@ -128,9 +128,9 @@ class LoaderMigrationTest {
     assertThat(indexes.get("lease_sweep").getBoolean("sparse")).isTrue();
     assertThat(indexes.get("timeout_sweep").getBoolean("sparse")).isTrue();
     assertThat(indexes.get("wait_sweep").getBoolean("sparse")).isTrue();
-    assertThat(indexes.get("node_generation").get("key", Document.class).keySet())
-        .containsExactly("workflowRunRef", "name", "mapIndex", "attempt");
-    assertThat(indexes.get("node_generation").getBoolean("unique")).isTrue();
+    assertThat(indexes.get("node_uniqueness").get("key", Document.class).keySet())
+        .containsExactly("workflowRunRef", "name");
+    assertThat(indexes.get("node_uniqueness").getBoolean("unique")).isTrue();
   }
 
   private void assertWorkflowRunIndexes() {
@@ -167,24 +167,17 @@ class LoaderMigrationTest {
   }
 
   private void assertTaskRunDedupe() {
-    // task-a — the terminal (succeeded) document is kept even though it is the later one.
-    Document keptA = findTaskRun(taskASucceeded);
-    assertThat(keptA.get("superseded")).isNull();
-    Document supersededA = findTaskRun(taskARunning);
-    assertThat(supersededA.get("superseded", Document.class).getString("by"))
-        .isEqualTo("migration");
-    assertThat(supersededA.getInteger("attempt")).isEqualTo(1);
+    // task-a — the terminal (succeeded) document is kept even though it is the later one; the
+    // duplicate is deleted.
+    assertThat(findTaskRun(taskASucceeded)).isNotNull();
+    assertThat(findTaskRun(taskARunning)).isNull();
 
-    // task-b — no terminal document, so the earliest created is kept.
-    assertThat(findTaskRun(taskBFirst).get("superseded")).isNull();
-    Document supersededB = findTaskRun(taskBSecond);
-    assertThat(supersededB.get("superseded", Document.class).get("at")).isInstanceOf(Date.class);
-    assertThat(supersededB.getInteger("attempt")).isEqualTo(1);
+    // task-b — no terminal document, so the earliest created is kept and the later one deleted.
+    assertThat(findTaskRun(taskBFirst)).isNotNull();
+    assertThat(findTaskRun(taskBSecond)).isNull();
 
     // Singleton untouched.
-    Document solo = findTaskRun(soloTask);
-    assertThat(solo.get("superseded")).isNull();
-    assertThat(solo.get("attempt")).isNull();
+    assertThat(findTaskRun(soloTask)).isNotNull();
   }
 
   private void assertActionDedupe() {

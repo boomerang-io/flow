@@ -3,7 +3,6 @@ package io.boomerang.engine.repository;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.common.enums.TimeoutCause;
 import io.boomerang.common.model.RunParam;
 import java.util.Date;
 import java.util.List;
@@ -64,23 +63,17 @@ public interface WorkflowRunRepositoryCustom {
       String id, List<RunPhase> fromPhases, RunStatus status, String statusMessage, long duration);
 
   /**
-   * Mark a running run as timed out (status only; completion follows through the timeout path),
-   * recording the typed cause. Returns the pre-image, or {@code null} when the run is no longer
-   * running - a terminal status is never overwritten.
+   * Mark a running run as timed out (status only; completion follows through the timeout path).
+   * Returns the pre-image, or {@code null} when the run is no longer running - a terminal status
+   * is never overwritten.
    */
-  WorkflowRunEntity tryMarkTimedOut(String id, TimeoutCause cause);
+  WorkflowRunEntity tryMarkTimedOut(String id);
 
   /**
    * Finalize Compare-And-Set: completed becomes finalized. Returns the pre-image, or {@code null}
    * when the run is not completed (never started, still running, or already finalized).
    */
   WorkflowRunEntity tryFinalize(String id);
-
-  /**
-   * Reopen Compare-And-Set: a completed/finalized run returns to running for a re-run from a step.
-   * Clears the stale deadline. Returns the pre-image, or {@code null} when the run is still active.
-   */
-  WorkflowRunEntity tryReopen(String id);
 
   /**
    * Pause Compare-And-Set: sets {@code pauseRequestedAt} on a running, not-yet-paused run. Never
