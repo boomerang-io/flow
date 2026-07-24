@@ -666,11 +666,11 @@ public class TaskExecutionService {
   }
 
   /*
-   * Re-drive a due waiting task the watcher claimed: a slept task completes, an acquirelock task
+   * Resume a due waiting task the watcher claimed: a slept task completes, an acquirelock task
    * re-attempts the acquire (succeeding, or re-parking for another backoff).
    */
   @Async("asyncTaskExecutor")
-  public void redriveWaitingTask(String taskRunId) {
+  public void resumeWaitingTask(String taskRunId) {
     TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
     if (taskExecution == null) {
       return;

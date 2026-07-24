@@ -191,7 +191,7 @@ public class WorkflowWatcher {
     for (TaskRunEntity task : taskRunRepository.findWaitingDue(new Date(), PAGE_SIZE)) {
       try {
         if (taskRunRepository.tryStartWaitingRedrive(task.getId()) != null) {
-          taskExecutionService.redriveWaitingTask(task.getId());
+          taskExecutionService.resumeWaitingTask(task.getId());
         }
       } catch (Exception ex) {
         LOGGER.error("[{}] Waiting-task re-drive failed: {}", task.getId(), ex.getMessage());
