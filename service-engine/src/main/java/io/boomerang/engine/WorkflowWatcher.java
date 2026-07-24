@@ -1,12 +1,17 @@
 package io.boomerang.engine;
 
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.engine.repository.TaskRunRepository;
+import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
@@ -42,21 +47,31 @@ public class WorkflowWatcher {
 
   private static final int MAX_RETRIES = 3;
 
+  private static final List<RunPhase> IN_FLIGHT_PHASES =
+      List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
+
   private final TaskRunRepository taskRunRepository;
   private final WorkflowRunRepository workflowRunRepository;
+  private final WorkflowRepository workflowRepository;
   private final TaskExecutionService taskExecutionService;
   private final WorkflowRunService workflowRunService;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
 
+  // Hard pruning of tombstoned Workflows ships off - the retention policy is decided separately.
+  @Value("${flow.watcher.retention.enabled:false}")
+  private boolean retentionEnabled;
+
   public WorkflowWatcher(
       TaskRunRepository taskRunRepository,
       WorkflowRunRepository workflowRunRepository,
+      WorkflowRepository workflowRepository,
       TaskExecutionService taskExecutionService,
       WorkflowRunService workflowRunService) {
     this.taskRunRepository = taskRunRepository;
     this.workflowRunRepository = workflowRunRepository;
+    this.workflowRepository = workflowRepository;
     this.taskExecutionService = taskExecutionService;
     this.workflowRunService = workflowRunService;
   }
@@ -77,6 +92,9 @@ public class WorkflowWatcher {
     reapWorkflowTimeouts();
     redriveStalledRuns();
     finalizeWorkspacelessRuns();
+    redriveDueWaitingTasks();
+    cancelDeletedWorkflowRuns();
+    pruneDeletedWorkflows();
   }
 
   /**
@@ -161,6 +179,54 @@ public class WorkflowWatcher {
         LOGGER.error("[{}] Finalize sweep failed: {}", wfRun.getId(), ex.getMessage());
       }
     }
+  }
+
+  /**
+   * Re-drive waiting tasks whose {@code waitUntil} has elapsed - a due sleep completes, a due
+   * acquirelock re-attempts. Event and approval waits carry no {@code waitUntil}, so the sparse
+   * index never surfaces them here. Each is claimed by a Compare-And-Set so instances never
+   * double-drive.
+   */
+  public void redriveDueWaitingTasks() {
+    for (TaskRunEntity task : taskRunRepository.findWaitingDue(new Date(), PAGE_SIZE)) {
+      try {
+        if (taskRunRepository.tryStartWaitingRedrive(task.getId()) != null) {
+          taskExecutionService.redriveWaitingTask(task.getId());
+        }
+      } catch (Exception ex) {
+        LOGGER.error("[{}] Waiting-task re-drive failed: {}", task.getId(), ex.getMessage());
+      }
+    }
+  }
+
+  /**
+   * Wind down deleted (tombstoned) Workflows: cancel their still-in-flight WorkflowRuns through the
+   * normal cancel path. Nothing is destroyed - hard pruning is the separate retention sweep.
+   */
+  public void cancelDeletedWorkflowRuns() {
+    for (WorkflowEntity workflow : workflowRepository.findByStatus(WorkflowStatus.deleted)) {
+      for (WorkflowRunEntity wfRun :
+          workflowRunRepository.findByWorkflowRefAndPhaseIn(workflow.getId(), IN_FLIGHT_PHASES)) {
+        try {
+          workflowRunService.cancel(wfRun.getId());
+          LOGGER.info(
+              "[{}] Cancelled in-flight run of deleted Workflow {}.", wfRun.getId(), workflow.getId());
+        } catch (Exception ex) {
+          LOGGER.error("[{}] Deleted-workflow run cancel failed: {}", wfRun.getId(), ex.getMessage());
+        }
+      }
+    }
+  }
+
+  /**
+   * Retention sweep for deleted Workflows once their runs have finalised. Ships disabled - the
+   * pruning policy (what to keep, for how long) is a separate ruling; enabling it hard-deletes.
+   */
+  public void pruneDeletedWorkflows() {
+    if (!retentionEnabled) {
+      return;
+    }
+    // Intentionally a no-op until the retention policy is ruled and this sweep is implemented.
   }
 
   // Backoff: 10s base, x2 per attempt, 5m ceiling, jittered.

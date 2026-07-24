@@ -275,6 +275,29 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
     return mongoTemplate.exists(query, TaskRunEntity.class);
   }
 
+  @Override
+  public List<TaskRunEntity> findWaitingDue(Date now, int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("status").is(RunStatus.waiting).and("waitUntil").lte(now))
+            .with(Sort.by(Sort.Direction.ASC, "waitUntil"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  @Override
+  public TaskRunEntity tryStartWaitingRedrive(String id) {
+    Query query =
+        Query.query(
+            Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(new Date()));
+    return mongoTemplate.findAndModify(
+        query,
+        new Update().unset("waitUntil"),
+        FindAndModifyOptions.options().returnNew(false),
+        TaskRunEntity.class);
+  }
+
   // A null observed seq fences on the run being unclaimed - a claim arriving between page and
   // Compare-And-Set carries a seq and fails the guard.
   private static void fence(Criteria criteria, Long observedClaimSeq) {

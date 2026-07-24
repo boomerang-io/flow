@@ -244,6 +244,34 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     assertEquals(RunStatus.succeeded, after.getStatus());
   }
 
+  @Test
+  void dueSleepTaskIsCompletedBySweepNotAHeldThread() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("sleep-wf", RunStatus.running, RunPhase.running);
+    String taskRunId =
+        savedTaskRun(
+                "napper",
+                TaskType.sleep,
+                RunStatus.waiting,
+                RunPhase.running,
+                wfRun.getWorkflowRef(),
+                wfRun.getId())
+            .getId();
+    // A durable sleep whose wake time has passed - no thread is blocked, the row is due.
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(taskRunId)),
+        new Update().set("waitUntil", new Date(System.currentTimeMillis() - 1000)),
+        TaskRunEntity.class);
+
+    watcher.redriveDueWaitingTasks();
+
+    awaitEngine("the due sleep task to complete succeeded")
+        .untilAsserted(
+            () ->
+                assertEquals(
+                    RunStatus.succeeded,
+                    taskRunRepository.findById(taskRunId).orElseThrow().getStatus()));
+  }
+
   private void claimWithExpiredDeadline(String taskRunId, String claimedBy, long claimSeq) {
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(taskRunId)),

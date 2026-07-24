@@ -5,13 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.Task;
@@ -22,10 +23,10 @@ import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.boomerang.engine.repository.EventInboxRepository;
+import io.boomerang.engine.repository.WorkflowRepository;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -40,6 +41,8 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private TaskRunService taskRunService;
   @Autowired private EventInboxRepository eventInboxRepository;
+  @Autowired private WorkflowRepository workflowRepository;
+  @Autowired private WorkflowWatcher watcher;
 
   @Test
   void pausedRunIsExcludedFromClaimUntilResumeReconciles() {
@@ -186,12 +189,37 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
         "the inbox ledger records the delivery");
   }
 
-  // Today only the stopgap guard exists (WorkflowService.delete refuses while runs are in
-  // flight). The status-based tombstone + watcher wind-down land in slice F.
-  @Disabled("Tombstone/watcher delete model does not exist until slice F - gap-register scenario #9")
   @Test
-  void deletedWorkflowIsTombstonedCancelledAndPruned() {
-    fail("Implement with slice F: deleted status set; watcher cancels in-flight; retention sweep prunes");
+  void deletedWorkflowIsTombstonedAndRunsCancelled() {
+    String workflowId = createdLifecycleWorkflow("tombstone");
+    String wfRunId =
+        workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+    workflowRunService.start(wfRunId, Optional.empty());
+    awaitEngine("run in flight")
+        .untilAsserted(
+            () ->
+                assertTrue(
+                    workflowRunRepository.existsByWorkflowRefAndPhaseIn(
+                        workflowId,
+                        List.of(RunPhase.pending, RunPhase.queued, RunPhase.running))));
+
+    // Delete tombstones the Workflow - no cascade, nothing destroyed.
+    workflowService.delete(workflowId);
+    WorkflowEntity tombstoned = workflowRepository.findById(workflowId).orElseThrow();
+    assertEquals(WorkflowStatus.deleted, tombstoned.getStatus());
+
+    // The watcher winds down the in-flight run.
+    watcher.cancelDeletedWorkflowRuns();
+    awaitEngine("the in-flight run of the deleted workflow to be cancelled")
+        .untilAsserted(
+            () ->
+                assertEquals(
+                    RunStatus.cancelled,
+                    workflowRunRepository.findById(wfRunId).orElseThrow().getStatus()));
+
+    // Pruning ships disabled, so the workflow document survives (never hard-deleted).
+    watcher.pruneDeletedWorkflows();
+    assertTrue(workflowRepository.findById(workflowId).isPresent());
   }
 
   private String submittedAndStartedRun(String name) {

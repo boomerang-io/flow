@@ -8,7 +8,9 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
+import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.engine.repository.TaskLockRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
@@ -42,7 +44,8 @@ public class TaskExecutionService {
 
   private static final Logger LOGGER = LogManager.getLogger(TaskExecutionService.class);
 
-  @Autowired @Lazy private LockManager lockManager;
+  // Backoff between acquirelock re-attempts while a lock is held by another task.
+  private static final long LOCK_RETRY_BACKOFF_MILLIS = 5000;
 
   @Autowired private DAGUtility dagUtility;
 
@@ -55,6 +58,8 @@ public class TaskExecutionService {
   @Autowired private TaskRunRepository taskRunRepository;
 
   @Autowired private ActionRepository actionRepository;
+
+  @Autowired private TaskLockRepository taskLockRepository;
 
   @Autowired private WorkflowClient workflowClient;
 
@@ -275,8 +280,8 @@ public class TaskExecutionService {
         endTask = true;
       }
       case acquirelock -> {
-        this.acquireTaskLock(taskExecution, wfRunEntity);
-        endTask = true;
+        // Ends only when the lock is acquired; otherwise the task parks as waiting for re-drive.
+        endTask = this.acquireTaskLock(taskExecution, wfRunEntity);
       }
       case releaselock -> {
         this.releaseTaskLock(taskExecution, wfRunEntity);
@@ -314,8 +319,8 @@ public class TaskExecutionService {
         LOGGER.debug("[{}] TaskRun set to end? {}", taskExecution.getId(), endTask);
       }
       case sleep -> {
+        // Parks as waiting until its duration elapses; the watcher completes it, no held thread.
         this.createSleepTask(taskExecution);
-        endTask = true;
       }
       case end, start -> throw new UnsupportedOperationException("Unimplemented case: " + taskType);
       default -> throw new BoomerangException(BoomerangError.TASKRUN_INVALID_TYPE, taskType);
@@ -579,16 +584,11 @@ public class TaskExecutionService {
   private void createSleepTask(TaskRunEntity taskExecution) {
     String value = ParameterUtil.getValue(taskExecution.getParams(), "duration").toString();
     long duration = Long.parseLong(value);
-
-    //    jobScheduler.schedule(Instant.now().plus(duration, ChronoUnit.MILLIS), () ->
-    // timeoutWorkflowAsync(wfRunEntity.getId()));
-    try {
-      Thread.sleep(duration);
-      taskExecution.setStatus(RunStatus.succeeded);
-    } catch (InterruptedException e) {
-      taskExecution.setStatus(RunStatus.failed);
-      taskExecution.setStatusMessage(e.getMessage());
-    }
+    // Durable wait: park as waiting and let the watcher complete it when waitUntil elapses. No
+    // held thread survives a crash - the sweep re-drives it.
+    taskExecution.setStatus(RunStatus.waiting);
+    taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + duration));
+    taskRunRepository.save(taskExecution);
   }
 
   private void processDecision(TaskRunEntity taskExecution, String activityId) {
@@ -598,67 +598,100 @@ public class TaskExecutionService {
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
-  private void acquireTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    Long timeout = null;
-    String key = null;
-
+  /*
+   * Returns true when the task should end now (lock acquired, or invalid params - fail); false when
+   * it parked as waiting for the watcher to re-drive. Acquiring is an atomic insert-or-expired
+   * takeover, so two tasks can never both hold the key. The task's timeoutAt bounds the wait - the
+   * timeout reap fails it if the lock never frees.
+   */
+  private boolean acquireTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
     List<RunParam> params = taskExecution.getParams();
+    Long timeout = null;
     if (ParameterUtil.containsName(params, "timeout")) {
       String timeoutStr = ParameterUtil.getValue(params, "timeout").toString();
       if (!timeoutStr.isBlank() && NumberUtils.isCreatable(timeoutStr)) {
         timeout = Long.valueOf(timeoutStr);
       }
     }
-
-    if (ParameterUtil.containsName(params, "key")) {
-      key = ParameterUtil.getValue(params, "key").toString();
-    }
-
-    // Set team prefix if available from Workflow to scope
-    if (taskExecution.getAnnotations() != null
-        && !taskExecution.getAnnotations().isEmpty()
-        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
-      key = taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + "-" + key;
-    }
-
-    try {
-      if (Objects.isNull(key) || Objects.isNull(timeout)) {
-        throw new BoomerangException(BoomerangError.TASKRUN_INVALID_PARAMS);
-      }
-      LOGGER.debug("[{}] Acquiring lock for key: {}", taskExecution.getId(), key);
-      lockManager.acquireLock(key, timeout);
-    } catch (Exception ex) {
+    String scopedKey = scopedLockKey(taskExecution);
+    if (Objects.isNull(scopedKey) || Objects.isNull(timeout)) {
       taskExecution.setStatus(RunStatus.failed);
-      taskExecution.setStatusMessage(ex.getMessage());
+      taskExecution.setStatusMessage("acquirelock requires a key and a timeout.");
+      return true;
     }
-    taskExecution.setStatus(RunStatus.succeeded);
+
+    Date expiresAt = new Date(System.currentTimeMillis() + timeout);
+    TaskLockEntity lock =
+        taskLockRepository.tryAcquire(
+            scopedKey, taskExecution.getId(), wfRunEntity.getId(), expiresAt);
+    if (lock != null) {
+      LOGGER.debug("[{}] Acquired lock for key: {}", taskExecution.getId(), scopedKey);
+      taskExecution.setStatus(RunStatus.succeeded);
+      return true;
+    }
+    // Held by another task: park as waiting and re-attempt after the backoff.
+    LOGGER.debug("[{}] Lock held for key: {}. Waiting to retry.", taskExecution.getId(), scopedKey);
+    taskExecution.setStatus(RunStatus.waiting);
+    taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + LOCK_RETRY_BACKOFF_MILLIS));
+    taskRunRepository.save(taskExecution);
+    return false;
   }
 
   private void releaseTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    String key = null;
-
-    List<RunParam> params = taskExecution.getParams();
-    if (ParameterUtil.containsName(params, "key")) {
-      key = ParameterUtil.getValue(params, "key").toString();
-    }
-
-    // Set team prefix if available from Workflow to scope
-    if (taskExecution.getAnnotations() != null
-        && !taskExecution.getAnnotations().isEmpty()
-        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
-      key = taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + "-" + key;
-    }
-    try {
-      if (Objects.isNull(key)) {
-        throw new BoomerangException(BoomerangError.TASKRUN_INVALID_PARAMS);
-      }
-      LOGGER.debug("[{}] Releasing lock for key: {}", taskExecution.getId(), key);
-      lockManager.releaseLock(key, key);
-    } catch (Exception ex) {
+    String scopedKey = scopedLockKey(taskExecution);
+    if (Objects.isNull(scopedKey)) {
       taskExecution.setStatus(RunStatus.failed);
-      taskExecution.setStatusMessage(ex.getMessage());
+      taskExecution.setStatusMessage("releaselock requires a key.");
+      return;
     }
+    // Holder-checked delete; a missing or expired lock is already released - idempotent.
+    LOGGER.debug("[{}] Releasing lock for key: {}", taskExecution.getId(), scopedKey);
+    taskLockRepository.release(scopedKey, taskExecution.getId());
     taskExecution.setStatus(RunStatus.succeeded);
+  }
+
+  // The lock key scoped by workspace so the same user key never collides across workspaces. The
+  // scope is the team-name annotation (a param-context annotation retired in a later cleanup).
+  private String scopedLockKey(TaskRunEntity taskExecution) {
+    List<RunParam> params = taskExecution.getParams();
+    if (!ParameterUtil.containsName(params, "key")) {
+      return null;
+    }
+    String key = ParameterUtil.getValue(params, "key").toString();
+    if (taskExecution.getAnnotations() != null
+        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
+      return taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + ":" + key;
+    }
+    return key;
+  }
+
+  /*
+   * Re-drive a due waiting task the watcher claimed: a slept task completes, an acquirelock task
+   * re-attempts the acquire (succeeding, or re-parking for another backoff).
+   */
+  @Async("asyncTaskExecutor")
+  public void redriveWaitingTask(String taskRunId) {
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      return;
+    }
+    if (TaskType.sleep.equals(taskExecution.getType())) {
+      taskExecution.setStatus(RunStatus.succeeded);
+      taskRunRepository.save(taskExecution);
+      self.end(taskRunId);
+      return;
+    }
+    if (TaskType.acquirelock.equals(taskExecution.getType())) {
+      WorkflowRunEntity wfRunEntity =
+          workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(null);
+      if (wfRunEntity == null) {
+        return;
+      }
+      if (acquireTaskLock(taskExecution, wfRunEntity)) {
+        taskRunRepository.save(taskExecution);
+        self.end(taskRunId);
+      }
+    }
   }
 
   private void runWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -862,10 +895,8 @@ public class TaskExecutionService {
     taskExecution.getResults().add(new RunResult("actionRef", actionEntity.getId()));
     taskExecution.setStatus(RunStatus.waiting);
     taskExecution = taskRunRepository.save(taskExecution);
-    wfRunEntity.setAwaitingApproval(true);
-    String tokenId = lockManager.acquireLock(wfRunEntity.getId());
-    this.workflowRunRepository.save(wfRunEntity);
-    lockManager.releaseLock(wfRunEntity.getId(), tokenId);
+    // Atomic single-field set - no lock, no full-document rewrite.
+    workflowRunRepository.setAwaitingApproval(wfRunEntity.getId(), true);
   }
 
   private void saveWorkflowParam(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -884,17 +915,11 @@ public class TaskExecutionService {
                 .get()
                 .getValue();
 
-    String tokenId = lockManager.acquireLock(wfRunEntity.getId());
-
-    List<RunResult> wfResults = wfRunEntity.getResults();
     RunResult wfResult = new RunResult();
     wfResult.setName(output);
     wfResult.setValue(input);
-    wfResults.add(wfResult);
-    wfRunEntity.setResults(wfResults);
-    workflowRunRepository.save(wfRunEntity);
-
-    lockManager.releaseLock(wfRunEntity.getId(), tokenId);
+    // Atomic append - no lock, no read-modify-write, so concurrent writers cannot lose a result.
+    workflowRunRepository.appendResult(wfRunEntity.getId(), wfResult);
     taskExecution.setStatus(RunStatus.succeeded);
   }
 

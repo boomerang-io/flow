@@ -4,6 +4,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunResult;
 import java.util.Date;
 import java.util.List;
 
@@ -106,4 +107,7 @@ public interface WorkflowRunRepositoryCustom {
 
   /** Set the awaiting-approval flag without rewriting the rest of the document. */
   void setAwaitingApproval(String id, boolean awaitingApproval);
+
+  /** Append one result to {@code results} with an atomic {@code $push} - no read-modify-write. */
+  void appendResult(String id, RunResult result);
 }

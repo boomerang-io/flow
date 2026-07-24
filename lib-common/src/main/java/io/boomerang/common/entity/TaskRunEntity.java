@@ -76,6 +76,12 @@ public class TaskRunEntity {
   // elapses. Written only by the fenced requeue, which never clears claim.seq.
   @JsonIgnore private RunRetry retry;
 
+  // Wake time for a durable wait (sleep, or an acquirelock backoff). A waiting row is re-driven by
+  // the watcher when waitUntil elapses - never a held thread. Absent = not a timed wait.
+  @JsonIgnore
+  @Indexed(sparse = true)
+  private Date waitUntil;
+
   @Override
   public String toString() {
     return "TaskRunEntity [id="

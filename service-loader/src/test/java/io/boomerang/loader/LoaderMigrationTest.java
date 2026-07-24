@@ -90,10 +90,11 @@ class LoaderMigrationTest {
     assertUniqueIndex("actions", "task_run", List.of("taskRunRef"));
     assertUniqueIndex("agents", "registration", List.of("name", "host"));
     assertEventCollectionIndexes();
+    assertLockAndWorkflowIndexes();
     assertTaskRunDedupe();
     assertActionDedupe();
     assertAgentDedupe();
-    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(8);
+    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(10);
 
     List<Document> taskRunsBefore = snapshot("task_runs");
     List<Document> actionsBefore = snapshot("actions");
@@ -153,6 +154,17 @@ class LoaderMigrationTest {
     assertThat(ttlSeconds(inbox.get("received_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
     assertThat(inbox.get("redrive_page").get("key", Document.class).keySet())
         .containsExactly("status", "receivedAt");
+  }
+
+  private void assertLockAndWorkflowIndexes() {
+    Map<String, Document> locks = indexesByName("task_locks");
+    assertThat(locks.get("lease_ttl").get("key", Document.class).keySet())
+        .containsExactly("expiresAt");
+    assertThat(ttlSeconds(locks.get("lease_ttl"))).isZero();
+
+    Map<String, Document> workflows = indexesByName("workflows");
+    assertThat(workflows.get("status_lookup").get("key", Document.class).keySet())
+        .containsExactly("status");
   }
 
   private static long ttlSeconds(Document index) {

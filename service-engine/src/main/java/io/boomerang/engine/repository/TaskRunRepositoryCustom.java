@@ -85,4 +85,17 @@ public interface TaskRunRepositoryCustom {
    * the graph advance was lost and must be re-driven.
    */
   boolean existsInFlightByWorkflowRunRef(String workflowRunRef);
+
+  /**
+   * Return the page of waiting TaskRuns whose {@code waitUntil} has elapsed (a due sleep or
+   * acquirelock backoff). Event/approval waits carry no {@code waitUntil}, so the sparse index
+   * excludes them - they resume on their external actor, never on a timer.
+   */
+  List<TaskRunEntity> findWaitingDue(Date now, int limit);
+
+  /**
+   * Claim a due waiting TaskRun for re-drive: clears {@code waitUntil} so a second instance's sweep
+   * skips it. Returns the pre-image (the winner re-drives), or {@code null} when already claimed.
+   */
+  TaskRunEntity tryStartWaitingRedrive(String id);
 }

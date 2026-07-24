@@ -12,4 +12,6 @@ public interface WorkflowRunRepository
 
   boolean existsByWorkflowRefAndPhaseIn(String workflowRef, List<RunPhase> phases);
 
+  List<WorkflowRunEntity> findByWorkflowRefAndPhaseIn(String workflowRef, List<RunPhase> phases);
+
 }

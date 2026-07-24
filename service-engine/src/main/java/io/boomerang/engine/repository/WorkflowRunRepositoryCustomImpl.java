@@ -4,6 +4,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.engine.model.WorkflowRunTransition;
 import java.util.Date;
 import java.util.List;
@@ -309,6 +310,14 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(id)),
         new Update().set("isAwaitingApproval", awaitingApproval),
+        WorkflowRunEntity.class);
+  }
+
+  @Override
+  public void appendResult(String id, RunResult result) {
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(id)),
+        new Update().push("results", result),
         WorkflowRunEntity.class);
   }
 
