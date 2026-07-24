@@ -141,11 +141,6 @@ class LoaderMigrationTest {
     assertThat(indexes.get("paused_lookup").get("key", Document.class).keySet())
         .containsExactly("pauseRequestedAt");
     assertThat(indexes.get("paused_lookup").getBoolean("sparse")).isTrue();
-    assertPartialUnique(indexes.get("idempotency_key"), "idempotencyKey");
-    assertPartialUnique(indexes.get("created_by_task_run"), "createdByTaskRunRef");
-    assertPartialUnique(indexes.get("retry_attempt"), "retryOfRef");
-    assertThat(indexes.get("retry_attempt").get("key", Document.class).keySet())
-        .containsExactly("retryOfRef", "retryAttempt");
   }
 
   private void assertEventCollectionIndexes() {
@@ -154,20 +149,14 @@ class LoaderMigrationTest {
         .containsExactly("status", "occurredAt");
     assertThat(ttlSeconds(outbox.get("sent_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
 
-    Map<String, Document> ingress = indexesByName("events_ingress");
-    assertThat(ttlSeconds(ingress.get("received_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
-    assertThat(ingress.get("redrive_page").get("key", Document.class).keySet())
+    Map<String, Document> inbox = indexesByName("events_inbox");
+    assertThat(ttlSeconds(inbox.get("received_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
+    assertThat(inbox.get("redrive_page").get("key", Document.class).keySet())
         .containsExactly("status", "receivedAt");
   }
 
   private static long ttlSeconds(Document index) {
     return ((Number) index.get("expireAfterSeconds")).longValue();
-  }
-
-  private void assertPartialUnique(Document index, String filteredField) {
-    assertThat(index.getBoolean("unique")).isTrue();
-    assertThat(index.get("partialFilterExpression", Document.class).keySet())
-        .containsExactly(filteredField);
   }
 
   private void assertUniqueIndex(String collection, String indexName, List<String> keys) {

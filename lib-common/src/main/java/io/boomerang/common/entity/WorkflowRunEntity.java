@@ -64,9 +64,6 @@ public class WorkflowRunEntity {
   @Indexed(sparse = true)
   private Date pauseRequestedAt;
 
-  // Caller-supplied submission dedup key; the partial unique index makes a duplicate submit
-  // return the existing run instead of creating a second one.
-  private String idempotencyKey;
   private String trigger;
   private String initiatedByRef;
   private List<RunParam> params = new LinkedList<>();

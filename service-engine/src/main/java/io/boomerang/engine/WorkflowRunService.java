@@ -11,11 +11,11 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.*;
-import io.boomerang.engine.entity.EventIngressEntity;
-import io.boomerang.engine.enums.IngressStatus;
+import io.boomerang.engine.entity.EventInboxEntity;
+import io.boomerang.engine.enums.InboxStatus;
 import io.boomerang.engine.model.*;
 import io.boomerang.engine.repository.ActionRepository;
-import io.boomerang.engine.repository.EventIngressRepository;
+import io.boomerang.engine.repository.EventInboxRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRevisionRepository;
@@ -64,7 +64,7 @@ public class WorkflowRunService {
   private final ActionRepository actionRepository;
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
-  private final EventIngressRepository eventIngressRepository;
+  private final EventInboxRepository eventInboxRepository;
   private final MongoTemplate mongoTemplate;
 
   public WorkflowRunService(
@@ -76,7 +76,7 @@ public class WorkflowRunService {
       ActionRepository actionRepository,
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
-      EventIngressRepository eventIngressRepository,
+      EventInboxRepository eventInboxRepository,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
@@ -86,7 +86,7 @@ public class WorkflowRunService {
     this.actionRepository = actionRepository;
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
-    this.eventIngressRepository = eventIngressRepository;
+    this.eventInboxRepository = eventInboxRepository;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -385,20 +385,7 @@ public class WorkflowRunService {
    * Queues the Workflow to be executed (and optionally starts the execution)
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
-    try {
-      workflowRunRepository.save(wfRunEntity);
-    } catch (DuplicateKeyException e) {
-      // Same idempotencyKey already submitted: the duplicate is a no-op returning the
-      // existing run - the partial unique index is the dedup gate.
-      LOGGER.info(
-          "Duplicate submission for idempotencyKey {}. Returning the existing WorkflowRun.",
-          wfRunEntity.getIdempotencyKey());
-      return ConvertUtil.entityToModel(
-          workflowRunRepository
-              .findByIdempotencyKey(wfRunEntity.getIdempotencyKey())
-              .orElseThrow(() -> e),
-          WorkflowRun.class);
-    }
+    workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
     if (start) {
@@ -605,17 +592,17 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
 
-    // Ingress dedup gate: the ledger insert is atomic on "<run>:<eventId>", so a transport
+    // Inbox dedup gate: the ledger insert is atomic on "<run>:<eventId>", so a transport
     // redelivery is acknowledged without being re-applied. Events without an id are not deduped.
-    EventIngressEntity ingress = null;
+    EventInboxEntity inbox = null;
     if (request.getId() != null && !request.getId().isBlank()) {
-      ingress = new EventIngressEntity();
-      ingress.setId(workflowRunId + ":" + request.getId());
-      ingress.setTopic(request.getTopic());
-      ingress.setRequestedStatus(request.getStatus());
-      ingress.setReceivedAt(new Date());
+      inbox = new EventInboxEntity();
+      inbox.setId(workflowRunId + ":" + request.getId());
+      inbox.setTopic(request.getTopic());
+      inbox.setRequestedStatus(request.getStatus());
+      inbox.setReceivedAt(new Date());
       try {
-        eventIngressRepository.insert(ingress);
+        eventInboxRepository.insert(inbox);
       } catch (DuplicateKeyException e) {
         LOGGER.info(
             "[{}] Duplicate event {} already handled. Acknowledging without re-applying.",
@@ -659,10 +646,10 @@ public class WorkflowRunService {
               taskRunService.end(tr.getId(), Optional.of(endRequest));
             });
 
-    if (ingress != null) {
-      ingress.setStatus(IngressStatus.processed);
-      ingress.setProcessedAt(new Date());
-      eventIngressRepository.save(ingress);
+    if (inbox != null) {
+      inbox.setStatus(InboxStatus.processed);
+      inbox.setProcessedAt(new Date());
+      eventInboxRepository.save(inbox);
     }
   }
 

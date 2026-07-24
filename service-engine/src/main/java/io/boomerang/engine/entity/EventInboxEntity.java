@@ -2,7 +2,7 @@ package io.boomerang.engine.entity;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.engine.enums.IngressStatus;
+import io.boomerang.engine.enums.InboxStatus;
 import java.util.Date;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
@@ -15,13 +15,13 @@ import org.springframework.data.mongodb.core.mapping.Document;
  */
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Document(collection = "#{@mongoConfiguration.fullCollectionName('events_ingress')}")
-public class EventIngressEntity {
+@Document(collection = "#{@mongoConfiguration.fullCollectionName('events_inbox')}")
+public class EventInboxEntity {
 
   @Id private String id;
   private String topic;
   private RunStatus requestedStatus;
-  private IngressStatus status = IngressStatus.received;
+  private InboxStatus status = InboxStatus.received;
   private Date receivedAt;
   private Date processedAt;
 }

@@ -21,21 +21,16 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
-import io.boomerang.engine.repository.EventIngressRepository;
+import io.boomerang.engine.repository.EventInboxRepository;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.index.Index;
-import org.springframework.data.mongodb.core.index.PartialIndexFilter;
-import org.springframework.data.mongodb.core.query.Criteria;
 
 /**
- * Safety-net scenarios from the gap register: pause discipline, submission/event dedup, and the
+ * Safety-net scenarios from the gap register: pause discipline, event-delivery dedup, and the
  * (still pending) tombstone delete model. Sweeps and claims are exercised by direct invocation.
  */
 class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
@@ -44,8 +39,7 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private TaskRunService taskRunService;
-  @Autowired private EventIngressRepository eventIngressRepository;
-  @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private EventInboxRepository eventInboxRepository;
 
   @Test
   void pausedRunIsExcludedFromClaimUntilResumeReconciles() {
@@ -156,26 +150,8 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void duplicateEventsAndSubmissionsAreDeduplicated() {
-    // The loader owns this index in deployments; the test database recreates it as the dedup gate.
-    mongoTemplate
-        .indexOps(WorkflowRunEntity.class)
-        .createIndex(
-            new Index()
-                .on("idempotencyKey", Sort.Direction.ASC)
-                .unique()
-                .partial(PartialIndexFilter.of(Criteria.where("idempotencyKey").exists(true)))
-                .named("idempotency_key"));
-
-    // Duplicate submission: the same idempotencyKey returns the existing run, never a second one.
-    String workflowId = createdLifecycleWorkflow("dedup-submit");
-    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-    request.setIdempotencyKey("dedup-submit-key");
-    String firstRunId = workflowService.submit(workflowId, request, false).getId();
-    String secondRunId = workflowService.submit(workflowId, request, false).getId();
-    assertEquals(firstRunId, secondRunId, "duplicate submission must return the existing run");
-
-    // Duplicate event delivery: the ingress ledger acknowledges the redelivery without
+  void duplicateEventDeliveryIsDeduplicated() {
+    // Duplicate event delivery: the inbox ledger acknowledges the redelivery without
     // re-applying it - the result is appended exactly once.
     WorkflowRunEntity wfRun =
         savedWorkflowRun("dedup-event-wf", RunStatus.running, RunPhase.running);
@@ -206,8 +182,8 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
         taskRunRepository.findById(listener.getId()).orElseThrow().getResults().size(),
         "a redelivered event must not re-apply its results");
     assertTrue(
-        eventIngressRepository.findById(wfRun.getId() + ":evt-1").isPresent(),
-        "the ingress ledger records the delivery");
+        eventInboxRepository.findById(wfRun.getId() + ":evt-1").isPresent(),
+        "the inbox ledger records the delivery");
   }
 
   // Today only the stopgap guard exists (WorkflowService.delete refuses while runs are in

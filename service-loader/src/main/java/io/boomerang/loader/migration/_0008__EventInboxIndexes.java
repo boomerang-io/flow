@@ -14,25 +14,25 @@ import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 
 /**
- * events_ingress indexes: a 7-day TTL on the dedup ledger (matching transport redelivery
+ * events_inbox indexes: a 7-day TTL on the dedup ledger (matching transport redelivery
  * windows) and the status page a re-drive sweep scans for stale received rows.
  */
-@Change(id = "0008-event-ingress-indexes", author = "boomerang", transactional = false)
+@Change(id = "0008-event-inbox-indexes", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0008__EventIngressIndexes {
+public class _0008__EventInboxIndexes {
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
-    String eventsIngress = names.resolve("events_ingress");
+    String eventsInbox = names.resolve("events_inbox");
     ensureIndex(
         db,
-        eventsIngress,
+        eventsInbox,
         "received_ttl",
         new Document("receivedAt", 1),
         new IndexOptions().expireAfter(7L, TimeUnit.DAYS));
     ensureIndex(
         db,
-        eventsIngress,
+        eventsInbox,
         "redrive_page",
         new Document("status", 1).append("receivedAt", 1),
         new IndexOptions());
@@ -40,8 +40,8 @@ public class _0008__EventIngressIndexes {
 
   @Rollback
   public void rollback(MongoDatabase db, CollectionNames names) {
-    String eventsIngress = names.resolve("events_ingress");
-    dropIndex(db, eventsIngress, "received_ttl");
-    dropIndex(db, eventsIngress, "redrive_page");
+    String eventsInbox = names.resolve("events_inbox");
+    dropIndex(db, eventsInbox, "received_ttl");
+    dropIndex(db, eventsInbox, "redrive_page");
   }
 }
