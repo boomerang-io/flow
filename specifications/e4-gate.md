@@ -39,6 +39,22 @@
 > (`events_inbox`, `InboxStatus`, `_0008`) to pair with EventOutbox — it stays; it dedups
 > transport redelivery of inbound events, a different concern from run creation.
 
+> **Maintainer ruling (2026-07-24, slice E review):** retry-from-step (`supersedeFrom` /
+> `retryFromTask`) is **PARKED** and its supersede-generation schema removed
+> (`superseded`/`attempt`/`mapIndex` fields, the four-field unique index, find-live-by-name).
+> Reason: partial re-run needs the upstream steps' workspace data, but Flow releases
+> workspaces at `finalize` and the `completed`→`finalized` window is a single agent poll
+> (seconds) — too short for a user to act in — so re-running a step on a finished run would
+> execute against torn-down disk. It is also the ONLY consumer of the supersede machinery:
+> auto-retry clones the whole run, crash recovery requeues the same task, resume re-drives.
+> Prerequisite for un-parking: a **workspace-retention** option (delay/skip teardown). The
+> `_0003` loader now ships a `(workflowRunRef, name)` unique index whose backfill DELETES
+> claim-race duplicate garbage (keeps the terminal) rather than stamping generations. KEPT
+> from slice E: the DD-08 control-state migration (`retryCount`, `trigger=retry` lineage,
+> zero `boomerang.io/*` control annotations); `timeout-cause` needed no field (message built
+> at detection, written to `statusMessage`). This supersedes the slice-E row of the plan below
+> (find-live/supersede/attempt) — only the annotation migration of that row shipped.
+
 # E4 Gate — Execution-Model Rebuild (G1 Touch Analysis + G2 Data-Model Proposal + Slice Plan)
 
 **Status:** 🟡 PROPOSED — the standing-gate stop for E4 (gap-register §3). No E4 code lands

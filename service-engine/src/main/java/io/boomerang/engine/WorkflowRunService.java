@@ -19,7 +19,6 @@ import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.EventInboxRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
-import io.boomerang.engine.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
@@ -59,7 +58,6 @@ public class WorkflowRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private final WorkflowRepository workflowRepository;
-  private final WorkflowRevisionRepository workflowRevisionRepository;
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
   private final TaskRunService taskRunService;
@@ -71,7 +69,6 @@ public class WorkflowRunService {
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
-      WorkflowRevisionRepository workflowRevisionRepository,
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
       TaskRunService taskRunService,
@@ -81,7 +78,6 @@ public class WorkflowRunService {
       EventInboxRepository eventInboxRepository,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
-    this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.taskRunService = taskRunService;
