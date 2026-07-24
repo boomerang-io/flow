@@ -13,6 +13,16 @@ public interface TaskRunRepository
 
   Optional<TaskRunEntity> findFirstByNameAndWorkflowRunRef(String name, String workflowRunRef);
 
+  // All generations of a node (live + superseded) - used to number the next superseded attempt.
+  List<TaskRunEntity> findByNameAndWorkflowRunRef(String name, String workflowRunRef);
+
+  // Live generation only (superseded absent). Gating, result resolution and default API reads use
+  // these so an old generation never doubles a graph node or shadows the current result.
+  List<TaskRunEntity> findByWorkflowRunRefAndSupersededAtIsNull(String workflowRunRef);
+
+  Optional<TaskRunEntity> findFirstByNameAndWorkflowRunRefAndSupersededAtIsNull(
+      String name, String workflowRunRef);
+
   void deleteByWorkflowRef(String workflowRef);
 
   void deleteByWorkflowRunRef(String workflowRunRef);

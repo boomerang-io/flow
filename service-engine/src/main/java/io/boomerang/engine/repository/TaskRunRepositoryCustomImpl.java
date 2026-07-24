@@ -263,6 +263,19 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
   }
 
   @Override
+  public TaskRunEntity supersede(String id, int attempt, String by) {
+    Query query =
+        Query.query(Criteria.where("_id").is(id).and("superseded.at").exists(false));
+    Update update =
+        new Update()
+            .set("superseded.at", new Date())
+            .set("superseded.by", by)
+            .set("attempt", attempt);
+    return mongoTemplate.findAndModify(
+        query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+  }
+
+  @Override
   public boolean existsInFlightByWorkflowRunRef(String workflowRunRef) {
     Query query =
         Query.query(

@@ -6,6 +6,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.TimeoutCause;
 import io.boomerang.engine.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
@@ -253,7 +254,7 @@ public class WorkflowExecutionService {
             ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
             : 0;
     String statusMessage =
-        "TaskRun".equals(wfRunEntity.getAnnotations().get("boomerang.io/timeout-cause"))
+        TimeoutCause.task.equals(wfRunEntity.getTimeoutCause())
             ? "A TaskRun exceeded it's timeout."
             : MessageFormatter.format(
                     "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
@@ -277,14 +278,11 @@ public class WorkflowExecutionService {
     if (!Objects.isNull(wfRunEntity.getRetries())
         && wfRunEntity.getRetries() != -1
         && wfRunEntity.getRetries() != 0) {
-      long retryCount = 0;
-      if (wfRunEntity.getAnnotations().containsKey("boomerang.io/retry-count")) {
-        retryCount = (long) wfRunEntity.getAnnotations().get("boomerang.io/retry-count");
-      }
+      long retryCount = wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
       if (retryCount < wfRunEntity.getRetries()) {
-        boolean start = wfRunEntity.getAnnotations().containsKey("boomerang.io/submit-with-start");
         retryCount++;
-        workflowRunService.retry(wfRunId, start, retryCount);
+        // An automatic retry always starts - a queued-but-unstarted retry would stall.
+        workflowRunService.retry(wfRunId, true, retryCount);
       }
     }
   }

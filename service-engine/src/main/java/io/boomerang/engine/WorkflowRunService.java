@@ -10,6 +10,8 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.TimeoutCause;
+import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.*;
 import io.boomerang.engine.entity.EventInboxEntity;
 import io.boomerang.engine.enums.InboxStatus;
@@ -501,7 +503,7 @@ public class WorkflowRunService {
     // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
     // can never overwrite a terminal status. Only the winner drives the timeout to completion.
     if (workflowRunRepository.tryMarkTimedOut(
-            workflowRunId, taskRunTimeout ? "TaskRun" : "WorkflowRun")
+            workflowRunId, taskRunTimeout ? TimeoutCause.task : TimeoutCause.workflow)
         != null) {
       workflowExecutionService.timeout(workflowRunId);
     } else {
@@ -529,11 +531,13 @@ public class WorkflowRunService {
       wfRunEntity.setStatusMessage(null);
       wfRunEntity.setDuration(0);
       wfRunEntity.setStartTime(null);
-      wfRunEntity.getAnnotations().put("boomerang.io/retry-count", retryCount);
-      wfRunEntity.getAnnotations().remove("boomerang.io/timeout-cause");
-      if (!wfRunEntity.getAnnotations().containsKey("boomerang.io/retry-of")) {
-        wfRunEntity.getAnnotations().put("boomerang.io/retry-of", workflowRunId);
-        wfRunEntity.getLabels().put("boomerang.io/retry-of", workflowRunId);
+      wfRunEntity.setRetryCount(retryCount);
+      wfRunEntity.setTimeoutCause(null);
+      // Lineage on typed fields: initiatedByRef points at the first origin (preserved across
+      // chained retries), trigger marks this run as a retry.
+      if (!TriggerEnum.retry.getTrigger().equals(wfRunEntity.getTrigger())) {
+        wfRunEntity.setInitiatedByRef(workflowRunId);
+        wfRunEntity.setTrigger(TriggerEnum.retry.getTrigger());
       }
       workflowRunRepository.save(wfRunEntity);
 
@@ -549,6 +553,29 @@ public class WorkflowRunService {
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
+  }
+
+  public WorkflowRun retryFromTask(String workflowRunId, String taskRunId) {
+    if (workflowRunId == null || workflowRunId.isBlank() || taskRunId == null || taskRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    WorkflowRunEntity wfRunEntity =
+        workflowRunRepository
+            .findById(workflowRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
+    // Retire the step's downstream closure and re-create it live.
+    taskExecutionService.supersedeFrom(taskRunId);
+    // A finished run returns to running so the fresh generation can execute.
+    if (RunPhase.completed.equals(wfRunEntity.getPhase())
+        || RunPhase.finalized.equals(wfRunEntity.getPhase())) {
+      workflowRunRepository.tryReopen(workflowRunId);
+    }
+    taskExecutionService.advance(workflowRunId);
+    return ConvertUtil.entityToModel(
+        workflowRunRepository
+            .findById(workflowRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF)),
+        WorkflowRun.class);
   }
 
   private void updateWorkflowDetails(WorkflowRunEntity wfRunEntity, WorkflowRun wfRun) {
@@ -654,7 +681,9 @@ public class WorkflowRunService {
   }
 
   private List<TaskRun> getTaskRuns(String workflowRunId) {
-    List<TaskRunEntity> taskRunEntities = taskRunRepository.findByWorkflowRunRef(workflowRunId);
+    // Live generation only - default responses never show superseded generations.
+    List<TaskRunEntity> taskRunEntities =
+        taskRunRepository.findByWorkflowRunRefAndSupersededAtIsNull(workflowRunId);
     return taskRunEntities.stream().map(t -> new TaskRun(t)).collect(Collectors.toList());
 
     //

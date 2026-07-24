@@ -286,4 +286,20 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
   }
+
+  public ResponseEntity<WorkflowRun> retryFromTask(
+      String team, String workflowRunId, String taskRunId) {
+    if (workflowRunId == null || workflowRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.TEAM),
+        Optional.of(List.of(team)))) {
+      return ResponseEntity.ok(engineClient.retryFromTaskWorkflowRun(workflowRunId, taskRunId));
+    } else {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+  }
 }

@@ -551,10 +551,6 @@ public class WorkflowService {
     Map<String, Object> annotations = new HashMap<>();
     annotations.put("boomerang.io/generation", "4");
     annotations.put("boomerang.io/kind", "WorkflowRun");
-    if (start) {
-      // Add annotation to know this was created with ?start=true
-      wfRunEntity.getAnnotations().put("boomerang.io/submit-with-start", "true");
-    }
     wfRunEntity.getAnnotations().putAll(annotations);
     return workflowRunService.run(wfRunEntity, start);
   }

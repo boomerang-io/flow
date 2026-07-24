@@ -75,6 +75,9 @@ public class EngineClient {
   @Value("${flow.engine.workflowrun.retry.url}")
   public String retryWorkflowRunURL;
 
+  @Value("${flow.engine.workflowrun.retryfromtask.url}")
+  public String retryFromTaskWorkflowRunURL;
+
   @Value("${flow.engine.workflowrun.pause.url}")
   public String pauseWorkflowRunURL;
 
@@ -496,6 +499,33 @@ public class EngineClient {
       LOGGER.info("Status Response: " + response.getStatusCode());
       LOGGER.info("Content Response: " + response.getBody().toString());
 
+      return response.getBody();
+    } catch (RestClientException ex) {
+      LOGGER.error(ex.toString());
+      throw new BoomerangException(
+          ex,
+          HttpStatus.INTERNAL_SERVER_ERROR.value(),
+          ex.getClass().getSimpleName(),
+          "Exception in communicating with internal services.",
+          HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  public WorkflowRun retryFromTaskWorkflowRun(String workflowRunId, String taskRunId) {
+    try {
+      String url =
+          retryFromTaskWorkflowRunURL
+              .replace("{workflowRunId}", workflowRunId)
+              .replace("{taskRunId}", taskRunId);
+
+      LOGGER.info("URL: " + url);
+      final HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
+      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
+      ResponseEntity<WorkflowRun> response =
+          restTemplate.exchange(url, HttpMethod.PUT, entity, WorkflowRun.class);
+
+      LOGGER.info("Status Response: " + response.getStatusCode());
       return response.getBody();
     } catch (RestClientException ex) {
       LOGGER.error(ex.toString());
