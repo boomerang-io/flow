@@ -869,6 +869,27 @@ Rejected: stay-split + async decoupling (branch B, preserved in the proposal). /
 independent engine version line; `engine@` alias tags for the embedder deprecation
 window. / Rejected: per-service tags + compatibility-set manifest. / 2026-07-22.
 
+**DD-08: Control/execution state = typed fields; annotations/labels = non-identifying
+metadata only** — Anything the engine reads to make a decision, or queries/indexes/selects
+on, MUST be a typed first-class field; free-form `boomerang.io/*` annotations are reserved
+for non-identifying passthrough metadata (UI, catalog, user tags). / Rationale: unanimous
+industry norm — K8s (`.spec`/`.status` subresource vs non-selectable annotations; "annotations
+are not used to identify and select objects"), Tekton (Flow's own executor: typed
+`status.retriesStatus`, timeout as a `reason` enum), Argo (`status.nodes[]`), Temporal
+(Event History + typed `Attempt` vs non-queryable Memo), Airflow (`try_number`/`max_tries`),
+Prefect (`run_count`/`state_type`), n8n (typed `retryOf`/`retrySuccessId` columns), Langflow
+(typed status columns). Continues the `claim`/`retry`/`timeoutAt`/`superseded`/`pauseRequestedAt`
+typed-field direction already shipped. The Mongo dotted-key escape (`annotations.boomerang#io/
+timeout-cause`) was the datastore rejecting control state living in a K8s-shaped map. /
+Migration is incremental: category A (`retry-of`→`initiatedByRef`+`trigger=retry`,
+`retry-count`→typed `retryCount`, `timeout-cause`→typed `TimeoutCause` enum) rides E5;
+`submit-with-start` becomes a request flag (not stored — auto-retry starts). Executor-config
+`task-*` annotations (→ task spec) and param-context `*-params` annotations (→ ParameterManager
+refactor) are separate later cleanups. Category D metadata (`icon`/`category`/`display`/`docs`/
+`version`/`kind`/`position`) stays annotations. `RunStatus` stays a closed enum (H15). /
+Rejected: keep control state in annotations (fights the datastore, non-queryable, couples
+orchestration to K8s metadata). / 2026-07-24.
+
 **DD-07: Database migrations — flow-loader joins the monorepo, rewritten on Flamingock**
 — a `service-loader` module in this repo, running as today's pre-deploy container/Job
 (one execution per deploy — no N-instance question by construction). Baseline changeunit
