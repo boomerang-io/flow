@@ -29,6 +29,16 @@
 > clears `claim.by`/`claim.at`/`claim.leaseExpiresAt` only (seq never cleared) and
 > eligibility keys on `"claim.by": {$exists: false}`.
 
+> **Maintainer ruling (2026-07-24, slice D review):** run-creation dedup is DROPPED
+> entirely — no `idempotencyKey`, `createdByTaskRunRef`, or `retryOfRef`/`retryAttempt`
+> fields, and none of the three partial-unique indexes (`_0004` keeps only claim page +
+> timeout/pause sweeps). Double-submit / double-child / double-retry is a rare edge case
+> whose lineage is already carried by the existing `initiatedByRef` + `trigger` (rename to
+> `initiatedBy` only if it must hold more than a ref). Slice E's retry-from-step uses those
+> two for lineage, not a dedup index. The inbound-event ledger is renamed **EventInbox**
+> (`events_inbox`, `InboxStatus`, `_0008`) to pair with EventOutbox — it stays; it dedups
+> transport redelivery of inbound events, a different concern from run creation.
+
 # E4 Gate — Execution-Model Rebuild (G1 Touch Analysis + G2 Data-Model Proposal + Slice Plan)
 
 **Status:** 🟡 PROPOSED — the standing-gate stop for E4 (gap-register §3). No E4 code lands
