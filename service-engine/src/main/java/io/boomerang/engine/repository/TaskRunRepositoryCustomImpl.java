@@ -1,6 +1,7 @@
 package io.boomerang.engine.repository;
 
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -36,22 +37,39 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
 
   @Override
   public List<TaskRunEntity> findClaimable(List<TaskType> types, int limit) {
+    Criteria criteria =
+        Criteria.where("status")
+            .is(RunStatus.ready)
+            .and("phase")
+            .is(RunPhase.pending)
+            .and("type")
+            .in(types)
+            .and("claim.by")
+            .exists(false)
+            .orOperator(
+                Criteria.where("retry.after").exists(false),
+                Criteria.where("retry.after").lte(new Date()));
     Query query =
-        Query.query(
-                Criteria.where("status")
-                    .is(RunStatus.ready)
-                    .and("phase")
-                    .is(RunPhase.pending)
-                    .and("type")
-                    .in(types)
-                    .and("claim.by")
-                    .exists(false)
-                    .orOperator(
-                        Criteria.where("retry.after").exists(false),
-                        Criteria.where("retry.after").lte(new Date())))
+        Query.query(excludePausedRuns(criteria))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Two-step join for pause exclusion: the paused flag lives only on the WorkflowRun (indexed,
+  // id-only fetch) - task_runs never carry a paused field. Callers must use the returned
+  // criteria: it is the chain's last link, which is what serializes the whole chain.
+  private Criteria excludePausedRuns(Criteria criteria) {
+    Query pausedRuns = Query.query(Criteria.where("pauseRequestedAt").exists(true));
+    pausedRuns.fields().include("_id");
+    List<String> pausedRunIds =
+        mongoTemplate.find(pausedRuns, WorkflowRunEntity.class).stream()
+            .map(WorkflowRunEntity::getId)
+            .toList();
+    if (pausedRunIds.isEmpty()) {
+      return criteria;
+    }
+    return criteria.and("workflowRunRef").nin(pausedRunIds);
   }
 
   @Override
@@ -178,12 +196,11 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
 
   @Override
   public List<TaskRunEntity> findReapable(Date now, int limit) {
+    Criteria criteria =
+        Criteria.where("timeoutAt").lte(now).and("phase").in(RunPhase.queued, RunPhase.running);
+    // Tasks of paused runs are not reaped; their deadlines stand and are reaped on resume.
     Query query =
-        Query.query(
-                Criteria.where("timeoutAt")
-                    .lte(now)
-                    .and("phase")
-                    .in(RunPhase.queued, RunPhase.running))
+        Query.query(excludePausedRuns(criteria))
             .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
             .limit(limit)
             .maxTimeMsec(5000);

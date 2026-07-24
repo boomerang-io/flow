@@ -327,6 +327,40 @@ public class WorkflowRunControllerV1 {
     return workflowRunService.cancel(workflowRunId);
   }
 
+  @PutMapping(value = "/{workflowRunId}/pause")
+  @Operation(summary = "Pause a running WorkflowRun. Resume to continue execution.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public WorkflowRun pause(
+      @Parameter(
+              name = "workflowRunId",
+              description = "ID of WorkflowRun to Pause",
+              required = true)
+          @PathVariable(required = true)
+          String workflowRunId) {
+    return workflowRunService.pause(workflowRunId);
+  }
+
+  @PutMapping(value = "/{workflowRunId}/resume")
+  @Operation(summary = "Resume a paused WorkflowRun.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public WorkflowRun resume(
+      @Parameter(
+              name = "workflowRunId",
+              description = "ID of WorkflowRun to Resume",
+              required = true)
+          @PathVariable(required = true)
+          String workflowRunId) {
+    return workflowRunService.resume(workflowRunId);
+  }
+
   @PutMapping(value = "/{workflowRunId}/retry")
   @Operation(summary = "Retry WorkflowRun execution.")
   @ApiResponses(

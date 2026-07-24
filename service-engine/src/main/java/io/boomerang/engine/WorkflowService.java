@@ -541,6 +541,9 @@ public class WorkflowService {
     if (!Objects.isNull(request.getDebug())) {
       wfRunEntity.setDebug(request.getDebug());
     }
+    if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+      wfRunEntity.setIdempotencyKey(request.getIdempotencyKey());
+    }
     // Set Trigger
     if (Objects.isNull(request.getTrigger())) {
       wfRunEntity.setTrigger("engine");

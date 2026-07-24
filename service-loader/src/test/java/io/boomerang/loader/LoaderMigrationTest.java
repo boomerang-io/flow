@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -88,10 +89,11 @@ class LoaderMigrationTest {
     assertWorkflowRunIndexes();
     assertUniqueIndex("actions", "task_run", List.of("taskRunRef"));
     assertUniqueIndex("agents", "registration", List.of("name", "host"));
+    assertEventCollectionIndexes();
     assertTaskRunDedupe();
     assertActionDedupe();
     assertAgentDedupe();
-    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(6);
+    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(8);
 
     List<Document> taskRunsBefore = snapshot("task_runs");
     List<Document> actionsBefore = snapshot("actions");
@@ -144,6 +146,22 @@ class LoaderMigrationTest {
     assertPartialUnique(indexes.get("retry_attempt"), "retryOfRef");
     assertThat(indexes.get("retry_attempt").get("key", Document.class).keySet())
         .containsExactly("retryOfRef", "retryAttempt");
+  }
+
+  private void assertEventCollectionIndexes() {
+    Map<String, Document> outbox = indexesByName("events_outbox");
+    assertThat(outbox.get("dispatch_page").get("key", Document.class).keySet())
+        .containsExactly("status", "occurredAt");
+    assertThat(ttlSeconds(outbox.get("sent_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
+
+    Map<String, Document> ingress = indexesByName("events_ingress");
+    assertThat(ttlSeconds(ingress.get("received_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
+    assertThat(ingress.get("redrive_page").get("key", Document.class).keySet())
+        .containsExactly("status", "receivedAt");
+  }
+
+  private static long ttlSeconds(Document index) {
+    return ((Number) index.get("expireAfterSeconds")).longValue();
   }
 
   private void assertPartialUnique(Document index, String filteredField) {

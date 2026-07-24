@@ -11,6 +11,8 @@ import lombok.Data;
 @Data
 public class WorkflowRunEventRequest {
 
+  // Optional transport event id - when present, redeliveries of the same id are deduplicated.
+  private String id;
   private Map<String, String> labels = new HashMap<>();
   private Map<String, Object> annotations = new HashMap<>();
   private List<RunResult> results = new LinkedList<>();

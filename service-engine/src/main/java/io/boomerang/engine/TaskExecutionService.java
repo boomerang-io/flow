@@ -116,6 +116,13 @@ public class TaskExecutionService {
       return;
     }
 
+    // The single pause gate: a paused run admits nothing. Level-triggered - resume reconciles
+    // and re-drives this task through queue.
+    if (wfRunEntity.get().getPauseRequestedAt() != null) {
+      LOGGER.info("[{}] WorkflowRun is paused. TaskRun awaits resume.", taskExecutionId);
+      return;
+    }
+
     // Ensure Task is valid as part of Graph
     List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.get().getId());
     boolean canRunTask = dagUtility.canRunTask(tasks, taskExecution);

@@ -75,6 +75,20 @@ public interface WorkflowRunRepositoryCustom {
    */
   WorkflowRunEntity tryFinalize(String id);
 
+  /**
+   * Pause Compare-And-Set: sets {@code pauseRequestedAt} on a running, not-yet-paused run. Never
+   * a status - claiming, admission and the recovery sweeps exclude the flag instead. Returns the
+   * pre-image, or {@code null} when the run is not running or already paused.
+   */
+  WorkflowRunEntity tryPause(String id);
+
+  /**
+   * Resume Compare-And-Set: clears {@code pauseRequestedAt}. The caller reconciles afterwards -
+   * resume itself changes no status or phase. Returns the pre-image, or {@code null} when the run
+   * was not paused.
+   */
+  WorkflowRunEntity tryResume(String id);
+
   /** Return the page of running WorkflowRuns whose baked deadline has passed. */
   List<WorkflowRunEntity> findTimedOut(Date now, int limit);
 

@@ -233,9 +233,45 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
   }
 
   @Override
+  public WorkflowRunEntity tryPause(String id) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .is(RunPhase.running)
+                .and("pauseRequestedAt")
+                .exists(false));
+    return mongoTemplate.findAndModify(
+        query,
+        new Update().set("pauseRequestedAt", new Date()),
+        FindAndModifyOptions.options().returnNew(false),
+        WorkflowRunEntity.class);
+  }
+
+  @Override
+  public WorkflowRunEntity tryResume(String id) {
+    Query query =
+        Query.query(Criteria.where("_id").is(id).and("pauseRequestedAt").exists(true));
+    return mongoTemplate.findAndModify(
+        query,
+        new Update().unset("pauseRequestedAt"),
+        FindAndModifyOptions.options().returnNew(false),
+        WorkflowRunEntity.class);
+  }
+
+  // Paused runs are excluded from both recovery sweeps. The deadline deliberately does not
+  // advance while paused - a run paused past its deadline is reaped on resume.
+  @Override
   public List<WorkflowRunEntity> findTimedOut(Date now, int limit) {
     Query query =
-        Query.query(Criteria.where("timeoutAt").lte(now).and("phase").is(RunPhase.running))
+        Query.query(
+                Criteria.where("timeoutAt")
+                    .lte(now)
+                    .and("phase")
+                    .is(RunPhase.running)
+                    .and("pauseRequestedAt")
+                    .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
             .limit(limit)
             .maxTimeMsec(5000);
@@ -246,7 +282,12 @@ public class WorkflowRunRepositoryCustomImpl implements WorkflowRunRepositoryCus
   public List<WorkflowRunEntity> findRunningStartedBefore(Date startedBefore, int limit) {
     Query query =
         Query.query(
-                Criteria.where("phase").is(RunPhase.running).and("startTime").lte(startedBefore))
+                Criteria.where("phase")
+                    .is(RunPhase.running)
+                    .and("startTime")
+                    .lte(startedBefore)
+                    .and("pauseRequestedAt")
+                    .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "startTime"))
             .limit(limit)
             .maxTimeMsec(5000);

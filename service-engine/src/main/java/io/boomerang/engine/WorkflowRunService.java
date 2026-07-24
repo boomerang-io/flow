@@ -11,8 +11,11 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.*;
+import io.boomerang.engine.entity.EventIngressEntity;
+import io.boomerang.engine.enums.IngressStatus;
 import io.boomerang.engine.model.*;
 import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.engine.repository.EventIngressRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRevisionRepository;
@@ -34,6 +37,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -58,6 +63,8 @@ public class WorkflowRunService {
   private final TaskRunService taskRunService;
   private final ActionRepository actionRepository;
   private final WorkflowExecutionService workflowExecutionService;
+  private final TaskExecutionService taskExecutionService;
+  private final EventIngressRepository eventIngressRepository;
   private final MongoTemplate mongoTemplate;
 
   public WorkflowRunService(
@@ -68,6 +75,8 @@ public class WorkflowRunService {
       TaskRunService taskRunService,
       ActionRepository actionRepository,
       WorkflowExecutionService workflowExecutionService,
+      @Lazy TaskExecutionService taskExecutionService,
+      EventIngressRepository eventIngressRepository,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
@@ -76,6 +85,8 @@ public class WorkflowRunService {
     this.taskRunService = taskRunService;
     this.actionRepository = actionRepository;
     this.workflowExecutionService = workflowExecutionService;
+    this.taskExecutionService = taskExecutionService;
+    this.eventIngressRepository = eventIngressRepository;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -374,7 +385,20 @@ public class WorkflowRunService {
    * Queues the Workflow to be executed (and optionally starts the execution)
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
-    workflowRunRepository.save(wfRunEntity);
+    try {
+      workflowRunRepository.save(wfRunEntity);
+    } catch (DuplicateKeyException e) {
+      // Same idempotencyKey already submitted: the duplicate is a no-op returning the
+      // existing run - the partial unique index is the dedup gate.
+      LOGGER.info(
+          "Duplicate submission for idempotencyKey {}. Returning the existing WorkflowRun.",
+          wfRunEntity.getIdempotencyKey());
+      return ConvertUtil.entityToModel(
+          workflowRunRepository
+              .findByIdempotencyKey(wfRunEntity.getIdempotencyKey())
+              .orElseThrow(() -> e),
+          WorkflowRun.class);
+    }
     workflowExecutionService.queue(wfRunEntity.getId());
 
     if (start) {
@@ -445,6 +469,39 @@ public class WorkflowRunService {
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
+  }
+
+  public WorkflowRun pause(String workflowRunId) {
+    if (workflowRunId == null || workflowRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
+    // admission and the recovery sweeps exclude it from here on.
+    if (workflowRunRepository.tryPause(workflowRunId) == null) {
+      LOGGER.info("[{}] WorkflowRun not running or already paused. Nothing to pause.", workflowRunId);
+    }
+    return ConvertUtil.entityToModel(
+        workflowRunRepository
+            .findById(workflowRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF)),
+        WorkflowRun.class);
+  }
+
+  public WorkflowRun resume(String workflowRunId) {
+    if (workflowRunId == null || workflowRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    // Resume = clear the flag + reconcile: the advance re-drives whatever the pause held back.
+    if (workflowRunRepository.tryResume(workflowRunId) != null) {
+      taskExecutionService.advance(workflowRunId);
+    } else {
+      LOGGER.info("[{}] WorkflowRun not paused. Nothing to resume.", workflowRunId);
+    }
+    return ConvertUtil.entityToModel(
+        workflowRunRepository
+            .findById(workflowRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF)),
+        WorkflowRun.class);
   }
 
   /*
@@ -535,7 +592,7 @@ public class WorkflowRunService {
   }
 
   /*
-   * Deletes the WorkflowRun and associated TaskRuns
+   * Delivers an inbound event to the WorkflowRun's matching eventwait tasks
    */
   public void event(String workflowRunId, WorkflowRunEventRequest request) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
@@ -546,6 +603,26 @@ public class WorkflowRunService {
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+
+    // Ingress dedup gate: the ledger insert is atomic on "<run>:<eventId>", so a transport
+    // redelivery is acknowledged without being re-applied. Events without an id are not deduped.
+    EventIngressEntity ingress = null;
+    if (request.getId() != null && !request.getId().isBlank()) {
+      ingress = new EventIngressEntity();
+      ingress.setId(workflowRunId + ":" + request.getId());
+      ingress.setTopic(request.getTopic());
+      ingress.setRequestedStatus(request.getStatus());
+      ingress.setReceivedAt(new Date());
+      try {
+        eventIngressRepository.insert(ingress);
+      } catch (DuplicateKeyException e) {
+        LOGGER.info(
+            "[{}] Duplicate event {} already handled. Acknowledging without re-applying.",
+            workflowRunId,
+            request.getId());
+        return;
+      }
     }
     List<TaskRun> taskRuns = getTaskRuns(workflowRunId);
     // Set preApproved or call endTaskRun for each with the status.
@@ -581,6 +658,12 @@ public class WorkflowRunService {
               endRequest.setResults(request.getResults());
               taskRunService.end(tr.getId(), Optional.of(endRequest));
             });
+
+    if (ingress != null) {
+      ingress.setStatus(IngressStatus.processed);
+      ingress.setProcessedAt(new Date());
+      eventIngressRepository.save(ingress);
+    }
   }
 
   private List<TaskRun> getTaskRuns(String workflowRunId) {

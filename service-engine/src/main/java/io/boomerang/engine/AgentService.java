@@ -18,6 +18,7 @@ import java.util.LinkedList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +29,10 @@ public class AgentService {
   private static final Integer MAX_POLL_INTERVAL = 30000;
   private static final Integer MAX_SLEEP_INTERVAL = 1000; // 1 sec
   private static final int PAGE_SIZE = 20;
+
+  // Kill switch: stops CLAIMING only. The watcher's recovery sweeps are never gated by it.
+  @Value("${flow.queue.enabled:true}")
+  private boolean queueEnabled;
 
   private final AgentRepository agentRepository;
   private final WorkflowRunRepository wfRunRepository;
@@ -89,6 +94,10 @@ public class AgentService {
    * @return
    */
   public ResponseEntity<List<WorkflowRun>> getWorkflowQueue(String agentId) {
+    if (!queueEnabled) {
+      LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
+      return ResponseEntity.noContent().build();
+    }
     // Validate the Agent
     if (!agentRepository.existsById(agentId)) {
       LOGGER.error("Agent {} not registered", agentId);
@@ -147,6 +156,10 @@ public class AgentService {
    * @return
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId) {
+    if (!queueEnabled) {
+      LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
+      return ResponseEntity.noContent().build();
+    }
     // Validate the Agent
     if (!agentRepository.existsById(agentId)) {
       LOGGER.error("Agent {} not registered", agentId);

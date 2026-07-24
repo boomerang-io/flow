@@ -347,6 +347,74 @@ public class TeamWorkflowRunControllerV2 {
     return workflowRunService.cancel(team, workflowRunId);
   }
 
+  @PutMapping(value = "/{workflowRunId}/pause")
+  @AuthCriteria(
+      action = PermissionAction.ACTION,
+      resource = PermissionResource.WORKFLOWRUN,
+      assignableScopes = {
+        AuthScope.global,
+        AuthScope.team,
+        AuthScope.user,
+        AuthScope.session,
+        AuthScope.workflow
+      })
+  @Operation(summary = "Pause a running WorkflowRun")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public ResponseEntity<WorkflowRun> pause(
+      @Parameter(
+              name = "team",
+              description = "Owning team name.",
+              example = "my-amazing-team",
+              required = true)
+          @PathVariable
+          String team,
+      @Parameter(
+              name = "workflowRunId",
+              description = "ID of WorkflowRun to Pause",
+              required = true)
+          @PathVariable(required = true)
+          String workflowRunId) {
+    return workflowRunService.pause(team, workflowRunId);
+  }
+
+  @PutMapping(value = "/{workflowRunId}/resume")
+  @AuthCriteria(
+      action = PermissionAction.ACTION,
+      resource = PermissionResource.WORKFLOWRUN,
+      assignableScopes = {
+        AuthScope.global,
+        AuthScope.team,
+        AuthScope.user,
+        AuthScope.session,
+        AuthScope.workflow
+      })
+  @Operation(summary = "Resume a paused WorkflowRun")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public ResponseEntity<WorkflowRun> resume(
+      @Parameter(
+              name = "team",
+              description = "Owning team name.",
+              example = "my-amazing-team",
+              required = true)
+          @PathVariable
+          String team,
+      @Parameter(
+              name = "workflowRunId",
+              description = "ID of WorkflowRun to Resume",
+              required = true)
+          @PathVariable(required = true)
+          String workflowRunId) {
+    return workflowRunService.resume(team, workflowRunId);
+  }
+
   @PutMapping(value = "/{workflowRunId}/retry")
   @AuthCriteria(
       action = PermissionAction.ACTION,

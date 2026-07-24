@@ -2,18 +2,19 @@ package io.boomerang.engine;
 
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.engine.entity.EventOutboxEntity;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.model.WorkflowRunTransition;
-import io.boomerang.engine.repository.TaskRunRepository;
-import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.engine.repository.EventOutboxRepository;
+import java.util.Date;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Bridge from the winner-published domain transition events to the CloudEvents egress. The one
- * listener on the domain events: it re-reads the document by id and hands it to the existing
- * {@code EventSinkService}. Replaces the deleted save()-interceptor aspects.
+ * Bridge from the winner-published domain transition events to the CloudEvents egress: each
+ * externally-visible transition becomes one outbox row that the dispatcher delivers. The bean
+ * only exists when the sink is enabled, so a disabled sink never accumulates pending rows.
  */
 @Component
 @ConditionalOnProperty(
@@ -22,17 +23,10 @@ import org.springframework.stereotype.Component;
     matchIfMissing = false)
 public class CloudEventsBridge {
 
-  private final TaskRunRepository taskRunRepository;
-  private final WorkflowRunRepository workflowRunRepository;
-  private final EventSinkService eventSinkService;
+  private final EventOutboxRepository eventOutboxRepository;
 
-  public CloudEventsBridge(
-      TaskRunRepository taskRunRepository,
-      WorkflowRunRepository workflowRunRepository,
-      EventSinkService eventSinkService) {
-    this.taskRunRepository = taskRunRepository;
-    this.workflowRunRepository = workflowRunRepository;
-    this.eventSinkService = eventSinkService;
+  public CloudEventsBridge(EventOutboxRepository eventOutboxRepository) {
+    this.eventOutboxRepository = eventOutboxRepository;
   }
 
   @EventListener
@@ -42,9 +36,14 @@ public class CloudEventsBridge {
         transition.fromPhase(),
         transition.toStatus(),
         transition.toPhase())) {
-      taskRunRepository
-          .findById(transition.id())
-          .ifPresent(eventSinkService::publishStatusCloudEvent);
+      EventOutboxEntity row = new EventOutboxEntity();
+      row.setRefType(EventOutboxEntity.REF_TYPE_TASKRUN);
+      row.setRef(transition.id());
+      row.setFrom(new EventOutboxEntity.RunState(transition.fromStatus(), transition.fromPhase()));
+      row.setTo(new EventOutboxEntity.RunState(transition.toStatus(), transition.toPhase()));
+      row.setOccurredAt(new Date());
+      row.setRouting(new EventOutboxEntity.Routing(null, transition.workflowRunRef()));
+      eventOutboxRepository.insert(row);
     }
   }
 
@@ -55,9 +54,14 @@ public class CloudEventsBridge {
         transition.fromPhase(),
         transition.toStatus(),
         transition.toPhase())) {
-      workflowRunRepository
-          .findById(transition.id())
-          .ifPresent(eventSinkService::publishStatusCloudEvent);
+      EventOutboxEntity row = new EventOutboxEntity();
+      row.setRefType(EventOutboxEntity.REF_TYPE_WORKFLOWRUN);
+      row.setRef(transition.id());
+      row.setFrom(new EventOutboxEntity.RunState(transition.fromStatus(), transition.fromPhase()));
+      row.setTo(new EventOutboxEntity.RunState(transition.toStatus(), transition.toPhase()));
+      row.setOccurredAt(new Date());
+      row.setRouting(new EventOutboxEntity.Routing(transition.workflowRef(), transition.id()));
+      eventOutboxRepository.insert(row);
     }
   }
 

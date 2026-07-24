@@ -16,6 +16,7 @@ public class WorkflowRunRequest {
   private Long timeout;
   private Long retries;
   private Boolean debug;
+  private String idempotencyKey;
 
   @Override
   public String toString() {
@@ -33,6 +34,8 @@ public class WorkflowRunRequest {
         + retries
         + ", debug="
         + debug
+        + ", idempotencyKey="
+        + idempotencyKey
         + "]";
   }
 }
