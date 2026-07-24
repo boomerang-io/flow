@@ -55,6 +55,20 @@
 > at detection, written to `statusMessage`). This supersedes the slice-E row of the plan below
 > (find-live/supersede/attempt) — only the annotation migration of that row shipped.
 
+> **Deferred to the DD-02 merge (2026-07-24):** E4 introduced the repository
+> `XRepositoryCustom` + `XRepositoryCustomImpl` fragment pattern for the imperative
+> `findAndModify` Compare-And-Set operations (`tryClaim`, `tryComplete`, `tryAcquire`,
+> `tryStart`, `tryPause`, the outbox transitions, …). This does NOT match the house split
+> (Repository = a Spring Data interface of declarative derived / `@Query`/`@Update` commands;
+> imperative `MongoTemplate` work lives in the Service — see `ActionRepository`). The ruled
+> target: **move each Compare-And-Set method (with its `publish`/`fence` helpers +
+> `ApplicationEventPublisher`) into the owning Service** (TaskRun→`TaskRunService`,
+> WorkflowRun→`WorkflowRunService`, TaskLock→`TaskExecutionService` private, EventOutbox→
+> `OutboxDispatcher` private), leaving each `XRepository` a pure `extends MongoRepository`;
+> delete the `Custom`/`Impl` classes. **Not done now** — the flow/engine merge reorganizes
+> these very services into `service-core`, so the move is done ONCE there, in the final
+> structure, rather than churned twice. Interim state: the `Custom`/`Impl` fragments stand.
+
 # E4 Gate — Execution-Model Rebuild (G1 Touch Analysis + G2 Data-Model Proposal + Slice Plan)
 
 **Status:** 🟡 PROPOSED — the standing-gate stop for E4 (gap-register §3). No E4 code lands
