@@ -476,7 +476,7 @@ public class WorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    // Resume = clear the flag + reconcile: the advance re-drives whatever the pause held back.
+    // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
     if (workflowRunRepository.tryResume(workflowRunId) != null) {
       taskExecutionService.advance(workflowRunId);
     } else {

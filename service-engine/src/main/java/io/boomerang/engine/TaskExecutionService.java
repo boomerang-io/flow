@@ -122,7 +122,7 @@ public class TaskExecutionService {
     }
 
     // The single pause gate: a paused run admits nothing. Level-triggered - resume reconciles
-    // and re-drives this task through queue.
+    // and resumes this task through queue.
     if (wfRunEntity.get().getPauseRequestedAt() != null) {
       LOGGER.info("[{}] WorkflowRun is paused. TaskRun awaits resume.", taskExecutionId);
       return;
@@ -280,7 +280,7 @@ public class TaskExecutionService {
         endTask = true;
       }
       case acquirelock -> {
-        // Ends only when the lock is acquired; otherwise the task parks as waiting for re-drive.
+        // Ends only when the lock is acquired; otherwise the task parks as waiting for resume.
         endTask = this.acquireTaskLock(taskExecution, wfRunEntity);
       }
       case releaselock -> {
@@ -456,7 +456,7 @@ public class TaskExecutionService {
   }
 
   /*
-   * Re-drive the graph advance for a run whose advancing winner was lost (for example a crash
+   * Recover the graph advance for a run whose advancing winner was lost (for example a crash
    * between completing a task and queueing its dependants). Safe to call at any time: admission
    * and completion Compare-And-Set transitions make a duplicate advance a no-op.
    */
@@ -585,7 +585,7 @@ public class TaskExecutionService {
     String value = ParameterUtil.getValue(taskExecution.getParams(), "duration").toString();
     long duration = Long.parseLong(value);
     // Durable wait: park as waiting and let the watcher complete it when waitUntil elapses. No
-    // held thread survives a crash - the sweep re-drives it.
+    // held thread survives a crash - the sweep resumes it.
     taskExecution.setStatus(RunStatus.waiting);
     taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + duration));
     taskRunRepository.save(taskExecution);
@@ -600,7 +600,7 @@ public class TaskExecutionService {
 
   /*
    * Returns true when the task should end now (lock acquired, or invalid params - fail); false when
-   * it parked as waiting for the watcher to re-drive. Acquiring is an atomic insert-or-expired
+   * it parked as waiting for the watcher to resume. Acquiring is an atomic insert-or-expired
    * takeover, so two tasks can never both hold the key. The task's timeoutAt bounds the wait - the
    * timeout reap fails it if the lock never frees.
    */
@@ -924,7 +924,7 @@ public class TaskExecutionService {
   }
 
   private void finishWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
-    // Terminalise the end node via the completion Compare-And-Set (a no-op on re-drive).
+    // Terminalise the end node via the completion Compare-And-Set (a no-op on recovery).
     tasks.stream()
         .filter(t -> TaskType.end.equals(t.getType()))
         .forEach(

@@ -287,7 +287,7 @@ public class TaskRunRepositoryCustomImpl implements TaskRunRepositoryCustom {
   }
 
   @Override
-  public TaskRunEntity tryStartWaitingRedrive(String id) {
+  public TaskRunEntity tryStartWaitingResume(String id) {
     Query query =
         Query.query(
             Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(new Date()));

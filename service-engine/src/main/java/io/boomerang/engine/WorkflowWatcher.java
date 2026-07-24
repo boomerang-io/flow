@@ -90,9 +90,9 @@ public class WorkflowWatcher {
   public void sweep() {
     reapTaskTimeouts();
     reapWorkflowTimeouts();
-    redriveStalledRuns();
+    recoverStalledRuns();
     finalizeWorkspacelessRuns();
-    redriveDueWaitingTasks();
+    resumeDueWaitingTasks();
     cancelDeletedWorkflowRuns();
     pruneDeletedWorkflows();
   }
@@ -144,22 +144,22 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Re-drive active runs with zero in-flight TaskRuns - the advancing winner was lost (for
+   * Recover active runs with zero in-flight TaskRuns - the advancing winner was lost (for
    * example a crash between a task's completion and queueing its dependants). The in-flight
-   * check is a count, not a load; the re-drive itself is made of no-op-safe transitions.
+   * check is a count, not a load; the recovery itself is made of no-op-safe transitions.
    */
-  public void redriveStalledRuns() {
+  public void recoverStalledRuns() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
     for (WorkflowRunEntity wfRun :
         workflowRunRepository.findRunningStartedBefore(startedBefore, PAGE_SIZE)) {
       try {
         if (!taskRunRepository.existsInFlightByWorkflowRunRef(wfRun.getId())) {
-          LOGGER.info("[{}] Active WorkflowRun has no in-flight TaskRuns. Re-driving advance.",
+          LOGGER.info("[{}] Active WorkflowRun has no in-flight TaskRuns. Recovering advance.",
               wfRun.getId());
           taskExecutionService.advance(wfRun.getId());
         }
       } catch (Exception ex) {
-        LOGGER.error("[{}] Stalled-run re-drive failed: {}", wfRun.getId(), ex.getMessage());
+        LOGGER.error("[{}] Stalled-run recovery failed: {}", wfRun.getId(), ex.getMessage());
       }
     }
   }
@@ -182,19 +182,19 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Re-drive waiting tasks whose {@code waitUntil} has elapsed - a due sleep completes, a due
+   * Resume waiting tasks whose {@code waitUntil} has elapsed - a due sleep completes, a due
    * acquirelock re-attempts. Event and approval waits carry no {@code waitUntil}, so the sparse
    * index never surfaces them here. Each is claimed by a Compare-And-Set so instances never
    * double-drive.
    */
-  public void redriveDueWaitingTasks() {
+  public void resumeDueWaitingTasks() {
     for (TaskRunEntity task : taskRunRepository.findWaitingDue(new Date(), PAGE_SIZE)) {
       try {
-        if (taskRunRepository.tryStartWaitingRedrive(task.getId()) != null) {
+        if (taskRunRepository.tryStartWaitingResume(task.getId()) != null) {
           taskExecutionService.resumeWaitingTask(task.getId());
         }
       } catch (Exception ex) {
-        LOGGER.error("[{}] Waiting-task re-drive failed: {}", task.getId(), ex.getMessage());
+        LOGGER.error("[{}] Waiting-task resume failed: {}", task.getId(), ex.getMessage());
       }
     }
   }

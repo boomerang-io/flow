@@ -82,7 +82,7 @@ public interface TaskRunRepositoryCustom {
   /**
    * Return whether the run has any in-flight TaskRun: claimed or executing (phase queued/running)
    * or awaiting an external actor (status ready/waiting). Zero in-flight on an active run means
-   * the graph advance was lost and must be re-driven.
+   * the graph advance was lost and must be recovered.
    */
   boolean existsInFlightByWorkflowRunRef(String workflowRunRef);
 
@@ -94,8 +94,8 @@ public interface TaskRunRepositoryCustom {
   List<TaskRunEntity> findWaitingDue(Date now, int limit);
 
   /**
-   * Claim a due waiting TaskRun for re-drive: clears {@code waitUntil} so a second instance's sweep
-   * skips it. Returns the pre-image (the winner re-drives), or {@code null} when already claimed.
+   * Claim a due waiting TaskRun for resume: clears {@code waitUntil} so a second instance's sweep
+   * skips it. Returns the pre-image (the winner resumes), or {@code null} when already claimed.
    */
-  TaskRunEntity tryStartWaitingRedrive(String id);
+  TaskRunEntity tryStartWaitingResume(String id);
 }

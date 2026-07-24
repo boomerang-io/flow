@@ -24,7 +24,7 @@ import org.springframework.data.mongodb.core.query.Update;
 /**
  * The watcher's self-healing sweeps: durable timeout reaping with retry backoff (which is also
  * the crash recovery for a killed claimant - one sweep pass recovers the task), stalled-run
- * re-drive, and engine-internal finalize of workspace-less completed runs. Every sweep action
+ * recovery, and engine-internal finalize of workspace-less completed runs. Every sweep action
  * goes through a Compare-And-Set, so the sweeps are exercised by direct invocation - one call is
  * one tick.
  */
@@ -166,7 +166,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void stalledRunWithNoInFlightTasksIsReDriven() {
+  void stalledRunWithNoInFlightTasksIsRecovered() {
     WorkflowRunEntity wfRun = savedWorkflowRun("stalled-wf", RunStatus.running, RunPhase.running);
     wfRun.setStartTime(new Date(System.currentTimeMillis() - 120000));
     workflowRunRepository.save(wfRun);
@@ -199,9 +199,9 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     end.setDependencies(List.of(dependencyOn("work")));
     taskRunRepository.save(end);
 
-    watcher.redriveStalledRuns();
+    watcher.recoverStalledRuns();
 
-    awaitEngine("the re-driven advance to finish the run")
+    awaitEngine("the recovered advance to finish the run")
         .untilAsserted(
             () -> {
               WorkflowRunEntity after = workflowRunRepository.findById(wfRun.getId()).orElseThrow();
@@ -262,7 +262,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
         new Update().set("waitUntil", new Date(System.currentTimeMillis() - 1000)),
         TaskRunEntity.class);
 
-    watcher.redriveDueWaitingTasks();
+    watcher.resumeDueWaitingTasks();
 
     awaitEngine("the due sleep task to complete succeeded")
         .untilAsserted(
