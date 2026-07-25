@@ -26,7 +26,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jobrunr.scheduling.JobScheduler;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -75,7 +74,6 @@ public class TaskExecutionService {
   // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
   @Autowired @Lazy private TaskExecutionService self;
 
-  @Autowired private JobScheduler jobScheduler;
 
   /*
    * Callers pass TaskRun ids only; the method re-reads the document at entry so every transition

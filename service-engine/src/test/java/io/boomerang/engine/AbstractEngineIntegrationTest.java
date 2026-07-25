@@ -22,8 +22,8 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Boots the full engine Spring context against a single static Testcontainers MongoDB. All
  * subclasses share one cached context and one database: tests must create their own data and
- * assert on their own ids, never on global collection state. Externals are neutralised (JobRunr
- * background server/dashboard off, no CloudEvents egress, no audit) so nothing else needs to run.
+ * assert on their own ids, never on global collection state. Externals are neutralised (no
+ * CloudEvents egress, no audit) so nothing else needs to run.
  */
 @SpringBootTest
 public abstract class AbstractEngineIntegrationTest {
@@ -39,9 +39,6 @@ public abstract class AbstractEngineIntegrationTest {
   static void engineTestProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
     registry.add("flow.mongo.collection.prefix", () -> "flowtest");
-    // Keep the JobRunr JobScheduler bean (required at boot) without running background jobs.
-    registry.add("org.jobrunr.background-job-server.enabled", () -> "false");
-    registry.add("org.jobrunr.dashboard.enabled", () -> "false");
     registry.add("flow.events.sink.enabled", () -> "false");
     registry.add("flow.audit.enabled", () -> "false");
     // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
