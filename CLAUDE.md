@@ -200,6 +200,7 @@ merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-re
 | `specifications/service-consolidation.md` | 📎 Annex (superseded by proposal) | Original Phase 2A brief.                                                  |
 | `specifications/scaling.md`               | 📎 Annex                     | Phase 2B locking/queueing brief.                                               |
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
+| `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
@@ -224,3 +225,14 @@ safety net is green. All decisions (DD-01…DD-04, Q-117, the Phase 2B rulings i
 `phase2b-decisions.md`) are settled — build toward them; two deferred decisions
 (schedule-firing substrate, outbox transactions) are decided at their implementation
 step with defaults documented.
+
+**Current state (2026-07-25):** Phase 0 + E1/E2/E3/E6 shipped on `feat-v5`; **E4 (the
+execution-model rebuild, slices A–F) is COMPLETE and green on branch `e4`** (20 commits;
+claims/CAS, WorkflowWatcher sweeps, pause, outbox, lock-free, tombstone; repository
+Compare-And-Set ops moved into services). **Next: E5 (JobRunr retirement — a two-step:
+delete the engine's redundant timeout job, then a claim-based `ScheduleWatcher` firing
+sweep in service-flow; the forward calendar is already cron-utils/DB-backed, so unaffected).**
+The E4 code review (`specifications/e4-review-findings.md`) is captured but **DEFERRED by
+ruling** — the order is **E5 → a critical re-review of those findings against post-E5 code
+→ then the bug/refactor fixes** (E5 and the DD-02 merge are expected to absorb several).
+Branch/merge: PR `e4` → `feat-v5` before branching `e5` (E4 is a clean complete epic).
