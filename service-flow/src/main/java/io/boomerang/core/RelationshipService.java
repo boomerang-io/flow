@@ -4,43 +4,133 @@ import io.boomerang.core.entity.RelationshipEdgeEntity;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.core.model.RelationshipGraphEdge;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RelationshipEdgeRepository;
 import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.security.IdentityService;
 import io.boomerang.security.enums.AuthScope;
 import io.boomerang.security.model.ResolvedPermissions;
-import java.util.*;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jgrapht.Graph;
-import org.jgrapht.alg.shortestpath.BFSShortestPath;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 
+/**
+ * Entity relationships and access control, backed by direct MongoDB queries against the
+ * {@code rel_nodes} / {@code rel_edges} collections.
+ *
+ * <p>The data model is a directed graph of nodes (id = {@code type:ref}) and labelled edges
+ * ({@code from}/{@code to} = node ids). Relationships are shallow ({@code root -> team ->
+ * workflow|schedule|... }, {@code user -> team}) so every lookup is served by an indexed
+ * edge/node query rather than an in-memory graph:
+ *
+ * <ul>
+ *   <li>node existence/resolve -> {@code type_ref_idx} / {@code type_slug_idx}
+ *   <li>1-hop parents / membership -> incoming edges ({@code findByTo*}, {@code to_label_idx})
+ *   <li>principal-scoped {@code check}/{@code filter} -> a level-by-level downward walk anchored
+ *       at the principal's node (one edge query + one node batch-load per level), following only
+ *       edges that exist - access is enforced by the hierarchy itself
+ * </ul>
+ *
+ * <p>Reading live Mongo on every call means there is no per-instance cache to go stale across
+ * replicas - authz decisions made by any instance see every committed write immediately. Node
+ * resolutions are memoised per HTTP request only; off-request callers (scheduler threads) simply
+ * skip the memo.
+ *
+ * <p>Write ordering: callers persist the DOMAIN document first, then create the node/edge - the
+ * relationship graph is an index over domain truth, never the source of it.
+ */
 @Component
 public class RelationshipService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  private RelationshipGraph graphCache = RelationshipGraph.getInstance();
+  private static final String NODE_MEMO_ATTRIBUTE =
+      RelationshipService.class.getName() + ".nodeMemo";
+
   private final RelationshipNodeRepository nodeRepository;
   private final RelationshipEdgeRepository edgeRepository;
   private final IdentityService identityService;
+  private final MeterRegistry meterRegistry;
 
-  // TODO make sure the graph should be initialised here or better on start of service.
-  // How many times does this service get created?
   public RelationshipService(
       RelationshipNodeRepository nodeRepository,
       RelationshipEdgeRepository edgeRepository,
-      IdentityService identityService) {
+      IdentityService identityService,
+      MeterRegistry meterRegistry) {
     this.nodeRepository = nodeRepository;
     this.edgeRepository = edgeRepository;
     this.identityService = identityService;
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
+    this.meterRegistry = meterRegistry;
   }
+
+  // ── Node resolution (direct, index-backed, always type-scoped) ─────────────
+
+  /**
+   * Resolve a node by type + ref-or-slug. Always type-scoped: a slug match never crosses types.
+   * Positive resolutions are memoised for the duration of the current HTTP request.
+   */
+  private Optional<RelationshipNodeEntity> resolveNode(RelationshipType type, String refOrSlug) {
+    String key = type.getLabel() + ":" + refOrSlug;
+    Map<String, RelationshipNodeEntity> memo = requestMemo();
+    if (memo != null && memo.containsKey(key)) {
+      return Optional.of(memo.get(key));
+    }
+    Optional<RelationshipNodeEntity> node =
+        nodeRepository.findOneByTypeAndRefOrSlug(type.getLabel(), refOrSlug);
+    if (memo != null && node.isPresent()) {
+      memo.put(key, node.get());
+    }
+    return node;
+  }
+
+  private RelationshipNodeEntity resolveNodeOrThrow(RelationshipType type, String refOrSlug) {
+    return resolveNode(type, refOrSlug)
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "Node does not exist: " + type.getLabel() + ":" + refOrSlug));
+  }
+
+  /**
+   * Return the per-request node memo, or {@code null} when no HTTP request is active (e.g.
+   * scheduler threads) - memoisation is then a no-op, never an error.
+   */
+  @SuppressWarnings("unchecked")
+  private Map<String, RelationshipNodeEntity> requestMemo() {
+    RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+    if (attributes == null) {
+      return null;
+    }
+    Map<String, RelationshipNodeEntity> memo =
+        (Map<String, RelationshipNodeEntity>)
+            attributes.getAttribute(NODE_MEMO_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+    if (memo == null) {
+      memo = new HashMap<>();
+      attributes.setAttribute(NODE_MEMO_ATTRIBUTE, memo, RequestAttributes.SCOPE_REQUEST);
+    }
+    return memo;
+  }
+
+  private void clearRequestMemo() {
+    RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+    if (attributes != null) {
+      attributes.removeAttribute(NODE_MEMO_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+    }
+  }
+
+  // ── Mutations (persist to Mongo; no in-memory graph to rebuild) ────────────
 
   /*
    * Creates the Relationship Node mapped to an object in the system
@@ -53,7 +143,6 @@ public class RelationshipService {
   /*
    * Creates the Relationship Edge linking two Nodes. Nodes have to exist.
    */
-  @Transactional
   public void createEdge(
       RelationshipType fromType,
       String from,
@@ -61,25 +150,19 @@ public class RelationshipService {
       RelationshipType toType,
       String to,
       Optional<Map<String, String>> data) {
-    RelationshipNodeEntity fromResult =
-        this.getNodeFromGraph(fromType, from, graphCache.getGraph());
-    RelationshipNodeEntity toResult = this.getNodeFromGraph(toType, to, graphCache.getGraph());
-    if (Objects.isNull(fromResult) || Objects.isNull(toResult)) {
-      throw new IllegalArgumentException("Node does not exist");
-    }
+    RelationshipNodeEntity fromResult = resolveNodeOrThrow(fromType, from);
+    RelationshipNodeEntity toResult = resolveNodeOrThrow(toType, to);
     edgeRepository.save(
         new RelationshipEdgeEntity(fromResult.getId(), label, toResult.getId(), data));
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
   }
 
   /*
    * Creates the Relationship Edge for the current principal
    */
-  @Transactional
   public void createEdge(RelationshipType toType, String to, Optional<Map<String, String>> data) {
     Token identity = identityService.getCurrentIdentity();
     LOGGER.debug("Creating edge for: {}", identity.getPrincipal());
-    RelationshipType fromType = null;
+    RelationshipType fromType;
     if (AuthScope.session.equals(identity.getType())) {
       fromType = RelationshipType.USER;
     } else {
@@ -90,7 +173,8 @@ public class RelationshipService {
   }
 
   /*
-   * Creates the Relationship Node mapped to an object in the system
+   * Creates the Relationship Node mapped to an object in the system and its Edge from an
+   * existing parent Node
    */
   public void createNodeAndEdge(
       RelationshipType fromType,
@@ -101,21 +185,15 @@ public class RelationshipService {
       String toSlug,
       Optional<Map<String, String>> nodeData,
       Optional<Map<String, String>> edgeData) {
-    RelationshipNodeEntity fromResult =
-        this.getNodeFromGraph(fromType, from, graphCache.getGraph());
-    if (Objects.isNull(fromResult)) {
-      throw new IllegalArgumentException("From node does not exist");
-    }
+    RelationshipNodeEntity fromResult = resolveNodeOrThrow(fromType, from);
     RelationshipNodeEntity toNode = this.createNode(toType, toRef, toSlug, nodeData);
     edgeRepository.save(
         new RelationshipEdgeEntity(fromResult.getId(), label, toNode.getId(), edgeData));
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
   }
 
   /*
    * Update the Relationship Edge's data
    */
-  @Transactional
   public void updateEdgeData(
       RelationshipType fromType,
       String from,
@@ -123,19 +201,14 @@ public class RelationshipService {
       String to,
       Map<String, String> data)
       throws IllegalArgumentException {
-    RelationshipNodeEntity fromNode = this.getNodeFromGraph(fromType, from, graphCache.getGraph());
-    RelationshipNodeEntity toNode = this.getNodeFromGraph(toType, to, graphCache.getGraph());
-    edgeRepository.updateDataByFromAndTo(
-        fromNode.getType() + ":" + fromNode.getRef(),
-        toNode.getType() + ":" + toNode.getRef(),
-        data);
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
+    RelationshipNodeEntity fromNode = resolveNodeOrThrow(fromType, from);
+    RelationshipNodeEntity toNode = resolveNodeOrThrow(toType, to);
+    edgeRepository.updateDataByFromAndTo(fromNode.getId(), toNode.getId(), data);
   }
 
   /*
    * Update the Relationship Edge's data for current principal
    */
-  @Transactional
   public void updateEdgeData(RelationshipType toType, String to, Map<String, String> data) {
     Token identity = identityService.getCurrentIdentity();
     this.updateEdgeData(
@@ -149,20 +222,16 @@ public class RelationshipService {
   /*
    * Removes the Relationship Edge
    */
-  @Transactional
   public void removeEdge(RelationshipType fromType, String from, RelationshipType toType, String to)
       throws IllegalArgumentException {
-    RelationshipNodeEntity fromNode = this.getNodeFromGraph(fromType, from, graphCache.getGraph());
-    RelationshipNodeEntity toNode = this.getNodeFromGraph(toType, to, graphCache.getGraph());
-    edgeRepository.deleteByFromAndTo(
-        fromNode.getType() + ":" + fromNode.getRef(), toNode.getType() + ":" + toNode.getRef());
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
+    RelationshipNodeEntity fromNode = resolveNodeOrThrow(fromType, from);
+    RelationshipNodeEntity toNode = resolveNodeOrThrow(toType, to);
+    edgeRepository.deleteByFromAndTo(fromNode.getId(), toNode.getId());
   }
 
   /*
    * Removes the Relationship Edge for current Principal
    */
-  @Transactional
   public void removeEdge(RelationshipType toType, String to) {
     Token identity = identityService.getCurrentIdentity();
     this.removeEdge(
@@ -175,60 +244,56 @@ public class RelationshipService {
   /*
    * Removes the Relationship Node and all Edges linked to it
    */
-  @Transactional
   public void removeNodeAndEdgeByRefOrSlug(RelationshipType type, String refOrSlug) {
     RelationshipNodeEntity node = nodeRepository.deleteByRefOrSlug(type.getLabel(), refOrSlug);
-    edgeRepository.deleteByFromOrTo(node.getId());
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
+    if (node != null) {
+      edgeRepository.deleteByFromOrTo(node.getId());
+    }
+    clearRequestMemo();
   }
 
   /*
    * Removes the Relationship Node By Ref and all Edges linked to it
    */
-  @Transactional
   public void removeNodeAndEdgeByRef(RelationshipType type, String ref) {
     RelationshipNodeEntity node = nodeRepository.deleteByTypeAndRef(type.getLabel(), ref);
-    edgeRepository.deleteByFromOrTo(node.getId());
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
+    if (node != null) {
+      edgeRepository.deleteByFromOrTo(node.getId());
+    }
+    clearRequestMemo();
   }
 
   /*
-   * Removes the Relationship Node and all Edges linked to it
+   * Updates the slug of a Node
    */
-  @Transactional
   public void updateNodeByRefOrSlug(RelationshipType type, String refOrSlug, String newSlug) {
     nodeRepository.updateSlugByTypeAndRefOrSlug(type.getLabel(), refOrSlug, newSlug);
-    this.graphCache.buildGraph(nodeRepository.findAll(), edgeRepository.findAll());
+    clearRequestMemo();
   }
 
+  // ── Existence / resolve ────────────────────────────────────────────────────
+
   /*
-   * Checks if the slug or ref exists for the Relationship Type. It does not filter for Relationship - can probably only be used for top level nodes
+   * Checks if the slug or ref exists for the Relationship Type. It does not filter for
+   * Relationship - can probably only be used for top level nodes
    */
   public boolean doesSlugOrRefExistForType(RelationshipType type, String refOrSlug) {
     LOGGER.debug("Checking {}:{} for existence", type.getLabel(), refOrSlug);
-    try {
-      this.getNodeFromGraph(type, refOrSlug, graphCache.getGraph());
-      return true;
-    } catch (IllegalArgumentException e) {
-      return false;
-    }
+    return nodeRepository.existsByTypeAndRefOrSlug(type.getLabel(), refOrSlug);
   }
 
   /*
-   * Retrieves the ref for the Node by type and slug or ref
+   * Retrieves the slug for the Node by type and slug or ref
    *
-   * This should only be used from unique ID to return slug. Otherwise multiples for the wrong team could be returned.
-   *
-   * TODO: make this better
+   * This should only be used from unique ID to return slug. Otherwise multiples for the wrong
+   * team could be returned.
    */
   public String getSlugByRefForType(RelationshipType type, String refOrSlug) {
-    LOGGER.debug("Retrieving ref for {}:{}", type.getLabel(), refOrSlug);
-    RelationshipNodeEntity node = this.getNodeFromGraph(type, refOrSlug, graphCache.getGraph());
-    if (Objects.isNull(node)) {
-      throw new IllegalArgumentException("Node does not exist");
-    }
-    return node.getSlug();
+    LOGGER.debug("Retrieving slug for {}:{}", type.getLabel(), refOrSlug);
+    return resolveNodeOrThrow(type, refOrSlug).getSlug();
   }
+
+  // ── Access control ─────────────────────────────────────────────────────────
 
   /*
    * Check if the current principal has the relationship & permission to access the object
@@ -249,10 +314,31 @@ public class RelationshipService {
       List<String> toList,
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
-    List<String> refs = new ArrayList<>();
     Token identity = identityService.getCurrentIdentity();
     String principal = identity.getPrincipal();
-    checkPermissions(identity.getPermissions(), type, toList);
+    if (!checkPermissions(identity.getPermissions(), type, toList)) {
+      // Shadow enforcement: the failed permission check is recorded but not enforced -
+      // access remains relationship-based. Flip to `return false` here when permission
+      // enforcement becomes authoritative.
+      LOGGER.warn(
+          "RelationshipService - would deny principal: {}, token type: {}, resource: {}:{}",
+          principal,
+          identity.getType(),
+          type.getLabel(),
+          toList);
+      meterRegistry
+          .counter(
+              "flow.security.would.deny",
+              "resource",
+              type.getLabel(),
+              "action",
+              "check",
+              "type",
+              identity.getType().toString(),
+              "layer",
+              "relationship")
+          .increment();
+    }
     switch (identity.getType()) {
       case session:
       case user:
@@ -298,16 +384,12 @@ public class RelationshipService {
         || flattenedPermissionActions.contains(type.getLabel() + "/**")) {
       return true;
     }
-
     // Check all specific resources are valid
     List<String> flattenedPermissionPrincipals =
         permissions.stream()
-            .map(permission -> permission.getPrincipal())
+            .map(ResolvedPermissions::getPrincipal)
             .collect(Collectors.toList());
-    if (flattenedPermissionPrincipals.containsAll(toList)) {
-      return true;
-    }
-    return false;
+    return flattenedPermissionPrincipals.containsAll(toList);
   }
 
   /*
@@ -342,19 +424,11 @@ public class RelationshipService {
     RelationshipType fromType = null;
     String from = identity.getPrincipal();
 
-    // Check for special cases first
-    if (toType.equals(RelationshipType.TASK)) {
-      LOGGER.warn("Special case for Tasks available to all users");
-      // All users have access to all tasks
+    if (RelationshipType.TASK.equals(toType)) {
+      // Tasks are a global catalogue: every principal sees every task, so the walk anchors
+      // at the root node instead of the principal.
       fromType = RelationshipType.ROOT;
       from = "root";
-      //    } else if (toType.equals(RelationshipType.TEAM)
-      //        && identity.getPermissions().contains("**/**")) {
-      //      // TODO allow for now. need to update permissions to have assignedScope and correct
-      // permission
-      //      // strings
-      //      fromType = RelationshipType.ROOT;
-      //      from = "root";
     } else {
       switch (identity.getType()) {
         case session:
@@ -366,9 +440,8 @@ public class RelationshipService {
           if (fromType.equals(toType)
               && toRefsOrSlugs.isPresent()
               && toRefsOrSlugs.get().contains(from)) {
-            LOGGER.warn("Special case for Workflow Tokens trying to access itself");
-            // Special case for Workflow Tokens trying to access itself i.e. workflow -> team ->
-            // workflow
+            // A workflow token accessing its own workflow record: anchor at root, scoped to
+            // itself, as the workflow node has no outgoing edge back to itself.
             toRefsOrSlugs = Optional.of(List.of(from));
             fromType = RelationshipType.ROOT;
             from = "root";
@@ -378,8 +451,7 @@ public class RelationshipService {
           fromType = RelationshipType.TEAM;
           break;
         case global:
-          // Allow anything with no filtering
-          // Retrieve all nodes of a type in the system.
+          // Allow anything with no filtering - retrieve all nodes of a type in the system.
           fromType = RelationshipType.ROOT;
           from = "root";
           break;
@@ -398,8 +470,10 @@ public class RelationshipService {
     return refs;
   }
 
+  // ── Membership / roles (direct edge queries) ───────────────────────────────
+
   /*
-   * Retrieve the Parent by Label
+   * Retrieve the Parent by Label (incoming edge)
    */
   public String getParentByLabel(RelationshipLabel label, RelationshipType type, String ref) {
     List<RelationshipEdgeEntity> edges =
@@ -412,7 +486,7 @@ public class RelationshipService {
   }
 
   /*
-   * Retrieve the Space and Roles for current Principal
+   * Retrieve the Teams and Roles for current Principal
    */
   public Map<String, String> roles(String principal) {
     List<RelationshipEdgeEntity> edges =
@@ -422,29 +496,35 @@ public class RelationshipService {
         .collect(
             Collectors.toMap(
                 e -> e.getTo().split(":")[1],
-                e -> e.getData().containsKey("role") ? e.getData().get("role") : "viewer"));
+                RelationshipService::roleOrDefault,
+                (a, b) -> a));
   }
 
   /*
-   * Retrieve the Members and Roles for a Workspace
+   * Retrieve the Members and Roles for a Team (the incoming user MEMBER_OF edges)
    */
-  public Map<String, String> membersAndRoles(String space) {
-    Graph<RelationshipNodeEntity, RelationshipGraphEdge> graph = graphCache.getGraph();
-    RelationshipNodeEntity rootNode = getNodeFromGraph(RelationshipType.TEAM, space, graph);
-    // Find the user edges connected to the rootNode and return the role
-    BFSShortestPath<RelationshipNodeEntity, RelationshipGraphEdge> bfs =
-        new BFSShortestPath<>(graph);
-    return graph.edgeSet().stream()
-        .filter(edge -> bfs.getPath(graph.getEdgeTarget(edge), rootNode) != null)
-        .filter(edge -> graph.getEdgeSource(edge).getType().equals("user"))
+  public Map<String, String> membersAndRoles(String team) {
+    RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.TEAM, team);
+    return edgeRepository
+        .findByToAndLabel(teamNode.getId(), RelationshipLabel.MEMBER_OF.getLabel())
+        .stream()
+        .filter(e -> e.getFrom().startsWith(RelationshipType.USER.getLabel() + ":"))
         .collect(
             Collectors.toMap(
-                e -> graph.getEdgeSource(e).getRef(),
-                e -> e.getRole().isEmpty() ? "viewer" : e.getRole()));
+                e -> e.getFrom().split(":")[1],
+                RelationshipService::roleOrDefault,
+                (a, b) -> a));
   }
 
+  private static String roleOrDefault(RelationshipEdgeEntity edge) {
+    String role = edge.getData() != null ? edge.getData().get("role") : null;
+    return (role == null || role.isEmpty()) ? "viewer" : role;
+  }
+
+  // ── Traversal ──────────────────────────────────────────────────────────────
+
   /*
-   * Retrieve the nodes in the graph filtered by their relationships(edges)
+   * Retrieve the node refs of type toType reachable from the given node
    */
   public List<String> findNodeRefs(
       RelationshipType fromType, String from, RelationshipType toType) {
@@ -454,8 +534,15 @@ public class RelationshipService {
         .collect(Collectors.toList());
   }
 
-  /*
-   * Retrieve the nodes in the graph filtered by their relationships(edges)
+  /**
+   * Find nodes of {@code toType} reachable downward from the {@code from} node, optionally
+   * limited to {@code toList} refs/slugs and to paths passing through an intermediate node in
+   * {@code intermediateList}.
+   *
+   * <p>Implemented as a level-by-level downward walk over outgoing edges (one edge query and one
+   * node batch-load per level), anchored at the {@code from} node. Because it follows only edges
+   * that exist, access control is enforced by the hierarchy: a walk from a user's node reaches
+   * only teams they are a member of, and their descendants.
    */
   public List<RelationshipNodeEntity> findNodes(
       RelationshipType fromType,
@@ -464,43 +551,77 @@ public class RelationshipService {
       Optional<List<String>> toList,
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
-    Graph<RelationshipNodeEntity, RelationshipGraphEdge> graph = graphCache.getGraph();
-    BFSShortestPath<RelationshipNodeEntity, RelationshipGraphEdge> bfs =
-        new BFSShortestPath<>(graph);
-    try {
-      RelationshipNodeEntity rootNode = getNodeFromGraph(fromType, from, graph);
-      LOGGER.debug("Root Node: {}", rootNode.toString());
-      if (intermediateType.isPresent() && intermediateList.isPresent()) {
-        LOGGER.debug(
-            "Intermediate Type: {}, List: {}", intermediateType.get(), intermediateList.get());
-      }
-      // Find the nodes connected to the rootNode
-      List<RelationshipNodeEntity> nodes =
-          graph.vertexSet().stream()
-              .filter(node -> node.getType().equals(toType.getLabel()))
-              .filter(node -> bfs.getPath(rootNode, node) != null)
-              .filter(
-                  node ->
-                      toList.isEmpty()
-                          || toList.get().contains(node.getRef())
-                          || toList.get().contains(node.getSlug()))
-              .filter(
-                  node ->
-                      intermediateType.isEmpty()
-                          || intermediateList.isEmpty()
-                          || bfs.getPath(rootNode, node).getVertexList().stream()
-                              .filter(n -> n.getType().equals(intermediateType.get().getLabel()))
-                              .anyMatch(
-                                  n ->
-                                      intermediateList.get().contains(n.getRef())
-                                          || intermediateList.get().contains(n.getSlug())))
-              .collect(Collectors.toList());
-      LOGGER.debug("Found Node(s)[{}]: {}", nodes.size(), nodes.toString());
-      return nodes;
-    } catch (IllegalArgumentException e) {
-      LOGGER.error("Root node not found", e);
+    // A present-but-empty intermediate list is an intermediate filter that matches nothing.
+    boolean hasIntermediate = intermediateType.isPresent() && intermediateList.isPresent();
+    String toTypeLabel = toType.getLabel();
+
+    Optional<RelationshipNodeEntity> fromOpt = resolveNode(fromType, from);
+    if (fromOpt.isEmpty()) {
+      LOGGER.debug("findNodes() - anchor {}:{} not found", fromType.getLabel(), from);
+      return new ArrayList<>();
     }
-    return new ArrayList<>();
+    RelationshipNodeEntity fromNode = fromOpt.get();
+
+    List<RelationshipNodeEntity> results = new ArrayList<>();
+    Map<String, RelationshipNodeEntity> levelNodes = new HashMap<>();
+    Map<String, Boolean> levelPassed = new HashMap<>();
+    levelNodes.put(fromNode.getId(), fromNode);
+    levelPassed.put(
+        fromNode.getId(),
+        matchesIntermediate(fromNode, hasIntermediate, intermediateType, intermediateList));
+    Set<String> seen = new HashSet<>(levelNodes.keySet());
+
+    while (!levelNodes.isEmpty()) {
+      List<String> expandIds = new ArrayList<>();
+      for (Map.Entry<String, RelationshipNodeEntity> entry : levelNodes.entrySet()) {
+        RelationshipNodeEntity node = entry.getValue();
+        if (node.getType().equals(toTypeLabel)) {
+          boolean interOk = !hasIntermediate || levelPassed.getOrDefault(entry.getKey(), false);
+          if (interOk && matchesToList(node, toList)) {
+            results.add(node);
+          }
+          // Target nodes are the leaves we want; do not expand past them.
+        } else {
+          expandIds.add(entry.getKey());
+        }
+      }
+      if (expandIds.isEmpty()) {
+        break;
+      }
+
+      List<RelationshipEdgeEntity> edges = edgeRepository.findByFromIn(expandIds);
+      if (edges.isEmpty()) {
+        break;
+      }
+
+      Map<String, Boolean> childPassed = new HashMap<>();
+      for (RelationshipEdgeEntity edge : edges) {
+        String childId = edge.getTo();
+        if (seen.contains(childId)) {
+          continue;
+        }
+        boolean parentPassed = levelPassed.getOrDefault(edge.getFrom(), false);
+        childPassed.merge(childId, parentPassed, Boolean::logicalOr);
+      }
+      if (childPassed.isEmpty()) {
+        break;
+      }
+
+      Map<String, RelationshipNodeEntity> nextNodes = new HashMap<>();
+      Map<String, Boolean> nextPassed = new HashMap<>();
+      for (RelationshipNodeEntity child : nodeRepository.findAllById(childPassed.keySet())) {
+        boolean passed =
+            childPassed.getOrDefault(child.getId(), false)
+                || matchesIntermediate(child, hasIntermediate, intermediateType, intermediateList);
+        nextNodes.put(child.getId(), child);
+        nextPassed.put(child.getId(), passed);
+        seen.add(child.getId());
+      }
+      levelNodes = nextNodes;
+      levelPassed = nextPassed;
+    }
+    LOGGER.debug("Found Node(s)[{}]: {}", results.size(), results);
+    return results;
   }
 
   public boolean hasNodes(
@@ -510,51 +631,30 @@ public class RelationshipService {
       Optional<List<String>> toList,
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
-    Graph<RelationshipNodeEntity, RelationshipGraphEdge> graph = graphCache.getGraph();
-    try {
-      RelationshipNodeEntity rootNode = getNodeFromGraph(fromType, from, graph);
-      // Find the nodes connected to the rootNode
-      BFSShortestPath<RelationshipNodeEntity, RelationshipGraphEdge> bfs =
-          new BFSShortestPath<>(graph);
-      boolean has =
-          graph.vertexSet().stream()
-              .filter(node -> node.getType().equals(toType.getLabel()))
-              .filter(node -> bfs.getPath(rootNode, node) != null)
-              .filter(
-                  node ->
-                      toList.isEmpty()
-                          || toList.get().contains(node.getRef())
-                          || toList.get().contains(node.getSlug()))
-              .filter(
-                  node ->
-                      intermediateType.isEmpty()
-                          || intermediateList.isEmpty()
-                          || bfs.getPath(rootNode, node).getVertexList().stream()
-                              .filter(n -> n.getType().equals(intermediateType.get().getLabel()))
-                              .anyMatch(
-                                  n ->
-                                      intermediateList.get().contains(n.getRef())
-                                          || intermediateList.get().contains(n.getSlug())))
-              .findAny()
-              .isPresent();
-      LOGGER.debug("Has Node(s): {}", has);
-      return has;
-    } catch (IllegalArgumentException e) {
-      LOGGER.error("hasNodes() - Exception: {}", e.getMessage());
-      return false;
-    }
+    boolean has =
+        !findNodes(fromType, from, toType, toList, intermediateType, intermediateList).isEmpty();
+    LOGGER.debug("Has Node(s): {}", has);
+    return has;
   }
 
-  private RelationshipNodeEntity getNodeFromGraph(
-      RelationshipType type,
-      String refOrSlug,
-      Graph<RelationshipNodeEntity, RelationshipGraphEdge> graph) {
-    return graph.vertexSet().stream()
-        .filter(
-            node ->
-                node.getType().equals(type.getLabel()) && (node.getRef().equals(refOrSlug))
-                    || node.getSlug().equals(refOrSlug))
-        .findFirst()
-        .orElseThrow(() -> new IllegalArgumentException("Node not found"));
+  private static boolean matchesToList(RelationshipNodeEntity node, Optional<List<String>> toList) {
+    return toList.isEmpty()
+        || toList.get().contains(node.getRef())
+        || toList.get().contains(node.getSlug());
+  }
+
+  private static boolean matchesIntermediate(
+      RelationshipNodeEntity node,
+      boolean hasIntermediate,
+      Optional<RelationshipType> intermediateType,
+      Optional<List<String>> intermediateList) {
+    if (!hasIntermediate) {
+      return false;
+    }
+    if (!node.getType().equals(intermediateType.get().getLabel())) {
+      return false;
+    }
+    return intermediateList.get().contains(node.getRef())
+        || intermediateList.get().contains(node.getSlug());
   }
 }

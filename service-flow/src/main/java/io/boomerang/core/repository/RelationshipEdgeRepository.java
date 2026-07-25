@@ -1,5 +1,6 @@
 package io.boomerang.core.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -14,6 +15,9 @@ public interface RelationshipEdgeRepository
   List<RelationshipEdgeEntity> findByFromAndLabel(String from, String label);
 
   List<RelationshipEdgeEntity> findByToAndLabel(String to, String label);
+
+  /** Outgoing edges for a set of nodes - one query per downward walk level. */
+  List<RelationshipEdgeEntity> findByFromIn(Collection<String> from);
 
   @Query(value = "{'$or': [{'from': ?0},{to: ?0}]}", delete = true)
   void deleteByFromOrTo(String fromOrTo);

@@ -8,6 +8,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
+import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -21,9 +22,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TimeZone;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -31,9 +29,13 @@ import org.apache.logging.log4j.Logger;
 import org.jobrunr.scheduling.JobScheduler;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.core.task.TaskExecutor;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -47,7 +49,8 @@ public class TaskExecutionService {
 
   private static final Logger LOGGER = LogManager.getLogger(TaskExecutionService.class);
 
-  @Autowired @Lazy private LockManager lockManager;
+  // Backoff between acquirelock re-attempts while a lock is held by another task.
+  private static final long LOCK_RETRY_BACKOFF_MILLIS = 5000;
 
   @Autowired private DAGUtility dagUtility;
 
@@ -59,23 +62,34 @@ public class TaskExecutionService {
 
   @Autowired private TaskRunRepository taskRunRepository;
 
+  @Autowired @Lazy private TaskRunService taskRunService;
+
   @Autowired private ActionRepository actionRepository;
+
+  @Autowired private MongoTemplate mongoTemplate;
 
   @Autowired private WorkflowClient workflowClient;
 
   @Autowired private ParameterManager paramManager;
 
-  @Autowired private TaskExecutionClient taskExecutionClient;
+  // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
+  @Autowired @Lazy private TaskExecutionService self;
 
   @Autowired private JobScheduler jobScheduler;
 
-  @Autowired
-  @Lazy
-  @Qualifier("asyncTaskExecutor")
-  TaskExecutor asyncTaskExecutor;
-
+  /*
+   * Callers pass TaskRun ids only; the method re-reads the document at entry so every transition
+   * acts on fresh state. Any new information a caller holds must be persisted before handing off
+   * the id.
+   */
   @Async("asyncTaskExecutor")
-  public void queue(TaskRunEntity taskExecution) {
+  public void queue(String taskRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to queue.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     LOGGER.info("[{}] Recieved queue task request: {}", taskExecutionId, taskExecution.getName());
 
@@ -114,6 +128,13 @@ public class TaskExecutionService {
       return;
     }
 
+    // The single pause gate: a paused run admits nothing. Level-triggered - resume reconciles
+    // and resumes this task through queue.
+    if (wfRunEntity.get().getPauseRequestedAt() != null) {
+      LOGGER.info("[{}] WorkflowRun is paused. TaskRun awaits resume.", taskExecutionId);
+      return;
+    }
+
     // Ensure Task is valid as part of Graph
     List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.get().getId());
     boolean canRunTask = dagUtility.canRunTask(tasks, taskExecution);
@@ -123,8 +144,13 @@ public class TaskExecutionService {
       // Resolve Parameter Substitutions
       paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
 
-      // Update Status and Phase
-      updateStatusAndSaveTask(taskExecution, RunStatus.ready, RunPhase.pending, Optional.empty());
+      // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
+      // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
+      // queued by both parents) loses here and performs no side effects.
+      if (taskRunService.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
+        LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
+        return;
+      }
 
       // Auto start System related tasks skipping the start checks
       if (!TaskType.template.equals(taskExecution.getType())
@@ -132,27 +158,40 @@ public class TaskExecutionService {
           && !TaskType.custom.equals(taskExecution.getType())
           && !TaskType.generic.equals(taskExecution.getType())) {
         LOGGER.debug("[{}] Moving task to Executing: {}", taskExecutionId, taskExecution.getName());
-        taskExecutionClient.execute(this, taskExecution, wfRunEntity.get());
+        self.execute(taskExecutionId);
       }
     } else {
       LOGGER.debug("[{}] Skipping task: {}", taskExecutionId, taskExecution.getName());
+      // Persist the skipped status for end() to re-read.
       taskExecution.setStatus(RunStatus.skipped);
-      taskExecutionClient.end(this, taskExecution);
+      taskRunRepository.save(taskExecution);
+      self.end(taskExecutionId);
     }
   }
 
   /*
    * Execute the Start of a task as requested by the Handler or System
    *
-   * This needs to get a lock on the TaskRun so that if a Handler makes additional requests on this
-   * task, it waits for the end.
-   *
    * Note: This is synchronous such that a task is moved into the correct status before a response
    * is provided as part of the API. If the API returned immediately before these checks occur, an
    * integration may believe the task has started and therefore be able to run and end the task
    * prior to an asynchronous version of this method actually completing.
    */
-  public void start(TaskRunEntity taskExecution) {
+  public void start(String taskRunId) {
+    start(taskRunId, Optional.empty(), Optional.empty());
+  }
+
+  /*
+   * Start with claimant identity. The execution-entry Compare-And-Set in execute() makes a
+   * duplicate start harmless; fencing rejects a start carrying a superseded claim.
+   */
+  public void start(String taskRunId, Optional<String> claimedBy, Optional<Long> claimSeq) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to start.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     LOGGER.info("[{}] Recieved start task request.", taskExecutionId);
 
@@ -164,9 +203,9 @@ public class TaskExecutionService {
       return;
     }
 
-    LOGGER.debug("[{}] Attempting to acquire TaskRun lock...", taskExecutionId);
-    String lockId = lockManager.acquireLock(taskExecutionId);
-    LOGGER.info("[{}] Obtained TaskRun lock", taskExecutionId);
+    if (!claimantIsValid(taskExecution, claimedBy, claimSeq)) {
+      return;
+    }
 
     // Check if WorkflowRun Phase is valid
     Optional<WorkflowRunEntity> wfRunEntity =
@@ -177,9 +216,6 @@ public class TaskExecutionService {
           RunStatus.cancelled,
           RunPhase.completed,
           Optional.of("Unable to find WorkflowRun"));
-
-      lockManager.releaseLock(taskExecutionId, lockId);
-      LOGGER.info("[{}] Released TaskRun lock", taskExecutionId);
       return;
     } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())
         || RunPhase.finalized.equals(wfRunEntity.get().getPhase())) {
@@ -197,42 +233,44 @@ public class TaskExecutionService {
               "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion."),
           wfRunEntity.get().getId(),
           wfRunEntity.get().getStatus());
-
-      lockManager.releaseLock(taskExecutionId, lockId);
-      LOGGER.info("[{}] Released TaskRun lock", taskExecutionId);
-      return;
-    } else if (hasWorkflowRunExceededTimeout(wfRunEntity.get())) {
-      lockManager.releaseLock(taskExecutionId, lockId);
-      LOGGER.info("[{}] Released TaskRun lock", taskExecutionId);
-      // Checking WorkflowRun Timeout
-      // prior to starting the TaskRun before further execution can happen
-      // Timeout will mark the task as skipped.
-      workflowRunService.timeout(wfRunEntity.get().getId(), false);
       return;
     }
 
-    lockManager.releaseLock(taskExecutionId, lockId);
-    LOGGER.info("[{}] Released TaskRun lock", taskExecutionId);
-
-    taskExecutionClient.execute(this, taskExecution, wfRunEntity.get());
+    self.execute(taskExecutionId);
   }
 
   /*
    * Executes the Specific TaskType. Method called from queue or start asynchronously
-   *
-   * No status checks are performed as part of this method. They are handled in start().
    */
   @Async("asyncTaskExecutor")
-  public void execute(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+  public void execute(String taskRunId) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to execute.", taskRunId);
+      return;
+    }
+    WorkflowRunEntity wfRunEntity =
+        workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(null);
+    if (wfRunEntity == null) {
+      LOGGER.error("[{}] Unable to find WorkflowRun to execute TaskRun against.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     boolean endTask = false;
     TaskType taskType = taskExecution.getType();
     String wfRunId = wfRunEntity.getId();
     LOGGER.info("[{}] Recieved Execute task request for type: {}.", taskExecutionId, taskType);
 
-    // Set Task status and start time for duration
-    taskExecution.setStartTime(new Date());
-    updateStatusAndSaveTask(taskExecution, RunStatus.running, RunPhase.running, Optional.empty());
+    // Execution-entry Compare-And-Set: ready becomes running exactly once, baking the durable
+    // timeoutAt deadline. A duplicate dispatch of the same TaskRun loses here and performs no
+    // side effects.
+    taskExecution =
+        taskRunService.tryStartExecution(taskExecutionId, new Date(), taskExecution.getTimeout());
+    if (taskExecution == null) {
+      LOGGER.info("[{}] TaskRun already executing or completed. Nothing to do.", taskExecutionId);
+      return;
+    }
 
     // If new TaskTypes are added, the following code needs updated as well as the IF statement at
     // the end of QUEUE
@@ -249,8 +287,8 @@ public class TaskExecutionService {
         endTask = true;
       }
       case acquirelock -> {
-        this.acquireTaskLock(taskExecution, wfRunEntity);
-        endTask = true;
+        // Ends only when the lock is acquired; otherwise the task parks as waiting for resume.
+        endTask = this.acquireTaskLock(taskExecution, wfRunEntity);
       }
       case releaselock -> {
         this.releaseTaskLock(taskExecution, wfRunEntity);
@@ -288,39 +326,42 @@ public class TaskExecutionService {
         LOGGER.debug("[{}] TaskRun set to end? {}", taskExecution.getId(), endTask);
       }
       case sleep -> {
+        // Parks as waiting until its duration elapses; the watcher completes it, no held thread.
         this.createSleepTask(taskExecution);
-        endTask = true;
       }
       case end, start -> throw new UnsupportedOperationException("Unimplemented case: " + taskType);
       default -> throw new BoomerangException(BoomerangError.TASKRUN_INVALID_TYPE, taskType);
     }
 
-    // Check if task has a timeout set and task is not auto ending
-    // If set, create Timeout Delayed CompletableFuture
-    // TODO migrate to a scheduled task rather than using Future so that it works across horizontal
-    // scaling
+    // Timeouts are owned by the watcher sweep on the durable timeoutAt deadline - there are no
+    // in-memory timers to lose on a crash.
     if (endTask) {
-      taskExecutionClient.end(this, taskExecution);
-    } else if (!Objects.isNull(taskExecution.getTimeout()) && taskExecution.getTimeout() != 0) {
-      LOGGER.debug(
-          "[{}] TaskRun Timeout provided of {} minutes. Creating future timeout check.",
-          taskExecution.getId(),
-          taskExecution.getTimeout());
-      CompletableFuture.supplyAsync(
-          timeoutTaskAsync(taskExecution.getId()),
-          CompletableFuture.delayedExecutor(
-              taskExecution.getTimeout(), TimeUnit.MINUTES, asyncTaskExecutor));
+      // Persist the type-specific outcome (status, results, decision value) for end() to re-read.
+      taskRunRepository.save(taskExecution);
+      self.end(taskExecutionId);
     }
   }
 
   /*
    * Execute the End of a task as requested by the Handler
-   *
-   * This needs to get a lock on the TaskRun so that if a Handler requests end, it waits for the
-   * task to finish.
    */
   @Async("asyncTaskExecutor")
-  public void end(TaskRunEntity taskExecution) {
+  public void end(String taskRunId) {
+    end(taskRunId, Optional.empty(), Optional.empty());
+  }
+
+  /*
+   * End with claimant identity. The completion Compare-And-Set admits exactly one winner - a
+   * terminal status can never be overwritten - and only the winner advances the graph. A loser
+   * (duplicate end, or an end racing a timeout) logs and returns.
+   */
+  public void end(String taskRunId, Optional<String> claimedBy, Optional<Long> claimSeq) {
+    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      LOGGER.error("[{}] Unable to find TaskRun to end.", taskRunId);
+      return;
+    }
     String taskExecutionId = taskExecution.getId();
     LOGGER.info("[{}] Recieved end task request.", taskExecutionId);
 
@@ -330,126 +371,149 @@ public class TaskExecutionService {
       return;
     }
 
-    LOGGER.debug("[{}] Attempting to acquire TaskRun ({}) lock", taskExecutionId, taskExecutionId);
-    String taskTokenId = lockManager.acquireLock(taskExecutionId);
-    LOGGER.info("[{}] Obtained TaskRun ({}) lock", taskExecutionId, taskExecutionId);
+    if (!claimantIsValid(taskExecution, claimedBy, claimSeq)) {
+      return;
+    }
+
+    // Set duration. If in Queued. There will be no start time.
+    long duration =
+        taskExecution.getStartTime() != null
+            ? new Date().getTime() - taskExecution.getStartTime().getTime()
+            : 0;
 
     // Check if WorkflowRun Phase is valid
-    Optional<WorkflowRunEntity> wfRunEntity =
+    Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(taskExecution.getWorkflowRunRef());
-    if (!wfRunEntity.isPresent()) {
-      updateStatusAndSaveTask(
-          taskExecution,
-          RunStatus.cancelled,
-          RunPhase.completed,
-          Optional.of("Unable to find WorkflowRun"));
-
-      lockManager.releaseLock(taskExecutionId, taskTokenId);
-      LOGGER.info("[{}] Released TaskRun ({}) lock", taskExecutionId, taskExecutionId);
+    if (!optWfRunEntity.isPresent()) {
+      taskRunService.tryComplete(
+          taskExecutionId,
+          Optional.of(RunStatus.cancelled),
+          Optional.of("Unable to find WorkflowRun"),
+          duration,
+          claimedBy,
+          claimSeq);
       return;
-    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.get().getPhase())) {
-      // Set duration. If in Queued. There will be no start time.
-      long duration =
-          taskExecution.getStartTime() != null
-              ? new Date().getTime() - taskExecution.getStartTime().getTime()
-              : 0;
-      taskExecution.setDuration(duration);
-      updateStatusAndSaveTask(
-          taskExecution,
-          RunStatus.cancelled,
-          RunPhase.completed,
-          Optional.of(
-              "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion."),
-          wfRunEntity.get().getId(),
-          wfRunEntity.get().getStatus());
-
-      lockManager.releaseLock(taskExecutionId, taskTokenId);
-      LOGGER.info("[{}] Released TaskRun ({}) lock", taskExecutionId, taskExecutionId);
-      return;
-    } else {
-      // Update TaskRun with current TaskExecution status
-      // updateStatusAndSaveTask is not used as we leave the Status to what user provided
-      LOGGER.info("[{}] Marking Task as {}.", taskExecutionId, taskExecution.getStatus());
-      long duration =
-          taskExecution.getStartTime() != null
-              ? new Date().getTime() - taskExecution.getStartTime().getTime()
-              : 0;
-      taskExecution.setDuration(duration);
-      taskExecution.setPhase(RunPhase.completed);
-      taskExecution = taskRunRepository.save(taskExecution);
-
-      lockManager.releaseLock(taskExecutionId, taskTokenId);
-      LOGGER.info("[{}] Released TaskRun ({}) lock", taskExecutionId, taskExecutionId);
     }
-
-    // Execute Next Task (checking timeouts)
-    // Check happens after saving the TaskRun to ensure we correctly record the provided user
-    // details but no further execution can happen
-    if (hasWorkflowRunExceededTimeout(wfRunEntity.get())) {
-      // This will update the Workflow status and then call back to this method to be trapped by
-      // above WorkflowRun checks
-      workflowRunService.timeout(wfRunEntity.get().getId(), false);
-      return;
-    } else if (RunStatus.timedout.equals(taskExecution.getStatus())
-        || hasTaskRunExceededTimeout(taskExecution)) {
-      long duration =
-          taskExecution.getStartTime() != null
-              ? new Date().getTime() - taskExecution.getStartTime().getTime()
-              : 0;
-      taskExecution.setDuration(duration);
-      updateStatusAndSaveTask(
-          taskExecution,
-          RunStatus.timedout,
-          RunPhase.completed,
-          Optional.of("The TaskRun exceeded the timeout. Timeout was set to {} minutes"),
-          taskExecution.getTimeout());
-      workflowRunService.timeout(wfRunEntity.get().getId(), true);
+    WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
+    if (RunPhase.completed.equals(wfRunEntity.getPhase())
+        || RunPhase.finalized.equals(wfRunEntity.getPhase())) {
+      String statusMessage =
+          MessageFormatter.arrayFormat(
+                  "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion.",
+                  new Object[] {wfRunEntity.getId(), wfRunEntity.getStatus()})
+              .getMessage();
+      taskRunService.tryComplete(
+          taskExecutionId,
+          Optional.of(RunStatus.cancelled),
+          Optional.of(statusMessage),
+          duration,
+          claimedBy,
+          claimSeq);
       return;
     }
 
+    // The TaskRun timed out when the caller (or the watcher's reap) marked it so; wall-clock
+    // checks are gone - the durable timeoutAt deadline is the single timeout path.
+    boolean taskTimedOut = RunStatus.timedout.equals(taskExecution.getStatus());
+
+    // Completion Compare-And-Set: the caller-persisted terminal status stands unless the task
+    // timed out. Losing means another end already completed this TaskRun.
+    TaskRunEntity preImage =
+        taskRunService.tryComplete(
+            taskExecutionId,
+            (taskTimedOut ? Optional.of(RunStatus.timedout) : Optional.empty()),
+            (taskTimedOut
+                ? Optional.of(
+                    MessageFormatter.format(
+                            "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
+                            taskExecution.getTimeout())
+                        .getMessage())
+                : Optional.empty()),
+            duration,
+            claimedBy,
+            claimSeq);
+    if (preImage == null) {
+      LOGGER.info(
+          "[{}] TaskRun already completed. Only the completion winner advances.", taskExecutionId);
+      return;
+    }
     LOGGER.info(
-        "[{}] Attempting to get WorkflowRun ({}) lock", taskExecutionId, wfRunEntity.get().getId());
-    String tokenId = lockManager.acquireLock(wfRunEntity.get().getId());
-    LOGGER.info("[{}] Obtained WorkflowRun ({}) lock", taskExecutionId, wfRunEntity.get().getId());
+        "[{}] Marking Task as {}.",
+        taskExecutionId,
+        (taskTimedOut ? RunStatus.timedout : taskExecution.getStatus()));
 
-    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.get().getId());
-    boolean finishedAllDependencies = this.finishedAll(wfRunEntity.get(), tasks, taskExecution);
+    // Winner-only follow-on: a final task timeout times out the run rather than advancing it.
+    if (taskTimedOut) {
+      workflowRunService.timeout(wfRunEntity.getId(), true);
+      return;
+    }
+
+    // Winner-only graph advance. No workflow-level lock: admission and completion
+    // Compare-And-Set transitions make a duplicate or concurrent advance a no-op.
+    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.getId());
+    boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, taskExecution);
     LOGGER.debug("[{}] Finished all TaskRuns? {}", taskExecutionId, finishedAllDependencies);
 
     // Refresh wfRunEntity and update approval status
-    wfRunEntity = workflowRunRepository.findById(taskExecution.getWorkflowRunRef());
-    updatePendingAprovalStatus(wfRunEntity.get());
+    wfRunEntity =
+        workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(wfRunEntity);
+    updatePendingApprovalStatus(wfRunEntity);
 
-    executeNextStep(wfRunEntity.get(), tasks, taskExecution, finishedAllDependencies);
-
-    lockManager.releaseLock(wfRunEntity.get().getId(), tokenId);
-    LOGGER.info("[{}] Released WorkflowRun ({}) lock", taskExecutionId, wfRunEntity.get().getId());
+    executeNextStep(wfRunEntity, tasks, taskExecution, finishedAllDependencies);
   }
 
   /*
-   * An async method to execute Timeout checks with DelayedExecutor
-   *
-   * The CompletableFuture.orTimeout() method can't be used as the TaskRun Async thread will finish
-   * and hand over to the Handler and wait for callback.
-   *
-   * TODO: save error block TODO: implement via quartz Note: Implements same locks as
-   * TaskExecutionService
+   * Recover the graph advance for a run whose advancing winner was lost (for example a crash
+   * between completing a task and queueing its dependants). Safe to call at any time: admission
+   * and completion Compare-And-Set transitions make a duplicate advance a no-op.
    */
-  private Supplier<Boolean> timeoutTaskAsync(String taskRunId) {
-    return () -> {
-      final Optional<TaskRunEntity> optTaskExecution = this.taskRunRepository.findById(taskRunId);
-      if (optTaskExecution.isPresent()) {
-        TaskRunEntity taskExecution = optTaskExecution.get();
-        // Only need to check if Running - otherwise nothing to timeout
-        if (RunPhase.running.equals(taskExecution.getPhase())) {
-          LOGGER.info("[{}] Timeout Task Async...", taskRunId);
-          taskExecution.setStatus(RunStatus.timedout);
-          taskExecutionClient.end(this, taskExecution);
-        }
+  public void advance(String wfRunId) {
+    WorkflowRunEntity wfRunEntity = workflowRunRepository.findById(wfRunId).orElse(null);
+    if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
+      return;
+    }
+    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunId);
+    for (TaskRunEntity completed :
+        tasks.stream()
+            .filter(
+                t ->
+                    RunPhase.completed.equals(t.getPhase()) && !TaskType.end.equals(t.getType()))
+            .toList()) {
+      boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, completed);
+      executeNextStep(wfRunEntity, tasks, completed, finishedAllDependencies);
+    }
+  }
+
+  /*
+   * Fencing: a request carrying claimant identity must match the current claim; a request with
+   * no identity is the legacy protocol and is accepted with a log line.
+   */
+  private boolean claimantIsValid(
+      TaskRunEntity taskExecution, Optional<String> claimedBy, Optional<Long> claimSeq) {
+    if (claimedBy.isEmpty() && claimSeq.isEmpty()) {
+      if (taskExecution.getClaim() != null && taskExecution.getClaim().getBy() != null) {
+        LOGGER.info(
+            "[{}] Request carries no claimant identity for a claimed TaskRun. Accepting as legacy protocol.",
+            taskExecution.getId());
       }
       return true;
-    };
+    }
+    boolean valid =
+        taskExecution.getClaim() != null
+            && claimedBy.map(by -> by.equals(taskExecution.getClaim().getBy())).orElse(true)
+            && claimSeq
+                .map(seq -> seq.equals(taskExecution.getClaim().getSeq()))
+                .orElse(true);
+    if (!valid) {
+      LOGGER.error(
+          "[{}] Rejecting request from superseded claimant {} (seq {}). Current claim is {} (seq {}).",
+          taskExecution.getId(),
+          claimedBy.orElse(null),
+          claimSeq.orElse(null),
+          (taskExecution.getClaim() != null ? taskExecution.getClaim().getBy() : null),
+          (taskExecution.getClaim() != null ? taskExecution.getClaim().getSeq() : null));
+    }
+    return valid;
   }
 
   /*
@@ -505,35 +569,14 @@ public class TaskExecutionService {
     taskExecution.setWorkspaces(taskWorkspaces);
   }
 
-  private void updatePendingAprovalStatus(WorkflowRunEntity wfRunEntity) {
+  private void updatePendingApprovalStatus(WorkflowRunEntity wfRunEntity) {
     long count =
         actionRepository.countByWorkflowRunRefAndStatus(
             wfRunEntity.getId(), ActionStatus.submitted);
     boolean existingApprovals = (count > 0);
     wfRunEntity.setAwaitingApproval(existingApprovals);
-    this.workflowRunRepository.save(wfRunEntity);
-  }
-
-  private boolean hasWorkflowRunExceededTimeout(WorkflowRunEntity wfRunEntity) {
-    if (!Objects.isNull(wfRunEntity.getTimeout()) && wfRunEntity.getTimeout() != 0) {
-      long duration = new Date().getTime() - wfRunEntity.getStartTime().getTime();
-      long timeout = TimeUnit.MINUTES.toMillis(wfRunEntity.getTimeout());
-      if (duration >= timeout) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private boolean hasTaskRunExceededTimeout(TaskRunEntity taskRunEntity) {
-    if (!Objects.isNull(taskRunEntity.getTimeout()) && taskRunEntity.getTimeout() != 0) {
-      long duration = new Date().getTime() - taskRunEntity.getStartTime().getTime();
-      long timeout = TimeUnit.MINUTES.toMillis(taskRunEntity.getTimeout());
-      if (duration >= timeout) {
-        return true;
-      }
-    }
-    return false;
+    // Field-scoped write so a level-triggered recompute can never stomp concurrent run state.
+    this.workflowRunService.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
   }
 
   private void saveWorkflowStatus(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -548,16 +591,11 @@ public class TaskExecutionService {
   private void createSleepTask(TaskRunEntity taskExecution) {
     String value = ParameterUtil.getValue(taskExecution.getParams(), "duration").toString();
     long duration = Long.parseLong(value);
-
-    //    jobScheduler.schedule(Instant.now().plus(duration, ChronoUnit.MILLIS), () ->
-    // timeoutWorkflowAsync(wfRunEntity.getId()));
-    try {
-      Thread.sleep(duration);
-      taskExecution.setStatus(RunStatus.succeeded);
-    } catch (InterruptedException e) {
-      taskExecution.setStatus(RunStatus.failed);
-      taskExecution.setStatusMessage(e.getMessage());
-    }
+    // Durable wait: park as waiting and let the watcher complete it when waitUntil elapses. No
+    // held thread survives a crash - the sweep resumes it.
+    taskExecution.setStatus(RunStatus.waiting);
+    taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + duration));
+    taskRunRepository.save(taskExecution);
   }
 
   private void processDecision(TaskRunEntity taskExecution, String activityId) {
@@ -567,67 +605,143 @@ public class TaskExecutionService {
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
-  private void acquireTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    Long timeout = null;
-    String key = null;
-
+  /*
+   * Returns true when the task should end now (lock acquired, or invalid params - fail); false when
+   * it parked as waiting for the watcher to resume. Acquiring is an atomic insert-or-expired
+   * takeover, so two tasks can never both hold the key. The task's timeoutAt bounds the wait - the
+   * timeout reap fails it if the lock never frees.
+   */
+  private boolean acquireTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
     List<RunParam> params = taskExecution.getParams();
+    Long timeout = null;
     if (ParameterUtil.containsName(params, "timeout")) {
       String timeoutStr = ParameterUtil.getValue(params, "timeout").toString();
       if (!timeoutStr.isBlank() && NumberUtils.isCreatable(timeoutStr)) {
         timeout = Long.valueOf(timeoutStr);
       }
     }
-
-    if (ParameterUtil.containsName(params, "key")) {
-      key = ParameterUtil.getValue(params, "key").toString();
-    }
-
-    // Set team prefix if available from Workflow to scope
-    if (taskExecution.getAnnotations() != null
-        && !taskExecution.getAnnotations().isEmpty()
-        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
-      key = taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + "-" + key;
-    }
-
-    try {
-      if (Objects.isNull(key) || Objects.isNull(timeout)) {
-        throw new BoomerangException(BoomerangError.TASKRUN_INVALID_PARAMS);
-      }
-      LOGGER.debug("[{}] Acquiring lock for key: {}", taskExecution.getId(), key);
-      lockManager.acquireLock(key, timeout);
-    } catch (Exception ex) {
+    String scopedKey = scopedLockKey(taskExecution);
+    if (Objects.isNull(scopedKey) || Objects.isNull(timeout)) {
       taskExecution.setStatus(RunStatus.failed);
-      taskExecution.setStatusMessage(ex.getMessage());
+      taskExecution.setStatusMessage("acquirelock requires a key and a timeout.");
+      return true;
     }
-    taskExecution.setStatus(RunStatus.succeeded);
+
+    Date expiresAt = new Date(System.currentTimeMillis() + timeout);
+    TaskLockEntity lock =
+        tryAcquire(scopedKey, taskExecution.getId(), wfRunEntity.getId(), expiresAt);
+    if (lock != null) {
+      LOGGER.debug("[{}] Acquired lock for key: {}", taskExecution.getId(), scopedKey);
+      taskExecution.setStatus(RunStatus.succeeded);
+      return true;
+    }
+    // Held by another task: park as waiting and re-attempt after the backoff.
+    LOGGER.debug("[{}] Lock held for key: {}. Waiting to retry.", taskExecution.getId(), scopedKey);
+    taskExecution.setStatus(RunStatus.waiting);
+    taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + LOCK_RETRY_BACKOFF_MILLIS));
+    taskRunRepository.save(taskExecution);
+    return false;
   }
 
   private void releaseTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    String key = null;
-
-    List<RunParam> params = taskExecution.getParams();
-    if (ParameterUtil.containsName(params, "key")) {
-      key = ParameterUtil.getValue(params, "key").toString();
-    }
-
-    // Set team prefix if available from Workflow to scope
-    if (taskExecution.getAnnotations() != null
-        && !taskExecution.getAnnotations().isEmpty()
-        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
-      key = taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + "-" + key;
-    }
-    try {
-      if (Objects.isNull(key)) {
-        throw new BoomerangException(BoomerangError.TASKRUN_INVALID_PARAMS);
-      }
-      LOGGER.debug("[{}] Releasing lock for key: {}", taskExecution.getId(), key);
-      lockManager.releaseLock(key, key);
-    } catch (Exception ex) {
+    String scopedKey = scopedLockKey(taskExecution);
+    if (Objects.isNull(scopedKey)) {
       taskExecution.setStatus(RunStatus.failed);
-      taskExecution.setStatusMessage(ex.getMessage());
+      taskExecution.setStatusMessage("releaselock requires a key.");
+      return;
     }
+    // Holder-checked delete; a missing or expired lock is already released - idempotent.
+    LOGGER.debug("[{}] Releasing lock for key: {}", taskExecution.getId(), scopedKey);
+    release(scopedKey, taskExecution.getId());
     taskExecution.setStatus(RunStatus.succeeded);
+  }
+
+  // Acquire the cross-workflow lock in one atomic step: take it when the key is unheld or its
+  // lease has expired, never stealing a live lock held by another task. Returns the acquired
+  // document when this task now holds it, or null when another task holds a live lease.
+  // Package-private so the lock-semantics test can exercise it directly.
+  TaskLockEntity tryAcquire(
+      String scopedKey, String taskRunRef, String workflowRunRef, Date expiresAt) {
+    Date now = new Date();
+    // Upsert only matches an unheld or expired key, so a live lock held by another task is never
+    // stolen. When the key is held live the upsert tries to insert a duplicate _id and the unique
+    // key throws - that is the "not acquired" signal.
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(scopedKey)
+                .orOperator(
+                    Criteria.where("expiresAt").exists(false),
+                    Criteria.where("expiresAt").lte(now)));
+    Update update =
+        new Update()
+            .set("holder", taskRunRef)
+            .set("workflowRunRef", workflowRunRef)
+            .set("acquiredAt", now)
+            .set("expiresAt", expiresAt);
+    try {
+      TaskLockEntity lock =
+          mongoTemplate.findAndModify(
+              query,
+              update,
+              FindAndModifyOptions.options().upsert(true).returnNew(true),
+              TaskLockEntity.class);
+      return (lock != null && taskRunRef.equals(lock.getHolder())) ? lock : null;
+    } catch (DuplicateKeyException held) {
+      return null;
+    }
+  }
+
+  // Release only when held by this task; idempotent - a missing or expired lock is a no-op.
+  // Package-private so the lock-semantics test can exercise it directly.
+  void release(String scopedKey, String taskRunRef) {
+    mongoTemplate.remove(
+        Query.query(Criteria.where("_id").is(scopedKey).and("holder").is(taskRunRef)),
+        TaskLockEntity.class);
+  }
+
+  // The lock key scoped by workspace so the same user key never collides across workspaces. The
+  // scope is the team-name annotation (a param-context annotation retired in a later cleanup).
+  private String scopedLockKey(TaskRunEntity taskExecution) {
+    List<RunParam> params = taskExecution.getParams();
+    if (!ParameterUtil.containsName(params, "key")) {
+      return null;
+    }
+    String key = ParameterUtil.getValue(params, "key").toString();
+    if (taskExecution.getAnnotations() != null
+        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
+      return taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + ":" + key;
+    }
+    return key;
+  }
+
+  /*
+   * Resume a due waiting task the watcher claimed: a slept task completes, an acquirelock task
+   * re-attempts the acquire (succeeding, or re-parking for another backoff).
+   */
+  @Async("asyncTaskExecutor")
+  public void resumeWaitingTask(String taskRunId) {
+    TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
+    if (taskExecution == null) {
+      return;
+    }
+    if (TaskType.sleep.equals(taskExecution.getType())) {
+      taskExecution.setStatus(RunStatus.succeeded);
+      taskRunRepository.save(taskExecution);
+      self.end(taskRunId);
+      return;
+    }
+    if (TaskType.acquirelock.equals(taskExecution.getType())) {
+      WorkflowRunEntity wfRunEntity =
+          workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(null);
+      if (wfRunEntity == null) {
+        return;
+      }
+      if (acquireTaskLock(taskExecution, wfRunEntity)) {
+        taskRunRepository.save(taskExecution);
+        self.end(taskRunId);
+      }
+    }
   }
 
   private void runWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -831,10 +945,8 @@ public class TaskExecutionService {
     taskExecution.getResults().add(new RunResult("actionRef", actionEntity.getId()));
     taskExecution.setStatus(RunStatus.waiting);
     taskExecution = taskRunRepository.save(taskExecution);
-    wfRunEntity.setAwaitingApproval(true);
-    String tokenId = lockManager.acquireLock(wfRunEntity.getId());
-    this.workflowRunRepository.save(wfRunEntity);
-    lockManager.releaseLock(wfRunEntity.getId(), tokenId);
+    // Atomic single-field set - no lock, no full-document rewrite.
+    workflowRunService.setAwaitingApproval(wfRunEntity.getId(), true);
   }
 
   private void saveWorkflowParam(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -853,53 +965,51 @@ public class TaskExecutionService {
                 .get()
                 .getValue();
 
-    String tokenId = lockManager.acquireLock(wfRunEntity.getId());
-
-    List<RunResult> wfResults = wfRunEntity.getResults();
     RunResult wfResult = new RunResult();
     wfResult.setName(output);
     wfResult.setValue(input);
-    wfResults.add(wfResult);
-    wfRunEntity.setResults(wfResults);
-    workflowRunRepository.save(wfRunEntity);
-
-    lockManager.releaseLock(wfRunEntity.getId(), tokenId);
+    // Atomic append - no lock, no read-modify-write, so concurrent writers cannot lose a result.
+    workflowRunService.appendResult(wfRunEntity.getId(), wfResult);
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
   private void finishWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
-    // Updates the status of end task
+    // Terminalise the end node via the completion Compare-And-Set (a no-op on recovery).
     tasks.stream()
         .filter(t -> TaskType.end.equals(t.getType()))
         .forEach(
-            t -> {
-              t.setStatus(RunStatus.succeeded);
-              t.setPhase(RunPhase.completed);
-              taskRunRepository.save(t);
-            });
+            t ->
+                taskRunService.tryComplete(
+                    t.getId(),
+                    Optional.of(RunStatus.succeeded),
+                    Optional.empty(),
+                    0,
+                    Optional.empty(),
+                    Optional.empty()));
     // Validate all paths have been taken
     // It also updates the status of each task and checks dependencies.
     boolean workflowCompleted = dagUtility.validateWorkflow(wfRunEntity, tasks);
 
-    // Set WorkflowRun status and phase
-    if (wfRunEntity.getStatusOverride() != null) {
-      wfRunEntity.setStatus(wfRunEntity.getStatusOverride());
-    } else {
-      if (workflowCompleted) {
-        wfRunEntity.setStatus(RunStatus.succeeded);
-      } else {
-        wfRunEntity.setStatus(RunStatus.failed);
-      }
+    RunStatus status =
+        wfRunEntity.getStatusOverride() != null
+            ? wfRunEntity.getStatusOverride()
+            : (workflowCompleted ? RunStatus.succeeded : RunStatus.failed);
+    long duration =
+        wfRunEntity.getStartTime() != null
+            ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
+            : 0;
+
+    // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
+    // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
+    if (workflowRunService.tryComplete(
+            wfRunEntity.getId(), List.of(RunPhase.running), status, null, duration)
+        == null) {
+      LOGGER.info(
+          "[{}] WorkflowRun already completed. Only the completion winner finishes.",
+          wfRunEntity.getId());
+      return;
     }
-    wfRunEntity.setPhase(RunPhase.completed);
-
-    // Calc Duration
-    long duration = new Date().getTime() - wfRunEntity.getStartTime().getTime();
-    wfRunEntity.setDuration(duration);
-
-    this.workflowRunRepository.save(wfRunEntity);
-    LOGGER.info(
-        "[{}] Completed Workflow with status: {}.", wfRunEntity.getId(), wfRunEntity.getStatus());
+    LOGGER.info("[{}] Completed Workflow with status: {}.", wfRunEntity.getId(), status);
   }
 
   private void executeNextStep(
@@ -924,7 +1034,7 @@ public class TaskExecutionService {
         continue;
       }
 
-      boolean executeTask = canExecuteTask(wfRunEntity, next);
+      boolean executeTask = canExecuteTask(wfRunEntity, tasks, next);
       if (executeTask) {
         LOGGER.debug("[{}] Execute next TaskRun: {}", wfRunEntity.getId(), next.getName());
         Optional<TaskRunEntity> taskRunEntity =
@@ -932,7 +1042,7 @@ public class TaskExecutionService {
         if (!taskRunEntity.isPresent()) {
           LOGGER.error("Reached node which should not be executed.");
         } else {
-          taskExecutionClient.queue(this, next);
+          self.queue(next.getId());
         }
       } else {
         LOGGER.debug(
@@ -956,10 +1066,9 @@ public class TaskExecutionService {
         List<WorkflowTaskDependency> deps = next.getDependencies();
         for (WorkflowTaskDependency dep : deps) {
           Optional<TaskRunEntity> taskRunEntity =
-              this.taskRunRepository.findFirstByNameAndWorkflowRunRef(
-                  dep.getTaskRef(), wfRunEntity.getId());
-          if (!taskRunEntity.isPresent() && taskRunEntity != null) {
-            continue;
+              findTaskByName(tasks, wfRunEntity, dep.getTaskRef());
+          if (taskRunEntity.isEmpty()) {
+            return false;
           }
 
           RunPhase phase = taskRunEntity.get().getPhase();
@@ -975,21 +1084,40 @@ public class TaskExecutionService {
     return finishedAll;
   }
 
-  private boolean canExecuteTask(WorkflowRunEntity wfRunEntity, TaskRunEntity next) {
+  private boolean canExecuteTask(
+      WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks, TaskRunEntity next) {
     List<WorkflowTaskDependency> deps = next.getDependencies();
     LOGGER.debug("Found {} dependencies", deps.size());
     for (WorkflowTaskDependency dep : deps) {
-      Optional<TaskRunEntity> taskRunEntity =
-          this.taskRunRepository.findFirstByNameAndWorkflowRunRef(
-              dep.getTaskRef(), wfRunEntity.getId());
-      if (taskRunEntity.isPresent()) {
-        RunPhase phase = taskRunEntity.get().getPhase();
-        if (!RunPhase.completed.equals(phase)) {
-          return false;
-        }
+      Optional<TaskRunEntity> taskRunEntity = findTaskByName(tasks, wfRunEntity, dep.getTaskRef());
+      if (taskRunEntity.isEmpty()) {
+        return false;
+      }
+      RunPhase phase = taskRunEntity.get().getPhase();
+      if (!RunPhase.completed.equals(phase)) {
+        return false;
       }
     }
     return true;
+  }
+
+  /*
+   * Dependency lookup over the batched TaskRun fetch. Every DAG node is materialised as a
+   * TaskRun at queue time; a missing dependency is a broken invariant and can never count as
+   * satisfied.
+   */
+  private Optional<TaskRunEntity> findTaskByName(
+      List<TaskRunEntity> tasks, WorkflowRunEntity wfRunEntity, String name) {
+    Optional<TaskRunEntity> taskRunEntity =
+        tasks.stream().filter(t -> name.equals(t.getName())).findFirst();
+    if (taskRunEntity.isEmpty()) {
+      LOGGER.error(
+          "[{}] No TaskRun found for dependency: {}. A missing dependency can never be"
+              + " treated as satisfied.",
+          wfRunEntity.getId(),
+          name);
+    }
+    return taskRunEntity;
   }
 
   public void updateStatusAndSaveTask(

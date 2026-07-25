@@ -75,6 +75,12 @@ public class EngineClient {
   @Value("${flow.engine.workflowrun.retry.url}")
   public String retryWorkflowRunURL;
 
+  @Value("${flow.engine.workflowrun.pause.url}")
+  public String pauseWorkflowRunURL;
+
+  @Value("${flow.engine.workflowrun.resume.url}")
+  public String resumeWorkflowRunURL;
+
   @Value("${flow.engine.workflowrun.delete.url}")
   public String deleteWorkflowRunURL;
 
@@ -414,6 +420,52 @@ public class EngineClient {
       LOGGER.info("URL: " + url);
       ResponseEntity<WorkflowRun> response =
           restTemplate.exchange(url, HttpMethod.DELETE, null, WorkflowRun.class);
+
+      LOGGER.info("Status Response: " + response.getStatusCode());
+      LOGGER.info("Content Response: " + response.getBody().toString());
+
+      return response.getBody();
+    } catch (RestClientException ex) {
+      LOGGER.error(ex.toString());
+      throw new BoomerangException(
+          ex,
+          HttpStatus.INTERNAL_SERVER_ERROR.value(),
+          ex.getClass().getSimpleName(),
+          "Exception in communicating with internal services.",
+          HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  public WorkflowRun pauseWorkflowRun(String workflowRunId) {
+    try {
+      String url = pauseWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
+
+      LOGGER.info("URL: " + url);
+      ResponseEntity<WorkflowRun> response =
+          restTemplate.exchange(url, HttpMethod.PUT, null, WorkflowRun.class);
+
+      LOGGER.info("Status Response: " + response.getStatusCode());
+      LOGGER.info("Content Response: " + response.getBody().toString());
+
+      return response.getBody();
+    } catch (RestClientException ex) {
+      LOGGER.error(ex.toString());
+      throw new BoomerangException(
+          ex,
+          HttpStatus.INTERNAL_SERVER_ERROR.value(),
+          ex.getClass().getSimpleName(),
+          "Exception in communicating with internal services.",
+          HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  public WorkflowRun resumeWorkflowRun(String workflowRunId) {
+    try {
+      String url = resumeWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
+
+      LOGGER.info("URL: " + url);
+      ResponseEntity<WorkflowRun> response =
+          restTemplate.exchange(url, HttpMethod.PUT, null, WorkflowRun.class);
 
       LOGGER.info("Status Response: " + response.getStatusCode());
       LOGGER.info("Content Response: " + response.getBody().toString());

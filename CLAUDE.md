@@ -30,6 +30,7 @@ separate deployables. **v5 reverses that split — see the confirmed decisions b
 | DD-05 | **Merged deployable module = `service-core`** (executed at E8; ARCHIE/CHEER convention; "engine" stays an internal module + mode name only).                                        |
 | DD-06 | **Worker tier renamed `agent` → `dispatcher` at E7/E8** (`DispatcherProtocol`, `dispatcherRef`, `dispatcher-tekton`/`dispatcher-docker`; v1 wire keeps `/agent/` until retirement). "Agent" is reserved for the AI task types. |
 | DD-07 | **Migrations = `service-loader` module in this monorepo on Flamingock**, run as a pre-deploy Job (one execution per deploy); baseline changeunit covers live instances; E3's schema ships as its first changeunits. In-app-at-boot re-decided after the merge. |
+| DD-08 | **Control/execution state = typed fields; annotations/labels = non-identifying metadata only** (UI, catalog, user tags). Anything the engine reads to decide or queries/indexes on MUST be a typed field — never a `boomerang.io/*` annotation. Anchored by the industry norm (K8s spec/status vs annotations; Tekton typed `retriesStatus` + timeout `reason` enum; Argo `status.nodes`; Temporal Memo-vs-typed; Airflow/Prefect/n8n/Langflow typed columns; n8n `retryOf`). Migration is incremental: category A (`retry-of`→`initiatedByRef`+`trigger`, `retry-count`→field, `timeout-cause`→enum) rides E5; executor-config (`task-*`) and param-context (`*-params`) annotations are later cleanups. `RunStatus` stays a closed enum — pause/supersede stay orthogonal fields (H15). |
 
 The full architecture record — nine-module layout, interaction classification, mode matrix,
 embedded-engine contract, 14 ruled judgement calls, migration plan — is
@@ -98,7 +99,11 @@ behaviour, never "simplify" onto framework defaults.
 
 - `SecurityInterceptor` **soft-fails permission checks** (logs and returns `true`) — only
   token-scope mismatch is enforced. Enforcement flips via shadow-logging → token backfill →
-  flag → default-on at the major. The riskiest flip in v5.
+  flag → default-on at the major. The riskiest flip in v5. **Shadow telemetry is LIVE
+  (E1/E6, 2026-07-23)**: `flow.security.would.deny` counts both the interceptor layer and
+  the relationship layer (`layer=relationship` tag) — watch these before the A2 flip.
+- ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
+  2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
 - Agent endpoints (`AgentControllerV1`) are **unauthenticated**; engine is `permitAll()`.
 - Two properties gate security halves: `flow.auth.enabled` AND `flow.authorization.enabled`
   (to be unified; mode-derived default).
@@ -195,6 +200,7 @@ merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-re
 | `specifications/service-consolidation.md` | 📎 Annex (superseded by proposal) | Original Phase 2A brief.                                                  |
 | `specifications/scaling.md`               | 📎 Annex                     | Phase 2B locking/queueing brief.                                               |
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
+| `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
@@ -219,3 +225,14 @@ safety net is green. All decisions (DD-01…DD-04, Q-117, the Phase 2B rulings i
 `phase2b-decisions.md`) are settled — build toward them; two deferred decisions
 (schedule-firing substrate, outbox transactions) are decided at their implementation
 step with defaults documented.
+
+**Current state (2026-07-25):** Phase 0 + E1/E2/E3/E6 shipped on `feat-v5`; **E4 (the
+execution-model rebuild, slices A–F) is COMPLETE and green on branch `e4`** (20 commits;
+claims/CAS, WorkflowWatcher sweeps, pause, outbox, lock-free, tombstone; repository
+Compare-And-Set ops moved into services). **Next: E5 (JobRunr retirement — a two-step:
+delete the engine's redundant timeout job, then a claim-based `ScheduleWatcher` firing
+sweep in service-flow; the forward calendar is already cron-utils/DB-backed, so unaffected).**
+The E4 code review (`specifications/e4-review-findings.md`) is captured but **DEFERRED by
+ruling** — the order is **E5 → a critical re-review of those findings against post-E5 code
+→ then the bug/refactor fixes** (E5 and the DD-02 merge are expected to absorb several).
+Branch/merge: PR `e4` → `feat-v5` before branching `e5` (E4 is a clean complete epic).

@@ -8,18 +8,14 @@ import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.model.*;
 import io.boomerang.common.util.StringUtil;
-import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRevisionRepository;
-import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRevisionRepository;
-import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.util.ConvertUtil;
@@ -48,6 +44,7 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -66,9 +63,6 @@ public class WorkflowService {
 
   private final WorkflowRepository workflowRepository;
   private final WorkflowRevisionRepository workflowRevisionRepository;
-  private final WorkflowRunRepository workflowRunRepository;
-  private final TaskRunRepository taskRunRepository;
-  private final ActionRepository actionRepository;
   private final TaskRevisionRepository taskRevisionRepository;
   private final MongoTemplate mongoTemplate;
   private final TaskService taskService;
@@ -77,18 +71,12 @@ public class WorkflowService {
   public WorkflowService(
       WorkflowRepository workflowRepository,
       WorkflowRevisionRepository workflowRevisionRepository,
-      WorkflowRunRepository workflowRunRepository,
-      TaskRunRepository taskRunRepository,
-      ActionRepository actionRepository,
       TaskRevisionRepository taskRevisionRepository,
       MongoTemplate mongoTemplate,
       TaskService taskService,
       WorkflowRunService workflowRunService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
-    this.workflowRunRepository = workflowRunRepository;
-    this.taskRunRepository = taskRunRepository;
-    this.actionRepository = actionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
     this.mongoTemplate = mongoTemplate;
     this.taskService = taskService;
@@ -551,10 +539,6 @@ public class WorkflowService {
     Map<String, Object> annotations = new HashMap<>();
     annotations.put("boomerang.io/generation", "4");
     annotations.put("boomerang.io/kind", "WorkflowRun");
-    if (start) {
-      // Add annotation to know this was created with ?start=true
-      wfRunEntity.getAnnotations().put("boomerang.io/submit-with-start", "true");
-    }
     wfRunEntity.getAnnotations().putAll(annotations);
     return workflowRunService.run(wfRunEntity, start);
   }
@@ -590,22 +574,23 @@ public class WorkflowService {
   }
 
   /*
-   * Deletes the Workflow and its Revisions. Cascades to the WorkflowRuns and TaskRuns.
-   * Refuses while any WorkflowRun is still executing so running work is not orphaned.
+   * Tombstones the Workflow: a single status change to deleted, never a cascade. Submit already
+   * rejects a non-active Workflow, so new runs stop immediately; the watcher winds down in-flight
+   * runs of a deleted Workflow, and a retention sweep prunes once runs finalise. Nothing is
+   * destroyed here, so running work is never orphaned.
    */
   public void delete(String workflowId) {
     if (workflowId == null || workflowId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
-    if (workflowRunRepository.existsByWorkflowRefAndPhaseIn(
-        workflowId, List.of(RunPhase.pending, RunPhase.queued, RunPhase.running))) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_DELETE_IN_FLIGHT_RUNS);
+    if (!workflowRepository.existsById(workflowId)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
-    actionRepository.deleteByWorkflowRef(workflowId);
-    taskRunRepository.deleteByWorkflowRef(workflowId);
-    workflowRunRepository.deleteByWorkflowRef(workflowId);
-    workflowRevisionRepository.deleteByWorkflowRef(workflowId);
-    workflowRepository.deleteById(workflowId);
+    mongoTemplate.updateFirst(
+        Query.query(
+            Criteria.where("_id").is(workflowId).and("status").ne(WorkflowStatus.deleted)),
+        new Update().set("status", WorkflowStatus.deleted),
+        WorkflowEntity.class);
   }
 
   // This will set both the Workflow and Tasks flags for upgrades available

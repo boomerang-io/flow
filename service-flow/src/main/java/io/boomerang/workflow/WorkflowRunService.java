@@ -220,6 +220,44 @@ public class WorkflowRunService {
   }
 
   /*
+   * Pause WorkflowRun
+   */
+  public ResponseEntity<WorkflowRun> pause(String team, String workflowRunId) {
+    if (workflowRunId == null || workflowRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.TEAM),
+        Optional.of(List.of(team)))) {
+      WorkflowRun wfRun = engineClient.pauseWorkflowRun(workflowRunId);
+      return ResponseEntity.ok(wfRun);
+    } else {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+  }
+
+  /*
+   * Resume WorkflowRun
+   */
+  public ResponseEntity<WorkflowRun> resume(String team, String workflowRunId) {
+    if (workflowRunId == null || workflowRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.TEAM),
+        Optional.of(List.of(team)))) {
+      WorkflowRun wfRun = engineClient.resumeWorkflowRun(workflowRunId);
+      return ResponseEntity.ok(wfRun);
+    } else {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+  }
+
+  /*
    * Retry WorkflowRun
    */
   public ResponseEntity<WorkflowRun> retry(String team, String workflowRunId) {

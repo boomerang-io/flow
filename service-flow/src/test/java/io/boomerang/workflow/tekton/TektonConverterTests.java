@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.StreamUtils;
@@ -64,8 +63,6 @@ class TektonConverterTests {
   }
 
   @Test
-  @Disabled(
-      "TektonConverter.convertTektonTaskToTaskTemplate throws ClassCastException when a boomerang.io/params annotation is present (List<LinkedHashMap> cast to List<AbstractParam>) — needs a main-code fix, e.g. ObjectMapper.convertValue")
   void testTektonToTaskConversion() throws IOException {
     TektonTask tektonTask = loadTektonTask("yaml/import.yaml");
     Task task = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
@@ -74,8 +71,6 @@ class TektonConverterTests {
   }
 
   @Test
-  @Disabled(
-      "Blocked by the same TektonConverter ClassCastException on boomerang.io/params annotations as testTektonToTaskConversion")
   void testTaskToTektonConversion() throws IOException {
     TektonTask tektonTask = loadTektonTask("yaml/import.yaml");
     Task task = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);

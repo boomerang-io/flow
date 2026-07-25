@@ -6,7 +6,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
@@ -58,6 +60,27 @@ public class TaskRunEntity {
   private String workflowRevisionRef;
   @Indexed private String workflowRunRef; // Indexed when retrieving task runs for a workflow run
   private String agentRef;
+
+  // Claim ownership. claim.by absent = unclaimed and eligible; written only by the claim
+  // Compare-And-Set. claim.seq increments on every claim and is never cleared, fencing
+  // out dispatches that carry a superseded claim.
+  @JsonIgnore private RunClaim claim;
+
+  // Denormalised absolute deadline (budget + grace) written at claim/start; absent = unguarded.
+  // The watcher reaps on an indexed range scan - there are no in-memory timers.
+  @JsonIgnore
+  @Indexed(sparse = true)
+  private Date timeoutAt;
+
+  // Retry state. Absent = fully eligible; retry.after gates claim eligibility until the backoff
+  // elapses. Written only by the fenced requeue, which never clears claim.seq.
+  @JsonIgnore private RunRetry retry;
+
+  // Wake time for a durable wait (sleep, or an acquirelock backoff). A waiting row is re-driven by
+  // the watcher when waitUntil elapses - never a held thread. Absent = not a timed wait.
+  @JsonIgnore
+  @Indexed(sparse = true)
+  private Date waitUntil;
 
   @Override
   public String toString() {

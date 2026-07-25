@@ -10,7 +10,8 @@ public enum TriggerEnum {
   event("event"),
   github("github"),
   engine("engine"),
-  task("task");
+  task("task"),
+  retry("retry");
 
   private String trigger;
 

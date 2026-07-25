@@ -130,10 +130,10 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 ### G. Relationship Layer
 | ID | Gap | Sev | Fix | Tag |
 |---|---|---|---|---|
-| G1 | JGraphT singleton = authz bug under N | C | Direct-query walk; JGraphT deleted; behavioural-fix release note | BEFORE (7) |
-| G2 | Slug-ignores-type precedence bug | H | Retired by rewrite (verify no equivalent) | BEFORE (7) |
-| G3 | No per-request memoisation | M | Request-scoped memo | BEFORE (7) |
-| G4 | No write-ordering/orphan repair | M | Defined ordering + watcher-adjacent repair | BEFORE (7) |
+| G1 | ✅ **FIXED (E6, 2026-07-23):** JGraphT singleton deleted; anchored direct-query walk (3–7 indexed queries/decision, zero rebuilds); 24 signatures preserved; two-instance parity proven by test; flow 17/0/0 | C | done | ✅ |
+| G2 | ✅ Retired — every resolve type-scoped; cross-type slug-collision regression test | H | done | ✅ |
+| G3 | ✅ Request-scoped memo (no-op on scheduler threads; invalidated on mutations) | M | done | ✅ |
+| G4 | ✅ All mutation sites audited domain-write-first; ordering rule in the service header | M | done | ✅ |
 | G5 | Hot data traverses graph | M | workspaceId-direct rubric | BEFORE (7) |
 | G6 | Edge role data unverified | L | Pre-cutover check | BEFORE (7 gate) |
 
@@ -156,7 +156,8 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 | H14 | Frontend fold-in | M | DD-04 after merged image | POST |
 | H15 | **Standing constraint**: no PAUSED/SUPERSEDED statuses; superseded excluded from default responses | guard | Enforce in review | BEFORE (standing) |
 | H16 | Standalone enablers (compose, Docker agent, no-op relationships) | M | Per J8/I3 | POST (Phase 4) |
-| H17 | **Live bug (found by test uplift, 2026-07-23):** `TektonConverter.convertTektonTaskToTaskTemplate` throws ClassCastException whenever a `boomerang.io/params` annotation is present (Jackson yields `List<LinkedHashMap>` blindly cast to `List<AbstractParam>`) — Tekton YAML task import via `TaskControllerV2` fails; two quarantined tests in `TektonConverterTests` flip when fixed | M | Fix with `ObjectMapper.convertValue`; re-enable the quarantined tests | BEFORE (early bugfix, independent) |
+| H18 | **Live bug (found by Q-403, 2026-07-23):** the `workflowRun`-scoped workspace lifecycle filters on the typo `"workfowRun"` (`WorkflowService.java:45,96`, `WorkspaceService.java:51` in service-agent) — per-run workspace PVCs are never provisioned or cleaned; feature silently inert in production. Also noted: `TaskWatcher` calls `System.exit(1)` on watch error (kills the whole dispatcher for one task's watch failure) | M | Decide: fix the typo (activates a long-dormant feature — behaviour change!) or formally retire per-run workspaces with the Phase 4 storage design; replace the exit(1) with per-task failure. Ruling belongs to E7/Phase 4 | E7/Phase 4 |
+| H17 | ✅ **FIXED (2026-07-23):** TektonConverter params CCE — `convertValue` + TypeReference; quarantined tests re-enabled (4/4 green). Residual notes: (a) adjacent `(Integer)` cast on `boomerang.io/version` would CCE on string YAML values (unexercised); (b) legacy v3 `key:`-style annotation params import with default metadata (lossless v3-YAML import would be a product decision) | M | done | ✅ |
 
 ### I. Documentation
 | ID | Gap | Sev | Fix | Tag |

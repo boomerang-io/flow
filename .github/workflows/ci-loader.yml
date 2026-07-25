@@ -1,0 +1,64 @@
+name: CI Loader
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Triggers the workflow on push (branch and tag) or pull request events
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'loader@**'
+    paths:
+      - 'service-loader/**'
+      - 'pom.xml'
+      - '.github/workflows/ci-loader.yml'
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Java and Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Test
+        run: |
+          mvn clean test --projects service-loader --batch-mode
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Java and Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Build
+        run: mvn clean package --projects service-loader --batch-mode -Dmaven.test.skip=true
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() }}
+        with:
+          name: service-loader.jar
+          path: service-loader/target/service-loader.jar
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

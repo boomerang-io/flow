@@ -222,6 +222,17 @@ only document where this repo diverges from defaults.)
   `messages.properties` had none and lines concatenated.
 - Agent designs a Mongo partial unique index with `$exists: false` → unsupported; use a
   full compound unique index or a positive-value partial filter.
+- Agent renames a file AND rewrites its contents in one commit → git's rename detection
+  (similarity-based, default 50%) loses the pairing — `git log --follow` and IDE blame
+  break. **Rename in one commit, modify in the next.**
+- Agent adds guards as `Optional<X> opt = repo.findById(id); if (opt.isEmpty()) {...};
+  X x = opt.get();` → use the codebase idioms: `.orElseThrow(() -> new
+  BoomerangException(...))` on throwing paths; `.orElse(null)` + one null-check on
+  log-and-return paths. No Optional staging variables.
+- Agent asserts a library/framework incompatibility from jar metadata or docs → **check
+  the reference repos first** (ARCHIE at `~/Workspaces/tlawrie/asdr`, CHEER at
+  `~/Workspaces/walkaboutdev/cheer.dev`) — a working deployment beats inferred metadata
+  (e.g. flamingock-springboot-integration was claimed Boot-3-only; CHEER runs it on Boot 4).
 
 ## Config / dependencies
 

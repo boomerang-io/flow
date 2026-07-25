@@ -715,8 +715,28 @@ evidence (file/class or measurement).
 ### Phase 4 — Runtime evolution
 
 - **Q-401** Which Tekton features does the agent ACTUALLY use (inventory by code, not docs)?
+  - ✅ **Answered (2026-07-23):** 14 spec/lifecycle features + 3 plain-K8s side objects,
+    all from `TektonServiceImpl` — every execution is a standalone TaskRun with an inline
+    taskSpec, single step. NOT used: Pipelines, Task CRDs, Triggers, sidecars, retries,
+    remote resolution, array/object params, secrets, resource limits (dead
+    `kube.resource.*` config), and even Tekton's own cancellation (cancel is a legacy
+    status-overwrite hack). `specifications/runtime-contract.md` Part 1.
 - **Q-402** The task contract: params, secrets, storage, results (size limits), logs, exit mapping, resources, timeout, cancel — what does every task truly need?
+  - ✅ **Answered (2026-07-23):** 13-row contract (C1–C13) in `runtime-contract.md` Part 2.
+    Headlines: params via three channels (interpolation, `/params` ConfigMap files, env);
+    **no secret handling exists at all**; results capped **4096 bytes** (kept as THE
+    portable cap); exit mapping is binary (v2 protocol must surface raw evidence for
+    `failureClass`). SPI sketch incl. the normative Q-406 hook: deterministic
+    `externalId = {prefix}-{taskRunId}-e{claimEpoch}` (today's random generateName means
+    re-claims can't adopt), adopt-or-supersede, and `abandon(handle)` on lease rejection.
+    Docker divergences enumerated (agent-side substitution, file-based results,
+    dispatcher-armed timeout, named volumes).
 - **Q-403** Which catalogue tasks depend on shared-workspace/PVC semantics, and what is the storage story on serverless targets?
+  - ✅ **Answered — scoping (2026-07-23):** dependence is low and partially broken — the
+    `workflowRun` workspace lifecycle filters on the typo **`"workfowRun"`** so per-run
+    PVCs are never provisioned/cleaned (silently, without complaint — gap H18).
+    Workspaces stay a capability-gated extension; object-storage staging deferred to
+    Phase 4 design; result-only tasks run anywhere unchanged.
 - **Q-404** Compatibility matrix per candidate runtime (cold start, max duration, payload limits, image pull, cost, quotas) — which serverless target first?
 - **Q-405** AgentRuntime SPI shape validated against local Docker, one serverless target, AND Tekton-behind-SPI?
 - **Q-406** How does claim fencing (Q-129) extend to runtime-side execution identity (deterministic naming, adopt-or-supersede on re-claim)?
@@ -848,6 +868,28 @@ Rejected: stay-split + async decoupling (branch B, preserved in the proposal). /
 **DD-03: Unified product versioning** — one tag builds the compatible image set; no
 independent engine version line; `engine@` alias tags for the embedder deprecation
 window. / Rejected: per-service tags + compatibility-set manifest. / 2026-07-22.
+
+**DD-08: Control/execution state = typed fields; annotations/labels = non-identifying
+metadata only** — Anything the engine reads to make a decision, or queries/indexes/selects
+on, MUST be a typed first-class field; free-form `boomerang.io/*` annotations are reserved
+for non-identifying passthrough metadata (UI, catalog, user tags). / Rationale: unanimous
+industry norm — K8s (`.spec`/`.status` subresource vs non-selectable annotations; "annotations
+are not used to identify and select objects"), Tekton (Flow's own executor: typed
+`status.retriesStatus`, timeout as a `reason` enum), Argo (`status.nodes[]`), Temporal
+(Event History + typed `Attempt` vs non-queryable Memo), Airflow (`try_number`/`max_tries`),
+Prefect (`run_count`/`state_type`), n8n (typed `retryOf`/`retrySuccessId` columns), Langflow
+(typed status columns). Continues the `claim`/`retry`/`timeoutAt`/`superseded`/`pauseRequestedAt`
+typed-field direction already shipped. The Mongo dotted-key escape (`annotations.boomerang#io/
+timeout-cause`) was the datastore rejecting control state living in a K8s-shaped map. /
+Migration is incremental: category A (`retry-of`→`initiatedByRef`+`trigger=retry`,
+`retry-count`→typed `retryCount`) shipped in slice E; `timeout-cause` needed no field at all
+(it only ever selected a status message — the message is now built at the detection point and
+written to `statusMessage`); `submit-with-start` becomes a request flag (not stored —
+auto-retry starts). Executor-config `task-*` annotations (→ task spec) and param-context
+`*-params` annotations (→ ParameterManager refactor) are separate later cleanups. Category D metadata (`icon`/`category`/`display`/`docs`/
+`version`/`kind`/`position`) stays annotations. `RunStatus` stays a closed enum (H15). /
+Rejected: keep control state in annotations (fights the datastore, non-queryable, couples
+orchestration to K8s metadata). / 2026-07-24.
 
 **DD-07: Database migrations — flow-loader joins the monorepo, rewritten on Flamingock**
 — a `service-loader` module in this repo, running as today's pre-deploy container/Job

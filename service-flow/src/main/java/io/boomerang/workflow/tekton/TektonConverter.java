@@ -11,8 +11,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.BeanUtils;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 public class TektonConverter {
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private TektonConverter() {}
 
@@ -127,7 +131,9 @@ public class TektonConverter {
       annotations.remove("boomerang.io/verified");
       Object abstractParams = annotations.get("boomerang.io/params");
       if (abstractParams != null) {
-        annotationParams = (List<AbstractParam>) abstractParams;
+        // Deserialized annotations hold generic maps, not AbstractParam objects — convert them.
+        annotationParams =
+            MAPPER.convertValue(abstractParams, new TypeReference<List<AbstractParam>>() {});
       }
       annotations.remove("boomerang.io/params");
     }
@@ -166,7 +172,7 @@ public class TektonConverter {
         // Annotation
         Optional<AbstractParam> optionalAbstractParam =
             annotationParams.stream()
-                .filter(ap -> ap.getName().equals(tektonParam.getName()))
+                .filter(ap -> tektonParam.getName().equals(ap.getName()))
                 .findFirst();
         if (optionalAbstractParam.isPresent()) {
           // TODO: does it get stored as default or defaultValue in the annotation

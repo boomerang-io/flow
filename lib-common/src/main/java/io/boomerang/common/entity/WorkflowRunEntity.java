@@ -1,10 +1,12 @@
 package io.boomerang.common.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.WorkflowWorkspace;
@@ -45,8 +47,30 @@ public class WorkflowRunEntity {
   private Integer workflowVersion;
   private String workflowRevisionRef;
   private String agentRef;
+
+  // Claim ownership for the workflow-level claimables (provision and teardown). claim.by
+  // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.seq
+  // increments on every claim and is never cleared.
+  @JsonIgnore private RunClaim claim;
+
+  // Denormalised absolute deadline written at the start Compare-And-Set; absent = unguarded.
+  // The watcher reaps on an indexed range scan - there are no in-memory timers.
+  @JsonIgnore
+  @Indexed(sparse = true)
+  private Date timeoutAt;
+
+  // Pause flag - never a status. Absent = not paused. Claiming, admission and the recovery
+  // sweeps all exclude paused runs; resume clears the flag and reconciles.
+  @Indexed(sparse = true)
+  private Date pauseRequestedAt;
+
   private String trigger;
   private String initiatedByRef;
+
+  // Auto-retry attempt count (absent/null = 0). initiatedByRef + trigger=retry carry the retry
+  // lineage - all typed, never boomerang.io/* annotations.
+  private Long retryCount;
+
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
   private List<WorkflowWorkspace> workspaces = new LinkedList<>();
