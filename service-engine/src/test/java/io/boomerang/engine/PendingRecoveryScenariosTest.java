@@ -257,7 +257,7 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
   }
 
   private boolean claimPageContains(String taskRunId) {
-    return taskRunRepository.findClaimable(List.of(TaskType.template), 100).stream()
+    return taskRunService.findClaimable(List.of(TaskType.template), 100).stream()
         .anyMatch(t -> taskRunId.equals(t.getId()));
   }
 

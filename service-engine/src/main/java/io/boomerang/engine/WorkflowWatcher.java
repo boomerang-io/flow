@@ -6,7 +6,6 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
-import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
@@ -50,7 +49,7 @@ public class WorkflowWatcher {
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
-  private final TaskRunRepository taskRunRepository;
+  private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRepository workflowRepository;
   private final TaskExecutionService taskExecutionService;
@@ -64,12 +63,12 @@ public class WorkflowWatcher {
   private boolean retentionEnabled;
 
   public WorkflowWatcher(
-      TaskRunRepository taskRunRepository,
+      TaskRunService taskRunService,
       WorkflowRunRepository workflowRunRepository,
       WorkflowRepository workflowRepository,
       TaskExecutionService taskExecutionService,
       WorkflowRunService workflowRunService) {
-    this.taskRunRepository = taskRunRepository;
+    this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
     this.taskExecutionService = taskExecutionService;
@@ -104,18 +103,18 @@ public class WorkflowWatcher {
    * Both transitions are fenced on the observed claim seq, so a claim racing the reap wins.
    */
   public void reapTaskTimeouts() {
-    for (TaskRunEntity taskRun : taskRunRepository.findReapable(new Date(), PAGE_SIZE)) {
+    for (TaskRunEntity taskRun : taskRunService.findReapable(new Date(), PAGE_SIZE)) {
       try {
         Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
         int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
         if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
-          if (taskRunRepository.tryRequeue(
+          if (taskRunService.tryRequeue(
                   taskRun.getId(), observedSeq, nextRetryAt(attempts), attempts + 1)
               != null) {
             LOGGER.info(
                 "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
           }
-        } else if (taskRunRepository.tryTimeout(
+        } else if (taskRunService.tryTimeout(
                 taskRun.getId(),
                 observedSeq,
                 MessageFormatter.format(
@@ -134,7 +133,7 @@ public class WorkflowWatcher {
 
   /** Reap running WorkflowRuns past their durable {@code timeoutAt} deadline. */
   public void reapWorkflowTimeouts() {
-    for (WorkflowRunEntity wfRun : workflowRunRepository.findTimedOut(new Date(), PAGE_SIZE)) {
+    for (WorkflowRunEntity wfRun : workflowRunService.findTimedOut(new Date(), PAGE_SIZE)) {
       try {
         workflowRunService.timeout(wfRun.getId(), false);
       } catch (Exception ex) {
@@ -151,9 +150,9 @@ public class WorkflowWatcher {
   public void recoverStalledRuns() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
     for (WorkflowRunEntity wfRun :
-        workflowRunRepository.findRunningStartedBefore(startedBefore, PAGE_SIZE)) {
+        workflowRunService.findRunningStartedBefore(startedBefore, PAGE_SIZE)) {
       try {
-        if (!taskRunRepository.existsInFlightByWorkflowRunRef(wfRun.getId())) {
+        if (!taskRunService.existsInFlightByWorkflowRunRef(wfRun.getId())) {
           LOGGER.info("[{}] Active WorkflowRun has no in-flight TaskRuns. Recovering advance.",
               wfRun.getId());
           taskExecutionService.advance(wfRun.getId());
@@ -170,9 +169,9 @@ public class WorkflowWatcher {
    */
   public void finalizeWorkspacelessRuns() {
     for (WorkflowRunEntity wfRun :
-        workflowRunRepository.findFinalizableWithoutWorkspaces(PAGE_SIZE)) {
+        workflowRunService.findFinalizableWithoutWorkspaces(PAGE_SIZE)) {
       try {
-        if (workflowRunRepository.tryFinalize(wfRun.getId()) != null) {
+        if (workflowRunService.tryFinalize(wfRun.getId()) != null) {
           LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
         }
       } catch (Exception ex) {
@@ -188,9 +187,9 @@ public class WorkflowWatcher {
    * double-drive.
    */
   public void resumeDueWaitingTasks() {
-    for (TaskRunEntity task : taskRunRepository.findWaitingDue(new Date(), PAGE_SIZE)) {
+    for (TaskRunEntity task : taskRunService.findWaitingDue(new Date(), PAGE_SIZE)) {
       try {
-        if (taskRunRepository.tryStartWaitingResume(task.getId()) != null) {
+        if (taskRunService.tryStartWaitingResume(task.getId()) != null) {
           taskExecutionService.resumeWaitingTask(task.getId());
         }
       } catch (Exception ex) {

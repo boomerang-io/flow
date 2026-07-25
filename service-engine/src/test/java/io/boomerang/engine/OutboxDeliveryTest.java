@@ -16,6 +16,7 @@ import io.boomerang.engine.repository.EventOutboxRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 /**
  * The outbox contract: a real status change writes exactly one pending row, a phase-only claim
@@ -27,6 +28,7 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
 
   @Autowired private EventOutboxRepository eventOutboxRepository;
   @Autowired private EventSinkService eventSinkService;
+  @Autowired private MongoTemplate mongoTemplate;
 
   @Test
   void statusChangeWritesOneRowAndPhaseOnlyWritesNone() {
@@ -75,7 +77,7 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
     CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
     OutboxDispatcher dispatcher =
         new OutboxDispatcher(
-            eventOutboxRepository, taskRunRepository, workflowRunRepository, eventSinkService);
+            mongoTemplate, taskRunRepository, workflowRunRepository, eventSinkService);
     WorkflowRunEntity wfRun =
         savedWorkflowRun("outbox-send-wf", RunStatus.running, RunPhase.running);
     TaskRunEntity taskRun =
@@ -102,7 +104,7 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
     assertEquals(OutboxStatus.sent, sent.getStatus());
     assertNotNull(sent.getSentAt());
     assertTrue(
-        eventOutboxRepository.findDeliverable(new java.util.Date(), 100).stream()
+        dispatcher.findDeliverable(new java.util.Date(), 100).stream()
             .noneMatch(r -> rowId.equals(r.getId())),
         "a sent row is never redelivered");
   }

@@ -50,6 +50,7 @@ public abstract class AbstractEngineIntegrationTest {
 
   @Autowired protected TaskRunRepository taskRunRepository;
   @Autowired protected WorkflowRunRepository workflowRunRepository;
+  @Autowired protected TaskRunService taskRunService;
 
   protected static ConditionFactory awaitEngine(String alias) {
     return Awaitility.await(alias)

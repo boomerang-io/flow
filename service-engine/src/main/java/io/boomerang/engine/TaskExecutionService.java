@@ -10,7 +10,6 @@ import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.engine.repository.ActionRepository;
-import io.boomerang.engine.repository.TaskLockRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
@@ -31,6 +30,12 @@ import org.jobrunr.scheduling.JobScheduler;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -57,9 +62,11 @@ public class TaskExecutionService {
 
   @Autowired private TaskRunRepository taskRunRepository;
 
+  @Autowired @Lazy private TaskRunService taskRunService;
+
   @Autowired private ActionRepository actionRepository;
 
-  @Autowired private TaskLockRepository taskLockRepository;
+  @Autowired private MongoTemplate mongoTemplate;
 
   @Autowired private WorkflowClient workflowClient;
 
@@ -140,7 +147,7 @@ public class TaskExecutionService {
       // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
       // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
       // queued by both parents) loses here and performs no side effects.
-      if (taskRunRepository.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
+      if (taskRunService.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }
@@ -259,7 +266,7 @@ public class TaskExecutionService {
     // timeoutAt deadline. A duplicate dispatch of the same TaskRun loses here and performs no
     // side effects.
     taskExecution =
-        taskRunRepository.tryStartExecution(taskExecutionId, new Date(), taskExecution.getTimeout());
+        taskRunService.tryStartExecution(taskExecutionId, new Date(), taskExecution.getTimeout());
     if (taskExecution == null) {
       LOGGER.info("[{}] TaskRun already executing or completed. Nothing to do.", taskExecutionId);
       return;
@@ -378,7 +385,7 @@ public class TaskExecutionService {
     Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(taskExecution.getWorkflowRunRef());
     if (!optWfRunEntity.isPresent()) {
-      taskRunRepository.tryComplete(
+      taskRunService.tryComplete(
           taskExecutionId,
           Optional.of(RunStatus.cancelled),
           Optional.of("Unable to find WorkflowRun"),
@@ -395,7 +402,7 @@ public class TaskExecutionService {
                   "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion.",
                   new Object[] {wfRunEntity.getId(), wfRunEntity.getStatus()})
               .getMessage();
-      taskRunRepository.tryComplete(
+      taskRunService.tryComplete(
           taskExecutionId,
           Optional.of(RunStatus.cancelled),
           Optional.of(statusMessage),
@@ -412,7 +419,7 @@ public class TaskExecutionService {
     // Completion Compare-And-Set: the caller-persisted terminal status stands unless the task
     // timed out. Losing means another end already completed this TaskRun.
     TaskRunEntity preImage =
-        taskRunRepository.tryComplete(
+        taskRunService.tryComplete(
             taskExecutionId,
             (taskTimedOut ? Optional.of(RunStatus.timedout) : Optional.empty()),
             (taskTimedOut
@@ -569,7 +576,7 @@ public class TaskExecutionService {
     boolean existingApprovals = (count > 0);
     wfRunEntity.setAwaitingApproval(existingApprovals);
     // Field-scoped write so a level-triggered recompute can never stomp concurrent run state.
-    this.workflowRunRepository.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
+    this.workflowRunService.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
   }
 
   private void saveWorkflowStatus(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -622,8 +629,7 @@ public class TaskExecutionService {
 
     Date expiresAt = new Date(System.currentTimeMillis() + timeout);
     TaskLockEntity lock =
-        taskLockRepository.tryAcquire(
-            scopedKey, taskExecution.getId(), wfRunEntity.getId(), expiresAt);
+        tryAcquire(scopedKey, taskExecution.getId(), wfRunEntity.getId(), expiresAt);
     if (lock != null) {
       LOGGER.debug("[{}] Acquired lock for key: {}", taskExecution.getId(), scopedKey);
       taskExecution.setStatus(RunStatus.succeeded);
@@ -646,8 +652,52 @@ public class TaskExecutionService {
     }
     // Holder-checked delete; a missing or expired lock is already released - idempotent.
     LOGGER.debug("[{}] Releasing lock for key: {}", taskExecution.getId(), scopedKey);
-    taskLockRepository.release(scopedKey, taskExecution.getId());
+    release(scopedKey, taskExecution.getId());
     taskExecution.setStatus(RunStatus.succeeded);
+  }
+
+  // Acquire the cross-workflow lock in one atomic step: take it when the key is unheld or its
+  // lease has expired, never stealing a live lock held by another task. Returns the acquired
+  // document when this task now holds it, or null when another task holds a live lease.
+  // Package-private so the lock-semantics test can exercise it directly.
+  TaskLockEntity tryAcquire(
+      String scopedKey, String taskRunRef, String workflowRunRef, Date expiresAt) {
+    Date now = new Date();
+    // Upsert only matches an unheld or expired key, so a live lock held by another task is never
+    // stolen. When the key is held live the upsert tries to insert a duplicate _id and the unique
+    // key throws - that is the "not acquired" signal.
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(scopedKey)
+                .orOperator(
+                    Criteria.where("expiresAt").exists(false),
+                    Criteria.where("expiresAt").lte(now)));
+    Update update =
+        new Update()
+            .set("holder", taskRunRef)
+            .set("workflowRunRef", workflowRunRef)
+            .set("acquiredAt", now)
+            .set("expiresAt", expiresAt);
+    try {
+      TaskLockEntity lock =
+          mongoTemplate.findAndModify(
+              query,
+              update,
+              FindAndModifyOptions.options().upsert(true).returnNew(true),
+              TaskLockEntity.class);
+      return (lock != null && taskRunRef.equals(lock.getHolder())) ? lock : null;
+    } catch (DuplicateKeyException held) {
+      return null;
+    }
+  }
+
+  // Release only when held by this task; idempotent - a missing or expired lock is a no-op.
+  // Package-private so the lock-semantics test can exercise it directly.
+  void release(String scopedKey, String taskRunRef) {
+    mongoTemplate.remove(
+        Query.query(Criteria.where("_id").is(scopedKey).and("holder").is(taskRunRef)),
+        TaskLockEntity.class);
   }
 
   // The lock key scoped by workspace so the same user key never collides across workspaces. The
@@ -896,7 +946,7 @@ public class TaskExecutionService {
     taskExecution.setStatus(RunStatus.waiting);
     taskExecution = taskRunRepository.save(taskExecution);
     // Atomic single-field set - no lock, no full-document rewrite.
-    workflowRunRepository.setAwaitingApproval(wfRunEntity.getId(), true);
+    workflowRunService.setAwaitingApproval(wfRunEntity.getId(), true);
   }
 
   private void saveWorkflowParam(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -919,7 +969,7 @@ public class TaskExecutionService {
     wfResult.setName(output);
     wfResult.setValue(input);
     // Atomic append - no lock, no read-modify-write, so concurrent writers cannot lose a result.
-    workflowRunRepository.appendResult(wfRunEntity.getId(), wfResult);
+    workflowRunService.appendResult(wfRunEntity.getId(), wfResult);
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
@@ -929,7 +979,7 @@ public class TaskExecutionService {
         .filter(t -> TaskType.end.equals(t.getType()))
         .forEach(
             t ->
-                taskRunRepository.tryComplete(
+                taskRunService.tryComplete(
                     t.getId(),
                     Optional.of(RunStatus.succeeded),
                     Optional.empty(),
@@ -951,7 +1001,7 @@ public class TaskExecutionService {
 
     // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
     // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
-    if (workflowRunRepository.tryComplete(
+    if (workflowRunService.tryComplete(
             wfRunEntity.getId(), List.of(RunPhase.running), status, null, duration)
         == null) {
       LOGGER.info(

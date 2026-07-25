@@ -10,8 +10,6 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.engine.entity.AgentEntity;
 import io.boomerang.engine.repository.AgentRepository;
-import io.boomerang.engine.repository.TaskRunRepository;
-import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
@@ -35,16 +33,16 @@ public class AgentService {
   private boolean queueEnabled;
 
   private final AgentRepository agentRepository;
-  private final WorkflowRunRepository wfRunRepository;
-  private final TaskRunRepository taskRunRepository;
+  private final WorkflowRunService workflowRunService;
+  private final TaskRunService taskRunService;
 
   public AgentService(
       AgentRepository agentRepository,
-      WorkflowRunRepository wfRunRepository,
-      TaskRunRepository taskRunRepository) {
+      WorkflowRunService workflowRunService,
+      TaskRunService taskRunService) {
     this.agentRepository = agentRepository;
-    this.wfRunRepository = wfRunRepository;
-    this.taskRunRepository = taskRunRepository;
+    this.workflowRunService = workflowRunService;
+    this.taskRunService = taskRunService;
   }
 
   /**
@@ -115,16 +113,16 @@ public class AgentService {
         // The claimed pre-images carry the wire shape the agent acts on: pending/ready to
         // provision and start, completed to tear down and finalize.
         List<WorkflowRun> workflowRuns = new LinkedList<>();
-        for (WorkflowRunEntity candidate : wfRunRepository.findClaimableForProvision(PAGE_SIZE)) {
+        for (WorkflowRunEntity candidate : workflowRunService.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              wfRunRepository.tryClaimForProvision(candidate.getId(), agentId);
+              workflowRunService.tryClaimForProvision(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
-        for (WorkflowRunEntity candidate : wfRunRepository.findClaimableForTeardown(PAGE_SIZE)) {
+        for (WorkflowRunEntity candidate : workflowRunService.findClaimableForTeardown(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              wfRunRepository.tryClaimForTeardown(candidate.getId(), agentId);
+              workflowRunService.tryClaimForTeardown(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
@@ -187,8 +185,8 @@ public class AgentService {
         // returned pre-images carry the pending/ready wire shape the agent executes.
         List<TaskRun> taskRuns = new LinkedList<>();
         for (TaskRunEntity candidate :
-            taskRunRepository.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
-          TaskRunEntity claimed = taskRunRepository.tryClaim(candidate.getId(), agentId);
+            taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
+          TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
             taskRuns.add(new TaskRun(claimed));
           }
