@@ -220,7 +220,7 @@ public class ScheduleService {
     }
     // Only create JobRunr if Schedule is enabled. As there is no pause functionality in JobRunr.
     if (enableJob) {
-      createOrUpdateSchedule(team, scheduleEntity);
+      createOrUpdateSchedule(scheduleEntity);
     }
     return scheduleRepository.save(scheduleEntity);
   }
@@ -394,7 +394,7 @@ public class ScheduleService {
         }
         scheduleRepository.save(scheduleEntity);
         if (enableJob) {
-          createOrUpdateSchedule(team, scheduleEntity);
+          createOrUpdateSchedule(scheduleEntity);
         }
         return convertScheduleEntityToModel(scheduleEntity);
       }
@@ -409,8 +409,7 @@ public class ScheduleService {
    * Helper method to determine if we are updating a cron or runonce schedule. It also handles
    * pausing a schedule if the status is set to pause.
    */
-  private void createOrUpdateSchedule(final String team, final WorkflowScheduleEntity schedule) {
-    schedule.setTeamRef(team);
+  private void createOrUpdateSchedule(final WorkflowScheduleEntity schedule) {
     schedule.setNextFireAt(computeNextFireAt(schedule, ZonedDateTime.now()));
     scheduleRepository.save(schedule);
   }
@@ -471,13 +470,12 @@ public class ScheduleService {
   }
 
   /**
-   * Bootstrap a legacy schedule that carries no next fire time: set {@code nextFireAt} and backfill
-   * {@code teamRef} without firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps
-   * do not double-initialise.
+   * Bootstrap a legacy schedule that carries no next fire time: set {@code nextFireAt} without
+   * firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps do not double-initialise.
    */
-  public void initializeNextFireAt(String id, Date nextFireAt, String teamRef) {
+  public void initializeNextFireAt(String id, Date nextFireAt) {
     Query query = Query.query(Criteria.where("_id").is(id).and("nextFireAt").exists(false));
-    Update update = new Update().set("nextFireAt", nextFireAt).set("teamRef", teamRef);
+    Update update = new Update().set("nextFireAt", nextFireAt);
     mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 
@@ -511,7 +509,7 @@ public class ScheduleService {
       }
       scheduleEntity.setStatus(WorkflowScheduleStatus.active);
       scheduleRepository.save(scheduleEntity);
-      this.createOrUpdateSchedule(team, scheduleEntity);
+      this.createOrUpdateSchedule(scheduleEntity);
     }
   }
 

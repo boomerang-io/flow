@@ -129,10 +129,9 @@ class ScheduleWatcherTest {
     watcher = new ScheduleWatcher(scheduleRepository, service, scheduleJob, relationshipService);
   }
 
-  private WorkflowScheduleEntity activeCron(Date nextFireAt, String teamRef) {
+  private WorkflowScheduleEntity activeCron(Date nextFireAt) {
     WorkflowScheduleEntity s = new WorkflowScheduleEntity();
     s.setWorkflowRef("w1");
-    s.setTeamRef(teamRef);
     s.setType(WorkflowScheduleType.cron);
     s.setStatus(WorkflowScheduleStatus.active);
     s.setCronSchedule(HOURLY);
@@ -144,7 +143,7 @@ class ScheduleWatcherTest {
   @Test
   void tryClaimFireIsExactlyOnce() {
     Date due = new Date(System.currentTimeMillis() - 1000);
-    WorkflowScheduleEntity s = activeCron(due, "t1");
+    WorkflowScheduleEntity s = activeCron(due);
     Date next = service.nextOccurrence(HOURLY, "UTC", ZonedDateTime.now());
     Date now = new Date();
 
@@ -161,7 +160,7 @@ class ScheduleWatcherTest {
   @Test
   void misfireCollapsesToNextFutureOccurrence() {
     Date longAgo = new Date(System.currentTimeMillis() - 86400000L * 30);
-    WorkflowScheduleEntity s = activeCron(longAgo, "t1");
+    WorkflowScheduleEntity s = activeCron(longAgo);
     Date next = service.nextOccurrence(HOURLY, "UTC", ZonedDateTime.now());
     service.tryClaimFire(s.getId(), longAgo, next, new Date());
     WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
@@ -172,17 +171,16 @@ class ScheduleWatcherTest {
 
   @Test
   void initializeNextFireAtSetsWithoutFiring() {
-    WorkflowScheduleEntity s = activeCron(null, null);
+    WorkflowScheduleEntity s = activeCron(null);
     Date next = service.nextOccurrence(HOURLY, "UTC", ZonedDateTime.now());
-    service.initializeNextFireAt(s.getId(), next, "t1");
+    service.initializeNextFireAt(s.getId(), next);
 
     WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
     assertEquals(next, after.getNextFireAt());
-    assertEquals("t1", after.getTeamRef());
     assertNull(after.getLastFiredAt(), "initialise must not fire");
 
     // Guarded on nextFireAt absent: a second initialise does not overwrite.
-    service.initializeNextFireAt(s.getId(), new Date(0), "t2");
+    service.initializeNextFireAt(s.getId(), new Date(0));
     assertEquals(next, scheduleRepository.findById(s.getId()).orElseThrow().getNextFireAt());
   }
 
@@ -199,7 +197,9 @@ class ScheduleWatcherTest {
   @Test
   void watcherFiresDueScheduleOnceThenAdvancesPastDue() {
     Date due = new Date(System.currentTimeMillis() - 1000);
-    WorkflowScheduleEntity s = activeCron(due, "t1");
+    WorkflowScheduleEntity s = activeCron(due);
+    // The owning team is resolved from the relationship graph at fire time.
+    when(relationshipService.getParentByLabel(any(), any(), eq("w1"))).thenReturn("t1");
 
     watcher.fireDueSchedules();
 
@@ -214,15 +214,13 @@ class ScheduleWatcherTest {
   }
 
   @Test
-  void watcherInitializesLegacyScheduleAndBackfillsTeam() {
-    WorkflowScheduleEntity s = activeCron(null, null);
-    when(relationshipService.getParentByLabel(any(), any(), eq("w1"))).thenReturn("t1");
+  void watcherInitializesLegacyScheduleWithoutFiring() {
+    WorkflowScheduleEntity s = activeCron(null);
 
     watcher.initializeSchedules();
 
     WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
     assertNotNull(after.getNextFireAt(), "legacy schedule gets a nextFireAt");
-    assertEquals("t1", after.getTeamRef(), "teamRef is backfilled from the relationship");
     verify(scheduleJob, never()).execute(any(), any(), any());
   }
 }

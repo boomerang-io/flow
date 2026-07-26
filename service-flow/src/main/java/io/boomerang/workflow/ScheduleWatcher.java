@@ -67,8 +67,8 @@ public class ScheduleWatcher {
 
   /**
    * Bootstrap active cron schedules created under the legacy model that carry no nextFireAt:
-   * compute and set it (plus teamRef) WITHOUT firing. A run-once schedule always carries its
-   * nextFireAt from creation, so it is skipped here.
+   * compute and set it WITHOUT firing. A run-once schedule always carries its nextFireAt from
+   * creation, so it is skipped here.
    */
   public void initializeSchedules() {
     for (WorkflowScheduleEntity schedule :
@@ -82,7 +82,7 @@ public class ScheduleWatcher {
             scheduleService.nextOccurrence(
                 schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
         if (next != null) {
-          scheduleService.initializeNextFireAt(schedule.getId(), next, teamRef(schedule));
+          scheduleService.initializeNextFireAt(schedule.getId(), next);
         }
       } catch (Exception ex) {
         LOGGER.error("[{}] Schedule initialise failed: {}", schedule.getId(), ex.getMessage());
@@ -112,7 +112,7 @@ public class ScheduleWatcher {
               "[{}] Schedule fired for Workflow ({}).",
               schedule.getId(),
               schedule.getWorkflowRef());
-          scheduleJob.execute(teamRef(schedule), schedule.getWorkflowRef(), schedule.getId());
+          scheduleJob.execute(resolveTeam(schedule), schedule.getWorkflowRef(), schedule.getId());
         }
       } catch (Exception ex) {
         LOGGER.error("[{}] Schedule fire failed: {}", schedule.getId(), ex.getMessage());
@@ -120,11 +120,9 @@ public class ScheduleWatcher {
     }
   }
 
-  // The owning team: the denormalized ref, or a relationship lookup for a legacy schedule.
-  private String teamRef(WorkflowScheduleEntity schedule) {
-    if (schedule.getTeamRef() != null && !schedule.getTeamRef().isBlank()) {
-      return schedule.getTeamRef();
-    }
+  // The owning team is the workflow's parent in the relationship graph - the source of truth,
+  // always current (a denormalized copy could go stale if the workflow moved teams).
+  private String resolveTeam(WorkflowScheduleEntity schedule) {
     return relationshipService.getParentByLabel(
         RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, schedule.getWorkflowRef());
   }
