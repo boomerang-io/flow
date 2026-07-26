@@ -30,7 +30,15 @@ public class WorkflowScheduleEntity {
           .toString(); // created by default as its passed to JobRunr and needed prior to saving
 
   private String workflowRef;
+  // The owning team, denormalized so the ScheduleWatcher can fire without a relationship lookup.
+  private String teamRef;
+  // Legacy JobRunr job id - no longer written; kept to avoid a data migration.
   @Indexed private String schedulerRef;
+  // The next computed fire time. The ScheduleWatcher fires active schedules whose nextFireAt has
+  // passed, then advances it in one Compare-And-Set - the advance is the exactly-once fence.
+  @Indexed(sparse = true)
+  private Date nextFireAt;
+  private Date lastFiredAt;
   private String name;
   private String description;
 

@@ -18,7 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 /*
- * This is used by JobRunr to execute the Scheduled Job
+ * Invoked by the ScheduleWatcher when a schedule fires: submits the WorkflowRun.
  */
 @Component
 public class ScheduleJob {

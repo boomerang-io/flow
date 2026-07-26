@@ -189,11 +189,6 @@
             <artifactId>github-client</artifactId>
             <version>0.3.2</version>
         </dependency>
-        <dependency>
-            <groupId>org.jobrunr</groupId>
-            <artifactId>jobrunr-spring-boot-4-starter</artifactId>
-            <version>8.7.1</version>
-        </dependency>
     </dependencies>
     <build>
         <plugins>
