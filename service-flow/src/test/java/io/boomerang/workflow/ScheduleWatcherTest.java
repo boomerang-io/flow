@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -222,5 +223,56 @@ class ScheduleWatcherTest {
     WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
     assertNotNull(after.getNextFireAt(), "legacy schedule gets a nextFireAt");
     verify(scheduleJob, never()).execute(any(), any(), any());
+  }
+
+  @Test
+  void failedFireRetriesWithBackoffThenSkipsAtMaxAttempts() {
+    WorkflowScheduleEntity s = activeCron(new Date(System.currentTimeMillis() - 1000));
+    when(relationshipService.getParentByLabel(any(), any(), eq("w1"))).thenReturn("t1");
+    doThrow(new RuntimeException("submit boom")).when(scheduleJob).execute(any(), any(), any());
+
+    // Attempt 1: re-armed for retry - counter incremented, nextFireAt pulled back to soon.
+    watcher.fireDueSchedules();
+    WorkflowScheduleEntity after1 = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(1, after1.getFireAttempts());
+    assertTrue(after1.getNextFireAt().after(new Date()), "re-armed to a future retry time");
+    assertTrue(
+        after1.getNextFireAt().before(new Date(System.currentTimeMillis() + 30000)),
+        "retry is soon (backoff), not the next hourly occurrence");
+
+    // Attempt 2: still under the cap, re-armed again.
+    makeDue(s.getId());
+    watcher.fireDueSchedules();
+    assertEquals(2, scheduleRepository.findById(s.getId()).orElseThrow().getFireAttempts());
+
+    // Attempt 3 == MAX: counter clears and the occurrence is skipped (no further re-arm).
+    makeDue(s.getId());
+    watcher.fireDueSchedules();
+    assertEquals(
+        0,
+        scheduleRepository.findById(s.getId()).orElseThrow().getFireAttempts(),
+        "attempts exhausted - counter cleared, occurrence skipped");
+  }
+
+  @Test
+  void successfulFireClearsFireAttempts() {
+    WorkflowScheduleEntity s = activeCron(new Date(System.currentTimeMillis() - 1000));
+    s.setFireAttempts(2);
+    scheduleRepository.save(s);
+    when(relationshipService.getParentByLabel(any(), any(), eq("w1"))).thenReturn("t1");
+
+    watcher.fireDueSchedules();
+
+    assertEquals(
+        0,
+        scheduleRepository.findById(s.getId()).orElseThrow().getFireAttempts(),
+        "a successful fire resets the attempt counter");
+  }
+
+  // Force a schedule due again (a re-arm sets nextFireAt to the near future), preserving its state.
+  private void makeDue(String id) {
+    WorkflowScheduleEntity s = scheduleRepository.findById(id).orElseThrow();
+    s.setNextFireAt(new Date(System.currentTimeMillis() - 1000));
+    scheduleRepository.save(s);
   }
 }

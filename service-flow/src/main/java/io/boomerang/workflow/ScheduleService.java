@@ -469,6 +469,23 @@ public class ScheduleService {
   }
 
   /**
+   * Re-arm a schedule to retry a failed fire: bring {@code nextFireAt} back to the (sooner) retry
+   * time and record the attempt count. The retry fires before the already-advanced next occurrence.
+   */
+  public void reArmForRetry(String id, Date retryFireAt, int attempts) {
+    Query query = Query.query(Criteria.where("_id").is(id));
+    Update update = new Update().set("nextFireAt", retryFireAt).set("fireAttempts", attempts);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /** Clear the failed-fire counter: called on a successful fire or once the attempts are exhausted. */
+  public void clearFireAttempts(String id) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("fireAttempts").gt(0));
+    Update update = new Update().set("fireAttempts", 0);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /**
    * Bootstrap a legacy schedule that carries no next fire time: set {@code nextFireAt} without
    * firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps do not double-initialise.
    */

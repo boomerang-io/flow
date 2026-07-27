@@ -4,6 +4,7 @@ import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.common.util.Backoff;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.workflow.repository.WorkflowScheduleRepository;
@@ -31,6 +32,8 @@ public class ScheduleWatcher {
   private static final Logger LOGGER = LogManager.getLogger();
   // Mirrors the engine's EngineConstants.SWEEP_PAGE_SIZE; shared once the modules merge (DD-02).
   private static final int PAGE_SIZE = 50;
+  // Bounded retry of a failed fire, restoring JobRunr's removed default-number-of-retries=3.
+  private static final int MAX_FIRE_ATTEMPTS = 3;
 
   private final WorkflowScheduleRepository scheduleRepository;
   private final ScheduleService scheduleService;
@@ -108,14 +111,42 @@ public class ScheduleWatcher {
                 : scheduleService.nextOccurrence(
                     schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
         if (scheduleService.tryClaimFire(schedule.getId(), schedule.getNextFireAt(), next, now)) {
-          LOGGER.info(
-              "[{}] Schedule fired for Workflow ({}).",
-              schedule.getId(),
-              schedule.getWorkflowRef());
-          scheduleJob.execute(resolveTeam(schedule), schedule.getWorkflowRef(), schedule.getId());
+          fireWithRetry(schedule);
         }
       } catch (Exception ex) {
         LOGGER.error("[{}] Schedule fire failed: {}", schedule.getId(), ex.getMessage());
+      }
+    }
+  }
+
+  /**
+   * Submit the fired schedule's run; on failure retry with backoff up to {@code MAX_FIRE_ATTEMPTS}
+   * (restoring the JobRunr 3-retry behaviour). The re-arm brings nextFireAt back to the sooner
+   * retry time, ahead of the occurrence tryClaimFire already advanced to; once exhausted the
+   * counter clears and the skipped-to occurrence stands.
+   */
+  private void fireWithRetry(WorkflowScheduleEntity schedule) {
+    try {
+      scheduleJob.execute(resolveTeam(schedule), schedule.getWorkflowRef(), schedule.getId());
+      scheduleService.clearFireAttempts(schedule.getId());
+      LOGGER.info(
+          "[{}] Schedule fired for Workflow ({}).", schedule.getId(), schedule.getWorkflowRef());
+    } catch (Exception ex) {
+      int attempts = schedule.getFireAttempts() + 1;
+      if (attempts < MAX_FIRE_ATTEMPTS) {
+        scheduleService.reArmForRetry(schedule.getId(), Backoff.nextRetryAt(attempts), attempts);
+        LOGGER.warn(
+            "[{}] Schedule fire failed (attempt {}), retrying: {}",
+            schedule.getId(),
+            attempts,
+            ex.getMessage());
+      } else {
+        scheduleService.clearFireAttempts(schedule.getId());
+        LOGGER.error(
+            "[{}] Schedule fire failed after {} attempts, skipping to next occurrence: {}",
+            schedule.getId(),
+            attempts,
+            ex.getMessage());
       }
     }
   }
