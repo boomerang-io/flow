@@ -5,6 +5,7 @@ import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.common.util.Backoff;
+import io.boomerang.common.util.SweepRunner;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.workflow.repository.WorkflowScheduleRepository;
@@ -75,23 +76,22 @@ public class ScheduleWatcher {
    * creation, so it is skipped here.
    */
   public void initializeSchedules() {
-    for (WorkflowScheduleEntity schedule :
+    SweepRunner.forEachIsolated(
         scheduleRepository.findByStatusAndNextFireAtIsNull(
-            WorkflowScheduleStatus.active, PageRequest.of(0, PAGE_SIZE))) {
-      try {
-        if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
-          continue;
-        }
-        Date next =
-            scheduleService.nextOccurrence(
-                schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
-        if (next != null) {
-          scheduleService.initializeNextFireAt(schedule.getId(), next);
-        }
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Schedule initialise failed: {}", schedule.getId(), ex.getMessage());
-      }
-    }
+            WorkflowScheduleStatus.active, PageRequest.of(0, PAGE_SIZE)),
+        schedule -> {
+          if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
+            return;
+          }
+          Date next =
+              scheduleService.nextOccurrence(
+                  schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
+          if (next != null) {
+            scheduleService.initializeNextFireAt(schedule.getId(), next);
+          }
+        },
+        (schedule, ex) ->
+            LOGGER.error("[{}] Schedule initialise failed: {}", schedule.getId(), ex.getMessage()));
   }
 
   /**
@@ -101,22 +101,21 @@ public class ScheduleWatcher {
    */
   public void fireDueSchedules() {
     Date now = new Date();
-    for (WorkflowScheduleEntity schedule :
+    SweepRunner.forEachIsolated(
         scheduleRepository.findByStatusAndNextFireAtLessThanEqual(
-            WorkflowScheduleStatus.active, now, PageRequest.of(0, PAGE_SIZE))) {
-      try {
-        Date next =
-            WorkflowScheduleType.runOnce.equals(schedule.getType())
-                ? null
-                : scheduleService.nextOccurrence(
-                    schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
-        if (scheduleService.tryClaimFire(schedule.getId(), schedule.getNextFireAt(), next, now)) {
-          fireWithRetry(schedule);
-        }
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Schedule fire failed: {}", schedule.getId(), ex.getMessage());
-      }
-    }
+            WorkflowScheduleStatus.active, now, PageRequest.of(0, PAGE_SIZE)),
+        schedule -> {
+          Date next =
+              WorkflowScheduleType.runOnce.equals(schedule.getType())
+                  ? null
+                  : scheduleService.nextOccurrence(
+                      schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
+          if (scheduleService.tryClaimFire(schedule.getId(), schedule.getNextFireAt(), next, now)) {
+            fireWithRetry(schedule);
+          }
+        },
+        (schedule, ex) ->
+            LOGGER.error("[{}] Schedule fire failed: {}", schedule.getId(), ex.getMessage()));
   }
 
   /**

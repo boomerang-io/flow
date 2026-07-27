@@ -7,6 +7,7 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
+import io.boomerang.common.util.SweepRunner;
 import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
@@ -103,43 +104,41 @@ public class WorkflowWatcher {
    * Both transitions are fenced on the observed claim seq, so a claim racing the reap wins.
    */
   public void reapTaskTimeouts() {
-    for (TaskRunEntity taskRun : taskRunService.findReapable(new Date(), PAGE_SIZE)) {
-      try {
-        Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
-        int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
-        if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
-          if (taskRunService.tryRequeue(
-                  taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+    SweepRunner.forEachIsolated(
+        taskRunService.findReapable(new Date(), PAGE_SIZE),
+        taskRun -> {
+          Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
+          int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
+          if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
+            if (taskRunService.tryRequeue(
+                    taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+                != null) {
+              LOGGER.info(
+                  "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
+            }
+          } else if (taskRunService.tryTimeout(
+                  taskRun.getId(),
+                  observedSeq,
+                  MessageFormatter.format(
+                          "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
+                          taskRun.getTimeout())
+                      .getMessage())
               != null) {
-            LOGGER.info(
-                "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
+            LOGGER.info("[{}] TaskRun timed out. Retry budget exhausted.", taskRun.getId());
+            taskExecutionService.end(taskRun.getId());
           }
-        } else if (taskRunService.tryTimeout(
-                taskRun.getId(),
-                observedSeq,
-                MessageFormatter.format(
-                        "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
-                        taskRun.getTimeout())
-                    .getMessage())
-            != null) {
-          LOGGER.info("[{}] TaskRun timed out. Retry budget exhausted.", taskRun.getId());
-          taskExecutionService.end(taskRun.getId());
-        }
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Task timeout reap failed: {}", taskRun.getId(), ex.getMessage());
-      }
-    }
+        },
+        (taskRun, ex) ->
+            LOGGER.error("[{}] Task timeout reap failed: {}", taskRun.getId(), ex.getMessage()));
   }
 
   /** Reap running WorkflowRuns past their durable {@code timeoutAt} deadline. */
   public void reapWorkflowTimeouts() {
-    for (WorkflowRunEntity wfRun : workflowRunService.findTimedOut(new Date(), PAGE_SIZE)) {
-      try {
-        workflowRunService.timeout(wfRun.getId(), false);
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Workflow timeout reap failed: {}", wfRun.getId(), ex.getMessage());
-      }
-    }
+    SweepRunner.forEachIsolated(
+        workflowRunService.findTimedOut(new Date(), PAGE_SIZE),
+        wfRun -> workflowRunService.timeout(wfRun.getId(), false),
+        (wfRun, ex) ->
+            LOGGER.error("[{}] Workflow timeout reap failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**
@@ -149,18 +148,18 @@ public class WorkflowWatcher {
    */
   public void recoverStalledRuns() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
-    for (WorkflowRunEntity wfRun :
-        workflowRunService.findRunningStartedBefore(startedBefore, PAGE_SIZE)) {
-      try {
-        if (!taskRunService.existsInFlightByWorkflowRunRef(wfRun.getId())) {
-          LOGGER.info("[{}] Active WorkflowRun has no in-flight TaskRuns. Recovering advance.",
-              wfRun.getId());
-          taskExecutionService.advance(wfRun.getId());
-        }
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Stalled-run recovery failed: {}", wfRun.getId(), ex.getMessage());
-      }
-    }
+    SweepRunner.forEachIsolated(
+        workflowRunService.findRunningStartedBefore(startedBefore, PAGE_SIZE),
+        wfRun -> {
+          if (!taskRunService.existsInFlightByWorkflowRunRef(wfRun.getId())) {
+            LOGGER.info(
+                "[{}] Active WorkflowRun has no in-flight TaskRuns. Recovering advance.",
+                wfRun.getId());
+            taskExecutionService.advance(wfRun.getId());
+          }
+        },
+        (wfRun, ex) ->
+            LOGGER.error("[{}] Stalled-run recovery failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**
@@ -168,16 +167,15 @@ public class WorkflowWatcher {
    * claims them, so the engine closes them out itself.
    */
   public void finalizeWorkspacelessRuns() {
-    for (WorkflowRunEntity wfRun :
-        workflowRunService.findFinalizableWithoutWorkspaces(PAGE_SIZE)) {
-      try {
-        if (workflowRunService.tryFinalize(wfRun.getId()) != null) {
-          LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
-        }
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Finalize sweep failed: {}", wfRun.getId(), ex.getMessage());
-      }
-    }
+    SweepRunner.forEachIsolated(
+        workflowRunService.findFinalizableWithoutWorkspaces(PAGE_SIZE),
+        wfRun -> {
+          if (workflowRunService.tryFinalize(wfRun.getId()) != null) {
+            LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
+          }
+        },
+        (wfRun, ex) ->
+            LOGGER.error("[{}] Finalize sweep failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**
@@ -187,15 +185,15 @@ public class WorkflowWatcher {
    * double-drive.
    */
   public void resumeDueWaitingTasks() {
-    for (TaskRunEntity task : taskRunService.findWaitingDue(new Date(), PAGE_SIZE)) {
-      try {
-        if (taskRunService.tryStartWaitingResume(task.getId())) {
-          taskExecutionService.resumeWaitingTask(task.getId());
-        }
-      } catch (Exception ex) {
-        LOGGER.error("[{}] Waiting-task resume failed: {}", task.getId(), ex.getMessage());
-      }
-    }
+    SweepRunner.forEachIsolated(
+        taskRunService.findWaitingDue(new Date(), PAGE_SIZE),
+        task -> {
+          if (taskRunService.tryStartWaitingResume(task.getId())) {
+            taskExecutionService.resumeWaitingTask(task.getId());
+          }
+        },
+        (task, ex) ->
+            LOGGER.error("[{}] Waiting-task resume failed: {}", task.getId(), ex.getMessage()));
   }
 
   /**
@@ -204,16 +202,18 @@ public class WorkflowWatcher {
    */
   public void cancelDeletedWorkflowRuns() {
     for (WorkflowEntity workflow : workflowRepository.findByStatus(WorkflowStatus.deleted)) {
-      for (WorkflowRunEntity wfRun :
-          workflowRunRepository.findByWorkflowRefAndPhaseIn(workflow.getId(), IN_FLIGHT_PHASES)) {
-        try {
-          workflowRunService.cancel(wfRun.getId());
-          LOGGER.info(
-              "[{}] Cancelled in-flight run of deleted Workflow {}.", wfRun.getId(), workflow.getId());
-        } catch (Exception ex) {
-          LOGGER.error("[{}] Deleted-workflow run cancel failed: {}", wfRun.getId(), ex.getMessage());
-        }
-      }
+      SweepRunner.forEachIsolated(
+          workflowRunRepository.findByWorkflowRefAndPhaseIn(workflow.getId(), IN_FLIGHT_PHASES),
+          wfRun -> {
+            workflowRunService.cancel(wfRun.getId());
+            LOGGER.info(
+                "[{}] Cancelled in-flight run of deleted Workflow {}.",
+                wfRun.getId(),
+                workflow.getId());
+          },
+          (wfRun, ex) ->
+              LOGGER.error(
+                  "[{}] Deleted-workflow run cancel failed: {}", wfRun.getId(), ex.getMessage()));
     }
   }
 
