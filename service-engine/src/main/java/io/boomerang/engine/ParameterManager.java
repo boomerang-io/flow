@@ -274,7 +274,7 @@ public class ParameterManager {
       // return substitutor.replace(objectString);
       String replacedObjectString = substitutor.replace(objectString);
       LOGGER.debug("Substitutor: " + replacedObjectString);
-      return mapper.readValue(replacedObjectString, Object.class);
+      return OBJECT_MAPPER.readValue(replacedObjectString, Object.class);
     } catch (Exception e) {
       // Log and drop exception. We want the workflow to continue execution.
       LOGGER.error(e.toString());
