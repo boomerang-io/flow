@@ -183,7 +183,7 @@ public class TaskRunService {
             .set("status", RunStatus.running)
             .set("phase", RunPhase.running)
             .set("startTime", startTime);
-    Date timeoutAt = timeoutAt(startTime, timeoutMinutes);
+    Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
@@ -351,11 +351,6 @@ public class TaskRunService {
         query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
   }
 
-  private static Date timeoutAt(Date from, Long timeoutMinutes) {
-    return (timeoutMinutes != null && timeoutMinutes > 0)
-        ? new Date(from.getTime() + timeoutMinutes * 60000 + EngineConstants.TIMEOUT_GRACE_MILLIS)
-        : null;
-  }
 
   private void publish(TaskRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {
     eventPublisher.publishEvent(

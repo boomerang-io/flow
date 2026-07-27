@@ -215,11 +215,7 @@ public class WorkflowRunService {
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt");
-    Date timeoutAt =
-        (timeoutMinutes != null && timeoutMinutes > 0)
-            ? new Date(
-                startTime.getTime() + timeoutMinutes * 60000 + EngineConstants.TIMEOUT_GRACE_MILLIS)
-            : null;
+    Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
