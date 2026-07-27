@@ -564,6 +564,7 @@ public class TaskExecutionService {
               tw.setMountPath(spec.getMountPath());
               tw.setOptional(ws.isOptional());
               tw.setType(ws.getType());
+              taskWorkspaces.add(tw);
             });
     taskExecution.setWorkspaces(taskWorkspaces);
   }
@@ -1119,11 +1120,12 @@ public class TaskExecutionService {
       RunPhase phase,
       Optional<String> message,
       Object... messageArgs) {
-    if (RunStatus.failed.equals(status) && message.isPresent()) {
-      LOGGER.error(MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage());
-    } else if (message.isPresent()) {
-      taskExecution.setStatusMessage(
-          MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage());
+    if (message.isPresent()) {
+      String formatted = MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage();
+      taskExecution.setStatusMessage(formatted);
+      if (RunStatus.failed.equals(status)) {
+        LOGGER.error(formatted);
+      }
     }
     taskExecution.setStatus(status);
     taskExecution.setPhase(phase);
