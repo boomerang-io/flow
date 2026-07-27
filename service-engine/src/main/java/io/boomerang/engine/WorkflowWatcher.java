@@ -189,7 +189,7 @@ public class WorkflowWatcher {
   public void resumeDueWaitingTasks() {
     for (TaskRunEntity task : taskRunService.findWaitingDue(new Date(), PAGE_SIZE)) {
       try {
-        if (taskRunService.tryStartWaitingResume(task.getId()) != null) {
+        if (taskRunService.tryStartWaitingResume(task.getId())) {
           taskExecutionService.resumeWaitingTask(task.getId());
         }
       } catch (Exception ex) {

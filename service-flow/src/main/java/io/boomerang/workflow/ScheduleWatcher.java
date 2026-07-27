@@ -106,8 +106,7 @@ public class ScheduleWatcher {
                 ? null
                 : scheduleService.nextOccurrence(
                     schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
-        if (scheduleService.tryClaimFire(schedule.getId(), schedule.getNextFireAt(), next, now)
-            != null) {
+        if (scheduleService.tryClaimFire(schedule.getId(), schedule.getNextFireAt(), next, now)) {
           LOGGER.info(
               "[{}] Schedule fired for Workflow ({}).",
               schedule.getId(),

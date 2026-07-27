@@ -111,6 +111,8 @@ public class WorkflowRunService {
                     .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
+    // The claim page only needs the id - tryClaimForProvision transitions by id.
+    query.fields().include("_id");
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
@@ -126,6 +128,8 @@ public class WorkflowRunService {
                     .exists(true))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
+    // The claim page only needs the id - tryClaimForTeardown transitions by id.
+    query.fields().include("_id");
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
@@ -287,7 +291,9 @@ public class WorkflowRunService {
     return preImage;
   }
 
-  public WorkflowRunEntity tryPause(String id) {
+  // Pause Compare-And-Set: a running, not-yet-paused run gains the flag. Returns whether this
+  // caller won (the pre-image is not needed - pause publishes no transition).
+  public boolean tryPause(String id) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -296,20 +302,19 @@ public class WorkflowRunService {
                 .is(RunPhase.running)
                 .and("pauseRequestedAt")
                 .exists(false));
-    return mongoTemplate.findAndModify(
-        query,
-        new Update().set("pauseRequestedAt", new Date()),
-        FindAndModifyOptions.options().returnNew(false),
-        WorkflowRunEntity.class);
+    return mongoTemplate
+            .updateFirst(query, new Update().set("pauseRequestedAt", new Date()), WorkflowRunEntity.class)
+            .getModifiedCount()
+        > 0;
   }
 
-  public WorkflowRunEntity tryResume(String id) {
+  // Resume Compare-And-Set: clears the pause flag. Returns whether this caller won.
+  public boolean tryResume(String id) {
     Query query = Query.query(Criteria.where("_id").is(id).and("pauseRequestedAt").exists(true));
-    return mongoTemplate.findAndModify(
-        query,
-        new Update().unset("pauseRequestedAt"),
-        FindAndModifyOptions.options().returnNew(false),
-        WorkflowRunEntity.class);
+    return mongoTemplate
+            .updateFirst(query, new Update().unset("pauseRequestedAt"), WorkflowRunEntity.class)
+            .getModifiedCount()
+        > 0;
   }
 
   // Paused runs are excluded from both recovery sweeps. The deadline deliberately does not
@@ -753,7 +758,7 @@ public class WorkflowRunService {
     }
     // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
     // admission and the recovery sweeps exclude it from here on.
-    if (tryPause(workflowRunId) == null) {
+    if (!tryPause(workflowRunId)) {
       LOGGER.info("[{}] WorkflowRun not running or already paused. Nothing to pause.", workflowRunId);
     }
     return ConvertUtil.entityToModel(
@@ -768,7 +773,7 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
     // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
-    if (tryResume(workflowRunId) != null) {
+    if (tryResume(workflowRunId)) {
       taskExecutionService.advance(workflowRunId);
     } else {
       LOGGER.info("[{}] WorkflowRun not paused. Nothing to resume.", workflowRunId);

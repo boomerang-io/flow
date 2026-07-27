@@ -93,6 +93,8 @@ public class TaskRunService {
         Query.query(excludePausedRuns(criteria))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
+    // The claim page only needs the id - tryClaim re-reads and transitions by id.
+    query.fields().include("_id");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
@@ -337,16 +339,15 @@ public class TaskRunService {
   }
 
   // Claim a due waiting TaskRun for resume: clears waitUntil so a second instance's sweep skips
-  // it. Returns the pre-image (the winner resumes), or null when already claimed.
-  public TaskRunEntity tryStartWaitingResume(String id) {
+  // it. Returns whether this caller won (the winner resumes).
+  public boolean tryStartWaitingResume(String id) {
     Query query =
         Query.query(
             Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(new Date()));
-    return mongoTemplate.findAndModify(
-        query,
-        new Update().unset("waitUntil"),
-        FindAndModifyOptions.options().returnNew(false),
-        TaskRunEntity.class);
+    return mongoTemplate
+            .updateFirst(query, new Update().unset("waitUntil"), TaskRunEntity.class)
+            .getModifiedCount()
+        > 0;
   }
 
   // A null observed seq fences on the run being unclaimed - a claim arriving between page and

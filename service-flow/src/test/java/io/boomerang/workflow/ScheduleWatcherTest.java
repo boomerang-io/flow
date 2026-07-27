@@ -148,9 +148,9 @@ class ScheduleWatcherTest {
     Date now = new Date();
 
     // Two instances race the same observed nextFireAt: exactly one wins the advance.
-    WorkflowScheduleEntity a = service.tryClaimFire(s.getId(), due, next, now);
-    WorkflowScheduleEntity b = service.tryClaimFire(s.getId(), due, next, now);
-    assertTrue((a == null) ^ (b == null), "exactly one instance must win the fire");
+    boolean a = service.tryClaimFire(s.getId(), due, next, now);
+    boolean b = service.tryClaimFire(s.getId(), due, next, now);
+    assertTrue(a ^ b, "exactly one instance must win the fire");
 
     WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
     assertEquals(next, after.getNextFireAt(), "nextFireAt advanced exactly once");

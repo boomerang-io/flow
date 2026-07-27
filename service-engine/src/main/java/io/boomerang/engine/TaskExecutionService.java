@@ -783,7 +783,7 @@ public class TaskExecutionService {
         taskExecution.setStatus(RunStatus.failed);
       }
     }
-    taskRunRepository.save(taskExecution);
+    // No save here - the execute() endTask branch persists this same taskExecution.
   }
 
   private void runScheduledWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -1036,13 +1036,7 @@ public class TaskExecutionService {
       boolean executeTask = canExecuteTask(wfRunEntity, tasks, next);
       if (executeTask) {
         LOGGER.debug("[{}] Execute next TaskRun: {}", wfRunEntity.getId(), next.getName());
-        Optional<TaskRunEntity> taskRunEntity =
-            this.taskRunRepository.findById(currentTask.getId());
-        if (!taskRunEntity.isPresent()) {
-          LOGGER.error("Reached node which should not be executed.");
-        } else {
-          self.queue(next.getId());
-        }
+        self.queue(next.getId());
       } else {
         LOGGER.debug(
             "[{}] Unable to execute next TaskRun: {}. Not all dependencies have been completed.",

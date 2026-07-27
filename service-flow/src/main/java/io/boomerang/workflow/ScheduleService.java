@@ -29,7 +29,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -452,9 +451,9 @@ public class ScheduleService {
    * Fire-claim Compare-And-Set: advance {@code nextFireAt} from its observed value to the next
    * occurrence in one atomic write. The query pinning the observed {@code nextFireAt} is the
    * fence - only one instance wins per tick; a racing instance's query misses because the value
-   * already advanced. Returns the pre-image on a win, or {@code null} when another instance fired.
+   * already advanced. Returns whether this instance won the fire.
    */
-  public WorkflowScheduleEntity tryClaimFire(
+  public boolean tryClaimFire(
       String id, Date observedNextFireAt, Date newNextFireAt, Date now) {
     Query query =
         Query.query(
@@ -465,8 +464,8 @@ public class ScheduleService {
                 .and("nextFireAt")
                 .is(observedNextFireAt));
     Update update = new Update().set("nextFireAt", newNextFireAt).set("lastFiredAt", now);
-    return mongoTemplate.findAndModify(
-        query, update, FindAndModifyOptions.options().returnNew(false), WorkflowScheduleEntity.class);
+    return mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class).getModifiedCount()
+        > 0;
   }
 
   /**
