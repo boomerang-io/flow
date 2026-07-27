@@ -37,9 +37,10 @@ public class WorkflowScheduleEntity {
   @Indexed(sparse = true)
   private Date nextFireAt;
   private Date lastFiredAt;
-  // Retry counter for a failed fire; incremented on each failed submit, reset on success or once
-  // the bounded attempts are exhausted (the occurrence is then skipped to the next).
-  private int fireAttempts;
+  // Auto-retry attempt count for a failed fire (mirrors WorkflowRunEntity.retryCount): incremented
+  // on each failed submit, reset on success or once the bounded attempts are exhausted (the
+  // occurrence is then skipped to the next).
+  private int retryCount;
   private String name;
   private String description;
 

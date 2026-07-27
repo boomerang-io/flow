@@ -34,7 +34,7 @@ public class ScheduleWatcher {
   // Mirrors the engine's EngineConstants.SWEEP_PAGE_SIZE; shared once the modules merge (DD-02).
   private static final int PAGE_SIZE = 50;
   // Bounded retry of a failed fire, restoring JobRunr's removed default-number-of-retries=3.
-  private static final int MAX_FIRE_ATTEMPTS = 3;
+  private static final int MAX_RETRY_ATTEMPTS = 3;
 
   private final WorkflowScheduleRepository scheduleRepository;
   private final ScheduleService scheduleService;
@@ -119,7 +119,7 @@ public class ScheduleWatcher {
   }
 
   /**
-   * Submit the fired schedule's run; on failure retry with backoff up to {@code MAX_FIRE_ATTEMPTS}
+   * Submit the fired schedule's run; on failure retry with backoff up to {@code MAX_RETRY_ATTEMPTS}
    * (restoring the JobRunr 3-retry behaviour). The re-arm brings nextFireAt back to the sooner
    * retry time, ahead of the occurrence tryClaimFire already advanced to; once exhausted the
    * counter clears and the skipped-to occurrence stands.
@@ -127,12 +127,12 @@ public class ScheduleWatcher {
   private void fireWithRetry(WorkflowScheduleEntity schedule) {
     try {
       scheduleJob.execute(resolveTeam(schedule), schedule.getWorkflowRef(), schedule.getId());
-      scheduleService.clearFireAttempts(schedule.getId());
+      scheduleService.clearRetryCount(schedule.getId());
       LOGGER.info(
           "[{}] Schedule fired for Workflow ({}).", schedule.getId(), schedule.getWorkflowRef());
     } catch (Exception ex) {
-      int attempts = schedule.getFireAttempts() + 1;
-      if (attempts < MAX_FIRE_ATTEMPTS) {
+      int attempts = schedule.getRetryCount() + 1;
+      if (attempts < MAX_RETRY_ATTEMPTS) {
         scheduleService.reArmForRetry(schedule.getId(), Backoff.nextRetryAt(attempts), attempts);
         LOGGER.warn(
             "[{}] Schedule fire failed (attempt {}), retrying: {}",
@@ -140,7 +140,7 @@ public class ScheduleWatcher {
             attempts,
             ex.getMessage());
       } else {
-        scheduleService.clearFireAttempts(schedule.getId());
+        scheduleService.clearRetryCount(schedule.getId());
         LOGGER.error(
             "[{}] Schedule fire failed after {} attempts, skipping to next occurrence: {}",
             schedule.getId(),

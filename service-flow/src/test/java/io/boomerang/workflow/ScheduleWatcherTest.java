@@ -234,7 +234,7 @@ class ScheduleWatcherTest {
     // Attempt 1: re-armed for retry - counter incremented, nextFireAt pulled back to soon.
     watcher.fireDueSchedules();
     WorkflowScheduleEntity after1 = scheduleRepository.findById(s.getId()).orElseThrow();
-    assertEquals(1, after1.getFireAttempts());
+    assertEquals(1, after1.getRetryCount());
     assertTrue(after1.getNextFireAt().after(new Date()), "re-armed to a future retry time");
     assertTrue(
         after1.getNextFireAt().before(new Date(System.currentTimeMillis() + 30000)),
@@ -243,21 +243,21 @@ class ScheduleWatcherTest {
     // Attempt 2: still under the cap, re-armed again.
     makeDue(s.getId());
     watcher.fireDueSchedules();
-    assertEquals(2, scheduleRepository.findById(s.getId()).orElseThrow().getFireAttempts());
+    assertEquals(2, scheduleRepository.findById(s.getId()).orElseThrow().getRetryCount());
 
     // Attempt 3 == MAX: counter clears and the occurrence is skipped (no further re-arm).
     makeDue(s.getId());
     watcher.fireDueSchedules();
     assertEquals(
         0,
-        scheduleRepository.findById(s.getId()).orElseThrow().getFireAttempts(),
+        scheduleRepository.findById(s.getId()).orElseThrow().getRetryCount(),
         "attempts exhausted - counter cleared, occurrence skipped");
   }
 
   @Test
-  void successfulFireClearsFireAttempts() {
+  void successfulFireClearsRetryCount() {
     WorkflowScheduleEntity s = activeCron(new Date(System.currentTimeMillis() - 1000));
-    s.setFireAttempts(2);
+    s.setRetryCount(2);
     scheduleRepository.save(s);
     when(relationshipService.getParentByLabel(any(), any(), eq("w1"))).thenReturn("t1");
 
@@ -265,7 +265,7 @@ class ScheduleWatcherTest {
 
     assertEquals(
         0,
-        scheduleRepository.findById(s.getId()).orElseThrow().getFireAttempts(),
+        scheduleRepository.findById(s.getId()).orElseThrow().getRetryCount(),
         "a successful fire resets the attempt counter");
   }
 

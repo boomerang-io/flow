@@ -474,14 +474,14 @@ public class ScheduleService {
    */
   public void reArmForRetry(String id, Date retryFireAt, int attempts) {
     Query query = Query.query(Criteria.where("_id").is(id));
-    Update update = new Update().set("nextFireAt", retryFireAt).set("fireAttempts", attempts);
+    Update update = new Update().set("nextFireAt", retryFireAt).set("retryCount", attempts);
     mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 
   /** Clear the failed-fire counter: called on a successful fire or once the attempts are exhausted. */
-  public void clearFireAttempts(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("fireAttempts").gt(0));
-    Update update = new Update().set("fireAttempts", 0);
+  public void clearRetryCount(String id) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("retryCount").gt(0));
+    Update update = new Update().set("retryCount", 0);
     mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 
