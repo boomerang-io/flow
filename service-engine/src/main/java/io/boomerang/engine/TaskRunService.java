@@ -53,7 +53,6 @@ public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
-  private static final long TIMEOUT_GRACE_MILLIS = 5000;
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -362,7 +361,7 @@ public class TaskRunService {
 
   private static Date timeoutAt(Date from, Long timeoutMinutes) {
     return (timeoutMinutes != null && timeoutMinutes > 0)
-        ? new Date(from.getTime() + timeoutMinutes * 60000 + TIMEOUT_GRACE_MILLIS)
+        ? new Date(from.getTime() + timeoutMinutes * 60000 + EngineConstants.TIMEOUT_GRACE_MILLIS)
         : null;
   }
 

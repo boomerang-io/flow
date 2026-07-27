@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 public class ScheduleWatcher {
 
   private static final Logger LOGGER = LogManager.getLogger();
+  // Mirrors the engine's EngineConstants.SWEEP_PAGE_SIZE; shared once the modules merge (DD-02).
   private static final int PAGE_SIZE = 50;
 
   private final WorkflowScheduleRepository scheduleRepository;

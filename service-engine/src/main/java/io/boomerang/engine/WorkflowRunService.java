@@ -73,7 +73,6 @@ public class WorkflowRunService {
   private final ApplicationEventPublisher eventPublisher;
 
   // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
-  private static final long TIMEOUT_GRACE_MILLIS = 5000;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -221,7 +220,8 @@ public class WorkflowRunService {
             .unset("claim.leaseExpiresAt");
     Date timeoutAt =
         (timeoutMinutes != null && timeoutMinutes > 0)
-            ? new Date(startTime.getTime() + timeoutMinutes * 60000 + TIMEOUT_GRACE_MILLIS)
+            ? new Date(
+                startTime.getTime() + timeoutMinutes * 60000 + EngineConstants.TIMEOUT_GRACE_MILLIS)
             : null;
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);

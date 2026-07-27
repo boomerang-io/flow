@@ -33,7 +33,7 @@ public class WorkflowWatcher {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  private static final int PAGE_SIZE = 50;
+  private static final int PAGE_SIZE = EngineConstants.SWEEP_PAGE_SIZE;
 
   // A run must have been started at least this long before it is checked for a lost advance,
   // so freshly-started runs whose first tasks are still being queued are not churned.

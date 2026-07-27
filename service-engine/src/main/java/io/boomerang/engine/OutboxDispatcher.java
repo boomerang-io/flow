@@ -36,7 +36,7 @@ public class OutboxDispatcher {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  private static final int PAGE_SIZE = 50;
+  private static final int PAGE_SIZE = EngineConstants.SWEEP_PAGE_SIZE;
   private static final int MAX_ATTEMPTS = 3;
 
   private final MongoTemplate mongoTemplate;
