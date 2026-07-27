@@ -1,6 +1,6 @@
 package io.boomerang.engine;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.boomerang.client.WorkflowClient;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
@@ -50,6 +50,8 @@ public class TaskExecutionService {
 
   // Backoff between acquirelock re-attempts while a lock is held by another task.
   private static final long LOCK_RETRY_BACKOFF_MILLIS = 5000;
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Autowired private DAGUtility dagUtility;
 
@@ -550,7 +552,6 @@ public class TaskExecutionService {
   }
 
   private void getTaskWorkspaces(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    ObjectMapper mapper = new ObjectMapper();
     List<TaskWorkspace> taskWorkspaces = new LinkedList<>();
     wfRunEntity
         .getWorkspaces()
@@ -558,7 +559,7 @@ public class TaskExecutionService {
             ws -> {
               TaskWorkspace tw = new TaskWorkspace();
               WorkflowWorkspaceSpec spec =
-                  mapper.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class);
+                  OBJECT_MAPPER.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class);
               tw.setName(ws.getName());
               tw.setMountPath(spec.getMountPath());
               tw.setOptional(ws.isOptional());

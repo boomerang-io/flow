@@ -59,6 +59,7 @@ import org.springframework.stereotype.Service;
 public class WorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final WorkflowRepository workflowRepository;
   private final WorkflowRunRepository workflowRunRepository;
@@ -989,8 +990,7 @@ public class WorkflowRunService {
 
   private void logPayload(WorkflowRunRequest request) {
     try {
-      ObjectMapper objectMapper = new ObjectMapper();
-      String payload = objectMapper.writeValueAsString(request);
+      String payload = OBJECT_MAPPER.writeValueAsString(request);
       LOGGER.info("Received Request Payload: ");
       LOGGER.info(payload);
     } catch (JacksonException e) {
