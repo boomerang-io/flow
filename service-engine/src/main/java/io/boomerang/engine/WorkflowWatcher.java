@@ -6,13 +6,13 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
+import io.boomerang.common.util.Backoff;
 import io.boomerang.engine.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
@@ -109,7 +109,7 @@ public class WorkflowWatcher {
         int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
         if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
           if (taskRunService.tryRequeue(
-                  taskRun.getId(), observedSeq, nextRetryAt(attempts), attempts + 1)
+                  taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
               != null) {
             LOGGER.info(
                 "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
@@ -228,10 +228,4 @@ public class WorkflowWatcher {
     // Intentionally a no-op until the retention policy is ruled and this sweep is implemented.
   }
 
-  // Backoff: 10s base, x2 per attempt, 5m ceiling, jittered.
-  private static Date nextRetryAt(int attempts) {
-    long backoff = Math.min(10000L * (1L << Math.min(attempts, 30)), 300000);
-    long jitter = ThreadLocalRandom.current().nextLong(5000);
-    return new Date(System.currentTimeMillis() + backoff + jitter);
-  }
 }

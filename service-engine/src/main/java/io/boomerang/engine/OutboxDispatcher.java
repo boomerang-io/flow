@@ -1,12 +1,12 @@
 package io.boomerang.engine;
 
+import io.boomerang.common.util.Backoff;
 import io.boomerang.engine.entity.EventOutboxEntity;
 import io.boomerang.engine.enums.OutboxStatus;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -74,7 +74,7 @@ public class OutboxDispatcher {
                 row.getId(), attempts, row.getRefType(), row.getRef(), ex.getMessage());
           }
         } else {
-          tryRequeueDelivery(row.getId(), nextRetryAt(attempts), attempts);
+          tryRequeueDelivery(row.getId(), Backoff.nextRetryAt(attempts), attempts);
           LOGGER.warn(
               "[{}] Outbox delivery failed (attempt {}), retrying: {}",
               row.getId(), attempts, ex.getMessage());
@@ -141,12 +141,5 @@ public class OutboxDispatcher {
 
   private static Query pendingById(String id) {
     return Query.query(Criteria.where("_id").is(id).and("status").is(OutboxStatus.pending));
-  }
-
-  // Backoff: 10s base, x2 per attempt, 5m ceiling, jittered.
-  private static Date nextRetryAt(int attempts) {
-    long backoff = Math.min(10000L * (1L << Math.min(attempts, 30)), 300000);
-    long jitter = ThreadLocalRandom.current().nextLong(5000);
-    return new Date(System.currentTimeMillis() + backoff + jitter);
   }
 }
