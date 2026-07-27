@@ -151,8 +151,7 @@ public class WorkflowRunService {
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
     }
@@ -177,8 +176,7 @@ public class WorkflowRunService {
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), preImage.getPhase());
     }
@@ -196,8 +194,7 @@ public class WorkflowRunService {
                 .is(RunPhase.pending));
     Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, preImage.getPhase());
     }
@@ -227,8 +224,7 @@ public class WorkflowRunService {
       update.set("timeoutAt", timeoutAt);
     }
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage == null) {
       return null;
     }
@@ -259,8 +255,7 @@ public class WorkflowRunService {
       update.set("statusMessage", statusMessage);
     }
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, status, RunPhase.completed);
     }
@@ -271,8 +266,7 @@ public class WorkflowRunService {
     Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
     Update update = new Update().set("status", RunStatus.timedout);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
     }
@@ -283,8 +277,7 @@ public class WorkflowRunService {
     Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.completed));
     Update update = new Update().set("phase", RunPhase.finalized);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.finalized);
     }
@@ -371,6 +364,13 @@ public class WorkflowRunService {
         Query.query(Criteria.where("_id").is(id)),
         new Update().push("results", result),
         WorkflowRunEntity.class);
+  }
+
+  // The Compare-And-Set primitive: apply the update only when the query's expected prior state
+  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
+  private WorkflowRunEntity findAndModifyPreImage(Query query, Update update) {
+    return mongoTemplate.findAndModify(
+        query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
   }
 
   private void publish(WorkflowRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {

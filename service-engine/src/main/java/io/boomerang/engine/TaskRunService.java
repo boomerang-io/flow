@@ -139,8 +139,7 @@ public class TaskRunService {
             .inc("claim.seq", 1)
             .unset("retry.after");
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
     }
@@ -160,8 +159,7 @@ public class TaskRunService {
                 .is(RunPhase.pending));
     Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, preImage.getPhase());
     }
@@ -190,8 +188,7 @@ public class TaskRunService {
       update.set("timeoutAt", timeoutAt);
     }
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage == null) {
       return null;
     }
@@ -229,11 +226,7 @@ public class TaskRunService {
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            Query.query(criteria),
-            update,
-            FindAndModifyOptions.options().returnNew(false),
-            TaskRunEntity.class);
+        findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
       publish(preImage, status.orElse(preImage.getStatus()), RunPhase.completed);
     }
@@ -271,11 +264,7 @@ public class TaskRunService {
             .set("statusMessage", statusMessage)
             .unset("timeoutAt");
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            Query.query(criteria),
-            update,
-            FindAndModifyOptions.options().returnNew(false),
-            TaskRunEntity.class);
+        findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
     }
@@ -301,11 +290,7 @@ public class TaskRunService {
             .unset("agentRef")
             .unset("timeoutAt");
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            Query.query(criteria),
-            update,
-            FindAndModifyOptions.options().returnNew(false),
-            TaskRunEntity.class);
+        findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, RunPhase.pending);
     }
@@ -357,6 +342,13 @@ public class TaskRunService {
     } else {
       criteria.and("claim.seq").exists(false);
     }
+  }
+
+  // The Compare-And-Set primitive: apply the update only when the query's expected prior state
+  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
+  private TaskRunEntity findAndModifyPreImage(Query query, Update update) {
+    return mongoTemplate.findAndModify(
+        query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
   }
 
   private static Date timeoutAt(Date from, Long timeoutMinutes) {
