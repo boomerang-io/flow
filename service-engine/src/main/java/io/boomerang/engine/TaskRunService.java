@@ -142,6 +142,10 @@ public class TaskRunService {
         findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
+      // Return the pre-image with the claim transition applied - the caller ships this to the
+      // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
+      preImage.setPhase(RunPhase.queued);
+      preImage.setAgentRef(claimedBy);
     }
     return preImage;
   }

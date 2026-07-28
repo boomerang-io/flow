@@ -154,6 +154,10 @@ public class WorkflowRunService {
         findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
+      // Return the pre-image with the claim transition applied - the caller ships this to the
+      // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
+      preImage.setPhase(RunPhase.queued);
+      preImage.setAgentRef(claimedBy);
     }
     return preImage;
   }
@@ -179,6 +183,9 @@ public class WorkflowRunService {
         findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), preImage.getPhase());
+      // Return the pre-image with the claim owner applied - teardown leaves the phase (completed)
+      // unchanged, so only agentRef needs patching for the caller's agent payload.
+      preImage.setAgentRef(claimedBy);
     }
     return preImage;
   }
