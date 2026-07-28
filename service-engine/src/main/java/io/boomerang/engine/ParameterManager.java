@@ -65,6 +65,9 @@ public class ParameterManager {
    */
   public void resolveParamLayers(WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
     ParamLayers paramLayers = buildParameterLayering(wfRun, optTaskRun);
+    // Memo of upstream TaskRun lookups for the duration of one resolution: a param string can
+    // reference the same task's results many times, and upstream results are final by now.
+    Map<String, Optional<TaskRunEntity>> taskRunMemo = new HashMap<>();
     List<RunParam> runParams;
     String wfRunId = wfRun.getId();
     if (optTaskRun.isPresent()) {
@@ -87,19 +90,19 @@ public class ParameterManager {
                         ParamType.string,
                         p.getValue() != null ? p.getValue().toString() : "",
                         wfRunId,
-                        paramLayers));
+                        paramLayers, taskRunMemo));
               } else if (ParamType.array.equals(p.getType()) && p.getValue() instanceof List) {
                 // Type safety. If you attempt to convert a string or object (JSON = HashMap) then
                 // this causes an exception
                 ArrayList<String> valueList = (ArrayList<String>) p.getValue();
                 p.setValue(
                     valueList.stream()
-                        .map(v -> resolveParam(ParamType.string, v, wfRunId, paramLayers))
+                        .map(v -> resolveParam(ParamType.string, v, wfRunId, paramLayers, taskRunMemo))
                         .collect(Collectors.toList()));
               } else if (ParamType.object.equals(p.getType())) {
                 // Replace Param with Object. Treated as JSON and allows for the extra JSONPath
                 // retrieval.
-                p.setValue(resolveParam(p.getType(), p.getValue(), wfRunId, paramLayers));
+                p.setValue(resolveParam(p.getType(), p.getValue(), wfRunId, paramLayers, taskRunMemo));
               }
             });
     // Return WorkflowRun or TaskRun RunParams
@@ -176,7 +179,11 @@ public class ParameterManager {
    * - Handles resolving multiple param inheritance layers.
    */
   private Object resolveParam(
-      ParamType type, Object originalValue, String wfRunId, ParamLayers paramLayers) {
+      ParamType type,
+      Object originalValue,
+      String wfRunId,
+      ParamLayers paramLayers,
+      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
     Map<String, Object> flatParamLayers = paramLayers.getFlatMap();
     Pattern pattern = Pattern.compile(REGEX_DOT_NOTATION);
     if (Objects.isNull(originalValue)) {
@@ -228,7 +235,8 @@ public class ParameterManager {
         String taskName = separatedKey[1];
         String resultName = separatedKey[3];
         Optional<TaskRunEntity> taskRunEntity =
-            taskRunRepository.findFirstByNameAndWorkflowRunRef(taskName, wfRunId);
+            taskRunMemo.computeIfAbsent(
+                taskName, tn -> taskRunRepository.findFirstByNameAndWorkflowRunRef(tn, wfRunId));
         if (taskRunEntity.isPresent()) {
           List<RunResult> taskRunResults = taskRunEntity.get().getResults();
           if (!taskRunResults.isEmpty()) {
