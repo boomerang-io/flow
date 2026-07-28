@@ -11,8 +11,6 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.util.GraphProcessor;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -23,8 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
-import org.jobrunr.jobs.annotations.Job;
-import org.jobrunr.scheduling.JobScheduler;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -50,7 +46,6 @@ public class WorkflowExecutionService {
 
   @Autowired @Lazy private WorkflowRunService workflowRunService;
 
-  @Autowired private JobScheduler jobScheduler;
 
   @Autowired
   @Lazy
@@ -196,22 +191,8 @@ public class WorkflowExecutionService {
         LOGGER.info("[{}] WorkflowRun already started. Only the start winner proceeds.", wfRunId);
         return true;
       }
-      // If Workflow has a timeout set. Create future job to timeout the Workflow.
-      if (!Objects.isNull(wfRunEntity.getTimeout()) && wfRunEntity.getTimeout() > 0) {
-        LOGGER.debug(
-            "[{}] WorkflowRun Timeout provided of {} minutes. Creating future timeout check.",
-            wfRunEntity.getId(),
-            wfRunEntity.getTimeout());
-        Long timeoutSeconds = (wfRunEntity.getTimeout() * 60) + 5;
-        String timeoutMessage =
-            MessageFormatter.format(
-                    "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
-                    wfRunEntity.getTimeout())
-                .getMessage();
-        jobScheduler.schedule(
-            Instant.now().plus(timeoutSeconds, ChronoUnit.SECONDS),
-            () -> timeoutWorkflow(wfRunEntity.getId(), timeoutMessage));
-      }
+      // The durable timeoutAt deadline is baked at tryStart; the WorkflowWatcher's timeout
+      // sweep is the single authoritative reaper - no per-run scheduled timer.
       LOGGER.info("[{}] Executing Workflow Async...", wfRunEntity.getId());
       try {
         List<TaskRunEntity> nextNodes = dagUtility.getTasksDependants(tasksToRun, start);
@@ -242,10 +223,9 @@ public class WorkflowExecutionService {
   }
 
   /*
-   * Times out a running WorkflowRun. Reached from the scheduled per-run job, the watcher sweep
-   * and the task-timeout path - all idempotent against each other.
+   * Times out a running WorkflowRun. Reached from the watcher timeout sweep and the
+   * task-timeout path - idempotent against each other via the completion Compare-And-Set.
    */
-  @Job(name = "Workflow Timeout")
   public void timeoutWorkflow(String wfRunId, String statusMessage) {
     LOGGER.debug("[{}] Commencing Timeout Workflow Async...", wfRunId);
     WorkflowRunEntity wfRunEntity = this.workflowRunRepository.findById(wfRunId).orElse(null);

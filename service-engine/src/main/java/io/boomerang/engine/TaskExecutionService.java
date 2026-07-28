@@ -1,6 +1,6 @@
 package io.boomerang.engine;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.boomerang.client.WorkflowClient;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
@@ -26,7 +26,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jobrunr.scheduling.JobScheduler;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -52,6 +51,8 @@ public class TaskExecutionService {
   // Backoff between acquirelock re-attempts while a lock is held by another task.
   private static final long LOCK_RETRY_BACKOFF_MILLIS = 5000;
 
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
   @Autowired private DAGUtility dagUtility;
 
   @Autowired private WorkflowRunRepository workflowRunRepository;
@@ -75,7 +76,6 @@ public class TaskExecutionService {
   // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
   @Autowired @Lazy private TaskExecutionService self;
 
-  @Autowired private JobScheduler jobScheduler;
 
   /*
    * Callers pass TaskRun ids only; the method re-reads the document at entry so every transition
@@ -552,7 +552,6 @@ public class TaskExecutionService {
   }
 
   private void getTaskWorkspaces(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    ObjectMapper mapper = new ObjectMapper();
     List<TaskWorkspace> taskWorkspaces = new LinkedList<>();
     wfRunEntity
         .getWorkspaces()
@@ -560,11 +559,12 @@ public class TaskExecutionService {
             ws -> {
               TaskWorkspace tw = new TaskWorkspace();
               WorkflowWorkspaceSpec spec =
-                  mapper.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class);
+                  OBJECT_MAPPER.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class);
               tw.setName(ws.getName());
               tw.setMountPath(spec.getMountPath());
               tw.setOptional(ws.isOptional());
               tw.setType(ws.getType());
+              taskWorkspaces.add(tw);
             });
     taskExecution.setWorkspaces(taskWorkspaces);
   }
@@ -784,7 +784,7 @@ public class TaskExecutionService {
         taskExecution.setStatus(RunStatus.failed);
       }
     }
-    taskRunRepository.save(taskExecution);
+    // No save here - the execute() endTask branch persists this same taskExecution.
   }
 
   private void runScheduledWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -1037,13 +1037,7 @@ public class TaskExecutionService {
       boolean executeTask = canExecuteTask(wfRunEntity, tasks, next);
       if (executeTask) {
         LOGGER.debug("[{}] Execute next TaskRun: {}", wfRunEntity.getId(), next.getName());
-        Optional<TaskRunEntity> taskRunEntity =
-            this.taskRunRepository.findById(currentTask.getId());
-        if (!taskRunEntity.isPresent()) {
-          LOGGER.error("Reached node which should not be executed.");
-        } else {
-          self.queue(next.getId());
-        }
+        self.queue(next.getId());
       } else {
         LOGGER.debug(
             "[{}] Unable to execute next TaskRun: {}. Not all dependencies have been completed.",
@@ -1126,11 +1120,12 @@ public class TaskExecutionService {
       RunPhase phase,
       Optional<String> message,
       Object... messageArgs) {
-    if (RunStatus.failed.equals(status) && message.isPresent()) {
-      LOGGER.error(MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage());
-    } else if (message.isPresent()) {
-      taskExecution.setStatusMessage(
-          MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage());
+    if (message.isPresent()) {
+      String formatted = MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage();
+      taskExecution.setStatusMessage(formatted);
+      if (RunStatus.failed.equals(status)) {
+        LOGGER.error(formatted);
+      }
     }
     taskExecution.setStatus(status);
     taskExecution.setPhase(phase);

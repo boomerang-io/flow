@@ -43,7 +43,6 @@ public class TaskRunEntity {
   private Date startTime;
   private long duration;
   private Long timeout;
-  //  private Long retries;
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
   private List<TaskWorkspace> workspaces = new LinkedList<>();
@@ -81,29 +80,4 @@ public class TaskRunEntity {
   @JsonIgnore
   @Indexed(sparse = true)
   private Date waitUntil;
-
-  @Override
-  public String toString() {
-    return "TaskRunEntity [id="
-        + id
-        + ", type="
-        + type
-        + ", name="
-        + name
-        + ", labels="
-        + labels
-        + ", annotations="
-        + annotations
-        + ", creationDate="
-        + creationDate
-        + ", startTime="
-        + startTime
-        + ", params="
-        + params
-        + ", status="
-        + status
-        + ", phase="
-        + phase
-        + "]";
-  }
 }

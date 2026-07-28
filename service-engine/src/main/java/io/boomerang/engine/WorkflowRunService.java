@@ -59,6 +59,7 @@ import org.springframework.stereotype.Service;
 public class WorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final WorkflowRepository workflowRepository;
   private final WorkflowRunRepository workflowRunRepository;
@@ -72,7 +73,6 @@ public class WorkflowRunService {
   private final ApplicationEventPublisher eventPublisher;
 
   // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
-  private static final long TIMEOUT_GRACE_MILLIS = 5000;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -110,6 +110,8 @@ public class WorkflowRunService {
                     .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
+    // The claim page only needs the id - tryClaimForProvision transitions by id.
+    query.fields().include("_id");
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
@@ -125,6 +127,8 @@ public class WorkflowRunService {
                     .exists(true))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
+    // The claim page only needs the id - tryClaimForTeardown transitions by id.
+    query.fields().include("_id");
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
@@ -147,8 +151,7 @@ public class WorkflowRunService {
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
     }
@@ -173,8 +176,7 @@ public class WorkflowRunService {
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), preImage.getPhase());
     }
@@ -192,8 +194,7 @@ public class WorkflowRunService {
                 .is(RunPhase.pending));
     Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, preImage.getPhase());
     }
@@ -214,16 +215,12 @@ public class WorkflowRunService {
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt");
-    Date timeoutAt =
-        (timeoutMinutes != null && timeoutMinutes > 0)
-            ? new Date(startTime.getTime() + timeoutMinutes * 60000 + TIMEOUT_GRACE_MILLIS)
-            : null;
+    Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage == null) {
       return null;
     }
@@ -254,8 +251,7 @@ public class WorkflowRunService {
       update.set("statusMessage", statusMessage);
     }
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, status, RunPhase.completed);
     }
@@ -266,8 +262,7 @@ public class WorkflowRunService {
     Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
     Update update = new Update().set("status", RunStatus.timedout);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
     }
@@ -278,15 +273,16 @@ public class WorkflowRunService {
     Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.completed));
     Update update = new Update().set("phase", RunPhase.finalized);
     WorkflowRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.finalized);
     }
     return preImage;
   }
 
-  public WorkflowRunEntity tryPause(String id) {
+  // Pause Compare-And-Set: a running, not-yet-paused run gains the flag. Returns whether this
+  // caller won (the pre-image is not needed - pause publishes no transition).
+  public boolean tryPause(String id) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -295,20 +291,19 @@ public class WorkflowRunService {
                 .is(RunPhase.running)
                 .and("pauseRequestedAt")
                 .exists(false));
-    return mongoTemplate.findAndModify(
-        query,
-        new Update().set("pauseRequestedAt", new Date()),
-        FindAndModifyOptions.options().returnNew(false),
-        WorkflowRunEntity.class);
+    return mongoTemplate
+            .updateFirst(query, new Update().set("pauseRequestedAt", new Date()), WorkflowRunEntity.class)
+            .getModifiedCount()
+        > 0;
   }
 
-  public WorkflowRunEntity tryResume(String id) {
+  // Resume Compare-And-Set: clears the pause flag. Returns whether this caller won.
+  public boolean tryResume(String id) {
     Query query = Query.query(Criteria.where("_id").is(id).and("pauseRequestedAt").exists(true));
-    return mongoTemplate.findAndModify(
-        query,
-        new Update().unset("pauseRequestedAt"),
-        FindAndModifyOptions.options().returnNew(false),
-        WorkflowRunEntity.class);
+    return mongoTemplate
+            .updateFirst(query, new Update().unset("pauseRequestedAt"), WorkflowRunEntity.class)
+            .getModifiedCount()
+        > 0;
   }
 
   // Paused runs are excluded from both recovery sweeps. The deadline deliberately does not
@@ -365,6 +360,13 @@ public class WorkflowRunService {
         Query.query(Criteria.where("_id").is(id)),
         new Update().push("results", result),
         WorkflowRunEntity.class);
+  }
+
+  // The Compare-And-Set primitive: apply the update only when the query's expected prior state
+  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
+  private WorkflowRunEntity findAndModifyPreImage(Query query, Update update) {
+    return mongoTemplate.findAndModify(
+        query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
   }
 
   private void publish(WorkflowRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {
@@ -752,7 +754,7 @@ public class WorkflowRunService {
     }
     // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
     // admission and the recovery sweeps exclude it from here on.
-    if (tryPause(workflowRunId) == null) {
+    if (!tryPause(workflowRunId)) {
       LOGGER.info("[{}] WorkflowRun not running or already paused. Nothing to pause.", workflowRunId);
     }
     return ConvertUtil.entityToModel(
@@ -767,7 +769,7 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
     // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
-    if (tryResume(workflowRunId) != null) {
+    if (tryResume(workflowRunId)) {
       taskExecutionService.advance(workflowRunId);
     } else {
       LOGGER.info("[{}] WorkflowRun not paused. Nothing to resume.", workflowRunId);
@@ -989,8 +991,7 @@ public class WorkflowRunService {
 
   private void logPayload(WorkflowRunRequest request) {
     try {
-      ObjectMapper objectMapper = new ObjectMapper();
-      String payload = objectMapper.writeValueAsString(request);
+      String payload = OBJECT_MAPPER.writeValueAsString(request);
       LOGGER.info("Received Request Payload: ");
       LOGGER.info(payload);
     } catch (JacksonException e) {

@@ -53,7 +53,6 @@ public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
-  private static final long TIMEOUT_GRACE_MILLIS = 5000;
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -93,6 +92,8 @@ public class TaskRunService {
         Query.query(excludePausedRuns(criteria))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
+    // The claim page only needs the id - tryClaim re-reads and transitions by id.
+    query.fields().include("_id");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
@@ -138,8 +139,7 @@ public class TaskRunService {
             .inc("claim.seq", 1)
             .unset("retry.after");
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
     }
@@ -159,8 +159,7 @@ public class TaskRunService {
                 .is(RunPhase.pending));
     Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, preImage.getPhase());
     }
@@ -184,13 +183,12 @@ public class TaskRunService {
             .set("status", RunStatus.running)
             .set("phase", RunPhase.running)
             .set("startTime", startTime);
-    Date timeoutAt = timeoutAt(startTime, timeoutMinutes);
+    Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+        findAndModifyPreImage(query, update);
     if (preImage == null) {
       return null;
     }
@@ -228,11 +226,7 @@ public class TaskRunService {
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            Query.query(criteria),
-            update,
-            FindAndModifyOptions.options().returnNew(false),
-            TaskRunEntity.class);
+        findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
       publish(preImage, status.orElse(preImage.getStatus()), RunPhase.completed);
     }
@@ -270,11 +264,7 @@ public class TaskRunService {
             .set("statusMessage", statusMessage)
             .unset("timeoutAt");
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            Query.query(criteria),
-            update,
-            FindAndModifyOptions.options().returnNew(false),
-            TaskRunEntity.class);
+        findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
     }
@@ -300,11 +290,7 @@ public class TaskRunService {
             .unset("agentRef")
             .unset("timeoutAt");
     TaskRunEntity preImage =
-        mongoTemplate.findAndModify(
-            Query.query(criteria),
-            update,
-            FindAndModifyOptions.options().returnNew(false),
-            TaskRunEntity.class);
+        findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, RunPhase.pending);
     }
@@ -337,16 +323,15 @@ public class TaskRunService {
   }
 
   // Claim a due waiting TaskRun for resume: clears waitUntil so a second instance's sweep skips
-  // it. Returns the pre-image (the winner resumes), or null when already claimed.
-  public TaskRunEntity tryStartWaitingResume(String id) {
+  // it. Returns whether this caller won (the winner resumes).
+  public boolean tryStartWaitingResume(String id) {
     Query query =
         Query.query(
             Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(new Date()));
-    return mongoTemplate.findAndModify(
-        query,
-        new Update().unset("waitUntil"),
-        FindAndModifyOptions.options().returnNew(false),
-        TaskRunEntity.class);
+    return mongoTemplate
+            .updateFirst(query, new Update().unset("waitUntil"), TaskRunEntity.class)
+            .getModifiedCount()
+        > 0;
   }
 
   // A null observed seq fences on the run being unclaimed - a claim arriving between page and
@@ -359,11 +344,13 @@ public class TaskRunService {
     }
   }
 
-  private static Date timeoutAt(Date from, Long timeoutMinutes) {
-    return (timeoutMinutes != null && timeoutMinutes > 0)
-        ? new Date(from.getTime() + timeoutMinutes * 60000 + TIMEOUT_GRACE_MILLIS)
-        : null;
+  // The Compare-And-Set primitive: apply the update only when the query's expected prior state
+  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
+  private TaskRunEntity findAndModifyPreImage(Query query, Update update) {
+    return mongoTemplate.findAndModify(
+        query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
   }
+
 
   private void publish(TaskRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {
     eventPublisher.publishEvent(

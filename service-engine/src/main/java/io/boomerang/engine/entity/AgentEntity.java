@@ -21,7 +21,6 @@ public class AgentEntity {
   private Integer version;
   private Date creationDate = new Date();
   private Date lastConnectedDate = new Date();
-  //  private List<String> workflowTypes;
   private List<TaskType> taskTypes;
 
   public AgentEntity() {

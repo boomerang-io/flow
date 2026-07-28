@@ -18,17 +18,12 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.workflow.model.WorkflowScheduleCalendar;
 import io.boomerang.workflow.repository.WorkflowScheduleRepository;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import org.apache.commons.lang3.EnumUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jobrunr.jobs.JobId;
-import org.jobrunr.scheduling.JobScheduler;
-import org.jobrunr.scheduling.cron.CronExpression;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,12 +32,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 /*
- * Workflow Schedule Service provides all the methods for both the Schedules page and the individual Workflow Schedule
- * and abstracts the JobRunr implementation.
+ * Workflow Schedule Service provides all the methods for both the Schedules page and the individual
+ * Workflow Schedule. Firing is level-triggered: schedules carry a nextFireAt that the
+ * ScheduleWatcher sweep advances-and-fires via a Compare-And-Set - no external job scheduler.
  *
  * @since Flow 3.6.0
  */
@@ -56,19 +53,13 @@ public class ScheduleService {
   private final RelationshipService relationshipService;
   private final EngineClient engineClient;
   private final MongoTemplate mongoTemplate;
-  private final JobScheduler jobScheduler;
-  private final ScheduleJob job;
 
   public ScheduleService(
       WorkflowScheduleRepository scheduleRepository,
       WorkflowService workflowService,
       RelationshipService relationshipService,
       EngineClient engineClient,
-      MongoTemplate mongoTemplate,
-      JobScheduler jobScheduler,
-      ScheduleJob job) {
-    this.jobScheduler = jobScheduler;
-    this.job = job;
+      MongoTemplate mongoTemplate) {
     this.scheduleRepository = scheduleRepository;
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
@@ -228,8 +219,7 @@ public class ScheduleService {
     }
     // Only create JobRunr if Schedule is enabled. As there is no pause functionality in JobRunr.
     if (enableJob) {
-      String schedulerRef = createOrUpdateSchedule(team, scheduleEntity);
-      scheduleEntity.setSchedulerRef(schedulerRef);
+      createOrUpdateSchedule(scheduleEntity);
     }
     return scheduleRepository.save(scheduleEntity);
   }
@@ -389,7 +379,6 @@ public class ScheduleService {
               if (scheduleEntity.getDateSchedule().getTime() < currentDate.getTime()) {
                 scheduleEntity.setStatus(WorkflowScheduleStatus.error);
                 scheduleRepository.save(scheduleEntity);
-                cancelJob(scheduleEntity.getSchedulerRef());
                 LOGGER.error(
                     "Cannot enable schedule ({}) as it is in the past.", scheduleEntity.getId());
                 throw new BoomerangException(
@@ -404,7 +393,7 @@ public class ScheduleService {
         }
         scheduleRepository.save(scheduleEntity);
         if (enableJob) {
-          createOrUpdateSchedule(team, scheduleEntity);
+          createOrUpdateSchedule(scheduleEntity);
         }
         return convertScheduleEntityToModel(scheduleEntity);
       }
@@ -419,12 +408,91 @@ public class ScheduleService {
    * Helper method to determine if we are updating a cron or runonce schedule. It also handles
    * pausing a schedule if the status is set to pause.
    */
-  private String createOrUpdateSchedule(final String team, final WorkflowScheduleEntity schedule) {
+  private void createOrUpdateSchedule(final WorkflowScheduleEntity schedule) {
+    schedule.setNextFireAt(computeNextFireAt(schedule, ZonedDateTime.now()));
+    scheduleRepository.save(schedule);
+  }
+
+  /**
+   * The next fire time for a schedule: the run-once date, or the next cron occurrence from
+   * {@code from}. Returns null when there is no future occurrence.
+   */
+  private Date computeNextFireAt(WorkflowScheduleEntity schedule, ZonedDateTime from) {
     if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
-      return createOrUpdateRunOnceJob(team, schedule);
-    } else {
-      return createOrUpdateCronJob(team, schedule);
+      return schedule.getDateSchedule();
     }
+    return nextOccurrence(schedule.getCronSchedule(), schedule.getTimezone(), from);
+  }
+
+  /**
+   * The next occurrence of a cron expression at or after {@code from}, using cron-utils - the same
+   * parser as the forward calendar, so firing and preview never disagree. Null on a bad
+   * expression or no future occurrence.
+   */
+  public Date nextOccurrence(String cron, String timezone, ZonedDateTime from) {
+    if (cron == null || timezone == null) {
+      return null;
+    }
+    try {
+      CronDefinition definition = CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX);
+      ExecutionTime executionTime = ExecutionTime.forCron(new CronParser(definition).parse(cron));
+      ZoneId zone = TimeZone.getTimeZone(timezone).toZoneId();
+      return executionTime
+          .nextExecution(from.withZoneSameInstant(zone))
+          .map(next -> Date.from(next.toInstant()))
+          .orElse(null);
+    } catch (Exception e) {
+      LOGGER.error("Unable to compute next cron occurrence for expression: {}", cron, e);
+      return null;
+    }
+  }
+
+  /**
+   * Fire-claim Compare-And-Set: advance {@code nextFireAt} from its observed value to the next
+   * occurrence in one atomic write. The query pinning the observed {@code nextFireAt} is the
+   * fence - only one instance wins per tick; a racing instance's query misses because the value
+   * already advanced. Returns whether this instance won the fire.
+   */
+  public boolean tryClaimFire(
+      String id, Date observedNextFireAt, Date newNextFireAt, Date now) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(WorkflowScheduleStatus.active)
+                .and("nextFireAt")
+                .is(observedNextFireAt));
+    Update update = new Update().set("nextFireAt", newNextFireAt).set("lastFiredAt", now);
+    return mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class).getModifiedCount()
+        > 0;
+  }
+
+  /**
+   * Re-arm a schedule to retry a failed fire: bring {@code nextFireAt} back to the (sooner) retry
+   * time and record the attempt count. The retry fires before the already-advanced next occurrence.
+   */
+  public void reArmForRetry(String id, Date retryFireAt, int attempts) {
+    Query query = Query.query(Criteria.where("_id").is(id));
+    Update update = new Update().set("nextFireAt", retryFireAt).set("retryCount", attempts);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /** Clear the failed-fire counter: called on a successful fire or once the attempts are exhausted. */
+  public void clearRetryCount(String id) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("retryCount").gt(0));
+    Update update = new Update().set("retryCount", 0);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /**
+   * Bootstrap a legacy schedule that carries no next fire time: set {@code nextFireAt} without
+   * firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps do not double-initialise.
+   */
+  public void initializeNextFireAt(String id, Date nextFireAt) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("nextFireAt").exists(false));
+    Update update = new Update().set("nextFireAt", nextFireAt);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 
   /*
@@ -452,13 +520,12 @@ public class ScheduleService {
         if (scheduleEntity.getDateSchedule().getTime() < currentDate.getTime()) {
           LOGGER.error("Cannot enable schedule ({}) as it is in the past.", scheduleEntity.getId());
           scheduleEntity.setStatus(WorkflowScheduleStatus.error);
-          cancelJob(scheduleEntity.getSchedulerRef());
           scheduleRepository.save(scheduleEntity);
         }
       }
       scheduleEntity.setStatus(WorkflowScheduleStatus.active);
       scheduleRepository.save(scheduleEntity);
-      this.createOrUpdateSchedule(team, scheduleEntity);
+      this.createOrUpdateSchedule(scheduleEntity);
     }
   }
 
@@ -474,9 +541,9 @@ public class ScheduleService {
           .get()
           .forEach(
               s -> {
+                // Status alone stops firing - the sweep only fires active schedules.
                 s.setStatus(WorkflowScheduleStatus.trigger_disabled);
                 scheduleRepository.save(s);
-                this.cancelJob(s.getSchedulerRef());
               });
     }
   }
@@ -531,7 +598,6 @@ public class ScheduleService {
 
   private void internalDelete(WorkflowScheduleEntity entity) {
     LOGGER.debug("Deleting schedule: {}", entity.getId());
-    cancelJob(entity.getId());
     scheduleRepository.deleteById(entity.getId());
   }
 
@@ -544,76 +610,6 @@ public class ScheduleService {
     return statuses;
   }
 
-  private String createOrUpdateCronJob(String team, WorkflowScheduleEntity scheduleEntity) {
-    String cronSchedule = scheduleEntity.getCronSchedule();
-    String timezone = scheduleEntity.getTimezone();
-    if (cronSchedule != null && timezone != null) {
-      CronExpression cronExpression;
-      try {
-        cronExpression = new CronExpression(cronSchedule);
-      } catch (Exception e) {
-        LOGGER.error("Error validating / creating CRON expression: {}", cronSchedule, e);
-        throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_CRON);
-      }
-
-      TimeZone timeZone = TimeZone.getTimeZone(timezone);
-      try {
-        if (scheduleEntity.getSchedulerRef() != null
-            && !scheduleEntity.getSchedulerRef().isBlank()) {
-          LOGGER.debug(
-              "Cancelling existing Recurring Schedule: {}", scheduleEntity.getSchedulerRef());
-          jobScheduler.deleteRecurringJob(scheduleEntity.getSchedulerRef());
-        }
-        return jobScheduler.scheduleRecurrently(
-            scheduleEntity.getId(),
-            cronExpression.getExpression(),
-            timeZone.toZoneId(),
-            () -> job.execute(team, scheduleEntity.getWorkflowRef(), scheduleEntity.getId()));
-      } catch (Exception e) {
-        LOGGER.error("Unable to create Recurring Schedule. {}", ExceptionUtils.getStackTrace(e));
-        throw new BoomerangException(BoomerangError.SCHEDULE_ERROR, e.getMessage());
-      }
-    }
-
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
-  }
-
-  public String createOrUpdateRunOnceJob(String team, WorkflowScheduleEntity scheduleEntity) {
-    String timezone = scheduleEntity.getTimezone();
-    Date dateSchedule = scheduleEntity.getDateSchedule();
-    if (dateSchedule != null && timezone != null) {
-      TimeZone timeZone = TimeZone.getTimeZone(timezone);
-      String scheduleId = scheduleEntity.getId();
-      try {
-        if (scheduleEntity.getSchedulerRef() != null
-            && !scheduleEntity.getSchedulerRef().isBlank()) {
-          try {
-            LOGGER.debug(
-                "Cancelling existing RunOnce Schedule: {}", scheduleEntity.getSchedulerRef());
-            cancelJob(scheduleEntity.getSchedulerRef());
-          } catch (Exception e) {
-            LOGGER.warn(
-                "Error cancelling existing RunOnce Schedule: {}, {}",
-                scheduleEntity.getSchedulerRef(),
-                e.getMessage());
-          }
-        }
-        JobId jobId =
-            jobScheduler.schedule(
-                dateSchedule.toInstant(),
-                () -> job.execute(team, scheduleEntity.getWorkflowRef(), scheduleId));
-        LOGGER.info(jobId);
-        return jobId.toString();
-      } catch (Exception e) {
-        LOGGER.error("Unable to create RunOnce Schedule. {}", e.getMessage());
-      }
-    }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
-  }
-
-  private void cancelJob(String schedulerRef) {
-    jobScheduler.delete(JobId.parse(schedulerRef));
-  }
 
   /**
    * Retrieve the list of dates that a cron expression will trigger between two dates.
@@ -659,26 +655,7 @@ public class ScheduleService {
    * Retrieve the next trigger date for a given schedule based on its cron expression and timezone.
    */
   private Date getNextTriggerDate(WorkflowScheduleEntity schedule) {
-    String cronString = schedule.getCronSchedule();
-    String timezone = schedule.getTimezone();
-    ZonedDateTime now = ZonedDateTime.now();
-    if (cronString != null && timezone != null) {
-      try {
-        CronExpression cronExpression = new CronExpression(cronString);
-        Instant next =
-            cronExpression.next(
-                schedule.getCreationDate().toInstant(),
-                ZonedDateTime.now().toInstant(),
-                TimeZone.getTimeZone(timezone).toZoneId());
-        if (next != null) {
-          return Date.from(next);
-        }
-      } catch (Exception e) {
-        LOGGER.error(
-            "Unable to retrieve next trigger date for Schedule: {}, skipping.", schedule.getId());
-        LOGGER.error(ExceptionUtils.getStackTrace(e));
-      }
-    }
-    return null;
+    return nextOccurrence(
+        schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
   }
 }

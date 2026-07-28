@@ -19,7 +19,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +33,9 @@ import org.jgrapht.alg.interfaces.ShortestPathAlgorithm.SingleSourcePaths;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.traverse.TopologicalOrderIterator;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -42,10 +44,13 @@ public class DAGUtility {
 
   private final TaskRunRepository taskRunRepository;
   private final TaskService taskService;
+  private final MongoTemplate mongoTemplate;
 
-  public DAGUtility(TaskRunRepository taskRunRepository, TaskService taskService) {
+  public DAGUtility(
+      TaskRunRepository taskRunRepository, TaskService taskService, MongoTemplate mongoTemplate) {
     this.taskRunRepository = taskRunRepository;
     this.taskService = taskService;
+    this.mongoTemplate = mongoTemplate;
   }
 
   public boolean validateWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
@@ -68,23 +73,19 @@ public class DAGUtility {
   public Graph<String, DefaultEdge> createGraph(List<TaskRunEntity> tasks) {
     final List<String> vertices =
         tasks.stream().map(TaskRunEntity::getId).collect(Collectors.toList());
+    final Map<String, String> idByName =
+        tasks.stream()
+            .collect(Collectors.toMap(TaskRunEntity::getName, TaskRunEntity::getId, (a, b) -> a));
 
     final List<Pair<String, String>> edgeList = new LinkedList<>();
     for (final TaskRunEntity task : tasks) {
       for (final WorkflowTaskDependency dep : task.getDependencies()) {
-        try {
-          String depTaskRefAsId =
-              tasks.stream()
-                  .filter(t -> t.getName().equals(dep.getTaskRef()))
-                  .findFirst()
-                  .get()
-                  .getId();
-          final Pair<String, String> pair = Pair.of(depTaskRefAsId, task.getId());
-          edgeList.add(pair);
-        } catch (NoSuchElementException ex) {
+        String depTaskRefAsId = idByName.get(dep.getTaskRef());
+        if (depTaskRefAsId == null) {
           throw new BoomerangException(
               BoomerangError.WORKFLOWRUN_INVALID_DEPENDENCY, dep.getTaskRef());
         }
+        edgeList.add(Pair.of(depTaskRefAsId, task.getId()));
       }
     }
     return GraphProcessor.createGraph(vertices, edgeList);
@@ -99,12 +100,15 @@ public class DAGUtility {
   public List<TaskRunEntity> createTaskList(
       WorkflowRevisionEntity wfRevisionEntity, WorkflowRunEntity wfRunEntity) {
     final List<TaskRunEntity> taskList = new LinkedList<>();
+    // One fetch of the run's existing TaskRuns keyed by name - the (workflowRunRef, name) unique
+    // index guarantees one per name, so no per-task find-first query is needed.
+    final Map<String, TaskRunEntity> existingByName =
+        taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId()).stream()
+            .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
     for (final WorkflowTask wfRevisionTask : wfRevisionEntity.getTasks()) {
-      Optional<TaskRunEntity> existingTaskRunEntity =
-          taskRunRepository.findFirstByNameAndWorkflowRunRef(
-              wfRevisionTask.getName(), wfRunEntity.getId());
-      if (existingTaskRunEntity.isPresent() && existingTaskRunEntity.get() != null) {
-        taskList.add(existingTaskRunEntity.get());
+      TaskRunEntity existingTaskRunEntity = existingByName.get(wfRevisionTask.getName());
+      if (existingTaskRunEntity != null) {
+        taskList.add(existingTaskRunEntity);
       } else {
         LOGGER.debug(
             "[{}] Creating TaskRunEntity: {}", wfRunEntity.getId(), wfRevisionTask.getName());
@@ -291,8 +295,22 @@ public class DAGUtility {
     }
   }
 
+  // One projected read of the run's live TaskRuns (only phase/status/decisionValue are needed)
+  // keyed by id - as fresh as a per-node findById, but a single query instead of O(N).
+  private Map<String, TaskRunEntity> liveTaskRunPhasesById(List<TaskRunEntity> tasks) {
+    if (tasks.isEmpty()) {
+      return Map.of();
+    }
+    Query query =
+        Query.query(Criteria.where("workflowRunRef").is(tasks.get(0).getWorkflowRunRef()));
+    query.fields().include("_id").include("phase").include("status").include("decisionValue");
+    return mongoTemplate.find(query, TaskRunEntity.class).stream()
+        .collect(Collectors.toMap(TaskRunEntity::getId, t -> t, (a, b) -> a));
+  }
+
   private void updateGraphWithTaskRunStatus(
       Graph<String, DefaultEdge> graph, List<TaskRunEntity> tasks) {
+    final Map<String, TaskRunEntity> liveById = liveTaskRunPhasesById(tasks);
     TopologicalOrderIterator<String, DefaultEdge> orderIterator =
         new TopologicalOrderIterator<>(graph);
     while (orderIterator.hasNext()) {
@@ -301,17 +319,17 @@ public class DAGUtility {
       if (!TaskType.start.equals(currentTask.getType())
           && !TaskType.end.equals(currentTask.getType())) {
 
-        Optional<TaskRunEntity> taskRunEntity = taskRunRepository.findById(currentTask.getId());
+        TaskRunEntity liveTask = liveById.get(currentTask.getId());
 
-        if (taskRunEntity.isPresent()) {
-          RunPhase taskRunPhase = taskRunEntity.get().getPhase();
+        if (liveTask != null) {
+          RunPhase taskRunPhase = liveTask.getPhase();
           LOGGER.debug("[{}] Phase: {}", taskId, taskRunPhase.toString());
           if (RunPhase.completed.equals(taskRunPhase)) {
             if (TaskType.decision.equals(currentTask.getType())) {
-              String decisionValue = taskRunEntity.get().getDecisionValue();
+              String decisionValue = liveTask.getDecisionValue();
               processDecision(graph, tasks, decisionValue, currentTask.getId(), currentTask);
             } else {
-              currentTask.setStatus(taskRunEntity.get().getStatus());
+              currentTask.setStatus(liveTask.getStatus());
               this.updateTaskInGraph(graph, tasks, currentTask);
             }
           }

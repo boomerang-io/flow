@@ -30,7 +30,17 @@ public class WorkflowScheduleEntity {
           .toString(); // created by default as its passed to JobRunr and needed prior to saving
 
   private String workflowRef;
+  // Legacy JobRunr job id - no longer written; kept to avoid a data migration.
   @Indexed private String schedulerRef;
+  // The next computed fire time. The ScheduleWatcher fires active schedules whose nextFireAt has
+  // passed, then advances it in one Compare-And-Set - the advance is the exactly-once fence.
+  @Indexed(sparse = true)
+  private Date nextFireAt;
+  private Date lastFiredAt;
+  // Auto-retry attempt count for a failed fire (mirrors WorkflowRunEntity.retryCount): incremented
+  // on each failed submit, reset on success or once the bounded attempts are exhausted (the
+  // occurrence is then skipped to the next).
+  private int retryCount;
   private String name;
   private String description;
 

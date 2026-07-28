@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private static final String REGEX_DOT_NOTATION = "(?<=\\$\\().+?(?=\\))";
   private final String[] reservedScope = {"global", "team", "workflow", "context"};
@@ -264,9 +265,8 @@ public class ParameterManager {
   }
 
   private Object replaceStringInObject(Object object, Map<String, Object> replacements) {
-    ObjectMapper mapper = new ObjectMapper();
     try {
-      String objectString = mapper.writeValueAsString(object);
+      String objectString = OBJECT_MAPPER.writeValueAsString(object);
       // objectString.replaceAll(replaceKey, replaceValueString);
       final StringSubstitutor substitutor = new StringSubstitutor(replacements, "$(", ")");
       substitutor.setEnableSubstitutionInVariables(true);
@@ -274,7 +274,7 @@ public class ParameterManager {
       // return substitutor.replace(objectString);
       String replacedObjectString = substitutor.replace(objectString);
       LOGGER.debug("Substitutor: " + replacedObjectString);
-      return mapper.readValue(replacedObjectString, Object.class);
+      return OBJECT_MAPPER.readValue(replacedObjectString, Object.class);
     } catch (Exception e) {
       // Log and drop exception. We want the workflow to continue execution.
       LOGGER.error(e.toString());
