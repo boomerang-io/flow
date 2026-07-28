@@ -34,10 +34,10 @@ final actionable list.
 
 | # | Where | Defect | Note |
 |---|---|---|---|
-| A1 | `TaskExecutionService.getTaskWorkspaces` ~:554 | Builds each `TaskWorkspace` but never `.add()`s it → every template/script/custom/generic task ships an **empty workspace list** to the dispatcher. | Pre-existing, already noted in e4-gate as tracked-separately. One line. |
-| A2 | `AgentService` claim → response | Claim responses ship the **pre-image**: agent receives old `phase` (`pending`, not `queued`) and old `agentRef` (not `claimedBy`); `claim` itself is `@JsonIgnore`. | Behavior-changing to fix — verify agent reliance first; do NOT silently patch. |
-| A3 | `TaskRunService.tryComplete` ~:216 | Fencing weaker than the `fence()` helper: empty `Optional` claimant → **no fencing criteria at all**. | Adjacent to F2 idempotency-audit (already Phase-3 tracked). |
-| A4 | `TaskExecutionService.updateStatusAndSaveTask` failed-branch ~:1123 | On `RunStatus.failed` + message, only logs — never persists `statusMessage`. | Currently unreachable (no caller passes `failed`); latent footgun. |
+| A1 | `TaskExecutionService.getTaskWorkspaces` ~:554 | Builds each `TaskWorkspace` but never `.add()`s it → every template/script/custom/generic task ships an **empty workspace list** to the dispatcher. | ✅ **FIXED** in the safe-cleanup batch (`.add(tw)`). |
+| A2 | `AgentService` claim → response | Claim responses shipped the **pre-image**: agent received old `phase` (`pending`, not `queued`) and old `agentRef`. | ✅ **FIXED in Track 1** (`85d9a3c6`): winner's pre-image patched (`setPhase(queued)`/`setAgentRef(claimedBy)`) like `tryStartExecution`; new `AgentQueueClaimTest.claimResponseCarriesPostClaimPhaseAndOwner` asserts the wire payload (the bug had zero coverage). |
+| A3 | `TaskRunService.tryComplete` | ~~Fencing weaker than `fence()`.~~ **NOT A BUG (2026-07-28).** Routing `tryComplete` through `fence()` was tried in Track 1 and **reverted**: the no-identity (empty-Optional) completion path is **load-bearing** — cancel/timeout/system paths complete tasks with no claimant identity, INCLUDING agent-claimed ones. `fence(null)` (requires `claim.seq` absent) would silently block cancel/timeout from completing a claimed task. The weak fencing is intentional. Any hardening belongs INSIDE the idempotency-audit (F2, Phase 3) with the full fencing/lease model — never standalone. | RE-CLASSIFIED → Phase 3 (F2). |
+| A4 | `TaskExecutionService.updateStatusAndSaveTask` failed-branch ~:1123 | On `RunStatus.failed` + message, only logs — never persists `statusMessage`. | ✅ **FIXED** in the safe-cleanup batch (persist the message). |
 
 ## B. Dead code (FIX — pure deletion; re-check E5 didn't already remove)
 
