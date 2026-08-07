@@ -39,6 +39,16 @@
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
+                <groupId>org.springframework.data</groupId>
+                <artifactId>spring-data-mongodb</artifactId>
+                <version>5.0.6</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.data</groupId>
+                <artifactId>spring-data-commons</artifactId>
+                <version>4.0.6</version>
+            </dependency>
+			<dependency>
 				<groupId>org.springframework.security</groupId>
 				<artifactId>spring-security-bom</artifactId>
 				<version>${spring-security.version}</version>
@@ -103,7 +113,7 @@
 			<dependency>
 				<groupId>org.apache.tomcat.embed</groupId>
 				<artifactId>tomcat-embed-core</artifactId>
-				<version>11.0.22</version>
+				<version>11.0.24</version>
 			</dependency>
 			<dependency>
 				<groupId>org.springframework</groupId>
@@ -118,7 +128,7 @@
 			<dependency>
 				<groupId>org.apache.thrift</groupId>
 				<artifactId>libthrift</artifactId>
-				<version>0.23.0</version>
+				<version>0.24.0</version>
 			</dependency>
 			<dependency>
 				<groupId>com.mchange</groupId>
@@ -156,6 +166,11 @@
 				<groupId>io.netty</groupId>
 				<artifactId>netty-handler</artifactId>
 				<version>4.2.15.Final</version>
+			</dependency>
+			<dependency>
+				<groupId>io.micrometer</groupId>
+				<artifactId>micrometer-core</artifactId>
+				<version>1.16.6</version>
 			</dependency>
 
 		</dependencies>
