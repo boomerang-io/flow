@@ -104,12 +104,12 @@ public class OutboxDispatcher {
   List<EventOutboxEntity> findDeliverable(Date now, int limit) {
     Query query =
         Query.query(
-                Criteria.where("status")
+                Criteria.where(EventOutboxEntity.Fields.STATUS)
                     .is(OutboxStatus.pending)
                     .orOperator(
-                        Criteria.where("retry.after").exists(false),
-                        Criteria.where("retry.after").lte(now)))
-            .with(Sort.by(Sort.Direction.ASC, "occurredAt"))
+                        Criteria.where(EventOutboxEntity.Fields.RETRY_AFTER).exists(false),
+                        Criteria.where(EventOutboxEntity.Fields.RETRY_AFTER).lte(now)))
+            .with(Sort.by(Sort.Direction.ASC, EventOutboxEntity.Fields.OCCURRED_AT))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, EventOutboxEntity.class);
@@ -118,7 +118,7 @@ public class OutboxDispatcher {
   private EventOutboxEntity tryMarkSent(String id, Date sentAt) {
     return mongoTemplate.findAndModify(
         pendingById(id),
-        new Update().set("status", OutboxStatus.sent).set("sentAt", sentAt).unset("retry.after"),
+        new Update().set(EventOutboxEntity.Fields.STATUS, OutboxStatus.sent).set(EventOutboxEntity.Fields.SENT_AT, sentAt).unset(EventOutboxEntity.Fields.RETRY_AFTER),
         FindAndModifyOptions.options().returnNew(false),
         EventOutboxEntity.class);
   }
@@ -126,7 +126,7 @@ public class OutboxDispatcher {
   private EventOutboxEntity tryRequeueDelivery(String id, Date retryAfter, int attempts) {
     return mongoTemplate.findAndModify(
         pendingById(id),
-        new Update().set("retry.after", retryAfter).set("attempts", attempts),
+        new Update().set(EventOutboxEntity.Fields.RETRY_AFTER, retryAfter).set(EventOutboxEntity.Fields.ATTEMPTS, attempts),
         FindAndModifyOptions.options().returnNew(false),
         EventOutboxEntity.class);
   }
@@ -134,12 +134,12 @@ public class OutboxDispatcher {
   private EventOutboxEntity tryMarkDead(String id) {
     return mongoTemplate.findAndModify(
         pendingById(id),
-        new Update().set("status", OutboxStatus.dead).unset("retry.after"),
+        new Update().set(EventOutboxEntity.Fields.STATUS, OutboxStatus.dead).unset(EventOutboxEntity.Fields.RETRY_AFTER),
         FindAndModifyOptions.options().returnNew(false),
         EventOutboxEntity.class);
   }
 
   private static Query pendingById(String id) {
-    return Query.query(Criteria.where("_id").is(id).and("status").is(OutboxStatus.pending));
+    return Query.query(Criteria.where("_id").is(id).and(EventOutboxEntity.Fields.STATUS).is(OutboxStatus.pending));
   }
 }

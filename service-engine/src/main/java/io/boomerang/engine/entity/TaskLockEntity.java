@@ -22,4 +22,14 @@ public class TaskLockEntity {
   private String workflowRunRef;
   private Date acquiredAt;
   private Date expiresAt;
+
+  /** Mongo field paths used in queries — keep in sync with the field names above. */
+  public static final class Fields {
+    private Fields() {}
+
+    public static final String HOLDER = "holder";
+    public static final String WORKFLOW_RUN_REF = "workflowRunRef";
+    public static final String ACQUIRED_AT = "acquiredAt";
+    public static final String EXPIRES_AT = "expiresAt";
+  }
 }
