@@ -12,7 +12,7 @@ public interface ActionRepository extends MongoRepository<ActionEntity, String> 
 
   ActionEntity findByTaskRunRef(String taskRunRef);
 
-  long countByWorkflowRunRefAndStatus(String workflowRunRef, ActionStatus status);
+  boolean existsByWorkflowRunRefAndStatus(String workflowRunRef, ActionStatus status);
 
   long countByCreationDateBetween(Date from, Date to);
 

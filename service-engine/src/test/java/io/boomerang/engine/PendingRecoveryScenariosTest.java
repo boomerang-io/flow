@@ -1,7 +1,6 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,7 +44,7 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowWatcher watcher;
 
   @Test
-  void pausedRunIsExcludedFromClaimUntilResumeReconciles() {
+  void readyTaskStaysClaimableWhenRunPauses() {
     String wfRunId = submittedAndStartedRun("pause-lifecycle");
     String echoTaskRunId =
         taskRunRepository.findFirstByNameAndWorkflowRunRef("echo", wfRunId).orElseThrow().getId();
@@ -59,20 +58,23 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
         RunStatus.running,
         workflowRunRepository.findById(wfRunId).orElseThrow().getStatus(),
         "pause must not change the run status");
-    assertFalse(
-        claimPageContains(echoTaskRunId), "paused run's tasks are excluded from the claim page");
+    // Pause gates admission of new tasks, not the claiming of work already in flight. A task
+    // already ready when the run pauses stays claimable and runs to completion; the run then
+    // holds at the admission gate rather than advancing to new tasks (see the graph-advance test).
+    assertTrue(
+        claimPageContains(echoTaskRunId),
+        "a task already ready when the run pauses stays claimable");
 
     workflowRunService.resume(wfRunId);
     assertNull(workflowRunRepository.findById(wfRunId).orElseThrow().getPauseRequestedAt());
-    awaitEngine("the resumed task to be claimable again")
-        .until(() -> claimPageContains(echoTaskRunId));
+    assertTrue(claimPageContains(echoTaskRunId));
 
-    // The resumed run completes through the normal agent callbacks.
+    // The run completes through the normal agent callbacks.
     taskRunService.start(echoTaskRunId, Optional.empty());
     TaskRunEndRequest endRequest = new TaskRunEndRequest();
     endRequest.setStatus(RunStatus.succeeded);
     taskRunService.end(echoTaskRunId, Optional.of(endRequest));
-    awaitEngine("the resumed run to complete")
+    awaitEngine("the run to complete")
         .untilAsserted(
             () -> {
               WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();

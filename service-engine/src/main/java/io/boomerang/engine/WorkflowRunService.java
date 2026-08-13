@@ -710,7 +710,17 @@ public class WorkflowRunService {
         wfRunEntity.setParams(
             ParameterUtil.addUniqueParams(
                 wfRunEntity.getParams(), optRunRequest.get().getParams()));
-        wfRunEntity.getWorkspaces().addAll(optRunRequest.get().getWorkspaces());
+        // Merge request workspaces by name so a run request cannot introduce a duplicate mount.
+        optRunRequest
+            .get()
+            .getWorkspaces()
+            .forEach(
+                ws -> {
+                  wfRunEntity
+                      .getWorkspaces()
+                      .removeIf(existing -> ws.getName().equals(existing.getName()));
+                  wfRunEntity.getWorkspaces().add(ws);
+                });
         workflowRunRepository.save(wfRunEntity);
       }
       workflowExecutionService.start(workflowRunId);

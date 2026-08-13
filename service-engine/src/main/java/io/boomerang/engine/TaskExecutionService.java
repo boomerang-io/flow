@@ -454,10 +454,14 @@ public class TaskExecutionService {
     boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, taskExecution);
     LOGGER.debug("[{}] Finished all TaskRuns? {}", taskExecutionId, finishedAllDependencies);
 
-    // Refresh wfRunEntity and update approval status
-    wfRunEntity =
-        workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(wfRunEntity);
-    updatePendingApprovalStatus(wfRunEntity);
+    // Approval state only changes when an approval or manual task resolves; skip the refetch
+    // and recompute for every other task completion.
+    if (TaskType.approval.equals(taskExecution.getType())
+        || TaskType.manual.equals(taskExecution.getType())) {
+      wfRunEntity =
+          workflowRunRepository.findById(taskExecution.getWorkflowRunRef()).orElse(wfRunEntity);
+      updatePendingApprovalStatus(wfRunEntity);
+    }
 
     executeNextStep(wfRunEntity, tasks, taskExecution, finishedAllDependencies);
   }
@@ -570,10 +574,9 @@ public class TaskExecutionService {
   }
 
   private void updatePendingApprovalStatus(WorkflowRunEntity wfRunEntity) {
-    long count =
-        actionRepository.countByWorkflowRunRefAndStatus(
+    boolean existingApprovals =
+        actionRepository.existsByWorkflowRunRefAndStatus(
             wfRunEntity.getId(), ActionStatus.submitted);
-    boolean existingApprovals = (count > 0);
     wfRunEntity.setAwaitingApproval(existingApprovals);
     // Field-scoped write so a level-triggered recompute can never stomp concurrent run state.
     this.workflowRunService.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);

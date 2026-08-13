@@ -3,8 +3,8 @@
 **Status:** ✅ **RULED (2026-07-23)** with maintainer amendments: **4 queue classes**
 (gate + wait unified into `waiting` — sleep is a gate resolved by the clock; gates get
 `timeoutAt` only if author-set); **per-taskType cap override dropped** (class-level caps
-only — delete `flow.queue.type.<taskType>.cap` from §1.5); pause exclusion = two-step
-join; scheduling substrate (D2) deferred to implementation time. Finalises Q-129 and
+only — delete `flow.queue.type.<taskType>.cap` from §1.5); pause = single admission gate
+(no claim filter — see §1.3); scheduling substrate (D2) deferred to implementation time. Finalises Q-129 and
 Q-126.
 
 ## D1. Claim/Queue Design (Q-225)
@@ -30,7 +30,7 @@ every poll": teardown eligibility = `phase completed, workspaces != [], claimedB
 ### 1.2 Claim query + CAS + indexes
 
 Eligibility per class C: `{ type ∈ T(C), status:"ready", phase:"pending", claimedBy
-absent, retryAfter absent-or-elapsed, workflowRunRef ∉ pausedIds }`, sort
+absent, retryAfter absent-or-elapsed }`, sort
 `creationDate:1` (FIFO). Claim = per-candidate `findAndModify` by `_id` re-checking full
 eligibility; sets phase (`queued` worker / `running` inline), claim block, `timeoutAt`,
 `$inc claimEpoch`, `$unset retryAfter`. Null = lost, skip. **This is the audit #28/#29
@@ -50,16 +50,28 @@ partial-where-supersededAt-absent form: Mongo `partialFilterExpression` cannot e
 node" enforced by the supersede CAS + reconcile assert. Requires one bounded loader
 dedupe backfill of existing `(workflowRunRef,name)` duplicates.
 
-### 1.3 Pause exclusion — ✅ RULED (2026-07-22): two-step join (supersedes multi-instance-model W7)
+### 1.3 Pause exclusion — ✅ SUPERSEDED (2026-08-13): single admission gate, no claim filter
 
-Per-cycle: read paused run ids (sparse index, id-projection) → `$nin` in the claim page →
-ARCHIE's second-line re-check between page and claim. Rationale: **one source of truth**
-(a denorm flag makes pause a fan-out write whose partial failure is an authz-grade bug
-needing its own repair sweep); the paused set is human-scale (tens); gates are never
-claimable so pause-over-approval double-blocks nothing and callbacks are never lost.
-Benchmark flip-gate: claim p99 on 1M docs at `$nin` sizes 0/100/1000; flip if p99 > 25ms
-@1000. *(multi-instance-model.md W7 picked the denorm flag + drift-heal — maintainer must
-rule; see conflict CQ-1.)*
+**Current ruling (Track 2):** pause is enforced at the **single admission gate** in
+`TaskExecutionService.queue` — a paused run admits no NEW TaskRuns. The claim query carries
+**no** pause filter: work already `ready`/claimed/running when the run pauses runs to
+completion (and reaps on its absolute deadline regardless of pause). This removes the
+two-step join entirely (the `excludePausedRuns` lookup and its per-poll round-trip are
+deleted from `findClaimable`/`findReapable`), so there is no `pausedIds` to compute and the
+benchmark flip-gate below is moot. Rationale: the admission gate is a strictly workflow-level
+check on an already-loaded `WorkflowRunEntity`; the claim-query exclusion was a redundant
+second chokepoint that also held back in-flight work, contradicting the "in-flight completes"
+pause semantic. The `{pauseRequestedAt}` sparse index stays (the admission gate and resume
+reconcile read it). Verified by `PendingRecoveryScenariosTest`
+(`readyTaskStaysClaimableWhenRunPauses` + `pausedRunHoldsGraphAdvanceUntilResume`).
+
+**Original ruling (2026-07-22), retained for rationale — two-step join:** Per-cycle: read
+paused run ids (sparse index, id-projection) → `$nin` in the claim page → ARCHIE's
+second-line re-check between page and claim. Rationale then: **one source of truth** (a
+denorm flag makes pause a fan-out write whose partial failure is an authz-grade bug needing
+its own repair sweep); the paused set is human-scale (tens). The single-gate ruling above
+removes the exclusion altogether rather than choosing between the two-step join and the denorm
+flag — resolving conflict CQ-1 (vs multi-instance-model.md W7) by making it moot.
 
 ### 1.4 PICK — page-then-CAS (ARCHIE), not per-doc sort-loop (CHEER)
 
@@ -161,7 +173,7 @@ mode gets sweeps 1–5 only).
 |---|---|---|---|
 | 1 | Stalled-run reconcile (active run, zero non-terminal live tasks → `reconcile()`) | 60s | unique generation index + transition CAS; cooldown-limited logging |
 | 2a | Workflow timeout reap (`timeoutAt ≤ now, running` → CAS timedout, winner-only auto-retry) | 30s | CAS pre-image; retry = NEW run doc so stale guards physically can't reap attempt N+1 |
-| 2b | Task lease reap (`leaseExpiresAt ≤ now`; paused parents skipped — leases expire idle, reclaim on resume) | 30s | requeue CAS on `{_id, claimedBy, claimEpoch}` |
+| 2b | Task lease reap (`leaseExpiresAt ≤ now`; pause does not skip reaping — in-flight tasks reap on their absolute deadline regardless of pause) | 30s | requeue CAS on `{_id, claimedBy, claimEpoch}` |
 | 2c | Task timeout reap (per-class `timeoutAt` baked at claim; agent notified via poll/renew cancellation list) | 30s | epoch-guarded CAS |
 | 2d | Sleep due (`waitUntil ≤ now` → CAS waiting→succeeded) | 30s | status-matched CAS |
 | 3 | Tombstone cancellation (runs of tombstoned workflows → normal cancel path; agents notified; gates released) | 60s | same CAS as user cancel; crash-mid-delete self-heals |

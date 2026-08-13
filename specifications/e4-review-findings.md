@@ -70,23 +70,24 @@ final actionable list.
 | D2 | `DAGUtility.createTaskList` :99-107 | `findFirstByNameAndWorkflowRunRef` per task → one batch fetch + name→entity map. | low |
 | D3 | `DAGUtility.createGraph` :68-91 | O(N·D) name lookup (see C6). | low |
 | D4 | `ParameterManager.resolveParam` :223-248 | Per-`$(tasks.x.results.y)`-token DB query, no memoization within one `resolveParamLayers`. | low |
-| D5 | `TaskExecutionService.end` :457-460 + `updatePendingApprovalStatus` | Refetches workflow + runs approval count on **every** task completion regardless of type; the refetched object's mutation is never saved. Gate on task type. | low-med |
+| D5 | `TaskExecutionService.end` :457-460 + `updatePendingApprovalStatus` | Refetches workflow + runs approval count on **every** task completion regardless of type; the refetched object's mutation is never saved. Gate on task type. | ✅ **FIXED (Track 2)** — refetch + recompute now gated to `approval`/`manual` completions (the only types that resolve an Action); recompute uses `existsByWorkflowRunRefAndStatus` instead of `countBy(...)>0`. |
 | D6 | `TaskRunService.findClaimable` / `WorkflowRunService.findClaimableFor*` | Hydrate full docs when only `_id` is used → project `_id`. High-frequency (agent poll). | low |
-| D7 | `TaskRunService.excludePausedRuns` :99-113 | Extra query per `findClaimable`/`findReapable` — × N idle-polling agents/sec. Short-TTL cache or denormalize. | med — claim-query semantics; G2. |
+| D7 | `TaskRunService.excludePausedRuns` :99-113 | Extra query per `findClaimable`/`findReapable` — × N idle-polling agents/sec. Short-TTL cache or denormalize. | ✅ **FIXED (Track 2)** — resolved by design, not cache/denorm: `excludePausedRuns` **deleted** from both queries. Pause is now the single admission gate at `TaskExecutionService.queue`; in-flight/already-`ready` tasks run to completion. No extra query, no G2 data-model change. See `queue-design.md` §1.3. |
 | D8 | `tryPause`/`tryResume` (`WorkflowRunService` :289-312), `tryStartWaitingResume` (`TaskRunService` :341) | `findAndModify` discards the pre-image → use `updateFirst` + `getModifiedCount()`. | low |
 | D9 | `TaskExecutionService.runWorkflow` :787 | Double `save()` (inner save + the shared `endTask` branch). | low |
 | D10 | `TaskExecutionService.executeNextStep` :1040 | Pointless `findById` existence-guard per outgoing edge on an already-live object. | low |
 | D11 | `AgentService` long-poll | N per-candidate `findAndModify` claims per poll + blocking `Thread.sleep` on a platform thread (no virtual threads). | **Q-005 measurement** — this is the "new claim poller" CLAUDE.md flags; defer to the Q-005 step. |
 
-## E. Magic strings (FIX)
+## E. Magic strings — ❌ WON'T FIX (per maintainer ruling 2026-08-13)
 
 - ~82 raw `Criteria.where("…")` field literals in service-engine (`"claim.by"` ×9,
-  `"retry.after"` ×9, etc.), plus annotation keys (`boomerang.io/*`) and task-param names
-  (`"key"`, `"timeout"`, `"topic"`, …), plus `TaskLockEntity` field literals. A rename is
-  grep-and-pray. Fix: **per-entity `Fields` constants** (e.g. `TaskRunEntity.Fields`) — NOT a
-  shared lib-common dependency (the loader is deliberately decoupled per DD-07; keep the
-  `LoaderMigrationTest` string-pinning as the loader-side drift guard). Worth doing before
-  Phase 3 adds ~20 more handlers.
+  `"retry.after"` ×9, etc.), plus annotation keys (`boomerang.io/*`) and task-param names.
+  The original recommendation here — **per-entity `Fields` constants** — is **void**: the
+  maintainer ruled that entities stay Lombok-only, with **no nested `Fields` classes or
+  field-name String constants** (raw string literals are the house style, consistent with the
+  loader). A field-name constants holder is introduced only by explicit maintainer exception.
+  The `LoaderMigrationTest` string-pinning remains the loader-side drift guard. See the
+  `spring-module` skill (Entity Pattern) for the rule.
 
 ## F. Structure (MERGE — defer; the merge reshapes these)
 

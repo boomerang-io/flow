@@ -59,10 +59,14 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
 - **Three retry failure classes**: generic backoff, rate-limit (own base + higher cap),
   deterministic-terminal (no retry). Backoff stored as `retryAfter` = claim-eligibility.
 - **Pause is a committed v5 feature** (`pauseRequestedAt: Instant` flag — NEVER a RunStatus
-  value) with the three-chokepoint discipline: claim-query exclusion, single transition
-  gate, recovery-sweep skip. Resume = clear flag + reconcile.
-- **Starvation-safe typed queues**: FIFO on a compound index; backoff + paused exclusion IN
-  the query; per-type concurrency caps; kill switch.
+  value) enforced at a **single admission gate**: a paused run admits no new TaskRuns (the
+  DAG advance/queue chokepoint at `TaskExecutionService.queue`), while work already in flight
+  — claimed, running, or already `ready` — runs to completion and times out on its absolute
+  deadline regardless of pause. Resume = clear flag + reconcile. (The earlier three-chokepoint
+  design — claim-query exclusion + transition gate + sweep-skip — collapsed to the admission
+  gate once claim-query exclusion proved redundant and needlessly held back in-flight work.)
+- **Starvation-safe typed queues**: FIFO on a compound index; backoff exclusion IN the query;
+  per-type concurrency caps; kill switch.
 - **Relationship layer**: keep the existing `rel_nodes`/`rel_edges` schema, adopt CHEER's
   direct-query anchored walk; the in-memory JGraphT singleton is **rejected** (per-replica
   staleness = authz bug). `$graphLookup` is the escalation path for deeper walks. Hot
@@ -239,17 +243,27 @@ resolved from the relationship graph; forward calendar unchanged/cron-utils). Me
 reads, `Backoff`/`SweepRunner`/`findAndModifyPreImage`/`RunTimeouts` dedup, two latent bug
 fixes A1/A4).
 
-IN PROGRESS: branch **`feat-v5-track1`** (off `feat-v5`, not yet PR'd) — Track 1 partial:
-P-A1 (ParameterManager dead code) ✅, P-A2 (param memoization) ✅, **A2 claim-payload bug
-fix** ✅ (agents now get post-claim `phase`/`agentRef`). Deferred with reasons in
-`specifications/e4-review-findings.md`: **A3 is NOT a bug** (the weak `tryComplete` fencing is
-load-bearing for cancel/timeout of claimed tasks → Phase 3); **P-A3** (`resolveParam`
-decomposition — needs a characterization harness first) and **P-B** (field-name constants —
-dotted-path design call) are their own passes.
+SHIPPED (Track 1, PR #311→#312 merged to `feat-v5`): P-A1 (ParameterManager dead code), P-A2
+(param memoization), **A2 claim-payload bug fix** (agents get post-claim `phase`/`agentRef`),
+**P-A3** (`resolveParam` kept as the single dispatch, shape branches inlined; characterization
+harness), **P-B reverted → RULE**: entities stay Lombok-only, no `Fields` constant classes.
+CI cleanup (`--also-make` on test jobs, push/PR trigger scoping, concurrency groups). **A3 is
+NOT a bug** (the weak `tryComplete` fencing is load-bearing for cancel/timeout of claimed
+tasks → Phase 3).
+
+SHIPPED (Track 2, on `feat-v5`): **D5** approval-recompute gated to `approval`/`manual`
+completions + `existsBy`; **D7 resolved by design** — pause is now a **single admission gate**
+at `TaskExecutionService.queue` (in-flight/already-`ready` tasks run to completion; the
+`excludePausedRuns` two-step join is deleted, the three-chokepoint discipline collapses to one
+gate); minor hardening (`register` atomic upsert, workspace unique-merge). The idempotency-audit
+reconciliation showed **E4/E5 already closed the concurrency core** (6/10 ranked items fully
+fixed; the still-open residue is caller-level run-creation idempotency keys, which the "dropped
+run-creation dedup" decision deliberately skips). D11/Q-005 (agent poller) stays a measurement step.
 
 REMAINING WORK is organised as **Tracks 1–6** (the roadmap): T1 review-refactor remainder
-(P-A3, P-B, A2✅); T2 Phase-3 hardening (D5 approval-recompute, D7 excludePausedRuns cache,
-D11/Q-005 agent poller, the idempotency-audit ~20 handlers incl. A3); T3 E7 worker/dispatcher
+(P-A3✅, P-B✅, A2✅); T2 Phase-3 hardening (D5✅, D7✅ via single admission gate; REMAINING:
+D11/Q-005 agent-poller measurement; the caller-level idempotency-key residue #23/#15/#16 is
+deferred by the "dropped run-creation dedup" decision unless re-opened); T3 E7 worker/dispatcher
 (DD-06 rename, protocol v2, worker leases via the pre-provisioned `leaseExpiresAt`, @Audited
 port); T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
 index authority, C5, the merge itself, E9 egress); T5 broader v5 DDs (DD-01 Team→Workspace,

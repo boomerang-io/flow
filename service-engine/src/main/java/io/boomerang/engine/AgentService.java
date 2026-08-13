@@ -17,6 +17,11 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -35,14 +40,17 @@ public class AgentService {
   private final AgentRepository agentRepository;
   private final WorkflowRunService workflowRunService;
   private final TaskRunService taskRunService;
+  private final MongoTemplate mongoTemplate;
 
   public AgentService(
       AgentRepository agentRepository,
       WorkflowRunService workflowRunService,
-      TaskRunService taskRunService) {
+      TaskRunService taskRunService,
+      MongoTemplate mongoTemplate) {
     this.agentRepository = agentRepository;
     this.workflowRunService = workflowRunService;
     this.taskRunService = taskRunService;
+    this.mongoTemplate = mongoTemplate;
   }
 
   /**
@@ -62,13 +70,19 @@ public class AgentService {
       throw new IllegalArgumentException("Agent ID must not be null or empty");
     }
 
+    // Idempotent registration: an agent re-registering with the same name and host refreshes its
+    // record instead of colliding on the unique index.
     AgentEntity entity =
-        agentRepository.save(
-            new AgentEntity(
-                request.getName(),
-                request.getHost(),
-                TaskType.convertToTaskTypeList(request.getTaskTypes()),
-                request.getVersion()));
+        mongoTemplate.findAndModify(
+            Query.query(
+                Criteria.where("name").is(request.getName()).and("host").is(request.getHost())),
+            new Update()
+                .set("taskTypes", TaskType.convertToTaskTypeList(request.getTaskTypes()))
+                .set("version", request.getVersion())
+                .set("lastConnectedDate", new Date())
+                .setOnInsert("creationDate", new Date()),
+            new FindAndModifyOptions().upsert(true).returnNew(true),
+            AgentEntity.class);
 
     // Log the registration for debugging purposes
     LOGGER.debug(

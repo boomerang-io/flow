@@ -2,7 +2,6 @@ package io.boomerang.engine;
 
 import io.boomerang.client.LogClient;
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -89,28 +88,12 @@ public class TaskRunService {
                 Criteria.where("retry.after").exists(false),
                 Criteria.where("retry.after").lte(new Date()));
     Query query =
-        Query.query(excludePausedRuns(criteria))
+        Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     // The claim page only needs the id - tryClaim re-reads and transitions by id.
     query.fields().include("_id");
     return mongoTemplate.find(query, TaskRunEntity.class);
-  }
-
-  // Two-step join for pause exclusion: the paused flag lives only on the WorkflowRun (indexed,
-  // id-only fetch) - task_runs never carry a paused field. Callers must use the returned
-  // criteria: it is the chain's last link, which is what serializes the whole chain.
-  private Criteria excludePausedRuns(Criteria criteria) {
-    Query pausedRuns = Query.query(Criteria.where("pauseRequestedAt").exists(true));
-    pausedRuns.fields().include("_id");
-    List<String> pausedRunIds =
-        mongoTemplate.find(pausedRuns, WorkflowRunEntity.class).stream()
-            .map(WorkflowRunEntity::getId)
-            .toList();
-    if (pausedRunIds.isEmpty()) {
-      return criteria;
-    }
-    return criteria.and("workflowRunRef").nin(pausedRunIds);
   }
 
   // Claim Compare-And-Set: re-checks full eligibility between page and claim; racing claimants
@@ -241,9 +224,10 @@ public class TaskRunService {
   public List<TaskRunEntity> findReapable(Date now, int limit) {
     Criteria criteria =
         Criteria.where("timeoutAt").lte(now).and("phase").in(RunPhase.queued, RunPhase.running);
-    // Tasks of paused runs are not reaped; their deadlines stand and are reaped on resume.
+    // In-flight tasks reap on their absolute deadline whether or not the run is paused; pause
+    // only gates admission of new tasks, it does not extend a running task's deadline.
     Query query =
-        Query.query(excludePausedRuns(criteria))
+        Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
             .limit(limit)
             .maxTimeMsec(5000);
