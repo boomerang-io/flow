@@ -262,10 +262,12 @@ run-creation dedup" decision deliberately skips). D11/Q-005 (agent poller) stays
 
 REMAINING WORK is organised as **Tracks 1–6** (the roadmap): T1 review-refactor remainder
 (P-A3✅, P-B✅, A2✅); T2 Phase-3 hardening (D5✅, D7✅ via single admission gate; REMAINING:
-D11/Q-005 agent-poller measurement; the caller-level idempotency-key residue #23/#15/#16 is
-deferred by the "dropped run-creation dedup" decision unless re-opened); T3 E7 worker/dispatcher
-(DD-06 rename, protocol v2, worker leases via the pre-provisioned `leaseExpiresAt`, @Audited
-port); T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
+the caller-level idempotency-key residue #23/#15/#16 is deferred by the "dropped run-creation
+dedup" decision unless re-opened; **D11/Q-005 agent-poller is re-sequenced INTO T3/E7** as its
+opening measurement, not a standalone T2 item); T3 E7 worker/dispatcher — **opens with the
+D11/Q-005 poller load-measurement** (virtual-thread pinning vs async `DeferredResult` long-poll,
+decided from data before touching the protocol; see `e4-review-findings.md` D11) — then DD-06
+rename, protocol v2, worker leases via the pre-provisioned `leaseExpiresAt`, @Audited port; T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
 index authority, C5, the merge itself, E9 egress); T5 broader v5 DDs (DD-01 Team→Workspace,
 DD-03 versioning, DD-04 frontend); T6 post-merge cleanups (drop `jr_`/`_sch_`/`locks`
 collections); **T7 executor-SPI + governed-agency** (engagement-driven, 🟡 proposed —
