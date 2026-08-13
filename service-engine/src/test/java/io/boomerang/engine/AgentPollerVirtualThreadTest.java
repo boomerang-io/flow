@@ -70,6 +70,9 @@ class AgentPollerVirtualThreadTest extends AbstractEngineIntegrationTest {
       pinEvents = reportPinEvents(jfr);
     } finally {
       Files.deleteIfExists(jfr);
+      // The seeded tasks stay claimable; clear them so they cannot pollute another test's claim
+      // page in the shared context.
+      taskRunRepository.deleteByWorkflowRunRef(run.getId());
     }
 
     LOGGER.info(

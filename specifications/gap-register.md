@@ -244,10 +244,11 @@ discussion, not its replacement):
   + **delete alturkovic** → E1-data tombstone/watcher/retention. Constraint: H15.
 - **E5 — JobRunr retirement** (step 6): due-work docs; drain; Q-221/Q-227 close.
 - **E6 — Relationship rewrite** (step 7, parallelisable): G1–G6, A8, A9.
-- **E7 — Agent contract split + protocol v2** (step 8): **opens with the D11/Q-005 poller
-  load-measurement** (virtual-thread pinning vs async `DeferredResult` long-poll — decide from
-  data before touching the protocol; see `e4-review-findings.md` D11), then H1, I6, A3,
-  H2-frontend. (D5 shipped in Track 2.)
+- **E7 — Agent contract split + protocol v2** (step 8): **D11/Q-005 poller measurement DONE
+  (2026-08-13)** — claim path doesn't pin virtual threads (JFR-measured), so
+  `spring.threads.virtual.enabled=true` shipped on the engine; residual idle busy-poll DB load
+  is a protocol-v2 design input (async/event-driven poll). Then H1, I6, A3, H2-frontend. (D5
+  shipped in Track 2.)
 - **E8 — Modulith boundaries** (step 9): nine modules, H4–H8, A5; engine module bootable;
   timeboxed to merge within 1–2 releases.
 - **E9 — Callback inversion** (step 10): F2/F3/F4, A4-dissolve, C10 bindings, B9 stage 2.
