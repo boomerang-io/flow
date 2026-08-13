@@ -194,67 +194,10 @@ public class ParameterManager {
     Map<String, Object> foundKeyValues = new HashMap<>();
     while (m.find()) {
       String foundKey = m.group(0);
-      Object foundValue = null;
-      int start = m.start() - 2;
-      int end = m.end() + 1;
       String[] separatedKey = foundKey.split("\\.");
-      if ((separatedKey.length == 2) && "params".equals(separatedKey[0])) {
-        // Handle flattened - params.<name>
-        if (flatParamLayers.get(foundKey) != null) {
-          foundValue = flatParamLayers.get(foundKey);
-        }
-      } else if ((separatedKey.length > 2) && "params".equals(separatedKey[0])) {
-        // Handle flattened with query for individual child of an object param -
-        // params.<name>.<query>
-        int index = ordinalIndexOf(foundKey, ".", 2);
-        String searchKey = foundKey.substring(0, index);
-        String searchPath = foundKey.substring(index + 1);
-        if (flatParamLayers.get(searchKey) != null) {
-          foundValue = reduceObjectByJsonPath(searchPath, flatParamLayers.get(searchKey));
-        }
-      } else if ((separatedKey.length == 3)
-          && "params".equals(separatedKey[1])
-          && List.of(reservedScope).contains(separatedKey[0])) {
-        // Handle specific scoped param - <scope>.params.<name>
-        foundValue = flatParamLayers.get(foundKey);
-      } else if ((separatedKey.length > 3)
-          && "params".equals(separatedKey[1])
-          && List.of(reservedScope).contains(separatedKey[0])) {
-        // Hanlde specific scoped param with query for child of object -
-        // <scope>.params.<name>.<query>
-        int index = ordinalIndexOf(foundKey, ".", 3);
-        String searchKey = foundKey.substring(0, index);
-        String searchPath = foundKey.substring(index + 1);
-        if (flatParamLayers.get(searchKey) != null) {
-          foundValue = reduceObjectByJsonPath(searchPath, flatParamLayers.get(searchKey));
-        }
-      } else if ((separatedKey.length >= 4)
-          && "tasks".equals(separatedKey[0])
-          && "results".equals(separatedKey[2])) {
-        // Handle references to TaskRun Results
-        String taskName = separatedKey[1];
-        String resultName = separatedKey[3];
-        Optional<TaskRunEntity> taskRunEntity =
-            taskRunMemo.computeIfAbsent(
-                taskName, tn -> taskRunRepository.findFirstByNameAndWorkflowRunRef(tn, wfRunId));
-        if (taskRunEntity.isPresent()) {
-          List<RunResult> taskRunResults = taskRunEntity.get().getResults();
-          if (!taskRunResults.isEmpty()) {
-            Optional<RunResult> result =
-                taskRunResults.stream().filter(p -> resultName.equals(p.getName())).findFirst();
-            if (result.isPresent()) {
-              if (separatedKey.length > 4) {
-                int index = ordinalIndexOf(foundKey, ".", 4);
-                String searchPath = foundKey.substring(index + 1);
-                Object reducedValue = reduceObjectByJsonPath(searchPath, result.get().getValue());
-                foundValue = reducedValue != null ? reducedValue : originalValue;
-              } else {
-                foundValue = result.get().getValue();
-              }
-            }
-          }
-        }
-      }
+      Object foundValue =
+          referenceValue(
+              foundKey, separatedKey, flatParamLayers, wfRunId, taskRunMemo, originalValue);
       if (!Objects.isNull(foundValue)) {
         if (ParamType.object.equals(type)) {
           return foundValue;
@@ -270,6 +213,95 @@ public class ParameterManager {
     }
     LOGGER.debug("Resolved Value: " + resolvedValue);
     return resolvedValue;
+  }
+
+  /*
+   * Dispatch a single $(...) reference to its shape handler. Returns the resolved value, or null
+   * when the reference matches no known shape or resolves to nothing (the token is left verbatim).
+   */
+  private Object referenceValue(
+      String foundKey,
+      String[] separatedKey,
+      Map<String, Object> flatParamLayers,
+      String wfRunId,
+      Map<String, Optional<TaskRunEntity>> taskRunMemo,
+      Object originalValue) {
+    if ((separatedKey.length == 2) && "params".equals(separatedKey[0])) {
+      // params.<name>
+      return flatParamLayers.get(foundKey);
+    } else if ((separatedKey.length > 2) && "params".equals(separatedKey[0])) {
+      // params.<name>.<jsonpath> - query into a child of an object param
+      return objectPathValue(foundKey, 2, flatParamLayers);
+    } else if ((separatedKey.length == 3)
+        && "params".equals(separatedKey[1])
+        && isReservedScope(separatedKey[0])) {
+      // <scope>.params.<name>
+      return flatParamLayers.get(foundKey);
+    } else if ((separatedKey.length > 3)
+        && "params".equals(separatedKey[1])
+        && isReservedScope(separatedKey[0])) {
+      // <scope>.params.<name>.<jsonpath>
+      return objectPathValue(foundKey, 3, flatParamLayers);
+    } else if ((separatedKey.length >= 4)
+        && "tasks".equals(separatedKey[0])
+        && "results".equals(separatedKey[2])) {
+      // tasks.<name>.results.<result>[.<jsonpath>]
+      return taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
+    }
+    return null;
+  }
+
+  /*
+   * Split foundKey at the nth dot: everything before is the flat-map key, everything after is a
+   * JSONPath into that key's (object) value. Null when the key is absent.
+   */
+  private Object objectPathValue(
+      String foundKey, int dotOrdinal, Map<String, Object> flatParamLayers) {
+    int index = ordinalIndexOf(foundKey, ".", dotOrdinal);
+    String searchKey = foundKey.substring(0, index);
+    String searchPath = foundKey.substring(index + 1);
+    return flatParamLayers.get(searchKey) != null
+        ? reduceObjectByJsonPath(searchPath, flatParamLayers.get(searchKey))
+        : null;
+  }
+
+  /*
+   * tasks.<name>.results.<result> with an optional trailing JSONPath. A missing task/result yields
+   * null (verbatim passthrough); a trailing path that matches nothing falls back to the original
+   * value (preserved v4 behaviour). The upstream TaskRun lookup is memoised for the resolution.
+   */
+  private Object taskResultValue(
+      String foundKey,
+      String[] separatedKey,
+      String wfRunId,
+      Map<String, Optional<TaskRunEntity>> taskRunMemo,
+      Object originalValue) {
+    String taskName = separatedKey[1];
+    String resultName = separatedKey[3];
+    Optional<TaskRunEntity> taskRunEntity =
+        taskRunMemo.computeIfAbsent(
+            taskName, tn -> taskRunRepository.findFirstByNameAndWorkflowRunRef(tn, wfRunId));
+    if (taskRunEntity.isEmpty() || taskRunEntity.get().getResults().isEmpty()) {
+      return null;
+    }
+    Optional<RunResult> result =
+        taskRunEntity.get().getResults().stream()
+            .filter(p -> resultName.equals(p.getName()))
+            .findFirst();
+    if (result.isEmpty()) {
+      return null;
+    }
+    if (separatedKey.length > 4) {
+      int index = ordinalIndexOf(foundKey, ".", 4);
+      String searchPath = foundKey.substring(index + 1);
+      Object reducedValue = reduceObjectByJsonPath(searchPath, result.get().getValue());
+      return reducedValue != null ? reducedValue : originalValue;
+    }
+    return result.get().getValue();
+  }
+
+  private boolean isReservedScope(String scope) {
+    return List.of(reservedScope).contains(scope);
   }
 
   private Object replaceStringInObject(Object object, Map<String, Object> replacements) {
