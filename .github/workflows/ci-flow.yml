@@ -5,7 +5,7 @@ on:
   # Triggers the workflow on push (branch and tag) or pull request events
   push:
     branches:
-      - '**'
+      - main
     tags:
       - 'flow@**'
     paths:
@@ -13,6 +13,13 @@ on:
       - 'lib-common/**'
       - '.github/workflows/ci-flow.yml'
   pull_request:
+    paths:
+      - 'service-flow/**'
+      - 'lib-common/**'
+      - '.github/workflows/ci-flow.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -31,7 +38,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
         run: |
-          mvn clean test --projects service-flow --batch-mode -s settings.xml
+          mvn clean test --projects service-flow --also-make --batch-mode -s settings.xml
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
