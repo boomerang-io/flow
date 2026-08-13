@@ -41,15 +41,4 @@ public class EventOutboxEntity {
   public record RunState(RunStatus status, RunPhase phase) {}
 
   public record Routing(String workflowRef, String workflowRunRef) {}
-
-  /** Mongo field paths used in queries — keep in sync with the field names above. */
-  public static final class Fields {
-    private Fields() {}
-
-    public static final String STATUS = "status";
-    public static final String RETRY_AFTER = "retry.after";
-    public static final String OCCURRED_AT = "occurredAt";
-    public static final String SENT_AT = "sentAt";
-    public static final String ATTEMPTS = "attempts";
-  }
 }

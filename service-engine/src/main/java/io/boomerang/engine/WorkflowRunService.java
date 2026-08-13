@@ -102,13 +102,13 @@ public class WorkflowRunService {
   public List<WorkflowRunEntity> findClaimableForProvision(int limit) {
     Query query =
         Query.query(
-                Criteria.where(WorkflowRunEntity.Fields.STATUS)
+                Criteria.where("status")
                     .is(RunStatus.ready)
-                    .and(WorkflowRunEntity.Fields.PHASE)
+                    .and("phase")
                     .is(RunPhase.pending)
-                    .and(WorkflowRunEntity.Fields.CLAIM_BY)
+                    .and("claim.by")
                     .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, WorkflowRunEntity.Fields.CREATION_DATE))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     // The claim page only needs the id - tryClaimForProvision transitions by id.
     query.fields().include("_id");
@@ -119,13 +119,13 @@ public class WorkflowRunService {
     // workspaces.0 exists = the run still has workspaces for the claimant to tear down.
     Query query =
         Query.query(
-                Criteria.where(WorkflowRunEntity.Fields.PHASE)
+                Criteria.where("phase")
                     .is(RunPhase.completed)
-                    .and(WorkflowRunEntity.Fields.CLAIM_BY)
+                    .and("claim.by")
                     .exists(false)
-                    .and(WorkflowRunEntity.Fields.WORKSPACES_0)
+                    .and("workspaces.0")
                     .exists(true))
-            .with(Sort.by(Sort.Direction.ASC, WorkflowRunEntity.Fields.CREATION_DATE))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     // The claim page only needs the id - tryClaimForTeardown transitions by id.
     query.fields().include("_id");
@@ -137,19 +137,19 @@ public class WorkflowRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(WorkflowRunEntity.Fields.STATUS)
+                .and("status")
                 .is(RunStatus.ready)
-                .and(WorkflowRunEntity.Fields.PHASE)
+                .and("phase")
                 .is(RunPhase.pending)
-                .and(WorkflowRunEntity.Fields.CLAIM_BY)
+                .and("claim.by")
                 .exists(false));
     Update update =
         new Update()
-            .set(WorkflowRunEntity.Fields.PHASE, RunPhase.queued)
-            .set(WorkflowRunEntity.Fields.CLAIM_BY, claimedBy)
-            .set(WorkflowRunEntity.Fields.CLAIM_AT, new Date())
-            .set(WorkflowRunEntity.Fields.AGENT_REF, claimedBy)
-            .inc(WorkflowRunEntity.Fields.CLAIM_SEQ, 1);
+            .set("phase", RunPhase.queued)
+            .set("claim.by", claimedBy)
+            .set("claim.at", new Date())
+            .set("agentRef", claimedBy)
+            .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -167,18 +167,18 @@ public class WorkflowRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(WorkflowRunEntity.Fields.PHASE)
+                .and("phase")
                 .is(RunPhase.completed)
-                .and(WorkflowRunEntity.Fields.CLAIM_BY)
+                .and("claim.by")
                 .exists(false)
-                .and(WorkflowRunEntity.Fields.WORKSPACES_0)
+                .and("workspaces.0")
                 .exists(true));
     Update update =
         new Update()
-            .set(WorkflowRunEntity.Fields.CLAIM_BY, claimedBy)
-            .set(WorkflowRunEntity.Fields.CLAIM_AT, new Date())
-            .set(WorkflowRunEntity.Fields.AGENT_REF, claimedBy)
-            .inc(WorkflowRunEntity.Fields.CLAIM_SEQ, 1);
+            .set("claim.by", claimedBy)
+            .set("claim.at", new Date())
+            .set("agentRef", claimedBy)
+            .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -195,11 +195,11 @@ public class WorkflowRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(WorkflowRunEntity.Fields.STATUS)
+                .and("status")
                 .is(RunStatus.notstarted)
-                .and(WorkflowRunEntity.Fields.PHASE)
+                .and("phase")
                 .is(RunPhase.pending));
-    Update update = new Update().set(WorkflowRunEntity.Fields.STATUS, RunStatus.ready).set(WorkflowRunEntity.Fields.PARAMS, resolvedParams);
+    Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -213,18 +213,18 @@ public class WorkflowRunService {
     // never cleared and survives.
     Query query =
         Query.query(
-            Criteria.where("_id").is(id).and(WorkflowRunEntity.Fields.PHASE).in(RunPhase.pending, RunPhase.queued));
+            Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.queued));
     Update update =
         new Update()
-            .set(WorkflowRunEntity.Fields.STATUS, RunStatus.running)
-            .set(WorkflowRunEntity.Fields.PHASE, RunPhase.running)
-            .set(WorkflowRunEntity.Fields.START_TIME, startTime)
-            .unset(WorkflowRunEntity.Fields.CLAIM_BY)
-            .unset(WorkflowRunEntity.Fields.CLAIM_AT)
-            .unset(WorkflowRunEntity.Fields.CLAIM_LEASE_EXPIRES_AT);
+            .set("status", RunStatus.running)
+            .set("phase", RunPhase.running)
+            .set("startTime", startTime)
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt");
     Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
     if (timeoutAt != null) {
-      update.set(WorkflowRunEntity.Fields.TIMEOUT_AT, timeoutAt);
+      update.set("timeoutAt", timeoutAt);
     }
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
@@ -247,15 +247,15 @@ public class WorkflowRunService {
 
   public WorkflowRunEntity tryComplete(
       String id, List<RunPhase> fromPhases, RunStatus status, String statusMessage, long duration) {
-    Query query = Query.query(Criteria.where("_id").is(id).and(WorkflowRunEntity.Fields.PHASE).in(fromPhases));
+    Query query = Query.query(Criteria.where("_id").is(id).and("phase").in(fromPhases));
     Update update =
         new Update()
-            .set(WorkflowRunEntity.Fields.STATUS, status)
-            .set(WorkflowRunEntity.Fields.PHASE, RunPhase.completed)
-            .set(WorkflowRunEntity.Fields.DURATION, duration)
-            .unset(WorkflowRunEntity.Fields.TIMEOUT_AT);
+            .set("status", status)
+            .set("phase", RunPhase.completed)
+            .set("duration", duration)
+            .unset("timeoutAt");
     if (statusMessage != null) {
-      update.set(WorkflowRunEntity.Fields.STATUS_MESSAGE, statusMessage);
+      update.set("statusMessage", statusMessage);
     }
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
@@ -266,8 +266,8 @@ public class WorkflowRunService {
   }
 
   public WorkflowRunEntity tryMarkTimedOut(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and(WorkflowRunEntity.Fields.PHASE).is(RunPhase.running));
-    Update update = new Update().set(WorkflowRunEntity.Fields.STATUS, RunStatus.timedout);
+    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", RunStatus.timedout);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -277,8 +277,8 @@ public class WorkflowRunService {
   }
 
   public WorkflowRunEntity tryFinalize(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and(WorkflowRunEntity.Fields.PHASE).is(RunPhase.completed));
-    Update update = new Update().set(WorkflowRunEntity.Fields.PHASE, RunPhase.finalized);
+    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.completed));
+    Update update = new Update().set("phase", RunPhase.finalized);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -294,21 +294,21 @@ public class WorkflowRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(WorkflowRunEntity.Fields.PHASE)
+                .and("phase")
                 .is(RunPhase.running)
-                .and(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT)
+                .and("pauseRequestedAt")
                 .exists(false));
     return mongoTemplate
-            .updateFirst(query, new Update().set(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT, new Date()), WorkflowRunEntity.class)
+            .updateFirst(query, new Update().set("pauseRequestedAt", new Date()), WorkflowRunEntity.class)
             .getModifiedCount()
         > 0;
   }
 
   // Resume Compare-And-Set: clears the pause flag. Returns whether this caller won.
   public boolean tryResume(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT).exists(true));
+    Query query = Query.query(Criteria.where("_id").is(id).and("pauseRequestedAt").exists(true));
     return mongoTemplate
-            .updateFirst(query, new Update().unset(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT), WorkflowRunEntity.class)
+            .updateFirst(query, new Update().unset("pauseRequestedAt"), WorkflowRunEntity.class)
             .getModifiedCount()
         > 0;
   }
@@ -318,13 +318,13 @@ public class WorkflowRunService {
   public List<WorkflowRunEntity> findTimedOut(Date now, int limit) {
     Query query =
         Query.query(
-                Criteria.where(WorkflowRunEntity.Fields.TIMEOUT_AT)
+                Criteria.where("timeoutAt")
                     .lte(now)
-                    .and(WorkflowRunEntity.Fields.PHASE)
+                    .and("phase")
                     .is(RunPhase.running)
-                    .and(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT)
+                    .and("pauseRequestedAt")
                     .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, WorkflowRunEntity.Fields.TIMEOUT_AT))
+            .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, WorkflowRunEntity.class);
@@ -333,13 +333,13 @@ public class WorkflowRunService {
   public List<WorkflowRunEntity> findRunningStartedBefore(Date startedBefore, int limit) {
     Query query =
         Query.query(
-                Criteria.where(WorkflowRunEntity.Fields.PHASE)
+                Criteria.where("phase")
                     .is(RunPhase.running)
-                    .and(WorkflowRunEntity.Fields.START_TIME)
+                    .and("startTime")
                     .lte(startedBefore)
-                    .and(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT)
+                    .and("pauseRequestedAt")
                     .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, WorkflowRunEntity.Fields.START_TIME))
+            .with(Sort.by(Sort.Direction.ASC, "startTime"))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, WorkflowRunEntity.class);
@@ -348,8 +348,8 @@ public class WorkflowRunService {
   public List<WorkflowRunEntity> findFinalizableWithoutWorkspaces(int limit) {
     Query query =
         Query.query(
-                Criteria.where(WorkflowRunEntity.Fields.PHASE).is(RunPhase.completed).and(WorkflowRunEntity.Fields.WORKSPACES_0).exists(false))
-            .with(Sort.by(Sort.Direction.ASC, WorkflowRunEntity.Fields.CREATION_DATE))
+                Criteria.where("phase").is(RunPhase.completed).and("workspaces.0").exists(false))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, WorkflowRunEntity.class);
@@ -417,20 +417,20 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
     Pageable pageable = Pageable.unpaged();
-    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), WorkflowRunEntity.Fields.CREATION_DATE));
+    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
     List<Criteria> criteriaList = new ArrayList<>();
 
     if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).gte(from.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get());
       criteriaList.add(criteria);
     } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").lt(to.get());
       criteriaList.add(criteria);
     } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).gte(from.get()).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
       criteriaList.add(criteria);
     }
 
@@ -456,7 +456,7 @@ public class WorkflowRunService {
     if (queryStatus.isPresent()) {
       if (queryStatus.get().stream()
           .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunStatus.class, q))) {
-        Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.STATUS).in(queryStatus.get());
+        Criteria criteria = Criteria.where("status").in(queryStatus.get());
         criteriaList.add(criteria);
       } else {
         throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
@@ -466,7 +466,7 @@ public class WorkflowRunService {
     if (queryPhase.isPresent()) {
       if (queryPhase.get().stream()
           .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunPhase.class, q))) {
-        Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.PHASE).in(queryPhase.get());
+        Criteria criteria = Criteria.where("phase").in(queryPhase.get());
         criteriaList.add(criteria);
       } else {
         throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "phase");
@@ -479,13 +479,13 @@ public class WorkflowRunService {
     }
 
     if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.WORKFLOW_REF).in(queryWorkflows.get());
+      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
       criteriaList.add(criteria);
     }
 
     if (queryTriggers.isPresent()) {
       LOGGER.debug("Triggers: {}", queryTriggers.get().toString());
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.TRIGGER).in(queryTriggers.get());
+      Criteria criteria = Criteria.where("trigger").in(queryTriggers.get());
       criteriaList.add(criteria);
     }
 
@@ -529,13 +529,13 @@ public class WorkflowRunService {
     List<Criteria> criteriaList = new ArrayList<>();
 
     if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).gte(from.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get());
       criteriaList.add(criteria);
     } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").lt(to.get());
       criteriaList.add(criteria);
     } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).gte(from.get()).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
       criteriaList.add(criteria);
     }
 
@@ -559,7 +559,7 @@ public class WorkflowRunService {
     }
 
     if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.WORKFLOW_REF).in(queryWorkflows.get());
+      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
       criteriaList.add(criteria);
     } else {
       // TODO find all Workflows based on team, then
@@ -618,13 +618,13 @@ public class WorkflowRunService {
     List<Criteria> criteriaList = new ArrayList<>();
 
     if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).gte(from.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get());
       criteriaList.add(criteria);
     } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").lt(to.get());
       criteriaList.add(criteria);
     } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.CREATION_DATE).gte(from.get()).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
       criteriaList.add(criteria);
     }
 
@@ -648,7 +648,7 @@ public class WorkflowRunService {
     }
 
     if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where(WorkflowRunEntity.Fields.WORKFLOW_REF).in(queryWorkflows.get());
+      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
       criteriaList.add(criteria);
     }
 

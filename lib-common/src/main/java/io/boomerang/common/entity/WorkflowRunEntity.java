@@ -74,27 +74,4 @@ public class WorkflowRunEntity {
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
   private List<WorkflowWorkspace> workspaces = new LinkedList<>();
-
-  /** Mongo field paths used in queries — keep in sync with the field names above. */
-  public static final class Fields {
-    private Fields() {}
-
-    public static final String STATUS = "status";
-    public static final String PHASE = "phase";
-    public static final String CREATION_DATE = "creationDate";
-    public static final String PAUSE_REQUESTED_AT = "pauseRequestedAt";
-    public static final String CLAIM_BY = "claim.by";
-    public static final String CLAIM_AT = "claim.at";
-    public static final String CLAIM_LEASE_EXPIRES_AT = "claim.leaseExpiresAt";
-    public static final String TIMEOUT_AT = "timeoutAt";
-    public static final String WORKFLOW_REF = "workflowRef";
-    public static final String WORKSPACES_0 = "workspaces.0";
-    public static final String TRIGGER = "trigger";
-    public static final String START_TIME = "startTime";
-    public static final String CLAIM_SEQ = "claim.seq";
-    public static final String AGENT_REF = "agentRef";
-    public static final String DURATION = "duration";
-    public static final String PARAMS = "params";
-    public static final String STATUS_MESSAGE = "statusMessage";
-  }
 }

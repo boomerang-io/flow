@@ -671,14 +671,14 @@ public class TaskExecutionService {
             Criteria.where("_id")
                 .is(scopedKey)
                 .orOperator(
-                    Criteria.where(TaskLockEntity.Fields.EXPIRES_AT).exists(false),
-                    Criteria.where(TaskLockEntity.Fields.EXPIRES_AT).lte(now)));
+                    Criteria.where("expiresAt").exists(false),
+                    Criteria.where("expiresAt").lte(now)));
     Update update =
         new Update()
-            .set(TaskLockEntity.Fields.HOLDER, taskRunRef)
-            .set(TaskLockEntity.Fields.WORKFLOW_RUN_REF, workflowRunRef)
-            .set(TaskLockEntity.Fields.ACQUIRED_AT, now)
-            .set(TaskLockEntity.Fields.EXPIRES_AT, expiresAt);
+            .set("holder", taskRunRef)
+            .set("workflowRunRef", workflowRunRef)
+            .set("acquiredAt", now)
+            .set("expiresAt", expiresAt);
     try {
       TaskLockEntity lock =
           mongoTemplate.findAndModify(
@@ -696,7 +696,7 @@ public class TaskExecutionService {
   // Package-private so the lock-semantics test can exercise it directly.
   void release(String scopedKey, String taskRunRef) {
     mongoTemplate.remove(
-        Query.query(Criteria.where("_id").is(scopedKey).and(TaskLockEntity.Fields.HOLDER).is(taskRunRef)),
+        Query.query(Criteria.where("_id").is(scopedKey).and("holder").is(taskRunRef)),
         TaskLockEntity.class);
   }
 

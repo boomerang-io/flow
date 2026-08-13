@@ -54,16 +54,4 @@ public class WorkflowScheduleEntity {
   private Date dateSchedule;
   private String timezone;
   private List<RunParam> params = new LinkedList<>();
-
-  /** Mongo field paths used in queries — keep in sync with the field names above. */
-  public static final class Fields {
-    private Fields() {}
-
-    public static final String STATUS = "status";
-    public static final String NEXT_FIRE_AT = "nextFireAt";
-    public static final String LAST_FIRED_AT = "lastFiredAt";
-    public static final String WORKFLOW_REF = "workflowRef";
-    public static final String TYPE = "type";
-    public static final String RETRY_COUNT = "retryCount";
-  }
 }

@@ -77,20 +77,20 @@ public class TaskRunService {
   // pending, unclaimed, with any retry backoff elapsed, oldest first.
   public List<TaskRunEntity> findClaimable(List<TaskType> types, int limit) {
     Criteria criteria =
-        Criteria.where(TaskRunEntity.Fields.STATUS)
+        Criteria.where("status")
             .is(RunStatus.ready)
-            .and(TaskRunEntity.Fields.PHASE)
+            .and("phase")
             .is(RunPhase.pending)
-            .and(TaskRunEntity.Fields.TYPE)
+            .and("type")
             .in(types)
-            .and(TaskRunEntity.Fields.CLAIM_BY)
+            .and("claim.by")
             .exists(false)
             .orOperator(
-                Criteria.where(TaskRunEntity.Fields.RETRY_AFTER).exists(false),
-                Criteria.where(TaskRunEntity.Fields.RETRY_AFTER).lte(new Date()));
+                Criteria.where("retry.after").exists(false),
+                Criteria.where("retry.after").lte(new Date()));
     Query query =
         Query.query(excludePausedRuns(criteria))
-            .with(Sort.by(Sort.Direction.ASC, TaskRunEntity.Fields.CREATION_DATE))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     // The claim page only needs the id - tryClaim re-reads and transitions by id.
     query.fields().include("_id");
@@ -101,7 +101,7 @@ public class TaskRunService {
   // id-only fetch) - task_runs never carry a paused field. Callers must use the returned
   // criteria: it is the chain's last link, which is what serializes the whole chain.
   private Criteria excludePausedRuns(Criteria criteria) {
-    Query pausedRuns = Query.query(Criteria.where(WorkflowRunEntity.Fields.PAUSE_REQUESTED_AT).exists(true));
+    Query pausedRuns = Query.query(Criteria.where("pauseRequestedAt").exists(true));
     pausedRuns.fields().include("_id");
     List<String> pausedRunIds =
         mongoTemplate.find(pausedRuns, WorkflowRunEntity.class).stream()
@@ -110,7 +110,7 @@ public class TaskRunService {
     if (pausedRunIds.isEmpty()) {
       return criteria;
     }
-    return criteria.and(TaskRunEntity.Fields.WORKFLOW_RUN_REF).nin(pausedRunIds);
+    return criteria.and("workflowRunRef").nin(pausedRunIds);
   }
 
   // Claim Compare-And-Set: re-checks full eligibility between page and claim; racing claimants
@@ -121,23 +121,23 @@ public class TaskRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(TaskRunEntity.Fields.STATUS)
+                .and("status")
                 .is(RunStatus.ready)
-                .and(TaskRunEntity.Fields.PHASE)
+                .and("phase")
                 .is(RunPhase.pending)
-                .and(TaskRunEntity.Fields.CLAIM_BY)
+                .and("claim.by")
                 .exists(false)
                 .orOperator(
-                    Criteria.where(TaskRunEntity.Fields.RETRY_AFTER).exists(false),
-                    Criteria.where(TaskRunEntity.Fields.RETRY_AFTER).lte(now)));
+                    Criteria.where("retry.after").exists(false),
+                    Criteria.where("retry.after").lte(now)));
     Update update =
         new Update()
-            .set(TaskRunEntity.Fields.PHASE, RunPhase.queued)
-            .set(TaskRunEntity.Fields.CLAIM_BY, claimedBy)
-            .set(TaskRunEntity.Fields.CLAIM_AT, now)
-            .set(TaskRunEntity.Fields.AGENT_REF, claimedBy)
-            .inc(TaskRunEntity.Fields.CLAIM_SEQ, 1)
-            .unset(TaskRunEntity.Fields.RETRY_AFTER);
+            .set("phase", RunPhase.queued)
+            .set("claim.by", claimedBy)
+            .set("claim.at", now)
+            .set("agentRef", claimedBy)
+            .inc("claim.seq", 1)
+            .unset("retry.after");
     TaskRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -157,11 +157,11 @@ public class TaskRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(TaskRunEntity.Fields.STATUS)
+                .and("status")
                 .is(RunStatus.notstarted)
-                .and(TaskRunEntity.Fields.PHASE)
+                .and("phase")
                 .is(RunPhase.pending));
-    Update update = new Update().set(TaskRunEntity.Fields.STATUS, RunStatus.ready).set(TaskRunEntity.Fields.PARAMS, resolvedParams);
+    Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
     TaskRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -178,18 +178,18 @@ public class TaskRunService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(TaskRunEntity.Fields.STATUS)
+                .and("status")
                 .is(RunStatus.ready)
-                .and(TaskRunEntity.Fields.PHASE)
+                .and("phase")
                 .in(RunPhase.pending, RunPhase.queued));
     Update update =
         new Update()
-            .set(TaskRunEntity.Fields.STATUS, RunStatus.running)
-            .set(TaskRunEntity.Fields.PHASE, RunPhase.running)
-            .set(TaskRunEntity.Fields.START_TIME, startTime);
+            .set("status", RunStatus.running)
+            .set("phase", RunPhase.running)
+            .set("startTime", startTime);
     Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
     if (timeoutAt != null) {
-      update.set(TaskRunEntity.Fields.TIMEOUT_AT, timeoutAt);
+      update.set("timeoutAt", timeoutAt);
     }
     TaskRunEntity preImage =
         findAndModifyPreImage(query, update);
@@ -218,17 +218,17 @@ public class TaskRunService {
     Criteria criteria =
         Criteria.where("_id")
             .is(id)
-            .and(TaskRunEntity.Fields.PHASE)
+            .and("phase")
             .in(RunPhase.pending, RunPhase.queued, RunPhase.running);
-    claimedBy.ifPresent(by -> criteria.and(TaskRunEntity.Fields.CLAIM_BY).is(by));
-    claimSeq.ifPresent(seq -> criteria.and(TaskRunEntity.Fields.CLAIM_SEQ).is(seq));
+    claimedBy.ifPresent(by -> criteria.and("claim.by").is(by));
+    claimSeq.ifPresent(seq -> criteria.and("claim.seq").is(seq));
     Update update =
         new Update()
-            .set(TaskRunEntity.Fields.PHASE, RunPhase.completed)
-            .set(TaskRunEntity.Fields.DURATION, duration)
-            .unset(TaskRunEntity.Fields.TIMEOUT_AT);
-    status.ifPresent(s -> update.set(TaskRunEntity.Fields.STATUS, s));
-    statusMessage.ifPresent(m -> update.set(TaskRunEntity.Fields.STATUS_MESSAGE, m));
+            .set("phase", RunPhase.completed)
+            .set("duration", duration)
+            .unset("timeoutAt");
+    status.ifPresent(s -> update.set("status", s));
+    statusMessage.ifPresent(m -> update.set("statusMessage", m));
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -240,11 +240,11 @@ public class TaskRunService {
   // Return the page of TaskRuns whose deadline has passed: timeoutAt due, phase queued/running.
   public List<TaskRunEntity> findReapable(Date now, int limit) {
     Criteria criteria =
-        Criteria.where(TaskRunEntity.Fields.TIMEOUT_AT).lte(now).and(TaskRunEntity.Fields.PHASE).in(RunPhase.queued, RunPhase.running);
+        Criteria.where("timeoutAt").lte(now).and("phase").in(RunPhase.queued, RunPhase.running);
     // Tasks of paused runs are not reaped; their deadlines stand and are reaped on resume.
     Query query =
         Query.query(excludePausedRuns(criteria))
-            .with(Sort.by(Sort.Direction.ASC, TaskRunEntity.Fields.TIMEOUT_AT))
+            .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, TaskRunEntity.class);
@@ -257,16 +257,16 @@ public class TaskRunService {
     Criteria criteria =
         Criteria.where("_id")
             .is(id)
-            .and(TaskRunEntity.Fields.PHASE)
+            .and("phase")
             .in(RunPhase.queued, RunPhase.running)
-            .and(TaskRunEntity.Fields.TIMEOUT_AT)
+            .and("timeoutAt")
             .lte(new Date());
     fence(criteria, observedClaimSeq);
     Update update =
         new Update()
-            .set(TaskRunEntity.Fields.STATUS, RunStatus.timedout)
-            .set(TaskRunEntity.Fields.STATUS_MESSAGE, statusMessage)
-            .unset(TaskRunEntity.Fields.TIMEOUT_AT);
+            .set("status", RunStatus.timedout)
+            .set("statusMessage", statusMessage)
+            .unset("timeoutAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -280,19 +280,19 @@ public class TaskRunService {
   // Fenced on the observed claim seq. Returns the pre-image, or null when fenced/already gone.
   public TaskRunEntity tryRequeue(String id, Long observedClaimSeq, Date retryAfter, int retryCount) {
     Criteria criteria =
-        Criteria.where("_id").is(id).and(TaskRunEntity.Fields.PHASE).in(RunPhase.queued, RunPhase.running);
+        Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
     fence(criteria, observedClaimSeq);
     Update update =
         new Update()
-            .set(TaskRunEntity.Fields.STATUS, RunStatus.ready)
-            .set(TaskRunEntity.Fields.PHASE, RunPhase.pending)
-            .set(TaskRunEntity.Fields.RETRY_AFTER, retryAfter)
-            .set(TaskRunEntity.Fields.RETRY_COUNT, retryCount)
-            .unset(TaskRunEntity.Fields.CLAIM_BY)
-            .unset(TaskRunEntity.Fields.CLAIM_AT)
-            .unset(TaskRunEntity.Fields.CLAIM_LEASE_EXPIRES_AT)
-            .unset(TaskRunEntity.Fields.AGENT_REF)
-            .unset(TaskRunEntity.Fields.TIMEOUT_AT);
+            .set("status", RunStatus.ready)
+            .set("phase", RunPhase.pending)
+            .set("retry.after", retryAfter)
+            .set("retry.count", retryCount)
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt")
+            .unset("agentRef")
+            .unset("timeoutAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -307,11 +307,11 @@ public class TaskRunService {
   public boolean existsInFlightByWorkflowRunRef(String workflowRunRef) {
     Query query =
         Query.query(
-                Criteria.where(TaskRunEntity.Fields.WORKFLOW_RUN_REF)
+                Criteria.where("workflowRunRef")
                     .is(workflowRunRef)
                     .orOperator(
-                        Criteria.where(TaskRunEntity.Fields.PHASE).in(RunPhase.queued, RunPhase.running),
-                        Criteria.where(TaskRunEntity.Fields.STATUS).in(RunStatus.ready, RunStatus.waiting)))
+                        Criteria.where("phase").in(RunPhase.queued, RunPhase.running),
+                        Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
             .maxTimeMsec(5000);
     return mongoTemplate.exists(query, TaskRunEntity.class);
   }
@@ -319,8 +319,8 @@ public class TaskRunService {
   // Return the page of waiting TaskRuns whose wait time has elapsed (sleep/lock parking).
   public List<TaskRunEntity> findWaitingDue(Date now, int limit) {
     Query query =
-        Query.query(Criteria.where(TaskRunEntity.Fields.STATUS).is(RunStatus.waiting).and(TaskRunEntity.Fields.WAIT_UNTIL).lte(now))
-            .with(Sort.by(Sort.Direction.ASC, TaskRunEntity.Fields.WAIT_UNTIL))
+        Query.query(Criteria.where("status").is(RunStatus.waiting).and("waitUntil").lte(now))
+            .with(Sort.by(Sort.Direction.ASC, "waitUntil"))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, TaskRunEntity.class);
@@ -331,9 +331,9 @@ public class TaskRunService {
   public boolean tryStartWaitingResume(String id) {
     Query query =
         Query.query(
-            Criteria.where("_id").is(id).and(TaskRunEntity.Fields.STATUS).is(RunStatus.waiting).and(TaskRunEntity.Fields.WAIT_UNTIL).lte(new Date()));
+            Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(new Date()));
     return mongoTemplate
-            .updateFirst(query, new Update().unset(TaskRunEntity.Fields.WAIT_UNTIL), TaskRunEntity.class)
+            .updateFirst(query, new Update().unset("waitUntil"), TaskRunEntity.class)
             .getModifiedCount()
         > 0;
   }
@@ -342,9 +342,9 @@ public class TaskRunService {
   // Compare-And-Set carries a seq and fails the guard.
   private static void fence(Criteria criteria, Long observedClaimSeq) {
     if (observedClaimSeq != null) {
-      criteria.and(TaskRunEntity.Fields.CLAIM_SEQ).is(observedClaimSeq);
+      criteria.and("claim.seq").is(observedClaimSeq);
     } else {
-      criteria.and(TaskRunEntity.Fields.CLAIM_SEQ).exists(false);
+      criteria.and("claim.seq").exists(false);
     }
   }
 
@@ -388,20 +388,20 @@ public class TaskRunService {
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryPhase) {
     Pageable pageable = Pageable.unpaged();
-    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), TaskRunEntity.Fields.CREATION_DATE));
+    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
     List<Criteria> criteriaList = new ArrayList<>();
 
     if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where(TaskRunEntity.Fields.CREATION_DATE).gte(from.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get());
       criteriaList.add(criteria);
     } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(TaskRunEntity.Fields.CREATION_DATE).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").lt(to.get());
       criteriaList.add(criteria);
     } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where(TaskRunEntity.Fields.CREATION_DATE).gte(from.get()).lt(to.get());
+      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
       criteriaList.add(criteria);
     }
 
@@ -428,7 +428,7 @@ public class TaskRunService {
     if (queryStatus.isPresent()) {
       if (queryStatus.get().stream()
           .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunStatus.class, q))) {
-        Criteria criteria = Criteria.where(TaskRunEntity.Fields.STATUS).in(queryStatus.get());
+        Criteria criteria = Criteria.where("status").in(queryStatus.get());
         criteriaList.add(criteria);
       } else {
         throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
@@ -438,7 +438,7 @@ public class TaskRunService {
     if (queryPhase.isPresent()) {
       if (queryPhase.get().stream()
           .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunPhase.class, q))) {
-        Criteria criteria = Criteria.where(TaskRunEntity.Fields.PHASE).in(queryPhase.get());
+        Criteria criteria = Criteria.where("phase").in(queryPhase.get());
         criteriaList.add(criteria);
       } else {
         throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "phase");

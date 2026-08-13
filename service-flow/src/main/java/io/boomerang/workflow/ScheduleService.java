@@ -123,13 +123,13 @@ public class ScheduleService {
             false);
     if (!refs.isEmpty()) {
       List<Criteria> criteriaList = new ArrayList<>();
-      Criteria criteria = Criteria.where(WorkflowScheduleEntity.Fields.WORKFLOW_REF).in(refs);
+      Criteria criteria = Criteria.where("workflowRef").in(refs);
       criteriaList.add(criteria);
 
       if (queryStatus.isPresent()) {
         if (queryStatus.get().stream()
             .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkflowScheduleStatus.class, q))) {
-          Criteria statusCriteria = Criteria.where(WorkflowScheduleEntity.Fields.STATUS).in(queryStatus.get());
+          Criteria statusCriteria = Criteria.where("status").in(queryStatus.get());
           criteriaList.add(statusCriteria);
         } else {
           throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
@@ -137,7 +137,7 @@ public class ScheduleService {
       }
 
       if (queryTypes.isPresent()) {
-        Criteria queryCriteria = Criteria.where(WorkflowScheduleEntity.Fields.TYPE).in(queryTypes.get());
+        Criteria queryCriteria = Criteria.where("type").in(queryTypes.get());
         criteriaList.add(queryCriteria);
       }
 
@@ -354,7 +354,7 @@ public class ScheduleService {
          */
         WorkflowScheduleStatus previousStatus = scheduleEntity.getStatus();
         BeanUtils.copyProperties(
-            request, scheduleEntity, "id", "creationDate", WorkflowScheduleEntity.Fields.WORKFLOW_REF, "schedulerRef");
+            request, scheduleEntity, "id", "creationDate", "workflowRef", "schedulerRef");
 
         /*
          * Complex Status checking to determine what can and can't be enabled, incl date in the past check
@@ -459,11 +459,11 @@ public class ScheduleService {
         Query.query(
             Criteria.where("_id")
                 .is(id)
-                .and(WorkflowScheduleEntity.Fields.STATUS)
+                .and("status")
                 .is(WorkflowScheduleStatus.active)
-                .and(WorkflowScheduleEntity.Fields.NEXT_FIRE_AT)
+                .and("nextFireAt")
                 .is(observedNextFireAt));
-    Update update = new Update().set(WorkflowScheduleEntity.Fields.NEXT_FIRE_AT, newNextFireAt).set(WorkflowScheduleEntity.Fields.LAST_FIRED_AT, now);
+    Update update = new Update().set("nextFireAt", newNextFireAt).set("lastFiredAt", now);
     return mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class).getModifiedCount()
         > 0;
   }
@@ -474,14 +474,14 @@ public class ScheduleService {
    */
   public void reArmForRetry(String id, Date retryFireAt, int attempts) {
     Query query = Query.query(Criteria.where("_id").is(id));
-    Update update = new Update().set(WorkflowScheduleEntity.Fields.NEXT_FIRE_AT, retryFireAt).set(WorkflowScheduleEntity.Fields.RETRY_COUNT, attempts);
+    Update update = new Update().set("nextFireAt", retryFireAt).set("retryCount", attempts);
     mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 
   /** Clear the failed-fire counter: called on a successful fire or once the attempts are exhausted. */
   public void clearRetryCount(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and(WorkflowScheduleEntity.Fields.RETRY_COUNT).gt(0));
-    Update update = new Update().set(WorkflowScheduleEntity.Fields.RETRY_COUNT, 0);
+    Query query = Query.query(Criteria.where("_id").is(id).and("retryCount").gt(0));
+    Update update = new Update().set("retryCount", 0);
     mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 
@@ -490,8 +490,8 @@ public class ScheduleService {
    * firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps do not double-initialise.
    */
   public void initializeNextFireAt(String id, Date nextFireAt) {
-    Query query = Query.query(Criteria.where("_id").is(id).and(WorkflowScheduleEntity.Fields.NEXT_FIRE_AT).exists(false));
-    Update update = new Update().set(WorkflowScheduleEntity.Fields.NEXT_FIRE_AT, nextFireAt);
+    Query query = Query.query(Criteria.where("_id").is(id).and("nextFireAt").exists(false));
+    Update update = new Update().set("nextFireAt", nextFireAt);
     mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
   }
 

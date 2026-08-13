@@ -302,8 +302,8 @@ public class DAGUtility {
       return Map.of();
     }
     Query query =
-        Query.query(Criteria.where(TaskRunEntity.Fields.WORKFLOW_RUN_REF).is(tasks.get(0).getWorkflowRunRef()));
-    query.fields().include("_id").include(TaskRunEntity.Fields.PHASE).include(TaskRunEntity.Fields.STATUS).include(TaskRunEntity.Fields.DECISION_VALUE);
+        Query.query(Criteria.where("workflowRunRef").is(tasks.get(0).getWorkflowRunRef()));
+    query.fields().include("_id").include("phase").include("status").include("decisionValue");
     return mongoTemplate.find(query, TaskRunEntity.class).stream()
         .collect(Collectors.toMap(TaskRunEntity::getId, t -> t, (a, b) -> a));
   }
