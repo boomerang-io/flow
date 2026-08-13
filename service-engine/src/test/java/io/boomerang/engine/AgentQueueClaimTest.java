@@ -130,4 +130,22 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
       pool.shutdownNow();
     }
   }
+
+  @Test
+  void claimResponseCarriesPostClaimPhaseAndOwner() {
+    String agent = registerAgent("payload-agent");
+    String taskId = savedReadyTaskRun().getId();
+
+    ResponseEntity<List<TaskRun>> response = agentService.getTaskQueue(agent);
+    TaskRun claimed =
+        response.getBody().stream()
+            .filter(t -> taskId.equals(t.getId()))
+            .findFirst()
+            .orElseThrow();
+
+    // The wire payload the agent receives must reflect the post-claim transition, not the stale
+    // pre-claim pending/agentRef the findAndModify pre-image originally held.
+    assertEquals(RunPhase.queued, claimed.getPhase());
+    assertEquals(agent, claimed.getAgentRef());
+  }
 }

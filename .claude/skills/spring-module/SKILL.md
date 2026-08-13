@@ -53,6 +53,7 @@ public class TokenEntity {
 
 Key conventions:
 - `@Data` (Lombok) on entities; `@JsonIgnoreProperties(ignoreUnknown = true)` + `@JsonInclude(NON_NULL)`.
+- **Entities stay Lombok-only — do NOT add nested `Fields` constant classes or `public static final String` field-name constants** (maintainer ruling 2026-08-13). Mongo `Criteria`/`Update` calls use **raw string literals** (`Criteria.where("claim.by")`, `.set("retry.after", …)`) — the house style, consistent with the loader changeunits. A field-name constants holder is NOT wanted (it clutters the entities); only introduce one with an explicit maintainer exception. This overrides any generic "magic strings → constants" instinct here.
 - **Collection name via SpEL** — `#{@mongoConfiguration.fullCollectionName('<name>')}` so the
   configured collection prefix (`flow.mongo.collection.prefix`) is applied. Never hardcode a
   bare collection name.

@@ -201,6 +201,7 @@ merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-re
 | `specifications/scaling.md`               | 📎 Annex                     | Phase 2B locking/queueing brief.                                               |
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
 | `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
+| `specifications/repo-insights-engagement-inputs.md` | 🟡 Inputs — proposed (2026-08-09) | Client-engagement requirements for a future v5 phase: pull-based **executor SPI** (zone queues, payload cap), **evidence/custody ledger** in the task-result contract, **executor portfolio** (K8s Jobs default, VM/MicroVM, CoCo flag), workspace non-retention guarantee, thin LLM task type + **propose/dispose** governed agency, **Embabel** spike. Not ruled — proposed→confirmed when the phase is worked. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
@@ -226,13 +227,34 @@ safety net is green. All decisions (DD-01…DD-04, Q-117, the Phase 2B rulings i
 (schedule-firing substrate, outbox transactions) are decided at their implementation
 step with defaults documented.
 
-**Current state (2026-07-25):** Phase 0 + E1/E2/E3/E6 shipped on `feat-v5`; **E4 (the
-execution-model rebuild, slices A–F) is COMPLETE and green on branch `e4`** (20 commits;
-claims/CAS, WorkflowWatcher sweeps, pause, outbox, lock-free, tombstone; repository
-Compare-And-Set ops moved into services). **Next: E5 (JobRunr retirement — a two-step:
-delete the engine's redundant timeout job, then a claim-based `ScheduleWatcher` firing
-sweep in service-flow; the forward calendar is already cron-utils/DB-backed, so unaffected).**
-The E4 code review (`specifications/e4-review-findings.md`) is captured but **DEFERRED by
-ruling** — the order is **E5 → a critical re-review of those findings against post-E5 code
-→ then the bug/refactor fixes** (E5 and the DD-02 merge are expected to absorb several).
-Branch/merge: PR `e4` → `feat-v5` before branching `e5` (E4 is a clean complete epic).
+**Current state (2026-08-09) — the "where are we" a fresh session should read first:**
+
+SHIPPED on `feat-v5` (the integration branch): Phase 0, E1/E2/E3/E6, **E4** (execution-model
+rebuild, slices A–F: claims/CAS, WorkflowWatcher sweeps, pause, outbox, lock-free, tombstone;
+repository Compare-And-Set ops live IN the services), and **E5** (JobRunr FULLY retired —
+grep-clean; engine timeout job deleted, claim-based `ScheduleWatcher` in service-flow fires
+cron via a `nextFireAt`-advance Compare-And-Set with a bounded `retryCount` retry; team
+resolved from the relationship graph; forward calendar unchanged/cron-utils). Merged via **PR
+#311**. The behaviour-preserving part of the E4 review also shipped (dead code, DAG hot-path
+reads, `Backoff`/`SweepRunner`/`findAndModifyPreImage`/`RunTimeouts` dedup, two latent bug
+fixes A1/A4).
+
+IN PROGRESS: branch **`feat-v5-track1`** (off `feat-v5`, not yet PR'd) — Track 1 partial:
+P-A1 (ParameterManager dead code) ✅, P-A2 (param memoization) ✅, **A2 claim-payload bug
+fix** ✅ (agents now get post-claim `phase`/`agentRef`). Deferred with reasons in
+`specifications/e4-review-findings.md`: **A3 is NOT a bug** (the weak `tryComplete` fencing is
+load-bearing for cancel/timeout of claimed tasks → Phase 3); **P-A3** (`resolveParam`
+decomposition — needs a characterization harness first) and **P-B** (field-name constants —
+dotted-path design call) are their own passes.
+
+REMAINING WORK is organised as **Tracks 1–6** (the roadmap): T1 review-refactor remainder
+(P-A3, P-B, A2✅); T2 Phase-3 hardening (D5 approval-recompute, D7 excludePausedRuns cache,
+D11/Q-005 agent poller, the idempotency-audit ~20 handlers incl. A3); T3 E7 worker/dispatcher
+(DD-06 rename, protocol v2, worker leases via the pre-provisioned `leaseExpiresAt`, @Audited
+port); T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
+index authority, C5, the merge itself, E9 egress); T5 broader v5 DDs (DD-01 Team→Workspace,
+DD-03 versioning, DD-04 frontend); T6 post-merge cleanups (drop `jr_`/`_sch_`/`locks`
+collections); **T7 executor-SPI + governed-agency** (engagement-driven, 🟡 proposed —
+pull-based zone-queue executor SPI, evidence/custody ledger, executor portfolio, thin LLM
+task type + propose/dispose; see `specifications/repo-insights-engagement-inputs.md`). Item-level
+detail + dispositions: `specifications/e4-review-findings.md`.

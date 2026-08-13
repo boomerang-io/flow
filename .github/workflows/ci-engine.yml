@@ -5,7 +5,7 @@ on:
   # Triggers the workflow on push (branch and tag) or pull request events
   push:
     branches:
-      - '**'
+      - main
     tags:
       - 'engine@**'
     paths:
@@ -13,6 +13,13 @@ on:
       - 'lib-common/**'
       - '.github/workflows/ci-engine.yml'
   pull_request:
+    paths:
+      - 'service-engine/**'
+      - 'lib-common/**'
+      - '.github/workflows/ci-engine.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,7 +34,7 @@ jobs:
           cache: 'maven'
       - name: Test
         run: |
-          mvn clean test --projects service-engine --batch-mode
+          mvn clean test --projects service-engine --also-make --batch-mode
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
