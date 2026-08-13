@@ -201,6 +201,7 @@ merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-re
 | `specifications/scaling.md`               | 📎 Annex                     | Phase 2B locking/queueing brief.                                               |
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
 | `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
+| `specifications/repo-insights-engagement-inputs.md` | 🟡 Inputs — proposed (2026-08-09) | Client-engagement requirements for a future v5 phase: pull-based **executor SPI** (zone queues, payload cap), **evidence/custody ledger** in the task-result contract, **executor portfolio** (K8s Jobs default, VM/MicroVM, CoCo flag), workspace non-retention guarantee, thin LLM task type + **propose/dispose** governed agency, **Embabel** spike. Not ruled — proposed→confirmed when the phase is worked. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
@@ -253,4 +254,7 @@ D11/Q-005 agent poller, the idempotency-audit ~20 handlers incl. A3); T3 E7 work
 port); T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
 index authority, C5, the merge itself, E9 egress); T5 broader v5 DDs (DD-01 Team→Workspace,
 DD-03 versioning, DD-04 frontend); T6 post-merge cleanups (drop `jr_`/`_sch_`/`locks`
-collections). Item-level detail + dispositions: `specifications/e4-review-findings.md`.
+collections); **T7 executor-SPI + governed-agency** (engagement-driven, 🟡 proposed —
+pull-based zone-queue executor SPI, evidence/custody ledger, executor portfolio, thin LLM
+task type + propose/dispose; see `specifications/repo-insights-engagement-inputs.md`). Item-level
+detail + dispositions: `specifications/e4-review-findings.md`.
