@@ -141,7 +141,7 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 | ID | Gap | Sev | Fix | Tag |
 |---|---|---|---|---|
 | H1 | Model-extends-entity (TaskRun etc.) | H | Flatten with AgentProtocol split (J7/I6) | BEFORE (8) |
-| H2 | phase in public API (frontend: 2 read sites) | H | Frontend fix ahead; removal at major | BEFORE + POST |
+| H2 | phase in public API (frontend: 2 read sites) | H | **E7-2 investigation FIRST: inventory the frontend's actual `phase` usage at that time — `phase` may need to stay permanently surfaced on the public API (do NOT assume removal-at-major). The model split must keep serving it either way; treat public-`phase` as possibly-permanent, not transitional.** Frontend fix ahead only if the usage can be dropped. | BEFORE + POST |
 | H3 | Agent protocol v1 retirement | M | Dual-serve v1+v2; retire at major | BEFORE (8) + POST |
 | H4 | lib-common disposition + dead code | H | Execute the 72-class table | WITH (9) |
 | H5 | Six dependency cycles C1–C6 | H | Directed fixes | WITH (9) |

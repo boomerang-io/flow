@@ -42,7 +42,9 @@ public class QueueService {
   public void processWorkflowRun(WorkflowRun request) {
     try {
       LOGGER.debug(request.toString());
-      if (RunPhase.pending.equals(request.getPhase())
+      // A claimed run arrives already in phase queued - the claim (which is the pickup) advances
+      // it from pending. Dispatch on queued; pending is a phase a claimed run never carries here.
+      if (RunPhase.queued.equals(request.getPhase())
           && RunStatus.ready.equals(request.getStatus())) {
         LOGGER.info("Executing WorkflowRun...");
         // The execute is before communicating with the Engine
@@ -70,7 +72,7 @@ public class QueueService {
       if ((TaskType.template.equals(request.getType())
               || TaskType.custom.equals(request.getType())
               || TaskType.script.equals(request.getType()))
-          && RunPhase.pending.equals(request.getPhase())
+          && RunPhase.queued.equals(request.getPhase())
           && RunStatus.ready.equals(request.getStatus())) {
         LOGGER.info("Executing TaskRun...");
         // Communicate the start with the Engine
