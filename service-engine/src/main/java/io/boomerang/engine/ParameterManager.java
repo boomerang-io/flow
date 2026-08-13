@@ -195,9 +195,30 @@ public class ParameterManager {
     while (m.find()) {
       String foundKey = m.group(0);
       String[] separatedKey = foundKey.split("\\.");
-      Object foundValue =
-          referenceValue(
-              foundKey, separatedKey, flatParamLayers, wfRunId, taskRunMemo, originalValue);
+      // Dispatch the reference to its shape; the per-shape extraction lives in private helpers.
+      Object foundValue = null;
+      if ((separatedKey.length == 2) && "params".equals(separatedKey[0])) {
+        // params.<name>
+        foundValue = flatParamLayers.get(foundKey);
+      } else if ((separatedKey.length > 2) && "params".equals(separatedKey[0])) {
+        // params.<name>.<jsonpath> - query into a child of an object param
+        foundValue = objectPathValue(foundKey, 2, flatParamLayers);
+      } else if ((separatedKey.length == 3)
+          && "params".equals(separatedKey[1])
+          && isReservedScope(separatedKey[0])) {
+        // <scope>.params.<name>
+        foundValue = flatParamLayers.get(foundKey);
+      } else if ((separatedKey.length > 3)
+          && "params".equals(separatedKey[1])
+          && isReservedScope(separatedKey[0])) {
+        // <scope>.params.<name>.<jsonpath>
+        foundValue = objectPathValue(foundKey, 3, flatParamLayers);
+      } else if ((separatedKey.length >= 4)
+          && "tasks".equals(separatedKey[0])
+          && "results".equals(separatedKey[2])) {
+        // tasks.<name>.results.<result>[.<jsonpath>]
+        foundValue = taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
+      }
       if (!Objects.isNull(foundValue)) {
         if (ParamType.object.equals(type)) {
           return foundValue;
@@ -213,42 +234,6 @@ public class ParameterManager {
     }
     LOGGER.debug("Resolved Value: " + resolvedValue);
     return resolvedValue;
-  }
-
-  /*
-   * Dispatch a single $(...) reference to its shape handler. Returns the resolved value, or null
-   * when the reference matches no known shape or resolves to nothing (the token is left verbatim).
-   */
-  private Object referenceValue(
-      String foundKey,
-      String[] separatedKey,
-      Map<String, Object> flatParamLayers,
-      String wfRunId,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo,
-      Object originalValue) {
-    if ((separatedKey.length == 2) && "params".equals(separatedKey[0])) {
-      // params.<name>
-      return flatParamLayers.get(foundKey);
-    } else if ((separatedKey.length > 2) && "params".equals(separatedKey[0])) {
-      // params.<name>.<jsonpath> - query into a child of an object param
-      return objectPathValue(foundKey, 2, flatParamLayers);
-    } else if ((separatedKey.length == 3)
-        && "params".equals(separatedKey[1])
-        && isReservedScope(separatedKey[0])) {
-      // <scope>.params.<name>
-      return flatParamLayers.get(foundKey);
-    } else if ((separatedKey.length > 3)
-        && "params".equals(separatedKey[1])
-        && isReservedScope(separatedKey[0])) {
-      // <scope>.params.<name>.<jsonpath>
-      return objectPathValue(foundKey, 3, flatParamLayers);
-    } else if ((separatedKey.length >= 4)
-        && "tasks".equals(separatedKey[0])
-        && "results".equals(separatedKey[2])) {
-      // tasks.<name>.results.<result>[.<jsonpath>]
-      return taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
-    }
-    return null;
   }
 
   /*
