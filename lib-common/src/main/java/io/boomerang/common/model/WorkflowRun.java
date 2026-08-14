@@ -3,6 +3,7 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import java.util.Date;
 import java.util.HashMap;
@@ -17,6 +18,7 @@ import org.springframework.data.annotation.Id;
   "id",
   "creationDate",
   "status",
+  "phase",
   "startTime",
   "duration",
   "statusMessage",
@@ -44,6 +46,7 @@ public class WorkflowRun {
   private Long retries;
   private Boolean debug;
   private RunStatus status = RunStatus.notstarted;
+  private RunPhase phase = RunPhase.pending;
   private String statusMessage;
   private boolean isAwaitingApproval;
   private String workflowRef;
@@ -76,6 +79,8 @@ public class WorkflowRun {
         + debug
         + ", status="
         + status
+        + ", phase="
+        + phase
         + ", statusMessage="
         + statusMessage
         + ", isAwaitingApproval="

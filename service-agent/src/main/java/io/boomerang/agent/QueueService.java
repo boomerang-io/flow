@@ -6,7 +6,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
-import io.boomerang.common.model.WorkflowRunClaim;
+import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.agent.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
@@ -39,7 +39,7 @@ public class QueueService {
   }
 
   @Async
-  public void processWorkflowRun(WorkflowRunClaim request) {
+  public void processWorkflowRun(WorkflowRun request) {
     try {
       LOGGER.debug(request.toString());
       // A claimed run arrives already in phase queued - the claim (which is the pickup) advances

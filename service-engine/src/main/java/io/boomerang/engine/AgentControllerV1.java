@@ -2,7 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.WorkflowRunClaim;
+import io.boomerang.common.model.WorkflowRun;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -47,7 +47,7 @@ public class AgentControllerV1 {
       })
   // TODO when these are exposed externally for public / private agents, require token
   // authentication
-  public ResponseEntity<List<WorkflowRunClaim>> agentWorkflowQueue(
+  public ResponseEntity<List<WorkflowRun>> agentWorkflowQueue(
       @Parameter(name = "id", description = "Agent ID", required = true) @PathVariable String id) {
     return agentService.getWorkflowQueue(id);
   }

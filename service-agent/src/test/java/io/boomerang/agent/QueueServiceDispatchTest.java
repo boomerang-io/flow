@@ -14,7 +14,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
-import io.boomerang.common.model.WorkflowRunClaim;
+import io.boomerang.common.model.WorkflowRun;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -42,8 +42,8 @@ class QueueServiceDispatchTest {
     return run;
   }
 
-  private static WorkflowRunClaim workflowRun(RunPhase phase) {
-    WorkflowRunClaim run = new WorkflowRunClaim();
+  private static WorkflowRun workflowRun(RunPhase phase) {
+    WorkflowRun run = new WorkflowRun();
     run.setId("wf-1");
     run.setPhase(phase);
     run.setStatus(RunStatus.ready);
@@ -71,7 +71,7 @@ class QueueServiceDispatchTest {
   void queuedWorkflowIsDispatched() {
     queueService.processWorkflowRun(workflowRun(RunPhase.queued));
 
-    verify(workflowService).execute(any(WorkflowRunClaim.class));
+    verify(workflowService).execute(any(WorkflowRun.class));
     verify(engineClient).startWorkflow("wf-1");
   }
 }
