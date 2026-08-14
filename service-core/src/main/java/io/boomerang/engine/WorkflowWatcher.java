@@ -88,6 +88,11 @@ public class WorkflowWatcher {
           "#{T(java.util.concurrent.ThreadLocalRandom).current().nextLong(30000)}",
       fixedDelayString = "${flow.watcher.interval-ms:30000}")
   public void sweep() {
+    // The kill switch stops the scheduled sweeps too, not just the boot sweep - a disabled
+    // watcher runs nothing on its own. Tests drive individual sweeps by direct invocation.
+    if (!enabled) {
+      return;
+    }
     reapTaskTimeouts();
     reapWorkflowTimeouts();
     recoverStalledRuns();
