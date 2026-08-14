@@ -44,7 +44,10 @@ import org.springframework.stereotype.Service;
  *
  * It utilises a @DocumentReference for the parent field that allows us to retrieve the TaskEntity from within the TaskRevisionEntity when reading
  */
-@Service
+// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
+// io.boomerang.workflow.TaskService (same simple class name, both @Service) now that
+// service-engine and service-core share one context. See merge commit message.
+@Service("engineTaskService")
 public class TaskService {
   private static final Logger LOGGER = LogManager.getLogger();
 

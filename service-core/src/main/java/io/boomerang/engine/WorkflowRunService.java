@@ -55,7 +55,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
-@Service
+// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
+// io.boomerang.workflow.WorkflowRunService (same simple class name, both @Service) now that
+// service-engine and service-core share one context. See merge commit message.
+@Service("engineWorkflowRunService")
 public class WorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();

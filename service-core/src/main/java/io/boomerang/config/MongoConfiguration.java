@@ -1,6 +1,8 @@
 package io.boomerang.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,5 +30,11 @@ public class MongoConfiguration {
 
   public String collectionPrefix() {
     return this.workflowCollectionPrefix;
+  }
+
+  // Merged from service-engine (E8.2a)
+  @Autowired
+  public void setMapKeyDotReplacement(MappingMongoConverter mongoConverter) {
+    mongoConverter.setMapKeyDotReplacement("#");
   }
 }

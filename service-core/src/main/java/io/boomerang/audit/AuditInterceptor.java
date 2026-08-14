@@ -10,12 +10,18 @@ import org.springframework.stereotype.Component;
 
 /*
  * Intercepts all of the Create, Update, Delete, and Actions performed on objects and creates an Audit log
- * 
+ *
  * Ref: https://docs.spring.io/spring-framework/reference/core/aop/ataspectj/advice.html
  * Ref: https://www.baeldung.com/spring-boot-authentication-audit
+ *
+ * NOTE (E8.2a merge): explicitly named to avoid a Spring bean-name clash with the pre-existing,
+ * unrelated io.boomerang.core.audit.AuditInterceptor (same simple class name, both @Component).
+ * This class appears unreferenced anywhere in the merged codebase (dead/unwired pre-merge
+ * service-engine code, not introduced by the merge) - see the merge commit message; left in
+ * place as-is (no package restructuring in E8.2a) pending a later consolidation pass.
  */
-@Component
-public class AuditInterceptor {  
+@Component("engineAuditInterceptor")
+public class AuditInterceptor {
   private static final Logger LOGGER = LogManager.getLogger();
   
   @Autowired

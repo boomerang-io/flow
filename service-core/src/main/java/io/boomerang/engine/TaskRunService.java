@@ -47,7 +47,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 /*
  * Handles CRUD of TaskRuns
  */
-@Service
+// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
+// io.boomerang.workflow.TaskRunService (same simple class name, both @Service) now that
+// service-engine and service-core share one context. See merge commit message.
+@Service("engineTaskRunService")
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 

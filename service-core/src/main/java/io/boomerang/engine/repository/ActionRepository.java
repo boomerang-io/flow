@@ -7,7 +7,13 @@ import java.util.Date;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.Update;
+import org.springframework.stereotype.Repository;
 
+// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
+// io.boomerang.workflow.repository.ActionRepository (same simple interface name, both operating
+// on the same shared io.boomerang.common.entity.ActionEntity/collection) now that service-engine
+// and service-core share one context. See merge commit message.
+@Repository("engineActionRepository")
 public interface ActionRepository extends MongoRepository<ActionEntity, String> {
 
   ActionEntity findByTaskRunRef(String taskRunRef);

@@ -52,7 +52,10 @@ import org.springframework.stereotype.Service;
 /*
  * Service implements the CRUD ops on a Workflow
  */
-@Service
+// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
+// io.boomerang.workflow.WorkflowService (same simple class name, both @Service) now that
+// service-engine and service-core share one context. See merge commit message.
+@Service("engineWorkflowService")
 public class WorkflowService {
   private static final Logger LOGGER = LogManager.getLogger();
 

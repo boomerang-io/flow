@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.annotations.security.SecuritySchemes;
+import io.swagger.v3.oas.models.OpenAPI;
 import java.time.Clock;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -44,9 +45,10 @@ public class Application {
   public Clock clock() {
     return Clock.systemDefaultZone();
   }
-  // TODO: figure out if needed
-  //  @Bean
-  //  public OpenAPI api() {
-  //    return new OpenAPI();
-  //  }
+
+  // Merged from service-engine (E8.2a)
+  @Bean
+  public OpenAPI api() {
+    return new OpenAPI();
+  }
 }

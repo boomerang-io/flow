@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -44,7 +45,10 @@ public class SecurityConfiguration {
   private String basicPassword;
 
   //TODO figure out why we also have to have the permitAll matches in the doNotFilter of AuthenticationFilter
+    // @Order required now that DispatcherSecurityConfiguration's /api/v1/** chain (E8.2a merge)
+    // also lives in this context: it must evaluate FIRST (lower value), this chain evaluates last.
     @Bean
+    @Order(2)
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
           new AuthenticationFilter(tokenService, settingsService, basicPassword);

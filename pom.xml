@@ -9,7 +9,6 @@
     <modules>
         <module>lib-common</module>
         <module>service-core</module>
-        <module>service-engine</module>
         <module>service-agent</module>
         <module>service-loader</module>
     </modules>

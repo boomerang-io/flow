@@ -39,7 +39,10 @@ import org.springframework.stereotype.Service;
  * Ref: https://github.com/tektoncd/pipeline/blob/main/pkg/substitution/substitution.go Ref:
  * https://tekton.dev/docs/pipelines/variables/#fields-that-accept-variable-substitutions
  */
-@Service
+// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
+// io.boomerang.workflow.ParameterManager (same simple class name, both @Service) now that
+// service-engine and service-core share one context. See merge commit message.
+@Service("engineParameterManager")
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
