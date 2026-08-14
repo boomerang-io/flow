@@ -22,6 +22,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * rejected with 401. We control both ends (engine + worker), so there is no shadow phase.
  *
  * <p>Every other path is untouched and stays {@code permitAll} exactly as before.
+ *
+ * <p>This static shared secret is an INTERIM. Post-merge (DD-02), it is replaced by a first-class
+ * Flow token (a dispatcher-scoped {@code bfd_...} token validated by hash against the shared
+ * {@code tokens} collection) once the engine has the in-process token system. See gap-register A3.
  */
 public class DispatcherAuthFilter extends OncePerRequestFilter {
 
