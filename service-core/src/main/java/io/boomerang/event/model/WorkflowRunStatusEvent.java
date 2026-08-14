@@ -1,4 +1,4 @@
-package io.boomerang.engine.model;
+package io.boomerang.event.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.boomerang.common.model.WorkflowRun;

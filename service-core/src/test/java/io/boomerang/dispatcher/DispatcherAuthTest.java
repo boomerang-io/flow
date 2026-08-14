@@ -1,9 +1,10 @@
-package io.boomerang.engine;
+package io.boomerang.dispatcher;
 
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.boomerang.engine.AbstractEngineIntegrationTest;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

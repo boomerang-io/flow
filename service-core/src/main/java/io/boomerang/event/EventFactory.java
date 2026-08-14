@@ -1,14 +1,15 @@
-package io.boomerang.util;
+package io.boomerang.event;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.engine.enums.EventType;
-import io.boomerang.engine.model.TaskRunStatusEvent;
-import io.boomerang.engine.model.WorkflowRunStatusEvent;
-import io.boomerang.engine.model.WorkflowStatusEvent;
+import io.boomerang.event.enums.EventType;
+import io.boomerang.event.model.TaskRunStatusEvent;
+import io.boomerang.event.model.WorkflowRunStatusEvent;
+import io.boomerang.event.model.WorkflowStatusEvent;
+import io.boomerang.util.ConvertUtil;
 import java.net.URI;
 import java.text.MessageFormat;
 import java.util.Date;

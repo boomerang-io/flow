@@ -1,6 +1,6 @@
-package io.boomerang.security.model;
+package io.boomerang.core.security.model;
 
-import io.boomerang.security.enums.AuthScope;
+import io.boomerang.core.security.enums.AuthScope;
 import java.util.List;
 import lombok.Data;
 

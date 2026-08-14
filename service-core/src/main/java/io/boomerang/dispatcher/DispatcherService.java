@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.dispatcher;
 
 import static io.boomerang.util.ConvertUtil.entityToModel;
 
@@ -8,8 +8,10 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.engine.entity.AgentEntity;
-import io.boomerang.engine.repository.AgentRepository;
+import io.boomerang.dispatcher.entity.AgentEntity;
+import io.boomerang.dispatcher.repository.AgentRepository;
+import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.WorkflowRunService;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;

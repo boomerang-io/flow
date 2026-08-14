@@ -1,6 +1,6 @@
-package io.boomerang.engine.repository;
+package io.boomerang.dispatcher.repository;
 
-import io.boomerang.engine.entity.AgentEntity;
+import io.boomerang.dispatcher.entity.AgentEntity;
 import java.util.Date;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;

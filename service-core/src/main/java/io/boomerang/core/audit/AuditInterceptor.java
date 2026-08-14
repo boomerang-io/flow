@@ -3,7 +3,7 @@ package io.boomerang.core.audit;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.core.model.Token;
-import io.boomerang.security.IdentityService;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.workflow.model.Team;
 import io.boomerang.workflow.model.TeamRequest;
 import io.boomerang.workflow.model.WorkflowCanvas;

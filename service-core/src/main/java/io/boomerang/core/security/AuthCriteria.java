@@ -1,8 +1,8 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

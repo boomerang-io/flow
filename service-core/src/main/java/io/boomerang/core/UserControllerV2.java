@@ -2,10 +2,10 @@ package io.boomerang.core;
 
 import io.boomerang.core.model.User;
 import io.boomerang.core.model.UserRequest;
-import io.boomerang.security.AuthCriteria;
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

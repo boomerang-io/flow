@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.workflow.config;
 
 import java.util.List;
 import org.springframework.context.annotation.Configuration;

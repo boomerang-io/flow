@@ -1,9 +1,9 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import io.boomerang.core.model.Token;
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

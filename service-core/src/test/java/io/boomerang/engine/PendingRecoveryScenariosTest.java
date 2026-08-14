@@ -21,7 +21,7 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
-import io.boomerang.engine.repository.EventInboxRepository;
+import io.boomerang.event.repository.EventInboxRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
 import java.time.Duration;
 import java.util.List;

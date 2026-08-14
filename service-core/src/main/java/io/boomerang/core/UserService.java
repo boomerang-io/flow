@@ -10,7 +10,7 @@ import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.security.IdentityService;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.workflow.entity.TeamEntity;
 import io.boomerang.workflow.model.TeamStatus;
 import io.boomerang.workflow.model.TeamSummary;

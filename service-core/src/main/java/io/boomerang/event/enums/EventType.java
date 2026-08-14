@@ -1,4 +1,4 @@
-package io.boomerang.engine.enums;
+package io.boomerang.event.enums;
 
 public enum EventType {
 

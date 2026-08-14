@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -7,10 +7,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.core.model.Token;
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
-import io.boomerang.security.model.ResolvedPermissions;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

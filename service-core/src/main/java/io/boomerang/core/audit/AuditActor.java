@@ -2,7 +2,7 @@ package io.boomerang.core.audit;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import io.boomerang.security.enums.AuthScope;
+import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.model.Token;
 
 @JsonInclude(Include.NON_NULL)

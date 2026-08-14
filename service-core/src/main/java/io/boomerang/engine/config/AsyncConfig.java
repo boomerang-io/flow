@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.engine.config;
 
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;

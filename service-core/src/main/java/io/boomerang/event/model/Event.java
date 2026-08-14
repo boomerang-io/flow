@@ -1,6 +1,6 @@
-package io.boomerang.engine.model;
+package io.boomerang.event.model;
 
-import io.boomerang.engine.enums.EventType;
+import io.boomerang.event.enums.EventType;
 import io.cloudevents.CloudEvent;
 import java.io.IOException;
 import java.net.URI;

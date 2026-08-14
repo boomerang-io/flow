@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.JWTParser;

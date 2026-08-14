@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.dispatcher;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

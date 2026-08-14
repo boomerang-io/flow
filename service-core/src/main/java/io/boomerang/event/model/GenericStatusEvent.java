@@ -1,4 +1,4 @@
-package io.boomerang.engine.model;
+package io.boomerang.event.model;
 
 import java.io.IOException;
 import java.time.ZoneOffset;

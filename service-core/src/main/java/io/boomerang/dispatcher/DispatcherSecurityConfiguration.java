@@ -1,6 +1,6 @@
-package io.boomerang.security;
+package io.boomerang.dispatcher;
 
-import io.boomerang.config.DispatcherAuthFilter;
+import io.boomerang.dispatcher.DispatcherAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

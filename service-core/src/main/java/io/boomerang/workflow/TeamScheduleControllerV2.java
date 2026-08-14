@@ -2,10 +2,10 @@ package io.boomerang.workflow;
 
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.security.AuthCriteria;
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workflow.model.CronValidationResponse;
 import io.boomerang.workflow.model.WorkflowScheduleCalendar;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,8 +1,8 @@
-package io.boomerang.engine.entity;
+package io.boomerang.event.entity;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.engine.enums.InboxStatus;
+import io.boomerang.event.enums.InboxStatus;
 import java.util.Date;
 import lombok.Data;
 import org.springframework.data.annotation.Id;

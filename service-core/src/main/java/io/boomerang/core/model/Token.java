@@ -1,8 +1,8 @@
 package io.boomerang.core.model;
 
 import io.boomerang.core.entity.TokenEntity;
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.model.ResolvedPermissions;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;

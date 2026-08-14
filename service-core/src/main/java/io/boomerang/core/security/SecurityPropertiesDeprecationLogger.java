@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

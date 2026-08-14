@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import io.boomerang.core.TokenService;
 import io.boomerang.core.SettingsService;

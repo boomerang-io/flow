@@ -1,10 +1,10 @@
 package io.boomerang.workflow;
 
 import io.boomerang.core.model.Role;
-import io.boomerang.security.AuthCriteria;
-import io.boomerang.security.enums.AuthScope;
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workflow.model.Quotas;
 import io.boomerang.workflow.model.Team;
 import io.boomerang.workflow.model.TeamMember;

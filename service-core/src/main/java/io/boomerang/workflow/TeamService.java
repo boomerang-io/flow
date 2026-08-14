@@ -18,7 +18,7 @@ import io.boomerang.core.model.*;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.security.IdentityService;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.workflow.entity.ApproverGroupEntity;
 import io.boomerang.workflow.entity.TeamEntity;
 import io.boomerang.workflow.model.ApproverGroup;

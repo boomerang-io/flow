@@ -1,4 +1,4 @@
-package io.boomerang.security.enums;
+package io.boomerang.core.security.enums;
 
 import java.util.HashMap;
 import java.util.Map;

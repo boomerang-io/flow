@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.dispatcher;
 
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;

@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,10 +9,11 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.engine.entity.EventOutboxEntity;
-import io.boomerang.engine.enums.OutboxStatus;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.model.TaskRunTransition;
-import io.boomerang.engine.repository.EventOutboxRepository;
+import io.boomerang.event.entity.EventOutboxEntity;
+import io.boomerang.event.enums.OutboxStatus;
+import io.boomerang.event.repository.EventOutboxRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

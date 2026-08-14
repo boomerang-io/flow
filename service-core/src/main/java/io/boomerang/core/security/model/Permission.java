@@ -1,7 +1,7 @@
-package io.boomerang.security.model;
+package io.boomerang.core.security.model;
 
-import io.boomerang.security.enums.PermissionAction;
-import io.boomerang.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import lombok.Data;
 
 @Data

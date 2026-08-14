@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.core.config;
 
 import java.util.concurrent.Executor;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;

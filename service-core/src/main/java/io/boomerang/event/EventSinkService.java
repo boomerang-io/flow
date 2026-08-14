@@ -1,10 +1,10 @@
-package io.boomerang.engine;
+package io.boomerang.event;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.engine.model.TaskRunStatusEvent;
-import io.boomerang.engine.model.WorkflowRunStatusEvent;
-import io.boomerang.util.EventFactory;
+import io.boomerang.event.model.TaskRunStatusEvent;
+import io.boomerang.event.model.WorkflowRunStatusEvent;
+import io.boomerang.event.EventFactory;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.format.EventFormat;
 import io.cloudevents.core.provider.EventFormatProvider;

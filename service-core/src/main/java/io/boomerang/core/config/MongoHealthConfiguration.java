@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.core.config;
 
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;

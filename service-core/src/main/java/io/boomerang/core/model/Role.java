@@ -1,7 +1,7 @@
 package io.boomerang.core.model;
 
 import io.boomerang.core.entity.RoleEntity;
-import io.boomerang.security.enums.AuthScope;
+import io.boomerang.core.security.enums.AuthScope;
 import java.util.LinkedList;
 import java.util.List;
 import lombok.Data;

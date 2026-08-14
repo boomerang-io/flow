@@ -12,7 +12,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.User;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.security.IdentityService;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.workflow.tekton.TektonConverter;
 import io.boomerang.workflow.tekton.TektonTask;
 import java.util.Date;

@@ -11,6 +11,7 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.dispatcher.DispatcherService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

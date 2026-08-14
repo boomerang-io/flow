@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import java.io.IOException;
 import jakarta.servlet.ServletException;

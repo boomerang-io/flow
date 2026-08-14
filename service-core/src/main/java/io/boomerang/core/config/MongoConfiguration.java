@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.core.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

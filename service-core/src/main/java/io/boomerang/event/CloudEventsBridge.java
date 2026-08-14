@@ -1,11 +1,11 @@
-package io.boomerang.engine;
+package io.boomerang.event;
 
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.engine.entity.EventOutboxEntity;
+import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.model.WorkflowRunTransition;
-import io.boomerang.engine.repository.EventOutboxRepository;
+import io.boomerang.event.repository.EventOutboxRepository;
 import java.util.Date;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;

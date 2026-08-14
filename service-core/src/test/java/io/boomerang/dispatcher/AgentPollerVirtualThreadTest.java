@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.dispatcher;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -6,6 +6,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;

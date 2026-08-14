@@ -1,6 +1,6 @@
 package io.boomerang.core.model;
 
-import io.boomerang.security.enums.AuthScope;
+import io.boomerang.core.security.enums.AuthScope;
 import lombok.Data;
 
 import java.util.Date;

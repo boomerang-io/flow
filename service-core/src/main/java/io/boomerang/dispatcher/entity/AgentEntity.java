@@ -1,4 +1,4 @@
-package io.boomerang.engine.entity;
+package io.boomerang.dispatcher.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.boomerang.common.enums.TaskType;

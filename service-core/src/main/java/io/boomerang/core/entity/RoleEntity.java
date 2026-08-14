@@ -3,7 +3,7 @@ package io.boomerang.core.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import io.boomerang.security.enums.AuthScope;
+import io.boomerang.core.security.enums.AuthScope;
 import java.util.LinkedList;
 import java.util.List;
 import lombok.Data;

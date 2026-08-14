@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.dispatcher;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,6 +11,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;

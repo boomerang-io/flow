@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;

@@ -1,4 +1,4 @@
-package io.boomerang.security;
+package io.boomerang.core.security;
 
 import io.boomerang.config.FlowMode;
 import org.springframework.core.env.Environment;

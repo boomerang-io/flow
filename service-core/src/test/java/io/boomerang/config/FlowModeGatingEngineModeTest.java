@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.engine.DispatcherService;
+import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.engine.WorkflowRunService;
 import io.boomerang.integrations.IntegrationControllerV2;
 import org.junit.jupiter.api.Test;
