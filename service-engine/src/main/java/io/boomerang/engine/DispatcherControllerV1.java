@@ -13,57 +13,54 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/agent")
+@RequestMapping("/api/v1/dispatcher")
 @Tag(
-    name = "Agent",
-    description = "Manage Agent operations. Register agent. Check for WorkflowRuns and TaskRuns")
-public class AgentControllerV1 {
-  private final AgentService agentService;
+    name = "Dispatcher",
+    description =
+        "Manage Dispatcher operations. Register dispatcher. Check for WorkflowRuns and TaskRuns")
+public class DispatcherControllerV1 {
+  private final DispatcherService dispatcherService;
 
-  public AgentControllerV1(AgentService agentService) {
-    this.agentService = agentService;
+  public DispatcherControllerV1(DispatcherService dispatcherService) {
+    this.dispatcherService = dispatcherService;
   }
 
   @PostMapping(value = "/register")
-  @Operation(summary = "Register an Agent")
+  @Operation(summary = "Register a Dispatcher")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  // TODO when these are exposed externally for public / private agents, require token
-  // authentication
-  public String registerAgent(@RequestBody AgentRegistrationRequest request) {
-    return agentService.register(request);
+  public String registerDispatcher(@RequestBody AgentRegistrationRequest request) {
+    return dispatcherService.register(request);
   }
 
   @GetMapping(value = "/{id}/workflows")
-  @Operation(summary = "Retrieve an agents Workflows queue")
+  @Operation(summary = "Retrieve a dispatcher's Workflows queue")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  // TODO when these are exposed externally for public / private agents, require token
-  // authentication
-  public ResponseEntity<List<WorkflowRun>> agentWorkflowQueue(
-      @Parameter(name = "id", description = "Agent ID", required = true) @PathVariable String id) {
-    return agentService.getWorkflowQueue(id);
+  public ResponseEntity<List<WorkflowRun>> dispatcherWorkflowQueue(
+      @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
+          String id) {
+    return dispatcherService.getWorkflowQueue(id);
   }
 
   @GetMapping(value = "/{id}/tasks")
-  @Operation(summary = "Retrieve an agents Tasks queue")
+  @Operation(summary = "Retrieve a dispatcher's Tasks queue")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  // TODO when these are exposed externally for public / private agents, require token
-  // authentication
-  public ResponseEntity<List<TaskRun>> agentTasksQueue(
-      @Parameter(name = "id", description = "Agent ID", required = true) @PathVariable String id) {
-    return agentService.getTaskQueue(id);
+  public ResponseEntity<List<TaskRun>> dispatcherTasksQueue(
+      @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
+          String id) {
+    return dispatcherService.getTaskQueue(id);
   }
 }

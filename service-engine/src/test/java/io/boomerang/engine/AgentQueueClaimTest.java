@@ -34,10 +34,10 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  @Autowired private AgentService agentService;
+  @Autowired private DispatcherService dispatcherService;
 
   private String registerAgent(String name) {
-    return agentService.register(
+    return dispatcherService.register(
         new AgentRegistrationRequest(name, name + ".local", List.of("template")));
   }
 
@@ -77,7 +77,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
 
     for (String agent : List.of(agentA, agentA, agentB)) {
       String beaconId = savedReadyTaskRun().getId();
-      ResponseEntity<List<TaskRun>> response = agentService.getTaskQueue(agent);
+      ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
       assertTrue(containsId(response, beaconId), "poll should have claimed its ready beacon");
       assertFalse(
           containsId(response, terminalId),
@@ -105,13 +105,13 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
           pool.submit(
               () -> {
                 startGun.await();
-                return agentService.getTaskQueue(agentA);
+                return dispatcherService.getTaskQueue(agentA);
               });
       Future<ResponseEntity<List<TaskRun>>> resultB =
           pool.submit(
               () -> {
                 startGun.await();
-                return agentService.getTaskQueue(agentB);
+                return dispatcherService.getTaskQueue(agentB);
               });
       startGun.countDown();
 
@@ -136,7 +136,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
     String agent = registerAgent("payload-agent");
     String taskId = savedReadyTaskRun().getId();
 
-    ResponseEntity<List<TaskRun>> response = agentService.getTaskQueue(agent);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
     TaskRun claimed =
         response.getBody().stream()
             .filter(t -> taskId.equals(t.getId()))

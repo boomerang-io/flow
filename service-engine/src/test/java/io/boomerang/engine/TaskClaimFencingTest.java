@@ -29,13 +29,13 @@ import org.springframework.http.ResponseEntity;
  */
 class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
 
-  @Autowired private AgentService agentService;
+  @Autowired private DispatcherService dispatcherService;
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private TaskRunService taskRunService;
   @Autowired private MongoTemplate mongoTemplate;
 
   private String registerAgent(String name) {
-    return agentService.register(
+    return dispatcherService.register(
         new AgentRegistrationRequest(name, name + ".local", List.of("template")));
   }
 
@@ -61,7 +61,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
     String agentB = registerAgent("fencing-agent-b");
 
     // First claim: agent A owns seq 1.
-    assertTrue(containsId(agentService.getTaskQueue(agentA), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(agentA), taskRunId));
     assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaim().getSeq());
 
     // A requeue clears claim.by/claim.at/claim.leaseExpiresAt but never claim.seq; agent B's
@@ -75,7 +75,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
             .set("status", RunStatus.ready)
             .set("phase", RunPhase.pending),
         TaskRunEntity.class);
-    assertTrue(containsId(agentService.getTaskQueue(agentB), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(agentB), taskRunId));
     TaskRunEntity reclaimed = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(agentB, reclaimed.getClaim().getBy());
     assertEquals(2L, reclaimed.getClaim().getSeq());

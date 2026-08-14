@@ -26,7 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 @Service
-public class AgentService {
+public class DispatcherService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final Integer MAX_POLL_INTERVAL = 30000;
@@ -42,7 +42,7 @@ public class AgentService {
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
 
-  public AgentService(
+  public DispatcherService(
       AgentRepository agentRepository,
       WorkflowRunService workflowRunService,
       TaskRunService taskRunService,
@@ -124,7 +124,7 @@ public class AgentService {
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug("Checking queue for agent: {}", agentId);
       try {
-        // The claimed pre-images carry the wire shape the agent acts on: pending/ready to
+        // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
         // provision and start, completed to tear down and finalize.
         List<WorkflowRun> workflowRuns = new LinkedList<>();
         for (WorkflowRunEntity candidate : workflowRunService.findClaimableForProvision(PAGE_SIZE)) {
@@ -196,7 +196,7 @@ public class AgentService {
       try {
         // Page then claim: the Compare-And-Set re-checks eligibility per document, so a
         // candidate another agent claimed between page and claim is simply skipped. The
-        // returned pre-images carry the pending/ready wire shape the agent executes.
+        // returned pre-images carry the pending/ready wire shape the dispatcher executes.
         List<TaskRun> taskRuns = new LinkedList<>();
         for (TaskRunEntity candidate :
             taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
