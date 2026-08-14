@@ -12,195 +12,63 @@ import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTemplate;
+import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.TaskService;
+import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.engine.WorkflowService;
+import io.boomerang.engine.WorkflowTemplateService;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.workflow.model.WorkflowRunEventRequest;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort.Direction;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RequestCallback;
-import org.springframework.web.client.ResponseExtractor;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-import org.springframework.web.util.UriComponentsBuilder;
 
+/*
+ * This facade used to be the flow -> engine HTTP client (RestTemplate calls against
+ * flow.engine.*.url endpoints). Now that service-flow and service-engine are merged into the
+ * single service-core deployable (DD-02), every method below calls the equivalent engine service
+ * directly, in-process. The class/method signatures are preserved unchanged so the ~consumers
+ * across the flow services keep compiling untouched; only the transport died.
+ *
+ * Engine services throw BoomerangException on failure - that propagates naturally to callers
+ * exactly as it does from any other in-module service call. There is no more
+ * "Exception in communicating with internal services" 500 wrapper: that wrapper only ever fired
+ * for RestTemplate/network failures, which cannot happen for an in-process call, and it used to
+ * flatten the engine's real BoomerangException (e.g. a 400) into a generic 500 - that flattening
+ * is gone, which is a behaviour improvement, not a regression.
+ */
 @Service
 @Primary
 public class EngineClient {
 
   private static final Logger LOGGER = LogManager.getLogger(EngineClient.class);
 
-  @Value("${flow.engine.workflowrun.query.url}")
-  public String queryWorkflowRunURL;
+  @Autowired private WorkflowRunService workflowRunService;
 
-  @Value("${flow.engine.workflowrun.insight.url}")
-  public String insightWorkflowRunURL;
+  @Autowired private WorkflowService workflowService;
 
-  @Value("${flow.engine.workflowrun.count.url}")
-  public String countWorkflowRunURL;
+  @Autowired private TaskRunService taskRunService;
 
-  @Value("${flow.engine.workflowrun.get.url}")
-  public String getWorkflowRunURL;
+  @Autowired private TaskService taskService;
 
-  @Value("${flow.engine.workflowrun.start.url}")
-  public String startWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.finalize.url}")
-  public String finalizeWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.cancel.url}")
-  public String cancelWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.retry.url}")
-  public String retryWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.pause.url}")
-  public String pauseWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.resume.url}")
-  public String resumeWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.delete.url}")
-  public String deleteWorkflowRunURL;
-
-  @Value("${flow.engine.workflowrun.event.url}")
-  public String eventWorkflowRunURL;
-
-  @Value("${flow.engine.workflow.get.url}")
-  public String getWorkflowURL;
-
-  @Value("${flow.engine.workflow.query.url}")
-  public String queryWorkflowURL;
-
-  @Value("${flow.engine.workflow.count.url}")
-  public String countWorkflowURL;
-
-  @Value("${flow.engine.workflow.create.url}")
-  public String createWorkflowURL;
-
-  @Value("${flow.engine.workflow.apply.url}")
-  public String applyWorkflowURL;
-
-  @Value("${flow.engine.workflow.submit.url}")
-  public String submitWorkflowURL;
-
-  @Value("${flow.engine.workflow.changelog.url}")
-  public String changelogWorkflowURL;
-
-  @Value("${flow.engine.workflow.enable.url}")
-  public String enableWorkflowURL;
-
-  @Value("${flow.engine.workflow.disable.url}")
-  public String disableWorkflowURL;
-
-  @Value("${flow.engine.workflow.delete.url}")
-  public String deleteWorkflowURL;
-
-  @Value("${flow.engine.taskrun.get.url}")
-  public String getTaskRunURL;
-
-  @Value("${flow.engine.taskrun.end.url}")
-  public String endTaskRunURL;
-
-  @Value("${flow.engine.taskrun.logstream.url}")
-  private String logStreamTaskRunURL;
-
-  @Value("${flow.engine.task.get.url}")
-  public String getTaskURL;
-
-  @Value("${flow.engine.task.query.url}")
-  public String queryTaskURL;
-
-  @Value("${flow.engine.task.create.url}")
-  public String createTaskURL;
-
-  @Value("${flow.engine.task.apply.url}")
-  public String applyTaskURL;
-
-  @Value("${flow.engine.task.changelog.url}")
-  public String changelogTaskURL;
-
-  @Value("${flow.engine.task.delete.url}")
-  public String deleteTaskURL;
-
-  @Value("${flow.engine.workflowtemplate.get.url}")
-  public String getWorkflowTemplateURL;
-
-  @Value("${flow.engine.workflowtemplate.query.url}")
-  public String queryWorkflowTemplateURL;
-
-  @Value("${flow.engine.workflowtemplate.create.url}")
-  public String createWorkflowTemplateURL;
-
-  @Value("${flow.engine.workflowtemplate.apply.url}")
-  public String applyWorkflowTemplateURL;
-
-  @Value("${flow.engine.workflowtemplate.delete.url}")
-  public String deleteWorkflowTemplateURL;
-
-  @Autowired
-  @Qualifier("internalRestTemplate")
-  public RestTemplate restTemplate;
-
-  // Log streaming: long idle read so quiet streams are not cut; control templates stay at 60s.
-  @Autowired
-  @Qualifier("streamingRestTemplate")
-  public RestTemplate streamingRestTemplate;
+  @Autowired private WorkflowTemplateService workflowTemplateService;
 
   /*
    * ************************************** WorkflowRun endpoints
    * **************************************
    */
   public WorkflowRun getWorkflowRun(String workflowRunId, boolean withTasks) {
-    try {
-      String url = getWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-      Map<String, String> requestParams = new HashMap<>();
-      requestParams.put("withTasks", Boolean.toString(withTasks));
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.getForEntity(encodedURL, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.get(workflowRunId, withTasks);
   }
 
   public WorkflowRunResponsePage queryWorkflowRuns(
@@ -215,66 +83,21 @@ public class EngineClient {
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryWorkflowRunURL);
-      if (queryPage.isPresent()) {
-        urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
-      }
-      if (queryLimit.isPresent()) {
-        urlBuilder.queryParam("limit", Integer.toString(queryLimit.get()));
-      }
-      if (querySort.isPresent()) {
-        urlBuilder.queryParam("sort", querySort.get());
-      }
-      if (fromDate.isPresent()) {
-        urlBuilder.queryParam("fromDate", fromDate.get());
-      }
-      if (toDate.isPresent()) {
-        urlBuilder.queryParam("toDate", toDate.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryStatus.isPresent()) {
-        urlBuilder.queryParam("status", queryStatus.get());
-      }
-      if (queryPhase.isPresent()) {
-        urlBuilder.queryParam("phase", queryPhase.get());
-      }
-      if (queryWorkflowRuns.isPresent() && !queryWorkflowRuns.get().isEmpty()) {
-        urlBuilder.queryParam("workflowruns", queryWorkflowRuns.get());
-      }
-      if (queryWorkflows.isPresent() && !queryWorkflows.get().isEmpty()) {
-        urlBuilder.queryParam("workflows", queryWorkflows.get());
-      }
-      if (queryTriggers.isPresent() && !queryTriggers.get().isEmpty()) {
-        urlBuilder.queryParam("triggers", queryTriggers.get());
-      }
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-      // final HttpHeaders headers = new HttpHeaders();
-      // headers.setContentType(MediaType.APPLICATION_JSON);
-      // HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
-      // ResponseEntity<Page<WorkflowRunEntity>> response =
-      // restTemplate.exchange(encodedURL, HttpMethod.GET, null, Page.class);
-
-      ResponseEntity<WorkflowRunResponsePage> response =
-          restTemplate.getForEntity(encodedURI, WorkflowRunResponsePage.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().getContent().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    Page<WorkflowRun> page =
+        workflowRunService.query(
+            fromDate.map(Date::new),
+            toDate.map(Date::new),
+            queryLimit,
+            queryPage,
+            querySort,
+            queryLabels,
+            queryStatus,
+            queryPhase,
+            queryWorkflowRuns,
+            queryWorkflows,
+            queryTriggers);
+    return new WorkflowRunResponsePage(
+        page.getContent(), page.getPageable(), page.getTotalElements());
   }
 
   public WorkflowRunInsight insightWorkflowRuns(
@@ -283,43 +106,8 @@ public class EngineClient {
       Optional<List<String>> queryWorkflows,
       Optional<Long> fromDate,
       Optional<Long> toDate) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(insightWorkflowRunURL);
-      if (fromDate.isPresent()) {
-        urlBuilder.queryParam("fromDate", fromDate.get());
-      }
-      if (toDate.isPresent()) {
-        urlBuilder.queryParam("toDate", toDate.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryWorkflowRuns.isPresent() && !queryWorkflowRuns.get().isEmpty()) {
-        urlBuilder.queryParam("workflowruns", queryWorkflowRuns.get());
-      }
-      if (queryWorkflows.isPresent() && !queryWorkflows.get().isEmpty()) {
-        urlBuilder.queryParam("workflows", queryWorkflows.get());
-      }
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-
-      ResponseEntity<WorkflowRunInsight> response =
-          restTemplate.getForEntity(encodedURI, WorkflowRunInsight.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.insights(
+        fromDate.map(Date::new), toDate.map(Date::new), queryLabels, queryWorkflowRuns, queryWorkflows);
   }
 
   public WorkflowRunCount countWorkflowRuns(
@@ -327,229 +115,58 @@ public class EngineClient {
       Optional<List<String>> queryWorkflows,
       Optional<Long> fromDate,
       Optional<Long> toDate) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(countWorkflowRunURL);
-      if (fromDate.isPresent()) {
-        urlBuilder.queryParam("fromDate", fromDate.get());
-      }
-      if (toDate.isPresent()) {
-        urlBuilder.queryParam("toDate", toDate.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryWorkflows.isPresent() && !queryWorkflows.get().isEmpty()) {
-        urlBuilder.queryParam("workflows", queryWorkflows.get());
-      }
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-
-      ResponseEntity<WorkflowRunCount> response =
-          restTemplate.getForEntity(encodedURI, WorkflowRunCount.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.count(
+        fromDate.map(Date::new), toDate.map(Date::new), queryLabels, queryWorkflows);
   }
 
   public WorkflowRun startWorkflowRun(String workflowRunId, Optional<WorkflowRunRequest> request) {
-    try {
-      String url = startWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.postForEntity(url, request, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.start(workflowRunId, request);
   }
 
   public WorkflowRun finalizeWorkflowRun(String workflowRunId) {
-    try {
-      String url = finalizeWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.finalize(workflowRunId);
   }
 
   public WorkflowRun cancelWorkflowRun(String workflowRunId) {
-    try {
-      String url = cancelWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.exchange(url, HttpMethod.DELETE, null, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.cancel(workflowRunId);
   }
 
   public WorkflowRun pauseWorkflowRun(String workflowRunId) {
-    try {
-      String url = pauseWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.exchange(url, HttpMethod.PUT, null, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.pause(workflowRunId);
   }
 
   public WorkflowRun resumeWorkflowRun(String workflowRunId) {
-    try {
-      String url = resumeWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.exchange(url, HttpMethod.PUT, null, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowRunService.resume(workflowRunId);
   }
 
   public WorkflowRun retryWorkflowRun(String workflowRunId) {
-    try {
-      String url = retryWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // Matches the wire shape this facade always sent: PUT .../retry with no ?start query param,
+    // i.e. start=false, and the engine controller's hardcoded initial retryCount of 1.
+    return workflowRunService.retry(workflowRunId, false, 1);
   }
 
   public void deleteWorkflowRun(String workflowRunId) {
-    try {
-      String url = deleteWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.DELETE, null, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    workflowRunService.delete(workflowRunId);
   }
 
   public void eventWorkflowRun(String workflowRunId, WorkflowRunEventRequest request) {
-    try {
-      String url = eventWorkflowRunURL.replace("{workflowRunId}", workflowRunId);
+    workflowRunService.event(workflowRunId, toEngineEventRequest(request));
+  }
 
-      LOGGER.info("Query URL: " + url);
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<WorkflowRunEventRequest> entity =
-          new HttpEntity<WorkflowRunEventRequest>(request, headers);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+  private io.boomerang.engine.model.WorkflowRunEventRequest toEngineEventRequest(
+      WorkflowRunEventRequest request) {
+    // Flow's WorkflowRunEventRequest (io.boomerang.workflow.model) and the Engine's
+    // (io.boomerang.engine.model) are structurally identical except the Engine's carries an
+    // optional transport dedup id, which this facade never populated over the wire either - the
+    // JSON body sent never had an "id" field, so it always deserialized to null server-side.
+    io.boomerang.engine.model.WorkflowRunEventRequest engineRequest =
+        new io.boomerang.engine.model.WorkflowRunEventRequest();
+    engineRequest.setLabels(request.getLabels());
+    engineRequest.setAnnotations(request.getAnnotations());
+    engineRequest.setResults(request.getResults());
+    engineRequest.setStatus(request.getStatus());
+    engineRequest.setTopic(request.getTopic());
+    return engineRequest;
   }
 
   /*
@@ -558,36 +175,7 @@ public class EngineClient {
    */
 
   public Workflow getWorkflow(String workflowId, Optional<Integer> version, boolean withTasks) {
-    try {
-      String url = getWorkflowURL.replace("{workflowId}", workflowId);
-      Map<String, String> requestParams = new HashMap<>();
-      if (version.isPresent()) {
-        requestParams.put("version", version.get().toString());
-      }
-      requestParams.put("withTasks", Boolean.toString(withTasks));
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      ResponseEntity<Workflow> response = restTemplate.getForEntity(encodedURL, Workflow.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowService.get(workflowId, version, withTasks).getBody();
   }
 
   public WorkflowResponsePage queryWorkflows(
@@ -597,46 +185,9 @@ public class EngineClient {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryWorkflows) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryWorkflowURL);
-      if (queryPage.isPresent()) {
-        urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
-      }
-      if (queryLimit.isPresent()) {
-        urlBuilder.queryParam("limit", Integer.toString(queryLimit.get()));
-      }
-      if (querySort.isPresent()) {
-        urlBuilder.queryParam("sort", querySort.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryStatus.isPresent()) {
-        urlBuilder.queryParam("status", queryStatus.get());
-      }
-      if (queryWorkflows.isPresent() && !queryWorkflows.get().isEmpty()) {
-        urlBuilder.queryParam("workflows", queryWorkflows.get());
-      }
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-
-      ResponseEntity<WorkflowResponsePage> response =
-          restTemplate.getForEntity(encodedURI, WorkflowResponsePage.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().getContent().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    Page<Workflow> page =
+        workflowService.query(queryLimit, queryPage, querySort, queryLabels, queryStatus, queryWorkflows);
+    return new WorkflowResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
   }
 
   public WorkflowCount countWorkflows(
@@ -644,315 +195,74 @@ public class EngineClient {
       Optional<List<String>> queryWorkflows,
       Optional<Long> fromDate,
       Optional<Long> toDate) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(countWorkflowURL);
-      if (fromDate.isPresent()) {
-        urlBuilder.queryParam("fromDate", fromDate.get());
-      }
-      if (toDate.isPresent()) {
-        urlBuilder.queryParam("toDate", toDate.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryWorkflows.isPresent() && !queryWorkflows.get().isEmpty()) {
-        urlBuilder.queryParam("workflows", queryWorkflows.get());
-      }
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-
-      ResponseEntity<WorkflowCount> response =
-          restTemplate.getForEntity(encodedURI, WorkflowCount.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowService
+        .count(fromDate.map(Date::new), toDate.map(Date::new), queryLabels, queryWorkflows)
+        .getBody();
   }
 
   public Workflow createWorkflow(Workflow workflow) {
-    try {
-      LOGGER.info("URL: " + createWorkflowURL);
-
-      ResponseEntity<Workflow> response =
-          restTemplate.postForEntity(createWorkflowURL, workflow, Workflow.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowService.create(workflow, false).getBody();
   }
 
   public Workflow applyWorkflow(Workflow workflow, boolean replace) {
-    try {
-      String url = applyWorkflowURL;
-      Map<String, String> requestParams = new HashMap<>();
-      requestParams.put("replace", Boolean.toString(replace));
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<Workflow> entity = new HttpEntity<Workflow>(workflow, headers);
-      ResponseEntity<Workflow> response =
-          restTemplate.exchange(encodedURL, HttpMethod.PUT, entity, Workflow.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowService.apply(workflow, replace).getBody();
   }
 
   public WorkflowRun submitWorkflow(
       String workflowId, WorkflowSubmitRequest request, boolean start) {
-    try {
-      String url = submitWorkflowURL.replace("{workflowId}", workflowId);
-      Map<String, String> requestParams = new HashMap<>();
-      requestParams.put("start", Boolean.toString(start));
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      ResponseEntity<WorkflowRun> response =
-          restTemplate.postForEntity(encodedURL, request, WorkflowRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowService.submit(workflowId, request, start);
   }
 
   public List<ChangeLogVersion> getWorkflowChangeLog(String workflowId) {
-    try {
-      String url = changelogWorkflowURL.replace("{workflowId}", workflowId);
-
-      LOGGER.info("URL: " + url);
-
-      ResponseEntity<ChangeLogVersion[]> response =
-          restTemplate.getForEntity(url, ChangeLogVersion[].class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return Arrays.asList(response.getBody());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowService.changelog(workflowId).getBody();
   }
 
   public void enableWorkflow(String workflowId) {
-    try {
-      String url = enableWorkflowURL.replace("{workflowId}", workflowId);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.PUT, null, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-
-      if (!HttpStatus.NO_CONTENT.equals(response.getStatusCode())) {
-        throw new RestClientException("Unable to enable Workflow");
-      }
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // Dead code path: no io.boomerang.engine controller/service has ever exposed an
+    // enable/disable Workflow operation (verified - no callers anywhere in the codebase either).
+    // The old flow.engine.workflow.enable.url pointed at a route that did not exist on the
+    // engine side, so this call always failed at the HTTP layer; it now fails deterministically
+    // instead of over the wire.
+    throw new BoomerangException(
+        HttpStatus.NOT_IMPLEMENTED.value(),
+        "ENGINE_OPERATION_NOT_IMPLEMENTED",
+        "No Engine service exists for Workflow enable - this operation is not implemented.",
+        HttpStatus.NOT_IMPLEMENTED);
   }
 
   public void disableWorkflow(String workflowId) {
-    try {
-      String url = disableWorkflowURL.replace("{workflowId}", workflowId);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<Void> response = restTemplate.exchange(url, HttpMethod.PUT, null, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-
-      if (!HttpStatus.NO_CONTENT.equals(response.getStatusCode())) {
-        throw new RestClientException("Unable to disable Workflow");
-      }
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // See enableWorkflow() - same dead code path, no backing Engine capability.
+    throw new BoomerangException(
+        HttpStatus.NOT_IMPLEMENTED.value(),
+        "ENGINE_OPERATION_NOT_IMPLEMENTED",
+        "No Engine service exists for Workflow disable - this operation is not implemented.",
+        HttpStatus.NOT_IMPLEMENTED);
   }
 
   public void deleteWorkflow(String workflowId) {
-    try {
-      String url = deleteWorkflowURL.replace("{workflowId}", workflowId);
-      Map<String, String> requestParams = new HashMap<>();
-      requestParams.put("cascade", Boolean.toString(false));
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(encodedURL, HttpMethod.DELETE, null, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // The previous HTTP call always appended ?cascade=false, but WorkflowControllerV1#deleteWorkflow
+    // never accepted a "cascade" param (Spring silently ignored the unknown query param), so the
+    // Engine has only ever performed its one delete behaviour - the tombstone status flip.
+    workflowService.delete(workflowId);
   }
 
   /*
    * ************************************** TaskRun endpoints **************************************
    */
   public TaskRun getTaskRun(String taskRunId) {
-    try {
-      String url = getTaskRunURL.replace("{taskRunId}", taskRunId);
-      LOGGER.info("URL: " + url);
-
-      ResponseEntity<TaskRun> response = restTemplate.getForEntity(url, TaskRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return taskRunService.get(taskRunId).getBody();
   }
 
   public TaskRun endTaskRun(String taskRunId, TaskRunEndRequest request) {
-    try {
-      String url = endTaskRunURL.replace("{taskRunId}", taskRunId);
-      LOGGER.info("URL: " + url);
-
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<TaskRunEndRequest> entity = new HttpEntity<TaskRunEndRequest>(request, headers);
-      ResponseEntity<TaskRun> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, TaskRun.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return taskRunService.end(taskRunId, Optional.ofNullable(request)).getBody();
   }
 
   public StreamingResponseBody streamTaskRunLog(String taskRunId) {
-    String url = logStreamTaskRunURL.replace("{taskRunId}", taskRunId);
-    LOGGER.info("URL: " + url);
-
-    return outputStream -> {
-      RequestCallback requestCallback =
-          request ->
-              request
-                  .getHeaders()
-                  .setAccept(Arrays.asList(MediaType.APPLICATION_OCTET_STREAM, MediaType.ALL));
-      PrintWriter printWriter = new PrintWriter(outputStream);
-      ResponseExtractor<Void> responseExtractor = getResponseExtractor(outputStream, printWriter);
-      LOGGER.info("Starting TaskRun[{}] log stream...", taskRunId);
-      try {
-        streamingRestTemplate.execute(url, HttpMethod.GET, requestCallback, responseExtractor);
-      } catch (Exception ex) {
-        LOGGER.error(ex.toString());
-        throw new BoomerangException(
-            ex,
-            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            ex.getClass().getSimpleName(),
-            "Exception in communicating with internal services.",
-            HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-      LOGGER.info("Finished TaskRun[{}] log stream.", taskRunId);
-    };
-  }
-
-  private ResponseExtractor<Void> getResponseExtractor(
-      OutputStream outputStream, PrintWriter printWriter) {
-    return restTemplateResponse -> {
-      InputStream is = restTemplateResponse.getBody();
-      int nRead;
-      byte[] data = new byte[1024];
-      while ((nRead = is.read(data, 0, data.length)) != -1) {
-        outputStream.write(data, 0, nRead);
-      }
-      return null;
-    };
+    // TaskRunService.streamLog already returns the ready-to-write StreamingResponseBody (it
+    // delegates to LogClient, which remains on HTTP - that is the separate agent log-stream
+    // endpoint, out of scope here), so no adaptation is needed at all.
+    LOGGER.info("Starting TaskRun[{}] log stream...", taskRunId);
+    return taskRunService.streamLog(taskRunId);
   }
 
   /*
@@ -961,35 +271,7 @@ public class EngineClient {
    */
 
   public Task getTask(String ref, Optional<Integer> version) {
-    try {
-      String url = getTaskURL.replace("{ref}", ref);
-      Map<String, String> requestParams = new HashMap<>();
-      if (version.isPresent()) {
-        requestParams.put("version", version.get().toString());
-      }
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      ResponseEntity<Task> response = restTemplate.getForEntity(encodedURL, Task.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return taskService.get(ref, version);
   }
 
   public TaskResponsePage queryTask(
@@ -999,145 +281,32 @@ public class EngineClient {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       List<String> queryRefs) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryTaskURL);
-      if (queryPage.isPresent()) {
-        urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
-      }
-      if (queryLimit.isPresent()) {
-        urlBuilder.queryParam("limit", Integer.toString(queryLimit.get()));
-      }
-      if (querySort.isPresent()) {
-        urlBuilder.queryParam("sort", querySort.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryStatus.isPresent()) {
-        urlBuilder.queryParam("status", queryStatus.get());
-      }
-      urlBuilder.queryParam("ids", queryRefs);
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-
-      ResponseEntity<TaskResponsePage> response =
-          restTemplate.getForEntity(encodedURI, TaskResponsePage.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().getContent().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // The old URL builder always appended an "ids" query param (even for an empty list), so the
+    // Engine's queryIds Optional was always present - preserved here as Optional.of(queryRefs)
+    // rather than being conditioned on emptiness.
+    Page<Task> page =
+        taskService.query(
+            queryLimit, queryPage, querySort, queryLabels, queryStatus, Optional.empty(), Optional.of(queryRefs));
+    return new TaskResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
   }
 
   public Task createTask(Task request) {
-    try {
-      LOGGER.info("URL: " + createTaskURL);
-
-      ResponseEntity<Task> response =
-          restTemplate.postForEntity(createTaskURL, request, Task.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return taskService.create(request);
   }
 
   public Task applyTask(Task task, boolean replace) {
-    try {
-      String url = applyTaskURL;
-      Map<String, String> requestParams = new HashMap<>();
-      requestParams.put("replace", Boolean.toString(replace));
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<Task> entity = new HttpEntity<Task>(task, headers);
-      ResponseEntity<Task> response =
-          restTemplate.exchange(encodedURL, HttpMethod.PUT, entity, Task.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return taskService.apply(task, replace);
   }
 
   public List<ChangeLogVersion> getTaskChangeLog(String ref) {
-    try {
-      String url = changelogTaskURL.replace("{ref}", ref);
-
-      LOGGER.info("URL: " + url);
-
-      ResponseEntity<ChangeLogVersion[]> response =
-          restTemplate.getForEntity(url, ChangeLogVersion[].class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return Arrays.asList(response.getBody());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return taskService.changelog(ref);
   }
 
   public ResponseEntity<Void> deleteTask(String ref) {
-    try {
-      String url = deleteTaskURL.replace("{ref}", ref);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.DELETE, null, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      return response;
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // TaskControllerV1#delete returns void with no explicit status, which Spring MVC serializes
+    // as 200 OK over HTTP - matched here directly rather than via a network round trip.
+    taskService.delete(ref);
+    return ResponseEntity.ok().build();
   }
 
   /*
@@ -1148,37 +317,10 @@ public class EngineClient {
 
   public WorkflowTemplate getWorkflowTemplate(
       String name, Optional<Integer> version, boolean withTasks) {
-    try {
-      String url = getWorkflowTemplateURL.replace("{name}", name);
-      Map<String, String> requestParams = new HashMap<>();
-      if (version.isPresent()) {
-        requestParams.put("version", version.toString());
-      }
-      requestParams.put("withTasks", Boolean.toString(withTasks));
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      ResponseEntity<WorkflowTemplate> response =
-          restTemplate.getForEntity(encodedURL, WorkflowTemplate.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // WorkflowTemplateControllerV1#get never accepted the withTasks param either - it always
+    // called workflowTemplateService.get(name, version, false) regardless of what the caller
+    // asked for. Preserved here bug-for-bug: withTasks is intentionally ignored.
+    return workflowTemplateService.get(name, version, false);
   }
 
   public WorkflowTemplateResponsePage queryWorkflowTemplates(
@@ -1187,119 +329,23 @@ public class EngineClient {
       Optional<Direction> querySort,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryNames) {
-    try {
-      UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString(queryWorkflowTemplateURL);
-      if (queryPage.isPresent()) {
-        urlBuilder.queryParam("page", Integer.toString(queryPage.get()));
-      }
-      if (queryLimit.isPresent()) {
-        urlBuilder.queryParam("limit", Integer.toString(queryLimit.get()));
-      }
-      if (querySort.isPresent()) {
-        urlBuilder.queryParam("sort", querySort.get());
-      }
-      if (queryLabels.isPresent()) {
-        urlBuilder.queryParam("labels", queryLabels.get());
-      }
-      if (queryNames.isPresent() && !queryNames.get().isEmpty()) {
-        urlBuilder.queryParam("names", queryNames.get());
-      }
-      URI encodedURI = urlBuilder.build().encode().toUri();
-
-      LOGGER.info("Query URL: " + encodedURI);
-
-      ResponseEntity<WorkflowTemplateResponsePage> response =
-          restTemplate.getForEntity(encodedURI, WorkflowTemplateResponsePage.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().getContent().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    Page<WorkflowTemplate> page =
+        workflowTemplateService.query(queryLimit, queryPage, querySort, queryLabels, queryNames);
+    return new WorkflowTemplateResponsePage(
+        page.getContent(), page.getPageable(), page.getTotalElements());
   }
 
   public WorkflowTemplate createWorkflowTemplate(WorkflowTemplate workflow) {
-    try {
-      LOGGER.info("URL: " + createWorkflowTemplateURL);
-
-      ResponseEntity<WorkflowTemplate> response =
-          restTemplate.postForEntity(createWorkflowTemplateURL, workflow, WorkflowTemplate.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowTemplateService.create(workflow);
   }
 
   public WorkflowTemplate applyWorkflowTemplate(WorkflowTemplate workflow, boolean replace) {
-    try {
-      String url = applyWorkflowTemplateURL;
-      Map<String, String> requestParams = new HashMap<>();
-      requestParams.put("replace", Boolean.toString(replace));
-
-      String encodedURL =
-          requestParams.keySet().stream()
-              .map(key -> key + "=" + requestParams.get(key))
-              .collect(Collectors.joining("&", url + "?", ""));
-
-      LOGGER.info("URL: " + encodedURL);
-
-      final HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<WorkflowTemplate> entity = new HttpEntity<WorkflowTemplate>(workflow, headers);
-      ResponseEntity<WorkflowTemplate> response =
-          restTemplate.exchange(encodedURL, HttpMethod.PUT, entity, WorkflowTemplate.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      LOGGER.info("Content Response: " + response.getBody().toString());
-
-      return response.getBody();
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return workflowTemplateService.apply(workflow, replace);
   }
 
   public ResponseEntity<Void> deleteWorkflowTemplate(String name) {
-    try {
-      String url = deleteWorkflowTemplateURL.replace("{name}", name);
-
-      LOGGER.info("URL: " + url);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.DELETE, null, Void.class);
-
-      LOGGER.info("Status Response: " + response.getStatusCode());
-      return response;
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
-      throw new BoomerangException(
-          ex,
-          HttpStatus.INTERNAL_SERVER_ERROR.value(),
-          ex.getClass().getSimpleName(),
-          "Exception in communicating with internal services.",
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    // WorkflowTemplateControllerV1#delete explicitly returns 204 No Content - matched here.
+    workflowTemplateService.delete(name);
+    return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
   }
 }
