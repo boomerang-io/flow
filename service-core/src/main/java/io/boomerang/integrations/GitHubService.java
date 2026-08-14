@@ -5,6 +5,8 @@ import com.spotify.github.v3.checks.Installation;
 import com.spotify.github.v3.clients.GitHubClient;
 import com.spotify.github.v3.clients.GithubAppClient;
 import com.spotify.github.v3.clients.OrganisationClient;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -24,7 +26,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+// H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
 @Service
+@ConditionalOnFlowMode(FlowMode.FULL)
 public class GitHubService {
 
   private static final Logger LOGGER = LogManager.getLogger();

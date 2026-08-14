@@ -32,6 +32,8 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.SettingsService;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.integrations.entity.IntegrationsEntity;
@@ -61,8 +63,11 @@ import org.springframework.web.client.HttpClientErrorException;
  * users:read:email
  *
  * This service depends on the SlackSecurityVerificationFilter
+ *
+ * H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
  */
 @Service
+@ConditionalOnFlowMode(FlowMode.FULL)
 public class SlackService {
 
   private static final Logger LOGGER = LogManager.getLogger();

@@ -46,13 +46,15 @@ public class WebhookEventService {
 
   private final WorkflowService workflowService;
   private final EngineClient engineClient;
-  private final IntegrationService integrationService;
+  // H6: IntegrationService only exists in flow.mode=full (io.boomerang.integrations is
+  // mode-gated) - Optional so this service still constructs in engine/standalone.
+  private final Optional<IntegrationService> integrationService;
   private final RelationshipService relationshipService;
 
   public WebhookEventService(
       WorkflowService workflowService,
       EngineClient engineClient,
-      IntegrationService integrationService,
+      Optional<IntegrationService> integrationService,
       RelationshipService relationshipService) {
     this.workflowService = workflowService;
     this.engineClient = engineClient;
@@ -124,14 +126,20 @@ public class WebhookEventService {
 
   */
   public ResponseEntity<?> processGitHubWebhook(String eventType, JsonNode payload) {
+    if (integrationService.isEmpty()) {
+      LOGGER.warn(
+          "GitHub webhook received but integrations are not active in this flow.mode - ignoring.");
+      return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+    }
+    IntegrationService integrations = integrationService.get();
     LOGGER.debug("GitHub webhook received - {}: {}", eventType, payload.toString());
     switch (eventType) {
       case "installation" -> {
         if (payload.get("action") != null) {
           if ("created".equals(payload.get("action").asText())) {
-            integrationService.create("github_app", payload.get("installation"));
+            integrations.create("github_app", payload.get("installation"));
           } else if ("deleted".equals(payload.get("action").asText())) {
-            integrationService.delete("github_app", payload.get("installation"));
+            integrations.delete("github_app", payload.get("installation"));
           }
           return ResponseEntity.ok().build();
         }
@@ -140,7 +148,7 @@ public class WebhookEventService {
         // Events that come in will have installation.id and if related to a repo, a repository.name
         LOGGER.debug("Installation ID: " + payload.get("installation").get("id"));
         String teamRef =
-            integrationService.getTeamByRef(payload.get("installation").get("id").asText());
+            integrations.getTeamByRef(payload.get("installation").get("id").asText());
         if (!Objects.isNull(teamRef) && !teamRef.isBlank()) {
           WorkflowSubmitRequest request = new WorkflowSubmitRequest();
           request.setTrigger(TriggerEnum.github);

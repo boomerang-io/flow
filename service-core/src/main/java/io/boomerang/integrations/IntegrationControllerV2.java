@@ -2,6 +2,8 @@ package io.boomerang.integrations;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.integrations.model.GHLinkRequest;
 import io.boomerang.integrations.model.Integration;
 import io.boomerang.security.AuthCriteria;
@@ -40,8 +42,11 @@ import org.springframework.web.bind.annotation.RestController;
  * The extensions management controller
  *
  * The Slack extension depends on the SlackSecurityVerificationFilter
+ *
+ * H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
  */
 @RestController
+@ConditionalOnFlowMode(FlowMode.FULL)
 @RequestMapping("/api/v2/integration")
 @Tag(
     name = "Integrations",

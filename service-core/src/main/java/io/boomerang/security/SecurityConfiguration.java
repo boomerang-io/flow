@@ -5,8 +5,8 @@ import io.boomerang.core.SettingsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,8 +15,10 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+// A5/H6: gated via the unified resolution (flow.auth.enabled, if explicitly set, still wins -
+// see FlowSecurityProperties) rather than a raw @ConditionalOnProperty on flow.auth.enabled.
 @Configuration
-@ConditionalOnProperty(name = "flow.auth.enabled", havingValue = "true")
+@Conditional(AuthEnabledCondition.class)
 public class SecurityConfiguration {
 
   private static final String INFO = "/info";
