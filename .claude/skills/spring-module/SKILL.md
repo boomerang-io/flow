@@ -185,6 +185,14 @@ Repo rulings (from v5 review feedback — these override any generated-code habi
 - **Check the sibling pattern first.** Before writing logic, look for the same concern
   solved elsewhere (task-level timeout mirrors the workflow-level quota-ceiling pattern)
   — mirror it rather than inventing a variant.
+- **Default to the existing data model; highlight any deviation** (maintainer ruling
+  2026-08-14). The entities/collections/relationships are proven across v1–v5. Reuse them.
+  Do NOT add wrapper/wire/DTO models, denormalized fields, new collections, extra
+  indirection, or model splits without a concrete field-level justification — and when a
+  change *does* deviate by adding a layer, **call it out explicitly** to the maintainer
+  rather than slipping it in. Added complexity carries the burden of proof. (`WorkflowRunClaim`,
+  `teamRef`, `RetryClass`, and run-creation idempotency keys were each pulled back for exactly
+  this.)
 
 From the Spring Framework team's own style guide
 ([Code Style wiki](https://github.com/spring-projects/spring-framework/wiki/Code-Style),
