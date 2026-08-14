@@ -1,7 +1,7 @@
 FROM eclipse-temurin:25-jre-alpine
 ENV JAVA_OPTS=""
 ENV BMRG_HOME=/opt/boomerang
-ENV BMRG_SVC=service-flow
+ENV BMRG_SVC=service-core
 
 WORKDIR $BMRG_HOME
 ADD ./target/$BMRG_SVC.jar service.jar

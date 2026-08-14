@@ -22,10 +22,13 @@ of boundaries landing, else Q-211 re-opens).
 ## Sequence
 
 ### E8 — boundaries + `service-core` (in progress)
-- **E8.0 — prerequisites** 🔵: finish J7 (flatten `WorkflowSchedule` + `WorkflowTemplate` off their
-  entities — `TaskRun` done at E7-2); H4 dedup subset (delete/merge the surviving dup classes:
-  `Config`, `WorkflowToken`, dup `KeyValuePair`, dup `TriggerConditionOperation`, engine
-  `ParameterUtil` superset-merged into common; `LockManagerNew` already gone).
+- **E8.0 — prerequisites** ✅ (2026-08-14): J7 done (flattened `WorkflowSchedule` + `WorkflowTemplate`;
+  `TaskRun` was E7-2); H4 dedup subset done (`Config`, `WorkflowToken`, dup `KeyValuePair`, dup
+  `TriggerConditionOperation` deleted; engine `ParameterUtil` superset-merged into common — the
+  erasure-clashing `List<AbstractParam>` overload renamed `abstractParamToRunParam`).
+  **Discovered residue:** four flow-local model-extends-entity cases remain (`core/model/User`,
+  `UserProfile`, `Setting`; `workflow/model/Action`) — within-module inheritance, flattened when
+  their owning pieces restructure (`Action` matters at J3, the single Action owner).
 - **E8.1** — `service-flow` → `service-core` git mv (rename-only commit; modifications in
   follow-up commits per the repo git rule), parent pom + CI updates (DD-05).
 - **E8.2+** — engine code moves in, module-by-module per the nine-module layout; H5 cycles

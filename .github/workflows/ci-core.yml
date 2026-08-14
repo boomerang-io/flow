@@ -1,4 +1,4 @@
-name: CI Flow
+name: CI Core
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -9,14 +9,14 @@ on:
     tags:
       - 'flow@**'
     paths:
-      - 'service-flow/**'
+      - 'service-core/**'
       - 'lib-common/**'
-      - '.github/workflows/ci-flow.yml'
+      - '.github/workflows/ci-core.yml'
   pull_request:
     paths:
-      - 'service-flow/**'
+      - 'service-core/**'
       - 'lib-common/**'
-      - '.github/workflows/ci-flow.yml'
+      - '.github/workflows/ci-core.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -38,7 +38,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
         run: |
-          mvn clean test --projects service-flow --also-make --batch-mode -s settings.xml
+          mvn clean test --projects service-core --also-make --batch-mode -s settings.xml
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
@@ -64,12 +64,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
         run: |
-          mvn clean package --projects service-flow --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
+          mvn clean package --projects service-core --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
-          name: service-flow.jar
-          path: service-flow/target/service-flow.jar
+          name: service-core.jar
+          path: service-core/target/service-core.jar
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
@@ -87,7 +87,7 @@ jobs:
         uses: actions/checkout@v3
       - uses: actions/download-artifact@v4
         with:
-          name: service-flow.jar
+          name: service-core.jar
           path: ${{ github.workspace }}/target
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -106,7 +106,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: service-flow/Dockerfile
+          file: service-core/Dockerfile
           push: true
           tags: boomerangio/flow-service-workflow:latest,boomerangio/flow-service-workflow:${{ steps.get_version.outputs.VERSION }}
       - name: Image digest
