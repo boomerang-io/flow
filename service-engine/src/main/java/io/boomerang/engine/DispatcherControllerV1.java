@@ -32,8 +32,6 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  // TODO when these are exposed externally for public / private dispatchers, require token
-  // authentication
   public String registerDispatcher(@RequestBody AgentRegistrationRequest request) {
     return dispatcherService.register(request);
   }
@@ -46,8 +44,6 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  // TODO when these are exposed externally for public / private dispatchers, require token
-  // authentication
   public ResponseEntity<List<WorkflowRunDispatch>> dispatcherWorkflowQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id) {
@@ -62,8 +58,6 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  // TODO when these are exposed externally for public / private dispatchers, require token
-  // authentication
   public ResponseEntity<List<TaskRunDispatch>> dispatcherTasksQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id) {
