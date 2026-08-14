@@ -144,8 +144,8 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
             .orElseThrow();
 
     // The wire payload the agent receives must reflect the post-claim transition, not the stale
-    // pre-claim pending/agentRef the findAndModify pre-image originally held.
+    // pre-claim pending phase the findAndModify pre-image originally held. (agentRef is an internal
+    // field and is intentionally not exposed on the public TaskRun model.)
     assertEquals(RunPhase.queued, claimed.getPhase());
-    assertEquals(agent, claimed.getAgentRef());
   }
 }

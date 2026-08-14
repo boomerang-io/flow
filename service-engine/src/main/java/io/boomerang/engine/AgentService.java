@@ -7,7 +7,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkflowRunClaim;
 import io.boomerang.engine.entity.AgentEntity;
 import io.boomerang.engine.repository.AgentRepository;
 import java.time.Instant;
@@ -105,7 +105,7 @@ public class AgentService {
    * @param agentId
    * @return
    */
-  public ResponseEntity<List<WorkflowRun>> getWorkflowQueue(String agentId) {
+  public ResponseEntity<List<WorkflowRunClaim>> getWorkflowQueue(String agentId) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
@@ -126,19 +126,19 @@ public class AgentService {
       try {
         // The claimed pre-images carry the wire shape the agent acts on: pending/ready to
         // provision and start, completed to tear down and finalize.
-        List<WorkflowRun> workflowRuns = new LinkedList<>();
+        List<WorkflowRunClaim> workflowRuns = new LinkedList<>();
         for (WorkflowRunEntity candidate : workflowRunService.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunService.tryClaimForProvision(candidate.getId(), agentId);
           if (claimed != null) {
-            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
+            workflowRuns.add(entityToModel(claimed, WorkflowRunClaim.class));
           }
         }
         for (WorkflowRunEntity candidate : workflowRunService.findClaimableForTeardown(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunService.tryClaimForTeardown(candidate.getId(), agentId);
           if (claimed != null) {
-            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
+            workflowRuns.add(entityToModel(claimed, WorkflowRunClaim.class));
           }
         }
 

@@ -186,7 +186,7 @@ public class EngineClient {
               null,
               (ParameterizedTypeReference<? extends List<?>>)
                   (isWorkflow
-                      ? new ParameterizedTypeReference<List<WorkflowRun>>() {}
+                      ? new ParameterizedTypeReference<List<WorkflowRunClaim>>() {}
                       : new ParameterizedTypeReference<List<TaskRun>>() {}));
       if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
         List<?> runs = (List<?>) response.getBody();
@@ -196,7 +196,7 @@ public class EngineClient {
               LOGGER.debug(
                   "Processing {}Run: {}", isWorkflow ? "Workflow" : "Task", run.toString());
               if (isWorkflow) {
-                queueService.processWorkflowRun((WorkflowRun) run);
+                queueService.processWorkflowRun((WorkflowRunClaim) run);
               } else {
                 queueService.processTaskRun((TaskRun) run);
               }

@@ -2,7 +2,7 @@ package io.boomerang.agent;
 
 import io.boomerang.agent.model.Response;
 import io.boomerang.agent.model.WorkspaceRequest;
-import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkflowRunClaim;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.kube.KubeService;
 import io.boomerang.kube.exception.KubeRuntimeException;
@@ -33,7 +33,7 @@ public class WorkflowService {
    * It will move the workflow from Status: Ready, Phase: Pending to Status: Running, Phase: Running
    * and return the information to the Engine.
    */
-  public Response execute(WorkflowRun workflow) {
+  public Response execute(WorkflowRunClaim workflow) {
     Response response =
         new Response("0", "WorkflowRun (" + workflow.getId() + ") has been created successfully.");
     LOGGER.info(workflow.toString());
@@ -87,7 +87,7 @@ public class WorkflowService {
    * At this point in time the resources are Workspaces and this only removes the 'workflowRun'
    * Workspaces as 'workflow' Workspaces persist across executions.
    */
-  public Response terminate(WorkflowRun workflow) {
+  public Response terminate(WorkflowRunClaim workflow) {
     Response response =
         new Response(
             "0", "WorkflowRun (" + workflow.getId() + ") has been terminated successfully.");
