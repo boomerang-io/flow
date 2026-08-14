@@ -260,6 +260,21 @@ reconciliation showed **E4/E5 already closed the concurrency core** (6/10 ranked
 fixed; the still-open residue is caller-level run-creation idempotency keys, which the "dropped
 run-creation dedup" decision deliberately skips). D11/Q-005 (agent poller) stays a measurement step.
 
+SHIPPED (Track 3 / E7, on `feat-v5`): **D11/Q-005** measured (claim path does not pin virtual
+threads on Java 25 + driver 5.8.0) → **`spring.threads.virtual.enabled=true`** on the engine.
+**E7-1** agent dispatches claimed runs on `queued` (fixed the A2-exposed dispatch break) + a
+cross-module contract test. **E7-2** public/agent model split — `TaskRun` flattened off the
+entity (drops the `agentRef` leak, keeps `phase`), `WorkflowRun` drops `pauseRequestedAt` (keeps
+`phase`); **no bespoke wire model** — the worker gets the plain run (a `WorkflowRunClaim` attempt
+was collapsed back). **E7-4** dispatcher protocol — `agent`→`dispatcher` rename, `/api/v1/agent`
+replaced by `/api/v1/dispatcher` (no dual-serve), plain `TaskRun`/`WorkflowRun` on the wire; A3
+**interim static bearer-token auth** on `/api/v1/dispatcher/**` (`DispatcherAuthFilter`). A
+dispatch-envelope + worker `claimSeq` fencing + lease-at-claim were built then **stripped** (the
+engine already fences via `claim.seq` CAS; nothing reads `leaseExpiresAt` yet — deferred).
+**DEFERRED to post-merge/E8**: E7-5 persisted `agentRef`/`agents` rename + migration; the
+first-class Flow dispatcher token (`AuthScope.dispatcher` + `bfd` prefix — check ARCHIE first,
+gap-register A3); worker leases + fencing.
+
 REMAINING WORK is organised as **Tracks 1–6** (the roadmap): T1 review-refactor remainder
 (P-A3✅, P-B✅, A2✅); T2 Phase-3 hardening (D5✅, D7✅ via single admission gate; REMAINING:
 the caller-level idempotency-key residue #23/#15/#16 is deferred by the "dropped run-creation
