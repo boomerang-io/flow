@@ -1,10 +1,9 @@
 package io.boomerang.core;
 
 import io.boomerang.core.model.Features;
+import io.boomerang.core.model.SettingConfig;
 import java.util.HashMap;
 import java.util.Map;
-
-import io.boomerang.workflow.model.SettingConfig;
 import org.springframework.stereotype.Service;
 
 @Service

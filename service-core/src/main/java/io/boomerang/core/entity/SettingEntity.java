@@ -1,10 +1,9 @@
 package io.boomerang.core.entity;
 
 import io.boomerang.core.enums.ConfigurationType;
+import io.boomerang.core.model.SettingConfig;
 import java.util.Date;
 import java.util.List;
-
-import io.boomerang.workflow.model.SettingConfig;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;

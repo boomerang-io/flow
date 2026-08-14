@@ -5,10 +5,9 @@ import io.boomerang.core.model.HeaderFeatures;
 import io.boomerang.core.model.HeaderNavigation;
 import io.boomerang.core.model.HeaderNavigationResponse;
 import io.boomerang.core.model.HeaderPlatform;
+import io.boomerang.core.model.SettingConfig;
 import java.util.ArrayList;
 import java.util.List;
-
-import io.boomerang.workflow.model.SettingConfig;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;

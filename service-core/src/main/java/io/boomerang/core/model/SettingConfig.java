@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.core.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.core.model;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
