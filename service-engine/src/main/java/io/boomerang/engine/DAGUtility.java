@@ -7,11 +7,11 @@ import io.boomerang.common.enums.*;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.util.GraphProcessor;
-import io.boomerang.util.ParameterUtil;
 import io.boomerang.util.ResultUtil;
 import java.util.Date;
 import java.util.HashMap;
@@ -178,7 +178,7 @@ public class DAGUtility {
                 wfRevisionTask.getParams().toString());
             taskRunEntity.setParams(
                 ParameterUtil.addUniqueParams(
-                    ParameterUtil.paramSpecToRunParam(task.getSpec().getParams()),
+                    ParameterUtil.abstractParamToRunParam(task.getSpec().getParams()),
                     wfRevisionTask.getParams()));
           } else {
             LOGGER.debug(

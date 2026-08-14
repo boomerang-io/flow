@@ -12,6 +12,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.model.*;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.engine.repository.TaskRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRepository;
@@ -19,7 +20,6 @@ import io.boomerang.engine.repository.WorkflowRevisionRepository;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.util.ConvertUtil;
-import io.boomerang.util.ParameterUtil;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -496,7 +496,7 @@ public class WorkflowService {
     wfRunEntity.setCreationDate(new Date());
     wfRunEntity.setStatus(RunStatus.notstarted);
     wfRunEntity.getLabels().putAll(workflow.getLabels());
-    wfRunEntity.setParams(ParameterUtil.paramSpecToRunParam(wfRevision.getParams()));
+    wfRunEntity.setParams(ParameterUtil.abstractParamToRunParam(wfRevision.getParams()));
 
     wfRunEntity.setWorkspaces(wfRevision.getWorkspaces());
     if (!Objects.isNull(wfRevision.getTimeout()) && wfRevision.getTimeout() != 0) {
