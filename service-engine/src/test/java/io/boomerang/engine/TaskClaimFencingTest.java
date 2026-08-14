@@ -9,7 +9,7 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
-import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunDispatch;
 import io.boomerang.common.model.TaskRunEndRequest;
 import java.util.List;
 import java.util.Optional;
@@ -29,20 +29,20 @@ import org.springframework.http.ResponseEntity;
  */
 class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
 
-  @Autowired private AgentService agentService;
+  @Autowired private DispatcherService dispatcherService;
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private TaskRunService taskRunService;
   @Autowired private MongoTemplate mongoTemplate;
 
   private String registerAgent(String name) {
-    return agentService.register(
+    return dispatcherService.register(
         new AgentRegistrationRequest(name, name + ".local", List.of("template")));
   }
 
-  private static boolean containsId(ResponseEntity<List<TaskRun>> response, String id) {
+  private static boolean containsId(ResponseEntity<List<TaskRunDispatch>> response, String id) {
     return response != null
         && response.getBody() != null
-        && response.getBody().stream().anyMatch(t -> id.equals(t.getId()));
+        && response.getBody().stream().anyMatch(t -> id.equals(t.getRun().getId()));
   }
 
   @Test
@@ -61,7 +61,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
     String agentB = registerAgent("fencing-agent-b");
 
     // First claim: agent A owns seq 1.
-    assertTrue(containsId(agentService.getTaskQueue(agentA), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(agentA), taskRunId));
     assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaim().getSeq());
 
     // A requeue clears claim.by/claim.at/claim.leaseExpiresAt but never claim.seq; agent B's
@@ -75,7 +75,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
             .set("status", RunStatus.ready)
             .set("phase", RunPhase.pending),
         TaskRunEntity.class);
-    assertTrue(containsId(agentService.getTaskQueue(agentB), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(agentB), taskRunId));
     TaskRunEntity reclaimed = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(agentB, reclaimed.getClaim().getBy());
     assertEquals(2L, reclaimed.getClaim().getSeq());

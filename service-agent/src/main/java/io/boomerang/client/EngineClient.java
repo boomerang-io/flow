@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class EngineClient {
@@ -40,20 +41,20 @@ public class EngineClient {
   @Value("${flow.engine.taskrun.end.url}")
   private String endTaskRunURL;
 
-  @Value("${flow.engine.agent.register.url}")
-  private String agentRegisterURL;
+  @Value("${flow.engine.dispatcher.register.url}")
+  private String dispatcherRegisterURL;
 
-  @Value("${flow.engine.agent.workflowqueue.url}")
-  private String agentQueueWorkflowURL;
+  @Value("${flow.engine.dispatcher.workflowqueue.url}")
+  private String dispatcherQueueWorkflowURL;
 
-  @Value("${flow.engine.agent.taskqueue.url}")
-  private String agentQueueTaskURL;
+  @Value("${flow.engine.dispatcher.taskqueue.url}")
+  private String dispatcherQueueTaskURL;
 
-  @Value("${flow.agent.task-types}")
+  @Value("${flow.dispatcher.task-types}")
   private List<String> taskTypes;
 
-  @Value("${flow.agent.name}")
-  private String agentName;
+  @Value("${flow.dispatcher.name}")
+  private String dispatcherName;
 
   @Autowired
   @Qualifier("internalRestTemplate")
@@ -61,9 +62,22 @@ public class EngineClient {
 
   @Autowired public QueueService queueService;
 
-  public void startWorkflow(String wfRunId) {
+  // Append the dispatcher's claim identity as query params so the engine can fence a superseded
+  // claim on the lifecycle callback. claimedBy is this worker's own registered id.
+  private String withFencing(String url, Long claimSeq) {
+    UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
+    if (agentId != null) {
+      builder.queryParam("claimedBy", agentId);
+    }
+    if (claimSeq != null) {
+      builder.queryParam("claimSeq", claimSeq);
+    }
+    return builder.build(false).toUriString();
+  }
+
+  public void startWorkflow(String wfRunId, Long claimSeq) {
     try {
-      String url = startWorkflowRunURL.replace("{workflowRunId}", wfRunId);
+      String url = withFencing(startWorkflowRunURL.replace("{workflowRunId}", wfRunId), claimSeq);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
@@ -76,9 +90,10 @@ public class EngineClient {
     }
   }
 
-  public void finalizeWorkflow(String wfRunId) {
+  public void finalizeWorkflow(String wfRunId, Long claimSeq) {
     try {
-      String url = finalizeWorkflowRunURL.replace("{workflowRunId}", wfRunId);
+      String url =
+          withFencing(finalizeWorkflowRunURL.replace("{workflowRunId}", wfRunId), claimSeq);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
@@ -91,9 +106,9 @@ public class EngineClient {
     }
   }
 
-  public void startTask(String taskRunId) {
+  public void startTask(String taskRunId, Long claimSeq) {
     try {
-      String url = startTaskRunURL.replace("{taskRunId}", taskRunId);
+      String url = withFencing(startTaskRunURL.replace("{taskRunId}", taskRunId), claimSeq);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
@@ -106,9 +121,9 @@ public class EngineClient {
     }
   }
 
-  public void endTask(String taskRunId, TaskRunEndRequest endRequest) {
+  public void endTask(String taskRunId, TaskRunEndRequest endRequest, Long claimSeq) {
     try {
-      String url = endTaskRunURL.replace("{taskRunId}", taskRunId);
+      String url = withFencing(endTaskRunURL.replace("{taskRunId}", taskRunId), claimSeq);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<TaskRunEndRequest> entity = new HttpEntity<TaskRunEndRequest>(endRequest, headers);
@@ -122,47 +137,50 @@ public class EngineClient {
   }
 
   /**
-   * Registers the agent and its capabilities with the engine
+   * Registers the dispatcher and its capabilities with the engine
    *
    * <p>This should block and cause the service to exit if it cannot register
    */
-  public void registerAgent() {
+  public void registerDispatcher() {
     try {
       // Retrieve the hostname as the machine ID
       agentHost = InetAddress.getLocalHost().getHostName();
-      LOGGER.debug("Registering Agent({})", agentHost);
+      LOGGER.debug("Registering Dispatcher({})", agentHost);
 
       AgentRegistrationRequest request =
-          new AgentRegistrationRequest(agentName, agentHost, taskTypes);
+          new AgentRegistrationRequest(dispatcherName, agentHost, taskTypes);
 
       // Send the registration request
       ResponseEntity<String> response =
-          restTemplate.postForEntity(agentRegisterURL, request, String.class);
+          restTemplate.postForEntity(dispatcherRegisterURL, request, String.class);
       if (!response.getStatusCode().is2xxSuccessful()) {
         LOGGER.error(
-            "Failed to register Agent({}). Status: {}", agentHost, response.getStatusCode());
+            "Failed to register Dispatcher({}). Status: {}", agentHost, response.getStatusCode());
         throw new RuntimeException(
-            "Failed to register Agent: " + agentHost + ". Status: " + response.getStatusCode());
+            "Failed to register Dispatcher: "
+                + agentHost
+                + ". Status: "
+                + response.getStatusCode());
       }
       agentId = response.getBody();
-      LOGGER.debug("Agent {}({}) registered successfully.", agentId, agentHost);
+      LOGGER.debug("Dispatcher {}({}) registered successfully.", agentId, agentHost);
     } catch (UnknownHostException e) {
       throw new RuntimeException("Failed to retrieve hostname for machine ID", e);
     } catch (Exception e) {
-      throw new RuntimeException("Error during Agent registration: " + e.getMessage());
+      throw new RuntimeException("Error during Dispatcher registration: " + e.getMessage());
     }
   }
 
   @Scheduled(fixedDelay = HEARTBEAT_INTERVAL)
-  public void retrieveAgentWorkflowQueue() {
-    String url = agentQueueWorkflowURL.replace("{agentId}", agentId);
-    retrieveAgentQueue(url, true);
+  public void retrieveDispatcherWorkflowQueue() {
+    String url = dispatcherQueueWorkflowURL.replace("{agentId}", agentId);
+    retrieveDispatcherQueue(url, true);
   }
 
   @Scheduled(fixedDelay = HEARTBEAT_INTERVAL)
-  public void retrieveAgentTaskQueue() {
-    String url = agentQueueTaskURL.replace("{agentId}", agentId);
-    retrieveAgentQueue(url, false);
+  public void retrieveDispatcherTaskQueue() {
+    String url = dispatcherQueueTaskURL.replace("{agentId}", agentId);
+    retrieveDispatcherQueue(url, false);
   }
 
   /**
@@ -175,9 +193,9 @@ public class EngineClient {
    * <p>TODO in the future optimise the Async to have a LinkedBlockingQueue with maximum size of
    * what it can achieve
    */
-  private void retrieveAgentQueue(String url, boolean isWorkflow) {
+  private void retrieveDispatcherQueue(String url, boolean isWorkflow) {
     LOGGER.info(
-        "Retrieving {}Runs Queue for Agent ({})", isWorkflow ? "Workflow" : "Task", agentId);
+        "Retrieving {}Runs Queue for Dispatcher ({})", isWorkflow ? "Workflow" : "Task", agentId);
     try {
       ResponseEntity<?> response =
           restTemplate.exchange(
@@ -186,8 +204,8 @@ public class EngineClient {
               null,
               (ParameterizedTypeReference<? extends List<?>>)
                   (isWorkflow
-                      ? new ParameterizedTypeReference<List<WorkflowRun>>() {}
-                      : new ParameterizedTypeReference<List<TaskRun>>() {}));
+                      ? new ParameterizedTypeReference<List<WorkflowRunDispatch>>() {}
+                      : new ParameterizedTypeReference<List<TaskRunDispatch>>() {}));
       if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
         List<?> runs = (List<?>) response.getBody();
         LOGGER.info("Received {} {}Runs.", runs.size(), isWorkflow ? "Workflow" : "Task");
@@ -196,9 +214,9 @@ public class EngineClient {
               LOGGER.debug(
                   "Processing {}Run: {}", isWorkflow ? "Workflow" : "Task", run.toString());
               if (isWorkflow) {
-                queueService.processWorkflowRun((WorkflowRun) run);
+                queueService.processWorkflowRun((WorkflowRunDispatch) run);
               } else {
-                queueService.processTaskRun((TaskRun) run);
+                queueService.processTaskRun((TaskRunDispatch) run);
               }
             });
       } else if (response.getStatusCode().isSameCodeAs(HttpStatusCode.valueOf(204))) {

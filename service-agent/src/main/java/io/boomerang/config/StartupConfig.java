@@ -12,7 +12,7 @@ public class StartupConfig {
 
   @PostConstruct
   public void init() {
-    // Register Agent into the Engine
-    engineClient.registerAgent();
+    // Register Dispatcher into the Engine
+    engineClient.registerDispatcher();
   }
 }

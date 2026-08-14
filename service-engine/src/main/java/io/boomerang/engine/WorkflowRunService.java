@@ -51,6 +51,7 @@ import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
@@ -73,6 +74,11 @@ public class WorkflowRunService {
   private final ApplicationEventPublisher eventPublisher;
 
   // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
+
+  // Claim lease duration: how long a claim's ownership stands before the recovery sweep may
+  // reap it. Written onto claim.leaseExpiresAt at claim time.
+  @Value("${flow.dispatcher.lease-duration-ms:300000}")
+  private long leaseDurationMs;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -143,11 +149,14 @@ public class WorkflowRunService {
                 .is(RunPhase.pending)
                 .and("claim.by")
                 .exists(false));
+    Date now = new Date();
+    Date leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
     Update update =
         new Update()
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
-            .set("claim.at", new Date())
+            .set("claim.at", now)
+            .set("claim.leaseExpiresAt", leaseExpiresAt)
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
@@ -155,9 +164,11 @@ public class WorkflowRunService {
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
       // Return the pre-image with the claim transition applied - the caller ships this to the
-      // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
+      // dispatcher, so it must reflect the post-claim phase, owner and lease, not the stale
+      // pre-claim values.
       preImage.setPhase(RunPhase.queued);
       preImage.setAgentRef(claimedBy);
+      preImage.setClaim(patchClaim(preImage.getClaim(), claimedBy, now, leaseExpiresAt));
     }
     return preImage;
   }
@@ -173,21 +184,39 @@ public class WorkflowRunService {
                 .exists(false)
                 .and("workspaces.0")
                 .exists(true));
+    Date now = new Date();
+    Date leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
     Update update =
         new Update()
             .set("claim.by", claimedBy)
-            .set("claim.at", new Date())
+            .set("claim.at", now)
+            .set("claim.leaseExpiresAt", leaseExpiresAt)
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), preImage.getPhase());
-      // Return the pre-image with the claim owner applied - teardown leaves the phase (completed)
-      // unchanged, so only agentRef needs patching for the caller's agent payload.
+      // Return the pre-image with the claim owner + lease applied - teardown leaves the phase
+      // (completed) unchanged, so only agentRef and the claim block need patching for the
+      // caller's dispatch payload.
       preImage.setAgentRef(claimedBy);
+      preImage.setClaim(patchClaim(preImage.getClaim(), claimedBy, now, leaseExpiresAt));
     }
     return preImage;
+  }
+
+  // Patch a claim pre-image to reflect the post-claim CAS write: bump seq (never-claimed -> 1),
+  // stamp owner/time and the freshly provisioned lease, so the dispatch envelope carries the
+  // fencing tokens the dispatcher echoes back.
+  private static RunClaim patchClaim(
+      RunClaim preClaim, String claimedBy, Date claimedAt, Date leaseExpiresAt) {
+    RunClaim claim = preClaim != null ? preClaim : new RunClaim();
+    claim.setBy(claimedBy);
+    claim.setAt(claimedAt);
+    claim.setLeaseExpiresAt(leaseExpiresAt);
+    claim.setSeq(claim.getSeq() == null ? 1L : claim.getSeq() + 1);
+    return claim;
   }
 
   public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {

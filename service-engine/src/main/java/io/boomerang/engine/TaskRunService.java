@@ -5,6 +5,7 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -52,6 +54,11 @@ public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
+
+  // Claim lease duration: how long a claim's ownership stands before the recovery sweep may
+  // reap it. Written onto claim.leaseExpiresAt at claim time.
+  @Value("${flow.dispatcher.lease-duration-ms:300000}")
+  private long leaseDurationMs;
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -113,11 +120,13 @@ public class TaskRunService {
                 .orOperator(
                     Criteria.where("retry.after").exists(false),
                     Criteria.where("retry.after").lte(now)));
+    Date leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
     Update update =
         new Update()
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
             .set("claim.at", now)
+            .set("claim.leaseExpiresAt", leaseExpiresAt)
             .set("agentRef", claimedBy)
             .inc("claim.seq", 1)
             .unset("retry.after");
@@ -126,11 +135,26 @@ public class TaskRunService {
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), RunPhase.queued);
       // Return the pre-image with the claim transition applied - the caller ships this to the
-      // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
+      // dispatcher, so it must reflect the post-claim phase, owner and lease, not the stale
+      // pre-claim values.
       preImage.setPhase(RunPhase.queued);
       preImage.setAgentRef(claimedBy);
+      preImage.setClaim(patchClaim(preImage.getClaim(), claimedBy, now, leaseExpiresAt));
     }
     return preImage;
+  }
+
+  // Patch a claim pre-image to reflect the post-claim CAS write: bump seq (never-claimed -> 1),
+  // stamp owner/time and the freshly provisioned lease, so the dispatch envelope carries the
+  // fencing tokens the dispatcher echoes back.
+  private static RunClaim patchClaim(
+      RunClaim preClaim, String claimedBy, Date claimedAt, Date leaseExpiresAt) {
+    RunClaim claim = preClaim != null ? preClaim : new RunClaim();
+    claim.setBy(claimedBy);
+    claim.setAt(claimedAt);
+    claim.setLeaseExpiresAt(leaseExpiresAt);
+    claim.setSeq(claim.getSeq() == null ? 1L : claim.getSeq() + 1);
+    return claim;
   }
 
   // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params
@@ -453,6 +477,16 @@ public class TaskRunService {
 
   public ResponseEntity<TaskRun> start(
       String taskRunId, Optional<TaskRunStartRequest> optRunRequest) {
+    return start(taskRunId, optRunRequest, Optional.empty(), Optional.empty());
+  }
+
+  // Start with optional claimant identity. The dispatcher echoes its claim seq so a superseded
+  // claim is fenced out downstream; a request with no identity is accepted as before.
+  public ResponseEntity<TaskRun> start(
+      String taskRunId,
+      Optional<TaskRunStartRequest> optRunRequest,
+      Optional<String> claimedBy,
+      Optional<Long> claimSeq) {
     if (!Objects.isNull(taskRunId) && !taskRunId.isBlank()) {
       Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
       if (optTaskRunEntity.isPresent()) {
@@ -475,7 +509,7 @@ public class TaskRunService {
             taskRunRepository.save(taskRunEntity);
           }
         }
-        taskExecutionService.start(taskRunId);
+        taskExecutionService.start(taskRunId, claimedBy, claimSeq);
         // Retrieve the refreshed state
         TaskRun taskRun = new TaskRun(taskRunRepository.findById(taskRunId).get());
         return ResponseEntity.ok(taskRun);
@@ -485,6 +519,16 @@ public class TaskRunService {
   }
 
   public ResponseEntity<TaskRun> end(String taskRunId, Optional<TaskRunEndRequest> optRunRequest) {
+    return end(taskRunId, optRunRequest, Optional.empty(), Optional.empty());
+  }
+
+  // End with optional claimant identity. The completion Compare-And-Set fences on the echoed
+  // claim seq downstream; a request with no identity is accepted as before.
+  public ResponseEntity<TaskRun> end(
+      String taskRunId,
+      Optional<TaskRunEndRequest> optRunRequest,
+      Optional<String> claimedBy,
+      Optional<Long> claimSeq) {
     if (!Objects.isNull(taskRunId) && !taskRunId.isBlank()) {
       Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
       if (optTaskRunEntity.isPresent()) {
@@ -515,7 +559,7 @@ public class TaskRunService {
         if (!RunPhase.completed.equals(taskRunEntity.getPhase())) {
           taskRunRepository.save(taskRunEntity);
         }
-        taskExecutionService.end(taskRunId);
+        taskExecutionService.end(taskRunId, claimedBy, claimSeq);
         TaskRun taskRun = new TaskRun(taskRunEntity);
         return ResponseEntity.ok(taskRun);
       }
