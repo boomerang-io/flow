@@ -141,7 +141,7 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 | ID | Gap | Sev | Fix | Tag |
 |---|---|---|---|---|
 | H1 | Model-extends-entity (TaskRun etc.) | H | Flatten with AgentProtocol split (J7/I6) | BEFORE (8) |
-| H2 | phase in public API (frontend: 2 read sites) | H | Frontend fix ahead; removal at major | BEFORE + POST |
+| H2 | phase in public API (frontend: 2 read sites) | H | **E7-2 investigation FIRST: inventory the frontend's actual `phase` usage at that time — `phase` may need to stay permanently surfaced on the public API (do NOT assume removal-at-major). The model split must keep serving it either way; treat public-`phase` as possibly-permanent, not transitional.** Frontend fix ahead only if the usage can be dropped. | BEFORE + POST |
 | H3 | Agent protocol v1 retirement | M | Dual-serve v1+v2; retire at major | BEFORE (8) + POST |
 | H4 | lib-common disposition + dead code | H | Execute the 72-class table | WITH (9) |
 | H5 | Six dependency cycles C1–C6 | H | Directed fixes | WITH (9) |
@@ -244,10 +244,11 @@ discussion, not its replacement):
   + **delete alturkovic** → E1-data tombstone/watcher/retention. Constraint: H15.
 - **E5 — JobRunr retirement** (step 6): due-work docs; drain; Q-221/Q-227 close.
 - **E6 — Relationship rewrite** (step 7, parallelisable): G1–G6, A8, A9.
-- **E7 — Agent contract split + protocol v2** (step 8): **opens with the D11/Q-005 poller
-  load-measurement** (virtual-thread pinning vs async `DeferredResult` long-poll — decide from
-  data before touching the protocol; see `e4-review-findings.md` D11), then H1, I6, A3,
-  H2-frontend. (D5 shipped in Track 2.)
+- **E7 — Agent contract split + protocol v2** (step 8): **D11/Q-005 poller measurement DONE
+  (2026-08-13)** — claim path doesn't pin virtual threads (JFR-measured), so
+  `spring.threads.virtual.enabled=true` shipped on the engine; residual idle busy-poll DB load
+  is a protocol-v2 design input (async/event-driven poll). Then H1, I6, A3, H2-frontend. (D5
+  shipped in Track 2.)
 - **E8 — Modulith boundaries** (step 9): nine modules, H4–H8, A5; engine module bootable;
   timeboxed to merge within 1–2 releases.
 - **E9 — Callback inversion** (step 10): F2/F3/F4, A4-dissolve, C10 bindings, B9 stage 2.

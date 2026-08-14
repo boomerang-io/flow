@@ -49,7 +49,6 @@ public class WorkflowRun {
   private RunPhase phase = RunPhase.pending;
   private String statusMessage;
   private boolean isAwaitingApproval;
-  private Date pauseRequestedAt;
   private String workflowRef;
   private String workflowName;
   private String workflowDisplayName;

@@ -264,10 +264,12 @@ REMAINING WORK is organised as **Tracks 1–6** (the roadmap): T1 review-refacto
 (P-A3✅, P-B✅, A2✅); T2 Phase-3 hardening (D5✅, D7✅ via single admission gate; REMAINING:
 the caller-level idempotency-key residue #23/#15/#16 is deferred by the "dropped run-creation
 dedup" decision unless re-opened; **D11/Q-005 agent-poller is re-sequenced INTO T3/E7** as its
-opening measurement, not a standalone T2 item); T3 E7 worker/dispatcher — **opens with the
-D11/Q-005 poller load-measurement** (virtual-thread pinning vs async `DeferredResult` long-poll,
-decided from data before touching the protocol; see `e4-review-findings.md` D11) — then DD-06
-rename, protocol v2, worker leases via the pre-provisioned `leaseExpiresAt`, @Audited port; T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
+opening measurement, not a standalone T2 item); T3 E7 worker/dispatcher — **D11/Q-005 poller
+measurement DONE (2026-08-13): claim path does not pin virtual threads (Java 25 JEP 491 + driver
+5.8.0), so `spring.threads.virtual.enabled=true` shipped on the engine, removing the ~200-agent
+platform-thread ceiling; the residual idle busy-poll DB load is carried into protocol-v2 design
+(async/event-driven poll, option (c))** — then DD-06 rename, protocol v2, worker leases via the
+pre-provisioned `leaseExpiresAt`, @Audited port; T4 the DD-02 flow/engine merge (F1 god-class split, F2 CAS-out-of-services, F3 DI, F4
 index authority, C5, the merge itself, E9 egress); T5 broader v5 DDs (DD-01 Team→Workspace,
 DD-03 versioning, DD-04 frontend); T6 post-merge cleanups (drop `jr_`/`_sch_`/`locks`
 collections); **T7 executor-SPI + governed-agency** (engagement-driven, 🟡 proposed —

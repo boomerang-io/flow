@@ -926,9 +926,9 @@ public class WorkflowRunService {
         return;
       }
     }
-    List<TaskRun> taskRuns = getTaskRuns(workflowRunId);
+    List<TaskRunEntity> taskRuns = taskRunRepository.findByWorkflowRunRef(workflowRunId);
     // Set preApproved or call endTaskRun for each with the status.
-    List<TaskRun> topicTaskRuns =
+    List<TaskRunEntity> topicTaskRuns =
         taskRuns.stream()
             .filter(
                 tr ->
