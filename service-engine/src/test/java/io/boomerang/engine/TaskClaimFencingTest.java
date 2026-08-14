@@ -9,7 +9,7 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
-import io.boomerang.common.model.TaskRunDispatch;
+import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import java.util.List;
 import java.util.Optional;
@@ -39,10 +39,10 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
         new AgentRegistrationRequest(name, name + ".local", List.of("template")));
   }
 
-  private static boolean containsId(ResponseEntity<List<TaskRunDispatch>> response, String id) {
+  private static boolean containsId(ResponseEntity<List<TaskRun>> response, String id) {
     return response != null
         && response.getBody() != null
-        && response.getBody().stream().anyMatch(t -> id.equals(t.getRun().getId()));
+        && response.getBody().stream().anyMatch(t -> id.equals(t.getId()));
   }
 
   @Test

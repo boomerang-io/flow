@@ -7,9 +7,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunDispatch;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.common.model.WorkflowRunDispatch;
 import io.boomerang.engine.entity.AgentEntity;
 import io.boomerang.engine.repository.AgentRepository;
 import java.time.Instant;
@@ -107,7 +105,7 @@ public class DispatcherService {
    * @param agentId
    * @return
    */
-  public ResponseEntity<List<WorkflowRunDispatch>> getWorkflowQueue(String agentId) {
+  public ResponseEntity<List<WorkflowRun>> getWorkflowQueue(String agentId) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
@@ -127,21 +125,20 @@ public class DispatcherService {
       LOGGER.debug("Checking queue for agent: {}", agentId);
       try {
         // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
-        // provision and start, completed to tear down and finalize. Each is wrapped with the
-        // claim seq + lease so the dispatcher can fence its lifecycle callbacks.
-        List<WorkflowRunDispatch> workflowRuns = new LinkedList<>();
+        // provision and start, completed to tear down and finalize.
+        List<WorkflowRun> workflowRuns = new LinkedList<>();
         for (WorkflowRunEntity candidate : workflowRunService.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunService.tryClaimForProvision(candidate.getId(), agentId);
           if (claimed != null) {
-            workflowRuns.add(toDispatch(claimed));
+            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
         for (WorkflowRunEntity candidate : workflowRunService.findClaimableForTeardown(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunService.tryClaimForTeardown(candidate.getId(), agentId);
           if (claimed != null) {
-            workflowRuns.add(toDispatch(claimed));
+            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
 
@@ -170,7 +167,7 @@ public class DispatcherService {
    * @param agentId
    * @return
    */
-  public ResponseEntity<List<TaskRunDispatch>> getTaskQueue(String agentId) {
+  public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
@@ -199,14 +196,13 @@ public class DispatcherService {
       try {
         // Page then claim: the Compare-And-Set re-checks eligibility per document, so a
         // candidate another agent claimed between page and claim is simply skipped. The
-        // returned pre-images carry the pending/ready wire shape the dispatcher executes,
-        // wrapped with the claim seq + lease for fencing.
-        List<TaskRunDispatch> taskRuns = new LinkedList<>();
+        // returned pre-images carry the pending/ready wire shape the dispatcher executes.
+        List<TaskRun> taskRuns = new LinkedList<>();
         for (TaskRunEntity candidate :
             taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
-            taskRuns.add(toDispatch(claimed));
+            taskRuns.add(new TaskRun(claimed));
           }
         }
 
@@ -222,21 +218,5 @@ public class DispatcherService {
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
     return ResponseEntity.noContent().build();
-  }
-
-  // Wrap a claimed WorkflowRun pre-image with the fencing tokens from its claim block.
-  private static WorkflowRunDispatch toDispatch(WorkflowRunEntity claimed) {
-    return new WorkflowRunDispatch(
-        entityToModel(claimed, WorkflowRun.class),
-        claimed.getClaim() != null ? claimed.getClaim().getSeq() : null,
-        claimed.getClaim() != null ? claimed.getClaim().getLeaseExpiresAt() : null);
-  }
-
-  // Wrap a claimed TaskRun pre-image with the fencing tokens from its claim block.
-  private static TaskRunDispatch toDispatch(TaskRunEntity claimed) {
-    return new TaskRunDispatch(
-        new TaskRun(claimed),
-        claimed.getClaim() != null ? claimed.getClaim().getSeq() : null,
-        claimed.getClaim() != null ? claimed.getClaim().getLeaseExpiresAt() : null);
   }
 }

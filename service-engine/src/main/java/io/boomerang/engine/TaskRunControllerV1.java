@@ -129,14 +129,8 @@ public class TaskRunControllerV1 {
       @Parameter(name = "taskRunId", description = "ID of Task Run to Start", required = true)
           @PathVariable(required = true)
           String taskRunId,
-      @Parameter(name = "claimedBy", description = "Dispatcher claim owner (fencing)", required = false)
-          @RequestParam(required = false)
-          Optional<String> claimedBy,
-      @Parameter(name = "claimSeq", description = "Dispatcher claim sequence (fencing)", required = false)
-          @RequestParam(required = false)
-          Optional<Long> claimSeq,
       @RequestBody Optional<TaskRunStartRequest> taskRunRequest) {
-    return taskRunService.start(taskRunId, taskRunRequest, claimedBy, claimSeq);
+    return taskRunService.start(taskRunId, taskRunRequest);
   }
 
   @PutMapping(value = "/{taskRunId}/end")
@@ -150,14 +144,8 @@ public class TaskRunControllerV1 {
       @Parameter(name = "taskRunId", description = "ID of Task Run to End", required = true)
           @PathVariable(required = true)
           String taskRunId,
-      @Parameter(name = "claimedBy", description = "Dispatcher claim owner (fencing)", required = false)
-          @RequestParam(required = false)
-          Optional<String> claimedBy,
-      @Parameter(name = "claimSeq", description = "Dispatcher claim sequence (fencing)", required = false)
-          @RequestParam(required = false)
-          Optional<Long> claimSeq,
       @RequestBody Optional<TaskRunEndRequest> taskRunRequest) {
-    return taskRunService.end(taskRunId, taskRunRequest, claimedBy, claimSeq);
+    return taskRunService.end(taskRunId, taskRunRequest);
   }
 
   @PutMapping(value = "/{taskRunId}/cancel")

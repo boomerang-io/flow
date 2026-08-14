@@ -5,10 +5,8 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunDispatch;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.common.model.WorkflowRunDispatch;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.agent.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
@@ -41,9 +39,7 @@ public class QueueService {
   }
 
   @Async
-  public void processWorkflowRun(WorkflowRunDispatch dispatch) {
-    WorkflowRun request = dispatch.getRun();
-    Long claimSeq = dispatch.getClaimSeq();
+  public void processWorkflowRun(WorkflowRun request) {
     try {
       LOGGER.debug(request.toString());
       // A claimed run arrives already in phase queued - the claim (which is the pickup) advances
@@ -55,11 +51,11 @@ public class QueueService {
         // as starting the workflow will kick off the first task(s) and
         // dependencies at the workflow level (Workspaces) need to be there prior
         workflowService.execute(request);
-        engineClient.startWorkflow(request.getId(), claimSeq);
+        engineClient.startWorkflow(request.getId());
       } else if (RunPhase.completed.equals(request.getPhase())) {
         LOGGER.info("Finalizing WorkflowRun...");
         workflowService.terminate(request);
-        engineClient.finalizeWorkflow(request.getId(), claimSeq);
+        engineClient.finalizeWorkflow(request.getId());
       }
     } catch (BoomerangException e) {
       LOGGER.fatal("A fatal error has occurred while processing the message!", e);
@@ -70,9 +66,7 @@ public class QueueService {
   }
 
   @Async
-  public void processTaskRun(TaskRunDispatch dispatch) {
-    TaskRun request = dispatch.getRun();
-    Long claimSeq = dispatch.getClaimSeq();
+  public void processTaskRun(TaskRun request) {
     try {
       LOGGER.debug(request.toString());
       if ((TaskType.template.equals(request.getType())
@@ -83,14 +77,14 @@ public class QueueService {
         LOGGER.info("Executing TaskRun...");
         // Communicate the start with the Engine
         // prior to Tekton starting as it is a blocking Watch call.
-        engineClient.startTask(request.getId(), claimSeq);
+        engineClient.startTask(request.getId());
         TaskResponse response = new TaskResponse();
         response = taskService.execute(request);
         TaskRunEndRequest endRequest = new TaskRunEndRequest();
         endRequest.setStatus(RunStatus.succeeded);
         endRequest.setStatusMessage(response.getMessage());
         endRequest.setResults(response.getResults());
-        engineClient.endTask(request.getId(), endRequest, claimSeq);
+        engineClient.endTask(request.getId(), endRequest);
       } else if ((TaskType.template.equals(request.getType())
               || TaskType.custom.equals(request.getType())
               || TaskType.script.equals(request.getType()))
@@ -109,7 +103,7 @@ public class QueueService {
       TaskRunEndRequest endRequest = new TaskRunEndRequest();
       endRequest.setStatus(RunStatus.failed);
       endRequest.setStatusMessage(e.getMessage());
-      engineClient.endTask(request.getId(), endRequest, claimSeq);
+      engineClient.endTask(request.getId(), endRequest);
     } catch (Exception e) {
       LOGGER.fatal("A fatal error has occurred while processing the message!", e);
     }

@@ -1,8 +1,8 @@
 package io.boomerang.engine;
 
 import io.boomerang.common.model.AgentRegistrationRequest;
-import io.boomerang.common.model.TaskRunDispatch;
-import io.boomerang.common.model.WorkflowRunDispatch;
+import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.WorkflowRun;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -44,7 +44,7 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<List<WorkflowRunDispatch>> dispatcherWorkflowQueue(
+  public ResponseEntity<List<WorkflowRun>> dispatcherWorkflowQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id) {
     return dispatcherService.getWorkflowQueue(id);
@@ -58,7 +58,7 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<List<TaskRunDispatch>> dispatcherTasksQueue(
+  public ResponseEntity<List<TaskRun>> dispatcherTasksQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id) {
     return dispatcherService.getTaskQueue(id);

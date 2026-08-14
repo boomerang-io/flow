@@ -269,22 +269,7 @@ public class WorkflowRunControllerV1 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId,
-      @Parameter(
-              name = "claimedBy",
-              description = "Dispatcher claim owner (fencing)",
-              required = false)
-          @RequestParam(required = false)
-          Optional<String> claimedBy,
-      @Parameter(
-              name = "claimSeq",
-              description = "Dispatcher claim sequence (fencing)",
-              required = false)
-          @RequestParam(required = false)
-          Optional<Long> claimSeq,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    // The dispatcher echoes its claim identity for uniformity with the task callbacks; the
-    // workflow start path has no claim-fencing overload downstream yet, so the tokens are
-    // accepted but not enforced here.
     return workflowRunService.start(workflowRunId, runRequest);
   }
 
@@ -321,22 +306,7 @@ public class WorkflowRunControllerV1 {
               description = "ID of WorkflowRun to Finalize",
               required = true)
           @PathVariable(required = true)
-          String workflowRunId,
-      @Parameter(
-              name = "claimedBy",
-              description = "Dispatcher claim owner (fencing)",
-              required = false)
-          @RequestParam(required = false)
-          Optional<String> claimedBy,
-      @Parameter(
-              name = "claimSeq",
-              description = "Dispatcher claim sequence (fencing)",
-              required = false)
-          @RequestParam(required = false)
-          Optional<Long> claimSeq) {
-    // The dispatcher echoes its claim identity for uniformity with the task callbacks; the
-    // workflow finalize path has no claim-fencing overload downstream yet, so the tokens are
-    // accepted but not enforced here.
+          String workflowRunId) {
     return workflowRunService.finalize(workflowRunId);
   }
 

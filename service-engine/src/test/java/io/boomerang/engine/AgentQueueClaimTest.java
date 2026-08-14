@@ -11,7 +11,6 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AgentRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunDispatch;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -62,10 +61,10 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
         "claim-race-wfrun");
   }
 
-  private static boolean containsId(ResponseEntity<List<TaskRunDispatch>> response, String id) {
+  private static boolean containsId(ResponseEntity<List<TaskRun>> response, String id) {
     return response != null
         && response.getBody() != null
-        && response.getBody().stream().anyMatch(t -> id.equals(t.getRun().getId()));
+        && response.getBody().stream().anyMatch(t -> id.equals(t.getId()));
   }
 
   // Terminal runs (completed/cancelled) are not claimable, so a poll never redelivers them. Each
@@ -78,7 +77,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
 
     for (String agent : List.of(agentA, agentA, agentB)) {
       String beaconId = savedReadyTaskRun().getId();
-      ResponseEntity<List<TaskRunDispatch>> response = dispatcherService.getTaskQueue(agent);
+      ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
       assertTrue(containsId(response, beaconId), "poll should have claimed its ready beacon");
       assertFalse(
           containsId(response, terminalId),
@@ -102,13 +101,13 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
     ExecutorService pool = Executors.newFixedThreadPool(2);
     try {
       CountDownLatch startGun = new CountDownLatch(1);
-      Future<ResponseEntity<List<TaskRunDispatch>>> resultA =
+      Future<ResponseEntity<List<TaskRun>>> resultA =
           pool.submit(
               () -> {
                 startGun.await();
                 return dispatcherService.getTaskQueue(agentA);
               });
-      Future<ResponseEntity<List<TaskRunDispatch>>> resultB =
+      Future<ResponseEntity<List<TaskRun>>> resultB =
           pool.submit(
               () -> {
                 startGun.await();
@@ -137,10 +136,9 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
     String agent = registerAgent("payload-agent");
     String taskId = savedReadyTaskRun().getId();
 
-    ResponseEntity<List<TaskRunDispatch>> response = dispatcherService.getTaskQueue(agent);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
     TaskRun claimed =
         response.getBody().stream()
-            .map(TaskRunDispatch::getRun)
             .filter(t -> taskId.equals(t.getId()))
             .findFirst()
             .orElseThrow();

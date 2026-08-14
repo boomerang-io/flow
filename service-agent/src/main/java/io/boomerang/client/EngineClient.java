@@ -16,7 +16,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class EngineClient {
@@ -62,22 +61,9 @@ public class EngineClient {
 
   @Autowired public QueueService queueService;
 
-  // Append the dispatcher's claim identity as query params so the engine can fence a superseded
-  // claim on the lifecycle callback. claimedBy is this worker's own registered id.
-  private String withFencing(String url, Long claimSeq) {
-    UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
-    if (agentId != null) {
-      builder.queryParam("claimedBy", agentId);
-    }
-    if (claimSeq != null) {
-      builder.queryParam("claimSeq", claimSeq);
-    }
-    return builder.build(false).toUriString();
-  }
-
-  public void startWorkflow(String wfRunId, Long claimSeq) {
+  public void startWorkflow(String wfRunId) {
     try {
-      String url = withFencing(startWorkflowRunURL.replace("{workflowRunId}", wfRunId), claimSeq);
+      String url = startWorkflowRunURL.replace("{workflowRunId}", wfRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
@@ -90,10 +76,9 @@ public class EngineClient {
     }
   }
 
-  public void finalizeWorkflow(String wfRunId, Long claimSeq) {
+  public void finalizeWorkflow(String wfRunId) {
     try {
-      String url =
-          withFencing(finalizeWorkflowRunURL.replace("{workflowRunId}", wfRunId), claimSeq);
+      String url = finalizeWorkflowRunURL.replace("{workflowRunId}", wfRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
@@ -106,9 +91,9 @@ public class EngineClient {
     }
   }
 
-  public void startTask(String taskRunId, Long claimSeq) {
+  public void startTask(String taskRunId) {
     try {
-      String url = withFencing(startTaskRunURL.replace("{taskRunId}", taskRunId), claimSeq);
+      String url = startTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
@@ -121,9 +106,9 @@ public class EngineClient {
     }
   }
 
-  public void endTask(String taskRunId, TaskRunEndRequest endRequest, Long claimSeq) {
+  public void endTask(String taskRunId, TaskRunEndRequest endRequest) {
     try {
-      String url = withFencing(endTaskRunURL.replace("{taskRunId}", taskRunId), claimSeq);
+      String url = endTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
       HttpEntity<TaskRunEndRequest> entity = new HttpEntity<TaskRunEndRequest>(endRequest, headers);
@@ -204,8 +189,8 @@ public class EngineClient {
               null,
               (ParameterizedTypeReference<? extends List<?>>)
                   (isWorkflow
-                      ? new ParameterizedTypeReference<List<WorkflowRunDispatch>>() {}
-                      : new ParameterizedTypeReference<List<TaskRunDispatch>>() {}));
+                      ? new ParameterizedTypeReference<List<WorkflowRun>>() {}
+                      : new ParameterizedTypeReference<List<TaskRun>>() {}));
       if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
         List<?> runs = (List<?>) response.getBody();
         LOGGER.info("Received {} {}Runs.", runs.size(), isWorkflow ? "Workflow" : "Task");
@@ -214,9 +199,9 @@ public class EngineClient {
               LOGGER.debug(
                   "Processing {}Run: {}", isWorkflow ? "Workflow" : "Task", run.toString());
               if (isWorkflow) {
-                queueService.processWorkflowRun((WorkflowRunDispatch) run);
+                queueService.processWorkflowRun((WorkflowRun) run);
               } else {
-                queueService.processTaskRun((TaskRunDispatch) run);
+                queueService.processTaskRun((TaskRun) run);
               }
             });
       } else if (response.getStatusCode().isSameCodeAs(HttpStatusCode.valueOf(204))) {
