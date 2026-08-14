@@ -1,7 +1,7 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.client.EngineClient;
-import io.boomerang.client.WorkflowTemplateResponsePage;
+import io.boomerang.api.model.WorkflowTemplateResponsePage;
 import io.boomerang.common.model.WorkflowTemplate;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;

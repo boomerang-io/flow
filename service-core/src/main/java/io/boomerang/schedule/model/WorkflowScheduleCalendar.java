@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.schedule.model;
 
 import lombok.Data;
 

@@ -8,7 +8,7 @@ import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
-import io.boomerang.workflow.ScheduleService;
+import io.boomerang.schedule.ScheduleService;
 import io.boomerang.workflow.WorkflowService;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;

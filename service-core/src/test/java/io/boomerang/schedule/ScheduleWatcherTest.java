@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,7 +19,8 @@ import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.core.config.MongoConfiguration;
 import io.boomerang.core.RelationshipService;
-import io.boomerang.workflow.repository.WorkflowScheduleRepository;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.WorkflowService;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;

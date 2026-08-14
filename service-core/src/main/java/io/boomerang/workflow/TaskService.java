@@ -1,7 +1,7 @@
 package io.boomerang.workflow;
 
 import io.boomerang.client.EngineClient;
-import io.boomerang.client.TaskResponsePage;
+import io.boomerang.api.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
@@ -10,8 +10,8 @@ import io.boomerang.core.UserService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.User;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.workflow.tekton.TektonConverter;
 import io.boomerang.workflow.tekton.TektonTask;

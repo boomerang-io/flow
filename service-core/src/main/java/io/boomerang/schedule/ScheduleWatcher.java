@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
@@ -8,7 +8,7 @@ import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.workflow.repository.WorkflowScheduleRepository;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import org.apache.logging.log4j.LogManager;

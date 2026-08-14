@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import static java.util.stream.Collectors.groupingBy;
 
@@ -14,12 +14,13 @@ import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.model.*;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
-import io.boomerang.engine.repository.TaskRevisionRepository;
-import io.boomerang.engine.repository.WorkflowRepository;
-import io.boomerang.engine.repository.WorkflowRevisionRepository;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
-import io.boomerang.util.ConvertUtil;
+import io.boomerang.workflow.repository.TaskRevisionRepository;
+import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.workflow.ConvertUtil;
+import io.boomerang.engine.WorkflowRunService;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -52,11 +53,11 @@ import org.springframework.stereotype.Service;
 /*
  * Service implements the CRUD ops on a Workflow
  */
-// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
-// io.boomerang.workflow.WorkflowService (same simple class name, both @Service) now that
-// service-engine and service-core share one context. See merge commit message.
-@Service("engineWorkflowService")
-public class WorkflowService {
+// TEMPORARY name (P2b package-move-map.md, E8.2c): renamed from the engine-side WorkflowService
+// to dodge the flow-side io.boomerang.workflow.WorkflowService name clash now that both live in
+// io.boomerang.workflow. P3 finalizes the merge of the two classes under one name.
+@Service
+public class WorkflowDefinitionService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String CHANGELOG_INITIAL = "Initial Workflow";
@@ -68,15 +69,15 @@ public class WorkflowService {
   private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskRevisionRepository taskRevisionRepository;
   private final MongoTemplate mongoTemplate;
-  private final TaskService taskService;
+  private final TaskDefinitionService taskService;
   private final WorkflowRunService workflowRunService;
 
-  public WorkflowService(
+  public WorkflowDefinitionService(
       WorkflowRepository workflowRepository,
       WorkflowRevisionRepository workflowRevisionRepository,
       TaskRevisionRepository taskRevisionRepository,
       MongoTemplate mongoTemplate,
-      TaskService taskService,
+      TaskDefinitionService taskService,
       WorkflowRunService workflowRunService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;

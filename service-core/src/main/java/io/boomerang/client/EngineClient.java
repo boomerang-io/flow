@@ -13,12 +13,16 @@ import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTemplate;
 import io.boomerang.engine.TaskRunService;
-import io.boomerang.engine.TaskService;
+import io.boomerang.workflow.TaskDefinitionService;
 import io.boomerang.engine.WorkflowRunService;
-import io.boomerang.engine.WorkflowService;
-import io.boomerang.engine.WorkflowTemplateService;
-import io.boomerang.error.BoomerangException;
-import io.boomerang.workflow.model.WorkflowRunEventRequest;
+import io.boomerang.workflow.WorkflowDefinitionService;
+import io.boomerang.workflow.WorkflowTemplateService;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.engine.model.WorkflowRunEventRequest;
+import io.boomerang.api.model.TaskResponsePage;
+import io.boomerang.api.model.WorkflowResponsePage;
+import io.boomerang.api.model.WorkflowRunResponsePage;
+import io.boomerang.api.model.WorkflowTemplateResponsePage;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -55,11 +59,11 @@ public class EngineClient {
 
   @Autowired private WorkflowRunService workflowRunService;
 
-  @Autowired private WorkflowService workflowService;
+  @Autowired private WorkflowDefinitionService workflowService;
 
   @Autowired private TaskRunService taskRunService;
 
-  @Autowired private TaskService taskService;
+  @Autowired private TaskDefinitionService taskService;
 
   @Autowired private WorkflowTemplateService workflowTemplateService;
 
@@ -150,23 +154,11 @@ public class EngineClient {
   }
 
   public void eventWorkflowRun(String workflowRunId, WorkflowRunEventRequest request) {
-    workflowRunService.event(workflowRunId, toEngineEventRequest(request));
-  }
-
-  private io.boomerang.engine.model.WorkflowRunEventRequest toEngineEventRequest(
-      WorkflowRunEventRequest request) {
-    // Flow's WorkflowRunEventRequest (io.boomerang.workflow.model) and the Engine's
-    // (io.boomerang.engine.model) are structurally identical except the Engine's carries an
-    // optional transport dedup id, which this facade never populated over the wire either - the
-    // JSON body sent never had an "id" field, so it always deserialized to null server-side.
-    io.boomerang.engine.model.WorkflowRunEventRequest engineRequest =
-        new io.boomerang.engine.model.WorkflowRunEventRequest();
-    engineRequest.setLabels(request.getLabels());
-    engineRequest.setAnnotations(request.getAnnotations());
-    engineRequest.setResults(request.getResults());
-    engineRequest.setStatus(request.getStatus());
-    engineRequest.setTopic(request.getTopic());
-    return engineRequest;
+    // Flow's former WorkflowRunEventRequest (io.boomerang.workflow.model) was deleted (P2b
+    // package-move-map.md) in favour of this, the Engine's superset - the two were structurally
+    // identical except for the Engine's optional transport dedup id, which this facade never
+    // populated over the wire anyway, so no conversion is needed any more.
+    workflowRunService.event(workflowRunId, request);
   }
 
   /*

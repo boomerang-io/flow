@@ -1,8 +1,8 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.boomerang.workflow.model.CronValidationResponse;
+import io.boomerang.schedule.model.CronValidationResponse;
 import org.junit.jupiter.api.Test;
 
 /*

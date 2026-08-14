@@ -1,6 +1,6 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
-import io.boomerang.client.TaskResponsePage;
+import io.boomerang.api.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
 import io.boomerang.core.security.AuthCriteria;
@@ -8,6 +8,7 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workflow.tekton.TektonTask;
+import io.boomerang.workflow.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

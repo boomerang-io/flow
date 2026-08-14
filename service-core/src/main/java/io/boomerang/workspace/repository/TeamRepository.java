@@ -1,9 +1,9 @@
-package io.boomerang.workflow.repository;
+package io.boomerang.workspace.repository;
 
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import io.boomerang.workflow.entity.TeamEntity;
+import io.boomerang.workspace.entity.TeamEntity;
 
 public interface TeamRepository extends MongoRepository<TeamEntity, String> {
 

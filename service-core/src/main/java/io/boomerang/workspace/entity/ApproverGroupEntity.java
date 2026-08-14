@@ -1,4 +1,4 @@
-package io.boomerang.workflow.entity;
+package io.boomerang.workspace.entity;
 
 import java.util.Date;
 import java.util.List;

@@ -1,4 +1,4 @@
-package io.boomerang.util;
+package io.boomerang.engine;
 
 import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunResult;

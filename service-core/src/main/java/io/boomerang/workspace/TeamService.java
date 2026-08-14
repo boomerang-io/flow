@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
@@ -16,22 +16,24 @@ import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.*;
 import io.boomerang.core.model.*;
 import io.boomerang.core.repository.RoleRepository;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
-import io.boomerang.workflow.entity.ApproverGroupEntity;
-import io.boomerang.workflow.entity.TeamEntity;
-import io.boomerang.workflow.model.ApproverGroup;
-import io.boomerang.workflow.model.ApproverGroupRequest;
-import io.boomerang.workflow.model.CurrentQuotas;
-import io.boomerang.workflow.model.Quotas;
-import io.boomerang.workflow.model.Team;
-import io.boomerang.workflow.model.TeamMember;
-import io.boomerang.workflow.model.TeamNameCheckRequest;
-import io.boomerang.workflow.model.TeamRequest;
-import io.boomerang.workflow.model.TeamStatus;
-import io.boomerang.workflow.repository.ApproverGroupRepository;
-import io.boomerang.workflow.repository.TeamRepository;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
+import io.boomerang.workspace.entity.TeamEntity;
+import io.boomerang.workspace.model.ApproverGroup;
+import io.boomerang.workspace.model.ApproverGroupRequest;
+import io.boomerang.workspace.model.CurrentQuotas;
+import io.boomerang.workspace.model.Quotas;
+import io.boomerang.workspace.model.Team;
+import io.boomerang.workspace.model.TeamMember;
+import io.boomerang.workspace.model.TeamNameCheckRequest;
+import io.boomerang.workspace.model.TeamRequest;
+import io.boomerang.workspace.model.TeamStatus;
+import io.boomerang.workspace.repository.ApproverGroupRepository;
+import io.boomerang.workspace.repository.TeamRepository;
+import io.boomerang.workflow.TaskService;
+import io.boomerang.workflow.WorkflowService;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -844,7 +846,7 @@ public class TeamService {
     }
   }
 
-  protected Integer getWorkflowMaxDurationForTeam(String team) {
+  public Integer getWorkflowMaxDurationForTeam(String team) {
     Integer d =
         Integer.valueOf(
             settingsService

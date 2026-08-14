@@ -1,8 +1,9 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunRequest;
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

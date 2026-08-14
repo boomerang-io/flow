@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.workspace.model;
 
 import java.util.Date;
 import org.springframework.beans.BeanUtils;

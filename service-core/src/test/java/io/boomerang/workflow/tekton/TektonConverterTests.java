@@ -26,7 +26,7 @@ class TektonConverterTests {
     assertEquals("tekton.dev/v1beta1", task.getApiVersion());
     assertEquals("Task", task.getKind());
 
-    Metadata metadata = task.getMetadata();
+    TektonMetadata metadata = task.getMetadata();
     assertEquals("example-task-name", metadata.getName());
     assertEquals("value", metadata.getLabels().get("key"));
 
@@ -37,7 +37,7 @@ class TektonConverterTests {
     assertEquals(1, annotations.get("boomerang.io/revision"));
     assertEquals("cool task", annotations.get("description"));
 
-    Spec spec = task.getSpec();
+    TektonSpec spec = task.getSpec();
     List<ParamSpec> params = spec.getParams();
     assertEquals(1, params.size());
     ParamSpec param = params.get(0);

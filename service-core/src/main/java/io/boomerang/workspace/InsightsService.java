@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.workspace;
 
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;

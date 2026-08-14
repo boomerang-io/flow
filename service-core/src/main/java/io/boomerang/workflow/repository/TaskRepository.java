@@ -1,4 +1,4 @@
-package io.boomerang.engine.repository;
+package io.boomerang.workflow.repository;
 
 import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;

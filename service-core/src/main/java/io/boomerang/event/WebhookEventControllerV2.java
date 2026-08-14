@@ -1,11 +1,11 @@
-package io.boomerang.workflow;
+package io.boomerang.event;
 
 import tools.jackson.databind.JsonNode;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workflow.model.SlackEventPayload;
+import io.boomerang.integrations.model.SlackEventPayload;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.spring.http.CloudEventHttpUtils;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,8 +1,8 @@
-package io.boomerang.workflow.repository;
+package io.boomerang.workspace.repository;
 
 import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import io.boomerang.workflow.entity.ApproverGroupEntity;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
 
 public interface ApproverGroupRepository extends MongoRepository<ApproverGroupEntity, String> {
   

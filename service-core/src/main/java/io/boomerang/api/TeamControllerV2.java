@@ -1,15 +1,16 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.core.model.Role;
+import io.boomerang.workspace.TeamService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workflow.model.Quotas;
-import io.boomerang.workflow.model.Team;
-import io.boomerang.workflow.model.TeamMember;
-import io.boomerang.workflow.model.TeamNameCheckRequest;
-import io.boomerang.workflow.model.TeamRequest;
+import io.boomerang.workspace.model.Quotas;
+import io.boomerang.workspace.model.Team;
+import io.boomerang.workspace.model.TeamMember;
+import io.boomerang.workspace.model.TeamNameCheckRequest;
+import io.boomerang.workspace.model.TeamRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

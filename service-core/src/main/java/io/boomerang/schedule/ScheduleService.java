@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import com.cronutils.model.Cron;
 import com.cronutils.model.CronType;
@@ -14,10 +14,11 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
-import io.boomerang.workflow.model.WorkflowScheduleCalendar;
-import io.boomerang.workflow.repository.WorkflowScheduleRepository;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.schedule.model.WorkflowScheduleCalendar;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.WorkflowService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -499,7 +500,7 @@ public class ScheduleService {
    * Enables all schedules that have been disabled by the trigger being disabled. This is needed to
    * differentiate between user paused and trigger disabled schedules.
    */
-  protected void enableAllTriggerSchedules(final String team, final String workflowId) {
+  public void enableAllTriggerSchedules(final String team, final String workflowId) {
     final Optional<List<WorkflowScheduleEntity>> entities =
         scheduleRepository.findByWorkflowRefInAndStatusIn(
             List.of(workflowId), List.of(WorkflowScheduleStatus.trigger_disabled));
@@ -532,7 +533,7 @@ public class ScheduleService {
   /*
    * Disables all schedules that are currently active and is used when the trigger is disabled.
    */
-  protected void disableAllTriggerSchedules(final String team, final String workflowId) {
+  public void disableAllTriggerSchedules(final String team, final String workflowId) {
     final Optional<List<WorkflowScheduleEntity>> entities =
         scheduleRepository.findByWorkflowRefInAndStatusIn(
             List.of(workflowId), List.of(WorkflowScheduleStatus.active));
@@ -564,7 +565,7 @@ public class ScheduleService {
   /*
    * Mark all schedules as deleted and cancel the scheduled jobs. This is used when a workflow is deleted.
    */
-  protected void deleteAllForWorkflow(final String workflowId) {
+  public void deleteAllForWorkflow(final String workflowId) {
     final Optional<List<WorkflowScheduleEntity>> entities =
         scheduleRepository.findByWorkflowRef(workflowId);
     if (entities.isPresent()) {

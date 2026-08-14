@@ -1,4 +1,4 @@
-package io.boomerang.engine.repository;
+package io.boomerang.workflow.repository;
 
 import io.boomerang.common.entity.WorkflowTemplateEntity;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import io.boomerang.common.model.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,9 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Workflow Management", description = "Create, List, and Manage your Workflows.")
 public class WorkflowControllerV1 {
 
-  private final WorkflowService workflowService;
+  private final WorkflowDefinitionService workflowService;
 
-  public WorkflowControllerV1(WorkflowService workflowService) {
+  public WorkflowControllerV1(WorkflowDefinitionService workflowService) {
     this.workflowService = workflowService;
   }
 

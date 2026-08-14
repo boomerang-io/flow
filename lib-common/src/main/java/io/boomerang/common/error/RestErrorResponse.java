@@ -1,4 +1,4 @@
-package io.boomerang.error;
+package io.boomerang.common.error;
 
 import java.util.Date;
 

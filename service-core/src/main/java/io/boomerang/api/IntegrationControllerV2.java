@@ -1,4 +1,4 @@
-package io.boomerang.integrations;
+package io.boomerang.api;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -6,6 +6,9 @@ import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.integrations.model.GHLinkRequest;
 import io.boomerang.integrations.model.Integration;
+import io.boomerang.integrations.IntegrationService;
+import io.boomerang.integrations.SlackService;
+import io.boomerang.integrations.GitHubService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

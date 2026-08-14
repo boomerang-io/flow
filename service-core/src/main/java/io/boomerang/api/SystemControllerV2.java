@@ -1,10 +1,15 @@
-package io.boomerang.core;
+package io.boomerang.api;
 
 import io.boomerang.core.model.Features;
 import io.boomerang.core.model.HeaderNavigationResponse;
 import io.boomerang.core.model.Navigation;
 import io.boomerang.core.model.OneTimeCode;
 import io.boomerang.core.model.Setting;
+import io.boomerang.core.SettingsService;
+import io.boomerang.core.UserService;
+import io.boomerang.core.NavigationService;
+import io.boomerang.core.ContextService;
+import io.boomerang.core.FeatureService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import io.boomerang.common.model.WorkflowTemplate;
 import io.swagger.v3.oas.annotations.Operation;

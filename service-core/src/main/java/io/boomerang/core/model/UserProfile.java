@@ -1,7 +1,7 @@
 package io.boomerang.core.model;
 
 import io.boomerang.core.entity.UserEntity;
-import io.boomerang.workflow.model.TeamSummary;
+import io.boomerang.workspace.model.TeamSummary;
 import java.util.List;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;

@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.WorkflowTemplateEntity;
@@ -6,10 +6,10 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTemplate;
-import io.boomerang.engine.repository.TaskRevisionRepository;
-import io.boomerang.engine.repository.WorkflowTemplateRepository;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.workflow.repository.TaskRevisionRepository;
+import io.boomerang.workflow.repository.WorkflowTemplateRepository;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -46,13 +46,13 @@ public class WorkflowTemplateService {
 
   private final WorkflowTemplateRepository wfTemplateRepository;
   private final MongoTemplate mongoTemplate;
-  private final TaskService taskService;
+  private final TaskDefinitionService taskService;
   private final TaskRevisionRepository taskRevisionRepository;
 
   public WorkflowTemplateService(
       WorkflowTemplateRepository wfTemplateRepository,
       MongoTemplate mongoTemplate,
-      TaskService taskService,
+      TaskDefinitionService taskService,
       TaskRevisionRepository taskRevisionRepository) {
     this.wfTemplateRepository = wfTemplateRepository;
     this.mongoTemplate = mongoTemplate;

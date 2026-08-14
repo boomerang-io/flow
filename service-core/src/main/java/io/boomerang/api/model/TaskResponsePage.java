@@ -1,4 +1,4 @@
-package io.boomerang.client;
+package io.boomerang.api.model;
 
 import java.util.ArrayList;
 import java.util.List;

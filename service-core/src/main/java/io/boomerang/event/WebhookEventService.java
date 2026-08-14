@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.event;
 
 import static io.cloudevents.core.CloudEventUtils.mapData;
 
@@ -17,10 +17,11 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.IntegrationService;
-import io.boomerang.workflow.model.WorkflowRunEventRequest;
+import io.boomerang.engine.model.WorkflowRunEventRequest;
+import io.boomerang.workflow.WorkflowService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.data.PojoCloudEventData;
 import io.cloudevents.jackson.PojoCloudEventDataMapper;

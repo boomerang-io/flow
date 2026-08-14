@@ -3,7 +3,7 @@ package io.boomerang.config;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.integrations.IntegrationControllerV2;
+import io.boomerang.api.IntegrationControllerV2;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;

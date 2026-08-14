@@ -20,9 +20,11 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.workflow.TaskDefinitionService;
+import io.boomerang.workflow.WorkflowDefinitionService;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.boomerang.event.repository.EventInboxRepository;
-import io.boomerang.engine.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRepository;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -35,8 +37,8 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
 
-  @Autowired private TaskService taskService;
-  @Autowired private WorkflowService workflowService;
+  @Autowired private TaskDefinitionService taskService;
+  @Autowired private WorkflowDefinitionService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private TaskRunService taskRunService;
   @Autowired private EventInboxRepository eventInboxRepository;

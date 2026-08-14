@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.integrations.model;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

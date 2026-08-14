@@ -1,11 +1,11 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import com.cronutils.mapper.CronMapper;
 import com.cronutils.model.Cron;
 import com.cronutils.model.CronType;
 import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.parser.CronParser;
-import io.boomerang.workflow.model.CronValidationResponse;
+import io.boomerang.schedule.model.CronValidationResponse;
 import org.springframework.stereotype.Component;
 
 @Component

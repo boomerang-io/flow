@@ -9,7 +9,7 @@ import io.boomerang.event.enums.EventType;
 import io.boomerang.event.model.TaskRunStatusEvent;
 import io.boomerang.event.model.WorkflowRunStatusEvent;
 import io.boomerang.event.model.WorkflowStatusEvent;
-import io.boomerang.util.ConvertUtil;
+import io.boomerang.workflow.ConvertUtil;
 import java.net.URI;
 import java.text.MessageFormat;
 import java.util.Date;

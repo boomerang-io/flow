@@ -1,4 +1,4 @@
-package io.boomerang.workflow.repository;
+package io.boomerang.schedule.repository;
 
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;

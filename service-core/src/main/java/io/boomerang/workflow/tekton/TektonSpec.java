@@ -7,7 +7,7 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-public class Spec {
+public class TektonSpec {
 
   private String description;
   private List<ParamSpec> params;

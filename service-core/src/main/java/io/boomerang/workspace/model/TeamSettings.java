@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.workspace.model;
 
 // Future extensibility
 public class TeamSettings {

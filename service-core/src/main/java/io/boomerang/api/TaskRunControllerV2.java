@@ -1,5 +1,6 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
+import io.boomerang.workflow.TaskRunService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

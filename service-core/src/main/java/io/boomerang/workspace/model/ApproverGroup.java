@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.workspace.model;
 
 import java.util.Date;
 import java.util.LinkedList;
@@ -7,7 +7,7 @@ import org.springframework.beans.BeanUtils;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import io.boomerang.workflow.entity.ApproverGroupEntity;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_EMPTY)

@@ -11,6 +11,6 @@ public class TektonTask {
 
   private String apiVersion;
   private String kind;
-  private Metadata metadata;
-  private Spec spec;
+  private TektonMetadata metadata;
+  private TektonSpec spec;
 }

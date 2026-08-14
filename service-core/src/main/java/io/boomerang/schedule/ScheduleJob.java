@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.enums.WorkflowScheduleType;
@@ -7,6 +7,7 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
+import io.boomerang.workflow.WorkflowService;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;

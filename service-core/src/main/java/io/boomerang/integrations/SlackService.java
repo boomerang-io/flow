@@ -35,7 +35,7 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.core.SettingsService;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.entity.IntegrationsEntity;
 import io.boomerang.integrations.repository.IntegrationsRepository;
 import io.boomerang.workflow.WorkflowService;

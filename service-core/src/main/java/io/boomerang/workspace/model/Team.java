@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.workspace.model;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -9,8 +9,8 @@ import java.util.Map;
 import io.boomerang.common.model.AbstractParam;
 import org.springframework.beans.BeanUtils;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import io.boomerang.workflow.entity.TeamEntity;
-import io.boomerang.workflow.model.CurrentQuotas;
+import io.boomerang.workspace.entity.TeamEntity;
+import io.boomerang.workflow.model.WorkflowSummary;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Team {

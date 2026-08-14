@@ -1,12 +1,12 @@
 package io.boomerang.workflow;
 
 import io.boomerang.client.EngineClient;
-import io.boomerang.client.WorkflowRunResponsePage;
+import io.boomerang.api.model.WorkflowRunResponsePage;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunInsight;

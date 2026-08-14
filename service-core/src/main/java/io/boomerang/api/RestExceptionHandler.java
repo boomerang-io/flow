@@ -1,4 +1,4 @@
-package io.boomerang.error;
+package io.boomerang.api;
 
 import java.util.Locale;
 import javax.naming.AuthenticationException;
@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.client.HttpClientErrorException;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.error.RestErrorResponse;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)

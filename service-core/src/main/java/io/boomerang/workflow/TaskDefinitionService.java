@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import io.boomerang.common.entity.TaskEntity;
 import io.boomerang.common.entity.TaskRevisionEntity;
@@ -8,11 +8,11 @@ import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
-import io.boomerang.engine.repository.TaskRepository;
-import io.boomerang.engine.repository.TaskRevisionRepository;
+import io.boomerang.workflow.repository.TaskRepository;
+import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -44,11 +44,11 @@ import org.springframework.stereotype.Service;
  *
  * It utilises a @DocumentReference for the parent field that allows us to retrieve the TaskEntity from within the TaskRevisionEntity when reading
  */
-// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
-// io.boomerang.workflow.TaskService (same simple class name, both @Service) now that
-// service-engine and service-core share one context. See merge commit message.
-@Service("engineTaskService")
-public class TaskService {
+// TEMPORARY name (P2b package-move-map.md, E8.2c): renamed from the engine-side TaskService
+// to dodge the flow-side io.boomerang.workflow.TaskService name clash now that both live in
+// io.boomerang.workflow. P3 finalizes the merge of the two classes under one name.
+@Service
+public class TaskDefinitionService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String CHANGELOG_INITIAL = "Initial Task Template";
@@ -65,7 +65,7 @@ public class TaskService {
   private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
 
-  public TaskService(
+  public TaskDefinitionService(
       TaskRepository taskRepository,
       TaskRevisionRepository taskRevisionRepository,
       TaskRunRepository taskRunRepository,

@@ -9,7 +9,7 @@ import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import io.boomerang.client.EngineClient;
-import io.boomerang.client.WorkflowResponsePage;
+import io.boomerang.api.model.WorkflowResponsePage;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.ChangeLogVersion;
@@ -34,15 +34,17 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.workflow.model.CanvasEdge;
 import io.boomerang.workflow.model.CanvasEdgeData;
 import io.boomerang.workflow.model.CanvasNode;
 import io.boomerang.workflow.model.CanvasNodeData;
 import io.boomerang.workflow.model.CanvasNodePosition;
-import io.boomerang.workflow.model.CurrentQuotas;
+import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workflow.model.WorkflowCanvas;
+import io.boomerang.schedule.ScheduleService;
+import io.boomerang.workspace.TeamService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -451,7 +453,7 @@ public class WorkflowService {
    *
    * TODO: surely there is a better way to do this
    */
-  protected void internalSubmitForTeam(String team, WorkflowSubmitRequest request, boolean start) {
+  public void internalSubmitForTeam(String team, WorkflowSubmitRequest request, boolean start) {
     // This should return IDs as the next method requires to take in the Workflow ID
     List<String> wfRefs =
         relationshipService.filter(

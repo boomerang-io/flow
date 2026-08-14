@@ -1,6 +1,6 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
-import io.boomerang.client.WorkflowResponsePage;
+import io.boomerang.api.model.WorkflowResponsePage;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
@@ -10,6 +10,7 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workflow.model.WorkflowCanvas;
+import io.boomerang.workflow.WorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

@@ -1,4 +1,4 @@
-package io.boomerang.engine.repository;
+package io.boomerang.workflow.repository;
 
 import java.util.List;
 import java.util.Optional;

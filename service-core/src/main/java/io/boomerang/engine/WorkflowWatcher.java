@@ -8,7 +8,7 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
-import io.boomerang.engine.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
 import java.util.EnumSet;

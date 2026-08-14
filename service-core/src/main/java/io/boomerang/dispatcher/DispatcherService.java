@@ -1,6 +1,6 @@
 package io.boomerang.dispatcher;
 
-import static io.boomerang.util.ConvertUtil.entityToModel;
+import static io.boomerang.workflow.ConvertUtil.entityToModel;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;

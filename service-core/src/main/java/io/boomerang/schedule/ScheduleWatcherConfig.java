@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.schedule;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;

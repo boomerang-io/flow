@@ -1,10 +1,10 @@
-package io.boomerang.util;
+package io.boomerang.workflow;
 
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.model.Workflow;
-import io.boomerang.error.BoomerangError;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 import org.springframework.beans.BeanUtils;

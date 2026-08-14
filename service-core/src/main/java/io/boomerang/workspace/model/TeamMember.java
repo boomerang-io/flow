@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.workspace.model;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.annotation.Id;

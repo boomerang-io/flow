@@ -1,4 +1,4 @@
-package io.boomerang.workflow.model;
+package io.boomerang.schedule.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;

@@ -1,10 +1,10 @@
-package io.boomerang.workflow.model;
+package io.boomerang.workspace.model;
 
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.beans.BeanUtils;
-import io.boomerang.workflow.entity.TeamEntity;
+import io.boomerang.workspace.entity.TeamEntity;
 
 public class TeamSummary {
 

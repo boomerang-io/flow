@@ -23,7 +23,7 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-import io.boomerang.error.BoomerangException;
+import io.boomerang.common.error.BoomerangException;
 
 @Service
 @Primary

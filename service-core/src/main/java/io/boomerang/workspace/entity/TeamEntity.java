@@ -1,4 +1,4 @@
-package io.boomerang.workflow.entity;
+package io.boomerang.workspace.entity;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -12,9 +12,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import io.boomerang.workflow.model.Quotas;
-import io.boomerang.workflow.model.TeamStatus;
-import io.boomerang.workflow.model.TeamType;
+import io.boomerang.workspace.model.Quotas;
+import io.boomerang.workspace.model.TeamStatus;
+import io.boomerang.workspace.model.TeamType;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)

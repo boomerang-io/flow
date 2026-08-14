@@ -25,7 +25,7 @@ public class TektonConverter {
     tektonTask.setApiVersion("tekton.dev/v1beta1");
     tektonTask.setKind("Task");
 
-    Metadata metadata = new Metadata();
+    TektonMetadata metadata = new TektonMetadata();
     metadata.setName(task.getName());
     metadata.setLabels(new HashMap<String, String>());
 
@@ -51,7 +51,7 @@ public class TektonConverter {
     annotations.put("boomerang.io/verified", task.isVerified());
     tektonTask.setMetadata(metadata);
 
-    Spec spec = new Spec();
+    TektonSpec spec = new TektonSpec();
     spec.setDescription(task.getDescription());
 
     Step step = new Step();
@@ -94,7 +94,7 @@ public class TektonConverter {
   public static Task convertTektonTaskToTaskTemplate(TektonTask tektonTask) {
     Task task = new Task();
 
-    Metadata metadata = tektonTask.getMetadata();
+    TektonMetadata metadata = tektonTask.getMetadata();
     task.setName(metadata.getName());
     task.setLabels(metadata.getLabels());
 
@@ -138,7 +138,7 @@ public class TektonConverter {
       annotations.remove("boomerang.io/params");
     }
 
-    Spec spec = tektonTask.getSpec();
+    TektonSpec spec = tektonTask.getSpec();
     if (spec.getDescription() != null && !spec.getDescription().isBlank()) {
       task.setDescription(spec.getDescription());
     }

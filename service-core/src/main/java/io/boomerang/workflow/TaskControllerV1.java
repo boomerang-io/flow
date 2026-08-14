@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
@@ -26,9 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Task Management", description = "Create and Manage the Task, or Task Definitions.")
 public class TaskControllerV1 {
 
-  private final TaskService taskService;
+  private final TaskDefinitionService taskService;
 
-  public TaskControllerV1(TaskService taskService) {
+  public TaskControllerV1(TaskDefinitionService taskService) {
     this.taskService = taskService;
   }
 
