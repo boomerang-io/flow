@@ -29,9 +29,27 @@ of boundaries landing, else Q-211 re-opens).
   **Discovered residue:** four flow-local model-extends-entity cases remain (`core/model/User`,
   `UserProfile`, `Setting`; `workflow/model/Action`) — within-module inheritance, flattened when
   their owning pieces restructure (`Action` matters at J3, the single Action owner).
-- **E8.1** — `service-flow` → `service-core` git mv (rename-only commit; modifications in
-  follow-up commits per the repo git rule), parent pom + CI updates (DD-05).
-- **E8.2+** — engine code moves in, module-by-module per the nine-module layout; H5 cycles
+- **E8.1** ✅ (2026-08-14) — `service-flow` → `service-core` (pure-rename commit, 197 files all
+  R100, then content fixes: poms/Dockerfile/CI). Release tags + image names unchanged (DD-03/E10).
+- **E8.2a** ✅ (2026-08-14) — `service-engine` physically merged into `service-core`; the module
+  is deleted. Only 7 FQCN collisions (3 identical dropped; `BoomerangError` enum unioned +
+  messages merged; `RestExceptionHandler`/`Application`/`MongoConfiguration` merged). Security:
+  new `DispatcherSecurityConfiguration` `@Order(1)` chain owns `/api/v1/**` (permitAll +
+  `DispatcherAuthFilter`); flow's chains `@Order(2)`; engine's `SecurityConfig` deleted.
+  Internal flow↔engine HTTP now points at self (INTERIM — dissolution below / E9).
+  `ci-engine.yml` retired (engine image ships from the merged binary at E10). G1 held:
+  `DAGUtility`/`TaskExecutionService` pure R100 moves. One flagged semantic fix:
+  `WorkflowWatcher.sweep()` now honors `flow.watcher.enabled` for scheduled sweeps (the kill
+  switch previously gated only the boot sweep — cached test contexts kept live timers).
+  Merged suite: 66 tests green in service-core.
+- **E8.2b** ✅ (2026-08-14) — flow's `EngineClient` (1305→~340 lines) is in-process: signatures
+  kept, bodies call the engine services directly; all 37 `flow.engine.*` properties deleted.
+  Notable: the blanket catch-and-wrap-as-500 is gone, so engine `BoomerangException`s now
+  propagate with their REAL codes (v2 responses that flattened engine 4xx into 500 now surface
+  the true status — an observable improvement, flagged); `enableWorkflow`/`disableWorkflow`
+  confirmed dead (always 404'd over HTTP) → deterministic 501. Log streaming needed zero HTTP
+  (delegates to the engine's `LogClient` path unchanged). Facade dissolves fully at J2.
+- **E8.2c+** — engine code moves in, module-by-module per the nine-module layout; H5 cycles
   C1–C6; controllers into owning modules then `@ConditionalOnFlowMode` (one gate per module
   root) + per-mode boot tests (H6); J2–J6 restructurings (H8); A5 property unification;
   **E7-5** persisted `agentRef`→`dispatcherRef` / `agents`→`dispatchers` + loader migration
