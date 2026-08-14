@@ -1,22 +1,29 @@
 package io.boomerang.common.model;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import io.boomerang.common.entity.WorkflowTemplateEntity;
-import lombok.Data;
-import org.springframework.beans.BeanUtils;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import io.boomerang.common.entity.WorkflowTemplateEntity;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import lombok.Data;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.annotation.Id;
 
 /*
- * Workflow Model joining Workflow Entity and Workflow Revision Entity
+ * Public API model based on WorkflowTemplateEntity.
  *
- * A number of the Workflow Revision elements are put under metadata
+ * Standalone POJO (no longer extends the entity) so the public contract is explicit. Mirrors
+ * the entity's own @JsonIgnore on id (never serialized); every other entity field stays here.
+ * upgradesAvailable is a model-only addition (computed at apply-time, not persisted on the
+ * entity).
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -35,7 +42,24 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
   "params",
   "tasks"
 })
-public class WorkflowTemplate extends WorkflowTemplateEntity {
+public class WorkflowTemplate {
+
+  @Id @JsonIgnore private String id;
+  private String name;
+  private String displayName;
+  private Date creationDate = new Date();
+  private Integer version;
+  private String icon;
+  private String description;
+  private String markdown;
+  private Map<String, String> labels = new HashMap<>();
+  private Map<String, Object> annotations = new HashMap<>();
+  private List<WorkflowTask> tasks = new LinkedList<>();
+  private ChangeLog changelog;
+  private List<AbstractParam> params;
+  private List<WorkflowWorkspace> workspaces;
+  private Long timeout;
+  private Long retries;
 
   private boolean upgradesAvailable = false;
 
