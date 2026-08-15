@@ -5,13 +5,13 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
 /**
- * Matches when the resolved authentication half is disabled - the complement of {@link
- * AuthEnabledCondition}. See {@link FlowSecurityProperties}.
+ * Matches when security is disabled - the complement of {@link SecurityEnabledCondition}. See
+ * {@link FlowSecurityProperties}.
  */
-class AuthDisabledCondition implements Condition {
+class SecurityDisabledCondition implements Condition {
 
   @Override
   public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
-    return !FlowSecurityProperties.isAuthEnabled(context.getEnvironment());
+    return !FlowSecurityProperties.isSecurityEnabled(context.getEnvironment());
   }
 }

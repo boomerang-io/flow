@@ -37,7 +37,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Note: This cannot be auto marked as a Service/Component that Spring Boot would auto inject as
  * then it will apply to all routes
  */
-@ConditionalOnProperty(name = "flow.authorization.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "flow.security.enabled", havingValue = "true")
 public class AuthenticationFilter extends OncePerRequestFilter {
 
   private static final Logger LOGGER = LogManager.getLogger();

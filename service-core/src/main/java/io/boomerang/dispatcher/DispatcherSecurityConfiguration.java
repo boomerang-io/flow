@@ -18,10 +18,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * {@link SecurityFilterChain} scoped via {@code securityMatcher}, evaluated BEFORE {@link
  * SecurityConfiguration} / {@link SecurityDisabledConfiguration} (see {@code @Order}). This
  * preserves service-engine's pre-merge security posture exactly and independently of flow's
- * {@code flow.auth.enabled} / {@code flow.authorization.enabled} settings: the v1 surface stays
- * network-protected permitAll, with the worker-facing dispatcher paths ({@code
- * /api/v1/dispatcher/**}) additionally gated by {@link DispatcherAuthFilter} once {@code
- * flow.dispatcher.token} is configured.
+ * {@code flow.security.enabled} setting: the v1 surface stays network-protected permitAll, with
+ * the worker-facing dispatcher paths ({@code /api/v1/dispatcher/**}) additionally gated by
+ * {@link DispatcherAuthFilter} once {@code flow.dispatcher.token} is configured.
  */
 @Configuration
 public class DispatcherSecurityConfiguration {

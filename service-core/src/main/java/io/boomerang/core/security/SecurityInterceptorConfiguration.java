@@ -7,11 +7,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-// A5/H6: gated via the unified resolution (flow.authorization.enabled, if explicitly set, still
-// wins - see FlowSecurityProperties) rather than a raw @ConditionalOnProperty with
-// matchIfMissing=true on flow.authorization.enabled.
+// A5/H6: gated via the unified flow.security.enabled resolution - see FlowSecurityProperties.
 @Configuration
-@Conditional(AuthorizationEnabledCondition.class)
+@Conditional(SecurityEnabledCondition.class)
 public class SecurityInterceptorConfiguration implements WebMvcConfigurer {
 
   @Autowired

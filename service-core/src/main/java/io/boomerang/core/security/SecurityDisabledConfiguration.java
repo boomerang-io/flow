@@ -7,9 +7,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-// A5/H6: complement of SecurityConfiguration's AuthEnabledCondition - see FlowSecurityProperties.
+// A5/H6: complement of SecurityConfiguration's SecurityEnabledCondition - see
+// FlowSecurityProperties.
 @Configuration
-@Conditional(AuthDisabledCondition.class)
+@Conditional(SecurityDisabledCondition.class)
 public class SecurityDisabledConfiguration {
 
   // @Order required now that DispatcherSecurityConfiguration's /api/v1/** chain (E8.2a merge)

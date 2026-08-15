@@ -158,14 +158,14 @@ _future_)
 
 ### Security
 
-Security is enabled / disabled through the `flow.authorization.enabled` flag in the application.properties
+Security is enabled / disabled through the `flow.security.enabled` flag in the application.properties (default derives from `flow.mode`: `standalone` = enabled, `engine` = disabled)
 
 The following classes are conditionally loaded based on this flag
 
-| Class                                                      | Condition |
-|------------------------------------------------------------|-----------|
-| AuthenticationFilter                                       | true      |
-| InterceptorConfig (and by association SecurityInterceptor) | true      |
-| SecurityConfiguration                                      | true      |
-| SecurityDisabledConfiguration                              | false     |
+| Class                                                              | Condition |
+|---------------------------------------------------------------------|-----------|
+| AuthenticationFilter                                                 | true      |
+| SecurityInterceptorConfiguration (and by association SecurityInterceptor) | true      |
+| SecurityConfiguration                                                | true      |
+| SecurityDisabledConfiguration                                        | false     |
 

@@ -15,10 +15,9 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-// A5/H6: gated via the unified resolution (flow.auth.enabled, if explicitly set, still wins -
-// see FlowSecurityProperties) rather than a raw @ConditionalOnProperty on flow.auth.enabled.
+// A5/H6: gated via the unified flow.security.enabled resolution - see FlowSecurityProperties.
 @Configuration
-@Conditional(AuthEnabledCondition.class)
+@Conditional(SecurityEnabledCondition.class)
 public class SecurityConfiguration {
 
   private static final String INFO = "/info";
