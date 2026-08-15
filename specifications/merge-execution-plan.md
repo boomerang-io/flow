@@ -193,6 +193,18 @@ live stayed on v3. Not usable.)
 | `teams.approverGroups[]` (28 teams) | Field present on 2 teams, both **empty arrays** — no approver-group data exists on this install, so R-6's v4 loss had no data impact here. Populated shape still unvalidated; handle empty gracefully. |
 | **NEW BUG — global parameters never migrated** | v3's collection is **`global_config`** (1 doc: `{_id, key, label, type, value, description, readOnly}`, `_class=FlowGlobalConfigEntity`), but changeset **`4045` reads `global_params`** and maps `values`→`value`. On real v3 data it matches nothing: **global parameters were silently dropped in v4, and the source collection was never even dropped.** The consolidated unit must read `global_config` and map `key`→`name`, `value`→`value` (singular). Verify the collection name against other installs before finalising. |
 
+### v3→v5 implementation batches (chained; each verified against the real dump before the next)
+
+| Batch | Changeunits | Depends on | Notes |
+|---|---|---|---|
+| **F — foundation** | real-dump test harness · `_0019__LegacyGenerationDetect` · `_0020__V3DropDeadCollections` | — | `_0019` MUST capture the generation before any mutation: once `_0020` drops legacy collections the DB no longer looks v3 and detection would flip mid-chain. Dump referenced by path, never committed (real production data, public repo); test skips when absent. |
+| **A — standalone data** | `_0021__V3MigrateSettings` · `_0031__V3MigrateGlobalParameters` · `_0033__V3Indexes` | F | `_0031` reads **`global_config`** (NOT v4's wrong `global_params`) mapping `key`→`name`, `value`(singular)→`value`. Settings: rename keys to `task`/`workflowrun`/`integration` + config-key renames; delete the `users` doc. |
+| **B — task catalogue** | `_0022__V3MigrateTasks` · `_0026__V3MigrateTaskRunRefs` · `_0034__V3ReconcileCatalogue` | F | Single pass `task_templates` → `tasks` + `task_revisions` with `parentRef` and `spec.params[]` merged (squashes 4004+4030+4032+4043). Reconcile against `_0017`'s 87 seeded tasks by legacy `_id`. |
+| **C — workspaces & users** | `_0027__V3MigrateWorkspaces` · `_0028__V3MigrateUsers` | F | Quotas → v5 names (`maxWorkflowRunMonthly`/`maxWorkflowRunDuration`/`maxConcurrentRuns` + new `maxWorkflowRunStorage`); extract `approverGroups[]` → `approver_groups` (empty in the dump — handle gracefully, shape unvalidated); **personal workspace per user (M-1)**. |
+| **D — workflows & runs** | `_0023__V3MigrateWorkflows` · `_0024__V3ExtractWorkflowTemplates` · `_0025__V3MigrateRuns` | B | Fix the v4 `taskVersion` bugs at source (4005's no-op `replace`, 4033/4034/4035 reading the new key). Single-pass slug+`displayName`. Runs: status/phase mapping + `initiatedByRef` (4002 computed then dropped it). |
+| **E — relationship graph** | `_0029__V3BuildRelationshipGraph` · `_0030__V3SystemWorkspaceMembers` · `_0032__V3SeedAudit` | B,C,D | **The most important slice.** Write `workspace:<ref>` node ids/edge prefixes DIRECTLY — `_0012` runs BEFORE these units, so a `team:` write would never be corrected. No `_class`. Audit parent resolved via `rel_edges` (4038's lookup never matched). |
+| **G — cleanup & v4 repair** | `_0035__V3DropIntermediates` · v4 repair units (**M-2**) | E | Repair what IS recoverable on v4 installs: re-derive `taskVersion` from `task_revisions` where unambiguous; rebuild workflow audit records from `rel_edges`. Approver groups unrecoverable on v4 — document, never fake. |
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
