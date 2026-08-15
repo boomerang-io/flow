@@ -24,7 +24,7 @@ separate deployables. **v5 reverses that split — see the confirmed decisions b
 | DD    | Decision                                                                                                                                                                          |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DD-01 | **Rename Team → Workspace** at the v5 major (API paths aliased for deprecation; module named `workspace`; loader migration for RelationshipType/AuthScope values).                  |
-| DD-02 | **MERGE `service-flow` + `service-engine`** into ONE deployable with `flow.mode = full \| engine \| standalone`. Agent stays separate. Sequenced BEHIND the Phase 3 execution rebuild; falsifiability conditions F1–F5 stay live. **Amended 2026-08-14 (AM-1): no Spring Modulith, no ArchUnit — module boundaries are a principle/convention (ARCHIE `service-core` flat-feature-package style); see `specifications/merge-execution-plan.md`.** |
+| DD-02 | **MERGE `service-flow` + `service-engine`** into ONE deployable with **`flow.mode = standalone \| engine`** (AM-7, 2026-08-15: FULL collapsed into STANDALONE — "standalone" = the complete self-contained product and the default; "engine" = embedded headless; the laptop case = the product with security off). Agent stays separate. Falsifiability F1–F5 stays live. **AM-1 (2026-08-14): no Spring Modulith, no ArchUnit — boundaries by convention (ARCHIE flat-feature-package style). See `specifications/merge-execution-plan.md`.** |
 | DD-03 | **Unified product versioning** — one tag builds the compatible image set; no independent engine version line (`engine@` alias tags during the embedder deprecation window).         |
 | DD-04 | **Frontend (`flow.client.web`) joins this monorepo** — after the merged image ships; v5 re-baselines its 3.12.x history; webapp served only in `full`/`standalone` modes.           |
 | DD-05 | **Merged deployable module = `service-core`** (executed at E8; ARCHIE/CHEER convention; "engine" stays an internal module + mode name only).                                        |
@@ -153,14 +153,13 @@ docker run -e JAVA_OPTS="-Dspring.data.mongodb.uri=mongodb://localhost:27017/boo
   --network host --platform linux/amd64 boomerangio/flow-loader:latest
 
 mvn clean install
-mvn spring-boot:run -pl service-engine
+mvn spring-boot:run -pl service-core
 ```
 
-Security can be disabled for local development (both properties, pending unification):
+Security can be disabled for local development (one property; default derives from `flow.mode`):
 
 ```properties
-flow.authorization.enabled=false
-flow.auth.enabled=false
+flow.security.enabled=false
 ```
 
 ## Error Response Format

@@ -38,13 +38,8 @@ import org.springframework.stereotype.Service;
  * Ref: https://github.com/tektoncd/pipeline/blob/main/pkg/substitution/substitution.go Ref:
  * https://tekton.dev/docs/pipelines/variables/#fields-that-accept-variable-substitutions
  */
-// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
-// io.boomerang.workflow.ParameterManager (same simple class name, both @Service) now that
-// service-engine and service-core share one context. See merge commit message. NOTE (2026-08-15
-// simplification pass): this is a REAL bean-name collision, not a restructure-era wiring pin -
-// removing the explicit name reproduces a ConflictingBeanDefinitionException at boot (verified).
-// Left pinned; the other two restructure-era pins (TaskRunService, WorkflowRunService) were
-// removed since neither has a same-simple-name collision.
+// Explicit bean name: workflow.ParameterManager shares this simple name, and default bean
+// naming would collide at boot. Goes away when one of the two is renamed.
 @Service("engineParameterManager")
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();

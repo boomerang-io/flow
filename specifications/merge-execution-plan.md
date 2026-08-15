@@ -18,6 +18,8 @@ of boundaries landing, else Q-211 re-opens).
 | AM-3 | Proposal step 8's protocol-v2 epoch/lease-renewal did **not** ship — worker leases + fencing are deferred post-merge until a real consumer (lease-reap sweep) exists. I6's "dedicated wire DTOs" overruled: the worker receives the plain run models. |
 | AM-4 | E9's pre-filled G2 (`parentRef` + `createdByTaskRunRef`) **conflicts with the earlier ruling** that dropped run-creation dedup fields — at E9's G2 review, propose lineage via the existing `initiatedByRef` + `trigger` instead. |
 | AM-5 | The engine-mode static token (Q-207 `flow.security.token`) exists as `flow.dispatcher.token` + `DispatcherAuthFilter` — E8/E10 reuse that filter; the first-class `bfd` token is post-merge (gap-register A3, check ARCHIE first). |
+| AM-7 | **Two modes, not three** (maintainer 2026-08-15): `flow.mode = standalone \| engine`. FULL collapses into STANDALONE — "standalone" = the complete self-contained product (workspaces, auth, integrations, schedules; the default); "engine" = embedded headless execution. The old laptop-mode meaning of standalone is not a mode — it's the product with `flow.security.enabled=false`. Re-rules DD-02's mode list and the proposal §4 matrix (full column ≡ standalone). |
+| AM-8 | **One security property** (maintainer 2026-08-15): `flow.security.enabled`, default from mode (standalone→true, engine→false). The legacy `flow.auth.enabled`/`flow.authorization.enabled` pair is DELETED at the v5 major (no alias window). Restructure-era bean-name pins (`engine*`) removed. lib-common keeps its entities until the Phase 4/T7 agent-runtime decision (if the agent folds in-process, lib-common dies in one move). |
 | AM-6 | **Naming convention overrules the proposal's service names** (maintainer 2026-08-15): `<Name>Service`/`<Name>Controller` (+ `<Name>Client` external-only; `<Name>ExecutionService` engine orchestrators). The DOMAIN service keeps the plain name — `workflow.WorkflowService`/`workflow.TaskService` are the definition services (NOT `WorkflowDefinitionService`/`TaskCatalogueService` as the proposal's module table named them); the api composition shims are `Team*Service`, pairing their `Team*ControllerV2` controllers, and dissolve as H7/thin-controllers land. |
 
 ## Sequence
@@ -95,6 +97,20 @@ services), not scope marking; the composition layer is expected to dissolve via 
 controllers, and anything surviving is swept `Team*`→`Workspace*` at DD-01 — review THERE whether
 the prefix (and the classes) should exist at all. Note the platform substrate stays genuinely
 non-workspace-scoped (users, tokens, system, global catalogue/templates/params).
+
+## Future items (maintainer-added 2026-08-15, not yet scheduled)
+
+1. **WorkflowTemplates sunset evaluation** — possibly retire the whole template-management side
+   in favour of a few out-of-the-box json/yaml types shipped statically. Evaluate before
+   investing further in `WorkflowTemplateService`/controllers.
+2. **`Workspace*` prefix removal on the api shims** (strengthens the H13 parked item — maintainer
+   leans REMOVE): everything is bound to a Workspace anyway, so `TaskService` suffices once the
+   composition/domain split resolves (H7 dissolution or the naming review at H13).
+3. **Audit re-evaluation** — compare our audit implementation (core.audit: interceptor + AOP
+   heritage) against ARCHIE's `services/service-core` audit approach; candidate for removal or
+   replacement. Do before investing in the J4 all-modes audit build-out.
+4. **Slack integration redo** — re-do the entire Slack integration (io.boomerang.integrations
+   SlackService). Treat the current one as legacy; do not extend it.
 
 ### E11 — post-merge (ordered)
 H12 DD-03 versioning → A2 enforcement flip + A3 first-class `bfd` token + H2 public-`phase`
