@@ -1,6 +1,6 @@
 package io.boomerang.schedule;
 
-import io.boomerang.engine.model.ScheduleRequested;
+import io.boomerang.common.model.ScheduleRequested;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 

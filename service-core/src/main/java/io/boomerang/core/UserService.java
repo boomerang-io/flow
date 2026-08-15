@@ -6,16 +6,10 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.enums.UserStatus;
 import io.boomerang.core.enums.UserType;
 import io.boomerang.core.model.*;
-import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
-import io.boomerang.workspace.entity.TeamEntity;
-import io.boomerang.workspace.model.TeamStatus;
-import io.boomerang.workspace.model.TeamSummary;
-import io.boomerang.workspace.model.TeamSummaryInsights;
-import io.boomerang.workspace.repository.TeamRepository;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -57,8 +51,6 @@ public class UserService {
   private final UserRepository userRepository;
   private final IdentityService identityService;
   private final ExternalUserService extUserService;
-  private final TeamRepository teamRepository;
-  private final RoleRepository roleRepository;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
 
@@ -66,15 +58,11 @@ public class UserService {
       MongoTemplate mongoTemplate,
       IdentityService identityService,
       ExternalUserService extUserService,
-      TeamRepository teamRepository,
-      RoleRepository roleRepository,
       RelationshipService relationshipService,
       UserRepository userRepository) {
     this.userRepository = userRepository;
     this.identityService = identityService;
     this.extUserService = extUserService;
-    this.teamRepository = teamRepository;
-    this.roleRepository = roleRepository;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
   }
@@ -220,13 +208,17 @@ public class UserService {
   }
 
   /*
-   * Retrieves the profile for current user session
+   * Retrieves the base (non-Team) profile fields for the current user session.
+   *
+   * Team summaries and permissions are a rollup across User (core) and Team (workspace) data,
+   * so core cannot compose them here - the api layer's Profile composition
+   * (ProfileControllerV2) calls this for the base entity, then TeamService and
+   * RelationshipService for the Team membership rollup.
    */
-  public UserProfile getCurrentProfile() {
-    UserProfile profile = new UserProfile();
+  public UserEntity getCurrentProfileEntity() {
+    UserEntity profile = new UserEntity();
     if (externalUserUrl.isBlank()) {
-      UserEntity user = getCurrentUser();
-      profile = new UserProfile(user);
+      profile = getCurrentUser();
     } else {
       ExternalUserProfile extUserProfile =
           extUserService.getUserProfileById(identityService.getCurrentPrincipal());
@@ -235,39 +227,15 @@ public class UserService {
         convertExternalUserType(extUserProfile, profile);
       }
     }
-    // Add TeamSummaries
-    //    Map<String, String> teamRefs = relationshipService.getMyTeamRefsAndRoles(profile.getId());
-    Map<String, String> teamRefs = relationshipService.roles(profile.getId());
-    // TODO - change to return an Object with teamId, teamSlug,
-    List<TeamSummary> teamSummaries = new LinkedList<>();
-    List<String> permissions = new LinkedList<>();
-    teamRefs.forEach(
-        (k, v) -> {
-          Optional<TeamEntity> teamEntity = teamRepository.findById(k);
-          if (teamEntity.isPresent()) {
-            // Generate TeamSummary + Insight
-            TeamSummary ts = new TeamSummary(teamEntity.get());
-            TeamSummaryInsights tsi = new TeamSummaryInsights();
-            Map<String, String> membersAndRoles = relationshipService.membersAndRoles(k);
-            tsi.setMembers(Long.valueOf(membersAndRoles.size()));
-            List<String> workflowRefs =
-                relationshipService.filter(
-                    RelationshipType.WORKFLOW,
-                    Optional.empty(),
-                    Optional.of(RelationshipType.TEAM),
-                    Optional.of(List.of(k)));
-            tsi.setWorkflows(Long.valueOf(workflowRefs.size()));
-            ts.setInsights(tsi);
-            teamSummaries.add(ts);
-
-            // Generate Permissions
-            roleRepository.findByTypeAndName("team", v).getPermissions().stream()
-                .forEach(p -> permissions.add(p.replace("{principal}", k)));
-          }
-        });
-    profile.setTeams(teamSummaries);
-    profile.setPermissions(permissions);
     return profile;
+  }
+
+  /*
+   * Retrieves the Team ref -> role map for the given user. Used to compose the Team membership
+   * rollup on the Profile response (see getCurrentProfileEntity()).
+   */
+  public Map<String, String> getTeamRefsAndRolesForUser(String userId) {
+    return relationshipService.roles(userId);
   }
 
   public void updateCurrentProfile(UserRequest request) {
@@ -320,7 +288,7 @@ public class UserService {
 
     if (queryStatus.isPresent()) {
       if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(TeamStatus.class, q))) {
+          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(UserStatus.class, q))) {
         Criteria criteria = Criteria.where("status").in(queryStatus.get());
         criteriaList.add(criteria);
       } else {

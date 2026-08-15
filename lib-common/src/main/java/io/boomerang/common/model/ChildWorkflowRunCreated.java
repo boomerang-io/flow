@@ -1,4 +1,4 @@
-package io.boomerang.engine.model;
+package io.boomerang.common.model;
 
 /**
  * Domain event published by the engine's RunWorkflow task after it submits a child WorkflowRun,

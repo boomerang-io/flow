@@ -4,9 +4,7 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.IdentityService;
-import io.boomerang.workspace.model.Team;
-import io.boomerang.workspace.model.TeamRequest;
-import io.boomerang.workflow.model.WorkflowCanvas;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -95,23 +93,24 @@ public class AuditInterceptor {
         Optional.of(Map.of("name", entity.getName())));
   }
 
+  /*
+   * WorkflowCanvas argument taken as Object and read via reflection (getName()) rather than
+   * importing io.boomerang.workflow.model.WorkflowCanvas - core must not depend on workflow.
+   */
   @AfterReturning(
       pointcut =
           "execution(* io.boomerang.service.WorkflowService.composeApply(..)) && args(team, request, replace)",
       returning = "entity")
   private void updateWorkflow(
-      JoinPoint thisJoinPoint,
-      String team,
-      WorkflowCanvas request,
-      boolean replace,
-      WorkflowCanvas entity) {
+      JoinPoint thisJoinPoint, String team, Object request, boolean replace, Object entity) {
+    String entityName = reflectGetter(entity, "getName");
     updateLog(
         AuditScope.WORKFLOW,
         AuditType.updated,
-        entity.getName(),
-        Optional.of(entity.getName()),
+        entityName,
+        Optional.of(entityName),
         Optional.of(getTeamAuditIdFromName(team)),
-        Optional.of(Map.of("name", entity.getName())));
+        Optional.of(Map.of("name", entityName)));
   }
 
   @AfterReturning(
@@ -143,34 +142,43 @@ public class AuditInterceptor {
 
   /*
    * TEAM auditing
+   *
+   * The advice below takes Team/TeamRequest arguments as Object and reads them via reflection
+   * (getId()/getName()) rather than importing io.boomerang.workspace.model types - core must not
+   * depend on workspace. This mirrors the implicit "cast" AspectJ would otherwise perform when
+   * binding these args to a typed parameter.
    */
   @AfterReturning(
       pointcut = "execution(* io.boomerang.service.TeamService.create(..)) && args(request)",
       returning = "entity")
-  private void createTeam(JoinPoint thisJoinPoint, TeamRequest request, Team entity) {
+  private void createTeam(JoinPoint thisJoinPoint, Object request, Object entity) {
+    String entityId = reflectGetter(entity, "getId");
+    String entityName = reflectGetter(entity, "getName");
     AuditEntity log =
         createLog(
             AuditScope.TEAM,
-            entity.getId(),
-            Optional.of(entity.getName()),
+            entityId,
+            Optional.of(entityName),
             Optional.empty(),
-            Optional.of(Map.of("name", entity.getName())));
-    teamNameToAuditId.put(entity.getName(), log.getId());
+            Optional.of(Map.of("name", entityName)));
+    teamNameToAuditId.put(entityName, log.getId());
   }
 
   @AfterReturning(
       pointcut = "execution(* io.boomerang.service.TeamService.patch(..))",
       returning = "entity")
-  private void updateTeam(JoinPoint thisJoinPoint, Team entity) {
+  private void updateTeam(JoinPoint thisJoinPoint, Object entity) {
+    String entityId = reflectGetter(entity, "getId");
+    String entityName = reflectGetter(entity, "getName");
     AuditEntity log =
         updateLog(
             AuditScope.TEAM,
             AuditType.updated,
-            entity.getId(),
-            Optional.of(entity.getName()),
+            entityId,
+            Optional.of(entityName),
             Optional.empty(),
-            Optional.of(Map.of("name", entity.getName())));
-    teamNameToAuditId.put(entity.getName(), log.getId());
+            Optional.of(Map.of("name", entityName)));
+    teamNameToAuditId.put(entityName, log.getId());
   }
 
   @AfterReturning("execution(* io.boomerang.service.TeamService.delete(..))" + " && args(id)")
@@ -271,6 +279,29 @@ public class AuditInterceptor {
       LOGGER.error("Unable to create Audit record with exception: {}.", ex.toString());
     }
     return null;
+  }
+
+  /*
+   * Reads a no-arg String-returning getter (e.g. getId/getName) off an Object via reflection.
+   * Used so this interceptor can read Team/WorkflowCanvas fields without importing those types.
+   */
+  private String reflectGetter(Object obj, String getterName) {
+    if (obj == null) {
+      return "";
+    }
+    try {
+      Object value = obj.getClass().getMethod(getterName).invoke(obj);
+      return value != null ? value.toString() : "";
+    } catch (NoSuchMethodException
+        | IllegalAccessException
+        | InvocationTargetException ex) {
+      LOGGER.error(
+          "AuditInterceptor - Unable to reflectively invoke {} on {} with exception: {}.",
+          getterName,
+          obj.getClass(),
+          ex.toString());
+      return "";
+    }
   }
 
   private String getTeamAuditIdFromName(String name) {

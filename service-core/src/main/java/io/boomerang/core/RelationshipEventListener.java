@@ -1,8 +1,9 @@
 package io.boomerang.core;
 
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.engine.model.ChildWorkflowRunCreated;
+import io.boomerang.common.model.ChildWorkflowRunCreated;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

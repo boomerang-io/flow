@@ -27,9 +27,12 @@ import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.Team;
 import io.boomerang.workspace.model.TeamMember;
+import io.boomerang.workspace.model.TeamMembershipSummary;
 import io.boomerang.workspace.model.TeamNameCheckRequest;
 import io.boomerang.workspace.model.TeamRequest;
 import io.boomerang.workspace.model.TeamStatus;
+import io.boomerang.workspace.model.TeamSummary;
+import io.boomerang.workspace.model.TeamSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import io.boomerang.workspace.repository.TeamRepository;
 import io.boomerang.api.TeamTaskService;
@@ -711,6 +714,44 @@ public class TeamService {
   // workflowQuotas.setCurrentWorkflowsPersistentStorage(currentWorkflowsPersistentStorage);
   // }
   //
+
+  /*
+   * Builds the TeamSummary (with Insights) list and resolved Permissions for the given
+   * team-ref -> role map, skipping any ref that no longer resolves to an existing Team (stale
+   * relationship entries).
+   *
+   * Used to compose the User Profile response (api layer) - the rollup needs both User
+   * (core) and Team (workspace) data, so it can't live in core.UserService.
+   */
+  public TeamMembershipSummary getTeamMembershipSummary(Map<String, String> teamRefsAndRoles) {
+    List<TeamSummary> teamSummaries = new LinkedList<>();
+    List<String> permissions = new LinkedList<>();
+    teamRefsAndRoles.forEach(
+        (k, v) -> {
+          Optional<TeamEntity> teamEntity = teamRepository.findById(k);
+          if (teamEntity.isPresent()) {
+            // Generate TeamSummary + Insight
+            TeamSummary ts = new TeamSummary(teamEntity.get());
+            TeamSummaryInsights tsi = new TeamSummaryInsights();
+            Map<String, String> membersAndRoles = relationshipService.membersAndRoles(k);
+            tsi.setMembers(Long.valueOf(membersAndRoles.size()));
+            List<String> workflowRefs =
+                relationshipService.filter(
+                    RelationshipType.WORKFLOW,
+                    Optional.empty(),
+                    Optional.of(RelationshipType.TEAM),
+                    Optional.of(List.of(k)));
+            tsi.setWorkflows(Long.valueOf(workflowRefs.size()));
+            ts.setInsights(tsi);
+            teamSummaries.add(ts);
+
+            // Generate Permissions
+            roleRepository.findByTypeAndName("team", v).getPermissions().stream()
+                .forEach(p -> permissions.add(p.replace("{principal}", k)));
+          }
+        });
+    return new TeamMembershipSummary(teamSummaries, permissions);
+  }
 
   /*
    * Return all team level roles

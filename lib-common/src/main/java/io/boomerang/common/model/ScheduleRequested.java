@@ -1,6 +1,5 @@
-package io.boomerang.engine.model;
+package io.boomerang.common.model;
 
-import io.boomerang.common.model.WorkflowSchedule;
 
 /**
  * Domain event published by the engine's RunScheduledWorkflow task when it needs a new Schedule

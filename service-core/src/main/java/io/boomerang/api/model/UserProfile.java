@@ -1,4 +1,4 @@
-package io.boomerang.core.model;
+package io.boomerang.api.model;
 
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.workspace.model.TeamSummary;
