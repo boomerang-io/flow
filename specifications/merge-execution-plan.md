@@ -79,6 +79,16 @@ One artifact + `flow.mode`; alias images (`flow-service-workflow`=full, `flow-se
 from the merged binary; Helm chart-major; dispatcher image unchanged. **F1 load test before
 cutover — abort gate (H9).**
 
+**DD-01 ✅ (2026-08-15, pulled forward from E11):** Team→Workspace executed on the code+path+value
+layers: 24 class renames (`WorkspaceService`/`WorkspaceEntity`/`Workspace*` models/api shims+
+controllers); `/api/v2/team/**` ↔ `/api/v2/workspace/**` dual mappings (deprecation window);
+`AuthScope.workspace`/`RelationshipType.WORKSPACE`/`TokenTypePrefix.workspace` with "team"
+input-alias compat; `_0012__WorkspaceRename` changeunit (rel_nodes type + composite-`_id`
+re-key, rel_edges prefixes, tokens.type, roles.type) — idempotency proven by LoaderMigrationTest.
+Deliberately wire-stable: `{team}` path var, JSON field names, `teams` collection, `bft` prefix,
+`boomerang.io/team-*` keys, `PermissionResource.TEAM`/`AuditScope.TEAM` strings — swept at the
+frontend re-baseline (H14).
+
 **Review item parked at DD-01 (H13):** whether any `Team*`/`Workspace*`-prefixed composition
 service still exists by then. The prefix is layer-disambiguation (vs the plain-named domain
 services), not scope marking; the composition layer is expected to dissolve via H7/thin
