@@ -1,6 +1,8 @@
 package io.boomerang.api;
 
 import io.boomerang.api.model.UserProfile;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.model.UserRequest;
@@ -29,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
  * data - core.UserService cannot depend on workspace, so this composition lives here in the api
  * layer, which may depend on everything.
  */
+// E8: hard-depends on workspace.TeamService, so full-mode-only.
 @RestController
 @RequestMapping("/api/v2/profile")
 @Tag(name = "Profile", description = "Retrieve your profile and update your details.")
+@ConditionalOnFlowMode(FlowMode.FULL)
 public class ProfileControllerV2 {
 
   @Autowired private UserService userService;

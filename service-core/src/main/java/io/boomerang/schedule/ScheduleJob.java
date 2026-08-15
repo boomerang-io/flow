@@ -4,6 +4,8 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
@@ -20,8 +22,12 @@ import org.springframework.stereotype.Component;
 
 /*
  * Invoked by the ScheduleWatcher when a schedule fires: submits the WorkflowRun.
+ *
+ * E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only, matching
+ * ScheduleWatcher (its only caller).
  */
 @Component
+@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
 public class ScheduleJob {
 
   private static final Logger logger = LoggerFactory.getLogger(ScheduleJob.class);

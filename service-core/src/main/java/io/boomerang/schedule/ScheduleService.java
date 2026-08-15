@@ -11,6 +11,8 @@ import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSchedule;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
@@ -44,7 +46,9 @@ import org.springframework.stereotype.Service;
  *
  * @since Flow 3.6.0
  */
+// E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only.
 @Service
+@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
 public class ScheduleService {
 
   private final Logger LOGGER = LogManager.getLogger(getClass());

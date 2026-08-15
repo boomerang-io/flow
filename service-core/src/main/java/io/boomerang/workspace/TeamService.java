@@ -7,6 +7,8 @@ import io.boomerang.common.model.WorkflowCount;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.StringUtil;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
@@ -65,7 +67,9 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+// E8: workspace is a full-mode-only module root per the mode matrix.
 @Service
+@ConditionalOnFlowMode(FlowMode.FULL)
 public class TeamService {
 
   private static final Logger LOGGER = LogManager.getLogger();

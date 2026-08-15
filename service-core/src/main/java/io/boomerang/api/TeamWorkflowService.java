@@ -78,6 +78,16 @@ import org.springframework.stereotype.Service;
  *
  * TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust
+ *
+ * E8 mode-gating note: intentionally NOT @ConditionalOnFlowMode(FULL) despite the "Team*" name
+ * and the workspace.TeamService field below - that field is @Lazy specifically so this bean
+ * constructs fine without a TeamService bean present. Two things require it to stay unconditional:
+ * ScheduleJob (schedule package, full+standalone) hard-depends on it non-lazily for the fire path,
+ * and the api mode-matrix row keeps "the same surface, team->default" in engine mode too (J1
+ * remap deferred to E10). Only the team-quota-specific paths (canCreateWithQuotas,
+ * canRunWithQuotas, the getWorkflowMaxDurationForTeam call in internalSubmit) will throw
+ * NoSuchBeanDefinitionException off the lazy proxy if actually invoked outside full mode - a
+ * known, deferred gap, not fixed here.
  */
 @Service
 public class TeamWorkflowService {

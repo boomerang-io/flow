@@ -4,6 +4,8 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.model.WorkflowRunSummary;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.audit.AuditQueryService;
 import io.boomerang.core.audit.AuditRecord;
@@ -18,7 +20,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 
+// E8: workspace is a full-mode-only module root per the mode matrix.
 @Service
+@ConditionalOnFlowMode(FlowMode.FULL)
 public class InsightsService {
 
   private static final Logger LOGGER = LogManager.getLogger();

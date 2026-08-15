@@ -1,5 +1,7 @@
 package io.boomerang.api;
 
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.model.Role;
 import io.boomerang.workspace.TeamService;
 import io.boomerang.core.security.AuthCriteria;
@@ -31,11 +33,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+// E8: hard-depends on workspace.TeamService, so full-mode-only. J1's engine/standalone
+// default-team remapping is deferred (E10 territory).
 @RestController
 @RequestMapping("/api/v2/team")
 @Tag(
     name = "Team Management",
     description = "Manage Teams, Team Members, Quotas, ApprovalGroups and Parameters.")
+@ConditionalOnFlowMode(FlowMode.FULL)
 public class TeamControllerV2 {
 
   private final TeamService teamService;

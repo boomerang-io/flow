@@ -3,6 +3,8 @@ package io.boomerang.schedule;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.config.ConditionalOnFlowMode;
+import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
@@ -27,7 +29,9 @@ import org.springframework.stereotype.Service;
  * fires per tick; a crash after the advance loses that single fire, never duplicates it. Startup
  * jitter de-phases the instances' schedules.
  */
+// E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only.
 @Service
+@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
 public class ScheduleWatcher {
 
   private static final Logger LOGGER = LogManager.getLogger();
