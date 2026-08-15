@@ -1,10 +1,17 @@
 package io.boomerang.config;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import io.boomerang.api.IntegrationControllerV2;
+import io.boomerang.api.WorkspaceActionControllerV2;
 import io.boomerang.api.WorkspaceControllerV2;
 import io.boomerang.api.WorkspaceScheduleControllerV2;
+import io.boomerang.api.WorkspaceTaskControllerV2;
+import io.boomerang.api.WorkspaceWorkflowControllerV2;
+import io.boomerang.api.WorkspaceWorkflowRunControllerV2;
+import io.boomerang.core.RunScopeResolver;
+import io.boomerang.core.StandaloneRunScopeResolver;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.WorkflowRunService;
@@ -34,6 +41,8 @@ class FlowModeGatingTest extends AbstractEngineIntegrationTest {
 
   @Autowired private ApplicationContext context;
 
+  @Autowired private RunScopeResolver runScopeResolver;
+
   @Test
   void integrationsBeanIsPresentByDefault() {
     assertFalse(context.getBeansOfType(IntegrationControllerV2.class).isEmpty());
@@ -56,5 +65,21 @@ class FlowModeGatingTest extends AbstractEngineIntegrationTest {
     assertFalse(context.getBeansOfType(WorkflowRunService.class).isEmpty());
     assertFalse(context.getBeansOfType(DispatcherService.class).isEmpty());
     assertFalse(context.getBeansOfType(WorkflowService.class).isEmpty());
+  }
+
+  @Test
+  void workspaceScopedRunSurfaceIsPresentByDefault() {
+    assertFalse(context.getBeansOfType(WorkspaceWorkflowControllerV2.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceWorkflowRunControllerV2.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceTaskControllerV2.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceActionControllerV2.class).isEmpty());
+  }
+
+  @Test
+  void runScopeResolverIsTheStandaloneDelegatingImplementation() {
+    assertFalse(context.getBeansOfType(StandaloneRunScopeResolver.class).isEmpty());
+    // Behaviour-preserving: the {team}/{workspace} value passes through unchanged, unlike
+    // engine mode's constant "default" remap.
+    assertEquals("some-arbitrary-team", runScopeResolver.resolve("some-arbitrary-team"));
   }
 }
