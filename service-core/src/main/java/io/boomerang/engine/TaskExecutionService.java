@@ -15,7 +15,7 @@ import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.workflow.WorkflowDefinitionService;
+import io.boomerang.workflow.WorkflowService;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedList;
@@ -60,7 +60,7 @@ public class TaskExecutionService {
 
   @Autowired private WorkflowRunService workflowRunService;
 
-  @Autowired private WorkflowDefinitionService workflowService;
+  @Autowired private WorkflowService workflowService;
 
   @Autowired private TaskRunRepository taskRunRepository;
 

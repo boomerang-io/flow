@@ -18,8 +18,8 @@ import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.core.config.MongoConfiguration;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.api.TeamWorkflowService;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
-import io.boomerang.workflow.WorkflowDefinitionService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.ZonedDateTime;
 import java.util.Date;
@@ -123,9 +123,9 @@ class ScheduleWatcherTest {
     service =
         new ScheduleService(
             scheduleRepository,
-            mock(WorkflowService.class),
+            mock(TeamWorkflowService.class),
             relationshipService,
-            mock(WorkflowDefinitionService.class),
+            mock(WorkflowService.class),
             mongoTemplate);
     scheduleJob = mock(ScheduleJob.class);
     watcher = new ScheduleWatcher(scheduleRepository, service, scheduleJob, relationshipService);

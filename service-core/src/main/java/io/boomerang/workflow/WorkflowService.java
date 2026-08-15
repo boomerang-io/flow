@@ -52,12 +52,13 @@ import org.springframework.stereotype.Service;
 
 /*
  * Service implements the CRUD ops on a Workflow
+ *
+ * The domain (definition) service - carries the plain name per house convention
+ * (<Name>Service/<Name>Controller; AM-6). The api-layer composition shim that wraps this is
+ * io.boomerang.api.TeamWorkflowService.
  */
-// TEMPORARY name (P2b package-move-map.md, E8.2c): renamed from the engine-side WorkflowService
-// to dodge the flow-side io.boomerang.workflow.WorkflowService name clash now that both live in
-// io.boomerang.workflow. P3 finalizes the merge of the two classes under one name.
 @Service
-public class WorkflowDefinitionService {
+public class WorkflowService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String CHANGELOG_INITIAL = "Initial Workflow";
@@ -69,15 +70,15 @@ public class WorkflowDefinitionService {
   private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskRevisionRepository taskRevisionRepository;
   private final MongoTemplate mongoTemplate;
-  private final TaskDefinitionService taskService;
+  private final TaskService taskService;
   private final WorkflowRunService workflowRunService;
 
-  public WorkflowDefinitionService(
+  public WorkflowService(
       WorkflowRepository workflowRepository,
       WorkflowRevisionRepository workflowRevisionRepository,
       TaskRevisionRepository taskRevisionRepository,
       MongoTemplate mongoTemplate,
-      TaskDefinitionService taskService,
+      TaskService taskService,
       WorkflowRunService workflowRunService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;

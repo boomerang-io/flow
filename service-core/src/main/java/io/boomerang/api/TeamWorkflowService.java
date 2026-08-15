@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +43,8 @@ import io.boomerang.workflow.model.CanvasNodePosition;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.schedule.ScheduleService;
+import io.boomerang.workflow.ParameterManager;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.TeamService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -78,7 +80,7 @@ import org.springframework.stereotype.Service;
  * adjust
  */
 @Service
-public class WorkflowService {
+public class TeamWorkflowService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -91,30 +93,30 @@ public class WorkflowService {
   public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
   public static final String TASK_SETTINGS_KEY = "task";
 
-  private final WorkflowDefinitionService workflowDefinitionService;
+  private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
   private final ScheduleService scheduleService;
   private final ParameterManager parameterManager;
   private final SettingsService settingsService;
-  private final ActionService actionService;
+  private final TeamActionService teamActionService;
   private final TokenService tokenService;
   private final TeamService teamService;
 
-  public WorkflowService(
-      WorkflowDefinitionService workflowDefinitionService,
+  public TeamWorkflowService(
+      WorkflowService workflowService,
       RelationshipService relationshipService,
       @Lazy ScheduleService scheduleService,
       ParameterManager parameterManager,
       SettingsService settingsService,
-      ActionService actionService,
+      TeamActionService teamActionService,
       TokenService tokenService,
       @Lazy TeamService teamService) {
-    this.workflowDefinitionService = workflowDefinitionService;
+    this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.scheduleService = scheduleService;
     this.parameterManager = parameterManager;
     this.settingsService = settingsService;
-    this.actionService = actionService;
+    this.teamActionService = teamActionService;
     this.tokenService = tokenService;
     this.teamService = teamService;
   }
@@ -151,7 +153,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      Workflow workflow = workflowDefinitionService.get(refs.get(0), version, withTasks).getBody();
+      Workflow workflow = workflowService.get(refs.get(0), version, withTasks).getBody();
 
       // Convert Workflow TaskRefs to Slugs
       convertTaskRefsToSlugs(team, workflow);
@@ -186,7 +188,7 @@ public class WorkflowService {
     }
 
     Page<Workflow> page =
-        workflowDefinitionService.query(
+        workflowService.query(
             queryLimit, queryPage, querySort, queryLabels, queryStatus, Optional.of(refs));
     WorkflowResponsePage response =
         new WorkflowResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
@@ -230,7 +232,7 @@ public class WorkflowService {
 
     // Handle no Workflows for Team. Otherwise the engine will return all workflows due to no filter
     if (refs.size() > 0) {
-      return workflowDefinitionService
+      return workflowService
           .count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(refs))
           .getBody();
     }
@@ -238,7 +240,7 @@ public class WorkflowService {
   }
 
   /*
-   * Create Workflow. Pass query onto WorkflowDefinitionService
+   * Create Workflow. Pass query onto the workflow WorkflowService
    *
    * No need to validate params as they are either defaulted or optional
    */
@@ -278,7 +280,7 @@ public class WorkflowService {
 
     request.setId(null);
 
-    Workflow workflow = workflowDefinitionService.create(request, false).getBody();
+    Workflow workflow = workflowService.create(request, false).getBody();
     LOGGER.debug("Workflow DisplayName: {}", workflow.getDisplayName());
 
     // Create Relationship
@@ -408,7 +410,7 @@ public class WorkflowService {
 
         // TODO go through and ensure all the required ParamSpec elements are set
 
-        Workflow appliedWorkflow = workflowDefinitionService.apply(workflow, replace).getBody();
+        Workflow appliedWorkflow = workflowService.apply(workflow, replace).getBody();
 
         // Filter out sensitive values
         DataAdapterUtil.filterParamSpecValueByFieldType(
@@ -482,7 +484,7 @@ public class WorkflowService {
       String team, String workflowId, WorkflowSubmitRequest request, boolean start) {
     // Check if Workflow exists and is active. Then check triggers are enabled.
     // Presumed workflow exists as relationship was valid to get to this point.
-    Workflow workflow = workflowDefinitionService.get(workflowId, Optional.empty(), false).getBody();
+    Workflow workflow = workflowService.get(workflowId, Optional.empty(), false).getBody();
     // Check Triggers - Throws Exception - Check first, as if trigger not enabled, no point in
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
@@ -527,7 +529,7 @@ public class WorkflowService {
     executionAnnotations.put("boomerang.io/team-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
-    WorkflowRun wfRun = workflowDefinitionService.submit(workflowId, request, start);
+    WorkflowRun wfRun = workflowService.submit(workflowId, request, start);
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -559,7 +561,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      return ResponseEntity.ok(workflowDefinitionService.changelog(refs.get(0)).getBody());
+      return ResponseEntity.ok(workflowService.changelog(refs.get(0)).getBody());
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -586,10 +588,10 @@ public class WorkflowService {
             false);
     if (!refs.isEmpty()) {
       // Deletes the Workflow and associated WorkflowRuns, and TaskRuns
-      workflowDefinitionService.delete(refs.get(0));
+      workflowService.delete(refs.get(0));
       scheduleService.deleteAllForWorkflow(refs.get(0));
       tokenService.deleteAllForPrincipal(name);
-      actionService.deleteAllByWorkflow(refs.get(0));
+      teamActionService.deleteAllByWorkflow(refs.get(0));
       // This has to be the ID (ref) as it is unique across all teams
       relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, refs.get(0));
     } else {

@@ -1,7 +1,9 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.engine.TaskRunService;
+import io.boomerang.workflow.ParameterManager;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,7 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @Service
-public class TaskRunService {
+public class TeamTaskRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -20,13 +22,12 @@ public class TaskRunService {
   private String getStreamDownloadPath;
 
   private final RestTemplate restTemplate;
-  // FQN required: io.boomerang.engine.TaskRunService shares this class's simple name.
-  private final io.boomerang.engine.TaskRunService engineTaskRunService;
+  private final TaskRunService engineTaskRunService;
   private final ParameterManager parameterManager;
 
-  public TaskRunService(
+  public TeamTaskRunService(
       @Qualifier("internalRestTemplate") RestTemplate restTemplate,
-      io.boomerang.engine.TaskRunService engineTaskRunService,
+      TaskRunService engineTaskRunService,
       ParameterManager parameterManager) {
     this.restTemplate = restTemplate;
     this.engineTaskRunService = engineTaskRunService;

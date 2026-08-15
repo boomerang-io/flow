@@ -32,8 +32,8 @@ import io.boomerang.workspace.model.TeamRequest;
 import io.boomerang.workspace.model.TeamStatus;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import io.boomerang.workspace.repository.TeamRepository;
-import io.boomerang.workflow.TaskService;
-import io.boomerang.workflow.WorkflowService;
+import io.boomerang.api.TeamTaskService;
+import io.boomerang.api.TeamWorkflowService;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -86,9 +86,9 @@ public class TeamService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final InsightsService insightsService;
-  private final WorkflowService workflowService;
+  private final TeamWorkflowService teamWorkflowService;
   private final TokenService tokenService;
-  private final TaskService taskTemplateService;
+  private final TeamTaskService teamTaskService;
 
   public TeamService(
       TeamRepository teamRepository,
@@ -100,9 +100,9 @@ public class TeamService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       InsightsService insightsService,
-      WorkflowService workflowService,
+      TeamWorkflowService teamWorkflowService,
       TokenService tokenService,
-      TaskService taskTemplateService) {
+      TeamTaskService teamTaskService) {
     this.teamRepository = teamRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -112,9 +112,9 @@ public class TeamService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.insightsService = insightsService;
-    this.workflowService = workflowService;
+    this.teamWorkflowService = teamWorkflowService;
     this.tokenService = tokenService;
-    this.taskTemplateService = taskTemplateService;
+    this.teamTaskService = teamTaskService;
   }
 
   /*
@@ -304,7 +304,7 @@ public class TeamService {
             Optional.of(List.of(team)));
     LOGGER.debug("Team Workflow Refs: {}", workflowRefs.toString());
     if (workflowRefs.size() > 0) {
-      workflowRefs.forEach(ref -> workflowService.delete(team, ref));
+      workflowRefs.forEach(ref -> teamWorkflowService.delete(team, ref));
     }
 
     // Delete all Tokens
@@ -318,7 +318,7 @@ public class TeamService {
             Optional.of(RelationshipType.TEAM),
             Optional.of(List.of(team)));
     if (templateRefs.size() > 0) {
-      templateRefs.forEach(ref -> taskTemplateService.delete(ref, team));
+      templateRefs.forEach(ref -> teamTaskService.delete(ref, team));
     }
 
     // TODO - Delete Team Integration Installations
@@ -734,7 +734,7 @@ public class TeamService {
 
     //    List<WorkflowSummary> summary = new LinkedList<>();
     //    try {
-    //      WorkflowResponsePage response = workflowService.query(Optional.empty(),
+    //      WorkflowResponsePage response = teamWorkflowService.query(Optional.empty(),
     // Optional.empty(), Optional.of(Direction.ASC), Optional.empty(), Optional.empty(),
     // Optional.of(List.of(teamEntity.getId())), Optional.empty());
     //      if (response.getContent() != null && !response.getContent().isEmpty()) {
@@ -904,7 +904,7 @@ public class TeamService {
     currentQuotas.setCurrentRuns(insight.getTotalRuns().intValue());
 
     WorkflowCount count =
-        workflowService.count(
+        teamWorkflowService.count(
             team, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     if (count.getStatus() != null) {
       Long active = count.getStatus().get("active");

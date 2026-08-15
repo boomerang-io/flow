@@ -13,7 +13,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.GraphProcessor;
 import io.boomerang.engine.ResultUtil;
-import io.boomerang.workflow.TaskDefinitionService;
+import io.boomerang.workflow.TaskService;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -44,12 +44,12 @@ public class DAGUtility {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private final TaskRunRepository taskRunRepository;
-  private final TaskDefinitionService taskService;
+  private final TaskService taskService;
   private final MongoTemplate mongoTemplate;
 
   public DAGUtility(
       TaskRunRepository taskRunRepository,
-      TaskDefinitionService taskService,
+      TaskService taskService,
       MongoTemplate mongoTemplate) {
     this.taskRunRepository = taskRunRepository;
     this.taskService = taskService;

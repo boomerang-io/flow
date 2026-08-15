@@ -1,6 +1,5 @@
 package io.boomerang.api;
 
-import io.boomerang.workflow.TaskRunService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -25,10 +24,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Tag(name = "TaskRuns", description = "View, Start, Stop, and Update Status of your Task Runs.")
 public class TaskRunControllerV2 {
 
-  private final TaskRunService taskRunService;
+  private final TeamTaskRunService teamTaskRunService;
 
-  public TaskRunControllerV2(TaskRunService taskRunService) {
-    this.taskRunService = taskRunService;
+  public TaskRunControllerV2(TeamTaskRunService teamTaskRunService) {
+    this.teamTaskRunService = teamTaskRunService;
   }
 
   @GetMapping(value = "/{taskRunId}/log")
@@ -56,6 +55,6 @@ public class TaskRunControllerV2 {
     response.setContentType("text/plain");
     response.setCharacterEncoding("UTF-8");
     return new ResponseEntity<StreamingResponseBody>(
-        taskRunService.streamLog(taskRunId), HttpStatus.OK);
+        teamTaskRunService.streamLog(taskRunId), HttpStatus.OK);
   }
 }

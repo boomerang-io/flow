@@ -18,6 +18,7 @@ of boundaries landing, else Q-211 re-opens).
 | AM-3 | Proposal step 8's protocol-v2 epoch/lease-renewal did **not** ship — worker leases + fencing are deferred post-merge until a real consumer (lease-reap sweep) exists. I6's "dedicated wire DTOs" overruled: the worker receives the plain run models. |
 | AM-4 | E9's pre-filled G2 (`parentRef` + `createdByTaskRunRef`) **conflicts with the earlier ruling** that dropped run-creation dedup fields — at E9's G2 review, propose lineage via the existing `initiatedByRef` + `trigger` instead. |
 | AM-5 | The engine-mode static token (Q-207 `flow.security.token`) exists as `flow.dispatcher.token` + `DispatcherAuthFilter` — E8/E10 reuse that filter; the first-class `bfd` token is post-merge (gap-register A3, check ARCHIE first). |
+| AM-6 | **Naming convention overrules the proposal's service names** (maintainer 2026-08-15): `<Name>Service`/`<Name>Controller` (+ `<Name>Client` external-only; `<Name>ExecutionService` engine orchestrators). The DOMAIN service keeps the plain name — `workflow.WorkflowService`/`workflow.TaskService` are the definition services (NOT `WorkflowDefinitionService`/`TaskCatalogueService` as the proposal's module table named them); the api composition shims are `Team*Service`, pairing their `Team*ControllerV2` controllers, and dissolve as H7/thin-controllers land. |
 
 ## Sequence
 
@@ -69,6 +70,13 @@ dissolves (A4), C10 dedup bindings, B9 stage-2 egress, H7 `RunScopeResolver`.
 One artifact + `flow.mode`; alias images (`flow-service-workflow`=full, `flow-service-engine`=engine)
 from the merged binary; Helm chart-major; dispatcher image unchanged. **F1 load test before
 cutover — abort gate (H9).**
+
+**Review item parked at DD-01 (H13):** whether any `Team*`/`Workspace*`-prefixed composition
+service still exists by then. The prefix is layer-disambiguation (vs the plain-named domain
+services), not scope marking; the composition layer is expected to dissolve via H7/thin
+controllers, and anything surviving is swept `Team*`→`Workspace*` at DD-01 — review THERE whether
+the prefix (and the classes) should exist at all. Note the platform substrate stays genuinely
+non-workspace-scoped (users, tokens, system, global catalogue/templates/params).
 
 ### E11 — post-merge (ordered)
 H12 DD-03 versioning → A2 enforcement flip + A3 first-class `bfd` token + H2 public-`phase`

@@ -8,8 +8,8 @@ import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
+import io.boomerang.api.TeamWorkflowService;
 import io.boomerang.schedule.ScheduleService;
-import io.boomerang.workflow.WorkflowService;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,7 +35,7 @@ public class InternalController {
 
   @Autowired private ScheduleService workflowScheduleService;
 
-  @Autowired private WorkflowService workflowService;
+  @Autowired private TeamWorkflowService teamWorkflowService;
 
   @Autowired private RelationshipService relationshipService;
 
@@ -69,7 +69,7 @@ public class InternalController {
     String team =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, ref);
-    return workflowService.internalSubmit(team, ref, request, start);
+    return teamWorkflowService.internalSubmit(team, ref, request, start);
   }
 
   // Used by Engine for RunWorkflow tasks

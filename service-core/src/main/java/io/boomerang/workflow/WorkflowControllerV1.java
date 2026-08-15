@@ -27,9 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Workflow Management", description = "Create, List, and Manage your Workflows.")
 public class WorkflowControllerV1 {
 
-  private final WorkflowDefinitionService workflowService;
+  private final WorkflowService workflowService;
 
-  public WorkflowControllerV1(WorkflowDefinitionService workflowService) {
+  public WorkflowControllerV1(WorkflowService workflowService) {
     this.workflowService = workflowService;
   }
 

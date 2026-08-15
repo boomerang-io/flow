@@ -7,7 +7,7 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
-import io.boomerang.workflow.WorkflowService;
+import io.boomerang.api.TeamWorkflowService;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -26,17 +26,17 @@ public class ScheduleJob {
 
   private static final Logger logger = LoggerFactory.getLogger(ScheduleJob.class);
 
-  private final WorkflowService workflowService;
+  private final TeamWorkflowService teamWorkflowService;
   private final ScheduleService workflowScheduleService;
   private final TokenService tokenService;
   private final RelationshipService relationshipService;
 
   public ScheduleJob(
-      WorkflowService workflowService,
+      TeamWorkflowService teamWorkflowService,
       @Lazy ScheduleService workflowScheduleService,
       TokenService tokenService,
       RelationshipService relationshipService) {
-    this.workflowService = workflowService;
+    this.teamWorkflowService = teamWorkflowService;
     this.workflowScheduleService = workflowScheduleService;
     this.tokenService = tokenService;
     this.relationshipService = relationshipService;
@@ -68,7 +68,7 @@ public class ScheduleJob {
       SecurityContextHolder.getContext().setAuthentication(authToken);
 
       // TODO: fix setting of start to come from somewhere
-      workflowService.submit(teamRef, workflowRef, request, false);
+      teamWorkflowService.submit(teamRef, workflowRef, request, false);
       if (schedule.getType().equals(WorkflowScheduleType.runOnce)) {
         logger.debug("Executing runOnce schedule: {}, and marking as completed.", schedule.getId());
         workflowScheduleService.complete(schedule.getId());

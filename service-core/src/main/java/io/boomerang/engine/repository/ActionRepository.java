@@ -4,15 +4,14 @@ import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
 import java.util.Date;
+import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.Update;
 import org.springframework.stereotype.Repository;
 
-// Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
-// io.boomerang.workflow.repository.ActionRepository (same simple interface name, both operating
-// on the same shared io.boomerang.common.entity.ActionEntity/collection) now that service-engine
-// and service-core share one context. See merge commit message.
+// Explicitly named (E8.2a merge; retained post-J3 merge of the former
+// io.boomerang.workflow.repository.ActionRepository, whose finder methods are now unioned below).
 @Repository("engineActionRepository")
 public interface ActionRepository extends MongoRepository<ActionEntity, String> {
 
@@ -20,9 +19,14 @@ public interface ActionRepository extends MongoRepository<ActionEntity, String> 
 
   boolean existsByWorkflowRunRefAndStatus(String workflowRunRef, ActionStatus status);
 
+  long countByWorkflowRunRefAndStatus(String workflowRunRef, ActionStatus status);
+
   long countByCreationDateBetween(Date from, Date to);
 
   long countByTypeAndCreationDateBetween(ActionType type, Date from, Date to);
+
+  long countByTypeAndCreationDateBetweenAndWorkflowRefInAndStatus(
+      ActionType type, Date from, Date to, List<String> workflowRefs, ActionStatus status);
 
   long countByType(ActionType type);
 

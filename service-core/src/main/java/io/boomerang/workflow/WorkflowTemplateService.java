@@ -46,13 +46,13 @@ public class WorkflowTemplateService {
 
   private final WorkflowTemplateRepository wfTemplateRepository;
   private final MongoTemplate mongoTemplate;
-  private final TaskDefinitionService taskService;
+  private final TaskService taskService;
   private final TaskRevisionRepository taskRevisionRepository;
 
   public WorkflowTemplateService(
       WorkflowTemplateRepository wfTemplateRepository,
       MongoTemplate mongoTemplate,
-      TaskDefinitionService taskService,
+      TaskService taskService,
       TaskRevisionRepository taskRevisionRepository) {
     this.wfTemplateRepository = wfTemplateRepository;
     this.mongoTemplate = mongoTemplate;

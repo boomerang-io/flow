@@ -10,7 +10,6 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workflow.model.WorkflowCanvas;
-import io.boomerang.workflow.WorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -39,10 +38,10 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "x-access-token")
 public class TeamWorkflowControllerV2 {
 
-  private final WorkflowService workflowService;
+  private final TeamWorkflowService teamWorkflowService;
 
-  public TeamWorkflowControllerV2(WorkflowService workflowService) {
-    this.workflowService = workflowService;
+  public TeamWorkflowControllerV2(TeamWorkflowService teamWorkflowService) {
+    this.teamWorkflowService = teamWorkflowService;
   }
 
   @GetMapping(value = "/{name}")
@@ -89,7 +88,7 @@ public class TeamWorkflowControllerV2 {
               required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return workflowService.get(team, name, version, withTasks);
+    return teamWorkflowService.get(team, name, version, withTasks);
   }
 
   @GetMapping(value = "/query")
@@ -150,7 +149,7 @@ public class TeamWorkflowControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return workflowService.query(team, limit, page, sort, labels, statuses, workflows);
+    return teamWorkflowService.query(team, limit, page, sort, labels, statuses, workflows);
   }
 
   @PostMapping(value = "")
@@ -179,7 +178,7 @@ public class TeamWorkflowControllerV2 {
           @PathVariable
           String team,
       @RequestBody Workflow workflow) {
-    return workflowService.create(team, workflow);
+    return teamWorkflowService.create(team, workflow);
   }
 
   @PutMapping(value = "")
@@ -211,7 +210,7 @@ public class TeamWorkflowControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workflowService.apply(team, workflow, replace);
+    return teamWorkflowService.apply(team, workflow, replace);
   }
 
   @GetMapping(value = "/{name}/changelog")
@@ -248,7 +247,7 @@ public class TeamWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workflowService.changelog(team, name);
+    return teamWorkflowService.changelog(team, name);
   }
 
   @DeleteMapping(value = "/{name}")
@@ -283,7 +282,7 @@ public class TeamWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    workflowService.delete(team, name);
+    teamWorkflowService.delete(team, name);
   }
 
   @PostMapping(value = "/{name}/submit")
@@ -326,7 +325,7 @@ public class TeamWorkflowControllerV2 {
           @RequestParam(required = false, defaultValue = "false")
           boolean start,
       @RequestBody WorkflowSubmitRequest request) {
-    return workflowService.submit(team, name, request, start);
+    return teamWorkflowService.submit(team, name, request, start);
   }
 
   @GetMapping(value = "/{name}/export", produces = "application/json")
@@ -356,7 +355,7 @@ public class TeamWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workflowService.export(team, name);
+    return teamWorkflowService.export(team, name);
   }
 
   @GetMapping(value = "/{name}/compose")
@@ -395,7 +394,7 @@ public class TeamWorkflowControllerV2 {
       @Parameter(name = "version", description = "Workflow Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workflowService.composeGet(team, name, version);
+    return teamWorkflowService.composeGet(team, name, version);
   }
 
   @PutMapping(value = "/{name}/compose")
@@ -427,7 +426,7 @@ public class TeamWorkflowControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workflowService.composeApply(team, canvas, replace);
+    return teamWorkflowService.composeApply(team, canvas, replace);
   }
 
   @PostMapping(value = "/{name}/duplicate")
@@ -457,7 +456,7 @@ public class TeamWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workflowService.duplicate(team, name);
+    return teamWorkflowService.duplicate(team, name);
   }
 
   @GetMapping(value = "/{name}/available-parameters")
@@ -487,6 +486,6 @@ public class TeamWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workflowService.getAvailableParameters(team, name);
+    return teamWorkflowService.getAvailableParameters(team, name);
   }
 }

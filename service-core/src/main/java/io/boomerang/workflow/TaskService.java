@@ -44,11 +44,11 @@ import org.springframework.stereotype.Service;
  *
  * It utilises a @DocumentReference for the parent field that allows us to retrieve the TaskEntity from within the TaskRevisionEntity when reading
  */
-// TEMPORARY name (P2b package-move-map.md, E8.2c): renamed from the engine-side TaskService
-// to dodge the flow-side io.boomerang.workflow.TaskService name clash now that both live in
-// io.boomerang.workflow. P3 finalizes the merge of the two classes under one name.
+// The domain (definition) service - carries the plain name per house convention
+// (<Name>Service/<Name>Controller; AM-6). The api-layer composition shim that wraps this is
+// io.boomerang.api.TeamTaskService.
 @Service
-public class TaskDefinitionService {
+public class TaskService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String CHANGELOG_INITIAL = "Initial Task Template";
@@ -65,7 +65,7 @@ public class TaskDefinitionService {
   private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
 
-  public TaskDefinitionService(
+  public TaskService(
       TaskRepository taskRepository,
       TaskRevisionRepository taskRevisionRepository,
       TaskRunRepository taskRunRepository,

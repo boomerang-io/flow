@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.api.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLog;
@@ -12,6 +12,7 @@ import io.boomerang.core.model.User;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.tekton.TektonConverter;
 import io.boomerang.workflow.tekton.TektonTask;
 import java.util.Date;
@@ -33,23 +34,23 @@ import org.springframework.stereotype.Service;
  * - Converts response as needed for UI (including converting ID to Slug)
  */
 @Service
-public class TaskService {
+public class TeamTaskService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String NAME_REGEX = "^([0-9a-zA-Z\\-]+)$";
 
-  private final TaskDefinitionService taskDefinitionService;
+  private final TaskService taskService;
   private final RelationshipService relationshipService;
   private final IdentityService identityService;
   private final UserService userService;
 
-  public TaskService(
-      TaskDefinitionService taskDefinitionService,
+  public TeamTaskService(
+      TaskService taskService,
       RelationshipService relationshipService,
       IdentityService identityService,
       UserService userService) {
-    this.taskDefinitionService = taskDefinitionService;
+    this.taskService = taskService;
     this.relationshipService = relationshipService;
     this.identityService = identityService;
     this.userService = userService;
@@ -99,7 +100,7 @@ public class TaskService {
   }
 
   private Task internalGet(String id, Optional<Integer> version) {
-    Task taskTemplate = taskDefinitionService.get(id, version);
+    Task taskTemplate = taskService.get(id, version);
 
     // Switch author from ID to Name
     switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
@@ -169,7 +170,7 @@ public class TaskService {
     // Engine's queryIds Optional was always present - preserved here as Optional.of(queryRefs)
     // rather than being conditioned on emptiness.
     Page<Task> page =
-        taskDefinitionService.query(
+        taskService.query(
             queryLimit,
             queryPage,
             querySort,
@@ -277,7 +278,7 @@ public class TaskService {
     updateChangeLog(request.getChangelog());
 
     // Come back to this once we have separated the controllers - works better for scope checks.
-    Task taskTemplate = taskDefinitionService.create(request);
+    Task taskTemplate = taskService.create(request);
     switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
 
     return taskTemplate;
@@ -347,7 +348,7 @@ public class TaskService {
     // Update Changelog
     updateChangeLog(request.getChangelog());
 
-    Task template = taskDefinitionService.apply(request, replace);
+    Task template = taskService.apply(request, replace);
     switchChangeLogAuthorToUserName(template.getChangelog());
 
     return template;
@@ -452,7 +453,7 @@ public class TaskService {
   }
 
   private List<ChangeLogVersion> internalChangelog(String id) {
-    List<ChangeLogVersion> changeLog = taskDefinitionService.changelog(id);
+    List<ChangeLogVersion> changeLog = taskService.changelog(id);
     changeLog.forEach(clv -> switchChangeLogAuthorToUserName(clv));
     return changeLog;
   }
@@ -473,7 +474,7 @@ public class TaskService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      taskDefinitionService.delete(refs.get(0));
+      taskService.delete(refs.get(0));
     }
     // TODO - change error to don't have access
     throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);

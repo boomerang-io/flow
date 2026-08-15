@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionStatus;
@@ -17,10 +17,11 @@ import io.boomerang.core.model.User;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workflow.model.ActionSummary;
-import io.boomerang.workflow.repository.ActionRepository;
+import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import java.util.ArrayList;
 import java.util.Date;
@@ -38,30 +39,30 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ActionService {
+public class TeamActionService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
   private final ActionRepository actionRepository;
   private final ApproverGroupRepository approverGroupRepository;
   private final TaskRunService engineTaskRunService;
-  private final WorkflowDefinitionService workflowDefinitionService;
+  private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
   private final UserService userService;
   private final MongoTemplate mongoTemplate;
 
-  public ActionService(
+  public TeamActionService(
       ActionRepository actionRepository,
       ApproverGroupRepository approverGroupRepository,
       TaskRunService engineTaskRunService,
-      WorkflowDefinitionService workflowDefinitionService,
+      WorkflowService workflowService,
       RelationshipService relationshipService,
       UserService userService,
       MongoTemplate mongoTemplate) {
     this.actionRepository = actionRepository;
     this.approverGroupRepository = approverGroupRepository;
     this.engineTaskRunService = engineTaskRunService;
-    this.workflowDefinitionService = workflowDefinitionService;
+    this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.userService = userService;
     this.mongoTemplate = mongoTemplate;
@@ -176,7 +177,7 @@ public class ActionService {
     }
 
     Workflow workflow =
-        workflowDefinitionService
+        workflowService
             .get(actionEntity.getWorkflowRef(), Optional.empty(), false)
             .getBody();
     action.setWorkflowName(workflow.getName());

@@ -2,7 +2,6 @@ package io.boomerang.api;
 
 import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
-import io.boomerang.workflow.ActionService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -37,10 +36,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Actions", description = "Create and manage Manual and Approval Actions.")
 public class TeamActionControllerV2 {
 
-  private final ActionService actionService;
+  private final TeamActionService teamActionService;
 
-  public TeamActionControllerV2(ActionService actionService) {
-    this.actionService = actionService;
+  public TeamActionControllerV2(TeamActionService teamActionService) {
+    this.teamActionService = teamActionService;
   }
 
   @GetMapping(value = "/{actionId}")
@@ -64,7 +63,7 @@ public class TeamActionControllerV2 {
           String team,
       @Parameter(name = "actionId", description = "ID of Action", required = true) @PathVariable
           String actionId) {
-    return actionService.get(team, actionId);
+    return teamActionService.get(team, actionId);
   }
 
   //  @GetMapping(value = "")
@@ -76,7 +75,7 @@ public class TeamActionControllerV2 {
   //  public Action getByTaskRun(
   //      @Parameter(name = "taskRunId", description = "Retrieve Action by TaskRun",
   //      required = true) @RequestParam(required = true) String taskRunId) {
-  //      return actionService.getByTaskRun(taskRunId);
+  //      return teamActionService.getByTaskRun(taskRunId);
   //  }
 
   @PutMapping(value = "")
@@ -99,7 +98,7 @@ public class TeamActionControllerV2 {
           @PathVariable
           String team,
       @RequestBody List<ActionRequest> request) {
-    actionService.action(team, request);
+    teamActionService.action(team, request);
   }
 
   @GetMapping(value = "/query")
@@ -186,7 +185,7 @@ public class TeamActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return actionService.query(team, from, to, pageable, types, statuses, workflows);
+    return teamActionService.query(team, from, to, pageable, types, statuses, workflows);
   }
 
   @GetMapping(value = "/summary")
@@ -236,6 +235,6 @@ public class TeamActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return actionService.summary(team, from, to, workflows);
+    return teamActionService.summary(team, from, to, workflows);
   }
 }

@@ -1,4 +1,4 @@
-package io.boomerang.workflow;
+package io.boomerang.api;
 
 import io.boomerang.api.model.WorkflowRunResponsePage;
 import io.boomerang.core.RelationshipService;
@@ -10,6 +10,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.model.WorkflowRunRequest;
+import io.boomerang.engine.WorkflowRunService;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -28,22 +29,21 @@ import org.springframework.stereotype.Service;
  * - Forward call onto Engine
  */
 @Service
-public class WorkflowRunService {
+public class TeamWorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  // FQN required: io.boomerang.engine.WorkflowRunService shares this class's simple name.
-  private final io.boomerang.engine.WorkflowRunService engineWorkflowRunService;
+  private final WorkflowRunService engineWorkflowRunService;
   private final RelationshipService relationshipService;
-  private final ActionService actionService;
+  private final TeamActionService teamActionService;
 
-  public WorkflowRunService(
-      io.boomerang.engine.WorkflowRunService engineWorkflowRunService,
+  public TeamWorkflowRunService(
+      WorkflowRunService engineWorkflowRunService,
       RelationshipService relationshipService,
-      ActionService actionService) {
+      TeamActionService teamActionService) {
     this.engineWorkflowRunService = engineWorkflowRunService;
     this.relationshipService = relationshipService;
-    this.actionService = actionService;
+    this.teamActionService = teamActionService;
   }
 
   /*
@@ -217,7 +217,7 @@ public class WorkflowRunService {
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.cancel(workflowRunId);
-      actionService.cancelAllByWorkflowRun(workflowRunId);
+      teamActionService.cancelAllByWorkflowRun(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
       // TODO: do we want to return invalid ref or unauthorized
