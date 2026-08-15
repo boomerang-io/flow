@@ -58,7 +58,7 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.get(workflowRunId, withTasks);
       return ResponseEntity.ok(wfRun);
@@ -90,7 +90,7 @@ public class WorkspaceWorkflowRunService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     // TODO query workflow runs
@@ -130,7 +130,7 @@ public class WorkspaceWorkflowRunService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
@@ -152,7 +152,7 @@ public class WorkspaceWorkflowRunService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
@@ -174,7 +174,7 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.start(workflowRunId, optRunRequest);
       return ResponseEntity.ok(wfRun);
@@ -195,7 +195,7 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.finalize(workflowRunId);
       return ResponseEntity.ok(wfRun);
@@ -214,7 +214,7 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.cancel(workflowRunId);
       workspaceActionService.cancelAllByWorkflowRun(workflowRunId);
@@ -235,7 +235,7 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.pause(workflowRunId);
       return ResponseEntity.ok(wfRun);
@@ -254,7 +254,7 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.resume(workflowRunId);
       return ResponseEntity.ok(wfRun);
@@ -273,13 +273,13 @@ public class WorkspaceWorkflowRunService {
     if (relationshipService.check(
         RelationshipType.WORKFLOWRUN,
         workflowRunId,
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.retry(workflowRunId, false, 1);
 
       // Creates relationship with owning team
       relationshipService.createNodeAndEdge(
-          RelationshipType.TEAM,
+          RelationshipType.WORKSPACE,
           team,
           RelationshipLabel.HAS_WORKFLOWRUN,
           RelationshipType.WORKFLOWRUN,

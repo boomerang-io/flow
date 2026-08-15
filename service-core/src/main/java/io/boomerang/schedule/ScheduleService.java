@@ -82,7 +82,7 @@ public class ScheduleService {
     if (scheduleEntity.isPresent()
         && scheduleEntity.get().getWorkflowRef() != null
         && relationshipService.hasNodes(
-            RelationshipType.TEAM,
+            RelationshipType.WORKSPACE,
             team,
             RelationshipType.WORKFLOW,
             Optional.of(List.of(scheduleEntity.get().getWorkflowRef())),
@@ -123,7 +123,7 @@ public class ScheduleService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     if (!refs.isEmpty()) {
@@ -185,7 +185,7 @@ public class ScheduleService {
           relationshipService.filter(
               RelationshipType.WORKFLOW,
               Optional.of(List.of(schedule.getWorkflowRef())),
-              Optional.of(RelationshipType.TEAM),
+              Optional.of(RelationshipType.WORKSPACE),
               Optional.of(List.of(team)),
               false);
       if (!refs.isEmpty()) {
@@ -290,7 +290,7 @@ public class ScheduleService {
   public List<WorkflowScheduleCalendar> getCalendarsForWorkflow(
       String team, final String workflowId, Date fromDate, Date toDate) {
     if (relationshipService.hasNodes(
-        RelationshipType.TEAM,
+        RelationshipType.WORKSPACE,
         team,
         RelationshipType.WORKFLOW,
         Optional.of(List.of(workflowId)),
@@ -591,7 +591,7 @@ public class ScheduleService {
     final Optional<WorkflowScheduleEntity> schedule = scheduleRepository.findById(scheduleId);
     if (schedule.isPresent()
         && relationshipService.hasNodes(
-            RelationshipType.TEAM,
+            RelationshipType.WORKSPACE,
             team,
             RelationshipType.WORKFLOW,
             Optional.of(List.of(schedule.get().getWorkflowRef())),

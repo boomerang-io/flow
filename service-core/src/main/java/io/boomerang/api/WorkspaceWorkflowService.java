@@ -159,7 +159,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
@@ -189,7 +189,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
@@ -235,7 +235,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
@@ -271,7 +271,7 @@ public class WorkspaceWorkflowService {
     if (relationshipService.check(
         RelationshipType.WORKFLOW,
         request.getName(),
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -295,7 +295,7 @@ public class WorkspaceWorkflowService {
 
     // Create Relationship
     relationshipService.createNodeAndEdge(
-        RelationshipType.TEAM,
+        RelationshipType.WORKSPACE,
         team,
         RelationshipLabel.HAS_WORKFLOW,
         RelationshipType.WORKFLOW,
@@ -397,7 +397,7 @@ public class WorkspaceWorkflowService {
           relationshipService.filter(
               RelationshipType.WORKFLOW,
               Optional.of(List.of(workflow.getName())),
-              Optional.of(RelationshipType.TEAM),
+              Optional.of(RelationshipType.WORKSPACE),
               Optional.of(List.of(team)),
               false);
       if (!refs.isEmpty()) {
@@ -453,7 +453,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
@@ -476,7 +476,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             Optional.empty(),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     wfRefs.forEach(
@@ -544,7 +544,7 @@ public class WorkspaceWorkflowService {
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
     relationshipService.createNodeAndEdge(
-        RelationshipType.TEAM,
+        RelationshipType.WORKSPACE,
         team,
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,
@@ -567,7 +567,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
@@ -593,7 +593,7 @@ public class WorkspaceWorkflowService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
@@ -1065,7 +1065,7 @@ public class WorkspaceWorkflowService {
                       relationshipService.filter(
                           RelationshipType.TEAMTASK,
                           Optional.of(List.of(t.getTaskRef())),
-                          Optional.of(RelationshipType.TEAM),
+                          Optional.of(RelationshipType.WORKSPACE),
                           Optional.of(List.of(team)));
                 }
                 if (slugs.isEmpty()) {
@@ -1087,7 +1087,7 @@ public class WorkspaceWorkflowService {
                                 relationshipService.filter(
                                     RelationshipType.WORKFLOW,
                                     Optional.of(List.of(param.getValue().toString())),
-                                    Optional.of(RelationshipType.TEAM),
+                                    Optional.of(RelationshipType.WORKSPACE),
                                     Optional.of(List.of(team)));
                             if (slugs == null || slugs.isEmpty()) {
                               throw new BoomerangException(
@@ -1112,7 +1112,7 @@ public class WorkspaceWorkflowService {
                       relationshipService.filter(
                           RelationshipType.TEAMTASK,
                           Optional.of(List.of(t.getTaskRef().split(TASK_REF_SEPERATOR)[1])),
-                          Optional.of(RelationshipType.TEAM),
+                          Optional.of(RelationshipType.WORKSPACE),
                           Optional.of(List.of(team)),
                           false);
                 } else {
@@ -1141,7 +1141,7 @@ public class WorkspaceWorkflowService {
                                 relationshipService.filter(
                                     RelationshipType.WORKFLOW,
                                     Optional.of(List.of(param.getValue().toString())),
-                                    Optional.of(RelationshipType.TEAM),
+                                    Optional.of(RelationshipType.WORKSPACE),
                                     Optional.of(List.of(team)),
                                     false);
                             if (refs == null || refs.isEmpty()) {

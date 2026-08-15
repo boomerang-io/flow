@@ -54,7 +54,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -101,7 +101,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -162,7 +162,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -191,7 +191,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -223,7 +223,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -260,7 +260,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -295,7 +295,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -338,7 +338,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -368,7 +368,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -407,7 +407,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -439,7 +439,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow
@@ -469,7 +469,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.session,
         AuthScope.workflow

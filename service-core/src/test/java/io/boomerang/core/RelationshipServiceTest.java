@@ -51,7 +51,7 @@ import org.testcontainers.utility.DockerImageName;
  * Exercises the direct-query RelationshipService against a real MongoDB (Testcontainers),
  * wiring only the relationship repositories - no full application context.
  *
- * <p>Fixture: root -> team:t1(acme) + team:t2(other-team) + task:task1(sleep);
+ * <p>Fixture: root -> workspace:t1(acme) + workspace:t2(other-team) + task:task1(sleep);
  * user:u1 member of t1, user:u2 member of t2; t1 has workflow:w1(build-app);
  * t2 has workflow:w2(deploy-app) and workflow:w3(acme) - a cross-type slug collision with t1.
  */
@@ -134,8 +134,8 @@ class RelationshipServiceTest {
             nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry());
 
     node("root", "root", "root");
-    node("team", "t1", "acme");
-    node("team", "t2", "other-team");
+    node("workspace", "t1", "acme");
+    node("workspace", "t2", "other-team");
     node("user", "u1", "u1@example.com");
     node("user", "u2", "u2@example.com");
     node("workflow", "w1", "build-app");
@@ -143,14 +143,14 @@ class RelationshipServiceTest {
     node("workflow", "w3", "acme");
     node("task", "task1", "sleep");
 
-    edge("root:root", RelationshipLabel.CONTAINS, "team:t1", Map.of());
-    edge("root:root", RelationshipLabel.CONTAINS, "team:t2", Map.of());
+    edge("root:root", RelationshipLabel.CONTAINS, "workspace:t1", Map.of());
+    edge("root:root", RelationshipLabel.CONTAINS, "workspace:t2", Map.of());
     edge("root:root", RelationshipLabel.HAS_TASK, "task:task1", Map.of());
-    edge("user:u1", RelationshipLabel.MEMBER_OF, "team:t1", Map.of("role", "owner"));
-    edge("user:u2", RelationshipLabel.MEMBER_OF, "team:t2", Map.of("role", "editor"));
-    edge("team:t1", RelationshipLabel.HAS_WORKFLOW, "workflow:w1", Map.of());
-    edge("team:t2", RelationshipLabel.HAS_WORKFLOW, "workflow:w2", Map.of());
-    edge("team:t2", RelationshipLabel.HAS_WORKFLOW, "workflow:w3", Map.of());
+    edge("user:u1", RelationshipLabel.MEMBER_OF, "workspace:t1", Map.of("role", "owner"));
+    edge("user:u2", RelationshipLabel.MEMBER_OF, "workspace:t2", Map.of("role", "editor"));
+    edge("workspace:t1", RelationshipLabel.HAS_WORKFLOW, "workflow:w1", Map.of());
+    edge("workspace:t2", RelationshipLabel.HAS_WORKFLOW, "workflow:w2", Map.of());
+    edge("workspace:t2", RelationshipLabel.HAS_WORKFLOW, "workflow:w3", Map.of());
   }
 
   @AfterEach
@@ -186,7 +186,7 @@ class RelationshipServiceTest {
         service.filter(
             RelationshipType.WORKFLOW,
             Optional.empty(),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of("acme")),
             false));
     assertTrue(
@@ -210,7 +210,7 @@ class RelationshipServiceTest {
   @DisplayName("Slug lookups are type-scoped despite a cross-type slug collision")
   void slugResolutionIsTypeScoped() {
     // "acme" exists as a team slug and a workflow slug, but for no other type.
-    assertTrue(service.doesSlugOrRefExistForType(RelationshipType.TEAM, "acme"));
+    assertTrue(service.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, "acme"));
     assertTrue(service.doesSlugOrRefExistForType(RelationshipType.WORKFLOW, "acme"));
     assertFalse(service.doesSlugOrRefExistForType(RelationshipType.SCHEDULE, "acme"));
     assertEquals("acme", service.getSlugByRefForType(RelationshipType.WORKFLOW, "w3"));
@@ -218,7 +218,7 @@ class RelationshipServiceTest {
     // The workflow named "acme" belongs to t2: t1's member must not gain access through
     // the identically-named team.
     asUser("u1");
-    assertTrue(service.check(RelationshipType.TEAM, "acme", Optional.empty(), Optional.empty()));
+    assertTrue(service.check(RelationshipType.WORKSPACE, "acme", Optional.empty(), Optional.empty()));
     assertFalse(
         service.check(RelationshipType.WORKFLOW, "acme", Optional.empty(), Optional.empty()));
     asUser("u2");
@@ -237,7 +237,7 @@ class RelationshipServiceTest {
         RelationshipType.USER,
         "u2",
         RelationshipLabel.MEMBER_OF,
-        RelationshipType.TEAM,
+        RelationshipType.WORKSPACE,
         "t1",
         Optional.of(Map.of("role", "viewer")));
 
@@ -282,8 +282,8 @@ class RelationshipServiceTest {
     RequestContextHolder.setRequestAttributes(
         new ServletRequestAttributes(new MockHttpServletRequest()));
 
-    assertEquals("acme", service.getSlugByRefForType(RelationshipType.TEAM, "t1"));
-    service.updateNodeByRefOrSlug(RelationshipType.TEAM, "t1", "renamed");
-    assertEquals("renamed", service.getSlugByRefForType(RelationshipType.TEAM, "t1"));
+    assertEquals("acme", service.getSlugByRefForType(RelationshipType.WORKSPACE, "t1"));
+    service.updateNodeByRefOrSlug(RelationshipType.WORKSPACE, "t1", "renamed");
+    assertEquals("renamed", service.getSlugByRefForType(RelationshipType.WORKSPACE, "t1"));
   }
 }

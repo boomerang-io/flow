@@ -50,7 +50,7 @@ public class WorkspaceActionControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.ACTION,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Retrieve a specific Action by Id")
   @ApiResponses(
       value = {
@@ -86,7 +86,7 @@ public class WorkspaceActionControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.ACTION,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Provide an update for an Action")
   @ApiResponses(
       value = {
@@ -109,7 +109,7 @@ public class WorkspaceActionControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.ACTION,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Search for Actions")
   @ApiResponses(
       value = {
@@ -196,7 +196,7 @@ public class WorkspaceActionControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.ACTION,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Get Actions Summary")
   @ApiResponses(
       value = {

@@ -35,7 +35,7 @@ public class TaskRunControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.TASKRUN,
       assignableScopes = {
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.session,
         AuthScope.user,
         AuthScope.workflow,

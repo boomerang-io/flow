@@ -44,7 +44,7 @@ public class WorkspaceInsightsControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INSIGHTS,
-      assignableScopes = {AuthScope.team, AuthScope.user, AuthScope.session})
+      assignableScopes = {AuthScope.workspace, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Retrieve insights for a team",
       description = "The insights are based on the workflow runs and their statuses.")

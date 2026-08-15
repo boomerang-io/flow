@@ -39,7 +39,7 @@ public class RelationshipEventListener {
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, event.workflowRef());
     relationshipService.createNodeAndEdge(
-        RelationshipType.TEAM,
+        RelationshipType.WORKSPACE,
         team,
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,

@@ -74,7 +74,7 @@ public class WebhookEventControllerV2 {
         AuthScope.user,
         AuthScope.global,
         AuthScope.workflow,
-        AuthScope.team
+        AuthScope.workspace
       })
   @Operation(summary = "Accept Webhook payloads from various sources.")
   public ResponseEntity<?> acceptWebhook(
@@ -145,7 +145,7 @@ public class WebhookEventControllerV2 {
         AuthScope.user,
         AuthScope.global,
         AuthScope.workflow,
-        AuthScope.team
+        AuthScope.workspace
       })
   @Operation(summary = "Accept Wait for Event Callback with JSON Payload")
   public void acceptWaitForEvent(
@@ -188,7 +188,7 @@ public class WebhookEventControllerV2 {
         AuthScope.user,
         AuthScope.global,
         AuthScope.workflow,
-        AuthScope.team
+        AuthScope.workspace
       })
   @Operation(summary = "Accept Wait for Event Callbcak")
   public void acceptWaitForEvent(
@@ -228,7 +228,7 @@ public class WebhookEventControllerV2 {
         AuthScope.user,
         AuthScope.global,
         AuthScope.workflow,
-        AuthScope.team
+        AuthScope.workspace
       })
   @Operation(summary = "Accept CloudEvent")
   public ResponseEntity<?> accept(
@@ -252,7 +252,7 @@ public class WebhookEventControllerV2 {
         AuthScope.user,
         AuthScope.global,
         AuthScope.workflow,
-        AuthScope.team
+        AuthScope.workspace
       })
   @Operation(summary = "Accept CloudEvent")
   public ResponseEntity<?> acceptEvent(

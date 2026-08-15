@@ -58,7 +58,7 @@ public class IntegrationService {
               relationshipService.filter(
                   RelationshipType.INTEGRATION,
                   Optional.empty(),
-                  Optional.of(RelationshipType.TEAM),
+                  Optional.of(RelationshipType.WORKSPACE),
                   Optional.of(List.of(team)),
                   false);
           LOGGER.debug("Refs: " + refs.toString());

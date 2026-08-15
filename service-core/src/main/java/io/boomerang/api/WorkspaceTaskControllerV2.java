@@ -47,7 +47,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.workflow,
         AuthScope.session,
         AuthScope.user
@@ -82,7 +82,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.workflow,
         AuthScope.session,
         AuthScope.user
@@ -117,7 +117,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.workflow,
         AuthScope.session,
         AuthScope.user
@@ -179,7 +179,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(
       summary = "Create a new Task",
       description =
@@ -205,7 +205,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(
       summary = "Create a new Task Template using Tekton Task YAML",
       description =
@@ -231,7 +231,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(
       summary = "Update, replace, or create new, Task",
       description =
@@ -262,7 +262,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(
       summary = "Update, replace, or create new using Tekton Task YAML",
       description =
@@ -293,7 +293,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(
       summary = "Retrieve the changlog",
       description = "Retrieves each versions changelog and returns them all as a list.")
@@ -323,7 +323,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(
       summary = "Validate Tekton Task YAML",
       description = "Validates the Task YAML as a Tekton Task")
@@ -340,7 +340,7 @@ public class WorkspaceTaskControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.TASK,
-      assignableScopes = {AuthScope.global, AuthScope.team, AuthScope.session, AuthScope.user})
+      assignableScopes = {AuthScope.global, AuthScope.workspace, AuthScope.session, AuthScope.user})
   @Operation(summary = "Delete a Workspace Task")
   @ApiResponses(
       value = {

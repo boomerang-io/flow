@@ -39,7 +39,7 @@ public class TokenControllerV2 {
       assignableScopes = {
         AuthScope.global,
         AuthScope.user,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.workflow,
         AuthScope.session
       },
@@ -55,7 +55,7 @@ public class TokenControllerV2 {
       assignableScopes = {
         AuthScope.global,
         AuthScope.user,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.workflow,
         AuthScope.session
       },
@@ -126,7 +126,7 @@ public class TokenControllerV2 {
       assignableScopes = {
         AuthScope.global,
         AuthScope.user,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.workflow,
         AuthScope.session
       },

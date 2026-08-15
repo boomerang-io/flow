@@ -106,7 +106,7 @@ public class WorkspaceActionService {
               relationshipService.filter(
                   RelationshipType.APPROVERGROUP,
                   Optional.of(List.of(actionEntity.getApproverGroupRef())),
-                  Optional.of(RelationshipType.TEAM),
+                  Optional.of(RelationshipType.WORKSPACE),
                   Optional.of(List.of(team)));
           if (approverGroupRefs.isEmpty()) {
             throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
@@ -214,7 +214,7 @@ public class WorkspaceActionService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (workflowRefs == null || workflowRefs.size() == 0) {
@@ -251,7 +251,7 @@ public class WorkspaceActionService {
         relationshipService.filter(
             RelationshipType.WORKFLOW,
             queryWorkflows,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (workflowRefs == null || workflowRefs.size() == 0) {

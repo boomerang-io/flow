@@ -373,9 +373,9 @@ public class RelationshipService {
             Optional.of(toList),
             intermediateType,
             intermediateList);
-      case team:
+      case workspace:
         return hasNodes(
-            RelationshipType.TEAM,
+            RelationshipType.WORKSPACE,
             principal,
             type,
             Optional.of(toList),
@@ -463,8 +463,8 @@ public class RelationshipService {
             from = "root";
           }
           break;
-        case team:
-          fromType = RelationshipType.TEAM;
+        case workspace:
+          fromType = RelationshipType.WORKSPACE;
           break;
         case global:
           // Allow anything with no filtering - retrieve all nodes of a type in the system.
@@ -520,7 +520,7 @@ public class RelationshipService {
    * Retrieve the Members and Roles for a Workspace (the incoming user MEMBER_OF edges)
    */
   public Map<String, String> membersAndRoles(String team) {
-    RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.TEAM, team);
+    RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.WORKSPACE, team);
     return edgeRepository
         .findByToAndLabel(teamNode.getId(), RelationshipLabel.MEMBER_OF.getLabel())
         .stream()

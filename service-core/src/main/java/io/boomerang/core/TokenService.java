@@ -133,9 +133,9 @@ public class TokenService {
       for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
         ResolvedPermissions resolvedPermissions =
             new ResolvedPermissions(
-                AuthScope.team,
+                AuthScope.workspace,
                 entry.getKey(),
-                roleRepository.findByTypeAndName("team", entry.getValue()).getPermissions());
+                roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions());
         tokenEntity.getPermissions().add(resolvedPermissions);
       }
     } else {
@@ -340,7 +340,7 @@ public class TokenService {
             RelationshipType.USER,
             user.get().getId(),
             RelationshipLabel.MEMBER_OF,
-            RelationshipType.TEAM,
+            RelationshipType.WORKSPACE,
             "system",
             Optional.of(Map.of("role", RoleEnum.OWNER.getLabel())));
       }
@@ -386,9 +386,9 @@ public class TokenService {
             .getPermissions()
             .add(
                 new ResolvedPermissions(
-                    AuthScope.team,
+                    AuthScope.workspace,
                     entry.getKey(),
-                    roleRepository.findByTypeAndName("team", entry.getValue()).getPermissions()));
+                    roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
       }
     }
     String prefix = TokenTypePrefix.session.prefix;

@@ -67,7 +67,7 @@ public class InsightsService {
           relationshipService.filter(
               RelationshipType.WORKFLOW,
               workflowRefs,
-              Optional.of(RelationshipType.TEAM),
+              Optional.of(RelationshipType.WORKSPACE),
               Optional.of(List.of(team)),
               false);
     }

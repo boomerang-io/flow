@@ -3,9 +3,12 @@ package io.boomerang.core.enums;
 import java.util.HashMap;
 import java.util.Map;
 
+// DD-01 (Team -> Workspace rename): the constant is now "workspace", keeping the "bft" prefix
+// string as-is - existing tokens carry bft_ and must keep resolving; changing the prefix string
+// itself is a separate, future decision (not part of this rename).
 public enum TokenTypePrefix {
   global("bfg"),
-  team("bft"),
+  workspace("bft"),
   workflow("bfw"),
   user("bfu"),
   session("bfs");

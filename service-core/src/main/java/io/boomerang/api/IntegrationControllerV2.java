@@ -67,7 +67,7 @@ public class IntegrationControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INTEGRATION,
-      assignableScopes = {AuthScope.team, AuthScope.user, AuthScope.session, AuthScope.global})
+      assignableScopes = {AuthScope.workspace, AuthScope.user, AuthScope.session, AuthScope.global})
   @Operation(summary = "Retrieve the integrations and their status within a Workspace")
   @ApiResponses(
       value = {
@@ -229,7 +229,7 @@ public class IntegrationControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INTEGRATION,
-      assignableScopes = {AuthScope.team, AuthScope.user, AuthScope.session, AuthScope.global})
+      assignableScopes = {AuthScope.workspace, AuthScope.user, AuthScope.session, AuthScope.global})
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -250,7 +250,7 @@ public class IntegrationControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.INTEGRATION,
-      assignableScopes = {AuthScope.team, AuthScope.user, AuthScope.session, AuthScope.global})
+      assignableScopes = {AuthScope.workspace, AuthScope.user, AuthScope.session, AuthScope.global})
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

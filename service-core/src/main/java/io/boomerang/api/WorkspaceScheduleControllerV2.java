@@ -61,7 +61,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session
@@ -80,7 +80,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session
@@ -104,7 +104,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session
@@ -154,7 +154,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session
@@ -186,7 +186,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session
@@ -210,7 +210,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session
@@ -234,7 +234,7 @@ public class WorkspaceScheduleControllerV2 {
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {
         AuthScope.global,
-        AuthScope.team,
+        AuthScope.workspace,
         AuthScope.user,
         AuthScope.workflow,
         AuthScope.session

@@ -66,7 +66,7 @@ public class WorkspaceTaskService {
           relationshipService.filter(
               RelationshipType.TEAMTASK,
               Optional.of(List.of(name)),
-              Optional.of(RelationshipType.TEAM),
+              Optional.of(RelationshipType.WORKSPACE),
               Optional.of(List.of(team)),
               false);
       if (!taskRefs.isEmpty()) {
@@ -128,7 +128,7 @@ public class WorkspaceTaskService {
         relationshipService.filter(
             RelationshipType.TEAMTASK,
             queryNames,
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Task Refs: {}", refs.toString());
@@ -200,7 +200,7 @@ public class WorkspaceTaskService {
   public Task create(String team, Task request) {
     // Validate Access
     if (!relationshipService.check(
-        RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
 
@@ -213,7 +213,7 @@ public class WorkspaceTaskService {
     if (relationshipService.check(
         RelationshipType.TEAMTASK,
         request.getName(),
-        Optional.of(RelationshipType.TEAM),
+        Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(team)))) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
     }
@@ -223,7 +223,7 @@ public class WorkspaceTaskService {
 
     // Create Relationship
     relationshipService.createNodeAndEdge(
-        RelationshipType.TEAM,
+        RelationshipType.WORKSPACE,
         team,
         RelationshipLabel.HAS_TASK,
         RelationshipType.TEAMTASK,
@@ -299,7 +299,7 @@ public class WorkspaceTaskService {
         relationshipService.filter(
             RelationshipType.TEAMTASK,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
@@ -427,7 +427,7 @@ public class WorkspaceTaskService {
         relationshipService.filter(
             RelationshipType.TEAMTASK,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
@@ -470,7 +470,7 @@ public class WorkspaceTaskService {
         relationshipService.filter(
             RelationshipType.TEAMTASK,
             Optional.of(List.of(name)),
-            Optional.of(RelationshipType.TEAM),
+            Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {

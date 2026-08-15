@@ -72,7 +72,7 @@ public class GitHubService {
 
   public ResponseEntity<?> getInstallationForTeam(String team) {
     List<String> refs =
-        relationshipService.findNodeRefs(RelationshipType.TEAM, team, RelationshipType.INTEGRATION);
+        relationshipService.findNodeRefs(RelationshipType.WORKSPACE, team, RelationshipType.INTEGRATION);
     if (!refs.isEmpty()) {
       Optional<IntegrationsEntity> optEntity = integrationsRepository.findById(refs.get(0));
       if (optEntity.isPresent()) {
@@ -127,11 +127,11 @@ public class GitHubService {
           .filter(
               RelationshipType.INTEGRATION,
               Optional.of(List.of(entity.getId())),
-              Optional.of(RelationshipType.TEAM),
+              Optional.of(RelationshipType.WORKSPACE),
               Optional.of(List.of(request.getTeam())))
           .isEmpty()) {
         relationshipService.createEdge(
-            RelationshipType.TEAM,
+            RelationshipType.WORKSPACE,
             request.getTeam(),
             RelationshipLabel.HAS_INTEGRATION,
             RelationshipType.INTEGRATION,
