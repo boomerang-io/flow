@@ -5,12 +5,11 @@ on:
   # Weekly posture scan
   schedule:
     - cron: '0 6 * * 1'
-  # Scan on every release tag so a release always has a fresh report behind it
+  # Scan on every release tag so a release always has a fresh report behind it.
+  # v5 releases the whole image set (core/agent/loader) off one product tag (DD-03 / AM-9).
   push:
     tags:
-      - 'flow@**'
-      - 'engine@**'
-      - 'agent@**'
+      - 'v@**'
 jobs:
   vuln-report:
     runs-on: ubuntu-latest
