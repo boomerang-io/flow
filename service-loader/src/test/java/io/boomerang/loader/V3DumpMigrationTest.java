@@ -263,6 +263,8 @@ class V3DumpMigrationTest {
     assertGlobalParametersMigrated();
     assertTaskCatalogueMigrated();
     assertTaskRunRefsUnitIsNoOp();
+    assertWorkspacesMigrated();
+    assertUsersMigrated();
 
     // -----------------------------------------------------------------------------------
     // Idempotency — a second full run changes nothing. Compared at per-collection document
@@ -288,6 +290,12 @@ class V3DumpMigrationTest {
     assertGlobalParametersMigrated();
     assertTaskCatalogueMigrated();
     assertTaskRunRefsUnitIsNoOp();
+    // Re-asserting the exact post-migration counts here (86 teams: 28 v3 + 1 system + 57
+    // personal; 57 users) after this second full run is itself the personal-workspace
+    // idempotency proof the batch instructions ask for - a second run that created even one
+    // duplicate personal workspace would push the teams count past 86.
+    assertWorkspacesMigrated();
+    assertUsersMigrated();
   }
 
   // =====================================================================================
@@ -603,9 +611,201 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
+  // _0027__V3MigrateWorkspaces invariants (Batch C)
+  // =====================================================================================
+
+  private void assertWorkspacesMigrated() {
+    // 28 real v3 teams + the 1 seeded "system" workspace (_0014, untouched by this batch) + one
+    // personal workspace per real v3 user (57, see assertUsersMigrated/_0028) = 86.
+    assertThat(collection("teams").countDocuments()).isEqualTo(86);
+
+    // The seeded system workspace is untouched: still matched by name, still v5-shaped exactly
+    // as _0014 wrote it (unlimited quotas, type "system"), never touched by this v3-only batch.
+    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    assertThat(system).as("seeded system workspace must survive the v3 batch untouched").isNotNull();
+    assertThat(system.getString("type")).isEqualTo("system");
+    assertThat(system.getString("status")).isEqualTo("active");
+    Document systemQuotas = (Document) system.get("quotas");
+    assertThat(systemQuotas.getInteger("maxWorkflowCount")).isEqualTo(Integer.MAX_VALUE);
+    assertThat(systemQuotas.getInteger("maxWorkflowRunStorage")).isEqualTo(Integer.MAX_VALUE);
+
+    // The 28 migrated v3 teams: type "hobby" (the documented honest default - v3 had no tier
+    // concept), every one has a slug "name" and a display "displayName", v5-named quota fields
+    // only (never the legacy maxWorkflowExecutionMonthly/maxWorkflowExecutionTime/
+    // maxConcurrentWorkflows names), and no leftover v3 "_class" discriminator.
+    List<Document> migratedTeams =
+        collection("teams").find(Filters.eq("type", "hobby")).into(new ArrayList<>());
+    assertThat(migratedTeams).hasSize(28);
+    for (Document workspace : migratedTeams) {
+      assertThat(workspace.getString("name"))
+          .as("every migrated workspace must have a non-blank slug name")
+          .isNotBlank();
+      assertThat(workspace.getString("name")).isEqualTo(workspace.getString("name").toLowerCase());
+      assertThat(workspace.getString("displayName")).as("displayName must survive").isNotBlank();
+      assertThat(workspace.containsKey("_class")).as("no leftover v3 _class").isFalse();
+      assertThat(workspace.containsKey("isActive")).as("v3 isActive must not survive").isFalse();
+      assertThat(workspace.containsKey("higherLevelGroupId"))
+          .as("v3 higherLevelGroupId must not survive under its own name")
+          .isFalse();
+      assertThat(workspace.containsKey("settings")).as("v3 settings must not survive").isFalse();
+      assertThat(workspace.containsKey("approverGroups"))
+          .as("v3 approverGroups must not survive on the workspace document")
+          .isFalse();
+      Document quotas = (Document) workspace.get("quotas");
+      assertThat(quotas).as("quotas must be present").isNotNull();
+      assertThat(quotas.keySet())
+          .as("quotas must use v5 field names exclusively")
+          .containsExactlyInAnyOrder(
+              "maxWorkflowCount",
+              "maxWorkflowRunMonthly",
+              "maxWorkflowStorage",
+              "maxWorkflowRunStorage",
+              "maxWorkflowRunDuration",
+              "maxConcurrentRuns");
+      // The new field with no v3 source gets the documented default (2, matching the migrated
+      // teams settings document's max.workflowrun.storage numeric value).
+      assertThat(quotas.getInteger("maxWorkflowRunStorage")).isEqualTo(2);
+    }
+
+    // Spot check a specific known team (SRC Innovations) end to end.
+    Document src =
+        collection("teams").find(Filters.eq("_id", new ObjectId("615428b57162702bd3ee7605"))).first();
+    assertThat(src).isNotNull();
+    assertThat(src.getString("displayName")).isEqualTo("SRC Innovations");
+    assertThat(src.getString("name")).isEqualTo("src-innovations");
+    assertThat(src.getString("status")).isEqualTo("active");
+    assertThat(src.getString("externalRef")).isEqualTo("615428b57162702bd3ee7605");
+    Document srcQuotas = (Document) src.get("quotas");
+    assertThat(srcQuotas.getInteger("maxWorkflowCount")).isEqualTo(200);
+    assertThat(srcQuotas.getInteger("maxWorkflowRunMonthly")).isEqualTo(1000);
+    assertThat(srcQuotas.getInteger("maxWorkflowStorage")).isEqualTo(4);
+    assertThat(srcQuotas.getInteger("maxWorkflowRunDuration")).isEqualTo(240);
+    assertThat(srcQuotas.getInteger("maxConcurrentRuns")).isEqualTo(10);
+
+    // 24 of the 28 real teams are isActive:false -> status "inactive".
+    assertThat(collection("teams").countDocuments(Filters.and(Filters.eq("type", "hobby"), Filters.eq("status", "inactive"))))
+        .isEqualTo(24);
+    assertThat(collection("teams").countDocuments(Filters.and(Filters.eq("type", "hobby"), Filters.eq("status", "active"))))
+        .isEqualTo(4);
+
+    // Team Tyson: the one real team with a populated settings.properties[] entry - proves the
+    // 4044 key->name / values->value squash actually ran (its source already carries singular
+    // "value", so the values->value branch is a documented no-op here, but "key" must still be
+    // gone and "name" present).
+    Document teamTyson =
+        collection("teams").find(Filters.eq("_id", new ObjectId("61551ffaa1747c3cd93f4bed"))).first();
+    assertThat(teamTyson).isNotNull();
+    @SuppressWarnings("unchecked")
+    List<Document> parameters = (List<Document>) teamTyson.get("parameters");
+    assertThat(parameters).hasSize(1);
+    Document param = parameters.get(0);
+    assertThat(param.getString("name")).isEqualTo("team-test-param");
+    assertThat(param.containsKey("key")).as("v3 'key' renamed away").isFalse();
+    assertThat(param.getString("value")).isEqualTo("wiggles");
+    assertThat(param.containsKey("_id")).as("the v3 property's own random _id must be dropped").isFalse();
+
+    // approverGroups: present (empty) on 2 real teams (SRC Innovations, Uvis Team) - both extract
+    // to nothing, so approver_groups stays empty on this dump. Unpopulated but exercised: no
+    // NullPointerException, no document inserted for an empty array.
+    assertThat(collection("approver_groups").countDocuments())
+        .as("both real teams carrying approverGroups[] have it empty - nothing to extract")
+        .isZero();
+  }
+
+  // =====================================================================================
+  // _0028__V3MigrateUsers invariants (Batch C)
+  // =====================================================================================
+
+  private void assertUsersMigrated() {
+    assertThat(collection("users").countDocuments()).isEqualTo(57);
+
+    for (Document user : collection("users").find()) {
+      assertThat(user.containsKey("_class")).as("no leftover v3 _class on any user").isFalse();
+      assertThat(user.containsKey("quotas")).as("v3 per-user quotas must be dropped").isFalse();
+      assertThat(user.containsKey("flowTeams")).as("v3 flowTeams must be dropped").isFalse();
+      assertThat(user.containsKey("firstLoginDate"))
+          .as("v3 firstLoginDate renamed away, not carried over")
+          .isFalse();
+      assertThat(user.getDate("creationDate")).as("creationDate must always be set").isNotNull();
+      Document settings = (Document) user.get("settings");
+      assertThat(settings).as("settings must be present").isNotNull();
+      assertThat(settings.getBoolean("isShowHelp"))
+          .as("isShowHelp has no v3 source - defaults true")
+          .isTrue();
+    }
+
+    // Spot check: Tyson (admin, has firstLoginDate).
+    Document tyson =
+        collection("users").find(Filters.eq("_id", new ObjectId("614415021950a72949b00efb"))).first();
+    assertThat(tyson).isNotNull();
+    assertThat(tyson.getString("email")).isEqualTo("tyson@lawrie.com.au");
+    assertThat(tyson.getString("name")).isEqualTo("Tyson");
+    assertThat(tyson.getString("type")).isEqualTo("admin");
+    assertThat(tyson.getString("status")).isEqualTo("active");
+    Document tysonSettings = (Document) tyson.get("settings");
+    assertThat(tysonSettings.getBoolean("isFirstVisit")).isTrue();
+    assertThat(tysonSettings.getBoolean("hasConsented")).isFalse();
+    Map<String, Object> tysonLabels = (Map<String, Object>) tyson.get("labels");
+    assertThat(tysonLabels).containsEntry("slack_app_opened", "true");
+
+    // Every user has exactly one personal workspace, discoverable via type=personal +
+    // externalRef=<userId> (the linkage _0028 leaves for Batch E to consume) - and none other.
+    long personalWorkspaces = collection("teams").countDocuments(Filters.eq("type", "personal"));
+    assertThat(personalWorkspaces).isEqualTo(57);
+    for (Document user : collection("users").find()) {
+      String userId = user.get("_id").toString();
+      List<Document> owned =
+          collection("teams")
+              .find(Filters.and(Filters.eq("type", "personal"), Filters.eq("externalRef", userId)))
+              .into(new ArrayList<>());
+      assertThat(owned)
+          .as("user %s must own exactly one personal workspace", userId)
+          .hasSize(1);
+      Document personal = owned.get(0);
+      assertThat(personal.getString("name")).isNotBlank();
+      assertThat(personal.getString("displayName")).endsWith("Personal Team");
+      Document quotas = (Document) personal.get("quotas");
+      assertThat(quotas.getInteger("maxWorkflowCount")).isEqualTo(10);
+      assertThat(quotas.getInteger("maxWorkflowRunMonthly")).isEqualTo(20);
+      assertThat(quotas.getInteger("maxWorkflowStorage")).isEqualTo(25);
+      assertThat(quotas.getInteger("maxWorkflowRunStorage")).isEqualTo(2);
+      assertThat(quotas.getInteger("maxWorkflowRunDuration")).isEqualTo(30);
+      assertThat(quotas.getInteger("maxConcurrentRuns")).isEqualTo(4);
+    }
+
+    // Spot check Tyson's own personal workspace naming - reproduces 4014's derivation literally.
+    Document tysonPersonal =
+        collection("teams")
+            .find(
+                Filters.and(
+                    Filters.eq("type", "personal"),
+                    Filters.eq("externalRef", "614415021950a72949b00efb")))
+            .first();
+    assertThat(tysonPersonal).isNotNull();
+    assertThat(tysonPersonal.getString("displayName")).isEqualTo("Tyson Personal Team");
+    assertThat(tysonPersonal.getString("name")).isEqualTo("tyson-personal-team");
+    assertThat(tysonPersonal.getString("status")).isEqualTo("active");
+
+    // A user whose v3 "name" is itself an email (admin@flowabl.io) exercises the @/. -> "-"
+    // replacement 4014 applied before slugifying.
+    Document adminUser = collection("users").find(Filters.eq("email", "admin@flowabl.io")).first();
+    assertThat(adminUser).isNotNull();
+    Document adminPersonal =
+        collection("teams")
+            .find(
+                Filters.and(
+                    Filters.eq("type", "personal"),
+                    Filters.eq("externalRef", adminUser.get("_id").toString())))
+            .first();
+    assertThat(adminPersonal).isNotNull();
+    assertThat(adminPersonal.getString("displayName")).isEqualTo("admin-flowabl-io Personal Team");
+    assertThat(adminPersonal.getString("name")).isEqualTo("admin-flowabl-io-personal-team");
+  }
+
+  // =====================================================================================
   // Later slices: add a new clearly-marked assertion section here per v3->v5 changeunit
-  // (e.g. workspace/team migration, the settings squash, the task-catalogue squash, ...)
-  // rather than folding new checks into the sections above.
+  // (e.g. the relationship-graph build, workflows/runs, ...) rather than folding new checks
+  // into the sections above.
   // =====================================================================================
 
   private Map<String, Long> snapshotCounts() {
