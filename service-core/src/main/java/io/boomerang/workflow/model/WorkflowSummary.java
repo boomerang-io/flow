@@ -8,7 +8,7 @@ import java.util.Date;
 import lombok.Data;
 
 /*
- * Workflow Summary copies from Workflow to include in the Team response
+ * Workflow Summary copies from Workflow to include in the Workspace response
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

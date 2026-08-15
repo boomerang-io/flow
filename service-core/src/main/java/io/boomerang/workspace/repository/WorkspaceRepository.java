@@ -3,18 +3,18 @@ package io.boomerang.workspace.repository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import io.boomerang.workspace.entity.TeamEntity;
+import io.boomerang.workspace.entity.WorkspaceEntity;
 
-public interface TeamRepository extends MongoRepository<TeamEntity, String> {
+public interface WorkspaceRepository extends MongoRepository<WorkspaceEntity, String> {
 
-  Optional<TeamEntity> findByNameIgnoreCase(String name);
+  Optional<WorkspaceEntity> findByNameIgnoreCase(String name);
   
   Long countByNameIgnoreCase(String name);
 
   @Override
-  Optional<TeamEntity> findById(String id);
+  Optional<WorkspaceEntity> findById(String id);
 
-  List<TeamEntity> findByIdIn(List<String> ids);
+  List<WorkspaceEntity> findByIdIn(List<String> ids);
   
   void deleteByName(String name);
 }

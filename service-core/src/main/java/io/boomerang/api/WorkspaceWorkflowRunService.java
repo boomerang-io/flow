@@ -29,21 +29,21 @@ import org.springframework.stereotype.Service;
  * - Forward call onto Engine
  */
 @Service
-public class TeamWorkflowRunService {
+public class WorkspaceWorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
   private final WorkflowRunService engineWorkflowRunService;
   private final RelationshipService relationshipService;
-  private final TeamActionService teamActionService;
+  private final WorkspaceActionService workspaceActionService;
 
-  public TeamWorkflowRunService(
+  public WorkspaceWorkflowRunService(
       WorkflowRunService engineWorkflowRunService,
       RelationshipService relationshipService,
-      TeamActionService teamActionService) {
+      WorkspaceActionService workspaceActionService) {
     this.engineWorkflowRunService = engineWorkflowRunService;
     this.relationshipService = relationshipService;
-    this.teamActionService = teamActionService;
+    this.workspaceActionService = workspaceActionService;
   }
 
   /*
@@ -217,7 +217,7 @@ public class TeamWorkflowRunService {
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.cancel(workflowRunId);
-      teamActionService.cancelAllByWorkflowRun(workflowRunId);
+      workspaceActionService.cancelAllByWorkflowRun(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
       // TODO: do we want to return invalid ref or unauthorized

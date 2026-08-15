@@ -34,12 +34,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v2/team/{team}/action")
 @Tag(name = "Actions", description = "Create and manage Manual and Approval Actions.")
-public class TeamActionControllerV2 {
+public class WorkspaceActionControllerV2 {
 
-  private final TeamActionService teamActionService;
+  private final WorkspaceActionService workspaceActionService;
 
-  public TeamActionControllerV2(TeamActionService teamActionService) {
-    this.teamActionService = teamActionService;
+  public WorkspaceActionControllerV2(WorkspaceActionService workspaceActionService) {
+    this.workspaceActionService = workspaceActionService;
   }
 
   @GetMapping(value = "/{actionId}")
@@ -63,7 +63,7 @@ public class TeamActionControllerV2 {
           String team,
       @Parameter(name = "actionId", description = "ID of Action", required = true) @PathVariable
           String actionId) {
-    return teamActionService.get(team, actionId);
+    return workspaceActionService.get(team, actionId);
   }
 
   //  @GetMapping(value = "")
@@ -75,7 +75,7 @@ public class TeamActionControllerV2 {
   //  public Action getByTaskRun(
   //      @Parameter(name = "taskRunId", description = "Retrieve Action by TaskRun",
   //      required = true) @RequestParam(required = true) String taskRunId) {
-  //      return teamActionService.getByTaskRun(taskRunId);
+  //      return workspaceActionService.getByTaskRun(taskRunId);
   //  }
 
   @PutMapping(value = "")
@@ -98,7 +98,7 @@ public class TeamActionControllerV2 {
           @PathVariable
           String team,
       @RequestBody List<ActionRequest> request) {
-    teamActionService.action(team, request);
+    workspaceActionService.action(team, request);
   }
 
   @GetMapping(value = "/query")
@@ -185,7 +185,7 @@ public class TeamActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return teamActionService.query(team, from, to, pageable, types, statuses, workflows);
+    return workspaceActionService.query(team, from, to, pageable, types, statuses, workflows);
   }
 
   @GetMapping(value = "/summary")
@@ -235,6 +235,6 @@ public class TeamActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return teamActionService.summary(team, from, to, workflows);
+    return workspaceActionService.summary(team, from, to, workflows);
   }
 }

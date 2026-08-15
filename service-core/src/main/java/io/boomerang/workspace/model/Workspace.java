@@ -9,29 +9,29 @@ import java.util.Map;
 import io.boomerang.common.model.AbstractParam;
 import org.springframework.beans.BeanUtils;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import io.boomerang.workspace.entity.TeamEntity;
+import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workflow.model.WorkflowSummary;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Team {
+public class Workspace {
 
   private String id;
   private String name;
   private String displayName;
   private Date creationDate = new Date();
-  private TeamStatus status = TeamStatus.active;
+  private WorkspaceStatus status = WorkspaceStatus.active;
   private String externalRef;
   private Map<String, String> labels = new HashMap<>();
   private List<AbstractParam> parameters = new LinkedList<>();
-  //  private TeamSettings settings;
+  //  private WorkspaceSettings settings;
   private CurrentQuotas quotas;
-  private List<TeamMember> members = new LinkedList<>();
+  private List<WorkspaceMember> members = new LinkedList<>();
   private List<WorkflowSummary> workflows = new LinkedList<>();
   private List<ApproverGroup> approverGroups = new LinkedList<>();
 
-  public Team() {}
+  public Workspace() {}
 
-  public Team(TeamEntity entity) {
+  public Workspace(WorkspaceEntity entity) {
     BeanUtils.copyProperties(entity, this);
   }
 
@@ -67,11 +67,11 @@ public class Team {
     this.creationDate = creationDate;
   }
 
-  public TeamStatus getStatus() {
+  public WorkspaceStatus getStatus() {
     return status;
   }
 
-  public void setStatus(TeamStatus status) {
+  public void setStatus(WorkspaceStatus status) {
     this.status = status;
   }
 
@@ -99,11 +99,11 @@ public class Team {
     this.parameters = parameters;
   }
 
-  //  public TeamSettings getSettings() {
+  //  public WorkspaceSettings getSettings() {
   //    return settings;
   //  }
   //
-  //  public void setSettings(TeamSettings settings) {
+  //  public void setSettings(WorkspaceSettings settings) {
   //    this.settings = settings;
   //  }
 
@@ -123,11 +123,11 @@ public class Team {
     this.workflows = workflows;
   }
 
-  public List<TeamMember> getMembers() {
+  public List<WorkspaceMember> getMembers() {
     return members;
   }
 
-  public void setMembers(List<TeamMember> members) {
+  public void setMembers(List<WorkspaceMember> members) {
     this.members = members;
   }
 

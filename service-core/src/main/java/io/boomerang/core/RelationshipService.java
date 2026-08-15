@@ -54,8 +54,8 @@ import org.springframework.web.context.request.RequestContextHolder;
  * <p><b>E8 mode-gating note (I3/J-C):</b> left ungated (loads in every {@code flow.mode}) rather
  * than swapped for a single-anchor/default no-op in {@code engine}/{@code standalone}. A
  * no-op seam would only be safe for the narrow always-on call set (workflow, event,
- * {@code RelationshipEventListener}, non-team api) - but the api {@code Team*} surface
- * ({@code TeamWorkflowService} and friends) also stays constructed in every mode (required
+ * {@code RelationshipEventListener}, non-team api) - but the api {@code Workspace*} surface
+ * ({@code WorkspaceWorkflowService} and friends) also stays constructed in every mode (required
  * unconditionally by {@code ScheduleJob}'s fire path in {@code standalone}, and by the api
  * mode-matrix row - "same surface, team-&gt;default" - which keeps it live in {@code engine}
  * too), and that surface leans on {@code filter}/{@code check}/{@code findNodes} for real
@@ -64,7 +64,7 @@ import org.springframework.web.context.request.RequestContextHolder;
  * today's behaviour. So this is the documented fallback: real Mongo-backed behaviour in every
  * mode; only {@code workspace} (team/quota CRUD, gated {@link
  * io.boomerang.config.FlowMode#FULL}) actually stops writing to it outside full mode. J1's
- * default-team remapping for the always-on {@code Team*} surface remains deferred (E10
+ * default-team remapping for the always-on {@code Workspace*} surface remains deferred (E10
  * territory).
  */
 @Component
@@ -517,7 +517,7 @@ public class RelationshipService {
   }
 
   /*
-   * Retrieve the Members and Roles for a Team (the incoming user MEMBER_OF edges)
+   * Retrieve the Members and Roles for a Workspace (the incoming user MEMBER_OF edges)
    */
   public Map<String, String> membersAndRoles(String team) {
     RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.TEAM, team);

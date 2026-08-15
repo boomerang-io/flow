@@ -12,23 +12,23 @@ import io.boomerang.workspace.model.Quotas;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_EMPTY)
-public class TeamRequest {
+public class WorkspaceRequest {
 
   private String id;
   private String name;
   private String displayName;
-  private TeamStatus status;
-  private TeamType type;
+  private WorkspaceStatus status;
+  private WorkspaceType type;
   private String externalRef;
   private Map<String, String> labels = new HashMap<>();
   private List<AbstractParam> parameters = new LinkedList<>();
   private Quotas quotas;
-  private List<TeamMember> members;
+  private List<WorkspaceMember> members;
   private List<ApproverGroupRequest> approverGroups;
 
   @Override
   public String toString() {
-    return "TeamRequest [id="
+    return "WorkspaceRequest [id="
         + id
         + ", name="
         + name
@@ -77,19 +77,19 @@ public class TeamRequest {
     this.displayName = displayName;
   }
 
-  public TeamStatus getStatus() {
+  public WorkspaceStatus getStatus() {
     return status;
   }
 
-  public void setStatus(TeamStatus status) {
+  public void setStatus(WorkspaceStatus status) {
     this.status = status;
   }
 
-  public TeamType getType() {
+  public WorkspaceType getType() {
     return type;
   }
 
-  public void setType(TeamType type) {
+  public void setType(WorkspaceType type) {
     this.type = type;
   }
 
@@ -125,11 +125,11 @@ public class TeamRequest {
     this.quotas = quotas;
   }
 
-  public List<TeamMember> getMembers() {
+  public List<WorkspaceMember> getMembers() {
     return members;
   }
 
-  public void setMembers(List<TeamMember> members) {
+  public void setMembers(List<WorkspaceMember> members) {
     this.members = members;
   }
 

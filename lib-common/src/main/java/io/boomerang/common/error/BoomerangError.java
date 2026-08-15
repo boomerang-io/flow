@@ -12,7 +12,7 @@ public enum BoomerangError {
    * @param HttpStatus status to respond as
    *     <p>Last updated 2023/10/05 - keep this date updated as this is used across the services.
    *     <p>0-999: Matches existing ranges of public HTTP status codes 10xx: System & Generic errors
-   *     such as invalid queries or request based issues 11xx: Team based errors 12xx: Workflow
+   *     such as invalid queries or request based issues 11xx: Workspace based errors 12xx: Workflow
    *     based errors 13xx: WorkflowRun based errors 14xx: TaskTemplate based errors 15xx: TaskRun
    *     based errors 16xx: Action based errors 17xx: Schedule based errors 18xx: Param based errors
    */

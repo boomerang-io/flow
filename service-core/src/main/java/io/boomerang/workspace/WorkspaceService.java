@@ -22,23 +22,23 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
-import io.boomerang.workspace.entity.TeamEntity;
+import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.ApproverGroup;
 import io.boomerang.workspace.model.ApproverGroupRequest;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
-import io.boomerang.workspace.model.Team;
-import io.boomerang.workspace.model.TeamMember;
-import io.boomerang.workspace.model.TeamMembershipSummary;
-import io.boomerang.workspace.model.TeamNameCheckRequest;
-import io.boomerang.workspace.model.TeamRequest;
-import io.boomerang.workspace.model.TeamStatus;
-import io.boomerang.workspace.model.TeamSummary;
-import io.boomerang.workspace.model.TeamSummaryInsights;
+import io.boomerang.workspace.model.Workspace;
+import io.boomerang.workspace.model.WorkspaceMember;
+import io.boomerang.workspace.model.WorkspaceMembershipSummary;
+import io.boomerang.workspace.model.WorkspaceNameCheckRequest;
+import io.boomerang.workspace.model.WorkspaceRequest;
+import io.boomerang.workspace.model.WorkspaceStatus;
+import io.boomerang.workspace.model.WorkspaceSummary;
+import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
-import io.boomerang.workspace.repository.TeamRepository;
-import io.boomerang.api.TeamTaskService;
-import io.boomerang.api.TeamWorkflowService;
+import io.boomerang.workspace.repository.WorkspaceRepository;
+import io.boomerang.api.WorkspaceTaskService;
+import io.boomerang.api.WorkspaceWorkflowService;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ import org.springframework.stereotype.Service;
 // E8: workspace is a full-mode-only module root per the mode matrix.
 @Service
 @ConditionalOnFlowMode(FlowMode.FULL)
-public class TeamService {
+public class WorkspaceService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -84,7 +84,7 @@ public class TeamService {
   public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
   public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
 
-  private final TeamRepository teamRepository;
+  private final WorkspaceRepository workspaceRepository;
   private final IdentityService identityService;
   private final UserService userService;
   private final ApproverGroupRepository approverGroupRepository;
@@ -93,12 +93,12 @@ public class TeamService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final InsightsService insightsService;
-  private final TeamWorkflowService teamWorkflowService;
+  private final WorkspaceWorkflowService workspaceWorkflowService;
   private final TokenService tokenService;
-  private final TeamTaskService teamTaskService;
+  private final WorkspaceTaskService workspaceTaskService;
 
-  public TeamService(
-      TeamRepository teamRepository,
+  public WorkspaceService(
+      WorkspaceRepository workspaceRepository,
       IdentityService identityService,
       UserService userService,
       ApproverGroupRepository approverGroupRepository,
@@ -107,10 +107,10 @@ public class TeamService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       InsightsService insightsService,
-      TeamWorkflowService teamWorkflowService,
+      WorkspaceWorkflowService workspaceWorkflowService,
       TokenService tokenService,
-      TeamTaskService teamTaskService) {
-    this.teamRepository = teamRepository;
+      WorkspaceTaskService workspaceTaskService) {
+    this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
     this.approverGroupRepository = approverGroupRepository;
@@ -119,15 +119,15 @@ public class TeamService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.insightsService = insightsService;
-    this.teamWorkflowService = teamWorkflowService;
+    this.workspaceWorkflowService = workspaceWorkflowService;
     this.tokenService = tokenService;
-    this.teamTaskService = teamTaskService;
+    this.workspaceTaskService = workspaceTaskService;
   }
 
   /*
    * Validate the team name - used by the UI to determine if a team can be created
    */
-  public ResponseEntity<?> validateName(TeamNameCheckRequest request) {
+  public ResponseEntity<?> validateName(WorkspaceNameCheckRequest request) {
     if (request.getName() != null && !request.getName().isBlank()) {
       String kebabName = StringUtil.kebabCase(request.getName());
 
@@ -144,13 +144,13 @@ public class TeamService {
   /*
    * Retrieve a single team
    */
-  public Team get(String team) {
+  public Workspace get(String team) {
     if (!Objects.isNull(team) && !team.isBlank()) {
       if (relationshipService.check(
           RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
-        Optional<TeamEntity> entity = teamRepository.findByNameIgnoreCase(team);
+        Optional<WorkspaceEntity> entity = workspaceRepository.findByNameIgnoreCase(team);
         if (entity.isPresent()) {
-          return convertTeamEntityToTeam(entity.get());
+          return convertWorkspaceEntityToWorkspace(entity.get());
         }
       }
     }
@@ -158,59 +158,59 @@ public class TeamService {
   }
 
   /*
-   * Creates a new Team
+   * Creates a new Workspace
    *
    * - Name must not be blank
    * - Display name must not be blank
    */
-  public Team create(TeamRequest request) {
+  public Workspace create(WorkspaceRequest request) {
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
       // Validate name - will throw exception if not valid
-      TeamNameCheckRequest checkRequest = new TeamNameCheckRequest(request.getName());
+      WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
       this.validateName(checkRequest);
 
       /*
-       * Create TeamEntity & Copy majority of fields.
+       * Create WorkspaceEntity & Copy majority of fields.
        * - Status is ignored - can only be active
        * - Members, quotas, parameters, and approverGroups need further logic
        */
-      TeamEntity teamEntity = new TeamEntity();
+      WorkspaceEntity workspaceEntity = new WorkspaceEntity();
       BeanUtils.copyProperties(
-          request, teamEntity, "id", "status", "members", "quotas", "parameters", "approverGroups");
+          request, workspaceEntity, "id", "status", "members", "quotas", "parameters", "approverGroups");
 
       // Set custom quotas
       // Don't set default quotas as they can change over time and should be dynamic
       Quotas quotas = new Quotas();
       // Override quotas based on creation request
       setCustomQuotas(quotas, request.getQuotas());
-      teamEntity.setQuotas(quotas);
+      workspaceEntity.setQuotas(quotas);
 
       // Create / Update Parameters
       if (request.getParameters() != null && !request.getParameters().isEmpty()) {
-        teamEntity.setParameters(
-            createOrUpdateParameters(teamEntity.getParameters(), request.getParameters()));
+        workspaceEntity.setParameters(
+            createOrUpdateParameters(workspaceEntity.getParameters(), request.getParameters()));
       }
 
       // Create / Update ApproverGroups
       if (request.getApproverGroups() != null && !request.getApproverGroups().isEmpty()) {
-        createOrUpdateApproverGroups(teamEntity, request.getApproverGroups());
+        createOrUpdateApproverGroups(workspaceEntity, request.getApproverGroups());
       }
 
-      teamEntity = teamRepository.save(teamEntity);
+      workspaceEntity = workspaceRepository.save(workspaceEntity);
       relationshipService.createNodeAndEdge(
           RelationshipType.ROOT,
           "root",
           RelationshipLabel.CONTAINS,
           RelationshipType.TEAM,
-          teamEntity.getId(),
-          teamEntity.getName(),
+          workspaceEntity.getId(),
+          workspaceEntity.getName(),
           Optional.empty(),
           Optional.empty());
 
       // Create Member Relationships
-      createOrUpdateUserRelationships(teamEntity.getName(), request.getMembers());
+      createOrUpdateUserRelationships(workspaceEntity.getName(), request.getMembers());
 
-      return convertTeamEntityToTeam(teamEntity);
+      return convertWorkspaceEntityToWorkspace(workspaceEntity);
     } else {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
@@ -219,7 +219,7 @@ public class TeamService {
   /*
    * Patch team
    */
-  public Team patch(String team, TeamRequest request) {
+  public Workspace patch(String team, WorkspaceRequest request) {
     if (request != null) {
       LOGGER.debug("Request: " + request.toString());
       if (team == null || team.isBlank()) {
@@ -229,28 +229,28 @@ public class TeamService {
           RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
-      Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-      if (!optTeamEntity.isPresent()) {
+      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+      if (!optWorkspaceEntity.isPresent()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
-      TeamEntity teamEntity = optTeamEntity.get();
+      WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
       boolean updatedName = false;
-      String originalName = teamEntity.getName();
+      String originalName = workspaceEntity.getName();
       if (request.getName() != null && !request.getName().isBlank()) {
-        teamEntity.setName(request.getName());
+        workspaceEntity.setName(request.getName());
         updatedName = true;
       }
       if (request.getDisplayName() != null && !request.getDisplayName().isBlank()) {
-        teamEntity.setDisplayName(request.getDisplayName());
+        workspaceEntity.setDisplayName(request.getDisplayName());
       }
       if (request.getStatus() != null) {
-        teamEntity.setStatus(request.getStatus());
+        workspaceEntity.setStatus(request.getStatus());
       }
       if (request.getExternalRef() != null && !request.getExternalRef().isBlank()) {
-        teamEntity.setExternalRef(request.getExternalRef());
+        workspaceEntity.setExternalRef(request.getExternalRef());
       }
       if (request.getLabels() != null && !request.getLabels().isEmpty()) {
-        teamEntity.getLabels().putAll(request.getLabels());
+        workspaceEntity.getLabels().putAll(request.getLabels());
       }
 
       // Set custom quotas
@@ -258,21 +258,21 @@ public class TeamService {
       Quotas quotas = new Quotas();
       // Override quotas based on creation request
       setCustomQuotas(quotas, request.getQuotas());
-      teamEntity.setQuotas(quotas);
+      workspaceEntity.setQuotas(quotas);
 
       // Create / Update Parameters
       if (request.getParameters() != null && !request.getParameters().isEmpty()) {
         LOGGER.debug("Request Parameters: " + request.getParameters().toString());
-        teamEntity.setParameters(
-            createOrUpdateParameters(teamEntity.getParameters(), request.getParameters()));
+        workspaceEntity.setParameters(
+            createOrUpdateParameters(workspaceEntity.getParameters(), request.getParameters()));
       }
 
       // Create / Update ApproverGroups
       if (request.getApproverGroups() != null && !request.getApproverGroups().isEmpty()) {
-        createOrUpdateApproverGroups(teamEntity, request.getApproverGroups());
+        createOrUpdateApproverGroups(workspaceEntity, request.getApproverGroups());
       }
 
-      teamRepository.save(teamEntity);
+      workspaceRepository.save(workspaceEntity);
 
       // Update any existing relationships if the name has changed
       if (updatedName) {
@@ -281,14 +281,14 @@ public class TeamService {
       }
 
       // Create / Update Relationships for Users
-      createOrUpdateUserRelationships(teamEntity.getName(), request.getMembers());
-      return convertTeamEntityToTeam(teamEntity);
+      createOrUpdateUserRelationships(workspaceEntity.getName(), request.getMembers());
+      return convertWorkspaceEntityToWorkspace(workspaceEntity);
     }
     throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
   }
 
   /*
-   * Destructive cascade Team deletion
+   * Destructive cascade Workspace deletion
    */
   public void delete(String team) {
     if (team == null || team.isBlank()) {
@@ -309,15 +309,15 @@ public class TeamService {
             Optional.empty(),
             Optional.of(RelationshipType.TEAM),
             Optional.of(List.of(team)));
-    LOGGER.debug("Team Workflow Refs: {}", workflowRefs.toString());
+    LOGGER.debug("Workspace Workflow Refs: {}", workflowRefs.toString());
     if (workflowRefs.size() > 0) {
-      workflowRefs.forEach(ref -> teamWorkflowService.delete(team, ref));
+      workflowRefs.forEach(ref -> workspaceWorkflowService.delete(team, ref));
     }
 
     // Delete all Tokens
     tokenService.deleteAllForPrincipal(team);
 
-    // Delete all Team Tasks
+    // Delete all Workspace Tasks
     List<String> templateRefs =
         relationshipService.filter(
             RelationshipType.TASK,
@@ -325,15 +325,15 @@ public class TeamService {
             Optional.of(RelationshipType.TEAM),
             Optional.of(List.of(team)));
     if (templateRefs.size() > 0) {
-      templateRefs.forEach(ref -> teamTaskService.delete(ref, team));
+      templateRefs.forEach(ref -> workspaceTaskService.delete(ref, team));
     }
 
-    // TODO - Delete Team Integration Installations
+    // TODO - Delete Workspace Integration Installations
 
-    // Delete Team
-    teamRepository.deleteByName(team);
+    // Delete Workspace
+    workspaceRepository.deleteByName(team);
 
-    // Delete Team relationship node
+    // Delete Workspace relationship node
     relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.TEAM, team);
   }
 
@@ -342,7 +342,7 @@ public class TeamService {
    *
    * Returns Teams plus each Teams UserRefs, WorkflowRefs, and Quotas
    */
-  public Page<Team> query(
+  public Page<Workspace> query(
       Optional<Integer> queryPage,
       Optional<Integer> queryLimit,
       Optional<Direction> queryOrder,
@@ -360,7 +360,7 @@ public class TeamService {
         queryPage, queryLimit, queryOrder, querySort, queryLabels, queryStatus, teamRefs);
   }
 
-  private Page<Team> findByCriteria(
+  private Page<Workspace> findByCriteria(
       Optional<Integer> queryPage,
       Optional<Integer> queryLimit,
       Optional<Direction> queryOrder,
@@ -396,7 +396,7 @@ public class TeamService {
 
     if (queryStatus.isPresent()) {
       if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(TeamStatus.class, q))) {
+          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkspaceStatus.class, q))) {
         Criteria criteria = Criteria.where("status").in(queryStatus.get());
         criteriaList.add(criteria);
       } else {
@@ -419,22 +419,22 @@ public class TeamService {
       query.with(sort);
     }
 
-    List<TeamEntity> teamEntities = mongoTemplate.find(query, TeamEntity.class);
+    List<WorkspaceEntity> workspaceEntities = mongoTemplate.find(query, WorkspaceEntity.class);
 
-    LOGGER.debug("Found " + teamEntities.size() + " teams.");
-    List<Team> teams = new LinkedList<>();
-    if (!teamEntities.isEmpty()) {
-      teamEntities.forEach(teamEntity -> teams.add(convertTeamEntityToTeam(teamEntity)));
+    LOGGER.debug("Found " + workspaceEntities.size() + " teams.");
+    List<Workspace> teams = new LinkedList<>();
+    if (!workspaceEntities.isEmpty()) {
+      workspaceEntities.forEach(workspaceEntity -> teams.add(convertWorkspaceEntityToWorkspace(workspaceEntity)));
     }
 
-    Page<Team> pages =
+    Page<Workspace> pages =
         PageableExecutionUtils.getPage(
-            teams, pageable, () -> mongoTemplate.count(query, TeamEntity.class));
+            teams, pageable, () -> mongoTemplate.count(query, WorkspaceEntity.class));
 
     return pages;
   }
 
-  public void removeMembers(String team, List<TeamMember> request) {
+  public void removeMembers(String team, List<WorkspaceMember> request) {
     if (request != null && !request.isEmpty()) {
       if (team == null || team.isBlank()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
@@ -443,12 +443,12 @@ public class TeamService {
           RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
-      Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-      if (!optTeamEntity.isPresent()) {
+      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+      if (!optWorkspaceEntity.isPresent()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
       List<String> userRefs = new LinkedList<>();
-      for (TeamMember userSummary : request) {
+      for (WorkspaceMember userSummary : request) {
         Optional<User> userEntity = Optional.empty();
         if (!userSummary.getId().isEmpty()) {
           userEntity = userService.getUserByID(userSummary.getId());
@@ -481,15 +481,15 @@ public class TeamService {
         RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (!optTeamEntity.isPresent()) {
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
     relationshipService.removeEdge(RelationshipType.TEAM, team);
   }
 
   /*
-   * Creates or Updates Team Parameters
+   * Creates or Updates Workspace Parameters
    */
   private List<AbstractParam> createOrUpdateParameters(
       List<AbstractParam> parameters, List<AbstractParam> request) {
@@ -520,20 +520,20 @@ public class TeamService {
         RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (!optTeamEntity.isPresent()) {
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    TeamEntity teamEntity = optTeamEntity.get();
+    WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
 
-    if (teamEntity.getParameters() != null) {
-      List<AbstractParam> parameters = teamEntity.getParameters();
+    if (workspaceEntity.getParameters() != null) {
+      List<AbstractParam> parameters = workspaceEntity.getParameters();
       Optional<AbstractParam> optionalParameter =
           parameters.stream().filter(p -> p.getName().equals(name)).findAny();
       if (optionalParameter.isPresent()) {
         parameters.remove(optionalParameter.get());
-        teamEntity.setParameters(parameters);
-        teamRepository.save(teamEntity);
+        workspaceEntity.setParameters(parameters);
+        workspaceRepository.save(workspaceEntity);
       } else {
         throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
       }
@@ -547,9 +547,9 @@ public class TeamService {
    * - ApproverGroup name must be unique per team
    */
   private void createOrUpdateApproverGroups(
-      TeamEntity teamEntity, List<ApproverGroupRequest> request) {
+      WorkspaceEntity workspaceEntity, List<ApproverGroupRequest> request) {
     List<ApproverGroupEntity> approverGroupEntities =
-        getApproverGroupsForTeam(teamEntity.getName());
+        getApproverGroupsForTeam(workspaceEntity.getName());
 
     for (ApproverGroupRequest r : request) {
       // Ensure ApproverGroupName is not blank or null
@@ -572,7 +572,7 @@ public class TeamService {
         // Ensure each approver is a valid team member
         if (r.getApprovers() != null) {
           Map<String, String> membersAndRoles =
-              relationshipService.membersAndRoles(teamEntity.getName());
+              relationshipService.membersAndRoles(workspaceEntity.getName());
           LOGGER.debug("User Refs: " + membersAndRoles.keySet().toString());
           List<String> validApproverRefs =
               r.getApprovers().stream()
@@ -589,7 +589,7 @@ public class TeamService {
         approverGroupEntity.setName(r.getName());
         if (r.getApprovers() != null) {
           Map<String, String> membersAndRoles =
-              relationshipService.membersAndRoles(teamEntity.getName());
+              relationshipService.membersAndRoles(workspaceEntity.getName());
           LOGGER.debug("User Refs: " + membersAndRoles.keySet().toString());
           List<String> validApproverRefs =
               r.getApprovers().stream()
@@ -601,7 +601,7 @@ public class TeamService {
         approverGroupEntity = approverGroupRepository.save(approverGroupEntity);
         relationshipService.createNodeAndEdge(
             RelationshipType.TEAM,
-            teamEntity.getId(),
+            workspaceEntity.getId(),
             RelationshipLabel.HAS_APPROVER_GROUP,
             RelationshipType.APPROVERGROUP,
             approverGroupEntity.getId(),
@@ -612,7 +612,7 @@ public class TeamService {
     }
   }
 
-  // Retrieve ApproverGroups by relationship as they are stored separately to the TeamEntity
+  // Retrieve ApproverGroups by relationship as they are stored separately to the WorkspaceEntity
   private List<ApproverGroupEntity> getApproverGroupsForTeam(String team) {
     List<String> approverGroupRefs =
         relationshipService.filter(
@@ -638,8 +638,8 @@ public class TeamService {
         RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (!optTeamEntity.isPresent()) {
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
 
@@ -663,16 +663,16 @@ public class TeamService {
         RelationshipType.TEAM, team, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (!optTeamEntity.isPresent()) {
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    TeamEntity teamEntity = optTeamEntity.get();
+    WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
 
     // Delete any custom quotas set on the team
-    // This will then reset and default to the Team Quotas set in Settings
-    teamEntity.setQuotas(new Quotas());
-    teamRepository.save(teamEntity);
+    // This will then reset and default to the Workspace Quotas set in Settings
+    workspaceEntity.setQuotas(new Quotas());
+    workspaceRepository.save(workspaceEntity);
   }
 
   /*
@@ -686,10 +686,10 @@ public class TeamService {
    * Used by WorkflowRun Service to ensure Workflow can run
    */
   public CurrentQuotas getCurrentQuotas(String team) {
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (optTeamEntity.isPresent()) {
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (optWorkspaceEntity.isPresent()) {
       Quotas quotas = setDefaultQuotas();
-      setCustomQuotas(quotas, optTeamEntity.get().getQuotas());
+      setCustomQuotas(quotas, optWorkspaceEntity.get().getQuotas());
       CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
       setCurrentQuotas(currentQuotas, team);
       return currentQuotas;
@@ -720,23 +720,23 @@ public class TeamService {
   //
 
   /*
-   * Builds the TeamSummary (with Insights) list and resolved Permissions for the given
-   * team-ref -> role map, skipping any ref that no longer resolves to an existing Team (stale
+   * Builds the WorkspaceSummary (with Insights) list and resolved Permissions for the given
+   * team-ref -> role map, skipping any ref that no longer resolves to an existing Workspace (stale
    * relationship entries).
    *
    * Used to compose the User Profile response (api layer) - the rollup needs both User
-   * (core) and Team (workspace) data, so it can't live in core.UserService.
+   * (core) and Workspace (workspace) data, so it can't live in core.UserService.
    */
-  public TeamMembershipSummary getTeamMembershipSummary(Map<String, String> teamRefsAndRoles) {
-    List<TeamSummary> teamSummaries = new LinkedList<>();
+  public WorkspaceMembershipSummary getWorkspaceMembershipSummary(Map<String, String> teamRefsAndRoles) {
+    List<WorkspaceSummary> teamSummaries = new LinkedList<>();
     List<String> permissions = new LinkedList<>();
     teamRefsAndRoles.forEach(
         (k, v) -> {
-          Optional<TeamEntity> teamEntity = teamRepository.findById(k);
-          if (teamEntity.isPresent()) {
-            // Generate TeamSummary + Insight
-            TeamSummary ts = new TeamSummary(teamEntity.get());
-            TeamSummaryInsights tsi = new TeamSummaryInsights();
+          Optional<WorkspaceEntity> workspaceEntity = workspaceRepository.findById(k);
+          if (workspaceEntity.isPresent()) {
+            // Generate WorkspaceSummary + Insight
+            WorkspaceSummary ts = new WorkspaceSummary(workspaceEntity.get());
+            WorkspaceSummaryInsights tsi = new WorkspaceSummaryInsights();
             Map<String, String> membersAndRoles = relationshipService.membersAndRoles(k);
             tsi.setMembers(Long.valueOf(membersAndRoles.size()));
             List<String> workflowRefs =
@@ -754,7 +754,7 @@ public class TeamService {
                 .forEach(p -> permissions.add(p.replace("{principal}", k)));
           }
         });
-    return new TeamMembershipSummary(teamSummaries, permissions);
+    return new WorkspaceMembershipSummary(teamSummaries, permissions);
   }
 
   /*
@@ -771,40 +771,40 @@ public class TeamService {
   }
 
   /*
-   * Converts the Team Entity to Model and adds the extra Users, WorkflowRefs, ApproverGroupRefs,
+   * Converts the Workspace Entity to Model and adds the extra Users, WorkflowRefs, ApproverGroupRefs,
    * Quotas
    */
-  private Team convertTeamEntityToTeam(TeamEntity teamEntity) {
-    Team team = new Team(teamEntity);
+  private Workspace convertWorkspaceEntityToWorkspace(WorkspaceEntity workspaceEntity) {
+    Workspace team = new Workspace(workspaceEntity);
 
     //    List<WorkflowSummary> summary = new LinkedList<>();
     //    try {
-    //      WorkflowResponsePage response = teamWorkflowService.query(Optional.empty(),
+    //      WorkflowResponsePage response = workspaceWorkflowService.query(Optional.empty(),
     // Optional.empty(), Optional.of(Direction.ASC), Optional.empty(), Optional.empty(),
-    // Optional.of(List.of(teamEntity.getId())), Optional.empty());
+    // Optional.of(List.of(workspaceEntity.getId())), Optional.empty());
     //      if (response.getContent() != null && !response.getContent().isEmpty()) {
     //        List<Workflow> workflows = response.getContent();
     //        workflows.forEach(w -> summary.add(new WorkflowSummary(w)));
     //      }
     //    } catch (BoomerangException e) {
-    //      LOGGER.error("convertTeamEntityToTeam() - issue in retrieving Workflows for this team.
+    //      LOGGER.error("convertWorkspaceEntityToWorkspace() - issue in retrieving Workflows for this team.
     // Most likely cause is page size is being returned as 0");
     //    }
     //    team.setWorkflows(summary);
 
     // Get Members
-    team.setMembers(getUsersForTeam(teamEntity.getName()));
+    team.setMembers(getUsersForTeam(workspaceEntity.getName()));
 
     // Get default & custom stored Quotas
     Quotas quotas = setDefaultQuotas();
-    setCustomQuotas(quotas, teamEntity.getQuotas());
+    setCustomQuotas(quotas, workspaceEntity.getQuotas());
     CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
-    setCurrentQuotas(currentQuotas, teamEntity.getName());
+    setCurrentQuotas(currentQuotas, workspaceEntity.getName());
     team.setQuotas(currentQuotas);
 
     // Get Approver Groups
     List<ApproverGroupEntity> approverGroupEntities =
-        getApproverGroupsForTeam(teamEntity.getName());
+        getApproverGroupsForTeam(workspaceEntity.getName());
     List<ApproverGroup> approverGroups = new LinkedList<>();
     approverGroupEntities.forEach(
         age -> {
@@ -898,12 +898,12 @@ public class TeamService {
                 .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue());
 
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (optTeamEntity.isPresent()
-        && optTeamEntity.get().getQuotas() != null
-        && optTeamEntity.get().getQuotas().getMaxWorkflowRunDuration() != null
-        && optTeamEntity.get().getQuotas().getMaxWorkflowRunDuration() != 0) {
-      d = optTeamEntity.get().getQuotas().getMaxWorkflowRunDuration();
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (optWorkspaceEntity.isPresent()
+        && optWorkspaceEntity.get().getQuotas() != null
+        && optWorkspaceEntity.get().getQuotas().getMaxWorkflowRunDuration() != null
+        && optWorkspaceEntity.get().getQuotas().getMaxWorkflowRunDuration() != 0) {
+      d = optWorkspaceEntity.get().getQuotas().getMaxWorkflowRunDuration();
     }
     return d;
   }
@@ -949,7 +949,7 @@ public class TeamService {
     currentQuotas.setCurrentRuns(insight.getTotalRuns().intValue());
 
     WorkflowCount count =
-        teamWorkflowService.count(
+        workspaceWorkflowService.count(
             team, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     if (count.getStatus() != null) {
       Long active = count.getStatus().get("active");
@@ -972,7 +972,7 @@ public class TeamService {
               ref -> {
                 Optional<User> ue = userService.getUserByID(ref);
                 if (ue.isPresent()) {
-                  TeamMember u = new TeamMember(ue.get());
+                  WorkspaceMember u = new WorkspaceMember(ue.get());
                   ag.getApprovers().add(u);
                 }
               });
@@ -983,9 +983,9 @@ public class TeamService {
   /*
    * Returns the List of UserSummary for a team
    */
-  private List<TeamMember> getUsersForTeam(String team) {
+  private List<WorkspaceMember> getUsersForTeam(String team) {
     Map<String, String> memberRoleMap = relationshipService.membersAndRoles(team);
-    List<TeamMember> teamUsers = new LinkedList<>();
+    List<WorkspaceMember> teamUsers = new LinkedList<>();
     if (!memberRoleMap.isEmpty()) {
       memberRoleMap.forEach(
           (m, r) -> {
@@ -995,7 +995,7 @@ public class TeamService {
               if (!r.isEmpty()) {
                 role = r;
               }
-              TeamMember u = new TeamMember(ue.get(), role);
+              WorkspaceMember u = new WorkspaceMember(ue.get(), role);
               teamUsers.add(u);
             }
           });
@@ -1004,13 +1004,13 @@ public class TeamService {
   }
 
   /*
-   * Creates a Relationship between User(s) and a Team
+   * Creates a Relationship between User(s) and a Workspace
    * If relationship already exists, patch the role.
    * If user does not exist, a user record will be created with a relationship to the team
    */
-  private void createOrUpdateUserRelationships(String team, List<TeamMember> users) {
+  private void createOrUpdateUserRelationships(String team, List<WorkspaceMember> users) {
     if (users != null && !users.isEmpty()) {
-      for (TeamMember userSummary : users) {
+      for (WorkspaceMember userSummary : users) {
         Optional<User> userEntity = Optional.empty();
         // Find user by ID or Email - UI allows adding from existing or new (email)
         if (userSummary.getId() != null && !userSummary.getId().isEmpty()) {

@@ -73,7 +73,7 @@ public class TokenService {
   /*
    * Creates an Access Token
    *
-   * Limited to creation by a User on behalf of a User, Workflow, Team, Global scope
+   * Limited to creation by a User on behalf of a User, Workflow, Workspace, Global scope
    *
    * TODO: make sure requesting principal has access to create for the provided principal
    */

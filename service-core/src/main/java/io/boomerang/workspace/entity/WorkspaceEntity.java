@@ -13,25 +13,25 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.workspace.model.Quotas;
-import io.boomerang.workspace.model.TeamStatus;
-import io.boomerang.workspace.model.TeamType;
+import io.boomerang.workspace.model.WorkspaceStatus;
+import io.boomerang.workspace.model.WorkspaceType;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('teams')}")
-public class TeamEntity {
+public class WorkspaceEntity {
 
   @Id private String id;
   private String name;
   private String displayName;
   private Date creationDate = new Date();
-  private TeamType type;
-  private TeamStatus status = TeamStatus.active;
+  private WorkspaceType type;
+  private WorkspaceStatus status = WorkspaceStatus.active;
   private String externalRef;
   private Map<String, String> labels = new HashMap<>();
   private Map<String, Object> annotations = new HashMap<>();
   private List<AbstractParam> parameters = new LinkedList<>();
-  //  private TeamSettings settings;
+  //  private WorkspaceSettings settings;
   private Quotas quotas;
 
   public String getId() {
@@ -66,19 +66,19 @@ public class TeamEntity {
     this.creationDate = creationDate;
   }
 
-  public TeamType getType() {
+  public WorkspaceType getType() {
     return type;
   }
 
-  public void setType(TeamType type) {
+  public void setType(WorkspaceType type) {
     this.type = type;
   }
 
-  public TeamStatus getStatus() {
+  public WorkspaceStatus getStatus() {
     return status;
   }
 
-  public void setStatus(TeamStatus status) {
+  public void setStatus(WorkspaceStatus status) {
     this.status = status;
   }
 
@@ -90,10 +90,10 @@ public class TeamEntity {
     this.externalRef = externalRef;
   }
 
-  //  public TeamSettings getSettings() {
+  //  public WorkspaceSettings getSettings() {
   //    return settings;
   //  }
-  //  public void setSettings(TeamSettings settings) {
+  //  public void setSettings(WorkspaceSettings settings) {
   //    this.settings = settings;
   //  }
   public Map<String, String> getLabels() {

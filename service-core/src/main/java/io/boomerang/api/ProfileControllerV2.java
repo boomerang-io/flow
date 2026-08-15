@@ -10,8 +10,8 @@ import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workspace.TeamService;
-import io.boomerang.workspace.model.TeamMembershipSummary;
+import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.WorkspaceMembershipSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,11 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 /*
  * Composes the User Profile response.
  *
- * The Team membership rollup (summaries + permissions) spans core (User) and workspace (Team)
+ * The Workspace membership rollup (summaries + permissions) spans core (User) and workspace (Workspace)
  * data - core.UserService cannot depend on workspace, so this composition lives here in the api
  * layer, which may depend on everything.
  */
-// E8: hard-depends on workspace.TeamService, so full-mode-only.
+// E8: hard-depends on workspace.WorkspaceService, so full-mode-only.
 @RestController
 @RequestMapping("/api/v2/profile")
 @Tag(name = "Profile", description = "Retrieve your profile and update your details.")
@@ -40,7 +40,7 @@ public class ProfileControllerV2 {
 
   @Autowired private UserService userService;
 
-  @Autowired private TeamService teamService;
+  @Autowired private WorkspaceService workspaceService;
 
   /*
    * Returns the current users profile
@@ -63,7 +63,7 @@ public class ProfileControllerV2 {
     UserEntity baseEntity = userService.getCurrentProfileEntity();
     UserProfile profile = new UserProfile(baseEntity);
     Map<String, String> teamRefsAndRoles = userService.getTeamRefsAndRolesForUser(profile.getId());
-    TeamMembershipSummary membership = teamService.getTeamMembershipSummary(teamRefsAndRoles);
+    WorkspaceMembershipSummary membership = workspaceService.getWorkspaceMembershipSummary(teamRefsAndRoles);
     profile.setTeams(membership.getTeams());
     profile.setPermissions(membership.getPermissions());
     return profile;

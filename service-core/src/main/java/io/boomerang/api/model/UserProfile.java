@@ -1,7 +1,7 @@
 package io.boomerang.api.model;
 
 import io.boomerang.core.entity.UserEntity;
-import io.boomerang.workspace.model.TeamSummary;
+import io.boomerang.workspace.model.WorkspaceSummary;
 import java.util.List;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
@@ -14,7 +14,7 @@ import org.springframework.beans.BeanUtils;
 @Data
 public class UserProfile extends UserEntity {
 
-  List<TeamSummary> teams;
+  List<WorkspaceSummary> teams;
 
   List<String> permissions;
 

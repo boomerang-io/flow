@@ -14,7 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @Service
-public class TeamTaskRunService {
+public class WorkspaceTaskRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -25,7 +25,7 @@ public class TeamTaskRunService {
   private final TaskRunService engineTaskRunService;
   private final ParameterManager parameterManager;
 
-  public TeamTaskRunService(
+  public WorkspaceTaskRunService(
       @Qualifier("internalRestTemplate") RestTemplate restTemplate,
       TaskRunService engineTaskRunService,
       ParameterManager parameterManager) {

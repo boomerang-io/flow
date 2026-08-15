@@ -95,7 +95,7 @@ public class IntegrationService {
               RelationshipLabel.HAS_INTEGRATION,
               RelationshipType.INTEGRATION,
               optEntity.get().getId());
-      LOGGER.debug("Team Ref: " + team);
+      LOGGER.debug("Workspace Ref: " + team);
       if (!team.isBlank()) {
         return team;
       }

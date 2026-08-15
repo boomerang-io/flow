@@ -19,7 +19,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.schedule.model.WorkflowScheduleCalendar;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
-import io.boomerang.api.TeamWorkflowService;
+import io.boomerang.api.WorkspaceWorkflowService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -54,19 +54,19 @@ public class ScheduleService {
   private final Logger LOGGER = LogManager.getLogger(getClass());
 
   private final WorkflowScheduleRepository scheduleRepository;
-  private final TeamWorkflowService teamWorkflowService;
+  private final WorkspaceWorkflowService workspaceWorkflowService;
   private final RelationshipService relationshipService;
   private final WorkflowService workflowService;
   private final MongoTemplate mongoTemplate;
 
   public ScheduleService(
       WorkflowScheduleRepository scheduleRepository,
-      TeamWorkflowService teamWorkflowService,
+      WorkspaceWorkflowService workspaceWorkflowService,
       RelationshipService relationshipService,
       WorkflowService workflowService,
       MongoTemplate mongoTemplate) {
     this.scheduleRepository = scheduleRepository;
-    this.teamWorkflowService = teamWorkflowService;
+    this.workspaceWorkflowService = workspaceWorkflowService;
     this.relationshipService = relationshipService;
     this.workflowService = workflowService;
     this.mongoTemplate = mongoTemplate;
@@ -368,7 +368,7 @@ public class ScheduleService {
          */
         WorkflowScheduleStatus newStatus = scheduleEntity.getStatus();
         Workflow workflow =
-            teamWorkflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
+            workspaceWorkflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
         Boolean enableJob = true;
         if (!previousStatus.equals(newStatus)) {
           if (WorkflowScheduleStatus.active.equals(previousStatus)

@@ -28,11 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v2/team/{team}/insights")
 @Tag(name = "Insights", description = "Provide the ability to search and retrieve Insights.")
 @ConditionalOnFlowMode(FlowMode.FULL)
-public class TeamInsightsControllerV2 {
+public class WorkspaceInsightsControllerV2 {
 
   private final InsightsService insightsService;
 
-  public TeamInsightsControllerV2(InsightsService insightsService) {
+  public WorkspaceInsightsControllerV2(InsightsService insightsService) {
     this.insightsService = insightsService;
   }
 

@@ -39,7 +39,7 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TeamActionService {
+public class WorkspaceActionService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -51,7 +51,7 @@ public class TeamActionService {
   private final UserService userService;
   private final MongoTemplate mongoTemplate;
 
-  public TeamActionService(
+  public WorkspaceActionService(
       ActionRepository actionRepository,
       ApproverGroupRepository approverGroupRepository,
       TaskRunService engineTaskRunService,

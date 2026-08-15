@@ -39,13 +39,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v2/team/{team}/schedule")
 @Tag(name = "Schedules", description = "Create, list and manage your Schedules.")
 @ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
-public class TeamScheduleControllerV2 {
+public class WorkspaceScheduleControllerV2 {
 
   private final ScheduleService workflowScheduleService;
 
   private final CronService cronService;
 
-  public TeamScheduleControllerV2(
+  public WorkspaceScheduleControllerV2(
       ScheduleService workflowScheduleService, CronService cronService) {
     this.workflowScheduleService = workflowScheduleService;
     this.cronService = cronService;

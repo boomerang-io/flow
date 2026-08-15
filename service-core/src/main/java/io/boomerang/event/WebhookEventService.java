@@ -19,7 +19,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.IntegrationService;
-import io.boomerang.api.TeamWorkflowService;
+import io.boomerang.api.WorkspaceWorkflowService;
 import io.boomerang.engine.WorkflowRunService;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.cloudevents.CloudEvent;
@@ -45,7 +45,7 @@ public class WebhookEventService {
   @Value("${flow.workflowrun.auto-start-on-submit}")
   private boolean autoStart;
 
-  private final TeamWorkflowService teamWorkflowService;
+  private final WorkspaceWorkflowService workspaceWorkflowService;
   private final WorkflowRunService workflowRunService;
   // H6: IntegrationService only exists in flow.mode=full (io.boomerang.integrations is
   // mode-gated) - Optional so this service still constructs in engine/standalone.
@@ -53,11 +53,11 @@ public class WebhookEventService {
   private final RelationshipService relationshipService;
 
   public WebhookEventService(
-      TeamWorkflowService teamWorkflowService,
+      WorkspaceWorkflowService workspaceWorkflowService,
       WorkflowRunService workflowRunService,
       Optional<IntegrationService> integrationService,
       RelationshipService relationshipService) {
-    this.teamWorkflowService = teamWorkflowService;
+    this.workspaceWorkflowService = workspaceWorkflowService;
     this.workflowRunService = workflowRunService;
     this.integrationService = integrationService;
     this.relationshipService = relationshipService;
@@ -99,7 +99,7 @@ public class WebhookEventService {
     // Auto start is not needed when using the default handler
     // As the default handler will pick up the queued Workflow and start the Workflow when ready.
     // However if using the non-default Handler then this may be needed to be set to true.
-    return teamWorkflowService.submit(teamRef, workflowRef, request, autoStart);
+    return workspaceWorkflowService.submit(teamRef, workflowRef, request, autoStart);
   }
 
   public WorkflowRun processWebhook(String workflowRef, JsonNode payload) {
@@ -120,7 +120,7 @@ public class WebhookEventService {
     // Auto start is not needed when using the default handler
     // As the default handler will pick up the queued Workflow and start the Workflow when ready.
     // However if using the non-default Handler then this may be needed to be set to true.
-    return teamWorkflowService.submit(teamRef, workflowRef, request, autoStart);
+    return workspaceWorkflowService.submit(teamRef, workflowRef, request, autoStart);
   }
 
   /*
@@ -159,7 +159,7 @@ public class WebhookEventService {
           // As the default handler will pick up the queued Workflow and start the Workflow when
           // ready.
           // However if using the non-default Handler then this may be needed to be set to true.
-          teamWorkflowService.internalSubmitForTeam(teamRef, request, autoStart);
+          workspaceWorkflowService.internalSubmitForTeam(teamRef, request, autoStart);
         }
         return ResponseEntity.ok().build();
       }

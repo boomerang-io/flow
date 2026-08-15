@@ -56,7 +56,7 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 // Explicitly named (E8.2a merge). The api-layer composition shim that used to share this
-// simple name is now io.boomerang.api.TeamWorkflowRunService (P3b rename), but the bean name
+// simple name is now io.boomerang.api.WorkspaceWorkflowRunService (P3b rename), but the bean name
 // stays pinned to avoid disturbing anything wired against it.
 @Service("engineWorkflowRunService")
 public class WorkflowRunService {

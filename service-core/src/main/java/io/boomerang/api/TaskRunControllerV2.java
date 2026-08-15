@@ -24,10 +24,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Tag(name = "TaskRuns", description = "View, Start, Stop, and Update Status of your Task Runs.")
 public class TaskRunControllerV2 {
 
-  private final TeamTaskRunService teamTaskRunService;
+  private final WorkspaceTaskRunService workspaceTaskRunService;
 
-  public TaskRunControllerV2(TeamTaskRunService teamTaskRunService) {
-    this.teamTaskRunService = teamTaskRunService;
+  public TaskRunControllerV2(WorkspaceTaskRunService workspaceTaskRunService) {
+    this.workspaceTaskRunService = workspaceTaskRunService;
   }
 
   @GetMapping(value = "/{taskRunId}/log")
@@ -55,6 +55,6 @@ public class TaskRunControllerV2 {
     response.setContentType("text/plain");
     response.setCharacterEncoding("UTF-8");
     return new ResponseEntity<StreamingResponseBody>(
-        teamTaskRunService.streamLog(taskRunId), HttpStatus.OK);
+        workspaceTaskRunService.streamLog(taskRunId), HttpStatus.OK);
   }
 }

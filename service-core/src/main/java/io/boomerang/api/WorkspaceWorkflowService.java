@@ -45,7 +45,7 @@ import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.schedule.ScheduleService;
 import io.boomerang.workflow.ParameterManager;
 import io.boomerang.workflow.WorkflowService;
-import io.boomerang.workspace.TeamService;
+import io.boomerang.workspace.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -79,9 +79,9 @@ import org.springframework.stereotype.Service;
  * TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust
  *
- * E8 mode-gating note: intentionally NOT @ConditionalOnFlowMode(FULL) despite the "Team*" name
- * and the workspace.TeamService field below - that field is @Lazy specifically so this bean
- * constructs fine without a TeamService bean present. Two things require it to stay unconditional:
+ * E8 mode-gating note: intentionally NOT @ConditionalOnFlowMode(FULL) despite the "Workspace*" name
+ * and the workspace.WorkspaceService field below - that field is @Lazy specifically so this bean
+ * constructs fine without a WorkspaceService bean present. Two things require it to stay unconditional:
  * ScheduleJob (schedule package, full+standalone) hard-depends on it non-lazily for the fire path,
  * and the api mode-matrix row keeps "the same surface, team->default" in engine mode too (J1
  * remap deferred to E10). Only the team-quota-specific paths (canCreateWithQuotas,
@@ -90,7 +90,7 @@ import org.springframework.stereotype.Service;
  * known, deferred gap, not fixed here.
  */
 @Service
-public class TeamWorkflowService {
+public class WorkspaceWorkflowService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -108,27 +108,27 @@ public class TeamWorkflowService {
   private final ScheduleService scheduleService;
   private final ParameterManager parameterManager;
   private final SettingsService settingsService;
-  private final TeamActionService teamActionService;
+  private final WorkspaceActionService workspaceActionService;
   private final TokenService tokenService;
-  private final TeamService teamService;
+  private final WorkspaceService workspaceService;
 
-  public TeamWorkflowService(
+  public WorkspaceWorkflowService(
       WorkflowService workflowService,
       RelationshipService relationshipService,
       @Lazy ScheduleService scheduleService,
       ParameterManager parameterManager,
       SettingsService settingsService,
-      TeamActionService teamActionService,
+      WorkspaceActionService workspaceActionService,
       TokenService tokenService,
-      @Lazy TeamService teamService) {
+      @Lazy WorkspaceService workspaceService) {
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.scheduleService = scheduleService;
     this.parameterManager = parameterManager;
     this.settingsService = settingsService;
-    this.teamActionService = teamActionService;
+    this.workspaceActionService = workspaceActionService;
     this.tokenService = tokenService;
-    this.teamService = teamService;
+    this.workspaceService = workspaceService;
   }
 
   /*
@@ -240,7 +240,7 @@ public class TeamWorkflowService {
             false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
 
-    // Handle no Workflows for Team. Otherwise the engine will return all workflows due to no filter
+    // Handle no Workflows for Workspace. Otherwise the engine will return all workflows due to no filter
     if (refs.size() > 0) {
       return workflowService
           .count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(refs))
@@ -267,7 +267,7 @@ public class TeamWorkflowService {
     validateAndSetDisplayName(request);
     LOGGER.debug("Workflow DisplayName: {}", request.getDisplayName());
 
-    // Ensure Workflow name is unique within Team
+    // Ensure Workflow name is unique within Workspace
     if (relationshipService.check(
         RelationshipType.WORKFLOW,
         request.getName(),
@@ -464,7 +464,7 @@ public class TeamWorkflowService {
   }
 
   /*
-   * Submit WorkflowRun Internally by Team
+   * Submit WorkflowRun Internally by Workspace
    *
    * Used by TriggerService
    *
@@ -511,7 +511,7 @@ public class TeamWorkflowService {
       LOGGER.info("Setting debug = " + enableDebug);
     }
     // Set Workflow Timeout
-    Long timeout = teamService.getWorkflowMaxDurationForTeam(team).longValue();
+    Long timeout = workspaceService.getWorkflowMaxDurationForTeam(team).longValue();
     if (!Objects.isNull(request.getTimeout()) && request.getTimeout() < timeout) {
       timeout = request.getTimeout();
     }
@@ -528,7 +528,7 @@ public class TeamWorkflowService {
         "boomerang.io/task-timeout",
         this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue());
 
-    // Add Context, Global, and Team parameters to the WorkflowRun request
+    // Add Context, Global, and Workspace parameters to the WorkflowRun request
     ParamLayers paramLayers = parameterManager.buildParamLayers(team, workflow);
     executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
     executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
@@ -601,7 +601,7 @@ public class TeamWorkflowService {
       workflowService.delete(refs.get(0));
       scheduleService.deleteAllForWorkflow(refs.get(0));
       tokenService.deleteAllForPrincipal(name);
-      teamActionService.deleteAllByWorkflow(refs.get(0));
+      workspaceActionService.deleteAllByWorkflow(refs.get(0));
       // This has to be the ID (ref) as it is unique across all teams
       relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, refs.get(0));
     } else {
@@ -761,13 +761,13 @@ public class TeamWorkflowService {
   }
 
   /*
-   * Check if the Team Quotas allow a Workflow to run
+   * Check if the Workspace Quotas allow a Workflow to run
    */
   private void canCreateWithQuotas(String team) {
     if (settingsService
         .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
         .getBooleanValue()) {
-      CurrentQuotas quotas = teamService.getCurrentQuotas(team);
+      CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
       if (quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
         throw new BoomerangException(
@@ -780,13 +780,13 @@ public class TeamWorkflowService {
   }
 
   /*
-   * Check if the Team Quotas allow a Workflow to run
+   * Check if the Workspace Quotas allow a Workflow to run
    */
   private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
     if (settingsService
         .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
         .getBooleanValue()) {
-      CurrentQuotas quotas = teamService.getCurrentQuotas(team);
+      CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
       if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
         throw new BoomerangException(

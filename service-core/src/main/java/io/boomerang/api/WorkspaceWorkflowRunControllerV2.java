@@ -35,12 +35,12 @@ import org.springframework.web.bind.annotation.RestController;
         "Submit requests to execute Workflows and provide the ability to search and retrieve Workflow activities.")
 @SecurityRequirement(name = "BearerAuth")
 @SecurityRequirement(name = "x-access-token")
-public class TeamWorkflowRunControllerV2 {
+public class WorkspaceWorkflowRunControllerV2 {
 
-  private final TeamWorkflowRunService teamWorkflowRunService;
+  private final WorkspaceWorkflowRunService workspaceWorkflowRunService;
 
-  public TeamWorkflowRunControllerV2(TeamWorkflowRunService teamWorkflowRunService) {
-    this.teamWorkflowRunService = teamWorkflowRunService;
+  public WorkspaceWorkflowRunControllerV2(WorkspaceWorkflowRunService workspaceWorkflowRunService) {
+    this.workspaceWorkflowRunService = workspaceWorkflowRunService;
   }
 
   @GetMapping(value = "/query")
@@ -134,7 +134,7 @@ public class TeamWorkflowRunControllerV2 {
               required = false)
           @RequestParam
           Optional<Long> toDate) {
-    return teamWorkflowRunService.query(
+    return workspaceWorkflowRunService.query(
         team,
         fromDate,
         toDate,
@@ -203,7 +203,7 @@ public class TeamWorkflowRunControllerV2 {
               required = false)
           @RequestParam
           Optional<Long> toDate) {
-    return teamWorkflowRunService.count(team, fromDate, toDate, labels, workflows);
+    return workspaceWorkflowRunService.count(team, fromDate, toDate, labels, workflows);
   }
 
   @GetMapping(value = "/{workflowRunId}")
@@ -240,7 +240,7 @@ public class TeamWorkflowRunControllerV2 {
               required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return teamWorkflowRunService.get(team, workflowRunId, withTasks);
+    return workspaceWorkflowRunService.get(team, workflowRunId, withTasks);
   }
 
   @PutMapping(value = "/{workflowRunId}/start")
@@ -276,7 +276,7 @@ public class TeamWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return teamWorkflowRunService.start(team, workflowRunId, runRequest);
+    return workspaceWorkflowRunService.start(team, workflowRunId, runRequest);
   }
 
   @PutMapping(value = "/{workflowRunId}/finalize")
@@ -310,7 +310,7 @@ public class TeamWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return teamWorkflowRunService.finalize(team, workflowRunId);
+    return workspaceWorkflowRunService.finalize(team, workflowRunId);
   }
 
   @DeleteMapping(value = "/{workflowRunId}/cancel")
@@ -344,7 +344,7 @@ public class TeamWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return teamWorkflowRunService.cancel(team, workflowRunId);
+    return workspaceWorkflowRunService.cancel(team, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/pause")
@@ -378,7 +378,7 @@ public class TeamWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return teamWorkflowRunService.pause(team, workflowRunId);
+    return workspaceWorkflowRunService.pause(team, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/resume")
@@ -412,7 +412,7 @@ public class TeamWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return teamWorkflowRunService.resume(team, workflowRunId);
+    return workspaceWorkflowRunService.resume(team, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/retry")
@@ -447,6 +447,6 @@ public class TeamWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return teamWorkflowRunService.retry(team, workflowRunId);
+    return workspaceWorkflowRunService.retry(team, workflowRunId);
   }
 }

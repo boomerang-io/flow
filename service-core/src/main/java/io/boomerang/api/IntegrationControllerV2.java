@@ -68,7 +68,7 @@ public class IntegrationControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.INTEGRATION,
       assignableScopes = {AuthScope.team, AuthScope.user, AuthScope.session, AuthScope.global})
-  @Operation(summary = "Retrieve the integrations and their status within a Team")
+  @Operation(summary = "Retrieve the integrations and their status within a Workspace")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -246,7 +246,7 @@ public class IntegrationControllerV2 {
   }
 
   @PostMapping(value = "/github/link")
-  @Operation(summary = "Links the GitHub Installation ID with a Team")
+  @Operation(summary = "Links the GitHub Installation ID with a Workspace")
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.INTEGRATION,
@@ -261,7 +261,7 @@ public class IntegrationControllerV2 {
   }
 
   @PostMapping(value = "/github/unlink")
-  @Operation(summary = "Unlinks the GitHub Installation ID from a Team")
+  @Operation(summary = "Unlinks the GitHub Installation ID from a Workspace")
   @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
   void githubUnlink(@RequestBody GHLinkRequest request) throws IOException {
     githubService.unlinkAppInstallation(request);

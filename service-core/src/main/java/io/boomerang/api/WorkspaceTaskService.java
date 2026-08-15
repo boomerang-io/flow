@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
  * - Converts response as needed for UI (including converting ID to Slug)
  */
 @Service
-public class TeamTaskService {
+public class WorkspaceTaskService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -45,7 +45,7 @@ public class TeamTaskService {
   private final IdentityService identityService;
   private final UserService userService;
 
-  public TeamTaskService(
+  public WorkspaceTaskService(
       TaskService taskService,
       RelationshipService relationshipService,
       IdentityService identityService,
@@ -60,7 +60,7 @@ public class TeamTaskService {
    * Retrieve a TEAMTASK by team, name and optional version. If no version specified, will retrieve the latest.
    */
   public Task get(String team, String name, Optional<Integer> version) {
-    // Checks principal and provided Task has relationship to Team.
+    // Checks principal and provided Task has relationship to Workspace.
     if (!Objects.isNull(name) && !name.isBlank()) {
       List<String> taskRefs =
           relationshipService.filter(

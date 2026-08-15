@@ -1,6 +1,6 @@
 package io.boomerang.workspace.model;
 
-public enum TeamType {
+public enum WorkspaceType {
   personal, hobby, pro, enterprise, system // NOSONAR
 
 }

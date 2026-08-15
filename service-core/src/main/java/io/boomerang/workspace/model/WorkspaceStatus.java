@@ -1,6 +1,6 @@
 package io.boomerang.workspace.model;
 
-public enum TeamStatus {
+public enum WorkspaceStatus {
   active, inactive // NOSONAR
 
 }

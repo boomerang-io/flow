@@ -9,7 +9,7 @@ import io.boomerang.core.entity.UserEntity;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_EMPTY)
-public class TeamMember {
+public class WorkspaceMember {
    
   @Id
   private String id;
@@ -17,14 +17,14 @@ public class TeamMember {
   private String name;
   private String role;
    
-  public TeamMember() {
+  public WorkspaceMember() {
   }
   
-  public TeamMember(UserEntity entity) {
+  public WorkspaceMember(UserEntity entity) {
     BeanUtils.copyProperties(entity, this);
   }
   
-  public TeamMember(UserEntity entity, String role) {
+  public WorkspaceMember(UserEntity entity, String role) {
     BeanUtils.copyProperties(entity, this);
     this.role = role;
   }

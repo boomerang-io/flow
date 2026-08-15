@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * Handles {@link ChildWorkflowRunCreated} events published by the engine's RunWorkflow task.
  * Replaces the former WorkflowClient -> InternalController {@code POST
- * /internal/workflow/{workflow}/run/{run}/relationship} HTTP callback: same Team lookup, same
+ * /internal/workflow/{workflow}/run/{run}/relationship} HTTP callback: same Workspace lookup, same
  * node/edge write, now an in-process call.
  *
  * <p>{@code @EventListener} runs synchronously on the publisher's thread. The old HTTP handler

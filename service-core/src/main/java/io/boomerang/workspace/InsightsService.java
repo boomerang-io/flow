@@ -57,7 +57,7 @@ public class InsightsService {
       Optional<AuditRecord> teamAE =
           auditQueryService.findFirstByScopeAndSelfName(AuditScope.TEAM, team);
       if (teamAE.isPresent()) {
-        LOGGER.debug("Audit Team: {}", teamAE.toString());
+        LOGGER.debug("Audit Workspace: {}", teamAE.toString());
         List<AuditRecord> workflowAEList =
             auditQueryService.findByScopeAndParent(AuditScope.WORKFLOW, teamAE.get().getId());
         wfRefs = workflowAEList.stream().map(AuditRecord::getSelfRef).toList();

@@ -4,28 +4,28 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.beans.BeanUtils;
-import io.boomerang.workspace.entity.TeamEntity;
+import io.boomerang.workspace.entity.WorkspaceEntity;
 
-public class TeamSummary {
+public class WorkspaceSummary {
 
   private String name;
   private String displayName;
   private Date creationDate = new Date();
-  private TeamStatus status = TeamStatus.active;
+  private WorkspaceStatus status = WorkspaceStatus.active;
   private String externalRef;
   private Map<String, String> labels = new HashMap<>();
-  private TeamSummaryInsights insights;
+  private WorkspaceSummaryInsights insights;
   
-  public TeamSummary() {
+  public WorkspaceSummary() {
     
   }
   
-  public TeamSummary(Team entity) {
+  public WorkspaceSummary(Workspace entity) {
     BeanUtils.copyProperties(entity, this);
   }
 
   
-  public TeamSummary(TeamEntity entity) {
+  public WorkspaceSummary(WorkspaceEntity entity) {
     BeanUtils.copyProperties(entity, this);
   }
 
@@ -53,11 +53,11 @@ public class TeamSummary {
     this.creationDate = creationDate;
   }
 
-  public TeamStatus getStatus() {
+  public WorkspaceStatus getStatus() {
     return status;
   }
 
-  public void setStatus(TeamStatus status) {
+  public void setStatus(WorkspaceStatus status) {
     this.status = status;
   }
 
@@ -77,11 +77,11 @@ public class TeamSummary {
     this.labels = labels;
   }
 
-  public TeamSummaryInsights getInsights() {
+  public WorkspaceSummaryInsights getInsights() {
     return insights;
   }
 
-  public void setInsights(TeamSummaryInsights insights) {
+  public void setInsights(WorkspaceSummaryInsights insights) {
     this.insights = insights;
   }
 }

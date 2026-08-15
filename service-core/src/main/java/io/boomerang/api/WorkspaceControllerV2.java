@@ -3,16 +3,16 @@ package io.boomerang.api;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.core.model.Role;
-import io.boomerang.workspace.TeamService;
+import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workspace.model.Quotas;
-import io.boomerang.workspace.model.Team;
-import io.boomerang.workspace.model.TeamMember;
-import io.boomerang.workspace.model.TeamNameCheckRequest;
-import io.boomerang.workspace.model.TeamRequest;
+import io.boomerang.workspace.model.Workspace;
+import io.boomerang.workspace.model.WorkspaceMember;
+import io.boomerang.workspace.model.WorkspaceNameCheckRequest;
+import io.boomerang.workspace.model.WorkspaceRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,20 +33,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// E8: hard-depends on workspace.TeamService, so full-mode-only. J1's engine/standalone
+// E8: hard-depends on workspace.WorkspaceService, so full-mode-only. J1's engine/standalone
 // default-team remapping is deferred (E10 territory).
 @RestController
 @RequestMapping("/api/v2/team")
 @Tag(
-    name = "Team Management",
-    description = "Manage Teams, Team Members, Quotas, ApprovalGroups and Parameters.")
+    name = "Workspace Management",
+    description = "Manage Teams, Workspace Members, Quotas, ApprovalGroups and Parameters.")
 @ConditionalOnFlowMode(FlowMode.FULL)
-public class TeamControllerV2 {
+public class WorkspaceControllerV2 {
 
-  private final TeamService teamService;
+  private final WorkspaceService workspaceService;
 
-  public TeamControllerV2(TeamService teamService) {
-    this.teamService = teamService;
+  public WorkspaceControllerV2(WorkspaceService workspaceService) {
+    this.workspaceService = workspaceService;
   }
 
   @PostMapping(value = "/validate-name")
@@ -61,8 +61,8 @@ public class TeamControllerV2 {
         @ApiResponse(responseCode = "422", description = "Name is already taken"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<?> validateTeamName(@RequestBody TeamNameCheckRequest request) {
-    return teamService.validateName(request);
+  public ResponseEntity<?> validateTeamName(@RequestBody WorkspaceNameCheckRequest request) {
+    return workspaceService.validateName(request);
   }
 
   @GetMapping(value = "/{team}")
@@ -76,15 +76,15 @@ public class TeamControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public Team getTeam(
+  public Workspace getTeam(
       @Parameter(
               name = "team",
-              description = "Team as owner reference.",
+              description = "Workspace as owner reference.",
               example = "my-amazing-team",
               required = true)
           @PathVariable
           String team) {
-    return teamService.get(team);
+    return workspaceService.get(team);
   }
 
   @GetMapping(value = "/query")
@@ -98,7 +98,7 @@ public class TeamControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public Page<Team> getTeams(
+  public Page<Workspace> getTeams(
       @Parameter(
               name = "labels",
               description =
@@ -115,7 +115,7 @@ public class TeamControllerV2 {
           Optional<List<String>> statuses,
       @Parameter(
               name = "teams",
-              description = "List of Team names to filter for.",
+              description = "List of Workspace names to filter for.",
               example = "my-amazing-team,boomerangs-return",
               required = false)
           @RequestParam(required = false)
@@ -140,7 +140,7 @@ public class TeamControllerV2 {
               required = false)
           @RequestParam(defaultValue = "name")
           Optional<String> sort) {
-    return teamService.query(page, limit, order, sort, labels, statuses, names);
+    return workspaceService.query(page, limit, order, sort, labels, statuses, names);
   }
 
   @PostMapping(value = "")
@@ -154,8 +154,8 @@ public class TeamControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public Team createTeam(@RequestBody TeamRequest request) {
-    return teamService.create(request);
+  public Workspace createTeam(@RequestBody WorkspaceRequest request) {
+    return workspaceService.create(request);
   }
 
   @PatchMapping(value = "/{team}")
@@ -169,24 +169,24 @@ public class TeamControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public Team updateTeam(
-      @Parameter(name = "team", description = "ID of Team", required = true) @PathVariable
+  public Workspace updateTeam(
+      @Parameter(name = "team", description = "ID of Workspace", required = true) @PathVariable
           String team,
-      @RequestBody TeamRequest request) {
-    return teamService.patch(team, request);
+      @RequestBody WorkspaceRequest request) {
+    return workspaceService.patch(team, request);
   }
 
   @DeleteMapping(value = "/{team}")
-  @Operation(summary = "Delete Team")
+  @Operation(summary = "Delete Workspace")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void deleteWorkflow(
-      @Parameter(name = "team", description = "ID of Team", required = true) @PathVariable
+      @Parameter(name = "team", description = "ID of Workspace", required = true) @PathVariable
           String team) {
-    teamService.delete(team);
+    workspaceService.delete(team);
   }
 
   @DeleteMapping(value = "/{team}/members")
@@ -194,7 +194,7 @@ public class TeamControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.TEAM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
-  @Operation(summary = "Remove Team Members")
+  @Operation(summary = "Remove Workspace Members")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -203,13 +203,13 @@ public class TeamControllerV2 {
   public void removeMembers(
       @Parameter(
               name = "team",
-              description = "Team as owner reference.",
+              description = "Workspace as owner reference.",
               example = "my-amazing-team",
               required = true)
           @PathVariable
           String team,
-      @RequestBody List<TeamMember> request) {
-    teamService.removeMembers(team, request);
+      @RequestBody List<WorkspaceMember> request) {
+    workspaceService.removeMembers(team, request);
   }
 
   @DeleteMapping(value = "/{team}/leave")
@@ -217,17 +217,17 @@ public class TeamControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.TEAM,
       assignableScopes = {AuthScope.user, AuthScope.session})
-  @Operation(summary = "Leave Team")
+  @Operation(summary = "Leave Workspace")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void leave(
-      @Parameter(name = "team", description = "Team as owner reference.", required = true)
+      @Parameter(name = "team", description = "Workspace as owner reference.", required = true)
           @PathVariable
           String team) {
-    teamService.leave(team);
+    workspaceService.leave(team);
   }
 
   @DeleteMapping(value = "/{team}/parameters/{name}")
@@ -235,18 +235,18 @@ public class TeamControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.TEAM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
-  @Operation(summary = "Delete Team Parameter")
+  @Operation(summary = "Delete Workspace Parameter")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void deleteParameters(
-      @Parameter(name = "team", description = "Team as owner reference.", required = true)
+      @Parameter(name = "team", description = "Workspace as owner reference.", required = true)
           @PathVariable
           String team,
       @PathVariable String name) {
-    teamService.deleteParameter(team, name);
+    workspaceService.deleteParameter(team, name);
   }
 
   @DeleteMapping(value = "/{team}/approvers")
@@ -261,11 +261,11 @@ public class TeamControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void deleteApproverGroup(
-      @Parameter(name = "team", description = "Team as owner reference.", required = true)
+      @Parameter(name = "team", description = "Workspace as owner reference.", required = true)
           @PathVariable
           String team,
       @RequestBody List<String> names) {
-    teamService.deleteApproverGroups(team, names);
+    workspaceService.deleteApproverGroups(team, names);
   }
 
   @DeleteMapping(value = "/{team}/quotas")
@@ -273,17 +273,17 @@ public class TeamControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.TEAM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
-  @Operation(summary = "Reset Team Quota")
+  @Operation(summary = "Reset Workspace Quota")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void resetQuotas(
-      @Parameter(name = "team", description = "Team as owner reference.", required = true)
+      @Parameter(name = "team", description = "Workspace as owner reference.", required = true)
           @PathVariable
           String team) {
-    teamService.deleteCustomQuotas(team);
+    workspaceService.deleteCustomQuotas(team);
   }
 
   @GetMapping(value = "/quotas/default")
@@ -291,14 +291,14 @@ public class TeamControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.TEAM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
-  @Operation(summary = "Retrieve Default Team Quota")
+  @Operation(summary = "Retrieve Default Workspace Quota")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public ResponseEntity<Quotas> getDefaultQuotas() {
-    return teamService.getDefaultQuotas();
+    return workspaceService.getDefaultQuotas();
   }
 
   @GetMapping(value = "/roles")
@@ -306,13 +306,13 @@ public class TeamControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.TEAM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.team, AuthScope.global})
-  @Operation(summary = "Retrieve Team Roles")
+  @Operation(summary = "Retrieve Workspace Roles")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public ResponseEntity<List<Role>> getRoles() {
-    return teamService.getRoles();
+    return workspaceService.getRoles();
   }
 }

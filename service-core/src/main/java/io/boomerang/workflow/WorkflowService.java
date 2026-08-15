@@ -55,7 +55,7 @@ import org.springframework.stereotype.Service;
  *
  * The domain (definition) service - carries the plain name per house convention
  * (<Name>Service/<Name>Controller; AM-6). The api-layer composition shim that wraps this is
- * io.boomerang.api.TeamWorkflowService.
+ * io.boomerang.api.WorkspaceWorkflowService.
  */
 @Service
 public class WorkflowService {

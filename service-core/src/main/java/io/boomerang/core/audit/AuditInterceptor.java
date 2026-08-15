@@ -143,13 +143,13 @@ public class AuditInterceptor {
   /*
    * TEAM auditing
    *
-   * The advice below takes Team/TeamRequest arguments as Object and reads them via reflection
+   * The advice below takes Workspace/WorkspaceRequest arguments as Object and reads them via reflection
    * (getId()/getName()) rather than importing io.boomerang.workspace.model types - core must not
    * depend on workspace. This mirrors the implicit "cast" AspectJ would otherwise perform when
    * binding these args to a typed parameter.
    */
   @AfterReturning(
-      pointcut = "execution(* io.boomerang.service.TeamService.create(..)) && args(request)",
+      pointcut = "execution(* io.boomerang.service.WorkspaceService.create(..)) && args(request)",
       returning = "entity")
   private void createTeam(JoinPoint thisJoinPoint, Object request, Object entity) {
     String entityId = reflectGetter(entity, "getId");
@@ -165,7 +165,7 @@ public class AuditInterceptor {
   }
 
   @AfterReturning(
-      pointcut = "execution(* io.boomerang.service.TeamService.patch(..))",
+      pointcut = "execution(* io.boomerang.service.WorkspaceService.patch(..))",
       returning = "entity")
   private void updateTeam(JoinPoint thisJoinPoint, Object entity) {
     String entityId = reflectGetter(entity, "getId");
@@ -181,7 +181,7 @@ public class AuditInterceptor {
     teamNameToAuditId.put(entityName, log.getId());
   }
 
-  @AfterReturning("execution(* io.boomerang.service.TeamService.delete(..))" + " && args(id)")
+  @AfterReturning("execution(* io.boomerang.service.WorkspaceService.delete(..))" + " && args(id)")
   private void deleteTeam(JoinPoint thisJoinPoint, String id) {
     updateLogByAuditId(
         AuditType.deleted,
@@ -283,7 +283,7 @@ public class AuditInterceptor {
 
   /*
    * Reads a no-arg String-returning getter (e.g. getId/getName) off an Object via reflection.
-   * Used so this interceptor can read Team/WorkflowCanvas fields without importing those types.
+   * Used so this interceptor can read Workspace/WorkflowCanvas fields without importing those types.
    */
   private String reflectGetter(Object obj, String getterName) {
     if (obj == null) {

@@ -143,7 +143,7 @@ public class NavigationService {
       }
 
       Navigation management = new Navigation();
-      management.setName("Manage Team");
+      management.setName("Manage Workspace");
       management.setType(NavigationType.link);
       management.setDisabled(disabled);
       management.setIcon("SettingsAdjust");

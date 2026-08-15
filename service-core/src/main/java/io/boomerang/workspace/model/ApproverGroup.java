@@ -16,7 +16,7 @@ public class ApproverGroup {
   private String id;
   private String name;
   private Date creationDate = new Date();
-  private List<TeamMember> approvers = new LinkedList<>();  
+  private List<WorkspaceMember> approvers = new LinkedList<>();  
 
   public ApproverGroup() {
     
@@ -50,11 +50,11 @@ public class ApproverGroup {
     this.creationDate = creationDate;
   }
 
-  public List<TeamMember> getApprovers() {
+  public List<WorkspaceMember> getApprovers() {
     return approvers;
   }
 
-  public void setApprovers(List<TeamMember> approvers) {
+  public void setApprovers(List<WorkspaceMember> approvers) {
     this.approvers = approvers;
   }
 }

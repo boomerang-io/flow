@@ -122,7 +122,7 @@ public class ParameterManager {
 
     LOGGER.debug(
         "Received Global Params: " + wfRun.getAnnotations().get("boomerang.io/global-params"));
-    LOGGER.debug("Received Team Params: " + wfRun.getAnnotations().get("boomerang.io/team-params"));
+    LOGGER.debug("Received Workspace Params: " + wfRun.getAnnotations().get("boomerang.io/team-params"));
     LOGGER.debug(
         "Received Context Params: " + wfRun.getAnnotations().get("boomerang.io/context-params"));
 

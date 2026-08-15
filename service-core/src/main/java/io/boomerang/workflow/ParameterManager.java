@@ -9,15 +9,15 @@ import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.enums.AuthScope;
-import io.boomerang.workspace.entity.TeamEntity;
-import io.boomerang.workspace.repository.TeamRepository;
+import io.boomerang.workspace.entity.WorkspaceEntity;
+import io.boomerang.workspace.repository.WorkspaceRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /*
- * This is one half of the Param Layers. It collects the Global, Team, and Context Layers.
+ * This is one half of the Param Layers. It collects the Global, Workspace, and Context Layers.
  *
  * The Workflow and Task layers as well as Param resolution will be completed by the Engine
  *
@@ -29,17 +29,17 @@ public class ParameterManager {
   private static final String[] reserved = {"system", "workflow", "global", "team", "workflow"};
 
   private SettingsService settingsService;
-  private TeamRepository teamRepository;
+  private WorkspaceRepository workspaceRepository;
   private ParameterService parameterService;
   private TokenRepository tokenRepository;
 
   public ParameterManager(
       SettingsService settingsService,
-      TeamRepository teamRepository,
+      WorkspaceRepository workspaceRepository,
       ParameterService parameterService,
       TokenRepository tokenRepository) {
     this.settingsService = settingsService;
-    this.teamRepository = teamRepository;
+    this.workspaceRepository = workspaceRepository;
     this.parameterService = parameterService;
     this.tokenRepository = tokenRepository;
   }
@@ -57,7 +57,7 @@ public class ParameterManager {
     if (settingsService.getSettingConfig("features", "globalParameters").getBooleanValue()) {
       buildGlobalParams(globalParams);
     }
-    // Set Team Params
+    // Set Workspace Params
     if (settingsService.getSettingConfig("features", "teamParameters").getBooleanValue()) {
       buildTeamParams(teamParams, teamId);
     }
@@ -71,14 +71,14 @@ public class ParameterManager {
   }
 
   /*
-   * Only needs to set the Global, Team, and partial Context Params. Engine will add and resolve.
+   * Only needs to set the Global, Workspace, and partial Context Params. Engine will add and resolve.
    */
   public ParamLayers buildParamLayers(String teamId, Workflow workflow) {
     ParamLayers paramLayers = new ParamLayers();
     Map<String, Object> teamParams = paramLayers.getTeamParams();
     Map<String, Object> globalParams = paramLayers.getGlobalParams();
     Map<String, Object> contextParams = paramLayers.getContextParams();
-    // Set Team Params
+    // Set Workspace Params
     if (settingsService.getSettingConfig("features", "teamParameters").getBooleanValue()) {
       buildTeamParams(teamParams, teamId);
     }
@@ -104,16 +104,16 @@ public class ParameterManager {
   }
 
   /*
-   * Build up the Team Params - defaultValue is not used with Team Params and can be ignored.
+   * Build up the Workspace Params - defaultValue is not used with Workspace Params and can be ignored.
    */
   private void buildTeamParams(Map<String, Object> teamParams, String team) {
-    Optional<TeamEntity> optTeamEntity = teamRepository.findByNameIgnoreCase(team);
-    if (!optTeamEntity.isPresent()) {
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    TeamEntity teamEntity = optTeamEntity.get();
-    if (teamEntity.getParameters() != null && !teamEntity.getParameters().isEmpty()) {
-      for (AbstractParam param : teamEntity.getParameters()) {
+    WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
+    if (workspaceEntity.getParameters() != null && !workspaceEntity.getParameters().isEmpty()) {
+      for (AbstractParam param : workspaceEntity.getParameters()) {
         teamParams.put(param.getName(), param.getValue());
       }
     }

@@ -1,6 +1,6 @@
 package io.boomerang.workspace.model;
 
-public class TeamSummaryInsights {
+public class WorkspaceSummaryInsights {
 
   private Long workflows;
   private Long members;

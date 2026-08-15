@@ -133,7 +133,7 @@ public class SystemControllerV2 {
   public ResponseEntity<List<Navigation>> getNavigation(
       @Parameter(
               name = "team",
-              description = "Team as owner reference",
+              description = "Workspace as owner reference",
               example = "my-amazing-team",
               required = false)
           @RequestParam(required = false)

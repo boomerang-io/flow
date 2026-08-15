@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.api.IntegrationControllerV2;
-import io.boomerang.api.TeamControllerV2;
-import io.boomerang.api.TeamScheduleControllerV2;
+import io.boomerang.api.WorkspaceControllerV2;
+import io.boomerang.api.WorkspaceScheduleControllerV2;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.engine.WorkflowRunService;
 import io.boomerang.schedule.ScheduleWatcher;
 import io.boomerang.workflow.WorkflowService;
-import io.boomerang.workspace.TeamService;
+import io.boomerang.workspace.WorkspaceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -49,7 +49,7 @@ class FlowModeGatingEngineModeTest extends AbstractEngineIntegrationTest {
 
   @Test
   void workspaceBeansAreAbsentInEngineMode() {
-    assertTrue(context.getBeansOfType(TeamService.class).isEmpty());
+    assertTrue(context.getBeansOfType(WorkspaceService.class).isEmpty());
   }
 
   @Test
@@ -59,7 +59,7 @@ class FlowModeGatingEngineModeTest extends AbstractEngineIntegrationTest {
 
   @Test
   void workspaceDependentApiControllersAreAbsentInEngineMode() {
-    assertTrue(context.getBeansOfType(TeamControllerV2.class).isEmpty());
-    assertTrue(context.getBeansOfType(TeamScheduleControllerV2.class).isEmpty());
+    assertTrue(context.getBeansOfType(WorkspaceControllerV2.class).isEmpty());
+    assertTrue(context.getBeansOfType(WorkspaceScheduleControllerV2.class).isEmpty());
   }
 }

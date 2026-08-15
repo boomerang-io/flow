@@ -1,14 +1,14 @@
 package io.boomerang.workspace.model;
 
-public class TeamNameCheckRequest {
+public class WorkspaceNameCheckRequest {
 
   private String name;
 
-  public TeamNameCheckRequest() {
+  public WorkspaceNameCheckRequest() {
     // Empty
   }
 
-  public TeamNameCheckRequest(String name) {
+  public WorkspaceNameCheckRequest(String name) {
     this.name = name;
   }
 

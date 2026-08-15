@@ -208,12 +208,12 @@ public class UserService {
   }
 
   /*
-   * Retrieves the base (non-Team) profile fields for the current user session.
+   * Retrieves the base (non-Workspace) profile fields for the current user session.
    *
-   * Team summaries and permissions are a rollup across User (core) and Team (workspace) data,
+   * Workspace summaries and permissions are a rollup across User (core) and Workspace (workspace) data,
    * so core cannot compose them here - the api layer's Profile composition
-   * (ProfileControllerV2) calls this for the base entity, then TeamService and
-   * RelationshipService for the Team membership rollup.
+   * (ProfileControllerV2) calls this for the base entity, then WorkspaceService and
+   * RelationshipService for the Workspace membership rollup.
    */
   public UserEntity getCurrentProfileEntity() {
     UserEntity profile = new UserEntity();
@@ -231,7 +231,7 @@ public class UserService {
   }
 
   /*
-   * Retrieves the Team ref -> role map for the given user. Used to compose the Team membership
+   * Retrieves the Workspace ref -> role map for the given user. Used to compose the Workspace membership
    * rollup on the Profile response (see getCurrentProfileEntity()).
    */
   public Map<String, String> getTeamRefsAndRolesForUser(String userId) {

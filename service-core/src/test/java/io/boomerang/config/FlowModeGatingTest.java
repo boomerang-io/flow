@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.api.IntegrationControllerV2;
 import io.boomerang.schedule.ScheduleWatcher;
-import io.boomerang.workspace.TeamService;
+import io.boomerang.workspace.WorkspaceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -34,7 +34,7 @@ class FlowModeGatingTest extends AbstractEngineIntegrationTest {
 
   @Test
   void workspaceAndScheduleBeansArePresentByDefault() {
-    assertFalse(context.getBeansOfType(TeamService.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceService.class).isEmpty());
     assertFalse(context.getBeansOfType(ScheduleWatcher.class).isEmpty());
   }
 }
