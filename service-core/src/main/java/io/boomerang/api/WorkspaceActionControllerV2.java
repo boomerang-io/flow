@@ -32,8 +32,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v2/team/{team}/action")
-@Tag(name = "Actions", description = "Create and manage Manual and Approval Actions.")
+@RequestMapping({"/api/v2/team/{team}/action", "/api/v2/workspace/{team}/action"})
+@Tag(
+    name = "Actions",
+    description =
+        "Create and manage Manual and Approval Actions. The /api/v2/team path is a deprecated"
+            + " alias for /api/v2/workspace.")
 public class WorkspaceActionControllerV2 {
 
   private final WorkspaceActionService workspaceActionService;

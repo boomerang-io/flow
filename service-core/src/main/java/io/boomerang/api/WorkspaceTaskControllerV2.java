@@ -27,8 +27,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v2/team/{team}/task")
-@Tag(name = "Workspace Tasks", description = "Create and manage the team based Task definitions.")
+@RequestMapping({"/api/v2/team/{team}/task", "/api/v2/workspace/{team}/task"})
+@Tag(
+    name = "Workspace Tasks",
+    description =
+        "Create and manage the workspace based Task definitions. The /api/v2/team path is a"
+            + " deprecated alias for /api/v2/workspace.")
 public class WorkspaceTaskControllerV2 {
 
   private final WorkspaceTaskService workspaceTaskService;

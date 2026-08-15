@@ -25,8 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 // E8: hard-depends on workspace.InsightsService, so full-mode-only.
 @RestController
-@RequestMapping("/api/v2/team/{team}/insights")
-@Tag(name = "Insights", description = "Provide the ability to search and retrieve Insights.")
+@RequestMapping({"/api/v2/team/{team}/insights", "/api/v2/workspace/{team}/insights"})
+@Tag(
+    name = "Insights",
+    description =
+        "Provide the ability to search and retrieve Insights. The /api/v2/team path is a"
+            + " deprecated alias for /api/v2/workspace.")
 @ConditionalOnFlowMode(FlowMode.FULL)
 public class WorkspaceInsightsControllerV2 {
 

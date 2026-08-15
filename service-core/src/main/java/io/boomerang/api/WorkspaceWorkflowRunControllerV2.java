@@ -28,11 +28,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v2/team/{team}/workflowrun")
+@RequestMapping({"/api/v2/team/{team}/workflowrun", "/api/v2/workspace/{team}/workflowrun"})
 @Tag(
     name = "WorkflowRuns",
     description =
-        "Submit requests to execute Workflows and provide the ability to search and retrieve Workflow activities.")
+        "Submit requests to execute Workflows and provide the ability to search and retrieve"
+            + " Workflow activities. The /api/v2/team path is a deprecated alias for"
+            + " /api/v2/workspace.")
 @SecurityRequirement(name = "BearerAuth")
 @SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowRunControllerV2 {
