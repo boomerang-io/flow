@@ -193,6 +193,17 @@ live stayed on v3. Not usable.)
 | `teams.approverGroups[]` (28 teams) | Field present on 2 teams, both **empty arrays** — no approver-group data exists on this install, so R-6's v4 loss had no data impact here. Populated shape still unvalidated; handle empty gracefully. |
 | **NEW BUG — global parameters never migrated** | v3's collection is **`global_config`** (1 doc: `{_id, key, label, type, value, description, readOnly}`, `_class=FlowGlobalConfigEntity`), but changeset **`4045` reads `global_params`** and maps `values`→`value`. On real v3 data it matches nothing: **global parameters were silently dropped in v4, and the source collection was never even dropped.** The consolidated unit must read `global_config` and map `key`→`name`, `value`→`value` (singular). Verify the collection name against other installs before finalising. |
 
+## Latent bugs found while testing (unfixed, out of scope when found)
+
+1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
+   writing MockMvc tests for the engine-mode guard (worked around there by seeding a minimal
+   `global` token). Real exposure: any code path reaching `filter` without an authenticated
+   principal — engine mode runs with security off, so this is worth a guard.
+2. **Content negotiation with no `Accept` header** inconsistently resolves to
+   `application/x-yaml` vs JSON depending on the handler's return type (the YAML converter
+   registers globally — see `workflow.config.Yaml*`). A client omitting `Accept` can get YAML
+   where it expects JSON. Fix is to constrain the YAML converter to the endpoints that want it.
+
 ## Future items (maintainer-added 2026-08-15, not yet scheduled)
 
 1. **WorkflowTemplates sunset evaluation** — possibly retire the whole template-management side
