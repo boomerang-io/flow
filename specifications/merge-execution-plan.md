@@ -177,6 +177,22 @@ no workflow audit records (`4038` matched `"WORKFLOW"` against lowercase node ty
 | M-3 | **CosmosDB is NOT a supported v5 target** — `renameCollection` is fine; `_0011__DispatcherRename` stays as-is; consolidated units may use renames freely. |
 | M-4 | **A real v3 dump will be provided** — the three schemas unverifiable from loader source (`global_params`, `workflows_activity_approval`, v3 `approver_groups` embedding) are validated against it before those units are trusted. |
 
+### Validated against a real v3 dump (2026-08-16)
+
+Source: `~/Workspaces/cheerdev/ops/**flowabl-live-dump-20231106**/boomerang` (16MB, 23 collections
+with data). **Generation proven v3**: 111 changesets applied, max id `112`, zero `4xxx` — exactly
+the scout's discriminator. (The dump first suggested — `flowabl-dev-dump-20230505` — is
+metadata-only, no `.bson` documents at all, and is *v4-shaped*: it carries `relationships`/
+`actions`/`workflow_templates`. It was the dev environment already running v4 development while
+live stayed on v3. Not usable.)
+
+| Check | Result |
+|---|---|
+| `settings` | **Confirms the `_0016` blocker.** All 8 v3 `_id`s present with v3 keys (`controller`, `activity`, `workflow`, `users`, `features`, `teams`, `extensions`, `customizations`) — exactly the ids the seed would re-insert. |
+| `workflows_activity_approval` (8 docs) | `{_id, activityId, taskActivityId, workflowId, actioners[{approverId,comments,approved,actionDate}], status, type, creationDate, numberOfApprovers}`. **4003 mutates whole documents in place**, so `actioners[]`/`numberOfApprovers` DO survive — v5 `ActionEntity` has both. No loss here (an earlier suspicion, checked and withdrawn). |
+| `teams.approverGroups[]` (28 teams) | Field present on 2 teams, both **empty arrays** — no approver-group data exists on this install, so R-6's v4 loss had no data impact here. Populated shape still unvalidated; handle empty gracefully. |
+| **NEW BUG — global parameters never migrated** | v3's collection is **`global_config`** (1 doc: `{_id, key, label, type, value, description, readOnly}`, `_class=FlowGlobalConfigEntity`), but changeset **`4045` reads `global_params`** and maps `values`→`value`. On real v3 data it matches nothing: **global parameters were silently dropped in v4, and the source collection was never even dropped.** The consolidated unit must read `global_config` and map `key`→`name`, `value`→`value` (singular). Verify the collection name against other installs before finalising. |
+
 ## Future items (maintainer-added 2026-08-15, not yet scheduled)
 
 1. **WorkflowTemplates sunset evaluation** — possibly retire the whole template-management side
