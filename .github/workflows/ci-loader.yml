@@ -68,4 +68,4 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 # Release/deploy (Docker build + push) lives in ci-release.yml, triggered by the
-# product tag `v@**` — see AM-9 / DD-03. This workflow only tests and builds the jar.
+# product tag (`x.y.z`, optional `-beta.N`/`-rc.N`) — see AM-9 / DD-03. This workflow only tests and builds the jar.
