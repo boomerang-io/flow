@@ -41,9 +41,6 @@
       "Bash(cat:*)",
       "mcp__ide__getDiagnostics"
     ],
-    "ask": [
-      "Bash(git push:*)"
-    ],
     "deny": []
   }
 }
