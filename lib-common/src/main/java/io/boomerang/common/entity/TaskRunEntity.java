@@ -58,7 +58,7 @@ public class TaskRunEntity {
   private String workflowRef;
   private String workflowRevisionRef;
   @Indexed private String workflowRunRef; // Indexed when retrieving task runs for a workflow run
-  private String agentRef;
+  private String dispatcherRef;
 
   // Claim ownership. claim.by absent = unclaimed and eligible; written only by the claim
   // Compare-And-Set. claim.seq increments on every claim and is never cleared, fencing

@@ -27,6 +27,15 @@
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- Optional: needed only for HttpStatus on the error/* types (P2b package-move-map.md
+             moved io.boomerang.error -> common.error). Services that expose a REST API (flow,
+             engine, agent) already declare spring-web transitively via their web starter;
+             consumers that don't must not inherit it unasked. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>tools.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>

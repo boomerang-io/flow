@@ -132,8 +132,8 @@ public class EngineClient {
       agentHost = InetAddress.getLocalHost().getHostName();
       LOGGER.debug("Registering Dispatcher({})", agentHost);
 
-      AgentRegistrationRequest request =
-          new AgentRegistrationRequest(dispatcherName, agentHost, taskTypes);
+      DispatcherRegistrationRequest request =
+          new DispatcherRegistrationRequest(dispatcherName, agentHost, taskTypes);
 
       // Send the registration request
       ResponseEntity<String> response =

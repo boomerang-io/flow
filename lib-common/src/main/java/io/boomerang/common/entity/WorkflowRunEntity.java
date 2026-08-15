@@ -46,7 +46,7 @@ public class WorkflowRunEntity {
   private String workflowRef;
   private Integer workflowVersion;
   private String workflowRevisionRef;
-  private String agentRef;
+  private String dispatcherRef;
 
   // Claim ownership for the workflow-level claimables (provision and teardown). claim.by
   // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.seq

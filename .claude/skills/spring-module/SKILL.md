@@ -170,6 +170,13 @@ run under, not just `full`.
 
 Repo rulings (from v5 review feedback — these override any generated-code habit):
 
+- **Class naming is `<Name>Service` / `<Name>Controller`** (maintainer ruling 2026-08-15), with
+  `<Name>Client` ONLY for interfaces to an external system, `<Name>ExecutionService` for the
+  engine's execution orchestrators, and a small set of error/config shapes. The DOMAIN service
+  carries the plain name (`workflow.WorkflowService` = the definition service); when layers
+  collide on a simple name, the composition/shim layer takes the marked name
+  (`api.TeamWorkflowService` pairing `TeamWorkflowControllerV2`) — never suffix the domain class
+  (`WorkflowDefinitionService`-style names were explicitly overruled).
 - **Smallest honest expression.** No long-form if/else with staging variables when a
   guarded expression states the rule. Express the semantics, skip the scaffolding.
   Reference shape: `long timeout = <default>; if (userValue set && valid && not greater)

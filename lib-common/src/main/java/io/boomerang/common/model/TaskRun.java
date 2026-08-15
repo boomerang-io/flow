@@ -20,7 +20,7 @@ import org.springframework.data.annotation.Id;
  *
  * Standalone POJO (no longer extends the entity) so the public contract is explicit and the
  * internal-only entity fields (claim, timeoutAt, retry, waitUntil, dependencies, preApproved,
- * decisionValue, agentRef) never leak. Phase is retained - the task agent dispatches on it.
+ * decisionValue, dispatcherRef) never leak. Phase is retained - the task agent dispatches on it.
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

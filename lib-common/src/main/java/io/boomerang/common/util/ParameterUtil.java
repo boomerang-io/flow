@@ -30,6 +30,22 @@ public class ParameterUtil {
   }
 
   /*
+   * Add a parameter to an existing Run Parameter list, converting each AbstractParam's
+   * UI config type to the equivalent Tekton ParamType
+   *
+   * @param the parameter list
+   *
+   * @param the new parameter to add
+   *
+   * @return the parameter list
+   */
+  public static List<RunParam> abstractParamToRunParam(List<AbstractParam> parameterList) {
+    return parameterList.stream()
+        .map(p -> new RunParam(p.getName(), p.getDefaultValue(), getTektonParamType(p.getType())))
+        .collect(Collectors.toList());
+  }
+
+  /*
    * Add a parameter to an existing Run Parameter list
    *
    * @param the parameter list
@@ -207,80 +223,6 @@ public class ParameterUtil {
         parameterList.stream().filter(p -> !name.equals(p.getName())).collect(Collectors.toList());
     return reducedParamList;
   }
-
-//  /*
-//   * Turns the AbstractParam used by the UI into ParamSpec used by the Engine and Handlers
-//   */
-//  public static List<ParamSpec> abstractParamsToParamSpecs(List<AbstractParam> abstractParams) {
-//    List<ParamSpec> params = new LinkedList<>();
-//    if (abstractParams != null && !abstractParams.isEmpty()) {
-//      for (AbstractParam ap : abstractParams) {
-//        ParamSpec param = new ParamSpec();
-//        param.setName(ap.getKey());
-//        param.setDescription(ap.getDescription());
-//        switch (ConfigType.getConfigType(ap.getType())) {
-//          case MULTISELECT -> param.setType(ParamType.array);
-//          case JSON -> param.setType(ParamType.object);
-//          default -> param.setType(ParamType.string);
-//        }
-//        param.setDefaultValue(ap.getDefaultValue());
-//        Config config = new Config();
-//        BeanUtils.copyProperties(ap, config);
-//        param.setConfig(config);
-//        params.add(param);
-//      }
-//      ;
-//    }
-//    return params;
-//  }
-
-  //
-  //  // Loop through the newAPs and if of password type with empty defaultValue, retrieve the
-  // original
-  //  // value
-  //  public static List<AbstractParam> mergeAbstractParms(
-  //      List<AbstractParam> origAP, List<AbstractParam> newAP) {
-  //    if (newAP != null && !newAP.isEmpty()) {
-  //      for (AbstractParam ap : newAP) {
-  //        if (ap.getType().equals("password") && ap.getDefaultValue().toString().isEmpty()) {
-  //          if (origAP.stream().anyMatch(p -> p.getKey().equals(ap.getKey()))) {
-  //            ap.setDefaultValue(
-  //                origAP.stream()
-  //                    .filter(p -> p.getKey().equals(ap.getKey()))
-  //                    .findFirst()
-  //                    .get()
-  //                    .getDefaultValue());
-  //          }
-  //        }
-  //      }
-  //    }
-  //    return newAP;
-  //  }
-  //
-  //  /*
-  //   * Turns the ParamSpec into an AbstractParam for Canvas UI
-  //   *
-  //   * TODO this loses the type when going back and forth. Need to move the model to use the same
-  // ParamSpec instead of AbstractParam
-  //   */
-  //  public static List<AbstractParam> paramSpecToAbstractParam(List<ParamSpec> paramSpecs) {
-  //    List<AbstractParam> params = new LinkedList<>();
-  //    if (paramSpecs != null && !paramSpecs.isEmpty()) {
-  //      for (ParamSpec ps : paramSpecs) {
-  //        AbstractParam ap = new AbstractParam();
-  //        BeanUtils.copyProperties(ps.getConfig(), ap);
-  //        ap.setKey(ps.getName());
-  //        ap.setDefaultValue(ps.getDefaultValue() != null ? ps.getDefaultValue() : null);
-  //        ap.setDescription(ps.getDescription());
-  //        // Set needed Label
-  //        if (Objects.isNull(ap.getLabel()) || ap.getLabel().isBlank()) {
-  //          ap.setLabel(ps.getName());
-  //        }
-  //        params.add(ap);
-  //      }
-  //    }
-  //    return params;
-  //  }
 
   public static ParamType getTektonParamType(String type) {
     switch (ConfigType.getConfigType(type)) {
