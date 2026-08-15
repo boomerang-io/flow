@@ -9,12 +9,12 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /*
- * Entity for Storing connected agents
+ * Entity for Storing connected dispatchers
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-@Document(collection = "#{@mongoConfiguration.fullCollectionName('agents')}")
-public class AgentEntity {
+@Document(collection = "#{@mongoConfiguration.fullCollectionName('dispatchers')}")
+public class DispatcherEntity {
   @Id private String id;
   private String name;
   private String host;
@@ -23,11 +23,11 @@ public class AgentEntity {
   private Date lastConnectedDate = new Date();
   private List<TaskType> taskTypes;
 
-  public AgentEntity() {
+  public DispatcherEntity() {
     // Default constructor for serialization/deserialization
   }
 
-  public AgentEntity(String name, String host, List<TaskType> taskTypes, Integer version) {
+  public DispatcherEntity(String name, String host, List<TaskType> taskTypes, Integer version) {
     this.name = name;
     this.host = host;
     this.taskTypes = taskTypes;

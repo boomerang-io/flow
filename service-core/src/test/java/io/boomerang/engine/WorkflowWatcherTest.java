@@ -55,7 +55,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     assertEquals(RunPhase.pending, requeued.getPhase());
     assertNull(requeued.getClaim().getBy(), "requeue must clear the claim ownership");
     assertEquals(1L, requeued.getClaim().getSeq(), "requeue must never clear claim.seq");
-    assertNull(requeued.getAgentRef());
+    assertNull(requeued.getDispatcherRef());
     assertNull(requeued.getTimeoutAt(), "the deadline is baked at the next execution start");
     assertNotNull(requeued.getRetry());
     assertEquals(1, requeued.getRetry().getCount());
@@ -280,7 +280,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
             .set("claim.by", claimedBy)
             .set("claim.at", new Date())
             .set("claim.seq", claimSeq)
-            .set("agentRef", claimedBy)
+            .set("dispatcherRef", claimedBy)
             .set("timeout", 5L)
             .set("timeoutAt", new Date(System.currentTimeMillis() - 1000)),
         TaskRunEntity.class);

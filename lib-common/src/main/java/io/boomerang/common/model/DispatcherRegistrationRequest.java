@@ -5,7 +5,7 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-public class AgentRegistrationRequest {
+public class DispatcherRegistrationRequest {
   private String name;
   private Integer version = 1;
   private String host;
@@ -13,11 +13,11 @@ public class AgentRegistrationRequest {
   private List<String> taskAnnotations = new ArrayList<>();
   private List<String> taskTypes = new ArrayList<>();
 
-  public AgentRegistrationRequest() {
+  public DispatcherRegistrationRequest() {
     // Default constructor
   }
 
-  public AgentRegistrationRequest(String name, String host, List<String> taskTypes) {
+  public DispatcherRegistrationRequest(String name, String host, List<String> taskTypes) {
     this.name = name;
     this.host = host;
     this.taskTypes = taskTypes;

@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Pins the dispatch half of the claim contract. The engine hands the agent a run whose phase is
  * already {@code queued} - the claim IS the pickup, and it advances the run from pending (the
- * engine side is verified by AgentQueueClaimTest). So the agent must dispatch on {@code queued};
+ * engine side is verified by DispatcherQueueClaimTest). So the agent must dispatch on {@code queued};
  * guarding on {@code pending} - a phase a claimed run never carries here - silently drops the run.
  */
 class QueueServiceDispatchTest {

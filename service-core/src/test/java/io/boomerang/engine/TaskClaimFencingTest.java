@@ -8,7 +8,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.AgentRegistrationRequest;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.dispatcher.DispatcherService;
@@ -37,7 +37,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
 
   private String registerAgent(String name) {
     return dispatcherService.register(
-        new AgentRegistrationRequest(name, name + ".local", List.of("template")));
+        new DispatcherRegistrationRequest(name, name + ".local", List.of("template")));
   }
 
   private static boolean containsId(ResponseEntity<List<TaskRun>> response, String id) {

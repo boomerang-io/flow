@@ -9,7 +9,7 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.AgentRegistrationRequest;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.List;
@@ -28,10 +28,10 @@ import org.springframework.http.ResponseEntity;
 /**
  * Agent task-queue claim semantics: each ready TaskRun is claimed via a per-document
  * Compare-And-Set, so exactly one agent receives it and the claim records ownership (claim block,
- * incremented claim seq, agentRef alias). Terminal runs are not eligible and are never
+ * incremented claim seq, dispatcherRef alias). Terminal runs are not eligible and are never
  * redelivered.
  */
-class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
+class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -39,7 +39,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
 
   private String registerAgent(String name) {
     return dispatcherService.register(
-        new AgentRegistrationRequest(name, name + ".local", List.of("template")));
+        new DispatcherRegistrationRequest(name, name + ".local", List.of("template")));
   }
 
   private TaskRunEntity savedTerminalTaskRun() {
@@ -125,7 +125,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
       assertEquals(RunPhase.queued, claimed.getPhase());
       assertNotNull(claimed.getClaim(), "the winner's claim block must be recorded");
       assertEquals((aGotIt ? agentA : agentB), claimed.getClaim().getBy());
-      assertEquals((aGotIt ? agentA : agentB), claimed.getAgentRef());
+      assertEquals((aGotIt ? agentA : agentB), claimed.getDispatcherRef());
       assertEquals(1L, claimed.getClaim().getSeq());
     } finally {
       pool.shutdownNow();
@@ -145,7 +145,7 @@ class AgentQueueClaimTest extends AbstractEngineIntegrationTest {
             .orElseThrow();
 
     // The wire payload the agent receives must reflect the post-claim transition, not the stale
-    // pre-claim pending phase the findAndModify pre-image originally held. (agentRef is an internal
+    // pre-claim pending phase the findAndModify pre-image originally held. (dispatcherRef is an internal
     // field and is intentionally not exposed on the public TaskRun model.)
     assertEquals(RunPhase.queued, claimed.getPhase());
   }

@@ -120,7 +120,7 @@ public class TaskRunService {
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
             .set("claim.at", now)
-            .set("agentRef", claimedBy)
+            .set("dispatcherRef", claimedBy)
             .inc("claim.seq", 1)
             .unset("retry.after");
     TaskRunEntity preImage =
@@ -130,7 +130,7 @@ public class TaskRunService {
       // Return the pre-image with the claim transition applied - the caller ships this to the
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
-      preImage.setAgentRef(claimedBy);
+      preImage.setDispatcherRef(claimedBy);
     }
     return preImage;
   }
@@ -277,7 +277,7 @@ public class TaskRunService {
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt")
-            .unset("agentRef")
+            .unset("dispatcherRef")
             .unset("timeoutAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);

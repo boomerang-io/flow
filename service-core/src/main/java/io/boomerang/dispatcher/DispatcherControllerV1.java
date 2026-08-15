@@ -1,6 +1,6 @@
 package io.boomerang.dispatcher;
 
-import io.boomerang.common.model.AgentRegistrationRequest;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,7 +32,7 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public String registerDispatcher(@RequestBody AgentRegistrationRequest request) {
+  public String registerDispatcher(@RequestBody DispatcherRegistrationRequest request) {
     return dispatcherService.register(request);
   }
 

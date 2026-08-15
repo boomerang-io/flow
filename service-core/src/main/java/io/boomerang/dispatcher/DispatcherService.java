@@ -5,11 +5,11 @@ import static io.boomerang.workflow.ConvertUtil.entityToModel;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.AgentRegistrationRequest;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.dispatcher.entity.AgentEntity;
-import io.boomerang.dispatcher.repository.AgentRepository;
+import io.boomerang.dispatcher.entity.DispatcherEntity;
+import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunService;
 import java.time.Instant;
@@ -39,13 +39,13 @@ public class DispatcherService {
   @Value("${flow.queue.enabled:true}")
   private boolean queueEnabled;
 
-  private final AgentRepository agentRepository;
+  private final DispatcherRepository agentRepository;
   private final WorkflowRunService workflowRunService;
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
 
   public DispatcherService(
-      AgentRepository agentRepository,
+      DispatcherRepository agentRepository,
       WorkflowRunService workflowRunService,
       TaskRunService taskRunService,
       MongoTemplate mongoTemplate) {
@@ -67,14 +67,14 @@ public class DispatcherService {
    * @param request
    * @return the ID of the registered agent
    */
-  public String register(AgentRegistrationRequest request) {
+  public String register(DispatcherRegistrationRequest request) {
     if (request == null || request.getHost() == null || request.getHost().isEmpty()) {
       throw new IllegalArgumentException("Agent ID must not be null or empty");
     }
 
     // Idempotent registration: an agent re-registering with the same name and host refreshes its
     // record instead of colliding on the unique index.
-    AgentEntity entity =
+    DispatcherEntity entity =
         mongoTemplate.findAndModify(
             Query.query(
                 Criteria.where("name").is(request.getName()).and("host").is(request.getHost())),
@@ -84,7 +84,7 @@ public class DispatcherService {
                 .set("lastConnectedDate", new Date())
                 .setOnInsert("creationDate", new Date()),
             new FindAndModifyOptions().upsert(true).returnNew(true),
-            AgentEntity.class);
+            DispatcherEntity.class);
 
     // Log the registration for debugging purposes
     LOGGER.debug(
@@ -180,7 +180,7 @@ public class DispatcherService {
       throw new IllegalArgumentException("Agent ID does not exist or is not registered.");
     }
     agentRepository.updateLastConnected(agentId, new Date());
-    AgentEntity entity = agentRepository.findTaskTypesByAgentId(agentId);
+    DispatcherEntity entity = agentRepository.findTaskTypesByAgentId(agentId);
     if (entity != null && entity.getTaskTypes() != null && entity.getTaskTypes().isEmpty()) {
       LOGGER.warn("Agent {} has no task types defined. Returning 204.", agentId);
       return ResponseEntity.noContent().build();

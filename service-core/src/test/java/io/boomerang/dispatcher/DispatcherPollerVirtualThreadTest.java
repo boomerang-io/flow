@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
  * common pool and defeat running the poll on virtual threads; a clean run confirms the claim path
  * stays unmounted, so the poll can scale past the platform-thread ceiling without a rewrite.
  */
-class AgentPollerVirtualThreadTest extends AbstractEngineIntegrationTest {
+class DispatcherPollerVirtualThreadTest extends AbstractEngineIntegrationTest {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
