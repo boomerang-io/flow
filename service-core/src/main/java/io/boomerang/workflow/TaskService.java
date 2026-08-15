@@ -1,6 +1,5 @@
 package io.boomerang.workflow;
 
-import io.boomerang.client.EngineClient;
 import io.boomerang.api.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
@@ -21,6 +20,7 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.stereotype.Service;
 
@@ -39,17 +39,17 @@ public class TaskService {
 
   private static final String NAME_REGEX = "^([0-9a-zA-Z\\-]+)$";
 
-  private final EngineClient engineClient;
+  private final TaskDefinitionService taskDefinitionService;
   private final RelationshipService relationshipService;
   private final IdentityService identityService;
   private final UserService userService;
 
   public TaskService(
-      EngineClient engineClient,
+      TaskDefinitionService taskDefinitionService,
       RelationshipService relationshipService,
       IdentityService identityService,
       UserService userService) {
-    this.engineClient = engineClient;
+    this.taskDefinitionService = taskDefinitionService;
     this.relationshipService = relationshipService;
     this.identityService = identityService;
     this.userService = userService;
@@ -99,7 +99,7 @@ public class TaskService {
   }
 
   private Task internalGet(String id, Optional<Integer> version) {
-    Task taskTemplate = engineClient.getTask(id, version);
+    Task taskTemplate = taskDefinitionService.get(id, version);
 
     // Switch author from ID to Name
     switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
@@ -165,9 +165,20 @@ public class TaskService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       List<String> queryRefs) {
+    // The old URL builder always appended an "ids" query param (even for an empty list), so the
+    // Engine's queryIds Optional was always present - preserved here as Optional.of(queryRefs)
+    // rather than being conditioned on emptiness.
+    Page<Task> page =
+        taskDefinitionService.query(
+            queryLimit,
+            queryPage,
+            querySort,
+            queryLabels,
+            queryStatus,
+            Optional.empty(),
+            Optional.of(queryRefs));
     TaskResponsePage response =
-        engineClient.queryTask(
-            queryLimit, queryPage, querySort, queryLabels, queryStatus, queryRefs);
+        new TaskResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
 
     if (!response.getContent().isEmpty()) {
       response
@@ -266,7 +277,7 @@ public class TaskService {
     updateChangeLog(request.getChangelog());
 
     // Come back to this once we have separated the controllers - works better for scope checks.
-    Task taskTemplate = engineClient.createTask(request);
+    Task taskTemplate = taskDefinitionService.create(request);
     switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
 
     return taskTemplate;
@@ -336,7 +347,7 @@ public class TaskService {
     // Update Changelog
     updateChangeLog(request.getChangelog());
 
-    Task template = engineClient.applyTask(request, replace);
+    Task template = taskDefinitionService.apply(request, replace);
     switchChangeLogAuthorToUserName(template.getChangelog());
 
     return template;
@@ -441,7 +452,7 @@ public class TaskService {
   }
 
   private List<ChangeLogVersion> internalChangelog(String id) {
-    List<ChangeLogVersion> changeLog = engineClient.getTaskChangeLog(id);
+    List<ChangeLogVersion> changeLog = taskDefinitionService.changelog(id);
     changeLog.forEach(clv -> switchChangeLogAuthorToUserName(clv));
     return changeLog;
   }
@@ -462,7 +473,7 @@ public class TaskService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      engineClient.deleteTask(refs.get(0));
+      taskDefinitionService.delete(refs.get(0));
     }
     // TODO - change error to don't have access
     throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);

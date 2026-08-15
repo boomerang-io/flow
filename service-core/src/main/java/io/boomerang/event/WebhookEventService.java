@@ -5,7 +5,6 @@ import static io.cloudevents.core.CloudEventUtils.mapData;
 import com.fasterxml.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.boomerang.client.EngineClient;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
@@ -20,6 +19,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.IntegrationService;
+import io.boomerang.engine.WorkflowRunService;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.boomerang.workflow.WorkflowService;
 import io.cloudevents.CloudEvent;
@@ -46,7 +46,7 @@ public class WebhookEventService {
   private boolean autoStart;
 
   private final WorkflowService workflowService;
-  private final EngineClient engineClient;
+  private final WorkflowRunService workflowRunService;
   // H6: IntegrationService only exists in flow.mode=full (io.boomerang.integrations is
   // mode-gated) - Optional so this service still constructs in engine/standalone.
   private final Optional<IntegrationService> integrationService;
@@ -54,11 +54,11 @@ public class WebhookEventService {
 
   public WebhookEventService(
       WorkflowService workflowService,
-      EngineClient engineClient,
+      WorkflowRunService workflowRunService,
       Optional<IntegrationService> integrationService,
       RelationshipService relationshipService) {
     this.workflowService = workflowService;
-    this.engineClient = engineClient;
+    this.workflowRunService = workflowRunService;
     this.integrationService = integrationService;
     this.relationshipService = relationshipService;
   }
@@ -176,7 +176,7 @@ public class WebhookEventService {
       RunResult data = new RunResult("data", (Object) payload);
       request.setResults(List.of(data));
     }
-    engineClient.eventWorkflowRun(workflowRunId, request);
+    workflowRunService.event(workflowRunId, request);
   }
 
   /*

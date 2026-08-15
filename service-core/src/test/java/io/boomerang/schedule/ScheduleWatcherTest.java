@@ -13,13 +13,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.client.EngineClient;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.core.config.MongoConfiguration;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.WorkflowDefinitionService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.ZonedDateTime;
 import java.util.Date;
@@ -125,7 +125,7 @@ class ScheduleWatcherTest {
             scheduleRepository,
             mock(WorkflowService.class),
             relationshipService,
-            mock(EngineClient.class),
+            mock(WorkflowDefinitionService.class),
             mongoTemplate);
     scheduleJob = mock(ScheduleJob.class);
     watcher = new ScheduleWatcher(scheduleRepository, service, scheduleJob, relationshipService);

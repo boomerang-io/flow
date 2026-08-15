@@ -1,6 +1,5 @@
 package io.boomerang.workflow;
 
-import io.boomerang.client.EngineClient;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import java.util.Objects;
@@ -21,15 +20,16 @@ public class TaskRunService {
   private String getStreamDownloadPath;
 
   private final RestTemplate restTemplate;
-  private final EngineClient engineClient;
+  // FQN required: io.boomerang.engine.TaskRunService shares this class's simple name.
+  private final io.boomerang.engine.TaskRunService engineTaskRunService;
   private final ParameterManager parameterManager;
 
   public TaskRunService(
       @Qualifier("internalRestTemplate") RestTemplate restTemplate,
-      EngineClient engineClient,
+      io.boomerang.engine.TaskRunService engineTaskRunService,
       ParameterManager parameterManager) {
     this.restTemplate = restTemplate;
-    this.engineClient = engineClient;
+    this.engineTaskRunService = engineTaskRunService;
     this.parameterManager = parameterManager;
   }
 
@@ -41,7 +41,7 @@ public class TaskRunService {
       // RelationshipType.BELONGSTO);
       //      if (!rel.isEmpty()) {
       LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
-      return engineClient.streamTaskRunLog(taskRunId);
+      return engineTaskRunService.streamLog(taskRunId);
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
   }

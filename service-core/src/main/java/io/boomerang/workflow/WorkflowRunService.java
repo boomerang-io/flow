@@ -1,6 +1,5 @@
 package io.boomerang.workflow;
 
-import io.boomerang.client.EngineClient;
 import io.boomerang.api.model.WorkflowRunResponsePage;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -11,10 +10,12 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.model.WorkflowRunRequest;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -31,15 +32,16 @@ public class WorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  private final EngineClient engineClient;
+  // FQN required: io.boomerang.engine.WorkflowRunService shares this class's simple name.
+  private final io.boomerang.engine.WorkflowRunService engineWorkflowRunService;
   private final RelationshipService relationshipService;
   private final ActionService actionService;
 
   public WorkflowRunService(
-      EngineClient engineClient,
+      io.boomerang.engine.WorkflowRunService engineWorkflowRunService,
       RelationshipService relationshipService,
       ActionService actionService) {
-    this.engineClient = engineClient;
+    this.engineWorkflowRunService = engineWorkflowRunService;
     this.relationshipService = relationshipService;
     this.actionService = actionService;
   }
@@ -58,7 +60,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.getWorkflowRun(workflowRunId, withTasks);
+      WorkflowRun wfRun = engineWorkflowRunService.get(workflowRunId, withTasks);
       return ResponseEntity.ok(wfRun);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
@@ -94,18 +96,21 @@ public class WorkflowRunService {
     // TODO query workflow runs
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
     if (!wfRefs.isEmpty()) {
-      return engineClient.queryWorkflowRuns(
-          fromDate,
-          toDate,
-          queryLimit,
-          queryPage,
-          queryOrder,
-          queryLabels,
-          queryStatus,
-          queryPhase,
-          Optional.empty(),
-          Optional.of(wfRefs),
-          queryTriggers);
+      Page<WorkflowRun> page =
+          engineWorkflowRunService.query(
+              fromDate.map(Date::new),
+              toDate.map(Date::new),
+              queryLimit,
+              queryPage,
+              queryOrder,
+              queryLabels,
+              queryStatus,
+              queryPhase,
+              Optional.empty(),
+              Optional.of(wfRefs),
+              queryTriggers);
+      return new WorkflowRunResponsePage(
+          page.getContent(), page.getPageable(), page.getTotalElements());
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
@@ -130,8 +135,8 @@ public class WorkflowRunService {
             false);
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
 
-    return engineClient.insightWorkflowRuns(
-        queryLabels, Optional.empty(), Optional.of(wfRefs), from, to);
+    return engineWorkflowRunService.insights(
+        from.map(Date::new), to.map(Date::new), queryLabels, Optional.empty(), Optional.of(wfRefs));
   }
 
   /*
@@ -152,7 +157,8 @@ public class WorkflowRunService {
             false);
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
 
-    return engineClient.countWorkflowRuns(queryLabels, Optional.of(wfRefs), from, to);
+    return engineWorkflowRunService.count(
+        from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(wfRefs));
   }
 
   /*
@@ -170,7 +176,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.startWorkflowRun(workflowRunId, optRunRequest);
+      WorkflowRun wfRun = engineWorkflowRunService.start(workflowRunId, optRunRequest);
       return ResponseEntity.ok(wfRun);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
@@ -191,7 +197,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.finalizeWorkflowRun(workflowRunId);
+      WorkflowRun wfRun = engineWorkflowRunService.finalize(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
@@ -210,7 +216,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.cancelWorkflowRun(workflowRunId);
+      WorkflowRun wfRun = engineWorkflowRunService.cancel(workflowRunId);
       actionService.cancelAllByWorkflowRun(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
@@ -231,7 +237,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.pauseWorkflowRun(workflowRunId);
+      WorkflowRun wfRun = engineWorkflowRunService.pause(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
@@ -250,7 +256,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.resumeWorkflowRun(workflowRunId);
+      WorkflowRun wfRun = engineWorkflowRunService.resume(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
@@ -269,7 +275,7 @@ public class WorkflowRunService {
         workflowRunId,
         Optional.of(RelationshipType.TEAM),
         Optional.of(List.of(team)))) {
-      WorkflowRun wfRun = engineClient.retryWorkflowRun(workflowRunId);
+      WorkflowRun wfRun = engineWorkflowRunService.retry(workflowRunId, false, 1);
 
       // Creates relationship with owning team
       relationshipService.createNodeAndEdge(

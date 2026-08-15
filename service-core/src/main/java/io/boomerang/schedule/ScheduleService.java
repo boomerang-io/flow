@@ -6,7 +6,6 @@ import com.cronutils.model.definition.CronDefinition;
 import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.model.time.ExecutionTime;
 import com.cronutils.parser.CronParser;
-import io.boomerang.client.EngineClient;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
@@ -18,6 +17,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.schedule.model.WorkflowScheduleCalendar;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.WorkflowDefinitionService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -52,19 +52,19 @@ public class ScheduleService {
   private final WorkflowScheduleRepository scheduleRepository;
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
-  private final EngineClient engineClient;
+  private final WorkflowDefinitionService workflowDefinitionService;
   private final MongoTemplate mongoTemplate;
 
   public ScheduleService(
       WorkflowScheduleRepository scheduleRepository,
       WorkflowService workflowService,
       RelationshipService relationshipService,
-      EngineClient engineClient,
+      WorkflowDefinitionService workflowDefinitionService,
       MongoTemplate mongoTemplate) {
     this.scheduleRepository = scheduleRepository;
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
-    this.engineClient = engineClient;
+    this.workflowDefinitionService = workflowDefinitionService;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -205,7 +205,9 @@ public class ScheduleService {
       throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
     }
     Workflow workflow =
-        engineClient.getWorkflow(schedule.getWorkflowRef(), Optional.empty(), false);
+        workflowDefinitionService
+            .get(schedule.getWorkflowRef(), Optional.empty(), false)
+            .getBody();
     WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
     BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
     Boolean enableJob = false;

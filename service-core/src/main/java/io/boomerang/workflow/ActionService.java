@@ -1,6 +1,5 @@
 package io.boomerang.workflow;
 
-import io.boomerang.client.EngineClient;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
@@ -9,6 +8,7 @@ import io.boomerang.common.model.Actioner;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
@@ -44,7 +44,8 @@ public class ActionService {
 
   private final ActionRepository actionRepository;
   private final ApproverGroupRepository approverGroupRepository;
-  private final EngineClient engineClient;
+  private final TaskRunService engineTaskRunService;
+  private final WorkflowDefinitionService workflowDefinitionService;
   private final RelationshipService relationshipService;
   private final UserService userService;
   private final MongoTemplate mongoTemplate;
@@ -52,13 +53,15 @@ public class ActionService {
   public ActionService(
       ActionRepository actionRepository,
       ApproverGroupRepository approverGroupRepository,
-      EngineClient engineClient,
+      TaskRunService engineTaskRunService,
+      WorkflowDefinitionService workflowDefinitionService,
       RelationshipService relationshipService,
       UserService userService,
       MongoTemplate mongoTemplate) {
     this.actionRepository = actionRepository;
     this.approverGroupRepository = approverGroupRepository;
-    this.engineClient = engineClient;
+    this.engineTaskRunService = engineTaskRunService;
+    this.workflowDefinitionService = workflowDefinitionService;
     this.relationshipService = relationshipService;
     this.userService = userService;
     this.mongoTemplate = mongoTemplate;
@@ -144,7 +147,7 @@ public class ActionService {
         try {
           TaskRunEndRequest endRequest = new TaskRunEndRequest();
           endRequest.setStatus(approved ? RunStatus.succeeded : RunStatus.failed);
-          engineClient.endTaskRun(actionEntity.getTaskRunRef(), endRequest);
+          engineTaskRunService.end(actionEntity.getTaskRunRef(), Optional.ofNullable(endRequest));
         } catch (BoomerangException e) {
           throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
         }
@@ -173,10 +176,12 @@ public class ActionService {
     }
 
     Workflow workflow =
-        engineClient.getWorkflow(actionEntity.getWorkflowRef(), Optional.empty(), false);
+        workflowDefinitionService
+            .get(actionEntity.getWorkflowRef(), Optional.empty(), false)
+            .getBody();
     action.setWorkflowName(workflow.getName());
     try {
-      TaskRun taskRun = engineClient.getTaskRun(actionEntity.getTaskRunRef());
+      TaskRun taskRun = engineTaskRunService.get(actionEntity.getTaskRunRef()).getBody();
       action.setTaskName(taskRun.getName());
     } catch (BoomerangException e) {
       LOGGER.error(

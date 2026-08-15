@@ -1,12 +1,12 @@
 package io.boomerang.api;
 
-import io.boomerang.client.EngineClient;
 import io.boomerang.api.model.WorkflowTemplateResponsePage;
 import io.boomerang.common.model.WorkflowTemplate;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.workflow.WorkflowTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,7 +14,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort.Direction;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,10 +33,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Workflow Templates", description = "Create, List, and Manage your Workflows.")
 public class WorkflowTemplateControllerV2 {
 
-  EngineClient engineClient;
+  WorkflowTemplateService workflowTemplateService;
 
-  public WorkflowTemplateControllerV2(EngineClient engineClient) {
-    this.engineClient = engineClient;
+  public WorkflowTemplateControllerV2(WorkflowTemplateService workflowTemplateService) {
+    this.workflowTemplateService = workflowTemplateService;
   }
 
   @GetMapping(value = "/{name}")
@@ -61,7 +63,10 @@ public class WorkflowTemplateControllerV2 {
       @Parameter(name = "withTasks", description = "Include Tasks", required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return engineClient.getWorkflowTemplate(name, version, withTasks);
+    // WorkflowTemplateService#get never accepted the withTasks param either - it always
+    // returned the template with false regardless of what the caller asked for. Preserved here
+    // bug-for-bug: withTasks is intentionally ignored.
+    return workflowTemplateService.get(name, version, false);
   }
 
   @GetMapping(value = "/query")
@@ -103,7 +108,10 @@ public class WorkflowTemplateControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return engineClient.queryWorkflowTemplates(limit, page, sort, labels, names);
+    Page<WorkflowTemplate> resultPage =
+        workflowTemplateService.query(limit, page, sort, labels, names);
+    return new WorkflowTemplateResponsePage(
+        resultPage.getContent(), resultPage.getPageable(), resultPage.getTotalElements());
   }
 
   @PostMapping(value = "")
@@ -118,7 +126,7 @@ public class WorkflowTemplateControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public WorkflowTemplate create(@RequestBody WorkflowTemplate request) {
-    return engineClient.createWorkflowTemplate(request);
+    return workflowTemplateService.create(request);
   }
 
   @PutMapping(value = "")
@@ -137,7 +145,7 @@ public class WorkflowTemplateControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return engineClient.applyWorkflowTemplate(request, replace);
+    return workflowTemplateService.apply(request, replace);
   }
 
   @DeleteMapping(value = "/{name}")
@@ -155,7 +163,9 @@ public class WorkflowTemplateControllerV2 {
       @Parameter(name = "name", description = "Name of Workflow Template", required = true)
           @PathVariable
           String name) {
-    return engineClient.deleteWorkflowTemplate(name);
+    // WorkflowTemplateService#delete explicitly returns 204 No Content - matched here.
+    workflowTemplateService.delete(name);
+    return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
   }
   //
   //  @GetMapping(value = "/{name}/export", produces = "application/json")
