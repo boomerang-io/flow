@@ -1,0 +1,63 @@
+{
+  "documents": [
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000100"
+      },
+      "type": "global",
+      "name": "admin",
+      "description": "",
+      "permissions": [
+        "**/**"
+      ]
+    },
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000101"
+      },
+      "type": "global",
+      "name": "operator",
+      "description": "",
+      "permissions": [
+        "**/read",
+        "**/write",
+        "**/action"
+      ]
+    },
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000102"
+      },
+      "type": "workspace",
+      "name": "editor",
+      "description": "",
+      "permissions": [
+        "**/read",
+        "**/write",
+        "**/action"
+      ]
+    },
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000103"
+      },
+      "type": "workspace",
+      "name": "owner",
+      "description": "",
+      "permissions": [
+        "**/**"
+      ]
+    },
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000104"
+      },
+      "type": "workspace",
+      "name": "reader",
+      "description": "",
+      "permissions": [
+        "**/read"
+      ]
+    }
+  ]
+}

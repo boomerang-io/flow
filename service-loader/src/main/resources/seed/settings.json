@@ -1,0 +1,473 @@
+{
+  "documents": [
+    {
+      "_id": {
+        "$oid": "62b0f1f5a6166d30af05fa5d"
+      },
+      "config": [
+        {
+          "description": "The name to appear in the header (and throughout the App) that appears to the right of the Platform Name or Logo.",
+          "key": "appName",
+          "label": "App Name",
+          "type": "text",
+          "value": "Flow",
+          "readOnly": false
+        },
+        {
+          "description": "The overall platform name. This only appears if the logo is set to not appear.",
+          "key": "platformName",
+          "label": "Platform Name",
+          "type": "text",
+          "value": "Boomerang",
+          "readOnly": false
+        },
+        {
+          "description": "Whether to display the platforms Logo or use the Platform Name.",
+          "key": "displayLogo",
+          "label": "Display Platform Logo",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "A URL for retrieving the Platform Logo.",
+          "key": "logoURL",
+          "label": "Logo URL",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        }
+      ],
+      "description": "Configure the customizations to this particular instance of Flow and maximise the experience for your users.",
+      "key": "customizations",
+      "lastModiifed": {
+        "$date": "2022-06-15T12:07:48.123Z"
+      },
+      "name": "Configure Customizations",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "612904d60b07a54cdc4dc6a9"
+      },
+      "config": [
+        {
+          "description": "Allow users to access and interact with Activity",
+          "key": "activity",
+          "label": "Activity",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow users to access and view Insights",
+          "key": "insights",
+          "label": "Insights",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enforce Team level quotas",
+          "key": "teamQuotas",
+          "label": "Team Quotas",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable Workflow Triggers to be visible on the Workflows Configuration",
+          "key": "workflowTriggers",
+          "label": "Workflow Triggers",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable Workflow Tokens to be visible on the Workflows Configuration",
+          "key": "workflowTokens",
+          "label": "Workflow Tokens",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable users to access and create Team Parameters",
+          "key": "teamParameters",
+          "label": "Team Parameters",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable users to access and create Global Parameters",
+          "key": "globalParameters",
+          "label": "Global Parameters",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow management and editing of Teams. The Teams screen will always be visible but if disabled will be in view only mode",
+          "key": "teamManagement",
+          "label": "Team Management",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow management and editing of Users. The Users screen will always be visible but if disabled will be in view only mode",
+          "key": "userManagement",
+          "label": "User Management",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow users to access and create Team Tasks",
+          "key": "teamTasks",
+          "label": "Team Tasks",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        }
+      ],
+      "description": "Retain control and personalize the experience for your users by enabling or disabling functionality.",
+      "key": "features",
+      "lastModiifed": {
+        "$date": "2021-08-23T21:57:01.577Z"
+      },
+      "name": "Features",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "62a7bec0a6166d30aff64a5b"
+      },
+      "config": [
+        {
+          "description": "The default auth token for authenticating as a Slack app. Only used if installing into a single workspace and not a distributed app.",
+          "key": "slack.token",
+          "label": "Slack Auth Token",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The App ID from your Slack apps credentials.",
+          "key": "slack.appId",
+          "label": "Slack App ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client ID from your Slack apps credentials.",
+          "key": "slack.clientId",
+          "label": "Slack Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client Secret from your Slack apps credentials.",
+          "key": "slack.clientSecret",
+          "label": "Slack Client Secret",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "slack.signingSecret",
+          "label": "Slack Signing Secret",
+          "value": "",
+          "description": "The Signing Secret from your Slack apps credentials.",
+          "type": "secured",
+          "readOnly": false
+        },
+        {
+          "key": "github.appId",
+          "description": "The GitHub App ID",
+          "label": "GitHub App ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.pem",
+          "description": "Private key used to sign access token requests",
+          "label": "GitHub Private Key",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.appName",
+          "description": "The GitHub App Name",
+          "label": "GitHub App Name",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        }
+      ],
+      "description": "Define the configuration for integrating with the extensions.",
+      "key": "integration",
+      "lastModiifed": {
+        "$date": "2022-06-15T12:07:48.123Z"
+      },
+      "name": "Integration Configuration",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "5f32cb19d09662744c0df51d"
+      },
+      "config": [
+        {
+          "description": "Enable Debug logging for worker logs",
+          "key": "debug",
+          "label": "Enable Debug",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Default container image to be used by the Worker including version",
+          "key": "default.image",
+          "label": "Default Image Path",
+          "type": "text",
+          "value": "boomerangio/worker-flow:2.11.15",
+          "readOnly": false
+        },
+        {
+          "description": "Defines the completion state that will lead to worker removal",
+          "key": "deletion.policy",
+          "label": "Deletion Policy",
+          "type": "select",
+          "minValueLength": 0,
+          "maxValueLength": 128,
+          "options": [
+            {
+              "key": "Never",
+              "value": "Never"
+            },
+            {
+              "key": "OnSuccess",
+              "value": "On Success"
+            },
+            {
+              "key": "Always",
+              "value": "Always"
+            }
+          ],
+          "value": "Never",
+          "readOnly": false
+        },
+        {
+          "description": "When enabled, verified tasks can be edited in the task manager",
+          "key": "edit.verified",
+          "label": "Enable Verified Tasks to be edited",
+          "type": "boolean",
+          "value": "false"
+        },
+        {
+          "description": "Task Timeout Configuration specified in minutes",
+          "key": "default.timeout",
+          "label": "Task Timeout Configuration",
+          "type": "number",
+          "value": "90",
+          "readOnly": false
+        }
+      ],
+      "description": "The task and underlying task execution configuration.",
+      "key": "task",
+      "lastModiifed": {
+        "$date": "2020-08-20T00:59:19.145Z"
+      },
+      "name": "Task Configuration",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "61393f5966c5eea103dfe134"
+      },
+      "config": [
+        {
+          "description": "The number of workflows that can be running at the same time",
+          "key": "max.workflowrun.concurrent",
+          "label": "Maximum Concurrent Workflows",
+          "type": "number",
+          "value": "4",
+          "readOnly": false
+        },
+        {
+          "description": "The total number of workflows that a team can have",
+          "key": "max.workflow.count",
+          "label": "Maximum Number of Workflows",
+          "type": "number",
+          "value": "10",
+          "readOnly": false
+        },
+        {
+          "description": "The number of workflow executions per month",
+          "key": "max.workflowrun.monthly",
+          "label": "Max WorkflowRuns per month",
+          "type": "number",
+          "value": "20",
+          "readOnly": false
+        },
+        {
+          "description": "The maximum time that a workflow can be executing for in minutes",
+          "key": "max.workflowrun.duration",
+          "label": "Max WorkflowRun Duration",
+          "type": "number",
+          "value": "30",
+          "readOnly": false
+        },
+        {
+          "description": "Maximum storage allowed per Workflow across runs (executions)",
+          "key": "max.workflow.storage",
+          "label": "Max Workflow Storage",
+          "type": "text",
+          "value": "25Gi",
+          "readOnly": false
+        },
+        {
+          "key": "max.workflowrun.storage",
+          "description": "Maximum storage allowed per WorkflowRun (execution)",
+          "label": "Max WorkflowRun Storage",
+          "type": "text",
+          "value": "2Gi",
+          "readOnly": false
+        }
+      ],
+      "description": "Define default team quotas which are referenced unless overridden on the Team.",
+      "key": "teams",
+      "lastModiifed": {
+        "$date": "2021-08-23T21:57:01.577Z"
+      },
+      "name": "Team Quotas",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "60245b56226920beece547e3"
+      },
+      "config": [
+        {
+          "description": "The size to request when dynamically creating the volume",
+          "key": "storage.size",
+          "label": "Default Storage Size ",
+          "type": "text",
+          "value": "1Gi",
+          "readOnly": false
+        },
+        {
+          "description": "The storage class to use when dynamically creating the volume. If left blank the clusters default Storage Class will be used.",
+          "key": "storage.class",
+          "label": "Storage Class Name",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The access mode to use when dynamically creating the volume.",
+          "key": "storage.accessMode",
+          "label": "Storage Access Mode",
+          "type": "select",
+          "options": [
+            {
+              "key": "ReadWriteMany",
+              "value": "Read Write Many"
+            },
+            {
+              "key": "ReadWriteOnce",
+              "value": "Read Write Once"
+            },
+            {
+              "key": "ReadOnlyMany",
+              "value": "Read Only Many"
+            }
+          ],
+          "value": "ReadWriteMany",
+          "readOnly": false
+        },
+        {
+          "description": "Maximum storage size",
+          "key": "max.storage.size",
+          "label": "Maximum storage size",
+          "type": "text",
+          "value": "5Gi",
+          "readOnly": false
+        }
+      ],
+      "description": "Define how the system utilizes and interacts with storage.",
+      "key": "workflow",
+      "lastModiifed": {
+        "$date": "2021-02-09T15:55:26.799Z"
+      },
+      "name": "Workspace Configuration - Workflow Storage",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "60245957226920beece4fdf9"
+      },
+      "config": [
+        {
+          "description": "The size to request when dynamically creating the volume",
+          "key": "storage.size",
+          "label": "Default Storage Size ",
+          "type": "text",
+          "value": "1Gi",
+          "readOnly": false
+        },
+        {
+          "description": "The storage class to use when dynamically creating the volume. If left blank the clusters default Storage Class will be used.",
+          "key": "storage.class",
+          "label": "Storage Class Name",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The access mode to use when dynamically creating the volume.",
+          "key": "storage.accessMode",
+          "label": "Storage Access Mode",
+          "type": "select",
+          "options": [
+            {
+              "key": "ReadWriteMany",
+              "value": "Read Write Many"
+            },
+            {
+              "key": "ReadWriteOnce",
+              "value": "Read Write Once"
+            },
+            {
+              "key": "ReadOnlyMany",
+              "value": "Read Only Many"
+            }
+          ],
+          "value": "ReadWriteMany",
+          "readOnly": false
+        },
+        {
+          "description": "Maximum storage size",
+          "key": "max.storage.size",
+          "label": "Maximum storage size",
+          "type": "text",
+          "value": "5Gi",
+          "readOnly": false
+        }
+      ],
+      "description": "Define how the system utilizes and interacts with storage.",
+      "key": "workflowrun",
+      "lastModiifed": {
+        "$date": "2021-02-10T22:15:18.729Z"
+      },
+      "name": "Workspace Configuration - Activity Storage",
+      "type": "ValuesList"
+    }
+  ]
+}
