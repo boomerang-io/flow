@@ -406,9 +406,14 @@ class LoaderMigrationTest {
    * present under their v3-era {@code key} values, and a non-empty {@code task_templates}
    * collection (the v3 catalogue location; {@code tasks} is empty, matching a real v3 database).
    * Before {@link InstallGeneration} existed, {@code _0016} threw {@code DuplicateKeyException} on
-   * exactly this shape and aborted the whole migration run. This asserts the run now completes and
-   * that {@code _0016}/{@code _0017}/{@code _0018} skip themselves, leaving the v3 data untouched
-   * for the (separate) v3->v5 migration to reconcile.
+   * exactly this shape and aborted the whole migration run. This asserts the run now completes,
+   * that {@code _0016}/{@code _0017}/{@code _0018} skip themselves (their v5 seed content is never
+   * inserted alongside the v3 data), and that {@code _0021__V3MigrateSettings} DOES migrate the
+   * three real-keyed settings documents (controller/extensions/activity) in place - the other four
+   * carry fictional placeholder v3 keys ("execution"/"toggles"/"quota"/"branding") this fixture
+   * never claimed matched any real v3 install, so {@code _0021} leaves their {@code key} field
+   * alone (it only renames the top-level key for the three documents whose v3 key actually
+   * changes: controller/activity/extensions).
    */
   @Test
   void v3InstallSkipsGenerationBlindSeedsAndMigratesCleanly() {
@@ -434,8 +439,8 @@ class LoaderMigrationTest {
 
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
 
-    // _0016 skipped: still exactly the 7 v3 documents, under their v3 keys - nothing seeded,
-    // nothing thrown.
+    // _0016 skipped (no v5 seed content inserted); _0021 DID migrate the 7 documents in place -
+    // same count, but the three real-keyed ones now carry their v5 keys.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
     assertThat(settings.countDocuments()).isEqualTo(7);
     assertThat(
@@ -443,19 +448,19 @@ class LoaderMigrationTest {
                 .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
                 .first()
                 .getString("key"))
-        .isEqualTo("controller");
+        .isEqualTo("task");
     assertThat(
             settings
                 .find(Filters.eq("_id", new ObjectId("62a7bec0a6166d30aff64a5b")))
                 .first()
                 .getString("key"))
-        .isEqualTo("extensions");
+        .isEqualTo("integration");
     assertThat(
             settings
                 .find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9")))
                 .first()
                 .getString("key"))
-        .isEqualTo("activity");
+        .isEqualTo("workflowrun");
 
     // _0017 skipped: no v5 task catalogue was seeded over the v3 task_templates data.
     assertThat(v3.getCollection(PREFIX + "_tasks").countDocuments()).isZero();
@@ -474,8 +479,12 @@ class LoaderMigrationTest {
         .isNotNull();
     assertThat(v3.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
 
+    // _0031 has neither global_config nor global_params to migrate on this fixture - no-op,
+    // nothing thrown, "parameters" stays empty.
+    assertThat(v3.getCollection(PREFIX + "_parameters").countDocuments()).isZero();
+
     // Re-running against the same v3-shaped database stays a no-op skip, not a second attempt to
-    // seed.
+    // seed - and _0021's own re-run is a no-op rewrite of the already-migrated documents.
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(settings.countDocuments()).isEqualTo(7);

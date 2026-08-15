@@ -24,6 +24,7 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -258,6 +259,8 @@ class V3DumpMigrationTest {
     assertDeadCollectionsDropped();
     assertLiveCollectionsPreserved(workflowsBefore, usersBefore);
     assertGenerationAwareSeedsSkipped();
+    assertSettingsMigrated();
+    assertGlobalParametersMigrated();
 
     // -----------------------------------------------------------------------------------
     // Idempotency — a second full run changes nothing. Compared at per-collection document
@@ -279,6 +282,8 @@ class V3DumpMigrationTest {
     assertGenerationRecorded();
     assertDeadCollectionsDropped();
     assertGenerationAwareSeedsSkipped();
+    assertSettingsMigrated();
+    assertGlobalParametersMigrated();
   }
 
   // =====================================================================================
@@ -326,14 +331,15 @@ class V3DumpMigrationTest {
 
   private void assertLiveCollectionsPreserved(long workflowsBefore, long usersBefore) {
     // Collections a LATER v3->v5 unit still needs the real v3 data from - not this slice's
-    // job to touch, so they must be exactly as restored.
+    // job to touch, so they must be exactly as restored. (settings and global_config ARE
+    // migrated by this slice's own _0021/_0031 - see assertSettingsMigrated/
+    // assertGlobalParametersMigrated below, not here.)
     assertThat(collection("workflows").countDocuments()).isEqualTo(workflowsBefore);
     assertThat(collection("users").countDocuments()).isEqualTo(usersBefore);
     assertThat(collection("settings").countDocuments()).isGreaterThan(0);
     assertThat(collection("task_templates").countDocuments()).isGreaterThan(0);
     assertThat(collection("teams").countDocuments()).isGreaterThan(0);
     assertThat(collection("workflows_activity").countDocuments()).isGreaterThan(0);
-    assertThat(collection("global_config").countDocuments()).isGreaterThan(0);
     // Not legacy at all - the live v5 ExtensionEntity collection, still written under this name.
     assertThat(collection("extensions").countDocuments()).isGreaterThan(0);
     // Kept forever: the historical record InstallGeneration.detect reads, and Mongock's own lock.
@@ -349,15 +355,11 @@ class V3DumpMigrationTest {
   // =====================================================================================
 
   private void assertGenerationAwareSeedsSkipped() {
-    // _0016__SeedSettings: the 8 real v3 settings docs are untouched, still under their v3
-    // "key" values rather than the v5 seed's keys.
-    assertThat(collection("settings").countDocuments()).isEqualTo(8);
-    List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
-    // Exactly the 8 real v3-era keys - proves none of the v5 seed's keys ("task", "workflowrun",
-    // "integration" have no v3 counterpart at all) were inserted alongside them.
-    assertThat(settingsKeys)
-        .containsExactlyInAnyOrder(
-            "controller", "activity", "workflow", "users", "features", "teams", "extensions", "customizations");
+    // _0016__SeedSettings never inserts its own seed documents over a v3 install - settings is
+    // reconciled by this slice's own _0021__V3MigrateSettings instead (see
+    // assertSettingsMigrated below), never by the seed unit re-inserting its 7 fresh documents
+    // alongside the migrated ones.
+    assertThat(collection("settings").countDocuments()).isEqualTo(7);
 
     // _0017__SeedTaskCatalogue: no v5 catalogue seeded over the v3 task_templates data.
     assertThat(collection("tasks").countDocuments()).isZero();
@@ -373,6 +375,119 @@ class V3DumpMigrationTest {
     assertThat(collection("rel_nodes").find(Filters.eq("_id", "root:root")).first()).isNotNull();
     assertThat(collection("teams").find(Filters.eq("name", "system")).first()).isNotNull();
     assertThat(collection("roles").countDocuments()).isGreaterThanOrEqualTo(5);
+  }
+
+  // =====================================================================================
+  // _0021__V3MigrateSettings invariants
+  // =====================================================================================
+
+  private void assertSettingsMigrated() {
+    // The "users" (User Defaults) document has no v5 equivalent - deleted outright.
+    assertThat(collection("settings").find(Filters.eq("_id", new ObjectId("6123c1e20b07a54cdce637c0"))).first())
+        .as("User Defaults settings document must be deleted")
+        .isNull();
+
+    // Exactly 7 documents remain (8 v3 minus the deleted "users" one), under the v5 seed's keys -
+    // proves the v3 documents were migrated in place rather than left under their v3 keys or
+    // duplicated alongside a fresh seed insert.
+    assertThat(collection("settings").countDocuments()).isEqualTo(7);
+    List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
+    assertThat(settingsKeys)
+        .containsExactlyInAnyOrder(
+            "task", "workflowrun", "workflow", "features", "teams", "integration", "customizations");
+
+    // None of the 7 surviving documents carry the stale v3 _class discriminator any more -
+    // MappingMongoConverter would fail to resolve io.boomerang.mongo.entity.FlowSettingsEntity
+    // (not on this classpath) on the next SettingsService read.
+    for (Document doc : collection("settings").find()) {
+      assertThat(doc.containsKey("_class")).as("no settings document keeps its v3 _class").isFalse();
+    }
+
+    // task (v3 "controller"): config keys renamed per legacy 4020.
+    Document task = collection("settings").find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d"))).first();
+    assertThat(task.getString("name")).isEqualTo("Task Configuration");
+    assertThat(configKeys(task))
+        .containsExactlyInAnyOrder("debug", "default.image", "deletion.policy", "edit.verified", "default.timeout");
+
+    // workflowrun (v3 "activity"): key rename only.
+    Document workflowrun =
+        collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
+    assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
+
+    // integration (v3 "extensions"): renamed + GitHub config appended (github.appId/pem/appName),
+    // while the pre-existing (operator-set) slack.* keys survive untouched - including
+    // slack.installURL, which the v5 seed shape does not model at all (documented divergence).
+    Document integration =
+        collection("settings").find(Filters.eq("_id", new ObjectId("62a7bec0a6166d30aff64a5b"))).first();
+    assertThat(integration.getString("name")).isEqualTo("Integration Configuration");
+    assertThat(configKeys(integration))
+        .contains("github.appId", "github.pem", "github.appName", "slack.token", "slack.installURL");
+
+    // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
+    // max.workflowrun.storage entry legacy 4039 introduced.
+    Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
+    assertThat(teams.getString("name")).isEqualTo("Team Quotas");
+    assertThat(configKeys(teams))
+        .containsExactlyInAnyOrder(
+            "max.workflowrun.concurrent",
+            "max.workflow.count",
+            "max.workflowrun.monthly",
+            "max.workflowrun.duration",
+            "max.workflow.storage",
+            "max.workflowrun.storage");
+    Document newStorageEntry =
+        configOf(teams).stream().filter(c -> "max.workflowrun.storage".equals(c.getString("key"))).findFirst().get();
+    assertThat(newStorageEntry.getString("value")).isEqualTo("2Gi");
+
+    // features: workflowQuotas -> teamQuotas.
+    Document features =
+        collection("settings").find(Filters.eq("_id", new ObjectId("612904d60b07a54cdc4dc6a9"))).first();
+    assertThat(configKeys(features)).contains("teamQuotas");
+    assertThat(configKeys(features)).doesNotContain("workflowQuotas");
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Document> configOf(Document setting) {
+    return (List<Document>) setting.get("config");
+  }
+
+  private List<String> configKeys(Document setting) {
+    List<String> keys = new ArrayList<>();
+    for (Document entry : configOf(setting)) {
+      keys.add(entry.getString("key"));
+    }
+    return keys;
+  }
+
+  // =====================================================================================
+  // _0031__V3MigrateGlobalParameters invariants
+  // =====================================================================================
+
+  private void assertGlobalParametersMigrated() {
+    // The v3 source collection - real name global_config, NOT v4's wrongly-targeted
+    // global_params - is dropped once migrated.
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names).as("global_config dropped after migration").doesNotContain(prefixed("global_config"));
+    assertThat(names)
+        .as("global_params never existed on this dump - nothing for the defensive path to drop")
+        .doesNotContain(prefixed("global_params"));
+
+    // The dump's one global_config document (_id 64b9cc1c1e47974fb3116ef2, key "asdasd") landed
+    // in "parameters" under its v5 field names, same _id preserved.
+    Document param =
+        collection("parameters").find(Filters.eq("_id", new ObjectId("64b9cc1c1e47974fb3116ef2"))).first();
+    assertThat(param).as("migrated global parameter must exist under its original _id").isNotNull();
+    assertThat(param.getString("name")).isEqualTo("asdasd");
+    assertThat(param.getString("label")).isEqualTo("asdads");
+    assertThat(param.getString("type")).isEqualTo("text");
+    assertThat(param.getString("description")).isEqualTo("adads");
+    assertThat(param.getString("value")).isEqualTo("adsads");
+    assertThat(param.getBoolean("readOnly")).isFalse();
+    assertThat(param.containsKey("_class"))
+        .as("no stale v3 _class discriminator on the migrated parameter")
+        .isFalse();
+    assertThat(param.containsKey("key")).as("v3 'key' field renamed away, not carried over").isFalse();
   }
 
   // =====================================================================================
