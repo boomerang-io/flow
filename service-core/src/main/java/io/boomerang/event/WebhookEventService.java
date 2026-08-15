@@ -14,6 +14,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.RunScopeResolver;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
@@ -51,16 +52,19 @@ public class WebhookEventService {
   // mode-gated) - Optional so this service still constructs in engine mode.
   private final Optional<IntegrationService> integrationService;
   private final RelationshipService relationshipService;
+  private final RunScopeResolver runScopeResolver;
 
   public WebhookEventService(
       WorkspaceWorkflowService workspaceWorkflowService,
       WorkflowRunService workflowRunService,
       Optional<IntegrationService> integrationService,
-      RelationshipService relationshipService) {
+      RelationshipService relationshipService,
+      RunScopeResolver runScopeResolver) {
     this.workspaceWorkflowService = workspaceWorkflowService;
     this.workflowRunService = workflowRunService;
     this.integrationService = integrationService;
     this.relationshipService = relationshipService;
+    this.runScopeResolver = runScopeResolver;
   }
 
   /*
@@ -93,7 +97,7 @@ public class WebhookEventService {
 
     // Get the Workflows team
     String teamRef =
-        relationshipService.getParentByLabel(
+        runScopeResolver.parentScope(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
 
     // Auto start is not needed when using the default handler
@@ -111,7 +115,7 @@ public class WebhookEventService {
 
     // Get the Workflows team
     String teamRef =
-        relationshipService.getParentByLabel(
+        runScopeResolver.parentScope(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
     if (teamRef.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);

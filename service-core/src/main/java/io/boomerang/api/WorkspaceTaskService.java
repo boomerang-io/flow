@@ -5,6 +5,7 @@ import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.RunScopeResolver;
 import io.boomerang.core.UserService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -42,16 +43,19 @@ public class WorkspaceTaskService {
 
   private final TaskService taskService;
   private final RelationshipService relationshipService;
+  private final RunScopeResolver runScopeResolver;
   private final IdentityService identityService;
   private final UserService userService;
 
   public WorkspaceTaskService(
       TaskService taskService,
       RelationshipService relationshipService,
+      RunScopeResolver runScopeResolver,
       IdentityService identityService,
       UserService userService) {
     this.taskService = taskService;
     this.relationshipService = relationshipService;
+    this.runScopeResolver = runScopeResolver;
     this.identityService = identityService;
     this.userService = userService;
   }
@@ -63,12 +67,7 @@ public class WorkspaceTaskService {
     // Checks principal and provided Task has relationship to Workspace.
     if (!Objects.isNull(name) && !name.isBlank()) {
       List<String> taskRefs =
-          relationshipService.filter(
-              RelationshipType.TEAMTASK,
-              Optional.of(List.of(name)),
-              Optional.of(RelationshipType.WORKSPACE),
-              Optional.of(List.of(team)),
-              false);
+          runScopeResolver.filterInScope(RelationshipType.TEAMTASK, Optional.of(List.of(name)), team, false);
       if (!taskRefs.isEmpty()) {
         // Assumes there is only one task of that slug in a team
         return internalGet(taskRefs.get(0), version);
@@ -125,12 +124,7 @@ public class WorkspaceTaskService {
 
     // Check for relationship
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            queryNames,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
+        runScopeResolver.filterInScope(RelationshipType.TEAMTASK, queryNames, queryTeam, false);
     LOGGER.debug("Task Refs: {}", refs.toString());
     if (refs == null || refs.size() == 0) {
       return new TaskResponsePage();
@@ -199,8 +193,7 @@ public class WorkspaceTaskService {
    */
   public Task create(String team, Task request) {
     // Validate Access
-    if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+    if (!runScopeResolver.checkMembership(team)) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
 
@@ -210,11 +203,7 @@ public class WorkspaceTaskService {
     }
 
     // Check Slugs for Tasks in team
-    if (relationshipService.check(
-        RelationshipType.TEAMTASK,
-        request.getName(),
-        Optional.of(RelationshipType.WORKSPACE),
-        Optional.of(List.of(team)))) {
+    if (runScopeResolver.checkInScope(RelationshipType.TEAMTASK, request.getName(), team)) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
     }
 
@@ -222,15 +211,8 @@ public class WorkspaceTaskService {
     Task task = internalCreate(request);
 
     // Create Relationship
-    relationshipService.createNodeAndEdge(
-        RelationshipType.WORKSPACE,
-        team,
-        RelationshipLabel.HAS_TASK,
-        RelationshipType.TEAMTASK,
-        task.getId(),
-        task.getName(),
-        Optional.empty(),
-        Optional.empty());
+    runScopeResolver.linkToScope(
+        team, RelationshipLabel.HAS_TASK, RelationshipType.TEAMTASK, task.getId(), task.getName());
 
     // Remove ID
     task.setId(null);
@@ -296,12 +278,7 @@ public class WorkspaceTaskService {
     }
 
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        runScopeResolver.filterInScope(RelationshipType.TEAMTASK, Optional.of(List.of(name)), team, false);
     if (!refs.isEmpty()) {
       request.setId(refs.get(0));
       // Name is immutable
@@ -424,12 +401,7 @@ public class WorkspaceTaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
     }
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        runScopeResolver.filterInScope(RelationshipType.TEAMTASK, Optional.of(List.of(name)), team, false);
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
@@ -467,12 +439,7 @@ public class WorkspaceTaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
     }
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        runScopeResolver.filterInScope(RelationshipType.TEAMTASK, Optional.of(List.of(name)), team, false);
     if (!refs.isEmpty()) {
       taskService.delete(refs.get(0));
     }
