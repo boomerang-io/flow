@@ -111,6 +111,11 @@ non-workspace-scoped (users, tokens, system, global catalogue/templates/params).
    replacement. Do before investing in the J4 all-modes audit build-out.
 4. **Slack integration redo** — re-do the entire Slack integration (io.boomerang.integrations
    SlackService). Treat the current one as legacy; do not extend it.
+5. **Standalone identity = IDPZero locally** — standalone mode uses IDPZero as its local identity
+   provider (the ARCHIE pattern — see `~/Workspaces/tlawrie/asdr/.idpzero`), rather than simply
+   running with security off. **Requires frontend changes as well** — so it sequences with/after
+   DD-04 (frontend fold-in). Interacts with AM-7/AM-8: the standalone `flow.security.enabled`
+   default and the auth filter chain get an IDPZero-backed path when this lands.
 
 ### E11 — post-merge (ordered)
 H12 DD-03 versioning → A2 enforcement flip + A3 first-class `bfd` token + H2 public-`phase`
