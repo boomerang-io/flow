@@ -5,7 +5,6 @@ import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
-import io.boomerang.client.WorkflowClient;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
@@ -52,15 +51,11 @@ public class ParameterManager {
 
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
-  private final WorkflowClient workflowClient;
 
   public ParameterManager(
-      WorkflowRunRepository workflowRunRepository,
-      TaskRunRepository taskRunRepository,
-      WorkflowClient workflowClient) {
+      WorkflowRunRepository workflowRunRepository, TaskRunRepository taskRunRepository) {
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
-    this.workflowClient = workflowClient;
   }
 
   /*

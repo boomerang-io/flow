@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.client.WorkflowClient;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
@@ -38,8 +37,7 @@ class ParameterManagerTest {
   void setUp() {
     taskRunRepository = mock(TaskRunRepository.class);
     parameterManager =
-        new ParameterManager(
-            mock(WorkflowRunRepository.class), taskRunRepository, mock(WorkflowClient.class));
+        new ParameterManager(mock(WorkflowRunRepository.class), taskRunRepository);
   }
 
   // (a) plain param: $(params.<name>) resolves from the flattened layer.

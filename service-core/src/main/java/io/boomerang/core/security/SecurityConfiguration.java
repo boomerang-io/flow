@@ -27,8 +27,6 @@ public class SecurityConfiguration {
 
   private static final String HEALTH = "/health";
 
-  private static final String INTERNAL = "/internal/**";
-
   private static final String WEBJARS = "/webjars/**";
 
   private static final String SLACK_INSTALL = "/api/v2/extensions/slack/install";
@@ -58,7 +56,7 @@ public class SecurityConfiguration {
           .authorizeHttpRequests(
               authorize ->
                   authorize
-                      .requestMatchers(HEALTH, API_DOCS, INFO, INTERNAL, WEBJARS, SLACK_INSTALL)
+                      .requestMatchers(HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL)
                       .permitAll()
                       .anyRequest()
                       .authenticated())

@@ -287,7 +287,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     String path = request.getServletPath();
     return path.startsWith("/error")
         || path.startsWith("/health")
-        || path.startsWith("/api/docs")
-        || path.startsWith("/internal");
+        || path.startsWith("/api/docs");
   }
 }

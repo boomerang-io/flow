@@ -1,7 +1,6 @@
 package io.boomerang.engine;
 
 import tools.jackson.databind.ObjectMapper;
-import io.boomerang.client.WorkflowClient;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -10,6 +9,8 @@ import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.entity.TaskLockEntity;
+import io.boomerang.engine.model.ChildWorkflowRunCreated;
+import io.boomerang.engine.model.ScheduleRequested;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -29,6 +30,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -70,7 +72,7 @@ public class TaskExecutionService {
 
   @Autowired private MongoTemplate mongoTemplate;
 
-  @Autowired private WorkflowClient workflowClient;
+  @Autowired private ApplicationEventPublisher eventPublisher;
 
   @Autowired private ParameterManager paramManager;
 
@@ -769,9 +771,8 @@ public class TaskExecutionService {
         LOGGER.debug(
             "[{}] Submitting RunWorkflow Request for ref: {}.", taskExecution.getId(), workflowRef);
         WorkflowRun wfRunResponse = workflowService.submit(workflowRef, request, false);
-        //        WorkflowRun wfRunResponse =
-        //            workflowClient.submitWorkflow(workflowRef, request, Optional.of(false));
-        workflowClient.createWorkflowRunRelationship(workflowRef, wfRunResponse.getId());
+        eventPublisher.publishEvent(
+            new ChildWorkflowRunCreated(workflowRef, wfRunResponse.getId()));
         List<RunResult> wfRunResultResponse = new LinkedList<>();
         RunResult runResult = new RunResult();
         runResult.setName("workflowRunRef");
@@ -864,12 +865,11 @@ public class TaskExecutionService {
         schedule.setTimezone(timezone);
         schedule.setType(WorkflowScheduleType.runOnce);
         try {
-          WorkflowSchedule workflowSchedule = workflowClient.createSchedule(schedule);
-          if (workflowSchedule != null && workflowSchedule.getId() != null) {
-            LOGGER.debug("Workflow Scheudle (" + workflowSchedule.getId() + ") created.");
-            taskExecution.setStatus(RunStatus.succeeded);
-            return;
-          }
+          eventPublisher.publishEvent(new ScheduleRequested(schedule));
+          LOGGER.debug(
+              "Workflow Schedule requested for workflow (" + schedule.getWorkflowRef() + ").");
+          taskExecution.setStatus(RunStatus.succeeded);
+          return;
         } catch (Exception ex) {
           taskExecution.setStatusMessage(ex.getMessage());
           taskExecution.setStatus(RunStatus.failed);
