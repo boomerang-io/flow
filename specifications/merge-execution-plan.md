@@ -128,6 +128,55 @@ its global task graph · workflow + integration templates. All insert-if-absent 
 non-destructive to upgrades); `LoaderMigrationTest` covers fresh-DB, upgraded-install, and
 double-run-with-audit-log-dropped.
 
+## v3 → v5 migration consolidation 🔵 (maintainer-raised 2026-08-16)
+
+**Problem:** every external install is on **v3** — only our own environments went to v4. Today
+`_0001__BaselineExistingInstall` assumes a v4-current install, so there is no working external
+upgrade path: it would need the legacy Mongock v3→v4 chain AND the v5 Flamingock chain (two
+loaders — contradicting AM-9's single-image story), carrying churn from v4 changesets that
+iterate on each other plus v4 work v5 has since renamed or undone.
+
+**Target:** `service-loader` alone takes a **v3 database to the v5 end state**, via consolidated
+("squashed") changeunits that migrate DIRECTLY to v5 shapes — never through an intermediate a
+later changeunit rewrites.
+
+**Scout complete (2026-08-16).** Legacy inventory: v3 baseline = `FlowDatabaseChangeLog` orders
+001–112 (verified 100% v3-era); v4 = `FlowDatabasev4ChangeLog` orders 4000–4048. Classification:
+**31 KEEP · 7 DROP · 5 SQUASH · 1 SPLIT**. Generation discriminator for a live DB:
+`sys_changelog_flow` contains `112` but not `4000` ⇒ v3.
+
+*Most important KEEP:* `4041` (relationship-model introduction) — retargeted to write
+`workspace:<ref>` node ids/edge prefixes DIRECTLY (never v4's `team:`, which `_0012` would then
+have to rewrite — and `_0012` runs BEFORE the new units, so a `team:` write would never be fixed).
+*Notable DROPs:* `4007`/`4012`/`4031` (relationship intermediates superseded by `4041`),
+`4015`/`4023` (superseded by our `_0014`/`_0015` seeds), `4022`/`4024` (Quartz — and `4022`
+targeted a `quartz` collection while v3 writes `jobs`, so it was a **no-op on every real v3 DB**).
+*Correction:* JobRunr `jr_*`/`_sch_*`, EventQueue and the duplicate-audit work do **not** exist in
+the legacy loader — those are v5-side concerns only.
+
+**Blockers found in our own just-shipped seeds (fixed immediately):** `_0016__SeedSettings` guards
+on `key` while all 7 seed `_id`s already exist in a v3 `settings` collection under different keys
+⇒ `DuplicateKeyException` **aborts the whole run**; `_0017__SeedTaskCatalogue` pre-creates `tasks`
+with the exact 87 `_id`s a v3 install still holds in `task_templates` ⇒ blocks the migration;
+`_0018` duplicates template content whose source workflows still live in `workflows`. Seeds are now
+generation-aware (skip on v3; unchanged on v4/fresh). Note `_0001__BaselineExistingInstall` logs
+only — it cannot distinguish v3 from v4, so generation detection is explicit.
+
+**Data already lost on v4 installs** (v3→v5 can be written correctly; v4 cannot be fully repaired):
+`taskVersion` is `null` everywhere — `4005`'s `Document.replace` on a fresh `Document` is a no-op,
+and `4033`/`4034`/`4035` each read the new (absent) key instead of `templateVersion`; approver
+groups vanished (`4011` strips `teams.approverGroups[]`; nothing ever wrote `approver_groups`);
+no workflow audit records (`4038` matched `"WORKFLOW"` against lowercase node types).
+
+### Maintainer rulings (2026-08-16)
+
+| # | Ruling |
+|---|---|
+| M-1 | **Personal workspaces KEEP** — v3→v5 recreates a personal workspace per user (as `4014` did) with a `memberOf` edge; `WorkspaceType.personal`. |
+| M-2 | **Best-effort v4 repair units** — add changeunits repairing what IS recoverable on v4 installs (re-derive `taskVersion` from `task_revisions` where unambiguous; rebuild workflow audit records from `rel_edges`). Approver groups are unrecoverable on v4 (source gone) — document, do not fake. |
+| M-3 | **CosmosDB is NOT a supported v5 target** — `renameCollection` is fine; `_0011__DispatcherRename` stays as-is; consolidated units may use renames freely. |
+| M-4 | **A real v3 dump will be provided** — the three schemas unverifiable from loader source (`global_params`, `workflows_activity_approval`, v3 `approver_groups` embedding) are validated against it before those units are trusted. |
+
 ## Future items (maintainer-added 2026-08-15, not yet scheduled)
 
 1. **WorkflowTemplates sunset evaluation** — possibly retire the whole template-management side
