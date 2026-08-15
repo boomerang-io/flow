@@ -52,6 +52,8 @@ class LoaderMigrationTest {
   private static ObjectId workflowRunWithAgentRef;
   private static ObjectId tokenWithTeamScope;
   private static ObjectId roleWithTeamType;
+  private static ObjectId adminUser;
+  private static ObjectId regularUser;
 
   @BeforeAll
   static void seedExistingInstallation() {
@@ -65,6 +67,8 @@ class LoaderMigrationTest {
     seedTeamRelationshipGraph();
     tokenWithTeamScope = insertToken("team");
     roleWithTeamType = insertRole("team");
+    adminUser = insertUser("admin@example.com", "admin");
+    regularUser = insertUser("user@example.com", "user");
 
     taskARunning = insertTaskRun("wfr1", "task-a", "running", EARLIER);
     taskASucceeded = insertTaskRun("wfr1", "task-a", "succeeded", LATER);
@@ -108,7 +112,13 @@ class LoaderMigrationTest {
     assertAgentsCollectionRenamed();
     assertDispatcherRefRenamed();
     assertWorkspaceRenameApplied();
-    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(12);
+    assertRootNodeSeeded();
+    assertSystemWorkspaceSeeded();
+    assertRolesSeeded();
+    assertSettingsSeeded();
+    assertTaskCatalogueSeeded();
+    assertTemplatesSeeded();
+    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(18);
 
     List<Document> taskRunsBefore = snapshot("task_runs");
     List<Document> workflowRunsBefore = snapshot("workflow_runs");
@@ -118,6 +128,12 @@ class LoaderMigrationTest {
     List<Document> relEdgesBefore = snapshot("rel_edges");
     List<Document> tokensBefore = snapshot("tokens");
     List<Document> rolesBefore = snapshot("roles");
+    List<Document> settingsBefore = snapshot("settings");
+    List<Document> tasksBefore = snapshot("tasks");
+    List<Document> taskRevisionsBefore = snapshot("task_revisions");
+    List<Document> workspacesBefore = snapshot("teams");
+    List<Document> workflowTemplatesBefore = snapshot("workflow_templates");
+    List<Document> integrationTemplatesBefore = snapshot("integration_templates");
 
     assertThatCode(() -> LoaderApplication.execute(MONGO.getReplicaSetUrl("boomerang"), PREFIX))
         .doesNotThrowAnyException();
@@ -130,6 +146,258 @@ class LoaderMigrationTest {
     assertThat(snapshot("rel_edges")).isEqualTo(relEdgesBefore);
     assertThat(snapshot("tokens")).isEqualTo(tokensBefore);
     assertThat(snapshot("roles")).isEqualTo(rolesBefore);
+    // The seed change units are insert-if-absent, so a second run adds nothing anywhere.
+    assertThat(snapshot("settings")).isEqualTo(settingsBefore);
+    assertThat(snapshot("tasks")).isEqualTo(tasksBefore);
+    assertThat(snapshot("task_revisions")).isEqualTo(taskRevisionsBefore);
+    assertThat(snapshot("teams")).isEqualTo(workspacesBefore);
+    assertThat(snapshot("workflow_templates")).isEqualTo(workflowTemplatesBefore);
+    assertThat(snapshot("integration_templates")).isEqualTo(integrationTemplatesBefore);
+
+    // The run above was skipped wholesale by Flamingock's audit log, so it proves the pipeline is
+    // re-entrant but not that the change units themselves are. Drop the audit log and run again:
+    // every unit re-executes against the already-migrated, already-seeded database, which is the
+    // module's stated contract ("every subsequent change unit is idempotent regardless of prior
+    // state") and the guarantee the seed units' insert-if-absent guards exist to provide.
+    collection("sys_changelog_loader").drop();
+    assertThatCode(() -> LoaderApplication.execute(MONGO.getReplicaSetUrl("boomerang"), PREFIX))
+        .doesNotThrowAnyException();
+
+    assertThat(snapshotByStringId("rel_nodes")).isEqualTo(relNodesBefore);
+    assertThat(snapshot("rel_edges")).isEqualTo(relEdgesBefore);
+    assertThat(snapshot("roles")).isEqualTo(rolesBefore);
+    assertThat(snapshot("settings")).isEqualTo(settingsBefore);
+    assertThat(snapshot("tasks")).isEqualTo(tasksBefore);
+    assertThat(snapshot("task_revisions")).isEqualTo(taskRevisionsBefore);
+    assertThat(snapshot("teams")).isEqualTo(workspacesBefore);
+    assertThat(snapshot("workflow_templates")).isEqualTo(workflowTemplatesBefore);
+    assertThat(snapshot("integration_templates")).isEqualTo(integrationTemplatesBefore);
+  }
+
+  private void assertRootNodeSeeded() {
+    Document root = collection("rel_nodes").find(Filters.eq("_id", "root:root")).first();
+    assertThat(root).isNotNull();
+    assertThat(root.getString("type")).isEqualTo("root");
+    assertThat(root.getString("ref")).isEqualTo("root");
+    assertThat(root.getString("slug")).isEqualTo("root");
+    assertThat(root.get("data", Document.class)).isEmpty();
+    assertThat(root.getDate("creationDate")).isNotNull();
+  }
+
+  private void assertSystemWorkspaceSeeded() {
+    Document workspace = collection("teams").find(Filters.eq("name", "system")).first();
+    assertThat(workspace).isNotNull();
+    assertThat(workspace.getString("displayName")).isEqualTo("System and Administration");
+    assertThat(workspace.getString("type")).isEqualTo("system");
+    assertThat(workspace.getString("status")).isEqualTo("active");
+    assertThat(workspace.get("quotas", Document.class))
+        .containsOnlyKeys(
+            "maxWorkflowCount",
+            "maxWorkflowRunMonthly",
+            "maxWorkflowStorage",
+            "maxWorkflowRunStorage",
+            "maxWorkflowRunDuration",
+            "maxConcurrentRuns");
+    assertThat(workspace.get("quotas", Document.class).getInteger("maxWorkflowCount"))
+        .isEqualTo(Integer.MAX_VALUE);
+
+    // The graph WorkspaceService.create would have written: a workspace node slugged by name,
+    // reachable from the root.
+    String workspaceId = workspace.get("_id").toString();
+    Document node = collection("rel_nodes").find(Filters.eq("_id", "workspace:" + workspaceId)).first();
+    assertThat(node).isNotNull();
+    assertThat(node.getString("type")).isEqualTo("workspace");
+    assertThat(node.getString("ref")).isEqualTo(workspaceId);
+    assertThat(node.getString("slug")).isEqualTo("system");
+    assertThat(
+            collection("rel_edges")
+                .countDocuments(
+                    Filters.and(
+                        Filters.eq("from", "root:root"),
+                        Filters.eq("label", "contains"),
+                        Filters.eq("to", "workspace:" + workspaceId))))
+        .isEqualTo(1);
+
+    // The pre-seeded admin user joins it; the non-admin does not.
+    assertThat(
+            collection("rel_edges")
+                .countDocuments(
+                    Filters.and(
+                        Filters.eq("from", "user:" + adminUser.toString()),
+                        Filters.eq("label", "memberOf"),
+                        Filters.eq("to", "workspace:" + workspaceId))))
+        .isEqualTo(1);
+    Document membership =
+        collection("rel_edges")
+            .find(
+                Filters.and(
+                    Filters.eq("from", "user:" + adminUser.toString()),
+                    Filters.eq("to", "workspace:" + workspaceId)))
+            .first();
+    assertThat(membership.get("data", Document.class).getString("role")).isEqualTo("owner");
+    assertThat(
+            collection("rel_edges")
+                .countDocuments(Filters.eq("from", "user:" + regularUser.toString())))
+        .isZero();
+  }
+
+  private void assertRolesSeeded() {
+    // The pre-existing "workspace/owner" role (migrated from type "team" by _0012) is matched by
+    // the natural key and left alone rather than duplicated.
+    assertThat(collection("roles").countDocuments()).isEqualTo(5);
+    assertThat(collection("roles").countDocuments(Filters.eq("name", "owner"))).isEqualTo(1);
+    assertThat(collection("roles").find(Filters.eq("_id", roleWithTeamType)).first())
+        .isNotNull();
+
+    Document reader =
+        collection("roles")
+            .find(Filters.and(Filters.eq("type", "workspace"), Filters.eq("name", "reader")))
+            .first();
+    assertThat(reader).isNotNull();
+    assertThat(reader.getList("permissions", String.class)).containsExactly("**/read");
+
+    Document admin =
+        collection("roles")
+            .find(Filters.and(Filters.eq("type", "global"), Filters.eq("name", "admin")))
+            .first();
+    assertThat(admin).isNotNull();
+    assertThat(admin.getList("permissions", String.class)).containsExactly("**/**");
+    // No role kept the pre-DD-01 scope value.
+    assertThat(collection("roles").countDocuments(Filters.eq("type", "team"))).isZero();
+  }
+
+  private void assertSettingsSeeded() {
+    assertThat(collection("settings").countDocuments()).isEqualTo(7);
+    List<String> keys =
+        collection("settings").distinct("key", String.class).into(new ArrayList<>());
+    assertThat(keys)
+        .containsExactlyInAnyOrder(
+            "customizations", "features", "integration", "task", "teams", "workflow", "workflowrun");
+
+    // The quota defaults WorkspaceService.setDefaultQuotas resolves at read time.
+    Document quotas = collection("settings").find(Filters.eq("key", "teams")).first();
+    assertThat(
+            quotas.getList("config", Document.class).stream()
+                .map(config -> config.getString("key"))
+                .toList())
+        .contains(
+            "max.workflow.count",
+            "max.workflow.storage",
+            "max.workflowrun.concurrent",
+            "max.workflowrun.monthly",
+            "max.workflowrun.duration",
+            "max.workflowrun.storage");
+  }
+
+  private void assertTaskCatalogueSeeded() {
+    assertThat(collection("tasks").countDocuments()).isEqualTo(87);
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(130);
+
+    Document sleep = collection("tasks").find(Filters.eq("name", "sleep")).first();
+    assertThat(sleep).isNotNull();
+    assertThat(sleep.getString("type")).isEqualTo("sleep");
+    assertThat(sleep.getString("status")).isEqualTo("active");
+    assertThat(sleep.getBoolean("verified")).isTrue();
+    // Map keys keep the legacy "#"-for-"." escaping MongoConfiguration still applies.
+    assertThat(sleep.get("annotations", Document.class).getString("boomerang#io/kind"))
+        .isEqualTo("Task");
+
+    // Every revision points at a real task, and the split carries the versioned fields.
+    String sleepId = sleep.get("_id").toString();
+    Document revision =
+        collection("task_revisions").find(Filters.eq("parentRef", sleepId)).first();
+    assertThat(revision).isNotNull();
+    assertThat(revision.getString("displayName")).isEqualTo("Sleep");
+    assertThat(revision.getInteger("version")).isEqualTo(1);
+    // Legacy changeset 4043 folded the v4 config[] into spec.params[]; the UI metadata rides on
+    // the param, which is TaskRevisionEntity.spec.params (AbstractParam).
+    Document duration =
+        revision.get("spec", Document.class).getList("params", Document.class).get(0);
+    assertThat(duration.getString("name")).isEqualTo("duration");
+    assertThat(duration.getString("label")).isEqualTo("Duration");
+
+    // Global catalogue graph: every task is a task: node reachable from root by hasTask.
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(87);
+    assertThat(
+            collection("rel_edges")
+                .countDocuments(
+                    Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
+        .isEqualTo(87);
+    Document sleepNode =
+        collection("rel_nodes").find(Filters.eq("_id", "task:" + sleepId)).first();
+    assertThat(sleepNode).isNotNull();
+    assertThat(sleepNode.getString("slug")).isEqualTo("sleep");
+    assertThat(sleepNode.getString("ref")).isEqualTo(sleepId);
+  }
+
+  private void assertTemplatesSeeded() {
+    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(
+            collection("workflow_templates")
+                .countDocuments(Filters.eq("name", "mongodb-email-query-results")))
+        .isEqualTo(1);
+
+    assertThat(collection("integration_templates").countDocuments()).isEqualTo(2);
+    Document github =
+        collection("integration_templates").find(Filters.eq("name", "GitHub")).first();
+    assertThat(github).isNotNull();
+    assertThat(github.getString("type")).isEqualTo("github_app");
+    assertThat(github.getString("status")).isEqualTo("active");
+  }
+
+  /**
+   * The fresh-install path: an empty database, no legacy loader history. Everything the running
+   * services need to bootstrap has to come out of the seed change units, and nothing in the
+   * application creates the root node or the system workspace.
+   */
+  @Test
+  void seedsAnEmptyDatabase() {
+    String uri = MONGO.getReplicaSetUrl("freshinstall");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    MongoDatabase fresh = client.getDatabase("freshinstall");
+    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "root:root")).first())
+        .isNotNull();
+
+    Document workspace =
+        fresh.getCollection(PREFIX + "_teams").find(Filters.eq("name", "system")).first();
+    assertThat(workspace).isNotNull();
+    assertThat(workspace.getString("type")).isEqualTo("system");
+    String workspaceNode = "workspace:" + workspace.get("_id");
+    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", workspaceNode)).first())
+        .isNotNull();
+    assertThat(
+            fresh.getCollection(PREFIX + "_rel_edges")
+                .countDocuments(
+                    Filters.and(
+                        Filters.eq("from", "root:root"), Filters.eq("to", workspaceNode))))
+        .isEqualTo(1);
+    // No users on a fresh install, so no membership edges - the admin bootstrap is a no-op here.
+    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("label", "memberOf")))
+        .isZero();
+
+    assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
+    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
+    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
+    assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(fresh.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
+    // Every task is in the global catalogue: a task: node reachable from root by hasTask.
+    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments(Filters.eq("type", "task")))
+        .isEqualTo(87);
+    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("label", "hasTask")))
+        .isEqualTo(87);
+
+    // Re-running the change units against the seeded database inserts nothing.
+    fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
+    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
+    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
+    assertThat(fresh.getCollection(PREFIX + "_teams").countDocuments()).isEqualTo(1);
+    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(89);
+    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(88);
   }
 
   @Test
@@ -420,6 +688,23 @@ class LoaderMigrationTest {
                 .append("label", "hasWorkflow")
                 .append("to", "workflow:w1")
                 .append("data", new Document()));
+  }
+
+  /**
+   * A user plus its relationship node, as an install that has run the legacy loader would carry.
+   * The seed change unit adds {@code admin} users to the system workspace and leaves the rest.
+   */
+  private static ObjectId insertUser(String email, String type) {
+    ObjectId id = new ObjectId();
+    collection("users").insertOne(new Document("_id", id).append("email", email).append("type", type));
+    collection("rel_nodes")
+        .insertOne(
+            new Document("_id", "user:" + id)
+                .append("type", "user")
+                .append("ref", id.toString())
+                .append("slug", email)
+                .append("data", new Document()));
+    return id;
   }
 
   private static ObjectId insertToken(String type) {
