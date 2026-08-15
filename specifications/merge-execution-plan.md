@@ -115,6 +115,19 @@ controllers, and anything surviving is swept `Team*`→`Workspace*` at DD-01 —
 the prefix (and the classes) should exist at all. Note the platform substrate stays genuinely
 non-workspace-scoped (users, tokens, system, global catalogue/templates/params).
 
+## Bootstrap seeding ✅ (2026-08-15)
+
+v5 had **no seeding path** — the legacy `boomerangio/flow-loader` image did it all, and
+`service-loader` was indexes+migrations only. A fresh install would have failed on first
+user/workspace creation (`RelationshipService.createNodeAndEdge` → `resolveNodeOrThrow` throws
+without the `root` node). Full parity ported into changeunits `_0013`–`_0018` (+ `SeedResources`
+helper, seed JSON under `service-loader/src/main/resources/seed/`): `root` relationship node ·
+the **`system` workspace** (unlimited quotas, undeletable, + its graph edges and legacy
+admin-membership replication) · 5 roles · 7 settings · the 87-task / 130-revision catalogue and
+its global task graph · workflow + integration templates. All insert-if-absent (idempotent,
+non-destructive to upgrades); `LoaderMigrationTest` covers fresh-DB, upgraded-install, and
+double-run-with-audit-log-dropped.
+
 ## Future items (maintainer-added 2026-08-15, not yet scheduled)
 
 1. **WorkflowTemplates sunset evaluation** — possibly retire the whole template-management side
