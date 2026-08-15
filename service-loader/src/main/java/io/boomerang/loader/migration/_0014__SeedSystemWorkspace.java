@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  *       entity's field defaults.
  * </ul>
  *
- * <p>The name {@code system} is in {@code WorkspaceService.RESERVED_TEAM_NAMES}, so it can only
+ * <p>The name {@code system} is in {@code WorkspaceService.RESERVED_WORKSPACE_NAMES}, so it can only
  * ever come from here.
  *
  * <p>Also replicates legacy 4015's admin bootstrap: every existing {@code admin} user becomes a
@@ -143,6 +143,13 @@ public class _0014__SeedSystemWorkspace {
         admins.size(),
         added,
         skipped);
+    if (skipped > 0) {
+      LOG.info(
+          "{} admin user(s) have no relationship node yet (e.g. a v3 install, whose users predate "
+              + "the relationship graph) — their system-workspace membership edges will be "
+              + "attached once the v3->v5 migration creates those nodes.",
+          skipped);
+    }
   }
 
   @Rollback

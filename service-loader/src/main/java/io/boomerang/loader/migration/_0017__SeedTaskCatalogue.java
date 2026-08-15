@@ -47,6 +47,13 @@ import org.slf4j.LoggerFactory;
  * <p>Idempotent: tasks are matched by {@code name} and revisions by {@code parentRef} + {@code
  * version}, and the revisions are re-pointed at whichever task id actually won (an upgraded
  * install's own, or the seeded one), so a re-run inserts nothing.
+ *
+ * <p><b>Skipped entirely on a v3 install</b> ({@link InstallGeneration#V3}): on v3 the catalogue
+ * still lives in {@code task_templates} (the pre-v4-split collection) and {@code tasks} is empty,
+ * so this change unit would otherwise insert all 87 seed tasks under the very {@code _id}s the v3
+ * install still holds in {@code task_templates} (verified 87/87 overlap) — blocking the later
+ * v3→v5 unit that migrates {@code task_templates} into {@code tasks}/{@code task_revisions}. That
+ * migration is what seeds this collection for a v3 install.
  */
 @Change(id = "0017-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -58,6 +65,12 @@ public class _0017__SeedTaskCatalogue {
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
+    if (InstallGeneration.detect(db, names) == InstallGeneration.V3) {
+      LOG.info(
+          "v3 install detected — skipping task catalogue seed; the v3->v5 migration migrates "
+              + "task_templates into tasks/task_revisions for this install.");
+      return;
+    }
     Map<String, String> resolvedIds = seedTasks(db, names);
     seedRevisions(db, names, resolvedIds);
     seedGraph(db, names, resolvedIds);

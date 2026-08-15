@@ -400,6 +400,94 @@ class LoaderMigrationTest {
     assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(88);
   }
 
+  /**
+   * The v3-shaped fixture: a legacy loader changelog carrying changeset {@code "112"} (the v3
+   * chain) but not {@code "4000"} (the v4 chain), the seven legacy settings {@code _id}s already
+   * present under their v3-era {@code key} values, and a non-empty {@code task_templates}
+   * collection (the v3 catalogue location; {@code tasks} is empty, matching a real v3 database).
+   * Before {@link InstallGeneration} existed, {@code _0016} threw {@code DuplicateKeyException} on
+   * exactly this shape and aborted the whole migration run. This asserts the run now completes and
+   * that {@code _0016}/{@code _0017}/{@code _0018} skip themselves, leaving the v3 data untouched
+   * for the (separate) v3->v5 migration to reconcile.
+   */
+  @Test
+  void v3InstallSkipsGenerationBlindSeedsAndMigratesCleanly() {
+    String uri = MONGO.getReplicaSetUrl("v3install");
+    MongoDatabase v3 = client.getDatabase("v3install");
+
+    v3.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+
+    // The seven legacy settings ids, each already present under its v3-era key - a different key
+    // than the v5 seed uses for the same _id.
+    insertV3Setting(v3, "5f32cb19d09662744c0df51d", "controller");
+    insertV3Setting(v3, "62a7bec0a6166d30aff64a5b", "extensions");
+    insertV3Setting(v3, "60245957226920beece4fdf9", "activity");
+    insertV3Setting(v3, "60245b56226920beece547e3", "execution");
+    insertV3Setting(v3, "612904d60b07a54cdc4dc6a9", "toggles");
+    insertV3Setting(v3, "61393f5966c5eea103dfe134", "quota");
+    insertV3Setting(v3, "62b0f1f5a6166d30af05fa5d", "branding");
+
+    // v3's task catalogue location - empty "tasks" (v5 shape), non-empty "task_templates" (the
+    // pre-v4-split collection the seed _ids would otherwise collide with).
+    v3.getCollection(PREFIX + "_task_templates")
+        .insertOne(new Document("_id", new ObjectId()).append("name", "legacy-task"));
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    // _0016 skipped: still exactly the 7 v3 documents, under their v3 keys - nothing seeded,
+    // nothing thrown.
+    MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
+    assertThat(settings.countDocuments()).isEqualTo(7);
+    assertThat(
+            settings
+                .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
+                .first()
+                .getString("key"))
+        .isEqualTo("controller");
+    assertThat(
+            settings
+                .find(Filters.eq("_id", new ObjectId("62a7bec0a6166d30aff64a5b")))
+                .first()
+                .getString("key"))
+        .isEqualTo("extensions");
+    assertThat(
+            settings
+                .find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9")))
+                .first()
+                .getString("key"))
+        .isEqualTo("activity");
+
+    // _0017 skipped: no v5 task catalogue was seeded over the v3 task_templates data.
+    assertThat(v3.getCollection(PREFIX + "_tasks").countDocuments()).isZero();
+    assertThat(v3.getCollection(PREFIX + "_task_revisions").countDocuments()).isZero();
+    assertThat(v3.getCollection(PREFIX + "_task_templates").countDocuments()).isEqualTo(1);
+
+    // _0018 skipped: no starter templates were seeded either.
+    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
+    assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isZero();
+
+    // _0013/_0014/_0015 are NOT v3-skipped: the graph root, system workspace and roles are seeded
+    // exactly as on a fresh/v4 install.
+    assertThat(v3.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "root:root")).first())
+        .isNotNull();
+    assertThat(v3.getCollection(PREFIX + "_teams").find(Filters.eq("name", "system")).first())
+        .isNotNull();
+    assertThat(v3.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
+
+    // Re-running against the same v3-shaped database stays a no-op skip, not a second attempt to
+    // seed.
+    v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(settings.countDocuments()).isEqualTo(7);
+    assertThat(v3.getCollection(PREFIX + "_tasks").countDocuments()).isZero();
+    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
+  }
+
+  private static void insertV3Setting(MongoDatabase db, String id, String v3Key) {
+    db.getCollection(PREFIX + "_settings")
+        .insertOne(new Document("_id", new ObjectId(id)).append("key", v3Key));
+  }
+
   @Test
   void failsWhenMongoIsUnreachable() {
     assertThatThrownBy(
