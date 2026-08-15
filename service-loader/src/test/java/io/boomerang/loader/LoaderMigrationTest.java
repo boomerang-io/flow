@@ -48,6 +48,8 @@ class LoaderMigrationTest {
   private static ObjectId soloTask;
   private static ObjectId earliestGate;
   private static ObjectId latestConnectedAgent;
+  private static ObjectId taskRunWithAgentRef;
+  private static ObjectId workflowRunWithAgentRef;
 
   @BeforeAll
   static void seedExistingInstallation() {
@@ -71,6 +73,9 @@ class LoaderMigrationTest {
     insertAgent("agent-1", "host-a", EARLIER);
     latestConnectedAgent = insertAgent("agent-1", "host-a", LATER);
     insertAgent("agent-2", "host-a", EARLIER);
+
+    taskRunWithAgentRef = insertTaskRunWithAgentRef("wfr-claimed", "agent-1", EARLIER);
+    workflowRunWithAgentRef = insertWorkflowRunWithAgentRef("agent-1", EARLIER);
   }
 
   @AfterAll
@@ -88,24 +93,28 @@ class LoaderMigrationTest {
     assertTaskRunIndexes();
     assertWorkflowRunIndexes();
     assertUniqueIndex("actions", "task_run", List.of("taskRunRef"));
-    assertUniqueIndex("agents", "registration", List.of("name", "host"));
+    assertUniqueIndex("dispatchers", "registration", List.of("name", "host"));
     assertEventCollectionIndexes();
     assertLockAndWorkflowIndexes();
     assertTaskRunDedupe();
     assertActionDedupe();
     assertAgentDedupe();
-    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(10);
+    assertAgentsCollectionRenamed();
+    assertDispatcherRefRenamed();
+    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(11);
 
     List<Document> taskRunsBefore = snapshot("task_runs");
+    List<Document> workflowRunsBefore = snapshot("workflow_runs");
     List<Document> actionsBefore = snapshot("actions");
-    List<Document> agentsBefore = snapshot("agents");
+    List<Document> dispatchersBefore = snapshot("dispatchers");
 
     assertThatCode(() -> LoaderApplication.execute(MONGO.getReplicaSetUrl("boomerang"), PREFIX))
         .doesNotThrowAnyException();
 
     assertThat(snapshot("task_runs")).isEqualTo(taskRunsBefore);
+    assertThat(snapshot("workflow_runs")).isEqualTo(workflowRunsBefore);
     assertThat(snapshot("actions")).isEqualTo(actionsBefore);
-    assertThat(snapshot("agents")).isEqualTo(agentsBefore);
+    assertThat(snapshot("dispatchers")).isEqualTo(dispatchersBefore);
   }
 
   @Test
@@ -201,13 +210,36 @@ class LoaderMigrationTest {
   }
 
   private void assertAgentDedupe() {
+    // The dedupe changeunit (_0006) runs against the still-legacy "agents" name, before the
+    // rename changeunit (_0011) renames the collection - so the deduped rows are asserted under
+    // their post-rename name, "dispatchers".
     List<Document> registrations = new ArrayList<>();
-    collection("agents")
+    collection("dispatchers")
         .find(Filters.and(Filters.eq("name", "agent-1"), Filters.eq("host", "host-a")))
         .into(registrations);
     assertThat(registrations).hasSize(1);
     assertThat(registrations.get(0).getObjectId("_id")).isEqualTo(latestConnectedAgent);
-    assertThat(collection("agents").countDocuments()).isEqualTo(2);
+    assertThat(collection("dispatchers").countDocuments()).isEqualTo(2);
+  }
+
+  private void assertAgentsCollectionRenamed() {
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names).doesNotContain(PREFIX + "_agents");
+    assertThat(names).contains(PREFIX + "_dispatchers");
+  }
+
+  private void assertDispatcherRefRenamed() {
+    Document taskRun = collection("task_runs").find(Filters.eq("_id", taskRunWithAgentRef)).first();
+    assertThat(taskRun).isNotNull();
+    assertThat(taskRun.getString("dispatcherRef")).isEqualTo("agent-1");
+    assertThat(taskRun.containsKey("agentRef")).isFalse();
+
+    Document workflowRun =
+        collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
+    assertThat(workflowRun).isNotNull();
+    assertThat(workflowRun.getString("dispatcherRef")).isEqualTo("agent-1");
+    assertThat(workflowRun.containsKey("agentRef")).isFalse();
   }
 
   private static MongoCollection<Document> collection(String name) {
@@ -261,6 +293,31 @@ class LoaderMigrationTest {
                 .append("name", name)
                 .append("host", host)
                 .append("lastConnectedDate", lastConnectedDate));
+    return id;
+  }
+
+  private static ObjectId insertTaskRunWithAgentRef(
+      String workflowRunRef, String agentRef, Date creationDate) {
+    ObjectId id = new ObjectId();
+    collection("task_runs")
+        .insertOne(
+            new Document("_id", id)
+                .append("workflowRunRef", workflowRunRef)
+                .append("name", "claimed-task")
+                .append("status", "running")
+                .append("creationDate", creationDate)
+                .append("agentRef", agentRef));
+    return id;
+  }
+
+  private static ObjectId insertWorkflowRunWithAgentRef(String agentRef, Date creationDate) {
+    ObjectId id = new ObjectId();
+    collection("workflow_runs")
+        .insertOne(
+            new Document("_id", id)
+                .append("status", "running")
+                .append("creationDate", creationDate)
+                .append("agentRef", agentRef));
     return id;
   }
 }
