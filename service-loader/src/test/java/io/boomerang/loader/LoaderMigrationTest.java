@@ -433,9 +433,57 @@ class LoaderMigrationTest {
     insertV3Setting(v3, "62b0f1f5a6166d30af05fa5d", "branding");
 
     // v3's task catalogue location - empty "tasks" (v5 shape), non-empty "task_templates" (the
-    // pre-v4-split collection the seed _ids would otherwise collide with).
+    // pre-v4-split collection the seed _ids would otherwise collide with). One minimal legacy
+    // doc missing every optional field (exercises _0022's null-handling), one fuller doc with a
+    // revision (exercises the config->params merge and provides a real name for the task_runs
+    // fixture below).
+    ObjectId minimalTaskId = new ObjectId();
     v3.getCollection(PREFIX + "_task_templates")
-        .insertOne(new Document("_id", new ObjectId()).append("name", "legacy-task"));
+        .insertOne(new Document("_id", minimalTaskId).append("name", "legacy-task"));
+    ObjectId customTaskId = new ObjectId();
+    v3.getCollection(PREFIX + "_task_templates")
+        .insertOne(
+            new Document("_id", customTaskId)
+                .append("name", "Custom Task Example")
+                .append("nodetype", "templateTask")
+                .append("status", "active")
+                .append("verified", true)
+                .append("category", "Custom")
+                .append("description", "A custom task example")
+                .append("icon", "Add")
+                .append("createdDate", EARLIER)
+                .append(
+                    "revisions",
+                    List.of(
+                        new Document("version", 1)
+                            .append("image", "")
+                            .append("command", List.of())
+                            .append("arguments", List.of())
+                            .append(
+                                "config",
+                                List.of(
+                                    new Document("key", "path")
+                                        .append("label", "Path")
+                                        .append("type", "text")
+                                        .append("description", "")
+                                        .append("placeholder", "")
+                                        .append("readOnly", false)))
+                            .append(
+                                "changelog",
+                                new Document("userId", "5e831153d0827100011c29f6")
+                                    .append("userName", "Tyson Lawrie")
+                                    .append("reason", "")
+                                    .append("date", EARLIER)))));
+
+    // v3's task_runs referencing that task by its (already-slugified, per legacy convention)
+    // name and the OLD templateVersion key - exercises _0026's rename + its 4033-bug fix.
+    ObjectId taskRunId = new ObjectId();
+    v3.getCollection(PREFIX + "_task_runs")
+        .insertOne(
+            new Document("_id", taskRunId)
+                .append("name", "step-1")
+                .append("templateRef", "custom-task-example")
+                .append("templateVersion", 1));
 
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
 
@@ -462,10 +510,50 @@ class LoaderMigrationTest {
                 .getString("key"))
         .isEqualTo("workflowrun");
 
-    // _0017 skipped: no v5 task catalogue was seeded over the v3 task_templates data.
-    assertThat(v3.getCollection(PREFIX + "_tasks").countDocuments()).isZero();
-    assertThat(v3.getCollection(PREFIX + "_task_revisions").countDocuments()).isZero();
-    assertThat(v3.getCollection(PREFIX + "_task_templates").countDocuments()).isEqualTo(1);
+    // _0017 skipped: no FRESH-install seed was inserted over the v3 task_templates data. Instead
+    // _0022 migrated the 2 fixture docs (2 tasks, 1 revision - the minimal doc has none) directly,
+    // task_templates was dropped, and _0034 then reconciled the 87-task/130-revision seed
+    // catalogue on top (none of the 87 pre-existed under their legacy _ids on this fixture, so
+    // all 87 tasks + 130 revisions are freshly inserted: 89 tasks / 131 revisions total).
+    MongoCollection<Document> tasks = v3.getCollection(PREFIX + "_tasks");
+    MongoCollection<Document> taskRevisions = v3.getCollection(PREFIX + "_task_revisions");
+    assertThat(tasks.countDocuments()).isEqualTo(89);
+    assertThat(taskRevisions.countDocuments()).isEqualTo(131);
+    assertThat(v3.getCollection(PREFIX + "_task_templates").countDocuments()).isZero();
+
+    // The minimal fixture doc (every optional field absent) migrated without throwing.
+    Document minimalTask = tasks.find(Filters.eq("_id", minimalTaskId)).first();
+    assertThat(minimalTask).isNotNull();
+    assertThat(minimalTask.getString("name")).isEqualTo("legacy-task");
+
+    // The fuller fixture doc: slugified name, templateTask->template mapping, config folded into
+    // spec.params (key->name, label/type/placeholder/readOnly carried straight across).
+    Document customTask = tasks.find(Filters.eq("_id", customTaskId)).first();
+    assertThat(customTask).isNotNull();
+    assertThat(customTask.getString("name")).isEqualTo("custom-task-example");
+    assertThat(customTask.getString("type")).isEqualTo("template");
+    Document customRevision = taskRevisions.find(Filters.eq("parentRef", customTaskId.toString())).first();
+    assertThat(customRevision).isNotNull();
+    assertThat(customRevision.getString("displayName")).isEqualTo("Custom Task Example");
+    assertThat(customRevision.containsKey("config")).isFalse();
+    Document customChangelog = (Document) customRevision.get("changelog");
+    assertThat(customChangelog.getString("author")).isEqualTo("5e831153d0827100011c29f6");
+    assertThat(customChangelog.containsKey("userName")).isFalse();
+    Document customSpec = (Document) customRevision.get("spec");
+    @SuppressWarnings("unchecked")
+    List<Document> customParams = (List<Document>) customSpec.get("params");
+    assertThat(customParams).hasSize(1);
+    assertThat(customParams.get(0).getString("name")).isEqualTo("path");
+    assertThat(customParams.get(0).getString("label")).isEqualTo("Path");
+
+    // _0026: task_runs migrated - templateRef resolved to the new task's id, templateVersion
+    // correctly read into taskVersion (the legacy 4033 bug read the new, absent key instead).
+    Document taskRun = v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
+    assertThat(taskRun).isNotNull();
+    assertThat(taskRun.getString("taskRef")).isEqualTo(customTaskId.toString());
+    assertThat(taskRun.containsKey("templateRef")).isFalse();
+    assertThat(taskRun.getInteger("taskVersion")).isEqualTo(1);
+    assertThat(taskRun.containsKey("templateVersion")).isFalse();
 
     // _0018 skipped: no starter templates were seeded either.
     assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
@@ -484,11 +572,18 @@ class LoaderMigrationTest {
     assertThat(v3.getCollection(PREFIX + "_parameters").countDocuments()).isZero();
 
     // Re-running against the same v3-shaped database stays a no-op skip, not a second attempt to
-    // seed - and _0021's own re-run is a no-op rewrite of the already-migrated documents.
+    // seed - and _0021/_0022/_0034's own re-runs are no-op rewrites/insert-if-absent passes over
+    // the already-migrated documents (task_templates is already gone, so _0022 iterates nothing;
+    // every seeded task/revision _0034 would reconcile already exists).
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(settings.countDocuments()).isEqualTo(7);
-    assertThat(v3.getCollection(PREFIX + "_tasks").countDocuments()).isZero();
+    assertThat(tasks.countDocuments()).isEqualTo(89);
+    assertThat(taskRevisions.countDocuments()).isEqualTo(131);
+    Document taskRunAfterSecondRun =
+        v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
+    assertThat(taskRunAfterSecondRun.getString("taskRef")).isEqualTo(customTaskId.toString());
+    assertThat(taskRunAfterSecondRun.containsKey("templateRef")).isFalse();
     assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
   }
 

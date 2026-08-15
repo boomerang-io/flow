@@ -261,6 +261,8 @@ class V3DumpMigrationTest {
     assertGenerationAwareSeedsSkipped();
     assertSettingsMigrated();
     assertGlobalParametersMigrated();
+    assertTaskCatalogueMigrated();
+    assertTaskRunRefsUnitIsNoOp();
 
     // -----------------------------------------------------------------------------------
     // Idempotency — a second full run changes nothing. Compared at per-collection document
@@ -284,6 +286,8 @@ class V3DumpMigrationTest {
     assertGenerationAwareSeedsSkipped();
     assertSettingsMigrated();
     assertGlobalParametersMigrated();
+    assertTaskCatalogueMigrated();
+    assertTaskRunRefsUnitIsNoOp();
   }
 
   // =====================================================================================
@@ -332,12 +336,12 @@ class V3DumpMigrationTest {
   private void assertLiveCollectionsPreserved(long workflowsBefore, long usersBefore) {
     // Collections a LATER v3->v5 unit still needs the real v3 data from - not this slice's
     // job to touch, so they must be exactly as restored. (settings and global_config ARE
-    // migrated by this slice's own _0021/_0031 - see assertSettingsMigrated/
-    // assertGlobalParametersMigrated below, not here.)
+    // migrated by this slice's own _0021/_0031, and task_templates by _0022 - see
+    // assertSettingsMigrated/assertGlobalParametersMigrated/assertTaskCatalogueMigrated below,
+    // not here.)
     assertThat(collection("workflows").countDocuments()).isEqualTo(workflowsBefore);
     assertThat(collection("users").countDocuments()).isEqualTo(usersBefore);
     assertThat(collection("settings").countDocuments()).isGreaterThan(0);
-    assertThat(collection("task_templates").countDocuments()).isGreaterThan(0);
     assertThat(collection("teams").countDocuments()).isGreaterThan(0);
     assertThat(collection("workflows_activity").countDocuments()).isGreaterThan(0);
     // Not legacy at all - the live v5 ExtensionEntity collection, still written under this name.
@@ -361,9 +365,11 @@ class V3DumpMigrationTest {
     // alongside the migrated ones.
     assertThat(collection("settings").countDocuments()).isEqualTo(7);
 
-    // _0017__SeedTaskCatalogue: no v5 catalogue seeded over the v3 task_templates data.
-    assertThat(collection("tasks").countDocuments()).isZero();
-    assertThat(collection("task_revisions").countDocuments()).isZero();
+    // _0017__SeedTaskCatalogue: no FRESH-install seed inserted over the v3 task_templates data -
+    // tasks/task_revisions ARE populated by this point, but by _0022/_0034 (the v3->v5 catalogue
+    // migration + reconciliation), asserted in detail in assertTaskCatalogueMigrated() below.
+    assertThat(collection("tasks").countDocuments()).isGreaterThan(0);
+    assertThat(collection("task_revisions").countDocuments()).isGreaterThan(0);
 
     // _0018__SeedTemplates: no starter templates seeded either (their source workflows still
     // live in the untouched "workflows" collection).
@@ -488,6 +494,112 @@ class V3DumpMigrationTest {
         .as("no stale v3 _class discriminator on the migrated parameter")
         .isFalse();
     assertThat(param.containsKey("key")).as("v3 'key' field renamed away, not carried over").isFalse();
+  }
+
+  // =====================================================================================
+  // _0022__V3MigrateTasks / _0034__V3ReconcileCatalogue invariants (Batch B)
+  // =====================================================================================
+
+  private void assertTaskCatalogueMigrated() {
+    // task_templates fully drained into tasks/task_revisions, then dropped.
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names).as("task_templates dropped after migration").doesNotContain(prefixed("task_templates"));
+
+    // 89 real v3 task_templates documents, all migrated (none dropped) - see _0022's javadoc.
+    // _0034 reconciles the 87-task seed catalogue against them (all 87 already present by legacy
+    // _id) and inserts nothing new at the task level; the install's own extra 2 (Kubernetes CLI,
+    // Tysons Test Task) are untouched additions.
+    assertThat(collection("tasks").countDocuments()).isEqualTo(89);
+
+    // 131 real v3 revisions migrated 1:1, plus exactly one reconciled addition: the seed
+    // catalogue's Manual Approval v2, absent from this install's own (older) snapshot.
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(132);
+
+    // Every task_revisions document has a non-null parentRef resolving to an existing task.
+    List<String> taskIds = new ArrayList<>();
+    for (Document task : collection("tasks").find()) {
+      taskIds.add(task.get("_id").toString());
+    }
+    long populatedParams = 0;
+    for (Document revision : collection("task_revisions").find()) {
+      String parentRef = revision.getString("parentRef");
+      assertThat(parentRef).as("task_revisions.parentRef must be present").isNotNull();
+      assertThat(taskIds).as("parentRef %s must resolve to an existing task", parentRef).contains(parentRef);
+
+      // config folded into spec.params and dropped - 4043 squashed in, never left as an
+      // intermediate a later unit would need to rewrite.
+      assertThat(revision.containsKey("config")).as("legacy 'config' must not survive migration").isFalse();
+      Document spec = (Document) revision.get("spec");
+      assertThat(spec).as("spec must be present").isNotNull();
+      assertThat(spec.containsKey("params")).as("spec.params must be present (possibly empty)").isTrue();
+      @SuppressWarnings("unchecked")
+      List<Document> params = (List<Document>) spec.get("params");
+      populatedParams += params.size();
+    }
+    assertThat(populatedParams).as("spec.params must be populated overall, not left empty").isGreaterThan(0);
+
+    // Spot check: the well-known "sleep" system task matches the seeded shape (see _0022's
+    // javadoc for why this needs the documented 3-field override rather than the generic
+    // nodetype mapping - legacy 4010's hardcode, verified against the real dump).
+    Document sleepTask =
+        collection("tasks").find(Filters.eq("_id", new ObjectId("5bd97bea5a5df954ad592c06"))).first();
+    assertThat(sleepTask).isNotNull();
+    assertThat(sleepTask.getString("name")).isEqualTo("sleep");
+    assertThat(sleepTask.getString("type")).isEqualTo("sleep");
+    assertThat(sleepTask.getString("status")).isEqualTo("active");
+    assertThat(sleepTask.getBoolean("verified")).isTrue();
+
+    Document sleepRevision =
+        collection("task_revisions")
+            .find(Filters.eq("parentRef", "5bd97bea5a5df954ad592c06"))
+            .first();
+    assertThat(sleepRevision).as("sleep task must have exactly one migrated revision").isNotNull();
+    assertThat(sleepRevision.getInteger("version")).isEqualTo(1);
+    assertThat(sleepRevision.getString("displayName")).isEqualTo("Sleep");
+    assertThat(sleepRevision.getString("category")).isEqualTo("Workflow");
+    assertThat(sleepRevision.getString("icon")).isEqualTo("Power on/off");
+    assertThat(sleepRevision.getString("description"))
+        .isEqualTo("Sleep for specified duration in milliseconds");
+    Document sleepChangelog = (Document) sleepRevision.get("changelog");
+    assertThat(sleepChangelog.getString("author")).isEqualTo("608ca23d70bfa94ac91f8eef");
+    assertThat(sleepChangelog.containsKey("userName")).as("changelog userName (PII) must be dropped").isFalse();
+    Document sleepSpec = (Document) sleepRevision.get("spec");
+    assertThat(sleepSpec.getList("arguments", String.class))
+        .as("sleep's real v3 arguments (system/sleep) are overridden per legacy 4010")
+        .isEmpty();
+    @SuppressWarnings("unchecked")
+    List<Document> sleepParams = (List<Document>) sleepSpec.get("params");
+    assertThat(sleepParams).hasSize(1);
+    Document durationParam = sleepParams.get(0);
+    assertThat(durationParam.getString("name")).isEqualTo("duration");
+    assertThat(durationParam.getString("label")).isEqualTo("Duration");
+    assertThat(durationParam.getString("type")).isEqualTo("text");
+    assertThat(durationParam.containsKey("defaultValue"))
+        .as("v3's duration config never carried a defaultValue - none should be invented")
+        .isFalse();
+
+    // Manual Approval: the install's own v1 survives untouched, and _0034 reconciled the
+    // missing seeded v2 (real gap found comparing the dump to the seed catalogue).
+    long approvalRevisions =
+        collection("task_revisions")
+            .countDocuments(Filters.eq("parentRef", "5f6379c974f51934044cbbd6"));
+    assertThat(approvalRevisions).isEqualTo(2);
+  }
+
+  // =====================================================================================
+  // _0026__V3MigrateTaskRunRefs invariants (Batch B)
+  // =====================================================================================
+
+  private void assertTaskRunRefsUnitIsNoOp() {
+    // v3 task activity lives in workflows_activity_task (dropped by _0020) - the dump carries no
+    // task_runs data at all (the collection exists only because _0002's index-ensure implicitly
+    // creates it, empty, on every install), so this unit has nothing to migrate here. Its
+    // correctness (the 4033 taskVersion-bug fix + templateRef->taskRef resolution) is exercised
+    // in LoaderMigrationTest for an install that does carry task_runs documents.
+    assertThat(collection("task_runs").countDocuments())
+        .as("no real v3 task_runs data exists on this dump")
+        .isZero();
   }
 
   // =====================================================================================
