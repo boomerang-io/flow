@@ -46,9 +46,9 @@ import org.springframework.stereotype.Service;
  *
  * @since Flow 3.6.0
  */
-// E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only.
+// E8: schedule is unsupported in engine mode (ruling I2) - standalone only.
 @Service
-@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ScheduleService {
 
   private final Logger LOGGER = LogManager.getLogger(getClass());

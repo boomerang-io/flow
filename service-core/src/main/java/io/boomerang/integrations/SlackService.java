@@ -67,7 +67,7 @@ import org.springframework.web.client.HttpClientErrorException;
  * H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
  */
 @Service
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class SlackService {
 
   private static final Logger LOGGER = LogManager.getLogger();

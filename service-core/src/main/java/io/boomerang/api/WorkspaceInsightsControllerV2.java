@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
     description =
         "Provide the ability to search and retrieve Insights. The /api/v2/team path is a"
             + " deprecated alias for /api/v2/workspace.")
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceInsightsControllerV2 {
 
   private final InsightsService insightsService;

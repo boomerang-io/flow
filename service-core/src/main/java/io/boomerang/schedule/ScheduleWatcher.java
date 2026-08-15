@@ -29,9 +29,9 @@ import org.springframework.stereotype.Service;
  * fires per tick; a crash after the advance loses that single fire, never duplicates it. Startup
  * jitter de-phases the instances' schedules.
  */
-// E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only.
+// E8: schedule is unsupported in engine mode (ruling I2) - standalone only.
 @Service
-@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ScheduleWatcher {
 
   private static final Logger LOGGER = LogManager.getLogger();

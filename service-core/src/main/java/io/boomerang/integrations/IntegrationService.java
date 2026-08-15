@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 
 // H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
 @Service
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class IntegrationService {
 
   private static final Logger LOGGER = LogManager.getLogger();

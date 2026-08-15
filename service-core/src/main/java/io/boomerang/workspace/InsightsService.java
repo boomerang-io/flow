@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 
 // E8: workspace is a full-mode-only module root per the mode matrix.
 @Service
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class InsightsService {
 
   private static final Logger LOGGER = LogManager.getLogger();

@@ -23,11 +23,11 @@ import org.springframework.stereotype.Component;
 /*
  * Invoked by the ScheduleWatcher when a schedule fires: submits the WorkflowRun.
  *
- * E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only, matching
+ * E8: schedule is unsupported in engine mode (ruling I2) - standalone only, matching
  * ScheduleWatcher (its only caller).
  */
 @Component
-@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ScheduleJob {
 
   private static final Logger logger = LoggerFactory.getLogger(ScheduleJob.class);

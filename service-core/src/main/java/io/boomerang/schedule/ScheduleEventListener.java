@@ -16,11 +16,11 @@ import org.springframework.stereotype.Component;
  * propagates back out of {@code publishEvent()} to the engine call site exactly as the HTTP
  * round-trip used to surface a failed callback as a thrown exception there.
  *
- * <p>E8: schedule is unsupported in engine mode (ruling I2) - full/standalone only. In engine
- * mode, {@link ScheduleRequested} has no listener; the event is published and silently dropped.
+ * <p>E8: schedule is unsupported in engine mode (ruling I2) - standalone only. In engine mode,
+ * {@link ScheduleRequested} has no listener; the event is published and silently dropped.
  */
 @Component
-@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ScheduleEventListener {
 
   private final ScheduleService scheduleService;

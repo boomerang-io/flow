@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 // E8: hard-depends on schedule.ScheduleService, which is unsupported in engine mode (I2) -
-// full/standalone only.
+// standalone only.
 @RestController
 @RequestMapping({"/api/v2/team/{team}/schedule", "/api/v2/workspace/{team}/schedule"})
 @Tag(
@@ -42,7 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
     description =
         "Create, list and manage your Schedules. The /api/v2/team path is a deprecated alias"
             + " for /api/v2/workspace.")
-@ConditionalOnFlowMode({FlowMode.FULL, FlowMode.STANDALONE})
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceScheduleControllerV2 {
 
   private final ScheduleService workflowScheduleService;

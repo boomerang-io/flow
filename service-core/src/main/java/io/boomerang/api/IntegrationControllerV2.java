@@ -49,7 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
  * H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
  */
 @RestController
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 @RequestMapping("/api/v2/integration")
 @Tag(
     name = "Integrations",

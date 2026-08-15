@@ -2,26 +2,33 @@ package io.boomerang.config;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.api.IntegrationControllerV2;
+import io.boomerang.api.WorkspaceControllerV2;
+import io.boomerang.api.WorkspaceScheduleControllerV2;
+import io.boomerang.dispatcher.DispatcherService;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.engine.WorkflowRunService;
 import io.boomerang.schedule.ScheduleWatcher;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 
 /**
- * H6 boot test proving the {@code flow.mode} gating mechanism actually gates a bean.
- * {@code io.boomerang.integrations} was the first mode-gated module root (full-mode-only per the
- * mode matrix; E8 added {@code workspace} and {@code schedule} - see {@link
- * FlowModeGatingEngineModeTest} and {@link FlowModeGatingStandaloneModeTest}). This asserts it's
- * present by default (flow.mode unset -> {@link FlowMode#FULL}) and absent when {@code
- * flow.mode=engine}, while unconditional core engine beans stay present in both.
+ * H6/E8 boot test proving the {@code flow.mode} gating mechanism actually gates a bean, for the
+ * default mode - {@code flow.mode} unset/blank resolves to {@link FlowMode#STANDALONE} (re-ruled
+ * 2026-08-15: the old three-mode list collapsed to two, FULL merged into STANDALONE). Standalone
+ * is the complete self-contained product, so every module root - {@code integrations}, {@code
+ * workspace}, {@code schedule} and their dependent api controllers - is present, alongside the
+ * unconditional engine/dispatcher/workflow beans.
  *
- * <p>Three context configurations: this class (default/full, sharing the suite's cached default
- * context), {@link FlowModeGatingEngineModeTest} (flow.mode=engine, its own cached context) and
- * {@link FlowModeGatingStandaloneModeTest} (flow.mode=standalone, its own cached context) - same
- * pattern as {@code DispatcherAuthTest}.
+ * <p>Companion: {@link FlowModeGatingEngineModeTest} (flow.mode=engine, its own cached context)
+ * asserts the opposite - those module roots absent, only the engine/dispatcher/workflow surface
+ * present. Two cached contexts total, same pattern as {@code DispatcherAuthTest}. (There used to
+ * be a third leg for the old laptop-mode "standalone" - that mode no longer exists; running the
+ * product with security off is just standalone configured that way, not a separate mode, so that
+ * test folded into this one.)
  */
 class FlowModeGatingTest extends AbstractEngineIntegrationTest {
 
@@ -36,5 +43,18 @@ class FlowModeGatingTest extends AbstractEngineIntegrationTest {
   void workspaceAndScheduleBeansArePresentByDefault() {
     assertFalse(context.getBeansOfType(WorkspaceService.class).isEmpty());
     assertFalse(context.getBeansOfType(ScheduleWatcher.class).isEmpty());
+  }
+
+  @Test
+  void workspaceDependentApiControllersArePresentByDefault() {
+    assertFalse(context.getBeansOfType(WorkspaceControllerV2.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceScheduleControllerV2.class).isEmpty());
+  }
+
+  @Test
+  void coreEngineBeansArePresentByDefault() {
+    assertFalse(context.getBeansOfType(WorkflowRunService.class).isEmpty());
+    assertFalse(context.getBeansOfType(DispatcherService.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkflowService.class).isEmpty());
   }
 }

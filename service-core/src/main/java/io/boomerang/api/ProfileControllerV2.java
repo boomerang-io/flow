@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v2/profile")
 @Tag(name = "Profile", description = "Retrieve your profile and update your details.")
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ProfileControllerV2 {
 
   @Autowired private UserService userService;

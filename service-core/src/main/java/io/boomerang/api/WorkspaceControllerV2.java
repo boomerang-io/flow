@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// E8: hard-depends on workspace.WorkspaceService, so full-mode-only. J1's engine/standalone
+// E8: hard-depends on workspace.WorkspaceService, so standalone-only. J1's engine-mode
 // default-team remapping is deferred (E10 territory).
 @RestController
 @RequestMapping({"/api/v2/team", "/api/v2/workspace"})
@@ -42,7 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
     description =
         "Manage Workspaces, Workspace Members, Quotas, ApprovalGroups and Parameters. The"
             + " /api/v2/team path is a deprecated alias for /api/v2/workspace.")
-@ConditionalOnFlowMode(FlowMode.FULL)
+@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceControllerV2 {
 
   private final WorkspaceService workspaceService;

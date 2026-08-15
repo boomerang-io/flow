@@ -47,8 +47,8 @@ public class WebhookEventService {
 
   private final WorkspaceWorkflowService workspaceWorkflowService;
   private final WorkflowRunService workflowRunService;
-  // H6: IntegrationService only exists in flow.mode=full (io.boomerang.integrations is
-  // mode-gated) - Optional so this service still constructs in engine/standalone.
+  // H6: IntegrationService only exists in flow.mode=standalone (io.boomerang.integrations is
+  // mode-gated) - Optional so this service still constructs in engine mode.
   private final Optional<IntegrationService> integrationService;
   private final RelationshipService relationshipService;
 

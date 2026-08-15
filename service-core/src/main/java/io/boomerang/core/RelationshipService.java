@@ -63,9 +63,9 @@ import org.springframework.web.context.request.RequestContextHolder;
  * corrupt workflow/task/run resolution rather than gracefully degrade it, which is worse than
  * today's behaviour. So this is the documented fallback: real Mongo-backed behaviour in every
  * mode; only {@code workspace} (team/quota CRUD, gated {@link
- * io.boomerang.config.FlowMode#FULL}) actually stops writing to it outside full mode. J1's
- * default-team remapping for the always-on {@code Workspace*} surface remains deferred (E10
- * territory).
+ * io.boomerang.config.FlowMode#STANDALONE}) actually stops writing to it outside standalone
+ * mode. J1's default-team remapping for the always-on {@code Workspace*} surface remains deferred
+ * (E10 territory).
  */
 @Component
 public class RelationshipService {
