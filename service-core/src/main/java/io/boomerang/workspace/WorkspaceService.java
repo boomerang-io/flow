@@ -74,7 +74,7 @@ public class WorkspaceService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  public static final List<String> RESERVED_TEAM_NAMES =
+  public static final List<String> RESERVED_WORKSPACE_NAMES =
       List.of("home", "admin", "system", "profile", "connect");
   public static final String TEAMS_SETTINGS_KEY = "teams";
   public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
@@ -133,7 +133,7 @@ public class WorkspaceService {
 
       // Ensures unique team name (slug)
       if (relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, kebabName)
-          || RESERVED_TEAM_NAMES.contains(kebabName)) {
+          || RESERVED_WORKSPACE_NAMES.contains(kebabName)) {
         throw new BoomerangException(BoomerangError.TEAM_NON_UNIQUE_NAME);
       }
       return ResponseEntity.ok().build();
