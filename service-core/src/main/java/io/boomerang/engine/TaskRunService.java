@@ -1,6 +1,5 @@
 package io.boomerang.engine;
 
-import io.boomerang.client.LogClient;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
