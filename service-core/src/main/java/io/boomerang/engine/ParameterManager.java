@@ -40,7 +40,11 @@ import org.springframework.stereotype.Service;
  */
 // Explicitly named (E8.2a merge): avoids a Spring bean-name clash with the unrelated
 // io.boomerang.workflow.ParameterManager (same simple class name, both @Service) now that
-// service-engine and service-core share one context. See merge commit message.
+// service-engine and service-core share one context. See merge commit message. NOTE (2026-08-15
+// simplification pass): this is a REAL bean-name collision, not a restructure-era wiring pin -
+// removing the explicit name reproduces a ConflictingBeanDefinitionException at boot (verified).
+// Left pinned; the other two restructure-era pins (TaskRunService, WorkflowRunService) were
+// removed since neither has a same-simple-name collision.
 @Service("engineParameterManager")
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
