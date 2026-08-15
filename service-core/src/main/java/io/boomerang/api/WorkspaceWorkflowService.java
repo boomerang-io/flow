@@ -29,7 +29,6 @@ import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
-import io.boomerang.core.RunScopeResolver;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -62,7 +61,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort.Direction;
@@ -80,16 +79,15 @@ import org.springframework.stereotype.Service;
  * TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust
  *
- * E10-prep (J1/H7): intentionally NOT @ConditionalOnFlowMode(STANDALONE) despite the
- * "Workspace*" name - the api mode-matrix row keeps "the same surface, team->default" live in
- * engine mode too. Workspace-scoping calls (filter/check/link) now go through RunScopeResolver,
- * which remaps them for real in engine mode instead of leaving them to throw. The two remaining
- * genuinely workspace-domain dependencies - WorkspaceService (quotas, max-duration) and
- * ScheduleService (trigger enable/disable, cleanup on delete) - are neither of RunScopeResolver's
- * concern (member CRUD/quotas stay on WorkspaceService per the seam's contract) nor available in
- * engine mode, so they're held as ObjectProvider and every call site is guarded: standalone
- * behaviour is unchanged, engine mode treats them as a no-op/unbounded fallback (see each call
- * site's comment for the specific choice).
+ * E8 mode-gating note: intentionally NOT @ConditionalOnFlowMode(STANDALONE) despite the
+ * "Workspace*" name and the workspace.WorkspaceService field below - that field is @Lazy
+ * specifically so this bean constructs fine without a WorkspaceService bean present. Two things
+ * require it to stay unconditional: ScheduleJob (schedule package, standalone-only) hard-depends
+ * on it non-lazily for the fire path, and the api mode-matrix row keeps "the same surface,
+ * team->default" in engine mode too (J1 remap deferred to E10). Only the team-quota-specific
+ * paths (canCreateWithQuotas, canRunWithQuotas, the getWorkflowMaxDurationForTeam call in
+ * internalSubmit) will throw NoSuchBeanDefinitionException off the lazy proxy if actually invoked
+ * outside standalone mode - a known, deferred gap, not fixed here.
  */
 @Service
 public class WorkspaceWorkflowService {
@@ -107,33 +105,30 @@ public class WorkspaceWorkflowService {
 
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
-  private final RunScopeResolver runScopeResolver;
-  private final ObjectProvider<ScheduleService> scheduleServiceProvider;
+  private final ScheduleService scheduleService;
   private final ParameterManager parameterManager;
   private final SettingsService settingsService;
   private final WorkspaceActionService workspaceActionService;
   private final TokenService tokenService;
-  private final ObjectProvider<WorkspaceService> workspaceServiceProvider;
+  private final WorkspaceService workspaceService;
 
   public WorkspaceWorkflowService(
       WorkflowService workflowService,
       RelationshipService relationshipService,
-      RunScopeResolver runScopeResolver,
-      ObjectProvider<ScheduleService> scheduleServiceProvider,
+      @Lazy ScheduleService scheduleService,
       ParameterManager parameterManager,
       SettingsService settingsService,
       WorkspaceActionService workspaceActionService,
       TokenService tokenService,
-      ObjectProvider<WorkspaceService> workspaceServiceProvider) {
+      @Lazy WorkspaceService workspaceService) {
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
-    this.runScopeResolver = runScopeResolver;
-    this.scheduleServiceProvider = scheduleServiceProvider;
+    this.scheduleService = scheduleService;
     this.parameterManager = parameterManager;
     this.settingsService = settingsService;
     this.workspaceActionService = workspaceActionService;
     this.tokenService = tokenService;
-    this.workspaceServiceProvider = workspaceServiceProvider;
+    this.workspaceService = workspaceService;
   }
 
   /*
@@ -161,7 +156,12 @@ public class WorkspaceWorkflowService {
   private Workflow internalGet(
       String team, String name, Optional<Integer> version, boolean withTasks) {
     List<String> refs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, Optional.of(List.of(name)), team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     if (!refs.isEmpty()) {
       Workflow workflow = workflowService.get(refs.get(0), version, withTasks).getBody();
 
@@ -186,7 +186,12 @@ public class WorkspaceWorkflowService {
 
     // Get Refs that request has access to
     List<String> refs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, queryTeam, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
     if (refs == null || refs.size() == 0) {
       return new WorkflowResponsePage();
@@ -227,7 +232,12 @@ public class WorkspaceWorkflowService {
       Optional<List<String>> queryWorkflows) {
     // Get Refs that request has access to
     List<String> refs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, queryTeam, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
 
     // Handle no Workflows for Workspace. Otherwise the engine will return all workflows due to no filter
@@ -258,7 +268,11 @@ public class WorkspaceWorkflowService {
     LOGGER.debug("Workflow DisplayName: {}", request.getDisplayName());
 
     // Ensure Workflow name is unique within Workspace
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOW, request.getName(), team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOW,
+        request.getName(),
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
@@ -280,8 +294,15 @@ public class WorkspaceWorkflowService {
     LOGGER.debug("Workflow DisplayName: {}", workflow.getDisplayName());
 
     // Create Relationship
-    runScopeResolver.linkToScope(
-        team, RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflow.getId(), workflow.getName());
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        team,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        workflow.getId(),
+        workflow.getName(),
+        Optional.empty(),
+        Optional.empty());
 
     // TODO go through and ensure all the required ParamSpec elements are set
 
@@ -373,8 +394,12 @@ public class WorkspaceWorkflowService {
   public Workflow apply(String team, Workflow workflow, boolean replace) {
     if (workflow != null && workflow.getName() != null && !workflow.getName().isBlank()) {
       List<String> refs =
-          runScopeResolver.filterInScope(
-              RelationshipType.WORKFLOW, Optional.of(List.of(workflow.getName())), team, false);
+          relationshipService.filter(
+              RelationshipType.WORKFLOW,
+              Optional.of(List.of(workflow.getName())),
+              Optional.of(RelationshipType.WORKSPACE),
+              Optional.of(List.of(team)),
+              false);
       if (!refs.isEmpty()) {
         workflow.setId(refs.get(0));
 
@@ -425,7 +450,12 @@ public class WorkspaceWorkflowService {
     }
 
     List<String> refs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, Optional.of(List.of(name)), team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     if (!refs.isEmpty()) {
       return this.internalSubmit(team, refs.get(0), request, start);
     } else {
@@ -443,7 +473,12 @@ public class WorkspaceWorkflowService {
   public void internalSubmitForTeam(String team, WorkflowSubmitRequest request, boolean start) {
     // This should return IDs as the next method requires to take in the Workflow ID
     List<String> wfRefs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, Optional.empty(), team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.empty(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     wfRefs.forEach(
         r -> {
           this.internalSubmit(team, r, request, start);
@@ -476,18 +511,11 @@ public class WorkspaceWorkflowService {
       LOGGER.info("Setting debug = " + enableDebug);
     }
     // Set Workflow Timeout
-    Long timeout;
-    WorkspaceService workspaceService = workspaceServiceProvider.getIfAvailable();
-    if (workspaceService != null) {
-      timeout = workspaceService.getWorkflowMaxDurationForTeam(team).longValue();
-      if (!Objects.isNull(request.getTimeout()) && request.getTimeout() < timeout) {
-        timeout = request.getTimeout();
-      }
-    } else {
-      // ENGINE: no workspace/quota surface - honour the caller's requested timeout as-is, no cap.
+    Long timeout = workspaceService.getWorkflowMaxDurationForTeam(team).longValue();
+    if (!Objects.isNull(request.getTimeout()) && request.getTimeout() < timeout) {
       timeout = request.getTimeout();
     }
-    request.setTimeout(timeout);
+    request.setTimeout(Long.valueOf(timeout));
     // These annotations are processed by the DAGUtility in the Engine
     Map<String, Object> executionAnnotations = new HashMap<>();
     executionAnnotations.put(
@@ -501,27 +529,29 @@ public class WorkspaceWorkflowService {
         this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue());
 
     // Add Context, Global, and Workspace parameters to the WorkflowRun request
-    String scope = runScopeResolver.resolve(team);
-    ParamLayers paramLayers = parameterManager.buildParamLayers(scope, workflow);
+    ParamLayers paramLayers = parameterManager.buildParamLayers(team, workflow);
     executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
     executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
     executionAnnotations.put("boomerang.io/team-params", paramLayers.getTeamParams());
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.
-    executionAnnotations.put("boomerang.io/team-name", scope);
+    executionAnnotations.put("boomerang.io/team-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
     WorkflowRun wfRun = workflowService.submit(workflowId, request, start);
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
-    runScopeResolver.linkToScope(
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
         team,
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,
         wfRun.getId(),
-        wfRun.getId());
+        wfRun.getId(),
+        Optional.empty(),
+        Optional.empty());
     return wfRun;
   }
 
@@ -534,7 +564,12 @@ public class WorkspaceWorkflowService {
     }
 
     List<String> refs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, Optional.of(List.of(name)), team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     if (!refs.isEmpty()) {
       return ResponseEntity.ok(workflowService.changelog(refs.get(0)).getBody());
     } else {
@@ -555,15 +590,16 @@ public class WorkspaceWorkflowService {
     }
 
     List<String> refs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, Optional.of(List.of(name)), team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     if (!refs.isEmpty()) {
       // Deletes the Workflow and associated WorkflowRuns, and TaskRuns
       workflowService.delete(refs.get(0));
-      ScheduleService scheduleService = scheduleServiceProvider.getIfAvailable();
-      if (scheduleService != null) {
-        scheduleService.deleteAllForWorkflow(refs.get(0));
-      }
-      // ENGINE: no schedule module - nothing to clean up there.
+      scheduleService.deleteAllForWorkflow(refs.get(0));
       tokenService.deleteAllForPrincipal(name);
       workspaceActionService.deleteAllByWorkflow(refs.get(0));
       // This has to be the ID (ref) as it is unique across all teams
@@ -710,11 +746,6 @@ public class WorkspaceWorkflowService {
    */
   private void updateScheduleTriggers(
       final String team, final Workflow request, WorkflowTrigger currentTriggers) {
-    ScheduleService scheduleService = scheduleServiceProvider.getIfAvailable();
-    if (scheduleService == null) {
-      // ENGINE: no schedule module - nothing to toggle.
-      return;
-    }
     if (!Objects.isNull(request.getTriggers())
         && !Objects.isNull(request.getTriggers().getSchedule())
         && !Objects.isNull(currentTriggers)
@@ -733,11 +764,6 @@ public class WorkspaceWorkflowService {
    * Check if the Workspace Quotas allow a Workflow to run
    */
   private void canCreateWithQuotas(String team) {
-    WorkspaceService workspaceService = workspaceServiceProvider.getIfAvailable();
-    if (workspaceService == null) {
-      // ENGINE: no workspace/quota surface - nothing to enforce.
-      return;
-    }
     if (settingsService
         .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
         .getBooleanValue()) {
@@ -757,11 +783,6 @@ public class WorkspaceWorkflowService {
    * Check if the Workspace Quotas allow a Workflow to run
    */
   private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
-    WorkspaceService workspaceService = workspaceServiceProvider.getIfAvailable();
-    if (workspaceService == null) {
-      // ENGINE: no workspace/quota surface - nothing to enforce.
-      return;
-    }
     if (settingsService
         .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
         .getBooleanValue()) {
@@ -1041,8 +1062,11 @@ public class WorkspaceWorkflowService {
                   isTeamTask = true;
                   // Check for team task
                   slugs =
-                      runScopeResolver.filterInScope(
-                          RelationshipType.TEAMTASK, Optional.of(List.of(t.getTaskRef())), team, true);
+                      relationshipService.filter(
+                          RelationshipType.TEAMTASK,
+                          Optional.of(List.of(t.getTaskRef())),
+                          Optional.of(RelationshipType.WORKSPACE),
+                          Optional.of(List.of(team)));
                 }
                 if (slugs.isEmpty()) {
                   LOGGER.warn("TaskRef not found: {} : {}", t.getName(), t.getTaskRef());
@@ -1060,11 +1084,11 @@ public class WorkspaceWorkflowService {
                         param -> {
                           if (param.getName().equals("workflowRef") && param.getValue() != null) {
                             List<String> slugs =
-                                runScopeResolver.filterInScope(
+                                relationshipService.filter(
                                     RelationshipType.WORKFLOW,
                                     Optional.of(List.of(param.getValue().toString())),
-                                    team,
-                                    true);
+                                    Optional.of(RelationshipType.WORKSPACE),
+                                    Optional.of(List.of(team)));
                             if (slugs == null || slugs.isEmpty()) {
                               throw new BoomerangException(
                                   BoomerangError.TASK_INVALID_REF, t.getName());
@@ -1085,10 +1109,11 @@ public class WorkspaceWorkflowService {
                 List<String> refs;
                 if (t.getTaskRef().contains(TASK_REF_SEPERATOR)) {
                   refs =
-                      runScopeResolver.filterInScope(
+                      relationshipService.filter(
                           RelationshipType.TEAMTASK,
                           Optional.of(List.of(t.getTaskRef().split(TASK_REF_SEPERATOR)[1])),
-                          team,
+                          Optional.of(RelationshipType.WORKSPACE),
+                          Optional.of(List.of(team)),
                           false);
                 } else {
                   refs =
@@ -1113,10 +1138,11 @@ public class WorkspaceWorkflowService {
                         param -> {
                           if (param.getName().equals("workflowRef") && param.getValue() != null) {
                             List<String> refs =
-                                runScopeResolver.filterInScope(
+                                relationshipService.filter(
                                     RelationshipType.WORKFLOW,
                                     Optional.of(List.of(param.getValue().toString())),
-                                    team,
+                                    Optional.of(RelationshipType.WORKSPACE),
+                                    Optional.of(List.of(team)),
                                     false);
                             if (refs == null || refs.isEmpty()) {
                               throw new BoomerangException(

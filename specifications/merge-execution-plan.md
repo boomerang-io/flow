@@ -20,6 +20,7 @@ of boundaries landing, else Q-211 re-opens).
 | AM-5 | The engine-mode static token (Q-207 `flow.security.token`) exists as `flow.dispatcher.token` + `DispatcherAuthFilter` — E8/E10 reuse that filter; the first-class `bfd` token is post-merge (gap-register A3, check ARCHIE first). |
 | AM-7 | **Two modes, not three** (maintainer 2026-08-15): `flow.mode = standalone \| engine`. FULL collapses into STANDALONE — "standalone" = the complete self-contained product (workspaces, auth, integrations, schedules; the default); "engine" = embedded headless execution. The old laptop-mode meaning of standalone is not a mode — it's the product with `flow.security.enabled=false`. Re-rules DD-02's mode list and the proposal §4 matrix (full column ≡ standalone). |
 | AM-8 | **One security property** (maintainer 2026-08-15): `flow.security.enabled`, default from mode (standalone→true, engine→false). The legacy `flow.auth.enabled`/`flow.authorization.enabled` pair is DELETED at the v5 major (no alias window). Restructure-era bean-name pins (`engine*`) removed. lib-common keeps its entities until the Phase 4/T7 agent-runtime decision (if the agent folds in-process, lib-common dies in one move). |
+| AM-10 | **No `RunScopeResolver` — H7's seam is overruled** (maintainer 2026-08-15). Scoping stays on `RelationshipService` exactly as it always has; no mode-aware indirection in the service layer. Engine mode's single-workspace reality is handled **at the edges**: a seeded `default` workspace in the relationship graph (so `RelationshipService` just works, unchanged), and controller-level rejection of any non-`default` workspace. Auth likewise stays outside — IDPZero (future item 5) converts to a token before `RelationshipService` is ever reached. The three resolver commits were reverted. |
 | AM-9 | **No alias images** (maintainer 2026-08-15): v5 ships on NEW infra and a NEW Helm chart — the `flow-service-workflow`/`flow-service-engine` alias-image deprecation window (H10, proposal §7, DD-03's `engine@` alias line) is DROPPED. E10 = one `service-core` image (engine mode = same image with `flow.mode=engine`) + agent + loader, fresh chart, fresh naming. Simplifies DD-03 to: one product tag → {core, agent, loader}. |
 | AM-6 | **Naming convention overrules the proposal's service names** (maintainer 2026-08-15): `<Name>Service`/`<Name>Controller` (+ `<Name>Client` external-only; `<Name>ExecutionService` engine orchestrators). The DOMAIN service keeps the plain name — `workflow.WorkflowService`/`workflow.TaskService` are the definition services (NOT `WorkflowDefinitionService`/`TaskCatalogueService` as the proposal's module table named them); the api composition shims are `Team*Service`, pairing their `Team*ControllerV2` controllers, and dissolve as H7/thin-controllers land. |
 
@@ -78,10 +79,10 @@ dissolves (A4), C10 dedup bindings, B9 stage-2 egress, H7 `RunScopeResolver`.
 **Gates:** G1 targeted (`runWorkflow`/`runScheduledWorkflow` in `TaskExecutionService`); G2 per AM-4.
 
 ### E10 — cutover (reshaped by AM-7/AM-9)
-- **E10-prep ✅ (Track 5, 2026-08-15)**: H7 `RunScopeResolver` seam landed (standalone impl =
-  existing relationship behaviour; engine impl = single `workspace:default` anchor — checks stay
-  graph-backed so uniqueness validation holds; membership constant-true); api shims rewired;
-  engine mode serves the workspace-scoped run/workflow v2 surface (`{team}`→default). J1 v1
+- **E10-prep ✅ (Track 5, 2026-08-15)**: scoping stays on `RelationshipService` (AM-10 — the H7
+  seam was built, then reverted; engine mode's single workspace is an edge concern: seed a
+  `default` workspace, reject non-`default` at the controller). REMAINING for engine mode:
+  that seeding + controller guard. J1 v1
   scrap done: platform v1 controllers deleted (−1121 lines); v1 = the dispatcher wire + the
   agent's four lifecycle callbacks (relocated to `dispatcher`, paths byte-identical; service-agent
   untouched). CI reshaped per AM-9: `ci-release.yml` on product tag `v@**` → three images

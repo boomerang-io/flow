@@ -10,7 +10,6 @@ import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
-import io.boomerang.core.RunScopeResolver;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipType;
@@ -49,7 +48,6 @@ public class WorkspaceActionService {
   private final TaskRunService engineTaskRunService;
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
-  private final RunScopeResolver runScopeResolver;
   private final UserService userService;
   private final MongoTemplate mongoTemplate;
 
@@ -59,7 +57,6 @@ public class WorkspaceActionService {
       TaskRunService engineTaskRunService,
       WorkflowService workflowService,
       RelationshipService relationshipService,
-      RunScopeResolver runScopeResolver,
       UserService userService,
       MongoTemplate mongoTemplate) {
     this.actionRepository = actionRepository;
@@ -67,7 +64,6 @@ public class WorkspaceActionService {
     this.engineTaskRunService = engineTaskRunService;
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
-    this.runScopeResolver = runScopeResolver;
     this.userService = userService;
     this.mongoTemplate = mongoTemplate;
   }
@@ -107,11 +103,11 @@ public class WorkspaceActionService {
       } else if (actionEntity.getType() == ActionType.approval) {
         if (actionEntity.getApproverGroupRef() != null) {
           List<String> approverGroupRefs =
-              runScopeResolver.filterInScope(
+              relationshipService.filter(
                   RelationshipType.APPROVERGROUP,
                   Optional.of(List.of(actionEntity.getApproverGroupRef())),
-                  team,
-                  true);
+                  Optional.of(RelationshipType.WORKSPACE),
+                  Optional.of(List.of(team)));
           if (approverGroupRefs.isEmpty()) {
             throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
           }
@@ -215,7 +211,12 @@ public class WorkspaceActionService {
 
     // Get Refs that request has access to
     List<String> workflowRefs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return Page.empty();
     }
@@ -247,7 +248,12 @@ public class WorkspaceActionService {
       Optional<List<String>> queryWorkflows) {
     ActionSummary summary = new ActionSummary();
     List<String> workflowRefs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, team, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return summary;
     }

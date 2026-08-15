@@ -1,7 +1,7 @@
 package io.boomerang.api;
 
 import io.boomerang.api.model.WorkflowRunResponsePage;
-import io.boomerang.core.RunScopeResolver;
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
  * This service replicates the required calls for Engine WorkflowRunV1 APIs
  *
  * It will
- * - Check authorization using Relationships (via RunScopeResolver)
+ * - Check authorization using Relationships
  * - Forward call onto Engine
  */
 @Service
@@ -34,15 +34,15 @@ public class WorkspaceWorkflowRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private final WorkflowRunService engineWorkflowRunService;
-  private final RunScopeResolver runScopeResolver;
+  private final RelationshipService relationshipService;
   private final WorkspaceActionService workspaceActionService;
 
   public WorkspaceWorkflowRunService(
       WorkflowRunService engineWorkflowRunService,
-      RunScopeResolver runScopeResolver,
+      RelationshipService relationshipService,
       WorkspaceActionService workspaceActionService) {
     this.engineWorkflowRunService = engineWorkflowRunService;
-    this.runScopeResolver = runScopeResolver;
+    this.relationshipService = relationshipService;
     this.workspaceActionService = workspaceActionService;
   }
 
@@ -55,7 +55,11 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.get(workflowRunId, withTasks);
       return ResponseEntity.ok(wfRun);
     } else {
@@ -83,7 +87,12 @@ public class WorkspaceWorkflowRunService {
       Optional<List<String>> queryTriggers) {
 
     List<String> wfRefs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, queryTeam, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
     // TODO query workflow runs
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
     if (!wfRefs.isEmpty()) {
@@ -118,7 +127,12 @@ public class WorkspaceWorkflowRunService {
       Optional<List<String>> queryWorkflows) {
     // Check the queryWorkflows
     List<String> wfRefs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, queryTeam, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
 
     return engineWorkflowRunService.insights(
@@ -135,7 +149,12 @@ public class WorkspaceWorkflowRunService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryWorkflows) {
     List<String> wfRefs =
-        runScopeResolver.filterInScope(RelationshipType.WORKFLOW, queryWorkflows, queryTeam, false);
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
     LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
 
     return engineWorkflowRunService.count(
@@ -152,7 +171,11 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.start(workflowRunId, optRunRequest);
       return ResponseEntity.ok(wfRun);
     } else {
@@ -169,7 +192,11 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.finalize(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
@@ -184,7 +211,11 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.cancel(workflowRunId);
       workspaceActionService.cancelAllByWorkflowRun(workflowRunId);
       return ResponseEntity.ok(wfRun);
@@ -201,7 +232,11 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.pause(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
@@ -216,7 +251,11 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.resume(workflowRunId);
       return ResponseEntity.ok(wfRun);
     } else {
@@ -231,16 +270,23 @@ public class WorkspaceWorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-    if (runScopeResolver.checkInScope(RelationshipType.WORKFLOWRUN, workflowRunId, team)) {
+    if (relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        workflowRunId,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(team)))) {
       WorkflowRun wfRun = engineWorkflowRunService.retry(workflowRunId, false, 1);
 
       // Creates relationship with owning team
-      runScopeResolver.linkToScope(
+      relationshipService.createNodeAndEdge(
+          RelationshipType.WORKSPACE,
           team,
           RelationshipLabel.HAS_WORKFLOWRUN,
           RelationshipType.WORKFLOWRUN,
           wfRun.getId(),
-          wfRun.getId());
+          wfRun.getId(),
+          Optional.empty(),
+          Optional.empty());
       return ResponseEntity.ok(wfRun);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
