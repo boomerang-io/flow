@@ -78,10 +78,20 @@ dissolves (A4), C10 dedup bindings, B9 stage-2 egress, H7 `RunScopeResolver`.
 **Gates:** G1 targeted (`runWorkflow`/`runScheduledWorkflow` in `TaskExecutionService`); G2 per AM-4.
 
 ### E10 — cutover (reshaped by AM-7/AM-9)
-- **E10-prep 🔵 (Track 5)**: H7 `RunScopeResolver` at the submit/scope boundary + begin the
-  `Workspace*Service` shim dissolution; J1 engine-mode v2 surface (`/:team → default`, the
-  platform v1 controllers scrapped — only the dispatcher wire + agent lifecycle callbacks
-  survive as v1); CI: one `service-core` image (no aliases — AM-9), product-tag build.
+- **E10-prep ✅ (Track 5, 2026-08-15)**: H7 `RunScopeResolver` seam landed (standalone impl =
+  existing relationship behaviour; engine impl = single `workspace:default` anchor — checks stay
+  graph-backed so uniqueness validation holds; membership constant-true); api shims rewired;
+  engine mode serves the workspace-scoped run/workflow v2 surface (`{team}`→default). J1 v1
+  scrap done: platform v1 controllers deleted (−1121 lines); v1 = the dispatcher wire + the
+  agent's four lifecycle callbacks (relocated to `dispatcher`, paths byte-identical; service-agent
+  untouched). CI reshaped per AM-9: `ci-release.yml` on product tag `v@**` → three images
+  (`flow-service-core` renamed from flow-service-workflow; agent unchanged;
+  `flow-service-loader` NEW — the loader had no image pipeline; old public name was
+  `boomerangio/flow-loader` from the legacy repo). Missing-workspace param layer tolerated
+  (engine-mode default workspace has no stored record). Notable inert residue: the workflow
+  delete data-loss hazard is no longer HTTP-reachable; `TaskRunService.query/get/cancel` are
+  dead code pending a pruning pass; `workflow.ParameterManager`→workspace repository import
+  remains (future prefix/dissolution pass).
 - **F1 load test** — abort gate (H9): merged-app saturated execution vs split baseline; needs a
   real environment + maintainer read.
 - **Cutover**: new infra + new Helm chart (maintainer-led); engine deployment = the same
