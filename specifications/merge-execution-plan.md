@@ -50,11 +50,19 @@ of boundaries landing, else Q-211 re-opens).
   the true status — an observable improvement, flagged); `enableWorkflow`/`disableWorkflow`
   confirmed dead (always 404'd over HTTP) → deterministic 501. Log streaming needed zero HTTP
   (delegates to the engine's `LogClient` path unchanged). Facade dissolves fully at J2.
-- **E8.2c+** — engine code moves in, module-by-module per the nine-module layout; H5 cycles
-  C1–C6; controllers into owning modules then `@ConditionalOnFlowMode` (one gate per module
-  root) + per-mode boot tests (H6); J2–J6 restructurings (H8); A5 property unification;
-  **E7-5** persisted `agentRef`→`dispatcherRef` / `agents`→`dispatchers` + loader migration
-  (a G2 item — present before building); engine composition stays independently bootable.
+- **E8.2c** ✅ (2026-08-15) — the full package restructure landed via P1→P3c2 (see
+  `package-move-map.md`): nine flat modules physical; house naming (AM-6 —
+  `workflow.WorkflowService`/`TaskService` = definitions; `api.Team*Service` shims); cycles
+  C1–C6 all resolved; `core` has ZERO upward imports; J2/J3/J5/J6 executed; **E9's callback
+  inversion done in-process** (`ScheduleRequested`/`ChildWorkflowRunCreated` ApplicationEvents
+  in `common.model`; engine publishes, `schedule`/`core` listen; `WorkflowClient` +
+  `InternalController` deleted — **gap A4 closed**); H6 mode gates applied per the matrix +
+  engine/standalone boot tests. Relationship seam: **ungated-interim** (a single-anchor no-op
+  would silently corrupt access control — revisit with J1's `/:team → default` remapping at
+  E10). **E7-5** ✅ — `DispatcherEntity`/`dispatchers`/`dispatcherRef` + `_0011__DispatcherRename`
+  changeunit (collection rename, `$rename` on run docs), exercised by `LoaderMigrationTest`.
+  Deliberately deferred to E10: J1 engine-mode default-team remapping; the api `Team*` shim
+  dissolution (H7).
 - **Gates:** G1 = relocation-only for `DAGUtility`/`TaskExecutionService` (zero semantic change;
   review verifies move-only). G2 = the E7-5 rename migration (the register's "None" pre-dates
   pulling E7-5 in).
