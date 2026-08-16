@@ -205,6 +205,29 @@ live stayed on v3. Not usable.)
 | **E — relationship graph** | `_0029__V3BuildRelationshipGraph` · `_0030__V3SystemWorkspaceMembers` · `_0032__V3SeedAudit` | B,C,D | **The most important slice.** Write `workspace:<ref>` node ids/edge prefixes DIRECTLY — `_0012` runs BEFORE these units, so a `team:` write would never be corrected. No `_class`. Audit parent resolved via `rel_edges` (4038's lookup never matched). |
 | **G — cleanup & v4 repair** | `_0035__V3DropIntermediates` · v4 repair units (**M-2**) | E | Repair what IS recoverable on v4 installs: re-derive `taskVersion` from `task_revisions` where unambiguous; rebuild workflow audit records from `rel_edges`. Approver groups unrecoverable on v4 — document, never fake. |
 
+### Post-G consolidation review (maintainer-requested 2026-08-16)
+
+Once Batch G lands, review **every** changeunit as a whole: ordering, numbering, and whether any
+should be merged. **Nothing has run against a real production database yet** (only the dump
+harness), so units may be freely renumbered, reordered, merged or split — the audit store has no
+production history to respect. Specific things to examine:
+
+1. **Seeds vs migration ordering (the big one).** `_0013`–`_0018` (bootstrap seeds) currently run
+   BEFORE the v3→v5 units, which is the ONLY reason they needed generation-aware skip logic
+   (`_0016`/`_0017`/`_0018` skip on v3 to avoid `DuplicateKeyException` and id collisions). If the
+   v3 migration ran FIRST and the seeds after, that skip logic could largely disappear — the seeds
+   would simply be insert-if-absent over already-migrated data. Simpler and less conditional.
+2. **Units separated from their siblings**: `_0026` (task-run refs) belongs with `_0022` (tasks);
+   `_0034` (catalogue reconcile) likewise; `_0031` (global params) and `_0032` (audit) are
+   isolated. Numbering came from the scout's proposal, not from execution logic.
+3. **Merge candidates**: units that always run together over the same collections in the same
+   generation could collapse into one, reducing the audit-log surface and the number of passes
+   over 18k+ documents.
+4. **v3-only vs v4-only gating**: verify each unit's gate is right, and that a FRESH install skips
+   everything it should.
+5. Re-verify the whole chain against the real dump after any reordering — order changes are
+   exactly where a working migration silently breaks.
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced

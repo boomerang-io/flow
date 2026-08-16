@@ -592,6 +592,226 @@ class LoaderMigrationTest {
         .insertOne(new Document("_id", new ObjectId(id)).append("key", v3Key));
   }
 
+  /**
+   * V4-shaped fixture for {@code _0036__V4RepairTaskVersions}/{@code
+   * _0037__V4RepairWorkflowAudit} — the two "best-effort v4 repair" units from maintainer ruling
+   * M-2 (see "v3 → v5 migration consolidation" in {@code specifications/merge-execution-plan.md}).
+   * Unlike every other test in this class, this fixture must be v4-shaped, not v3-shaped: the
+   * real v3 dump {@code V3DumpMigrationTest} runs against never exercises these two units at all
+   * (they are gated {@code InstallGeneration.V4}), so a synthetic fixture is the only way to prove
+   * them.
+   */
+  @Test
+  void v4InstallRepairsTaskVersionsAndWorkflowAudit() {
+    String uri = MONGO.getReplicaSetUrl("v4install");
+    MongoDatabase v4 = client.getDatabase("v4install");
+
+    // changeId "4000" is the v4-chain marker InstallGeneration keys V4 detection on directly
+    // (see that enum's javadoc) - "112" is included too since a real v4 install always completed
+    // the v3 chain first.
+    v4.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+    v4.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "4000"));
+
+    // ---- _0036__V4RepairTaskVersions fixture ----
+    // Three tasks exercising the three possible outcomes: exactly one task_revisions match
+    // (repairable), more than one (genuinely ambiguous - left null), and zero (unresolved - left
+    // null). None of these tasks need a "tasks" document of their own - the repair unit only
+    // consults task_revisions.parentRef, matching the class javadoc's "What IS recoverable"
+    // section.
+    ObjectId taskSingleRev = new ObjectId();
+    ObjectId taskMultiRev = new ObjectId();
+    ObjectId taskNoRev = new ObjectId();
+    v4.getCollection(PREFIX + "_task_revisions")
+        .insertOne(new Document("parentRef", taskSingleRev.toString()).append("version", 3));
+    v4.getCollection(PREFIX + "_task_revisions")
+        .insertOne(new Document("parentRef", taskMultiRev.toString()).append("version", 1));
+    v4.getCollection(PREFIX + "_task_revisions")
+        .insertOne(new Document("parentRef", taskMultiRev.toString()).append("version", 2));
+
+    ObjectId wfRevId = new ObjectId();
+    v4.getCollection(PREFIX + "_workflow_revisions")
+        .insertOne(
+            new Document("_id", wfRevId)
+                .append("workflowRef", new ObjectId().toString())
+                .append("version", 1)
+                .append(
+                    "tasks",
+                    List.of(
+                        new Document("name", "stepSingle")
+                            .append("taskRef", taskSingleRev.toString())
+                            .append("taskVersion", null),
+                        new Document("name", "stepMulti")
+                            .append("taskRef", taskMultiRev.toString())
+                            .append("taskVersion", null),
+                        new Document("name", "stepNoRev")
+                            .append("taskRef", taskNoRev.toString())
+                            .append("taskVersion", null),
+                        // Already carries a version - must never be recomputed/overwritten.
+                        new Document("name", "stepAlready")
+                            .append("taskRef", taskSingleRev.toString())
+                            .append("taskVersion", 5),
+                        // No taskRef at all (start/end nodes) - must be skipped, never crash.
+                        new Document("name", "start").append("taskVersion", null))));
+
+    ObjectId wfTemplateId = new ObjectId();
+    v4.getCollection(PREFIX + "_workflow_templates")
+        .insertOne(
+            new Document("_id", wfTemplateId)
+                .append(
+                    "tasks",
+                    List.of(
+                        new Document("name", "tstep")
+                            .append("taskRef", taskSingleRev.toString())
+                            .append("taskVersion", null))));
+
+    ObjectId taskRunId = new ObjectId();
+    v4.getCollection(PREFIX + "_task_runs")
+        .insertOne(
+            new Document("_id", taskRunId)
+                .append("name", "run-step")
+                .append("workflowRunRef", "wfr-v4-repair")
+                .append("status", "succeeded")
+                .append("taskRef", taskSingleRev.toString())
+                .append("taskVersion", null));
+
+    // ---- _0037__V4RepairWorkflowAudit fixture ----
+    // A workspace whose TEAM audit record already exists (v4's own 4038 workspace half worked),
+    // one workflow that resolves cleanly (the repair case), one whose hasWorkflow edge is
+    // missing (skip case 1), and one whose edge resolves but whose workspace has no audit record
+    // at all (skip case 2 - defensive, should not happen on a genuine v4 install).
+    ObjectId workspaceId = new ObjectId();
+    v4.getCollection(PREFIX + "_teams")
+        .insertOne(new Document("_id", workspaceId).append("name", "acme-v4").append("type", "hobby"));
+    ObjectId workspaceAuditId = new ObjectId();
+    v4.getCollection(PREFIX + "_audit")
+        .insertOne(
+            new Document("_id", workspaceAuditId)
+                .append("scope", "TEAM")
+                .append("selfRef", workspaceId.toString())
+                .append("selfName", "acme-v4")
+                .append("creationDate", EARLIER)
+                .append("events", List.of())
+                .append("data", new Document("name", "acme-v4")));
+
+    ObjectId workflowId = new ObjectId();
+    v4.getCollection(PREFIX + "_workflows").insertOne(new Document("_id", workflowId).append("name", "v4-workflow"));
+    v4.getCollection(PREFIX + "_rel_edges")
+        .insertOne(
+            new Document("from", "workspace:" + workspaceId)
+                .append("label", "hasWorkflow")
+                .append("to", "workflow:" + workflowId)
+                .append("data", new Document()));
+
+    ObjectId workflowNoEdgeId = new ObjectId();
+    v4.getCollection(PREFIX + "_workflows")
+        .insertOne(new Document("_id", workflowNoEdgeId).append("name", "orphan-workflow"));
+
+    ObjectId workspaceNoAuditId = new ObjectId();
+    v4.getCollection(PREFIX + "_teams")
+        .insertOne(new Document("_id", workspaceNoAuditId).append("name", "no-audit-workspace-v4").append("type", "hobby"));
+    ObjectId workflowNoWorkspaceAuditId = new ObjectId();
+    v4.getCollection(PREFIX + "_workflows")
+        .insertOne(new Document("_id", workflowNoWorkspaceAuditId).append("name", "orphan-workspace-workflow"));
+    v4.getCollection(PREFIX + "_rel_edges")
+        .insertOne(
+            new Document("from", "workspace:" + workspaceNoAuditId)
+                .append("label", "hasWorkflow")
+                .append("to", "workflow:" + workflowNoWorkspaceAuditId)
+                .append("data", new Document()));
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    assertV4TaskVersionsRepaired(v4, wfRevId, wfTemplateId, taskRunId, taskSingleRev, taskMultiRev);
+    assertV4WorkflowAuditRepaired(v4, workflowId, workspaceAuditId, workflowNoEdgeId, workflowNoWorkspaceAuditId);
+
+    // Idempotency - a second run repairs nothing further (already-repaired entries are no longer
+    // null) and creates no duplicate audit records.
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertV4TaskVersionsRepaired(v4, wfRevId, wfTemplateId, taskRunId, taskSingleRev, taskMultiRev);
+    assertV4WorkflowAuditRepaired(v4, workflowId, workspaceAuditId, workflowNoEdgeId, workflowNoWorkspaceAuditId);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void assertV4TaskVersionsRepaired(
+      MongoDatabase v4,
+      ObjectId wfRevId,
+      ObjectId wfTemplateId,
+      ObjectId taskRunId,
+      ObjectId taskSingleRev,
+      ObjectId taskMultiRev) {
+    Document revision =
+        v4.getCollection(PREFIX + "_workflow_revisions").find(Filters.eq("_id", wfRevId)).first();
+    List<Document> tasks = (List<Document>) revision.get("tasks");
+    assertThat(taskNamed(tasks, "stepSingle").getInteger("taskVersion"))
+        .as("exactly one task_revisions match - unambiguously repairable")
+        .isEqualTo(3);
+    assertThat(taskNamed(tasks, "stepMulti").get("taskVersion"))
+        .as("more than one task_revisions match - genuinely ambiguous, left null")
+        .isNull();
+    assertThat(taskNamed(tasks, "stepNoRev").get("taskVersion"))
+        .as("no task_revisions match at all - unresolved, left null")
+        .isNull();
+    assertThat(taskNamed(tasks, "stepAlready").getInteger("taskVersion"))
+        .as("already carried a version - must never be recomputed")
+        .isEqualTo(5);
+    assertThat(taskNamed(tasks, "start").get("taskVersion"))
+        .as("no taskRef at all - skipped, never crashes")
+        .isNull();
+
+    Document template =
+        v4.getCollection(PREFIX + "_workflow_templates").find(Filters.eq("_id", wfTemplateId)).first();
+    List<Document> templateTasks = (List<Document>) template.get("tasks");
+    assertThat(taskNamed(templateTasks, "tstep").getInteger("taskVersion")).isEqualTo(3);
+
+    Document taskRun = v4.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
+    assertThat(taskRun.getInteger("taskVersion")).isEqualTo(3);
+  }
+
+  private Document taskNamed(List<Document> tasks, String name) {
+    return tasks.stream()
+        .filter(t -> name.equals(t.getString("name")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("No task named " + name));
+  }
+
+  private void assertV4WorkflowAuditRepaired(
+      MongoDatabase v4,
+      ObjectId workflowId,
+      ObjectId workspaceAuditId,
+      ObjectId workflowNoEdgeId,
+      ObjectId workflowNoWorkspaceAuditId) {
+    MongoCollection<Document> audit = v4.getCollection(PREFIX + "_audit");
+
+    assertThat(audit.countDocuments(Filters.eq("scope", "WORKFLOW")))
+        .as("only the one cleanly-resolvable workflow gets an audit record")
+        .isEqualTo(1);
+
+    Document repaired =
+        audit.find(Filters.and(Filters.eq("scope", "WORKFLOW"), Filters.eq("selfRef", workflowId.toString()))).first();
+    assertThat(repaired).isNotNull();
+    assertThat(repaired.getString("selfName")).isEqualTo("v4-workflow");
+    assertThat(repaired.getString("parent"))
+        .as("parent must be the workspace's OWN AUDIT RECORD id, not its domain _id")
+        .isEqualTo(workspaceAuditId.toString());
+    assertThat(((Document) repaired.get("data")).getString("name")).isEqualTo("v4-workflow");
+
+    assertThat(
+            audit
+                .find(Filters.and(Filters.eq("scope", "WORKFLOW"), Filters.eq("selfRef", workflowNoEdgeId.toString())))
+                .first())
+        .as("no hasWorkflow edge - skipped, never fabricated")
+        .isNull();
+    assertThat(
+            audit
+                .find(
+                    Filters.and(
+                        Filters.eq("scope", "WORKFLOW"),
+                        Filters.eq("selfRef", workflowNoWorkspaceAuditId.toString())))
+                .first())
+        .as("edge resolves but the workspace has no TEAM audit record - skipped, never fabricated")
+        .isNull();
+  }
+
   @Test
   void failsWhenMongoIsUnreachable() {
     assertThatThrownBy(

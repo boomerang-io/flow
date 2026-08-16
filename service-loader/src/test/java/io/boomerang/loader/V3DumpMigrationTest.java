@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -273,6 +274,8 @@ class V3DumpMigrationTest {
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
     assertAuditSeeded();
+    assertV3IndexesCreated();
+    assertV3IntermediatesDropped();
 
     // -----------------------------------------------------------------------------------
     // Idempotency — a second full run changes nothing. Compared at per-collection document
@@ -322,6 +325,11 @@ class V3DumpMigrationTest {
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
     assertAuditSeeded();
+    // Re-asserting index presence/counts here after this second full run is itself the
+    // idempotency proof the batch instructions ask for - ensureIndex is a no-op on an identically
+    // named/keyed index, and the second-run intermediate-drop pass finds nothing left to drop.
+    assertV3IndexesCreated();
+    assertV3IntermediatesDropped();
   }
 
   // =====================================================================================
@@ -1441,6 +1449,79 @@ class V3DumpMigrationTest {
     assertThat(heartbeatAudit.getString("parent"))
         .as("a workflow audit record's parent is the WORKSPACE'S OWN AUDIT RECORD id, not the workspace's domain _id")
         .isEqualTo(systemAudit.get("_id").toString());
+  }
+
+  // =====================================================================================
+  // _0033__V3Indexes invariants (Batch G)
+  // =====================================================================================
+
+  private void assertV3IndexesCreated() {
+    Map<String, Document> userIndexes = indexesByName("users");
+    assertThat(userIndexes.get("email_unique")).as("users.email_unique must exist").isNotNull();
+    assertThat(userIndexes.get("email_unique").get("key", Document.class).keySet())
+        .containsExactly("email");
+    assertThat(userIndexes.get("email_unique").getBoolean("unique"))
+        .as("users.email_unique must be unique - the real dump's 57 users have no duplicate email")
+        .isTrue();
+
+    Map<String, Document> workflowIndexes = indexesByName("workflows");
+    assertThat(workflowIndexes.get("creation_date_sort").get("key", Document.class).keySet())
+        .containsExactly("creationDate");
+
+    Map<String, Document> revisionIndexes = indexesByName("workflow_revisions");
+    assertThat(revisionIndexes.get("version_lookup").get("key", Document.class).keySet())
+        .containsExactly("version");
+
+    Map<String, Document> taskIndexes = indexesByName("tasks");
+    assertThat(taskIndexes.get("creation_date_sort").get("key", Document.class).keySet())
+        .containsExactly("creationDate");
+
+    Map<String, Document> taskRunIndexes = indexesByName("task_runs");
+    assertThat(taskRunIndexes.get("label_wildcard").get("key", Document.class).keySet())
+        .containsExactly("labels.$**");
+
+    Map<String, Document> workflowRunIndexes = indexesByName("workflow_runs");
+    assertThat(workflowRunIndexes.get("label_wildcard").get("key", Document.class).keySet())
+        .containsExactly("labels.$**");
+  }
+
+  private Map<String, Document> indexesByName(String bareCollectionName) {
+    Map<String, Document> indexes = new HashMap<>();
+    collection(bareCollectionName).listIndexes().forEach(index -> indexes.put(index.getString("name"), index));
+    return indexes;
+  }
+
+  // =====================================================================================
+  // _0035__V3DropIntermediates invariants (Batch G)
+  // =====================================================================================
+
+  private void assertV3IntermediatesDropped() {
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+
+    // Class 1 - v4-era intermediates with no v5 use at all. Absent on this real v3 dump (it never
+    // ran any part of the old v4 chain), proving the drop is a safe no-op here; the defensive
+    // drop-if-present path is exercised for LoaderMigrationTest's synthetic fixtures instead.
+    assertThat(names).as("relationships must be absent").doesNotContain(prefixed("relationships"));
+    assertThat(names).as("relationships_v1 must be absent").doesNotContain(prefixed("relationships_v1"));
+    assertThat(names)
+        .as("the prefixed v4 lock collection must be absent (distinct from the genuinely"
+            + " unprefixed distributed-lock 'locks', still asserted present elsewhere, and from"
+            + " v5's own task_locks)")
+        .doesNotContain(prefixed("locks"));
+    assertThat(names).as("quartz must be absent").doesNotContain(prefixed("quartz"));
+
+    // Class 2 - v3 sources each earlier unit should already have fully drained AND dropped as its
+    // own last step. Re-confirmed here (each is already individually proven gone by its own
+    // batch's assertions above - assertTaskCatalogueMigrated/assertGlobalParametersMigrated/
+    // assertWorkflowsMigrated/assertRunsMigrated/assertActionsMigrated/assertSchedulesMigrated) -
+    // nothing lingers on the real dump for _0035's defensive pass to find.
+    assertThat(names).doesNotContain(prefixed("task_templates"));
+    assertThat(names).doesNotContain(prefixed("global_config"));
+    assertThat(names).doesNotContain(prefixed("workflows_revisions"));
+    assertThat(names).doesNotContain(prefixed("workflows_activity"));
+    assertThat(names).doesNotContain(prefixed("workflows_activity_approval"));
+    assertThat(names).doesNotContain(prefixed("workflows_schedules"));
   }
 
   private Map<String, Long> snapshotCounts() {
