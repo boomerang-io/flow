@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
  * <p>This squashes the user-reshaping half of legacy changeset {@code 4014} ({@code
  * v4MigrateUsersToTeam}) - the other half (creating a {@code MEMBEROF} relationship document and
  * re-pointing every prior workflow/run -\> user relationship at the new personal team) is
- * relationship-graph work and belongs to Batch E ({@code _0029__V3BuildRelationshipGraph}), which
+ * relationship-graph work and belongs to Batch E ({@code _0012__V3BuildRelationshipGraph}), which
  * this unit deliberately never touches (see the "user -\> personal-workspace linkage" section
  * below for how it stays discoverable there).
  *
@@ -75,13 +75,13 @@ import org.slf4j.LoggerFactory;
  *       discoverability technique as {@code _0023}'s {@code scope}/{@code ownerRef} and {@code
  *       _0027}'s {@code workspaceRef}): the real v3 team ids the user belonged to, passed through
  *       verbatim (empty list when absent/empty - 2 of the 3 real users spot-checked in this program
- *       carry an empty {@code flowTeams}). Batch E ({@code _0029__V3BuildRelationshipGraph}) reads
+ *       carry an empty {@code flowTeams}). Batch E ({@code _0012__V3BuildRelationshipGraph}) reads
  *       this to emit {@code user:<id> --memberOf--> workspace:<teamId>} edges for real (non-personal)
  *       team membership, skipping any id that does not resolve to a migrated workspace.
  * </ul>
  *
  * <p><b>Personal workspace per user (M-1).</b> Reproduces legacy {@code 4014}'s naming derivation
- * literally (a deliberate departure from {@code _0027__V3MigrateWorkspaces}'s consistency-driven
+ * literally (a deliberate departure from {@code _0007__V3MigrateWorkspaces}'s consistency-driven
  * choice to use {@code _0022}'s simpler slug algorithm for ordinary teams - this one is instructed
  * to match {@code 4014} exactly, character-stripping regex included):
  *
@@ -95,7 +95,7 @@ import org.slf4j.LoggerFactory;
  * mirrors the user's own ({@code active} user -\> {@code active} workspace, matching {@code
  * 4014}). {@code quotas} are the DEFAULT quotas the migrated {@code teams} settings document
  * carries (10 workflows / 20 runs-per-month / 25 storage / 2 run-storage / 30 min duration / 4
- * concurrent - see {@code _0021__V3MigrateSettings}'s {@code migrateTeams}), never a per-user
+ * concurrent - see {@code _0005__V3MigrateSettings}'s {@code migrateTeams}), never a per-user
  * override even where the v3 document has its own {@code quotas} - the batch instructions are
  * explicit ("default quotas from the teams setting"), and those numbers are exactly {@code 4014}'s
  * own hardcoded fallback besides.
@@ -114,7 +114,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>Idempotency</b> (the batch instructions flag this as especially important here): per-user
  * processing is gated on the v3 {@code _class} discriminator, matching {@code
- * _0027__V3MigrateWorkspaces} - a document rewritten by a prior run never carries it again. Within
+ * _0007__V3MigrateWorkspaces} - a document rewritten by a prior run never carries it again. Within
  * one user's processing, the personal workspace is created FIRST, via {@link
  * SeedResources#insertIfAbsent} keyed on {@code (type=personal, externalRef=<userId>)}, and the
  * user document is rewritten (losing {@code _class}) SECOND - so a crash between the two steps
@@ -123,11 +123,11 @@ import org.slf4j.LoggerFactory;
  * that order would let a crash after the user rewrite permanently skip personal-workspace creation
  * for that user, since the outer {@code _class} gate would never see them again.
  */
-@Change(id = "0028-v3-migrate-users", author = "boomerang", transactional = false)
+@Change(id = "0008-v3-migrate-users", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0028__V3MigrateUsers {
+public class _0008__V3MigrateUsers {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0028__V3MigrateUsers.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0008__V3MigrateUsers.class);
 
   /** See the class javadoc's "Personal workspace per user" section. */
   private static final int DEFAULT_MAX_WORKFLOW_COUNT = 10;

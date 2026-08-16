@@ -135,11 +135,11 @@ import org.slf4j.LoggerFactory;
  * retryCount} - no v3 source (JobRunr/the claim-based watcher are v5-only concepts), left
  * unset/default.
  */
-@Change(id = "0025-v3-migrate-runs", author = "boomerang", transactional = false)
+@Change(id = "0011-v3-migrate-runs", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0025__V3MigrateRuns {
+public class _0011__V3MigrateRuns {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0025__V3MigrateRuns.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0011__V3MigrateRuns.class);
   private static final int BATCH_SIZE = 1000;
 
   @Apply

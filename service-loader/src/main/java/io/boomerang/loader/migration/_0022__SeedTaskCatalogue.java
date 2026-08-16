@@ -48,29 +48,33 @@ import org.slf4j.LoggerFactory;
  * version}, and the revisions are re-pointed at whichever task id actually won (an upgraded
  * install's own, or the seeded one), so a re-run inserts nothing.
  *
- * <p><b>Skipped entirely on a v3 install</b> ({@link InstallGeneration#V3}): on v3 the catalogue
- * still lives in {@code task_templates} (the pre-v4-split collection) and {@code tasks} is empty,
- * so this change unit would otherwise insert all 87 seed tasks under the very {@code _id}s the v3
- * install still holds in {@code task_templates} (verified 87/87 overlap) — blocking the later
- * v3→v5 unit that migrates {@code task_templates} into {@code tasks}/{@code task_revisions}. That
- * migration is what seeds this collection for a v3 install.
+ * <p><b>No longer generation-gated</b> (formerly skipped entirely on a v3 install: on v3 the
+ * catalogue lived in {@code task_templates} — the pre-v4-split collection — and {@code tasks} was
+ * empty at the point this seed used to run, so it would otherwise have inserted all 87 seed tasks
+ * under the very {@code _id}s the v3 install still held in {@code task_templates}, verified 87/87
+ * overlap, blocking the migration that turns {@code task_templates} into {@code tasks}/{@code
+ * task_revisions}). Running strictly AFTER {@code _0006__V3MigrateTaskCatalogue} (Phase 5 vs Phase
+ * 2) removes that hazard entirely: {@code tasks} already holds the v3-migrated catalogue by the
+ * time this unit runs, so {@link #seedTasks}'s name-match naturally finds every one of the 87
+ * already-migrated tasks (resolving to their preserved v3 {@code _id}s, never re-inserting under
+ * the seed's own ids) and inserts only what a given v3 install genuinely lacks — the same
+ * reconciliation the former {@code _0034__V3ReconcileCatalogue} unit performed by {@code _id}
+ * instead of by name. That unit is DROPPED, not folded in, because this seed alone now covers its
+ * job in full: verified against the real v3 dump (89 tasks / 132 revisions, unchanged — the sole
+ * gap, seed {@code Manual Approval} v2, is inserted here exactly as {@code _0034} used to insert
+ * it) and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions,
+ * unchanged). See "Post-G consolidation review" in {@code specifications/merge-execution-plan.md}.
  */
-@Change(id = "0017-seed-task-catalogue", author = "boomerang", transactional = false)
+@Change(id = "0022-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0017__SeedTaskCatalogue {
+public class _0022__SeedTaskCatalogue {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0017__SeedTaskCatalogue.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0022__SeedTaskCatalogue.class);
 
   private static final String ROOT_NODE_ID = "root:root";
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
-    if (InstallGeneration.detect(db, names) == InstallGeneration.V3) {
-      LOG.info(
-          "v3 install detected — skipping task catalogue seed; the v3->v5 migration migrates "
-              + "task_templates into tasks/task_revisions for this install.");
-      return;
-    }
     Map<String, String> resolvedIds = seedTasks(db, names);
     seedRevisions(db, names, resolvedIds);
     seedGraph(db, names, resolvedIds);

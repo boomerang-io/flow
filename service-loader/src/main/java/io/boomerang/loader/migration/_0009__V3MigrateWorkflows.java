@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  * {@code 4026} (triggers {@code enable}->{@code enabled}+{@code conditions[]}, {@code
  * scheduler}->{@code schedule}, added {@code event} trigger), {@code 4034} (the {@code
  * templateRef}/{@code taskVersion} resolution — <b>with the v4 bug fixed</b>, see below), {@code
- * 4042} (revision config/params merge — reproduces {@code _0022__V3MigrateTasks#mergeParams}'s
+ * 4042} (revision config/params merge — reproduces {@code _0006__V3MigrateTaskCatalogue#mergeParams}'s
  * algorithm, "same as {@code _0022} did for task revisions" per the batch instructions), {@code
  * 4047} (single-pass {@code name}(display)-\>{@code displayName} + slugified {@code name}, reusing
  * {@code _0022}'s exact slug algorithm) and {@code 4048} (run-workflow task param {@code
@@ -55,7 +55,7 @@ import org.slf4j.LoggerFactory;
  * resolving the task NAME to the task {@code _id}, matching legacy {@code 4034}'s own two-hop
  * lookup ({@code task_templates} by id -\> name, then {@code tasks} by name -\> id). That
  * intermediate is unreachable here: {@code task_templates} no longer exists by the time this unit
- * runs (Batch B - {@code _0022__V3MigrateTasks} - has already dropped it), and {@code _0022}
+ * runs (Batch B - {@code _0006__V3MigrateTaskCatalogue} - has already dropped it), and {@code _0022}
  * documents that it preserves {@code tasks._id} verbatim from {@code task_templates._id}. So {@code
  * dagTask.templateId} (a v3 {@code task_templates} id) already equals the migrated task's {@code
  * _id} directly — no name hop needed, and none is possible any more. This unit resolves {@code
@@ -117,7 +117,7 @@ import org.slf4j.LoggerFactory;
  *       instructions say to drop (dropped BY NAME - the WorkflowEntity shape never carries them -
  *       while the ownership fact itself survives under DD-08-compliant typed fields, never an
  *       annotation). Two consumers: (1) THIS SAME BATCH's {@code
- *       _0024__V3ExtractWorkflowTemplates}, which depends on finding {@code scope=template}
+ *       _0010__V3ExtractWorkflowTemplates}, which depends on finding {@code scope=template}
  *       workflows AFTER this unit has already reshaped them (it runs immediately after, in the same
  *       chain); (2) Batch E's relationship-graph build, which depends on B/C/D and therefore cannot
  *       read the original v3-shaped {@code workflows}/{@code flowTeamId}/{@code ownerUserId} at
@@ -133,7 +133,7 @@ import org.slf4j.LoggerFactory;
  *       extracted document later using the SAME id the real dump's seeded templates already use -
  *       verified: the real dump's template-scope workflows' v1 revision ids, {@code
  *       62be6a3266ff43491f09d2e8} and {@code 62be6a3e66ff43491f09d2ea}, are EXACTLY the two ids
- *       {@code _0018__SeedTemplates}'s collision guard names).
+ *       {@code _0023__SeedTemplates}'s collision guard names).
  *   <li>{@code workflowRef} <- v3 {@code workFlowId} (a v3 string, already the workflow's {@code
  *       _id.toString()}).
  *   <li>{@code version} <- v3 {@code version} (a v3 {@code Long}), narrowed to {@code Integer}.
@@ -206,11 +206,11 @@ import org.slf4j.LoggerFactory;
  * workflow has been processed (matching {@code _0022}'s {@code task_templates.drop()} - a no-op on
  * an already-dropped collection).
  */
-@Change(id = "0023-v3-migrate-workflows", author = "boomerang", transactional = false)
+@Change(id = "0009-v3-migrate-workflows", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0023__V3MigrateWorkflows {
+public class _0009__V3MigrateWorkflows {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0023__V3MigrateWorkflows.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0009__V3MigrateWorkflows.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
@@ -552,7 +552,7 @@ public class _0023__V3MigrateWorkflows {
   /**
    * Reproduces {@code 4005}+{@code 4042}'s workflow-{@code properties}->{@code config}+{@code
    * params}->merged-{@code params} pipeline for ONE revision, exactly mirroring {@code
-   * _0022__V3MigrateTasks#mergeParams}'s algorithm (config-as-base-document, {@code key}->{@code
+   * _0006__V3MigrateTaskCatalogue#mergeParams}'s algorithm (config-as-base-document, {@code key}->{@code
    * name}, {@code values}->{@code value}, defaultValue/description merged in from the matching
    * naive param by name, unmatched naive params surviving as bare string-typed fallbacks).
    *

@@ -29,11 +29,11 @@ import org.slf4j.LoggerFactory;
  * Its workspace half used the correct casing and DID work, so a v4 install has {@code
  * scope=TEAM} audit records already (this unit does not touch or recreate those — see the "what
  * this unit assumes already exists" note below) but zero {@code scope=WORKFLOW} ones. This is
- * exactly {@link _0032__V3SeedAudit}'s finding, re-applied here for the v4 case: that unit seeds
+ * exactly {@link _0013__V3SeedAudit}'s finding, re-applied here for the v4 case: that unit seeds
  * BOTH scopes from scratch (a v3 install never had an {@code audit} collection at all); this one
  * only backfills the workflow half a v4 install is specifically missing.
  *
- * <p><b>Field mapping</b> — identical to {@link _0032__V3SeedAudit}'s workflow-record mapping
+ * <p><b>Field mapping</b> — identical to {@link _0013__V3SeedAudit}'s workflow-record mapping
  * (see that unit's javadoc for the full field-by-field justification against {@code
  * AuditInterceptor}/{@code InsightsService}): {@code scope=WORKFLOW}; {@code selfRef} <- the
  * workflow's own {@code _id}; {@code selfName} <- its {@code name}; {@code parent} <- the owning
@@ -47,27 +47,27 @@ import org.slf4j.LoggerFactory;
  * v4 install's workspaces already have one. If a workflow's resolved workspace turns out to have
  * no audit record anyway (should not happen on a genuine v4 install, but handled defensively), its
  * workflow audit record is skipped and logged rather than written with a fabricated/null parent —
- * matching {@link _0032__V3SeedAudit}'s own "unresolved" handling. Likewise, {@code rel_nodes}/
+ * matching {@link _0013__V3SeedAudit}'s own "unresolved" handling. Likewise, {@code rel_nodes}/
  * {@code rel_edges} themselves are assumed already correct on v4 ({@code 4041} is the KEEP'd
- * relationship-model introduction, and {@link _0012__WorkspaceRename} — ungated, runs on every
+ * relationship-model introduction, and {@link _0016__WorkspaceRename} — ungated, runs on every
  * install — has already normalised any {@code team:}-prefixed writes to {@code workspace:} by the
  * time this unit runs).
  *
  * <p><b>Approver groups are NOT repairable on v4</b> (per M-2, same finding as {@link
- * _0036__V4RepairTaskVersions}'s javadoc): legacy {@code 4011} stripped {@code
+ * _0024__V4RepairTaskVersions}'s javadoc): legacy {@code 4011} stripped {@code
  * teams.approverGroups[]} during the v3→v4 migration and nothing ever wrote a v4-side {@code
  * approver_groups} collection to replace it. There is no surviving fragment anywhere to rebuild
  * it from, so no repair unit attempts it — the gap is permanent on v4 installs and is documented
  * here (and on {@code _0036}) purely so it stays discoverable.
  *
  * <p>Idempotent: matched (and skipped) by {@code (scope=WORKFLOW, selfRef)} — a second run
- * inserts nothing new, mirroring {@link _0032__V3SeedAudit}.
+ * inserts nothing new, mirroring {@link _0013__V3SeedAudit}.
  */
-@Change(id = "0037-v4-repair-workflow-audit", author = "boomerang", transactional = false)
+@Change(id = "0025-v4-repair-workflow-audit", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0037__V4RepairWorkflowAudit {
+public class _0025__V4RepairWorkflowAudit {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0037__V4RepairWorkflowAudit.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0025__V4RepairWorkflowAudit.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

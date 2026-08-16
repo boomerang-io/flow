@@ -9,8 +9,6 @@ import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.List;
 import org.bson.Document;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Seed the seven instance settings documents, each a {@code SettingEntity} whose {@code config}
@@ -34,29 +32,27 @@ import org.slf4j.LoggerFactory;
  * <p>Ported from the legacy loader's {@code flow/*&#47;flow_settings/*.json} chain as its final
  * state, keeping the literal {@code _id}s so an upgraded install matches on them. Guarded on
  * {@code _id} OR {@code key}: an install that already holds a setting keeps its own configured
- * values. The {@code _id} half of the guard is defence-in-depth against a v3 install that already
- * holds these same seven {@code _id}s under different {@code key} values (the legacy loader
- * generated them independently) — on a v3 database this change unit does not run at all (see
- * below), so it only ever matters on v4/fresh, where the two never actually collide.
+ * values. The {@code _id} half of the guard is what makes this unit safe to run unconditionally on
+ * a v3-sourced install too: {@code _0005__V3MigrateSettings} (Phase 2) migrates the v3 {@code
+ * settings} collection's seven documents IN PLACE, under these same literal {@code _id}s (the seed
+ * content was captured from that same legacy data) — this seed then runs strictly AFTER that
+ * migration (Phase 5), so every one of its seven {@code _id}-matched insert attempts finds an
+ * existing document and inserts nothing. Verified against a real v3 dump.
  *
- * <p><b>Skipped entirely on a v3 install</b> ({@link InstallGeneration#V3}): all seven {@code
- * _id}s already exist there under different {@code key} values, and the (separate) v3→v5
- * migration is what reconciles this collection for those installs.
+ * <p><b>No longer generation-gated</b> (formerly skipped entirely on {@link InstallGeneration#V3}
+ * to avoid a {@code DuplicateKeyException} against the v3-era {@code key} values — before {@code
+ * _0003} ran ahead of this seed in the old chain, the seven v3 {@code _id}s existed under
+ * DIFFERENT {@code key}s, so the seed's OR-guard's {@code key} half could never protect them, only
+ * the {@code _id} half could, and only once the {@code _id}s existed. Now that {@code _0003} always
+ * runs first, this is simply insert-if-absent over already-correct data). See "Post-G consolidation
+ * review" in {@code specifications/merge-execution-plan.md}.
  */
-@Change(id = "0016-seed-settings", author = "boomerang", transactional = false)
+@Change(id = "0021-seed-settings", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0016__SeedSettings {
-
-  private static final Logger LOG = LoggerFactory.getLogger(_0016__SeedSettings.class);
+public class _0021__SeedSettings {
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
-    if (InstallGeneration.detect(db, names) == InstallGeneration.V3) {
-      LOG.info(
-          "v3 install detected — skipping settings seed; the v3->v5 migration reconciles the "
-              + "settings collection for this install.");
-      return;
-    }
     List<Document> settings = SeedResources.load("seed/settings.json");
     int inserted = 0;
     for (Document setting : settings) {

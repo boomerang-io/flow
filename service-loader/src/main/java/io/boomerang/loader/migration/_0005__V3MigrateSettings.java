@@ -16,7 +16,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * V3-only. Squashes legacy v4 changesets {@code 4019} (drop User Defaults), {@code 4020} (task
+ * V3-only. Merges the settings migration with the global-parameters migration (formerly separate
+ * units {@code _0021__V3MigrateSettings} and {@code _0031__V3MigrateGlobalParameters}) — both
+ * transform small, independent, single-purpose v3 collections into their v5 shapes and always run
+ * together in the same generation, so folding them into one pass halves this program's number of
+ * full-database scans for settings-adjacent data without changing either algorithm.
+ *
+ * <h2>Settings</h2>
+ *
+ * Squashes legacy v4 changesets {@code 4019} (drop User Defaults), {@code 4020} (task
  * settings key renames), {@code 4025}+{@code 4037} (extensions -> integration + GitHub config),
  * {@code 4039} (team quota key renames/relabels + the new {@code max.workflowrun.storage} entry)
  * and {@code 4040} (feature-flag rename) into ONE pass that transforms the v3 {@code settings}
@@ -45,12 +53,43 @@ import org.slf4j.LoggerFactory;
  * from a legacy "Manage Distribution" flow the v5 seed shape does not model. Left in place
  * (harmless extra entry; {@code SettingConfig} readers key off known entries and ignore the rest)
  * rather than destroyed, since it may still carry a live operator-configured value.
+ *
+ * <h2>Global parameters</h2>
+ *
+ * Fixes a real v4 bug: legacy changeset {@code 4045} migrates {@code global_params} -> {@code
+ * parameters} mapping {@code key}->{@code name}, {@code values}->{@code value}. But the REAL v3
+ * collection is {@code global_config} (verified against a real v3 dump: 1 document, {@code {_id,
+ * key, label, type, value, description, readOnly}}, {@code
+ * _class=io.boomerang.mongo.entity.FlowGlobalConfigEntity}) and its value field is {@code value}
+ * (singular, not {@code values}) - {@code 4045} matched nothing on real v3 data, so global
+ * parameters were silently dropped on every real v4 install, and {@code global_config} was never
+ * even dropped.
+ *
+ * <p>Migrates {@code global_config} -> {@code parameters} onto {@code
+ * io.boomerang.workflow.entity.GlobalParamEntity} ({@code extends
+ * io.boomerang.common.model.AbstractParam}): {@code key}->{@code name}, {@code value}->{@code
+ * value}, {@code label}/{@code type}/{@code description}/{@code readOnly} carried straight
+ * across - the only fields the v3 document and the v5 entity both have (the entity's richer
+ * fields - {@code defaultValue}, {@code minValueLength}, {@code options}, {@code required}, ... -
+ * have no v3 source and are left unset). The original {@code _id} is preserved as the new
+ * document's {@code id} (the entity's {@code @Id} is a plain {@code String}; Spring Data's
+ * built-in {@code ObjectId<->String} converters make this transparent), which doubles as this
+ * unit's idempotency key. No {@code _class} is written (the target document is built from
+ * scratch), avoiding the same stale-discriminator hazard the settings half strips from the
+ * settings collection. {@code global_config} is dropped once migrated.
+ *
+ * <p>Defensively also handles a {@code global_params} collection (the name {@code 4045} actually
+ * read) should some other install carry one, mapping {@code key}->{@code name} and {@code
+ * values}->{@code value} (falling back to a singular {@code value} field if that's what is
+ * present instead) per {@code 4045}'s original intent - dropped once migrated. On the verified v3
+ * dump this collection does not exist at all: only {@code global_config} does, with exactly one
+ * document.
  */
-@Change(id = "0021-v3-migrate-settings", author = "boomerang", transactional = false)
+@Change(id = "0005-v3-migrate-settings", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0021__V3MigrateSettings {
+public class _0005__V3MigrateSettings {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0021__V3MigrateSettings.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0005__V3MigrateSettings.class);
 
   private static final ObjectId USERS_ID = new ObjectId("6123c1e20b07a54cdce637c0");
   private static final ObjectId ACTIVITY_ID = new ObjectId("60245957226920beece4fdf9");
@@ -73,9 +112,18 @@ public class _0021__V3MigrateSettings {
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
-      LOG.info("Not a v3 install — settings collection already in v5 shape.");
+      LOG.info("Not a v3 install — settings/global parameters already in v5 shape.");
       return;
     }
+    migrateSettings(db, names);
+    migrateGlobalParameters(db, names);
+  }
+
+  // =====================================================================================
+  // Settings
+  // =====================================================================================
+
+  private void migrateSettings(MongoDatabase db, CollectionNames names) {
     MongoCollection<Document> settings = db.getCollection(names.resolve("settings"));
 
     long deletedUsers = settings.deleteOne(Filters.eq("_id", USERS_ID)).getDeletedCount();
@@ -268,9 +316,89 @@ public class _0021__V3MigrateSettings {
             .append("readOnly", false));
   }
 
+  // =====================================================================================
+  // Global parameters
+  // =====================================================================================
+
+  private void migrateGlobalParameters(MongoDatabase db, CollectionNames names) {
+    long fromConfig = migrateGlobalConfig(db, names);
+    long fromParams = migrateGlobalParams(db, names);
+
+    LOG.info(
+        "v3 global parameters migrated to {} — {} from global_config, {} from global_params",
+        names.resolve("parameters"),
+        fromConfig,
+        fromParams);
+  }
+
+  /** The real v3 source: {@code global_config}, {@code key}/{@code value} (singular). */
+  private long migrateGlobalConfig(MongoDatabase db, CollectionNames names) {
+    String collectionName = names.resolve("global_config");
+    MongoCollection<Document> globalConfig = db.getCollection(collectionName);
+    if (globalConfig.countDocuments() == 0) {
+      LOG.info("No global_config documents to migrate.");
+      return 0;
+    }
+    long migrated = 0;
+    for (Document source : globalConfig.find()) {
+      Document param = toParameter(source, source.getString("key"), source.get("value"));
+      if (SeedResources.insertIfAbsent(
+          db, names.resolve("parameters"), Filters.eq("_id", source.get("_id")), param)) {
+        migrated++;
+      }
+    }
+    globalConfig.drop();
+    return migrated;
+  }
+
+  /**
+   * Defensive: the collection legacy {@code 4045} actually targeted, in case some install
+   * genuinely has one. {@code values} (plural) is 4045's field; fall back to singular {@code
+   * value} if that's what is actually present.
+   */
+  private long migrateGlobalParams(MongoDatabase db, CollectionNames names) {
+    String collectionName = names.resolve("global_params");
+    MongoCollection<Document> globalParams = db.getCollection(collectionName);
+    if (globalParams.countDocuments() == 0) {
+      return 0;
+    }
+    LOG.info(
+        "global_params collection found — migrating defensively (not present on the verified v3"
+            + " dump; unexpected on a real v3 install).");
+    long migrated = 0;
+    for (Document source : globalParams.find()) {
+      Object value = source.containsKey("values") ? source.get("values") : source.get("value");
+      Document param = toParameter(source, source.getString("key"), value);
+      if (SeedResources.insertIfAbsent(
+          db, names.resolve("parameters"), Filters.eq("_id", source.get("_id")), param)) {
+        migrated++;
+      }
+    }
+    globalParams.drop();
+    return migrated;
+  }
+
+  private Document toParameter(Document source, String name, Object value) {
+    Document param = new Document("_id", source.get("_id"));
+    param.put("name", name);
+    putIfPresent(param, source, "label");
+    putIfPresent(param, source, "type");
+    putIfPresent(param, source, "description");
+    param.put("value", value);
+    putIfPresent(param, source, "readOnly");
+    return param;
+  }
+
+  private void putIfPresent(Document target, Document source, String field) {
+    if (source.containsKey(field)) {
+      target.put(field, source.get(field));
+    }
+  }
+
   @Rollback
   public void rollback() {
-    // Settings carry operator-configured values once an install is live - forward-only, matching
-    // the other v3-only online migrations in this chain.
+    // Settings carry operator-configured values, and the source collections are dropped once
+    // migrated, once an install is live - forward-only, matching the other v3-only online
+    // migrations in this chain.
   }
 }

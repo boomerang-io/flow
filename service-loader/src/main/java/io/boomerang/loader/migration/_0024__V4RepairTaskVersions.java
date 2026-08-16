@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  * V4-only (maintainer ruling M-2 — "best-effort v4 repair units", see "v3 → v5 migration
  * consolidation" in {@code specifications/merge-execution-plan.md}). Re-derives {@code
  * taskVersion} on v4 installs (never on v3 — a v3-sourced install gets {@code taskVersion}
- * correct at source, via {@link _0023__V3MigrateWorkflows}/{@link _0026__V3MigrateTaskRunRefs}).
+ * correct at source, via {@link _0009__V3MigrateWorkflows}/{@link _0006__V3MigrateTaskCatalogue}).
  *
  * <p><b>The v4 bug, confirmed against the live loader/entity code:</b> legacy {@code 4005} does
  * {@code Document.replace} on a freshly-constructed, still-empty {@code Document} — a no-op — and
@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
  * taskVersion} for {@code task_runs}/{@code workflow_revisions}/{@code workflow_templates}
  * respectively) each read the NEW key ({@code taskVersion}, not yet written by anything) instead
  * of the OLD one ({@code templateVersion}) they were migrating away from — see {@link
- * _0026__V3MigrateTaskRunRefs}'s javadoc, which fixes the identical mistake for a v3-sourced
+ * _0006__V3MigrateTaskCatalogue}'s javadoc, which fixes the identical mistake for a v3-sourced
  * install. Net effect on every real v4 install: {@code taskVersion} is {@code null} everywhere a
  * {@code taskRef} is set, and — unlike the v3 path — there is no surviving {@code
  * templateVersion}/{@code config} source field left to read it back from; the original version
@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
  * during the v3→v4 migration and nothing ever wrote a v4-side {@code approver_groups} collection
  * to replace it, so the source data is gone on every v4 install with no repair path — unlike
  * {@code taskVersion} above, there is no surviving fragment anywhere to re-derive it from. This
- * unit does not attempt it; {@link _0037__V4RepairWorkflowAudit} carries the same note since it is
+ * unit does not attempt it; {@link _0025__V4RepairWorkflowAudit} carries the same note since it is
  * this program's other v4 repair unit.
  *
  * <p>Idempotent: only touches entries where {@code taskVersion} is currently null/absent; a
@@ -61,11 +61,11 @@ import org.slf4j.LoggerFactory;
  * null), and the genuinely-ambiguous/unresolved ones are re-counted identically every run since
  * they are deliberately never written.
  */
-@Change(id = "0036-v4-repair-task-versions", author = "boomerang", transactional = false)
+@Change(id = "0024-v4-repair-task-versions", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0036__V4RepairTaskVersions {
+public class _0024__V4RepairTaskVersions {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0036__V4RepairTaskVersions.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0024__V4RepairTaskVersions.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

@@ -16,7 +16,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * V3-only. Single pass: v3 {@code task_templates} (89 documents on the verified real dump, each
+ * V3-only. Merges the task-catalogue migration with the task-run reference fix (formerly separate
+ * units {@code _0022__V3MigrateTasks} and {@code _0026__V3MigrateTaskRunRefs}) — the second always
+ * runs immediately after the first and depends on nothing else, since it only needs the {@code
+ * tasks} collection this same unit has just populated.
+ *
+ * <p>The former THIRD sibling in this area, {@code _0034__V3ReconcileCatalogue} (which topped up a
+ * v3 install's migrated catalogue with any of the 87 out-of-the-box seed tasks/revisions it was
+ * missing), is DROPPED entirely rather than folded in here — now that the seed change units run
+ * AFTER this whole migration chain (Phase 5, {@code _0022__SeedTaskCatalogue}), that unit's own
+ * insert-if-absent logic (match existing tasks by name, insert missing ones under the seed's own
+ * ids, insert missing revisions by {@code (parentRef, version)}) already performs the exact same
+ * reconciliation over the exact same data — verified against the real v3 dump (still lands on 89
+ * tasks / 132 revisions, the one true gap being the seed catalogue's {@code Manual Approval} v2)
+ * and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions, no v2
+ * gap there). {@code _0034}'s own global-task-graph step is likewise subsumed: {@code
+ * _0012__V3BuildRelationshipGraph} (Phase 2, runs before the Phase 5 seed) already writes a {@code
+ * task:<id>} node + {@code root--hasTask-->} edge for every row this unit leaves in {@code tasks},
+ * and the seed's own graph step covers anything it inserts afterwards. See "Post-G consolidation
+ * review" in {@code specifications/merge-execution-plan.md} for the redundancy analysis.
+ *
+ * <h2>Task catalogue</h2>
+ *
+ * Single pass: v3 {@code task_templates} (89 documents on the verified real dump, each
  * with an embedded {@code revisions[]} array, 131 elements total) -> v5 {@code tasks} + {@code
  * task_revisions}, written directly in the v5 shape.
  *
@@ -36,8 +58,8 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>{@code tasks._id} <- {@code task_templates._id}, preserved verbatim (every downstream
- *       reference — {@code task_revisions.parentRef}, {@code _0034}'s reconciliation match, a later
- *       batch's {@code rel_nodes} {@code task:<id>} node — depends on this).
+ *       reference — {@code task_revisions.parentRef}, the Phase 5 seed's reconciliation match, a
+ *       later unit's {@code rel_nodes} {@code task:<id>} node — depends on this).
  *   <li>{@code tasks.name} <- {@code task_templates.name} (a DISPLAY name), slugified with {@code
  *       4004}'s exact algorithm: {@code trim().toLowerCase().replace(' ', '-')}. Verified against
  *       all 87 matched seed names — none need anything smarter (no punctuation beyond spaces).
@@ -94,11 +116,11 @@ import org.slf4j.LoggerFactory;
  * document has been processed, so a second run finds nothing left to do and both collections come
  * out byte-for-byte identical.
  */
-@Change(id = "0022-v3-migrate-tasks", author = "boomerang", transactional = false)
+@Change(id = "0006-v3-migrate-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0022__V3MigrateTasks {
+public class _0006__V3MigrateTaskCatalogue {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0022__V3MigrateTasks.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0006__V3MigrateTaskCatalogue.class);
 
   /**
    * The well-known "Sleep" system task id — verified identical across the real v3 dump, the legacy
@@ -112,7 +134,15 @@ public class _0022__V3MigrateTasks {
       LOG.info("Not a v3 install — task_templates already migrated (or never existed) in v5 shape.");
       return;
     }
+    migrateTaskCatalogue(db, names);
+    migrateTaskRunRefs(db, names);
+  }
 
+  // =====================================================================================
+  // task_templates -> tasks + task_revisions
+  // =====================================================================================
+
+  private void migrateTaskCatalogue(MongoDatabase db, CollectionNames names) {
     MongoCollection<Document> taskTemplates = db.getCollection(names.resolve("task_templates"));
     MongoCollection<Document> tasks = db.getCollection(names.resolve("tasks"));
     MongoCollection<Document> taskRevisions = db.getCollection(names.resolve("task_revisions"));
@@ -301,9 +331,102 @@ public class _0022__V3MigrateTasks {
     return null;
   }
 
+  // =====================================================================================
+  // task_runs.templateRef/templateVersion -> taskRef/taskVersion
+  // =====================================================================================
+
+  /**
+   * Migrates {@code task_runs.templateRef} (a task NAME) -> {@code taskRef} (the v5 task {@code
+   * _id}, resolved against the {@code tasks} collection {@link #migrateTaskCatalogue} has already
+   * written earlier in this SAME unit) and {@code templateVersion} -> {@code taskVersion},
+   * matching legacy changeset {@code 4033} ({@code v4ConvertTRTemplateRefToTaskRef}) - <b>with its
+   * bug fixed</b>.
+   *
+   * <p><b>The v4 bug:</b> {@code 4033} does {@code entity.put("taskVersion",
+   * entity.get("taskVersion"))} - it reads the NEW key it is in the middle of introducing (which
+   * does not exist yet on any pre-migration document) instead of the old {@code templateVersion}
+   * key, so {@code taskVersion} was written as {@code null} on every real v4 install (also
+   * confirmed by {@code 4034}/{@code 4035} repeating the identical mistake for {@code
+   * workflow_revisions}/{@code workflow_templates} task steps - out of scope here, those
+   * collections belong to a different unit). This method reads {@code templateVersion} correctly.
+   *
+   * <p>The {@code templateRef} -> {@code taskRef} resolution reproduces {@code 4033} exactly:
+   * match by NAME against {@code tasks} (post-catalogue-migration, i.e. already-slugified v5
+   * names) - {@code task_runs.templateRef} was already written in that slugified form on a real
+   * v3/v4 install, the same convention every other legacy task-name reference (workflow revision
+   * task steps, etc.) uses.
+   *
+   * <p><b>On a real v3 dump this method is a no-op</b>: v3's task activity lives entirely in
+   * {@code workflows_activity_task}, which {@link _0004__V3DropDeadCollections} drops by design
+   * (no v5 equivalent) - {@code task_runs} does not exist pre-migration on a v3 install (verified:
+   * absent from the 23-collection real dump), and no unit in this chain ever populates {@code
+   * task_runs} from v3 source data either (v3 has no per-task execution record at all). Positioned
+   * here - immediately after the task catalogue migrates, rather than after the run migration
+   * elsewhere in the chain - deliberately: since {@code task_runs} never holds real v3 data at any
+   * point in this pipeline, its position relative to the run migration is immaterial: it is
+   * implemented correctly regardless, for any v3 install that somehow does carry a {@code
+   * task_runs} collection (e.g. one that was partially, then rolled back from, a v4 upgrade
+   * attempt) - the same fixture {@code LoaderMigrationTest} exercises.
+   *
+   * <p>Idempotent: both renames are gated on the OLD key still being present, so a second run (or
+   * a fresh install where {@code task_runs} never had these fields at all) touches nothing.
+   */
+  private void migrateTaskRunRefs(MongoDatabase db, CollectionNames names) {
+    MongoCollection<Document> taskRuns = db.getCollection(names.resolve("task_runs"));
+    if (taskRuns.countDocuments() == 0) {
+      LOG.info(
+          "No task_runs documents to migrate — v3 task activity lives in"
+              + " workflows_activity_task (dropped by _0002), never in task_runs.");
+      return;
+    }
+
+    MongoCollection<Document> tasks = db.getCollection(names.resolve("tasks"));
+    long refsMigrated = 0;
+    long versionsFixed = 0;
+    long unresolvedRefs = 0;
+
+    for (Document run : taskRuns.find()) {
+      boolean changed = false;
+
+      Object templateRef = run.get("templateRef");
+      if (templateRef != null) {
+        Document task = tasks.find(Filters.eq("name", templateRef)).first();
+        if (task != null) {
+          run.put("taskRef", task.get("_id").toString());
+          run.remove("templateRef");
+          changed = true;
+          refsMigrated++;
+        } else {
+          unresolvedRefs++;
+          LOG.warn("Unable to resolve task_runs.templateRef '{}' against tasks", templateRef);
+        }
+      }
+
+      // FIX for legacy 4033: read the OLD templateVersion key, not the (absent) new taskVersion.
+      Object templateVersion = run.get("templateVersion");
+      if (templateVersion != null) {
+        run.put("taskVersion", templateVersion);
+        run.remove("templateVersion");
+        changed = true;
+        versionsFixed++;
+      }
+
+      if (changed) {
+        taskRuns.replaceOne(Filters.eq("_id", run.getObjectId("_id")), run);
+      }
+    }
+
+    LOG.info(
+        "v3 task_runs refs migrated — {} taskRef resolved, {} taskVersion fixed, {} unresolved refs",
+        refsMigrated,
+        versionsFixed,
+        unresolvedRefs);
+  }
+
   @Rollback
   public void rollback() {
-    // task_templates is dropped once migrated, and workflows reference tasks by the ids this unit
-    // preserves - not restorable, matching the other forward-only v3-only units in this chain.
+    // task_templates is dropped once migrated, and workflows/task_runs reference tasks by the ids
+    // this unit preserves - not restorable, matching the other forward-only v3-only units in this
+    // chain.
   }
 }

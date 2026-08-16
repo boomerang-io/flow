@@ -18,8 +18,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>Class 1 — v4-era relationship-model/lock/scheduler intermediates.</b> These have no v5
  * use whatsoever (v5's relationship model is {@code rel_nodes}/{@code rel_edges}, built fresh by
- * {@link _0029__V3BuildRelationshipGraph} for a v3 install), the same way {@link
- * _0020__V3DropDeadCollections}'s Quartz collections have none — dropped unconditionally,
+ * {@link _0012__V3BuildRelationshipGraph} for a v3 install), the same way {@link
+ * _0004__V3DropDeadCollections}'s Quartz collections have none — dropped unconditionally,
  * logging how much data (if any) was discarded:
  *
  * <ul>
@@ -34,29 +34,29 @@ import org.slf4j.LoggerFactory;
  *       exactly this scenario.
  *   <li>{@code locks} (RESOLVED WITH THE COLLECTION PREFIX, e.g. {@code flow_locks}) — a
  *       hypothetical v4-era lock collection from that same kind of partial/experimental run. This
- *       is NOT {@code _0020}'s Quartz {@code locks} (already gone by this point — {@code _0020}
+ *       is NOT {@code _0019}'s Quartz {@code locks} (already gone by this point — {@code _0019}
  *       runs first and drops the flow-prefixed Quartz job-store shape), NOT the genuinely
  *       UNPREFIXED {@code locks} collection {@code alturkovic/distributed-lock} writes verbatim
  *       (never touched by {@link CollectionNames#resolve}, so this unit can never collide with
  *       it), and NOT v5's own {@code task_locks} (a different literal name entirely).
  *   <li>{@code quartz} — a differently-named Quartz artifact distinct from the {@code jobs}/{@code
  *       triggers}/{@code calendars}/{@code paused_trigger_groups}/{@code locks}/{@code
- *       schedulers} job-store shape {@code _0020} already targets by their real (verified against
+ *       schedulers} job-store shape {@code _0019} already targets by their real (verified against
  *       the dump) names.
  * </ul>
  *
  * <p><b>Class 2 — v3 source collections a specific earlier unit should have fully drained AND
- * dropped as its own last step</b> ({@code task_templates} by {@link _0022__V3MigrateTasks},
- * {@code global_config} by {@link _0031__V3MigrateGlobalParameters}, {@code workflows_revisions}
- * by {@link _0023__V3MigrateWorkflows}, {@code workflows_activity}/{@code
- * workflows_activity_approval}/{@code workflows_schedules} by {@link _0025__V3MigrateRuns}) —
+ * dropped as its own last step</b> ({@code task_templates} by {@link _0006__V3MigrateTaskCatalogue},
+ * {@code global_config} by {@link _0005__V3MigrateSettings}, {@code workflows_revisions}
+ * by {@link _0009__V3MigrateWorkflows}, {@code workflows_activity}/{@code
+ * workflows_activity_approval}/{@code workflows_schedules} by {@link _0011__V3MigrateRuns}) —
  * verified against the real v3 dump ({@code flowabl-live-dump-20231106}, 23 collections) to be
  * gone by this point in every one of those cases (see {@code V3DumpMigrationTest}'s per-batch
  * assertions, each of which already proves its own unit's drop). Unlike Class 1, presence WITH
  * DATA here is not a deliberate "no v5 use" classification — it would mean an earlier unit's own
  * drain logic missed something, which is a bug to investigate, not data to discard silently. So
  * this unit only drops a Class 2 name when it is present AND EMPTY (an artifact of, for example,
- * the implicit-collection-creation-via-index hazard {@link _0033__V3Indexes}'s javadoc describes,
+ * the implicit-collection-creation-via-index hazard {@link _0019__DomainIndexes}'s javadoc describes,
  * or a `renameCollection` step's rename leaving a residual reference); if one is found non-empty,
  * it is logged loudly and left completely alone for investigation — "log what you drop; never
  * drop a v5 collection" extends here to "never silently drop unconsumed v3 data either."
@@ -64,11 +64,11 @@ import org.slf4j.LoggerFactory;
  * <p>Idempotent: every drop is a {@code MongoCollection.drop()} on an already-absent (or already
  * confirmed empty-and-dropped) collection, a no-op on a second run.
  */
-@Change(id = "0035-v3-drop-intermediates", author = "boomerang", transactional = false)
+@Change(id = "0014-v3-drop-intermediates", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0035__V3DropIntermediates {
+public class _0014__V3DropIntermediates {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0035__V3DropIntermediates.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0014__V3DropIntermediates.class);
 
   /** Class 1 — v4-era intermediates with no v5 use at all. See the class javadoc. */
   private static final List<String> DEAD_V4_INTERMEDIATES =
@@ -113,7 +113,7 @@ public class _0035__V3DropIntermediates {
 
   /**
    * Class 1: always drop (a no-op if absent — {@code MongoCollection.drop()} tolerates that,
-   * matching {@link _0020__V3DropDeadCollections#dropIfPresent}), logging how much (if anything)
+   * matching {@link _0004__V3DropDeadCollections#dropIfPresent}), logging how much (if anything)
    * was discarded.
    */
   private long dropDeadIntermediate(MongoDatabase db, String collection) {
@@ -160,6 +160,6 @@ public class _0035__V3DropIntermediates {
   @Rollback
   public void rollback() {
     // Destructive drops of legacy-only/already-migrated data - not restorable, matching the
-    // other forward-only v3-only online migrations in this chain (e.g. _0020, _0012).
+    // other forward-only v3-only online migrations in this chain (e.g. _0019, _0011).
   }
 }

@@ -242,7 +242,7 @@ class LoaderMigrationTest {
   }
 
   private void assertRolesSeeded() {
-    // The pre-existing "workspace/owner" role (migrated from type "team" by _0012) is matched by
+    // The pre-existing "workspace/owner" role (migrated from type "team" by _0016) is matched by
     // the natural key and left alone rather than duplicated.
     assertThat(collection("roles").countDocuments()).isEqualTo(5);
     assertThat(collection("roles").countDocuments(Filters.eq("name", "owner"))).isEqualTo(1);
@@ -405,15 +405,17 @@ class LoaderMigrationTest {
    * chain) but not {@code "4000"} (the v4 chain), the seven legacy settings {@code _id}s already
    * present under their v3-era {@code key} values, and a non-empty {@code task_templates}
    * collection (the v3 catalogue location; {@code tasks} is empty, matching a real v3 database).
-   * Before {@link InstallGeneration} existed, {@code _0016} threw {@code DuplicateKeyException} on
-   * exactly this shape and aborted the whole migration run. This asserts the run now completes,
-   * that {@code _0016}/{@code _0017}/{@code _0018} skip themselves (their v5 seed content is never
-   * inserted alongside the v3 data), and that {@code _0021__V3MigrateSettings} DOES migrate the
-   * three real-keyed settings documents (controller/extensions/activity) in place - the other four
-   * carry fictional placeholder v3 keys ("execution"/"toggles"/"quota"/"branding") this fixture
-   * never claimed matched any real v3 install, so {@code _0021} leaves their {@code key} field
-   * alone (it only renames the top-level key for the three documents whose v3 key actually
-   * changes: controller/activity/extensions).
+   * Before {@link InstallGeneration} existed, the settings seed threw {@code
+   * DuplicateKeyException} on exactly this shape and aborted the whole migration run. This
+   * asserts the run now completes; that {@code _0005__V3MigrateSettings} (Phase 2) DOES migrate
+   * the three real-keyed settings documents (controller/extensions/activity) in place - the other
+   * four carry fictional placeholder v3 keys ("execution"/"toggles"/"quota"/"branding") this
+   * fixture never claimed matched any real v3 install, so {@code _0005} leaves their {@code key}
+   * field alone (it only renames the top-level key for the three documents whose v3 key actually
+   * changes: controller/activity/extensions); that {@code _0021__SeedSettings}/{@code
+   * _0022__SeedTaskCatalogue} (Phase 5, ungated) insert NOTHING new over this v3-migrated data
+   * (their insert-if-absent guards match the already-migrated documents); and that {@code
+   * _0023__SeedTemplates} (Phase 5, still v3-gated) skips itself outright.
    */
   @Test
   void v3InstallSkipsGenerationBlindSeedsAndMigratesCleanly() {
@@ -434,7 +436,7 @@ class LoaderMigrationTest {
 
     // v3's task catalogue location - empty "tasks" (v5 shape), non-empty "task_templates" (the
     // pre-v4-split collection the seed _ids would otherwise collide with). One minimal legacy
-    // doc missing every optional field (exercises _0022's null-handling), one fuller doc with a
+    // doc missing every optional field (exercises _0006's null-handling), one fuller doc with a
     // revision (exercises the config->params merge and provides a real name for the task_runs
     // fixture below).
     ObjectId minimalTaskId = new ObjectId();
@@ -476,7 +478,7 @@ class LoaderMigrationTest {
                                     .append("date", EARLIER)))));
 
     // v3's task_runs referencing that task by its (already-slugified, per legacy convention)
-    // name and the OLD templateVersion key - exercises _0026's rename + its 4033-bug fix.
+    // name and the OLD templateVersion key - exercises _0006's rename + its 4033-bug fix.
     ObjectId taskRunId = new ObjectId();
     v3.getCollection(PREFIX + "_task_runs")
         .insertOne(
@@ -487,8 +489,10 @@ class LoaderMigrationTest {
 
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
 
-    // _0016 skipped (no v5 seed content inserted); _0021 DID migrate the 7 documents in place -
-    // same count, but the three real-keyed ones now carry their v5 keys.
+    // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 documents in place - same count, but
+    // the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5, ungated)
+    // then inserts nothing new: its OR-guard matches every one of the 7 already-migrated
+    // documents by _id.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
     assertThat(settings.countDocuments()).isEqualTo(7);
     assertThat(
@@ -510,11 +514,14 @@ class LoaderMigrationTest {
                 .getString("key"))
         .isEqualTo("workflowrun");
 
-    // _0017 skipped: no FRESH-install seed was inserted over the v3 task_templates data. Instead
-    // _0022 migrated the 2 fixture docs (2 tasks, 1 revision - the minimal doc has none) directly,
-    // task_templates was dropped, and _0034 then reconciled the 87-task/130-revision seed
-    // catalogue on top (none of the 87 pre-existed under their legacy _ids on this fixture, so
-    // all 87 tasks + 130 revisions are freshly inserted: 89 tasks / 131 revisions total).
+    // _0006__V3MigrateTaskCatalogue (Phase 2) migrated the 2 fixture docs (2 tasks, 1 revision -
+    // the minimal doc has none) directly and dropped task_templates. _0022__SeedTaskCatalogue
+    // (Phase 5, ungated) then reconciles the 87-task/130-revision seed catalogue on top by NAME:
+    // neither fixture task's name ("legacy-task"/"custom-task-example") matches any of the 87
+    // canonical catalogue names, so none of the 87 pre-exist under this fixture and all 87 tasks
+    // + 130 revisions are freshly inserted by the seed - 89 tasks / 131 revisions total, the same
+    // outcome the former _0034__V3ReconcileCatalogue unit (dropped, folded into this seed's own
+    // insert-if-absent logic - see _0022's javadoc) used to produce by matching on _id instead.
     MongoCollection<Document> tasks = v3.getCollection(PREFIX + "_tasks");
     MongoCollection<Document> taskRevisions = v3.getCollection(PREFIX + "_task_revisions");
     assertThat(tasks.countDocuments()).isEqualTo(89);
@@ -546,8 +553,9 @@ class LoaderMigrationTest {
     assertThat(customParams.get(0).getString("name")).isEqualTo("path");
     assertThat(customParams.get(0).getString("label")).isEqualTo("Path");
 
-    // _0026: task_runs migrated - templateRef resolved to the new task's id, templateVersion
-    // correctly read into taskVersion (the legacy 4033 bug read the new, absent key instead).
+    // _0006__V3MigrateTaskCatalogue's task_runs sub-step (formerly _0026__V3MigrateTaskRunRefs):
+    // task_runs migrated - templateRef resolved to the new task's id, templateVersion correctly
+    // read into taskVersion (the legacy 4033 bug read the new, absent key instead).
     Document taskRun = v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
     assertThat(taskRun).isNotNull();
     assertThat(taskRun.getString("taskRef")).isEqualTo(customTaskId.toString());
@@ -555,11 +563,12 @@ class LoaderMigrationTest {
     assertThat(taskRun.getInteger("taskVersion")).isEqualTo(1);
     assertThat(taskRun.containsKey("templateVersion")).isFalse();
 
-    // _0018 skipped: no starter templates were seeded either.
+    // _0023__SeedTemplates (Phase 5, still v3-gated) skipped: no starter templates were seeded
+    // either.
     assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
     assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isZero();
 
-    // _0013/_0014/_0015 are NOT v3-skipped: the graph root, system workspace and roles are seeded
+    // _0002/_0003/_0020 are NOT v3-skipped: the graph root, system workspace and roles are seeded
     // exactly as on a fresh/v4 install.
     assertThat(v3.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "root:root")).first())
         .isNotNull();
@@ -567,14 +576,15 @@ class LoaderMigrationTest {
         .isNotNull();
     assertThat(v3.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
 
-    // _0031 has neither global_config nor global_params to migrate on this fixture - no-op,
+    // _0005 has neither global_config nor global_params to migrate on this fixture - no-op,
     // nothing thrown, "parameters" stays empty.
     assertThat(v3.getCollection(PREFIX + "_parameters").countDocuments()).isZero();
 
     // Re-running against the same v3-shaped database stays a no-op skip, not a second attempt to
-    // seed - and _0021/_0022/_0034's own re-runs are no-op rewrites/insert-if-absent passes over
-    // the already-migrated documents (task_templates is already gone, so _0022 iterates nothing;
-    // every seeded task/revision _0034 would reconcile already exists).
+    // seed - _0005/_0006's own re-runs are no-op rewrites/insert-if-absent passes over the
+    // already-migrated documents (task_templates is already gone, so _0006 iterates nothing), and
+    // _0022__SeedTaskCatalogue's own re-run inserts nothing further (every task/revision it
+    // reconciled on the first run already exists).
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(settings.countDocuments()).isEqualTo(7);
@@ -593,8 +603,8 @@ class LoaderMigrationTest {
   }
 
   /**
-   * V4-shaped fixture for {@code _0036__V4RepairTaskVersions}/{@code
-   * _0037__V4RepairWorkflowAudit} — the two "best-effort v4 repair" units from maintainer ruling
+   * V4-shaped fixture for {@code _0024__V4RepairTaskVersions}/{@code
+   * _0025__V4RepairWorkflowAudit} — the two "best-effort v4 repair" units from maintainer ruling
    * M-2 (see "v3 → v5 migration consolidation" in {@code specifications/merge-execution-plan.md}).
    * Unlike every other test in this class, this fixture must be v4-shaped, not v3-shaped: the
    * real v3 dump {@code V3DumpMigrationTest} runs against never exercises these two units at all
@@ -612,7 +622,7 @@ class LoaderMigrationTest {
     v4.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
     v4.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "4000"));
 
-    // ---- _0036__V4RepairTaskVersions fixture ----
+    // ---- _0024__V4RepairTaskVersions fixture ----
     // Three tasks exercising the three possible outcomes: exactly one task_revisions match
     // (repairable), more than one (genuinely ambiguous - left null), and zero (unresolved - left
     // null). None of these tasks need a "tasks" document of their own - the repair unit only
@@ -674,7 +684,7 @@ class LoaderMigrationTest {
                 .append("taskRef", taskSingleRev.toString())
                 .append("taskVersion", null));
 
-    // ---- _0037__V4RepairWorkflowAudit fixture ----
+    // ---- _0025__V4RepairWorkflowAudit fixture ----
     // A workspace whose TEAM audit record already exists (v4's own 4038 workspace half worked),
     // one workflow that resolves cleanly (the repair case), one whose hasWorkflow edge is
     // missing (skip case 1), and one whose edge resolves but whose workspace has no audit record
@@ -905,9 +915,11 @@ class LoaderMigrationTest {
   }
 
   private void assertAgentDedupe() {
-    // The dedupe changeunit (_0006) runs against the still-legacy "agents" name, before the
-    // rename changeunit (_0011) renames the collection - so the deduped rows are asserted under
-    // their post-rename name, "dispatchers".
+    // Phase 3's rename unit (_0015__DispatcherRename) renames "agents" -> "dispatchers" BEFORE
+    // Phase 4's dedupe unit (_0019__DomainIndexes) runs - the opposite order from the old chain,
+    // where the dedupe ran against the still-legacy "agents" name ahead of the rename. _0019's
+    // dedupe logic now targets "dispatchers" directly (see that unit's javadoc), so the deduped
+    // rows are asserted under that same post-rename name either way.
     List<Document> registrations = new ArrayList<>();
     collection("dispatchers")
         .find(Filters.and(Filters.eq("name", "agent-1"), Filters.eq("host", "host-a")))

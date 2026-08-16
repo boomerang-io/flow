@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code _id} preserved verbatim — every relationship-graph node a later batch writes ({@code
  *       workspace:<id>}) and every workflow/run reference depends on this.
  *   <li>{@code displayName} <- v3 {@code name} (the display name); {@code name} <- that same value
- *       slugified with {@code _0022__V3MigrateTasks}'s exact algorithm ({@code
+ *       slugified with {@code _0006__V3MigrateTaskCatalogue}'s exact algorithm ({@code
  *       trim().toLowerCase().replace(' ', '-')}) rather than legacy {@code 4011}'s fancier
  *       character-stripping regex — a deliberate maintainer-directed departure from legacy fidelity
  *       for consistency across this codebase's v3-\>v5 units. Two name pairs collide on this
@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code type} <- {@link io.boomerang.workspace.model.WorkspaceType#hobby}. v3 teams have no
  *       tier concept whatsoever and nothing in the current service code assigns a default type on
  *       create either; {@code hobby} is chosen as the honest "no tier information" value, distinct
- *       from {@code personal} (reserved for {@link _0028__V3MigrateUsers}'s per-user workspaces) and
+ *       from {@code personal} (reserved for {@link _0008__V3MigrateUsers}'s per-user workspaces) and
  *       {@code system} (reserved for the seeded {@code system} workspace this unit never touches).
  *   <li>{@code status} <- v3 {@code isActive}: {@code true} -\> {@code active}, {@code false} -\>
  *       {@code inactive} (matches {@link io.boomerang.workspace.model.WorkspaceStatus}).
@@ -77,7 +77,7 @@ import org.slf4j.LoggerFactory;
  *       maxWorkflowRunStorage} has no v3 source at all (a genuinely new v5 field) - defaulted to
  *       {@link #DEFAULT_MAX_WORKFLOW_RUN_STORAGE} (2), the numeric value the migrated {@code teams}
  *       settings document's {@code max.workflowrun.storage} entry carries ({@code "2Gi"} - see
- *       {@code _0021__V3MigrateSettings}); the system workspace's {@code Integer.MAX_VALUE} would
+ *       {@code _0005__V3MigrateSettings}); the system workspace's {@code Integer.MAX_VALUE} would
  *       be dishonest for a regular quota-bound team.
  * </ul>
  *
@@ -90,7 +90,7 @@ import org.slf4j.LoggerFactory;
  * driver, ignored by {@code MappingMongoConverter} until read, never surfaced by {@code
  * @JsonIgnoreProperties(ignoreUnknown = true)}) so a later batch can find which workspace each
  * approver group belongs to without re-deriving it from the now-stripped {@code teams} document -
- * the same discoverability need {@link _0028__V3MigrateUsers} solves with {@code externalRef} for
+ * the same discoverability need {@link _0008__V3MigrateUsers} solves with {@code externalRef} for
  * personal workspaces, but {@code ApproverGroupEntity} has no such field to repurpose. In the real
  * dump both teams carrying {@code approverGroups} (SRC Innovations, Uvis Team) have EMPTY arrays -
  * the populated shape is UNVALIDATED. Handled defensively: v3's {@code approvers[]} is assumed to
@@ -99,15 +99,15 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Skip logic / idempotency: only {@code teams} documents still carrying the v3 {@code _class}
  * discriminator ({@code io.boomerang.mongo.entity.TeamEntity}) are processed - the seeded {@code
- * system} workspace ({@code _0014}, no {@code _class} at all) is naturally excluded without any
+ * system} workspace ({@code _0013}, no {@code _class} at all) is naturally excluded without any
  * special-case id check, and a second run finds nothing left with {@code _class} to process
  * (documents are rewritten from scratch, never leaving it behind).
  */
-@Change(id = "0027-v3-migrate-workspaces", author = "boomerang", transactional = false)
+@Change(id = "0007-v3-migrate-workspaces", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0027__V3MigrateWorkspaces {
+public class _0007__V3MigrateWorkspaces {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0027__V3MigrateWorkspaces.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0007__V3MigrateWorkspaces.class);
 
   /** See the class javadoc's {@code quotas} bullet. */
   private static final int DEFAULT_MAX_WORKFLOW_RUN_STORAGE = 2;
@@ -125,7 +125,7 @@ public class _0027__V3MigrateWorkspaces {
     long migrated = 0;
     long approverGroupsExtracted = 0;
     // "_class" is the v3 discriminator every real team document carries; the seeded system
-    // workspace (_0014) never has one, so it is never matched here.
+    // workspace (_0013) never has one, so it is never matched here.
     for (Document source : teams.find(Filters.exists("_class")).into(new ArrayList<>())) {
       ObjectId workspaceId = source.getObjectId("_id");
       approverGroupsExtracted +=

@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  * code-level rename (DispatcherService/DispatcherControllerV1/api paths) shipped earlier; this
  * migrates the data still using the old names: the {@code agents} collection becomes {@code
  * dispatchers} (Mongo's {@code renameCollection} carries indexes over, including the {@code
- * (name, host)} unique index {@code _0006} created — re-asserted here regardless, since asserting
+ * (name, host)} unique index {@code _0005} created — re-asserted here regardless, since asserting
  * is cheap and covers a database where the rename happened out-of-band), and the {@code agentRef}
  * claim-owner field on {@code task_runs}/{@code workflow_runs} becomes {@code dispatcherRef}.
  *
@@ -31,11 +31,11 @@ import org.slf4j.LoggerFactory;
  * {@code agents} no longer does), and the field {@code $rename}s only touch documents that still
  * carry the old field name.
  */
-@Change(id = "0011-dispatcher-rename", author = "boomerang", transactional = false)
+@Change(id = "0015-dispatcher-rename", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0011__DispatcherRename {
+public class _0015__DispatcherRename {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0011__DispatcherRename.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0015__DispatcherRename.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

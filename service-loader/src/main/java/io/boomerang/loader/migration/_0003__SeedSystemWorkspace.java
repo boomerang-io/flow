@@ -46,12 +46,27 @@ import org.slf4j.LoggerFactory;
  * <p>Idempotent throughout: the workspace is matched by name (an upgraded v4 install keeps its own
  * document and id, and the graph is then built against *that* id), and every node and edge is
  * insert-if-absent.
+ *
+ * <p><b>Positioned early, right after generation detection, ahead of the whole v3 migration.</b>
+ * The other Phase 5 seeds ({@code _0020__SeedRoles}/{@code _0021__SeedSettings}/{@code
+ * _0022__SeedTaskCatalogue}/{@code _0023__SeedTemplates}) run AFTER the v3 migration and index
+ * phases, but {@code _0012__V3BuildRelationshipGraph} resolves {@code scope=system} workflow/run
+ * ownership via {@code teams} where {@code type=system} - it needs THIS unit's {@code teams}
+ * document to already exist, or every system-scoped workflow/run silently loses its graph node and
+ * edge (found the hard way: {@code V3DumpMigrationTest} went from 65 to 55 {@code workflow} rel_nodes
+ * when this seed was still positioned late). Running early means this unit's OWN admin-bootstrap
+ * step (see {@link #addAdminMembers}) instead finds NO {@code user:<id>} nodes yet on a v3 install
+ * (they do not exist until the relationship graph builds them, later) - {@code
+ * _0012__V3BuildRelationshipGraph} re-attempts it once those nodes exist, folding in what was
+ * previously the standalone {@code _0030__V3SystemWorkspaceMembers} unit (see that unit's own
+ * javadoc). {@code _0002__SeedRelationshipRoot} moves alongside this unit for the same graph-anchor
+ * reasoning, though nothing strictly requires it (Mongo does not enforce the edge-to-node reference).
  */
-@Change(id = "0014-seed-system-workspace", author = "boomerang", transactional = false)
+@Change(id = "0003-seed-system-workspace", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0014__SeedSystemWorkspace {
+public class _0003__SeedSystemWorkspace {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0014__SeedSystemWorkspace.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0003__SeedSystemWorkspace.class);
 
   private static final String WORKSPACE_NAME = "system";
   private static final String ROOT_NODE_ID = "root:root";

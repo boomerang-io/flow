@@ -1,6 +1,7 @@
 package io.boomerang.loader.migration;
 
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.Filters;
@@ -33,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * 4011}'s graph half, {@code 4014}'s graph half ({@code user--memberOf-->personal-workspace}),
  * {@code 4015}'s graph half ({@code root--contains-->workspace} for real teams), {@code 4024}, and
  * {@code 4031}/{@code 4041} (the relationship-model introduction itself, retargeted to write {@code
- * workspace:<ref>} DIRECTLY per the ONE IRREVERSIBLE RULE - {@code _0012__WorkspaceRename} runs
+ * workspace:<ref>} DIRECTLY per the ONE IRREVERSIBLE RULE - {@code _0016__WorkspaceRename} runs
  * BEFORE this unit in Flamingock order and would never see a {@code team:}-prefixed write again).
  *
  * <p><b>Graph shape, verified against how the LIVE application code actually writes this graph
@@ -47,14 +48,14 @@ import org.slf4j.LoggerFactory;
  *       task_templates} carries no team-scoping field at all (verified against the real dump and
  *       {@code _0022}'s own javadoc/code - no {@code flowTeamId}/{@code scope} read anywhere), so
  *       there are zero {@code teamtask} nodes to write for v3 data; every migrated task is global,
- *       matching {@code _0017__SeedTaskCatalogue}'s seeded-catalogue shape exactly (this unit is
- *       that seed's v3 counterpart - {@code _0017} skips entirely on a v3 install specifically so
+ *       matching {@code _0022__SeedTaskCatalogue}'s seeded-catalogue shape exactly (this unit is
+ *       that seed's v3 counterpart - {@code _0016} skips entirely on a v3 install specifically so
  *       this unit can do it once {@code task_templates} has been folded into {@code tasks}).
  *   <li>{@code root:root --contains--> workspace:<id>} for EVERY row in {@code teams} (real v3
  *       teams, the seeded {@code system} workspace, and Batch C's per-user personal workspaces
  *       alike) - {@code WorkspaceService.create} writes exactly this edge for every workspace type;
  *       insert-if-absent naturally no-ops on the {@code system} workspace's edge, already seeded by
- *       {@code _0014}.
+ *       {@code _0013}.
  *   <li>{@code root:root --contains--> user:<id>} for EVERY row in {@code users}, slug = email -
  *       matches {@code UserService.getAndRegisterUser}'s node write exactly.
  *   <li>{@code user:<id> --memberOf--> workspace:<personalWorkspaceId>} for every user, resolved via
@@ -111,12 +112,25 @@ import org.slf4j.LoggerFactory;
  * SeedResources#insertIfAbsent} (small collections) or an equivalent pre-fetched-existing-ids diff
  * before an unordered {@code bulkWrite} (the {@code workflow_runs} batch) - a second full run
  * inserts nothing new anywhere in this unit.
+ *
+ * <p><b>{@code _0030__V3SystemWorkspaceMembers} FOLDED IN here</b> (as {@link
+ * #attachSystemWorkspaceAdminMembers}), exactly per plan - not dropped. {@code
+ * _0003__SeedSystemWorkspace} was moved EARLY (right after generation detection, ahead of this
+ * whole v3 migration) specifically so the {@code teams} "system" document exists before {@link
+ * #buildWorkflowOwnershipEdges}/{@link #buildWorkflowRunOwnershipEdges} need to resolve {@code
+ * scope=system} ownership below - discovered the hard way: with system-workspace seeding deferred
+ * to Phase 5 (after this unit), {@code workspaces.systemWorkspaceId()} was null for every
+ * system-scoped workflow/run, silently dropping their graph nodes/edges. But running THAT early
+ * means {@code _0003}'s own admin-bootstrap step finds no {@code user:<id>} nodes yet (this same
+ * unit is what creates them, in {@link #buildUserGraph}) - the identical "0 admins ... N skipped"
+ * gap the original chain had at {@code _0013}'s old early position, which the original chain's
+ * {@code _0030} existed to close once the graph existed. Reproduced verbatim here as a final step.
  */
-@Change(id = "0029-v3-build-relationship-graph", author = "boomerang", transactional = false)
+@Change(id = "0012-v3-build-relationship-graph", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0029__V3BuildRelationshipGraph {
+public class _0012__V3BuildRelationshipGraph {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0029__V3BuildRelationshipGraph.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0012__V3BuildRelationshipGraph.class);
 
   private static final String ROOT_NODE_ID = "root:root";
   private static final int BATCH_SIZE = 1000;
@@ -133,13 +147,15 @@ public class _0029__V3BuildRelationshipGraph {
     long[] userCounts = buildUserGraph(db, names);
     long personalMemberships = buildPersonalMembershipEdges(db, names, workspaces);
     long teamMemberships = buildRealTeamMembershipEdges(db, names, workspaces);
+    long adminMembershipsAttached = attachSystemWorkspaceAdminMembers(db, names, workspaces);
     long[] workflowCounts = buildWorkflowOwnershipEdges(db, names, workspaces);
     long[] runCounts = buildWorkflowRunOwnershipEdges(db, names, workspaces);
 
     LOG.info(
         "v3 relationship graph built — tasks: {} nodes/{} edges, workspaces: {} nodes/{} edges, "
-            + "users: {} nodes/{} edges, personal memberOf: {}, real-team memberOf: {}, "
-            + "workflows: {} resolved/{} unresolved, workflow_runs: {} resolved/{} unresolved",
+            + "users: {} nodes/{} edges, personal memberOf: {}, real-team memberOf: {}, system"
+            + " workspace admin memberOf: {}, workflows: {} resolved/{} unresolved, workflow_runs:"
+            + " {} resolved/{} unresolved",
         taskCounts[0],
         taskCounts[1],
         workspaces.nodesInserted(),
@@ -148,6 +164,7 @@ public class _0029__V3BuildRelationshipGraph {
         userCounts[1],
         personalMemberships,
         teamMemberships,
+        adminMembershipsAttached,
         workflowCounts[0],
         workflowCounts[1],
         runCounts[0],
@@ -234,7 +251,7 @@ public class _0029__V3BuildRelationshipGraph {
     }
 
     if (systemWorkspaceId == null) {
-      LOG.warn("No 'system' workspace found while building the graph — _0014 should have seeded one");
+      LOG.warn("No 'system' workspace found while building the graph — _0013 should have seeded one");
     }
     return new WorkspaceGraph(allWorkspaceIds, personalByUser, systemWorkspaceId, nodes, edges);
   }
@@ -319,6 +336,61 @@ public class _0029__V3BuildRelationshipGraph {
       LOG.info("{} v3 flowTeamRefs entries did not resolve to a migrated workspace — skipped", unresolved);
     }
     return inserted;
+  }
+
+  // =====================================================================================
+  // user --memberOf--> workspace:<systemWorkspaceId>, for admin users (formerly the standalone
+  // _0030__V3SystemWorkspaceMembers unit — see the class javadoc for why it is folded in here)
+  // =====================================================================================
+
+  /**
+   * Re-attempts {@code _0003__SeedSystemWorkspace}'s admin-bootstrap step, now that {@link
+   * #buildUserGraph} (earlier in this SAME unit) has created every admin's {@code user:<id>}
+   * node — {@code _0003} ran too early (deliberately, ahead of this whole v3 migration — see the
+   * class javadoc) to have found them itself. Reproduces {@code _0003#addAdminMembers} verbatim
+   * (same edge shape - {@code data.role=owner}, same skip-if-no-node defensiveness, though by this
+   * point every admin SHOULD have a node from {@link #buildUserGraph} just above) rather than
+   * depending on that private method directly, matching this program's established pattern of
+   * small, self-contained steps.
+   *
+   * <p>Idempotent: every edge is insert-if-absent on {@code (from, label, to)} - a second run (or
+   * a v4/fresh install where {@code _0003} already added these edges directly, since a v4 install
+   * already has every user's node from its own live graph) inserts nothing new.
+   */
+  private long attachSystemWorkspaceAdminMembers(
+      MongoDatabase db, CollectionNames names, WorkspaceGraph workspaces) {
+    String systemWorkspaceId = workspaces.systemWorkspaceId();
+    if (systemWorkspaceId == null) {
+      LOG.warn("No 'system' workspace found — _0003 should have seeded one; skipping admin membership");
+      return 0;
+    }
+    String workspaceNodeId = "workspace:" + systemWorkspaceId;
+
+    List<Document> admins =
+        db.getCollection(names.resolve("users")).find(Filters.eq("type", "admin")).into(new ArrayList<>());
+    long added = 0;
+    long skipped = 0;
+    for (Document admin : admins) {
+      String userNodeId = "user:" + admin.get("_id").toString();
+      try (MongoCursor<Document> node =
+          db.getCollection(names.resolve("rel_nodes")).find(Filters.eq("_id", userNodeId)).iterator()) {
+        if (!node.hasNext()) {
+          skipped++;
+          continue;
+        }
+      }
+      if (SeedResources.insertIfAbsent(
+          db,
+          names.resolve("rel_edges"),
+          Filters.and(Filters.eq("from", userNodeId), Filters.eq("label", "memberOf"), Filters.eq("to", workspaceNodeId)),
+          SeedResources.edge(userNodeId, "memberOf", workspaceNodeId, new Document("role", "owner")))) {
+        added++;
+      }
+    }
+    if (skipped > 0) {
+      LOG.warn("{} admin(s) still have no user:<id> node — their system-workspace membership was skipped", skipped);
+    }
+    return added;
   }
 
   // =====================================================================================

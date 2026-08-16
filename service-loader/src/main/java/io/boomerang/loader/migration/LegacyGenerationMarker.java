@@ -8,7 +8,7 @@ import org.bson.Document;
 
 /**
  * Reads and writes the durable {@link InstallGeneration} marker {@link
- * _0019__LegacyGenerationDetect} persists, in a small loader-owned collection ({@code
+ * _0001__BaselineAndGenerationDetect} persists, in a small loader-owned collection ({@code
  * sys_migration_state}).
  *
  * <p>{@link InstallGeneration#detect} is a live read of {@code sys_changelog_flow} — cheap today,
@@ -17,7 +17,7 @@ import org.bson.Document;
  * keeps satisfying {@link InstallGeneration#V3}'s detection rule (changeId {@code "112"} present,
  * {@code "4000"} absent) *forever* — including on every Flamingock run after this install has
  * fully completed its v3→v5 migration. Later v3-only change units (starting with {@link
- * _0020__V3DropDeadCollections}) must read the value captured the FIRST time this chain ever ran
+ * _0004__V3DropDeadCollections}) must read the value captured the FIRST time this chain ever ran
  * against the database, not re-derive it from the still-V3-shaped changelog on every run — hence a
  * marker recorded once and then read, rather than {@link InstallGeneration#detect} called
  * everywhere.
@@ -55,7 +55,7 @@ public abstract class LegacyGenerationMarker {
   /**
    * Read the recorded generation. Falls back to a live {@link InstallGeneration#detect} if no
    * marker exists yet (defensive only — every v3-only change unit runs after {@link
-   * _0019__LegacyGenerationDetect} in the chain, so this path is not expected to be taken).
+   * _0001__BaselineAndGenerationDetect} in the chain, so this path is not expected to be taken).
    */
   public static InstallGeneration read(MongoDatabase db, CollectionNames names) {
     Document existing = findMarker(db, names);

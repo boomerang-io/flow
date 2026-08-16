@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
  * v4-current install has nothing in them).
  *
  * <p>Generation gated on {@link LegacyGenerationMarker#read} (the value {@link
- * _0019__LegacyGenerationDetect} captured before any prior unit in this chain could mutate the
+ * _0001__BaselineAndGenerationDetect} captured before any prior unit in this chain could mutate the
  * database) rather than a live {@link InstallGeneration#detect} — see that unit's javadoc.
  *
  * <p>Classification (see "v3 → v5 migration consolidation" in {@code
@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
  *       separately (CLAUDE.md T6 post-merge cleanup).
  *   <li>{@code tasks_locks} — the pre-v5 name for what is now {@code task_locks} (singular
  *       "task"), and a different shape besides: v5's {@code task_locks} keys leases on {@code
- *       expiresAt} and {@link _0009__TaskLockIndexes} builds its indexes fresh. Locks are
+ *       expiresAt} and {@link _0018__EventAndLockIndexes} builds its indexes fresh. Locks are
  *       ephemeral, so there is nothing worth carrying over even by name.
  *   <li>{@code tokens} — v5's {@code TokenEntity} is a different shape than v3's, and legacy
  *       changeset {@code 4018} never provided a migration path between them either. Dropped
@@ -68,11 +68,11 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Idempotent: {@code MongoCollection.drop()} on an already-absent collection is a no-op.
  */
-@Change(id = "0020-v3-drop-dead-collections", author = "boomerang", transactional = false)
+@Change(id = "0004-v3-drop-dead-collections", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0020__V3DropDeadCollections {
+public class _0004__V3DropDeadCollections {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0020__V3DropDeadCollections.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0004__V3DropDeadCollections.class);
 
   /** The Quartz MongoDB job-store schema in full — see class javadoc. */
   private static final List<String> QUARTZ_COLLECTIONS =
@@ -106,7 +106,7 @@ public class _0020__V3DropDeadCollections {
   @Rollback
   public void rollback() {
     // Destructive drop of legacy-only data with no v5 use - not restorable, matching the other
-    // forward-only online migrations in this chain (e.g. _0011__DispatcherRename,
-    // _0012__WorkspaceRename).
+    // forward-only online migrations in this chain (e.g. _0015__DispatcherRename,
+    // _0016__WorkspaceRename).
   }
 }
