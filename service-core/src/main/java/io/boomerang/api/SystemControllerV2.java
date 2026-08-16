@@ -132,14 +132,14 @@ public class SystemControllerV2 {
   @Operation(summary = "Retrieve navigation.")
   public ResponseEntity<List<Navigation>> getNavigation(
       @Parameter(
-              name = "team",
+              name = "workspace",
               description = "Workspace as owner reference",
-              example = "my-amazing-team",
+              example = "my-amazing-workspace",
               required = false)
           @RequestParam(required = false)
-          Optional<String> team) {
+          Optional<String> workspace) {
     List<Navigation> response =
-        navigationService.getNavigation(userService.isCurrentUserAdmin(), team);
+        navigationService.getNavigation(userService.isCurrentUserAdmin(), workspace);
 
     CacheControl cacheControl = CacheControl.maxAge(1, TimeUnit.HOURS);
 

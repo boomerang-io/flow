@@ -45,7 +45,7 @@ public class IntegrationService {
     this.settingsService = settingsService;
   }
 
-  public List<Integration> get(String team) {
+  public List<Integration> get(String workspace) {
     List<IntegrationTemplateEntity> templates =
         integrationTemplateRepository.findAllByStatus("active");
     List<Integration> integrations = new LinkedList<>();
@@ -59,7 +59,7 @@ public class IntegrationService {
                   RelationshipType.INTEGRATION,
                   Optional.empty(),
                   Optional.of(RelationshipType.WORKSPACE),
-                  Optional.of(List.of(team)),
+                  Optional.of(List.of(workspace)),
                   false);
           LOGGER.debug("Refs: " + refs.toString());
           if (!refs.isEmpty()) {

@@ -32,12 +32,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping({"/api/v2/team/{team}/action", "/api/v2/workspace/{team}/action"})
-@Tag(
-    name = "Actions",
-    description =
-        "Create and manage Manual and Approval Actions. The /api/v2/team path is a deprecated"
-            + " alias for /api/v2/workspace.")
+@RequestMapping("/api/v2/workspace/{workspace}/action")
+@Tag(name = "Actions", description = "Create and manage Manual and Approval Actions.")
 public class WorkspaceActionControllerV2 {
 
   private final WorkspaceActionService workspaceActionService;
@@ -59,20 +55,20 @@ public class WorkspaceActionControllerV2 {
       })
   public Action get(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "actionId", description = "ID of Action", required = true) @PathVariable
           String actionId) {
-    return workspaceActionService.get(team, actionId);
+    return workspaceActionService.get(workspace, actionId);
   }
 
   //  @GetMapping(value = "")
   //  @AuthScope(action = PermissionAction.READ, scope = PermissionScope.ACTION, types =
-  // {AuthType.session, AuthType.user, AuthType.team, AuthType.global})
+  // {AuthType.session, AuthType.user, AuthType.workspace, AuthType.global})
   //  @Operation(summary = "Retrieve a specifc Action by TaskRun")
   //  @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK"),
   //      @ApiResponse(responseCode = "400", description = "Bad Request")})
@@ -95,14 +91,14 @@ public class WorkspaceActionControllerV2 {
       })
   public void action(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody List<ActionRequest> request) {
-    workspaceActionService.action(team, request);
+    workspaceActionService.action(workspace, request);
   }
 
   @GetMapping(value = "/query")
@@ -118,12 +114,12 @@ public class WorkspaceActionControllerV2 {
       })
   public Page<Action> query(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "types",
               description = "List of types to filter for. Defaults to all.",
@@ -189,7 +185,7 @@ public class WorkspaceActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return workspaceActionService.query(team, from, to, pageable, types, statuses, workflows);
+    return workspaceActionService.query(workspace, from, to, pageable, types, statuses, workflows);
   }
 
   @GetMapping(value = "/summary")
@@ -205,12 +201,12 @@ public class WorkspaceActionControllerV2 {
       })
   public ActionSummary summary(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflows",
               description = "List of workflows to filter for.",
@@ -239,6 +235,6 @@ public class WorkspaceActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return workspaceActionService.summary(team, from, to, workflows);
+    return workspaceActionService.summary(workspace, from, to, workflows);
   }
 }

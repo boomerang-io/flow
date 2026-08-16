@@ -25,12 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 // E8: hard-depends on workspace.InsightsService, so full-mode-only.
 @RestController
-@RequestMapping({"/api/v2/team/{team}/insights", "/api/v2/workspace/{team}/insights"})
-@Tag(
-    name = "Insights",
-    description =
-        "Provide the ability to search and retrieve Insights. The /api/v2/team path is a"
-            + " deprecated alias for /api/v2/workspace.")
+@RequestMapping("/api/v2/workspace/{workspace}/insights")
+@Tag(name = "Insights", description = "Provide the ability to search and retrieve Insights.")
 @ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceInsightsControllerV2 {
 
@@ -46,7 +42,7 @@ public class WorkspaceInsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.workspace, AuthScope.user, AuthScope.session})
   @Operation(
-      summary = "Retrieve insights for a team",
+      summary = "Retrieve insights for a workspace",
       description = "The insights are based on the workflow runs and their statuses.")
   @ApiResponses(
       value = {
@@ -55,12 +51,12 @@ public class WorkspaceInsightsControllerV2 {
       })
   public WorkflowRunInsight getTeamInsights(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestParam Optional<Long> fromDate,
       @RequestParam Optional<Long> toDate,
       @RequestParam Optional<List<String>> workflows,
@@ -80,6 +76,6 @@ public class WorkspaceInsightsControllerV2 {
       to = new Date(toDate.get());
     }
 
-    return insightsService.get(team, from, to, workflows, statuses);
+    return insightsService.get(workspace, from, to, workflows, statuses);
   }
 }

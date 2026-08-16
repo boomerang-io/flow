@@ -32,12 +32,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping({"/api/v2/team/{team}/workflow", "/api/v2/workspace/{team}/workflow"})
-@Tag(
-    name = "Workflows",
-    description =
-        "Create, list, and manage your Workflows. The /api/v2/team path is a deprecated alias"
-            + " for /api/v2/workspace.")
+@RequestMapping("/api/v2/workspace/{workspace}/workflow")
+@Tag(name = "Workflows", description = "Create, list, and manage your Workflows.")
 @SecurityRequirement(name = "BearerAuth")
 @SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowControllerV2 {
@@ -77,12 +73,12 @@ public class WorkspaceWorkflowControllerV2 {
           @PathVariable
           String name,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "version", description = "Workflow version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version,
@@ -92,7 +88,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return workspaceWorkflowService.get(team, name, version, withTasks);
+    return workspaceWorkflowService.get(workspace, name, version, withTasks);
   }
 
   @GetMapping(value = "/query")
@@ -114,12 +110,12 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public WorkflowResponsePage queryWorkflows(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "labels",
               description =
@@ -153,7 +149,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return workspaceWorkflowService.query(team, limit, page, sort, labels, statuses, workflows);
+    return workspaceWorkflowService.query(workspace, limit, page, sort, labels, statuses, workflows);
   }
 
   @PostMapping(value = "")
@@ -175,14 +171,14 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public Workflow createWorkflow(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody Workflow workflow) {
-    return workspaceWorkflowService.create(team, workflow);
+    return workspaceWorkflowService.create(workspace, workflow);
   }
 
   @PutMapping(value = "")
@@ -205,16 +201,16 @@ public class WorkspaceWorkflowControllerV2 {
   public Workflow applyWorkflow(
       @RequestBody Workflow workflow,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceWorkflowService.apply(team, workflow, replace);
+    return workspaceWorkflowService.apply(workspace, workflow, replace);
   }
 
   @GetMapping(value = "/{name}/changelog")
@@ -238,12 +234,12 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public ResponseEntity<List<ChangeLogVersion>> getChangelog(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -251,7 +247,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.changelog(team, name);
+    return workspaceWorkflowService.changelog(workspace, name);
   }
 
   @DeleteMapping(value = "/{name}")
@@ -273,12 +269,12 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public void deleteWorkflow(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -286,7 +282,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    workspaceWorkflowService.delete(team, name);
+    workspaceWorkflowService.delete(workspace, name);
   }
 
   @PostMapping(value = "/{name}/submit")
@@ -309,12 +305,12 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public WorkflowRun submitWorkflow(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -329,7 +325,7 @@ public class WorkspaceWorkflowControllerV2 {
           @RequestParam(required = false, defaultValue = "false")
           boolean start,
       @RequestBody WorkflowSubmitRequest request) {
-    return workspaceWorkflowService.submit(team, name, request, start);
+    return workspaceWorkflowService.submit(workspace, name, request, start);
   }
 
   @GetMapping(value = "/{name}/export", produces = "application/json")
@@ -346,12 +342,12 @@ public class WorkspaceWorkflowControllerV2 {
   @Operation(summary = "Export the Workflow as JSON.")
   public ResponseEntity<InputStreamResource> export(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -359,7 +355,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.export(team, name);
+    return workspaceWorkflowService.export(workspace, name);
   }
 
   @GetMapping(value = "/{name}/compose")
@@ -382,12 +378,12 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public WorkflowCanvas compose(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -398,7 +394,7 @@ public class WorkspaceWorkflowControllerV2 {
       @Parameter(name = "version", description = "Workflow Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workspaceWorkflowService.composeGet(team, name, version);
+    return workspaceWorkflowService.composeGet(workspace, name, version);
   }
 
   @PutMapping(value = "/{name}/compose")
@@ -420,17 +416,17 @@ public class WorkspaceWorkflowControllerV2 {
       })
   public WorkflowCanvas applyCanvas(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody WorkflowCanvas canvas,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceWorkflowService.composeApply(team, canvas, replace);
+    return workspaceWorkflowService.composeApply(workspace, canvas, replace);
   }
 
   @PostMapping(value = "/{name}/duplicate")
@@ -447,12 +443,12 @@ public class WorkspaceWorkflowControllerV2 {
   @Operation(summary = "Duplicates the workflow.")
   public Workflow duplicateWorkflow(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -460,7 +456,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.duplicate(team, name);
+    return workspaceWorkflowService.duplicate(workspace, name);
   }
 
   @GetMapping(value = "/{name}/available-parameters")
@@ -477,12 +473,12 @@ public class WorkspaceWorkflowControllerV2 {
   @Operation(summary = "Retrieve the parameters.")
   public List<String> getAvailableParameters(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "name",
               description = "Workflow name",
@@ -490,6 +486,6 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.getAvailableParameters(team, name);
+    return workspaceWorkflowService.getAvailableParameters(workspace, name);
   }
 }

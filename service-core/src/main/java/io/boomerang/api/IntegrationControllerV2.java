@@ -74,8 +74,8 @@ public class IntegrationControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  List<Integration> get(@RequestParam String team) throws IOException {
-    return integrationService.get(team);
+  List<Integration> get(@RequestParam String workspace) throws IOException {
+    return integrationService.get(workspace);
   }
 
   /*
@@ -225,7 +225,7 @@ public class IntegrationControllerV2 {
    * GitHub Endpoints
    */
   @GetMapping(value = "/github/installation")
-  @Operation(summary = "Retrieve the installation ID and store against a team")
+  @Operation(summary = "Retrieve the installation ID and store against a workspace")
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INTEGRATION,
@@ -236,11 +236,11 @@ public class IntegrationControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   ResponseEntity<?> githubInstall(
-      @RequestParam Optional<Integer> id, @RequestParam Optional<String> team) throws IOException {
+      @RequestParam Optional<Integer> id, @RequestParam Optional<String> workspace) throws IOException {
     if (id.isPresent()) {
       return githubService.getInstallation(id.get());
-    } else if (team.isPresent()) {
-      return githubService.getInstallationForTeam(team.get());
+    } else if (workspace.isPresent()) {
+      return githubService.getInstallationForWorkspace(workspace.get());
     }
     return ResponseEntity.badRequest().build();
   }

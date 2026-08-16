@@ -27,12 +27,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping({"/api/v2/team/{team}/task", "/api/v2/workspace/{team}/task"})
+@RequestMapping("/api/v2/workspace/{workspace}/task")
 @Tag(
     name = "Workspace Tasks",
-    description =
-        "Create and manage the workspace based Task definitions. The /api/v2/team path is a"
-            + " deprecated alias for /api/v2/workspace.")
+    description = "Create and manage the workspace based Task definitions.")
 public class WorkspaceTaskControllerV2 {
 
   private final WorkspaceTaskService workspaceTaskService;
@@ -64,16 +62,16 @@ public class WorkspaceTaskControllerV2 {
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "version", description = "Task Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workspaceTaskService.get(team, name, version);
+    return workspaceTaskService.get(workspace, name, version);
   }
 
   @GetMapping(value = "{name}", produces = "application/x-yaml")
@@ -99,16 +97,16 @@ public class WorkspaceTaskControllerV2 {
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "version", description = "Task Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workspaceTaskService.getAsTekton(team, name, version);
+    return workspaceTaskService.getAsTekton(workspace, name, version);
   }
 
   @GetMapping(value = "/query")
@@ -124,7 +122,7 @@ public class WorkspaceTaskControllerV2 {
       })
   @Operation(
       summary =
-          "Search for Tasks. If teams are provided it will query the teams. If no teams are provided it will query Global Task Templates")
+          "Search for Tasks. If workspaces are provided it will query the workspaces. If no workspaces are provided it will query Global Task Templates")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -132,12 +130,12 @@ public class WorkspaceTaskControllerV2 {
       })
   public TaskResponsePage queryTaskTemplates(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "labels",
               description =
@@ -172,7 +170,7 @@ public class WorkspaceTaskControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return workspaceTaskService.query(team, limit, page, sort, labels, statuses, names);
+    return workspaceTaskService.query(workspace, limit, page, sort, labels, statuses, names);
   }
 
   @PostMapping(value = "")
@@ -191,14 +189,14 @@ public class WorkspaceTaskControllerV2 {
       })
   public Task create(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody Task task) {
-    return workspaceTaskService.create(team, task);
+    return workspaceTaskService.create(workspace, task);
   }
 
   @PostMapping(value = "", consumes = "application/x-yaml", produces = "application/x-yaml")
@@ -217,14 +215,14 @@ public class WorkspaceTaskControllerV2 {
       })
   public TektonTask createYAML(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody TektonTask tektonTask) {
-    return workspaceTaskService.createAsTekton(team, tektonTask);
+    return workspaceTaskService.createAsTekton(workspace, tektonTask);
   }
 
   @PutMapping(value = "/{name}")
@@ -245,17 +243,17 @@ public class WorkspaceTaskControllerV2 {
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody Task task,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceTaskService.apply(name, team, task, replace);
+    return workspaceTaskService.apply(name, workspace, task, replace);
   }
 
   @PutMapping(value = "/{name}", consumes = "application/x-yaml", produces = "application/x-yaml")
@@ -276,17 +274,17 @@ public class WorkspaceTaskControllerV2 {
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody TektonTask tektonTask,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceTaskService.applyAsTekton(name, team, tektonTask, replace);
+    return workspaceTaskService.applyAsTekton(name, workspace, tektonTask, replace);
   }
 
   @GetMapping(value = "/{name}/changelog")
@@ -305,15 +303,15 @@ public class WorkspaceTaskControllerV2 {
       })
   public List<ChangeLogVersion> getChangelog(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name) {
-    return workspaceTaskService.changelog(team, name);
+    return workspaceTaskService.changelog(workspace, name);
   }
 
   @PostMapping(
@@ -349,14 +347,14 @@ public class WorkspaceTaskControllerV2 {
       })
   public void delete(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name) {
-    workspaceTaskService.delete(team, name);
+    workspaceTaskService.delete(workspace, name);
   }
 }

@@ -16,7 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class RoleEntity {
 
   // TODO if we make workflow by unique name this will need to move to be a prefixed string of
-  // /team/team-name/workflow/workflowId or /user/userId etc
+  // /workspace/workspace-name/workflow/workflowId or /user/userId etc
   private String id;
   private AuthScope type;
   private String name;
