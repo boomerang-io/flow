@@ -331,6 +331,16 @@ public class RelationshipService {
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
     Token identity = identityService.getCurrentIdentity();
+    if (identity == null) {
+      // No principal on the SecurityContext (e.g. flow.mode=engine, security disabled - no
+      // AuthenticationFilter runs). No principal-based narrowing is possible, so this mirrors the
+      // `global` token case below: allow, unscoped.
+      LOGGER.debug(
+          "RelationshipService.check() - no principal on SecurityContext, allowing unscoped: {}:{}",
+          type.getLabel(),
+          toList);
+      return true;
+    }
     String principal = identity.getPrincipal();
     if (!checkPermissions(identity.getPermissions(), type, toList)) {
       // Shadow enforcement: the failed permission check is recorded but not enforced -
@@ -438,11 +448,18 @@ public class RelationshipService {
     List<String> refs = new ArrayList<>();
     Token identity = identityService.getCurrentIdentity();
     RelationshipType fromType = null;
-    String from = identity.getPrincipal();
+    String from = identity == null ? "root" : identity.getPrincipal();
 
     if (RelationshipType.TASK.equals(toType)) {
       // Tasks are a global catalogue: every principal sees every task, so the walk anchors
       // at the root node instead of the principal.
+      fromType = RelationshipType.ROOT;
+      from = "root";
+    } else if (identity == null) {
+      // No principal on the SecurityContext (e.g. flow.mode=engine, security disabled - no
+      // AuthenticationFilter runs). No principal-based narrowing is possible, so this mirrors the
+      // `global` token case below: anchor at root, unscoped.
+      LOGGER.debug("Filtering {} for root (no principal)", toType.getLabel());
       fromType = RelationshipType.ROOT;
       from = "root";
     } else {
