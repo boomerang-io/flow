@@ -228,6 +228,33 @@ production history to respect. Specific things to examine:
 5. Re-verify the whole chain against the real dump after any reordering — order changes are
    exactly where a working migration silently breaks.
 
+## Track 6 rulings (2026-08-17) — informed by the ARCHIE reference implementation
+
+**T6-1 — Dispatcher token follows ARCHIE: `actorKind`, NOT a new prefix.** The earlier plan
+(`AuthScope.dispatcher` + a `bfd` prefix, gap-register A3) is **overruled**. ARCHIE — the most
+recent implementation — deliberately keeps four scopes and expresses machine identity as an
+**orthogonal `TokenActorKind` (`SERVICE`/`AGENT`)** plus `createdBy` (server-injected, never
+trusted from the request body) and `lastUsedAt`. So a dispatcher token is an existing global
+(`bfg_`) token carrying an actor-kind discriminator — no new `AuthScope` value, no new prefix, no
+enum value migration. Least deviation from the proven model.
+*ARCHIE's honest gap, inherited:* it has no dispatcher/worker tier and no ephemeral per-job
+credential (explicitly deferred in its `authentication.md`), so there is no precedent to copy for
+short-lived worker credentials — only the scaffolding.
+
+**T6-2 — Index failures: fail loud for unique, warn for the rest.** `MigrationUtils.ensureIndex`
+currently swallows every failure (logs, returns `false`, no caller checks) — so a unique index can
+silently not exist while the migration reports success. Fix: a **unique**-index failure throws and
+aborts the migration (we dedupe first, so a failure means the dedupe missed something — a real
+integrity signal); non-unique/performance indexes keep swallow-and-warn. Also set
+`spring.data.mongodb.auto-index-creation=false` **explicitly** — in ARCHIE it is off only by
+framework default, which they flagged as a latent risk.
+
+Patterns worth porting later from ARCHIE's token layer (not in this track's scope): positive-only
+lookup cache (60s TTL, explicit eviction on revoke, misses never cached, capacity clear); two-tier
+permission revalidation (eager push + lazy `permissionsUpdatedAt` vs `updatedAt` compare on cache
+miss); stashing the full token entity in `Authentication.details` so authZ needs no second read;
+prefix-regex pre-DB gate; throttled `lastUsedAt` writes; sampled auth-failure auditing.
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
