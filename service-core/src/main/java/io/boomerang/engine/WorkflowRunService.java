@@ -16,7 +16,6 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
 import io.boomerang.engine.model.*;
-import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.event.repository.EventInboxRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
@@ -65,7 +64,6 @@ public class WorkflowRunService {
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
   private final TaskRunService taskRunService;
-  private final ActionRepository actionRepository;
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
   private final EventInboxRepository eventInboxRepository;
@@ -79,7 +77,6 @@ public class WorkflowRunService {
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
       TaskRunService taskRunService,
-      ActionRepository actionRepository,
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
       EventInboxRepository eventInboxRepository,
@@ -89,7 +86,6 @@ public class WorkflowRunService {
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.taskRunService = taskRunService;
-    this.actionRepository = actionRepository;
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
     this.eventInboxRepository = eventInboxRepository;
@@ -879,18 +875,6 @@ public class WorkflowRunService {
     wfRun.getAnnotations().remove("boomerang.io/global-params");
     wfRun.getAnnotations().remove("boomerang.io/context-params");
     wfRun.getAnnotations().remove("boomerang.io/team-params");
-  }
-
-  /*
-   * Deletes the WorkflowRun and associated TaskRuns
-   */
-  public void delete(String workflowRunId) {
-    if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
-    }
-    actionRepository.deleteByWorkflowRunRef(workflowRunId);
-    taskRunRepository.deleteByWorkflowRunRef(workflowRunId);
-    workflowRunRepository.deleteById(workflowRunId);
   }
 
   /*
