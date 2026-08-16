@@ -88,6 +88,26 @@ class LoaderMigrationTest {
 
     taskRunWithAgentRef = insertTaskRunWithAgentRef("wfr-claimed", "agent-1", EARLIER);
     workflowRunWithAgentRef = insertWorkflowRunWithAgentRef("agent-1", EARLIER);
+
+    seedV4ResidualCollections();
+  }
+
+  /**
+   * H11 fixture: residue from the two retired JobRunr instances, RAW string-concatenated exactly
+   * like their historical {@code org.jobrunr.database.table-prefix} properties ({@code
+   * <collectionPrefix>jr_} for engine's timeout jobs, {@code <collectionPrefix>_sch_} for flow's
+   * schedule firing - PREFIX has no trailing "_" of its own, so these are NOT reachable via the
+   * {@code collection(String)} helper's {@code PREFIX + "_" + name} joining), plus the genuinely
+   * unprefixed {@code locks} collection {@code alturkovic/distributed-lock} wrote verbatim.
+   */
+  private static void seedV4ResidualCollections() {
+    db.getCollection(PREFIX + "jr_jobs").insertOne(new Document("state", "SUCCEEDED"));
+    db.getCollection(PREFIX + "jr_recurring-jobs").insertOne(new Document("id", "timeout-sweep"));
+    db.getCollection(PREFIX + "_sch_jobs").insertOne(new Document("state", "SUCCEEDED"));
+    db.getCollection(PREFIX + "_sch_metadata").insertOne(new Document("name", "version"));
+    db.getCollection("locks").insertOne(new Document("keyGroup", "wf").append("keyName", "1"));
+    // Must survive: v5's OWN current lock collection, a different literal name entirely.
+    collection("task_locks").insertOne(new Document("key", "wf1").append("owner", "instance-a"));
   }
 
   @AfterAll
@@ -114,6 +134,7 @@ class LoaderMigrationTest {
     assertAgentsCollectionRenamed();
     assertDispatcherRefRenamed();
     assertWorkspaceRenameApplied();
+    assertV4ResidualCollectionsDropped();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -1032,6 +1053,20 @@ class LoaderMigrationTest {
     // H14-d: the "teams" collection is gone, "workspaces" carries its documents.
     assertThat(db.listCollectionNames().into(new ArrayList<>())).doesNotContain(PREFIX + "_teams");
     assertThat(collection("workspaces").countDocuments()).isGreaterThan(0);
+  }
+
+  /** H11: the JobRunr/distributed-lock residue {@link #seedV4ResidualCollections} planted. */
+  private void assertV4ResidualCollectionsDropped() {
+    List<String> names = db.listCollectionNames().into(new ArrayList<>());
+    assertThat(names)
+        .doesNotContain(
+            PREFIX + "jr_jobs",
+            PREFIX + "jr_recurring-jobs",
+            PREFIX + "_sch_jobs",
+            PREFIX + "_sch_metadata",
+            "locks");
+    // task_locks is a different, current collection and must never be touched by this cleanup.
+    assertThat(collection("task_locks").countDocuments()).isEqualTo(1);
   }
 
   private static MongoCollection<Document> collection(String name) {
