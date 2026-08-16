@@ -20,6 +20,8 @@ of boundaries landing, else Q-211 re-opens).
 | AM-5 | The engine-mode static token (Q-207 `flow.security.token`) exists as `flow.dispatcher.token` + `DispatcherAuthFilter` — E8/E10 reuse that filter; the first-class `bfd` token is post-merge (gap-register A3, check ARCHIE first). |
 | AM-7 | **Two modes, not three** (maintainer 2026-08-15): `flow.mode = standalone \| engine`. FULL collapses into STANDALONE — "standalone" = the complete self-contained product (workspaces, auth, integrations, schedules; the default); "engine" = embedded headless execution. The old laptop-mode meaning of standalone is not a mode — it's the product with `flow.security.enabled=false`. Re-rules DD-02's mode list and the proposal §4 matrix (full column ≡ standalone). |
 | AM-8 | **One security property** (maintainer 2026-08-15): `flow.security.enabled`, default from mode (standalone→true, engine→false). The legacy `flow.auth.enabled`/`flow.authorization.enabled` pair is DELETED at the v5 major (no alias window). Restructure-era bean-name pins (`engine*`) removed. lib-common keeps its entities until the Phase 4/T7 agent-runtime decision (if the agent folds in-process, lib-common dies in one move). |
+| AM-10 | **No `RunScopeResolver` — H7's seam is overruled** (maintainer 2026-08-15). Scoping stays on `RelationshipService` exactly as it always has; no mode-aware indirection in the service layer. Engine mode's single-workspace reality is handled **at the edges**: **the `system` workspace IS the engine-mode workspace** (maintainer: "engine basically runs in what the admins use") — it is already seeded, unlimited-quota and undeletable, so it is guaranteed to exist and needs no invented `default`; engine mode rejects/normalises any non-`system` workspace at the controller. Auth likewise stays outside — IDPZero (future item 5) converts to a token before `RelationshipService` is ever reached. The three resolver commits were reverted. Consequence: `WorkspaceType.system` (currently inert — zero usages) becomes the meaningful marker. |
+| AM-9 | **No alias images** (maintainer 2026-08-15): v5 ships on NEW infra and a NEW Helm chart — the `flow-service-workflow`/`flow-service-engine` alias-image deprecation window (H10, proposal §7, DD-03's `engine@` alias line) is DROPPED. E10 = one `service-core` image (engine mode = same image with `flow.mode=engine`) + agent + loader, fresh chart, fresh naming. Simplifies DD-03 to: one product tag → {core, agent, loader}. |
 | AM-6 | **Naming convention overrules the proposal's service names** (maintainer 2026-08-15): `<Name>Service`/`<Name>Controller` (+ `<Name>Client` external-only; `<Name>ExecutionService` engine orchestrators). The DOMAIN service keeps the plain name — `workflow.WorkflowService`/`workflow.TaskService` are the definition services (NOT `WorkflowDefinitionService`/`TaskCatalogueService` as the proposal's module table named them); the api composition shims are `Team*Service`, pairing their `Team*ControllerV2` controllers, and dissolve as H7/thin-controllers land. |
 
 ## Sequence
@@ -76,10 +78,25 @@ abstraction — transport stays HTTP until cutover (rollback = config). Plus `In
 dissolves (A4), C10 dedup bindings, B9 stage-2 egress, H7 `RunScopeResolver`.
 **Gates:** G1 targeted (`runWorkflow`/`runScheduledWorkflow` in `TaskExecutionService`); G2 per AM-4.
 
-### E10 — merge deployables
-One artifact + `flow.mode`; alias images (`flow-service-workflow`=full, `flow-service-engine`=engine)
-from the merged binary; Helm chart-major; dispatcher image unchanged. **F1 load test before
-cutover — abort gate (H9).**
+### E10 — cutover (reshaped by AM-7/AM-9)
+- **E10-prep ✅ (Track 5, 2026-08-15)**: scoping stays on `RelationshipService` (AM-10 — the H7
+  seam was built, then reverted; engine mode's single workspace is an edge concern: seed a
+  `default` workspace, reject non-`default` at the controller). REMAINING for engine mode:
+  that seeding + controller guard. J1 v1
+  scrap done: platform v1 controllers deleted (−1121 lines); v1 = the dispatcher wire + the
+  agent's four lifecycle callbacks (relocated to `dispatcher`, paths byte-identical; service-agent
+  untouched). CI reshaped per AM-9: `ci-release.yml` on product tag `v@**` → three images
+  (`flow-service-core` renamed from flow-service-workflow; agent unchanged;
+  `flow-service-loader` NEW — the loader had no image pipeline; old public name was
+  `boomerangio/flow-loader` from the legacy repo). Missing-workspace param layer tolerated
+  (engine-mode default workspace has no stored record). Notable inert residue: the workflow
+  delete data-loss hazard is no longer HTTP-reachable; `TaskRunService.query/get/cancel` are
+  dead code pending a pruning pass; `workflow.ParameterManager`→workspace repository import
+  remains (future prefix/dissolution pass).
+- **F1 load test** — abort gate (H9): merged-app saturated execution vs split baseline; needs a
+  real environment + maintainer read.
+- **Cutover**: new infra + new Helm chart (maintainer-led); engine deployment = the same
+  service-core image with `flow.mode=engine`; agent image unchanged.
 
 **DD-01 ✅ (2026-08-15, pulled forward from E11):** Team→Workspace executed on the code+path+value
 layers: 24 class renames (`WorkspaceService`/`WorkspaceEntity`/`Workspace*` models/api shims+
@@ -97,6 +114,130 @@ services), not scope marking; the composition layer is expected to dissolve via 
 controllers, and anything surviving is swept `Team*`→`Workspace*` at DD-01 — review THERE whether
 the prefix (and the classes) should exist at all. Note the platform substrate stays genuinely
 non-workspace-scoped (users, tokens, system, global catalogue/templates/params).
+
+## Bootstrap seeding ✅ (2026-08-15)
+
+v5 had **no seeding path** — the legacy `boomerangio/flow-loader` image did it all, and
+`service-loader` was indexes+migrations only. A fresh install would have failed on first
+user/workspace creation (`RelationshipService.createNodeAndEdge` → `resolveNodeOrThrow` throws
+without the `root` node). Full parity ported into changeunits `_0013`–`_0018` (+ `SeedResources`
+helper, seed JSON under `service-loader/src/main/resources/seed/`): `root` relationship node ·
+the **`system` workspace** (unlimited quotas, undeletable, + its graph edges and legacy
+admin-membership replication) · 5 roles · 7 settings · the 87-task / 130-revision catalogue and
+its global task graph · workflow + integration templates. All insert-if-absent (idempotent,
+non-destructive to upgrades); `LoaderMigrationTest` covers fresh-DB, upgraded-install, and
+double-run-with-audit-log-dropped.
+
+## v3 → v5 migration consolidation 🔵 (maintainer-raised 2026-08-16)
+
+**Problem:** every external install is on **v3** — only our own environments went to v4. Today
+`_0001__BaselineExistingInstall` assumes a v4-current install, so there is no working external
+upgrade path: it would need the legacy Mongock v3→v4 chain AND the v5 Flamingock chain (two
+loaders — contradicting AM-9's single-image story), carrying churn from v4 changesets that
+iterate on each other plus v4 work v5 has since renamed or undone.
+
+**Target:** `service-loader` alone takes a **v3 database to the v5 end state**, via consolidated
+("squashed") changeunits that migrate DIRECTLY to v5 shapes — never through an intermediate a
+later changeunit rewrites.
+
+**Scout complete (2026-08-16).** Legacy inventory: v3 baseline = `FlowDatabaseChangeLog` orders
+001–112 (verified 100% v3-era); v4 = `FlowDatabasev4ChangeLog` orders 4000–4048. Classification:
+**31 KEEP · 7 DROP · 5 SQUASH · 1 SPLIT**. Generation discriminator for a live DB:
+`sys_changelog_flow` contains `112` but not `4000` ⇒ v3.
+
+*Most important KEEP:* `4041` (relationship-model introduction) — retargeted to write
+`workspace:<ref>` node ids/edge prefixes DIRECTLY (never v4's `team:`, which `_0012` would then
+have to rewrite — and `_0012` runs BEFORE the new units, so a `team:` write would never be fixed).
+*Notable DROPs:* `4007`/`4012`/`4031` (relationship intermediates superseded by `4041`),
+`4015`/`4023` (superseded by our `_0014`/`_0015` seeds), `4022`/`4024` (Quartz — and `4022`
+targeted a `quartz` collection while v3 writes `jobs`, so it was a **no-op on every real v3 DB**).
+*Correction:* JobRunr `jr_*`/`_sch_*`, EventQueue and the duplicate-audit work do **not** exist in
+the legacy loader — those are v5-side concerns only.
+
+**Blockers found in our own just-shipped seeds (fixed immediately):** `_0016__SeedSettings` guards
+on `key` while all 7 seed `_id`s already exist in a v3 `settings` collection under different keys
+⇒ `DuplicateKeyException` **aborts the whole run**; `_0017__SeedTaskCatalogue` pre-creates `tasks`
+with the exact 87 `_id`s a v3 install still holds in `task_templates` ⇒ blocks the migration;
+`_0018` duplicates template content whose source workflows still live in `workflows`. Seeds are now
+generation-aware (skip on v3; unchanged on v4/fresh). Note `_0001__BaselineExistingInstall` logs
+only — it cannot distinguish v3 from v4, so generation detection is explicit.
+
+**Data already lost on v4 installs** (v3→v5 can be written correctly; v4 cannot be fully repaired):
+`taskVersion` is `null` everywhere — `4005`'s `Document.replace` on a fresh `Document` is a no-op,
+and `4033`/`4034`/`4035` each read the new (absent) key instead of `templateVersion`; approver
+groups vanished (`4011` strips `teams.approverGroups[]`; nothing ever wrote `approver_groups`);
+no workflow audit records (`4038` matched `"WORKFLOW"` against lowercase node types).
+
+### Maintainer rulings (2026-08-16)
+
+| # | Ruling |
+|---|---|
+| M-1 | **Personal workspaces KEEP** — v3→v5 recreates a personal workspace per user (as `4014` did) with a `memberOf` edge; `WorkspaceType.personal`. |
+| M-2 | **Best-effort v4 repair units** — add changeunits repairing what IS recoverable on v4 installs (re-derive `taskVersion` from `task_revisions` where unambiguous; rebuild workflow audit records from `rel_edges`). Approver groups are unrecoverable on v4 (source gone) — document, do not fake. |
+| M-3 | **CosmosDB is NOT a supported v5 target** — `renameCollection` is fine; `_0011__DispatcherRename` stays as-is; consolidated units may use renames freely. |
+| M-4 | **A real v3 dump will be provided** — the three schemas unverifiable from loader source (`global_params`, `workflows_activity_approval`, v3 `approver_groups` embedding) are validated against it before those units are trusted. |
+
+### Validated against a real v3 dump (2026-08-16)
+
+Source: `~/Workspaces/cheerdev/ops/**flowabl-live-dump-20231106**/boomerang` (16MB, 23 collections
+with data). **Generation proven v3**: 111 changesets applied, max id `112`, zero `4xxx` — exactly
+the scout's discriminator. (The dump first suggested — `flowabl-dev-dump-20230505` — is
+metadata-only, no `.bson` documents at all, and is *v4-shaped*: it carries `relationships`/
+`actions`/`workflow_templates`. It was the dev environment already running v4 development while
+live stayed on v3. Not usable.)
+
+| Check | Result |
+|---|---|
+| `settings` | **Confirms the `_0016` blocker.** All 8 v3 `_id`s present with v3 keys (`controller`, `activity`, `workflow`, `users`, `features`, `teams`, `extensions`, `customizations`) — exactly the ids the seed would re-insert. |
+| `workflows_activity_approval` (8 docs) | `{_id, activityId, taskActivityId, workflowId, actioners[{approverId,comments,approved,actionDate}], status, type, creationDate, numberOfApprovers}`. **4003 mutates whole documents in place**, so `actioners[]`/`numberOfApprovers` DO survive — v5 `ActionEntity` has both. No loss here (an earlier suspicion, checked and withdrawn). |
+| `teams.approverGroups[]` (28 teams) | Field present on 2 teams, both **empty arrays** — no approver-group data exists on this install, so R-6's v4 loss had no data impact here. Populated shape still unvalidated; handle empty gracefully. |
+| **NEW BUG — global parameters never migrated** | v3's collection is **`global_config`** (1 doc: `{_id, key, label, type, value, description, readOnly}`, `_class=FlowGlobalConfigEntity`), but changeset **`4045` reads `global_params`** and maps `values`→`value`. On real v3 data it matches nothing: **global parameters were silently dropped in v4, and the source collection was never even dropped.** The consolidated unit must read `global_config` and map `key`→`name`, `value`→`value` (singular). Verify the collection name against other installs before finalising. |
+
+### v3→v5 implementation batches (chained; each verified against the real dump before the next)
+
+| Batch | Changeunits | Depends on | Notes |
+|---|---|---|---|
+| **F — foundation** | real-dump test harness · `_0019__LegacyGenerationDetect` · `_0020__V3DropDeadCollections` | — | `_0019` MUST capture the generation before any mutation: once `_0020` drops legacy collections the DB no longer looks v3 and detection would flip mid-chain. Dump referenced by path, never committed (real production data, public repo); test skips when absent. |
+| **A — standalone data** | `_0021__V3MigrateSettings` · `_0031__V3MigrateGlobalParameters` · `_0033__V3Indexes` | F | `_0031` reads **`global_config`** (NOT v4's wrong `global_params`) mapping `key`→`name`, `value`(singular)→`value`. Settings: rename keys to `task`/`workflowrun`/`integration` + config-key renames; delete the `users` doc. |
+| **B — task catalogue** | `_0022__V3MigrateTasks` · `_0026__V3MigrateTaskRunRefs` · `_0034__V3ReconcileCatalogue` | F | Single pass `task_templates` → `tasks` + `task_revisions` with `parentRef` and `spec.params[]` merged (squashes 4004+4030+4032+4043). Reconcile against `_0017`'s 87 seeded tasks by legacy `_id`. |
+| **C — workspaces & users** | `_0027__V3MigrateWorkspaces` · `_0028__V3MigrateUsers` | F | Quotas → v5 names (`maxWorkflowRunMonthly`/`maxWorkflowRunDuration`/`maxConcurrentRuns` + new `maxWorkflowRunStorage`); extract `approverGroups[]` → `approver_groups` (empty in the dump — handle gracefully, shape unvalidated); **personal workspace per user (M-1)**. |
+| **D — workflows & runs** | `_0023__V3MigrateWorkflows` · `_0024__V3ExtractWorkflowTemplates` · `_0025__V3MigrateRuns` | B | Fix the v4 `taskVersion` bugs at source (4005's no-op `replace`, 4033/4034/4035 reading the new key). Single-pass slug+`displayName`. Runs: status/phase mapping + `initiatedByRef` (4002 computed then dropped it). |
+| **E — relationship graph** | `_0029__V3BuildRelationshipGraph` · `_0030__V3SystemWorkspaceMembers` · `_0032__V3SeedAudit` | B,C,D | **The most important slice.** Write `workspace:<ref>` node ids/edge prefixes DIRECTLY — `_0012` runs BEFORE these units, so a `team:` write would never be corrected. No `_class`. Audit parent resolved via `rel_edges` (4038's lookup never matched). |
+| **G — cleanup & v4 repair** | `_0035__V3DropIntermediates` · v4 repair units (**M-2**) | E | Repair what IS recoverable on v4 installs: re-derive `taskVersion` from `task_revisions` where unambiguous; rebuild workflow audit records from `rel_edges`. Approver groups unrecoverable on v4 — document, never fake. |
+
+### Post-G consolidation review (maintainer-requested 2026-08-16)
+
+Once Batch G lands, review **every** changeunit as a whole: ordering, numbering, and whether any
+should be merged. **Nothing has run against a real production database yet** (only the dump
+harness), so units may be freely renumbered, reordered, merged or split — the audit store has no
+production history to respect. Specific things to examine:
+
+1. **Seeds vs migration ordering (the big one).** `_0013`–`_0018` (bootstrap seeds) currently run
+   BEFORE the v3→v5 units, which is the ONLY reason they needed generation-aware skip logic
+   (`_0016`/`_0017`/`_0018` skip on v3 to avoid `DuplicateKeyException` and id collisions). If the
+   v3 migration ran FIRST and the seeds after, that skip logic could largely disappear — the seeds
+   would simply be insert-if-absent over already-migrated data. Simpler and less conditional.
+2. **Units separated from their siblings**: `_0026` (task-run refs) belongs with `_0022` (tasks);
+   `_0034` (catalogue reconcile) likewise; `_0031` (global params) and `_0032` (audit) are
+   isolated. Numbering came from the scout's proposal, not from execution logic.
+3. **Merge candidates**: units that always run together over the same collections in the same
+   generation could collapse into one, reducing the audit-log surface and the number of passes
+   over 18k+ documents.
+4. **v3-only vs v4-only gating**: verify each unit's gate is right, and that a FRESH install skips
+   everything it should.
+5. Re-verify the whole chain against the real dump after any reordering — order changes are
+   exactly where a working migration silently breaks.
+
+## Latent bugs found while testing (unfixed, out of scope when found)
+
+1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
+   writing MockMvc tests for the engine-mode guard (worked around there by seeding a minimal
+   `global` token). Real exposure: any code path reaching `filter` without an authenticated
+   principal — engine mode runs with security off, so this is worth a guard.
+2. **Content negotiation with no `Accept` header** inconsistently resolves to
+   `application/x-yaml` vs JSON depending on the handler's return type (the YAML converter
+   registers globally — see `workflow.config.Yaml*`). A client omitting `Accept` can get YAML
+   where it expects JSON. Fix is to constrain the YAML converter to the endpoints that want it.
 
 ## Future items (maintainer-added 2026-08-15, not yet scheduled)
 

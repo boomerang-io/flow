@@ -6,8 +6,6 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.repository.TokenRepository;
-import io.boomerang.common.error.BoomerangError;
-import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
@@ -107,9 +105,11 @@ public class ParameterManager {
    * Build up the Workspace Params - defaultValue is not used with Workspace Params and can be ignored.
    */
   private void buildTeamParams(Map<String, Object> teamParams, String team) {
+    // A missing workspace contributes no params rather than failing the whole layer build -
+    // engine mode resolves every scope to a "default" workspace that has no stored record.
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
     if (!optWorkspaceEntity.isPresent()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      return;
     }
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
     if (workspaceEntity.getParameters() != null && !workspaceEntity.getParameters().isEmpty()) {

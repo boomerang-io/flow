@@ -7,6 +7,7 @@ import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.api.IntegrationControllerV2;
 import io.boomerang.api.WorkspaceControllerV2;
 import io.boomerang.api.WorkspaceScheduleControllerV2;
+import io.boomerang.core.security.EngineWorkspaceInterceptorConfiguration;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.engine.WorkflowRunService;
 import io.boomerang.schedule.ScheduleWatcher;
@@ -61,5 +62,11 @@ class FlowModeGatingEngineModeTest extends AbstractEngineIntegrationTest {
   void workspaceDependentApiControllersAreAbsentInEngineMode() {
     assertTrue(context.getBeansOfType(WorkspaceControllerV2.class).isEmpty());
     assertTrue(context.getBeansOfType(WorkspaceScheduleControllerV2.class).isEmpty());
+  }
+
+  @Test
+  void engineWorkspaceInterceptorIsPresentInEngineMode() {
+    assertFalse(
+        context.getBeansOfType(EngineWorkspaceInterceptorConfiguration.class).isEmpty());
   }
 }

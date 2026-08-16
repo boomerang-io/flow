@@ -45,11 +45,11 @@ import org.slf4j.LoggerFactory;
  * <p>Idempotent: every step only touches documents still carrying the old "team" string, so a
  * second run is a no-op.
  */
-@Change(id = "0012-workspace-rename", author = "boomerang", transactional = false)
+@Change(id = "0016-workspace-rename", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0012__WorkspaceRename {
+public class _0016__WorkspaceRename {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0012__WorkspaceRename.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0016__WorkspaceRename.class);
   private static final String OLD_LABEL = "team";
   private static final String NEW_LABEL = "workspace";
   private static final Pattern OLD_PREFIX = Pattern.compile("^team:");
@@ -133,6 +133,6 @@ public class _0012__WorkspaceRename {
   @Rollback
   public void rollback(MongoDatabase db, CollectionNames names) {
     // Value/id renames are not restored - "workspace" is authoritative going forward, matching
-    // the other online migrations' rollback scope (see _0011__DispatcherRename).
+    // the other online migrations' rollback scope (see _0015__DispatcherRename).
   }
 }

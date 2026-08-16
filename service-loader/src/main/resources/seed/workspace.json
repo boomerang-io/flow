@@ -1,0 +1,27 @@
+{
+  "documents": [
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000001"
+      },
+      "name": "system",
+      "displayName": "System and Administration",
+      "type": "system",
+      "status": "active",
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "quotas": {
+        "maxWorkflowCount": 2147483647,
+        "maxWorkflowRunMonthly": 2147483647,
+        "maxWorkflowStorage": 2147483647,
+        "maxWorkflowRunStorage": 2147483647,
+        "maxWorkflowRunDuration": 2147483647,
+        "maxConcurrentRuns": 2147483647
+      },
+      "labels": {},
+      "annotations": {},
+      "parameters": []
+    }
+  ]
+}
