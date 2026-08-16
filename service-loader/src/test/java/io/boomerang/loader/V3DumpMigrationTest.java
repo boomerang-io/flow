@@ -370,9 +370,10 @@ class V3DumpMigrationTest {
           .as("%s must have been dropped", dropped)
           .doesNotContain(prefixed(dropped));
     }
-    // The one unprefixed "locks" collection in the dump (distributed-lock's, not Quartz's) is
-    // out of scope for this v3-only unit and must survive untouched.
-    assertThat(names).as("unprefixed distributed-lock 'locks' left alone").contains("locks");
+    // The one unprefixed "locks" collection in the dump (distributed-lock's, not Quartz's) was
+    // out of scope for this v3-only unit, but IS dropped by H11's ungated
+    // _0027__V4DropResidualCollections, which runs later in the same chain.
+    assertThat(names).as("unprefixed distributed-lock 'locks' dropped by H11").doesNotContain("locks");
   }
 
   private void assertLiveCollectionsPreserved(long workflowsBefore, long usersBefore) {
