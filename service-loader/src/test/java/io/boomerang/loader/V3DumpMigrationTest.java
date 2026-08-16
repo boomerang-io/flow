@@ -270,6 +270,9 @@ class V3DumpMigrationTest {
     assertRunsMigrated();
     assertActionsMigrated();
     assertSchedulesMigrated();
+    assertRelationshipGraphBuilt();
+    assertSystemWorkspaceMembersAttached();
+    assertAuditSeeded();
 
     // -----------------------------------------------------------------------------------
     // Idempotency — a second full run changes nothing. Compared at per-collection document
@@ -312,6 +315,13 @@ class V3DumpMigrationTest {
     assertRunsMigrated();
     assertActionsMigrated();
     assertSchedulesMigrated();
+    // Re-asserting the graph/audit counts here after this second full run is itself the
+    // idempotency proof the batch instructions ask for - a second run that duplicated even one
+    // node, edge, or audit record would push these counts (or the graph invariants) off their
+    // real-dump values.
+    assertRelationshipGraphBuilt();
+    assertSystemWorkspaceMembersAttached();
+    assertAuditSeeded();
   }
 
   // =====================================================================================
@@ -1201,10 +1211,237 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // Later slices: add a new clearly-marked assertion section here per v3->v5 changeunit
-  // (e.g. the relationship-graph build, ...) rather than folding new checks into the sections
-  // above.
+  // _0029__V3BuildRelationshipGraph invariants (Batch E)
   // =====================================================================================
+
+  private void assertRelationshipGraphBuilt() {
+    // ---- THE ONE IRREVERSIBLE RULE: every node id / edge endpoint uses the v5 "workspace:"
+    // prefix, never v4's "team:" - _0012__WorkspaceRename runs BEFORE this unit and would never
+    // see (and therefore never fix) a "team:" write. ----
+    List<String> validNodePrefixes =
+        List.of(
+            "root:", "workspace:", "user:", "workflow:", "workflowrun:", "task:", "teamtask:",
+            "approvergroup:", "schedule:", "integration:");
+    for (Document node : collection("rel_nodes").find()) {
+      String id = node.getString("_id");
+      assertThat(id).as("rel_nodes _id must never carry the v4 team: prefix").doesNotStartWith("team:");
+      assertThat(validNodePrefixes.stream().anyMatch(id::startsWith))
+          .as("rel_nodes _id %s must start with a v5 type prefix", id)
+          .isTrue();
+      assertThat(node.getString("type")).as("node type must never be the legacy 'team'").isNotEqualTo("team");
+      assertThat(node.containsKey("_class")).as("no rel_nodes document carries _class").isFalse();
+    }
+    for (Document edge : collection("rel_edges").find()) {
+      assertThat(edge.getString("from")).as("rel_edges.from must never carry team:").doesNotStartWith("team:");
+      assertThat(edge.getString("to")).as("rel_edges.to must never carry team:").doesNotStartWith("team:");
+      assertThat(edge.containsKey("_class")).as("no rel_edges document carries _class").isFalse();
+    }
+
+    // ---- Task graph: every one of the 89 migrated tasks is global/root-scoped - v3 has no
+    // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. ----
+    assertThat(collection("tasks").countDocuments()).isEqualTo(89);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(89);
+    assertThat(
+            collection("rel_edges")
+                .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
+        .isEqualTo(89);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "teamtask")))
+        .as("v3 task_templates carries no team-scoping field at all")
+        .isZero();
+
+    // ---- Workspace graph: one node + one root--contains--> edge per teams document (86: 28 real
+    // v3 teams + 1 system + 57 personal). ----
+    assertThat(collection("teams").countDocuments()).isEqualTo(86);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workspace"))).isEqualTo(86);
+    assertThat(
+            collection("rel_edges")
+                .countDocuments(
+                    Filters.and(
+                        Filters.eq("from", "root:root"),
+                        Filters.eq("label", "contains"),
+                        Filters.regex("to", "^workspace:"))))
+        .isEqualTo(86);
+
+    // ---- User graph: one node (slug = email) + root--contains--> edge per user (57). ----
+    assertThat(collection("users").countDocuments()).isEqualTo(57);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "user"))).isEqualTo(57);
+    Document tysonNode = collection("rel_nodes").find(Filters.eq("_id", "user:614415021950a72949b00efb")).first();
+    assertThat(tysonNode).isNotNull();
+    assertThat(tysonNode.getString("slug")).isEqualTo("tyson@lawrie.com.au");
+
+    // ---- Personal-workspace memberOf edges: exactly one per user (the batch instructions'
+    // explicit ask), resolved via _0028's type=personal/externalRef=<userId> linkage. ----
+    assertThat(collection("teams").countDocuments(Filters.eq("type", "personal"))).isEqualTo(57);
+    Document tysonPersonal =
+        collection("teams")
+            .find(Filters.and(Filters.eq("type", "personal"), Filters.eq("externalRef", "614415021950a72949b00efb")))
+            .first();
+    assertThat(tysonPersonal).isNotNull();
+    String tysonPersonalWorkspaceId = tysonPersonal.get("_id").toString();
+    assertThat(
+            collection("rel_edges")
+                .find(
+                    Filters.and(
+                        Filters.eq("from", "user:614415021950a72949b00efb"),
+                        Filters.eq("label", "memberOf"),
+                        Filters.eq("to", "workspace:" + tysonPersonalWorkspaceId)))
+                .first())
+        .as("every user must be a member of their own personal workspace")
+        .isNotNull();
+
+    // ---- Real v3 team membership edges - the flowTeams data-loss finding: _0028 was amended to
+    // stash it as flowTeamRefs (see that unit's javadoc) specifically so this unit could rebuild
+    // these edges; verified against the real dump: 27 total flowTeams references across 24 real
+    // users, all 27 resolving to a migrated workspace. ----
+    assertThat(
+            collection("rel_edges")
+                .find(
+                    Filters.and(
+                        Filters.eq("from", "user:614415021950a72949b00efb"),
+                        Filters.eq("label", "memberOf"),
+                        Filters.eq("to", "workspace:61551ffaa1747c3cd93f4bed")))
+                .first())
+        .as("Tyson must be a member of Team Tyson via real v3 flowTeams, not just his personal workspace")
+        .isNotNull();
+    assertThat(
+            collection("rel_edges")
+                .find(
+                    Filters.and(
+                        Filters.eq("from", "user:614415021950a72949b00efb"),
+                        Filters.eq("label", "memberOf"),
+                        Filters.eq("to", "workspace:615428b57162702bd3ee7605")))
+                .first())
+        .as("Tyson must be a member of SRC Innovations via real v3 flowTeams")
+        .isNotNull();
+    long hobbyMemberships = 0;
+    for (Document edge : collection("rel_edges").find(Filters.eq("label", "memberOf"))) {
+      String to = edge.getString("to");
+      Document workspace = collection("teams").find(Filters.eq("_id", new ObjectId(to.substring("workspace:".length())))).first();
+      if (workspace != null && "hobby".equals(workspace.getString("type"))) {
+        hobbyMemberships++;
+      }
+    }
+    assertThat(hobbyMemberships).as("27 real v3 flowTeams memberships, all resolved to a workspace").isEqualTo(27);
+
+    // ---- Workflow ownership edges: all 65 workflows resolve (system/team/user scope), via
+    // _0023's preserved scope/ownerRef extra fields - confirmed NOT a data-loss bug. ----
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workflow"))).isEqualTo(65);
+    assertThat(collection("rel_edges").countDocuments(Filters.eq("label", "hasWorkflow"))).isEqualTo(65);
+
+    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    String systemWorkspaceId = system.get("_id").toString();
+    assertThat(
+            collection("rel_edges")
+                .find(
+                    Filters.and(
+                        Filters.eq("from", "workspace:" + systemWorkspaceId),
+                        Filters.eq("label", "hasWorkflow"),
+                        Filters.eq("to", "workflow:6144265f1950a72949b00efc")))
+                .first())
+        .as("scope=system workflow (Better Uptime Heartbeat) must attach to the system workspace")
+        .isNotNull();
+    assertThat(
+            collection("rel_edges")
+                .find(
+                    Filters.and(
+                        Filters.eq("from", "workspace:61551ffaa1747c3cd93f4bed"),
+                        Filters.eq("label", "hasWorkflow"),
+                        Filters.eq("to", "workflow:6437a414ec19f9693daab0c2")))
+                .first())
+        .as("scope=team workflow (Approval Generator) must attach directly to its owning team's workspace"
+            + " (ownerRef IS the workspace id)")
+        .isNotNull();
+    assertThat(
+            collection("rel_edges")
+                .find(
+                    Filters.and(
+                        Filters.eq("from", "workspace:" + tysonPersonalWorkspaceId),
+                        Filters.eq("label", "hasWorkflow"),
+                        Filters.eq("to", "workflow:614a5b92d1577f36a529507c")))
+                .first())
+        .as("scope=user workflow (Personal Storage Test, owned by Tyson) must attach to the owning user's"
+            + " PERSONAL workspace - v5 has no direct user-workflow edge")
+        .isNotNull();
+
+    // ---- WorkflowRun ownership edges: all 18093 resolve directly from _0025's own preserved
+    // scope/ownerRef extra fields (no join back through the workflow needed). Batched. ----
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workflowrun"))).isEqualTo(18093);
+    assertThat(collection("rel_edges").countDocuments(Filters.eq("label", "hasWorkflowRun"))).isEqualTo(18093);
+    Document sampleRunEdge =
+        collection("rel_edges")
+            .find(
+                Filters.and(
+                    Filters.eq("label", "hasWorkflowRun"), Filters.eq("to", "workflowrun:614427071950a72949b00eff")))
+            .first();
+    assertThat(sampleRunEdge).as("scope=system run must resolve to a workspace").isNotNull();
+    assertThat(sampleRunEdge.getString("from")).isEqualTo("workspace:" + systemWorkspaceId);
+
+    // ---- Deliberately NOT built - see _0029's javadoc "What this unit deliberately does NOT
+    // create" section: no live app code writes a schedule/integration relationship node, and no
+    // v3->v5 integration migration exists at all. ----
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "schedule"))).isZero();
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "integration"))).isZero();
+  }
+
+  // =====================================================================================
+  // _0030__V3SystemWorkspaceMembers invariants (Batch E)
+  // =====================================================================================
+
+  private void assertSystemWorkspaceMembersAttached() {
+    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    assertThat(system).isNotNull();
+    String workspaceNodeId = "workspace:" + system.get("_id").toString();
+
+    assertThat(collection("users").countDocuments(Filters.eq("type", "admin"))).isEqualTo(4);
+    long adminMemberships = 0;
+    for (Document admin : collection("users").find(Filters.eq("type", "admin"))) {
+      String userNodeId = "user:" + admin.get("_id").toString();
+      Document edge =
+          collection("rel_edges")
+              .find(Filters.and(Filters.eq("from", userNodeId), Filters.eq("label", "memberOf"), Filters.eq("to", workspaceNodeId)))
+              .first();
+      assertThat(edge).as("admin %s must be a system workspace member", admin.getString("email")).isNotNull();
+      assertThat(((Document) edge.get("data")).getString("role"))
+          .as("system workspace admin membership must carry the owner role")
+          .isEqualTo("owner");
+      adminMemberships++;
+    }
+    assertThat(adminMemberships)
+        .as("all 4 real v3 admin users must be attached once _0029 created their user nodes"
+            + " (the exact gap _0014 could not close on a v3 install - see its own '0 admins ... 0"
+            + " skipped' log)")
+        .isEqualTo(4);
+  }
+
+  // =====================================================================================
+  // _0032__V3SeedAudit invariants (Batch E)
+  // =====================================================================================
+
+  private void assertAuditSeeded() {
+    assertThat(collection("audit").countDocuments(Filters.eq("scope", "TEAM"))).isEqualTo(86);
+    assertThat(collection("audit").countDocuments(Filters.eq("scope", "WORKFLOW"))).isEqualTo(65);
+
+    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    String systemWorkspaceId = system.get("_id").toString();
+    Document systemAudit =
+        collection("audit").find(Filters.and(Filters.eq("scope", "TEAM"), Filters.eq("selfRef", systemWorkspaceId))).first();
+    assertThat(systemAudit).isNotNull();
+    assertThat(systemAudit.getString("selfName")).isEqualTo("system");
+    assertThat(((Document) systemAudit.get("data")).getString("name")).isEqualTo("system");
+    assertThat(systemAudit.containsKey("parent")).as("workspace audit records have no parent").isFalse();
+
+    // legacy 4038's workflow half never worked (matched an uppercase node type that is never
+    // written) - this is the fix: a real workflow audit record, parent resolved via rel_edges.
+    Document heartbeatAudit =
+        collection("audit")
+            .find(Filters.and(Filters.eq("scope", "WORKFLOW"), Filters.eq("selfRef", "6144265f1950a72949b00efc")))
+            .first();
+    assertThat(heartbeatAudit).isNotNull();
+    assertThat(heartbeatAudit.getString("selfName")).isEqualTo("better-uptime-heartbeat");
+    assertThat(heartbeatAudit.getString("parent"))
+        .as("a workflow audit record's parent is the WORKSPACE'S OWN AUDIT RECORD id, not the workspace's domain _id")
+        .isEqualTo(systemAudit.get("_id").toString());
+  }
 
   private Map<String, Long> snapshotCounts() {
     Map<String, Long> counts = new TreeMap<>();

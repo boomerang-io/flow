@@ -59,9 +59,25 @@ import org.slf4j.LoggerFactory;
  *       false} - only 20 of 57 real users carry the field at all). {@code settings.isShowHelp} has
  *       no v3 source at all (a v5-only field) - left at {@link
  *       io.boomerang.core.model.UserSettings}'s own default ({@code true}).
- *   <li>{@code quotas}, {@code flowTeams} - dropped per the batch instructions (quotas move to the
- *       personal workspace below with settings-derived defaults, never the per-user override v3
- *       carried; membership in other v3 teams is relationship-graph data for Batch E).
+ *   <li>{@code quotas} - dropped per the batch instructions (quotas move to the personal workspace
+ *       below with settings-derived defaults, never the per-user override v3 carried).
+ *   <li><b>{@code flowTeams}</b> - NOT dropped outright, despite the batch instructions' "membership
+ *       in other v3 teams is relationship-graph data for Batch E" framing. Verified against the
+ *       real dump: {@code users.flowTeams: List<String>} (v3 {@code FlowUserEntity.flowTeams}) is
+ *       the ONLY source of v3 team membership - v3 {@code TeamEntity} carries no embedded {@code
+ *       users[]} counterpart (confirmed against the v3 entity shape). If this unit rewrote the user
+ *       document without preserving it, {@code flowTeams} would be gone from {@code users} by the
+ *       time Batch E runs (this unit replaces the whole document), the exact same class of
+ *       ownership-loss bug flagged for {@code workflows.flowTeamId}/{@code ownerUserId} in {@code
+ *       _0023} - except here there is no "check whether it still exists elsewhere" escape hatch,
+ *       because nothing else in the database carries it. So it is preserved under {@code
+ *       flowTeamRefs} - an extra field undeclared by {@code UserEntity} (same DD-08-compliant
+ *       discoverability technique as {@code _0023}'s {@code scope}/{@code ownerRef} and {@code
+ *       _0027}'s {@code workspaceRef}): the real v3 team ids the user belonged to, passed through
+ *       verbatim (empty list when absent/empty - 2 of the 3 real users spot-checked in this program
+ *       carry an empty {@code flowTeams}). Batch E ({@code _0029__V3BuildRelationshipGraph}) reads
+ *       this to emit {@code user:<id> --memberOf--> workspace:<teamId>} edges for real (non-personal)
+ *       team membership, skipping any id that does not resolve to a migrated workspace.
  * </ul>
  *
  * <p><b>Personal workspace per user (M-1).</b> Reproduces legacy {@code 4014}'s naming derivation
@@ -170,7 +186,22 @@ public class _0028__V3MigrateUsers {
         new Document("isFirstVisit", source.getBoolean("isFirstVisit", Boolean.TRUE))
             .append("isShowHelp", Boolean.TRUE)
             .append("hasConsented", source.getBoolean("hasConsented", Boolean.FALSE)));
+    // See the class javadoc's "flowTeams" bullet - preserved for Batch E, not a UserEntity field.
+    user.put("flowTeamRefs", stringList(source.get("flowTeams")));
     return user;
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<String> stringList(Object raw) {
+    List<String> result = new LinkedList<>();
+    if (raw instanceof List<?> list) {
+      for (Object entry : list) {
+        if (entry != null) {
+          result.add(entry.toString());
+        }
+      }
+    }
+    return result;
   }
 
   private Date resolveCreationDate(Document source) {
