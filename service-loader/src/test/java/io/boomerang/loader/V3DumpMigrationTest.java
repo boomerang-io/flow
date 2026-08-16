@@ -265,6 +265,11 @@ class V3DumpMigrationTest {
     assertTaskRunRefsUnitIsNoOp();
     assertWorkspacesMigrated();
     assertUsersMigrated();
+    assertWorkflowsMigrated(workflowsBefore);
+    assertTemplatesExtracted();
+    assertRunsMigrated();
+    assertActionsMigrated();
+    assertSchedulesMigrated();
 
     // -----------------------------------------------------------------------------------
     // Idempotency — a second full run changes nothing. Compared at per-collection document
@@ -296,6 +301,17 @@ class V3DumpMigrationTest {
     // duplicate personal workspace would push the teams count past 86.
     assertWorkspacesMigrated();
     assertUsersMigrated();
+    // Re-asserting the exact post-migration counts here (65 workflows: 67 v3 minus the 2
+    // extracted into workflow_templates; 149 workflow_revisions: 151 v3 minus the 2 belonging to
+    // those extracted templates; 18093 workflow_runs; 8 actions; 90 workflow_schedules) after this
+    // second full run is itself the idempotency proof the batch instructions ask for - a second
+    // run that duplicated or re-deleted anything would push these counts off their real-dump
+    // values.
+    assertWorkflowsMigrated(workflowsBefore);
+    assertTemplatesExtracted();
+    assertRunsMigrated();
+    assertActionsMigrated();
+    assertSchedulesMigrated();
   }
 
   // =====================================================================================
@@ -344,14 +360,15 @@ class V3DumpMigrationTest {
   private void assertLiveCollectionsPreserved(long workflowsBefore, long usersBefore) {
     // Collections a LATER v3->v5 unit still needs the real v3 data from - not this slice's
     // job to touch, so they must be exactly as restored. (settings and global_config ARE
-    // migrated by this slice's own _0021/_0031, and task_templates by _0022 - see
-    // assertSettingsMigrated/assertGlobalParametersMigrated/assertTaskCatalogueMigrated below,
-    // not here.)
-    assertThat(collection("workflows").countDocuments()).isEqualTo(workflowsBefore);
+    // migrated by this slice's own _0021/_0031, task_templates by _0022, and workflows/
+    // workflows_activity by Batch D's _0023/_0024/_0025 - see
+    // assertSettingsMigrated/assertGlobalParametersMigrated/assertTaskCatalogueMigrated/
+    // assertWorkflowsMigrated/assertRunsMigrated below, not here.) workflowsBefore is still used
+    // by assertWorkflowsMigrated/assertTemplatesExtracted below to prove the exact count delta
+    // the template extraction produces.
     assertThat(collection("users").countDocuments()).isEqualTo(usersBefore);
     assertThat(collection("settings").countDocuments()).isGreaterThan(0);
     assertThat(collection("teams").countDocuments()).isGreaterThan(0);
-    assertThat(collection("workflows_activity").countDocuments()).isGreaterThan(0);
     // Not legacy at all - the live v5 ExtensionEntity collection, still written under this name.
     assertThat(collection("extensions").countDocuments()).isGreaterThan(0);
     // Kept forever: the historical record InstallGeneration.detect reads, and Mongock's own lock.
@@ -379,9 +396,14 @@ class V3DumpMigrationTest {
     assertThat(collection("tasks").countDocuments()).isGreaterThan(0);
     assertThat(collection("task_revisions").countDocuments()).isGreaterThan(0);
 
-    // _0018__SeedTemplates: no starter templates seeded either (their source workflows still
-    // live in the untouched "workflows" collection).
-    assertThat(collection("workflow_templates").countDocuments()).isZero();
+    // _0018__SeedTemplates itself never inserts its two starter templates on a v3 install (no
+    // FRESH-install seed content lands here) - but workflow_templates is NOT empty: Batch D's
+    // _0024__V3ExtractWorkflowTemplates has, by this point in the same migration run, already
+    // extracted the real v3 scope=template workflows into this collection (asserted in detail in
+    // assertTemplatesExtracted() below) - coincidentally landing on the SAME two _id values
+    // _0018's seed would have used (see that unit's collision-guard javadoc), which is exactly
+    // why this count is 2 and not 0.
+    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
     assertThat(collection("integration_templates").countDocuments()).isZero();
 
     // _0013/_0014/_0015 are NOT v3-skipped - the graph root, system workspace, and roles are
@@ -803,9 +825,385 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
+  // _0023__V3MigrateWorkflows invariants (Batch D)
+  // =====================================================================================
+
+  @SuppressWarnings("unchecked")
+  private void assertWorkflowsMigrated(long workflowsBefore) {
+    // 67 real v3 workflows minus the 2 scope=template ones _0024 extracts and deletes.
+    assertThat(collection("workflows").countDocuments()).isEqualTo(workflowsBefore - 2);
+    assertThat(collection("workflows").countDocuments()).isEqualTo(65);
+
+    for (Document workflow : collection("workflows").find()) {
+      assertThat(workflow.containsKey("_class")).as("no leftover v3 _class on any workflow").isFalse();
+      assertThat(workflow.containsKey("tokens")).as("v3 tokens must be dropped").isFalse();
+      assertThat(workflow.containsKey("flowTeamId")).as("v3 flowTeamId dropped by name").isFalse();
+      assertThat(workflow.containsKey("ownerUserId")).as("v3 ownerUserId dropped by name").isFalse();
+      assertThat(workflow.containsKey("shortDescription")).as("v3 shortDescription must not survive").isFalse();
+      assertThat(workflow.containsKey("storage")).as("v3 storage must not survive on the workflow").isFalse();
+      assertThat(workflow.getString("displayName")).as("displayName must survive").isNotBlank();
+      assertThat(workflow.getString("name")).isEqualTo(workflow.getString("name").toLowerCase());
+      assertThat(workflow.get("creationDate")).as("creationDate must always be set").isNotNull();
+      Document triggers = (Document) workflow.get("triggers");
+      assertThat(triggers).as("triggers must always be built, even defensively").isNotNull();
+      assertThat(triggers.keySet()).containsExactlyInAnyOrder("manual", "schedule", "webhook", "event");
+    }
+
+    // Spot check: "Better Uptime Heartbeat" (scope=system - no ownerRef), the workflow used
+    // throughout this section's other spot checks too.
+    Document heartbeat =
+        collection("workflows").find(Filters.eq("_id", new ObjectId("6144265f1950a72949b00efc"))).first();
+    assertThat(heartbeat).isNotNull();
+    assertThat(heartbeat.getString("displayName")).isEqualTo("Better Uptime Heartbeat");
+    assertThat(heartbeat.getString("name")).isEqualTo("better-uptime-heartbeat");
+    assertThat(heartbeat.getString("description")).isEqualTo("This does a daily heart beat check with Better Update");
+    assertThat(heartbeat.getString("status")).isEqualTo("active");
+    assertThat(heartbeat.getString("scope")).isEqualTo("system");
+    assertThat(heartbeat.containsKey("ownerRef")).as("system-scope workflow has no owner").isFalse();
+    Document heartbeatTriggers = (Document) heartbeat.get("triggers");
+    assertThat(((Document) heartbeatTriggers.get("manual")).getBoolean("enabled")).isTrue();
+    assertThat(((Document) heartbeatTriggers.get("schedule")).getBoolean("enabled")).isTrue();
+    assertThat(((Document) heartbeatTriggers.get("webhook")).getBoolean("enabled")).isFalse();
+    assertThat(((Document) heartbeatTriggers.get("event")).getBoolean("enabled")).isFalse();
+
+    // Spot check: "Approval Generator" (scope=team) - proves the scope/ownerRef extra-field
+    // discoverability _0023's javadoc documents, and the storage->workspaces[] (both enabled)
+    // move onto the revision rather than the workflow.
+    Document approvalGenerator =
+        collection("workflows").find(Filters.eq("_id", new ObjectId("6437a414ec19f9693daab0c2"))).first();
+    assertThat(approvalGenerator).isNotNull();
+    assertThat(approvalGenerator.getString("name")).isEqualTo("approval-generator");
+    assertThat(approvalGenerator.getString("scope")).isEqualTo("team");
+    assertThat(approvalGenerator.getString("ownerRef")).isEqualTo("61551ffaa1747c3cd93f4bed");
+
+    // 151 real v3 revisions minus the 2 belonging to the extracted template workflows.
+    assertThat(collection("workflow_revisions").countDocuments()).isEqualTo(149);
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names).as("workflows_revisions dropped after migration").doesNotContain(prefixed("workflows_revisions"));
+
+    // The headline fix: every migrated task that carries a taskRef must carry a non-null
+    // taskVersion (legacy 4005/4034 lost this on every real v4 install - see _0023's javadoc).
+    long tasksWithTaskRef = 0;
+    for (Document revision : collection("workflow_revisions").find()) {
+      for (Document task : (List<Document>) revision.get("tasks")) {
+        if (task.containsKey("taskRef")) {
+          tasksWithTaskRef++;
+          assertThat(task.get("taskVersion"))
+              .as("task %s (revision %s) must carry a non-null taskVersion", task.get("name"), revision.get("_id"))
+              .isNotNull();
+        }
+      }
+    }
+    // 287 real dag tasks carry a templateId/taskRef in total, minus the 12 (8+4) belonging to the
+    // two scope=template workflows' revisions - those are extracted into workflow_templates by
+    // _0024 (and asserted there instead - see assertTemplatesExtracted).
+    assertThat(tasksWithTaskRef).as("287 - 12 template-extracted = 275 remain on workflow_revisions").isEqualTo(275);
+
+    // Detailed spot check: revision 6153a5be7162702bd3ee75c2 (Account Management - Onboarding,
+    // version 6) - exercises taskRef/taskVersion resolution, dependency taskRef resolution
+    // (including the "start" special case), and decisionCondition (both the "" default and a real
+    // switchCondition value) all in one real, non-trivial DAG.
+    Document onboardingRevision =
+        collection("workflow_revisions").find(Filters.eq("_id", new ObjectId("6153a5be7162702bd3ee75c2"))).first();
+    assertThat(onboardingRevision).isNotNull();
+    assertThat(onboardingRevision.getString("workflowRef")).isEqualTo("61454e2d1000b141daa8f85f");
+    assertThat(onboardingRevision.getInteger("version")).isEqualTo(6);
+    List<Document> onboardingTasks = (List<Document>) onboardingRevision.get("tasks");
+    assertThat(onboardingTasks).hasSize(5);
+
+    Document sendEmail = taskNamed(onboardingTasks, "Send Welcome Email");
+    assertThat(sendEmail.getString("type")).isEqualTo("template");
+    assertThat(sendEmail.getString("taskRef")).isEqualTo("612989ab63a78c0c37074e91");
+    assertThat(sendEmail.getInteger("taskVersion")).isEqualTo(1);
+    assertThat((List<Document>) sendEmail.get("params")).hasSize(8);
+    List<Document> sendEmailDeps = (List<Document>) sendEmail.get("dependencies");
+    assertThat(sendEmailDeps).hasSize(1);
+    assertThat(sendEmailDeps.get(0).getString("taskRef")).isEqualTo("start");
+    assertThat(sendEmailDeps.get(0).getString("decisionCondition")).isEqualTo("");
+
+    Document switch1 = taskNamed(onboardingTasks, "Switch 1");
+    assertThat(switch1.getString("type")).isEqualTo("decision");
+    assertThat(switch1.getString("taskRef")).isEqualTo("5c37af285616d5f3544568fd");
+    assertThat(switch1.getInteger("taskVersion")).isEqualTo(1);
+
+    Document createTeam = taskNamed(onboardingTasks, "Create Team");
+    assertThat(createTeam.getString("type")).isEqualTo("template");
+    assertThat(createTeam.getString("taskRef")).isEqualTo("5c3d0401352b1b514150545b");
+    assertThat(createTeam.getInteger("taskVersion")).isEqualTo(4);
+    assertThat((List<Document>) createTeam.get("params")).hasSize(7);
+    List<Document> createTeamDeps = (List<Document>) createTeam.get("dependencies");
+    assertThat(createTeamDeps).hasSize(1);
+    assertThat(createTeamDeps.get(0).getString("taskRef")).isEqualTo("Switch 1");
+    // A real v3 switchCondition ("true") - proves decisionCondition <- switchCondition, not
+    // always the "" default.
+    assertThat(createTeamDeps.get(0).getString("decisionCondition")).isEqualTo("true");
+    assertThat(createTeamDeps.get(0).containsKey("taskId")).isFalse();
+    assertThat(createTeamDeps.get(0).containsKey("switchCondition")).isFalse();
+    assertThat(createTeamDeps.get(0).containsKey("conditionalExecution")).isFalse();
+    // Visual edge-routing metadata is intentionally retained (matches legacy's own commented-out
+    // remove, and the seeded workflow-templates.json reference shape) - see _0023's javadoc.
+    assertThat(createTeamDeps.get(0).containsKey("metadata")).isTrue();
+
+    Document start = taskNamed(onboardingTasks, "start");
+    assertThat(start.getString("type")).isEqualTo("start");
+    assertThat(start.containsKey("taskRef")).isFalse();
+    Document end = taskNamed(onboardingTasks, "end");
+    assertThat(end.getString("type")).isEqualTo("end");
+    assertThat((List<Document>) end.get("dependencies")).hasSize(3);
+  }
+
+  @SuppressWarnings("unchecked")
+  private Document taskNamed(List<Document> tasks, String name) {
+    return tasks.stream()
+        .filter(t -> name.equals(t.getString("name")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("No task named " + name));
+  }
+
+  // =====================================================================================
+  // _0024__V3ExtractWorkflowTemplates invariants (Batch D)
+  // =====================================================================================
+
+  @SuppressWarnings("unchecked")
+  private void assertTemplatesExtracted() {
+    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
+
+    // The two source workflows/revisions - collision-guard ids the batch instructions and
+    // _0018__SeedTemplates both name - are gone from their v3-shaped collections.
+    assertThat(collection("workflows").find(Filters.eq("_id", new ObjectId("62be6a3266ff43491f09d2e7"))).first())
+        .as("source template workflow must be deleted")
+        .isNull();
+    assertThat(collection("workflows").find(Filters.eq("_id", new ObjectId("62be6a3e66ff43491f09d2e9"))).first())
+        .as("source template workflow must be deleted")
+        .isNull();
+
+    Document planets =
+        collection("workflow_templates").find(Filters.eq("_id", new ObjectId("62be6a3266ff43491f09d2e8"))).first();
+    assertThat(planets).isNotNull();
+    assertThat(planets.getString("name")).isEqualTo("looking-through-planets-with-http-call");
+    // The trailing space in the real v3 name is preserved verbatim on displayName - matches the
+    // seeded workflow-templates.json reference byte-for-byte (see _0024's javadoc).
+    assertThat(planets.getString("displayName")).isEqualTo("Looking through planets with HTTP Call ");
+    assertThat(planets.getString("icon")).isEqualTo("bot");
+    // 8 real dag tasks on this template carry a templateId/taskRef (the other 4 of the 12 total
+    // template-extracted tasks belong to mongoQuery below) - together with the 275 left on
+    // workflow_revisions (see assertWorkflowsMigrated), these account for all 287 real dag tasks
+    // that carry a templateId.
+    @SuppressWarnings("unchecked")
+    List<Document> planetsTasks = (List<Document>) planets.get("tasks");
+    long planetsWithTaskRef = planetsTasks.stream().filter(t -> t.containsKey("taskRef")).count();
+    assertThat(planetsWithTaskRef).isEqualTo(8);
+
+    Document mongoQuery =
+        collection("workflow_templates").find(Filters.eq("_id", new ObjectId("62be6a3e66ff43491f09d2ea"))).first();
+    assertThat(mongoQuery).isNotNull();
+    assertThat(mongoQuery.getString("name")).isEqualTo("mongodb-email-query-results");
+    assertThat(mongoQuery.getString("displayName")).isEqualTo("MongoDB email query results");
+    assertThat(mongoQuery.getInteger("version")).isEqualTo(1);
+    List<Document> mongoTasks = (List<Document>) mongoQuery.get("tasks");
+    assertThat(mongoTasks).hasSize(6);
+    // The same headline taskVersion fix survives extraction into workflow_templates - and
+    // deliberately DIFFERS from the static seed/workflow-templates.json reference (whose
+    // taskVersion is null on every task, itself a fossil of the same v4 bug, captured by running
+    // the OLD buggy loader) - proof the fix reaches all the way through this batch's output.
+    Document executeQuery = taskNamed(mongoTasks, "MongoDB Execute Query");
+    assertThat(executeQuery.getString("taskRef")).isEqualTo("620636845b676b358e8c440c");
+    assertThat(executeQuery.getInteger("taskVersion")).isEqualTo(1);
+    Document displayResults = taskNamed(mongoTasks, "Display the results");
+    assertThat(displayResults.getInteger("taskVersion")).isEqualTo(2);
+    Document sendAttachment = taskNamed(mongoTasks, "Send the results as attachemnt");
+    assertThat(sendAttachment.getInteger("taskVersion")).isEqualTo(3);
+    Document failedEmail = taskNamed(mongoTasks, "Failed to run the query email");
+    assertThat(failedEmail.getInteger("taskVersion")).isEqualTo(3);
+
+    // 4046's merge - single param, matches the seeded reference shape exactly (see _0024's
+    // javadoc: config-as-base, defaultValue/description merged in from the naive param).
+    List<Document> mongoParams = (List<Document>) mongoQuery.get("params");
+    assertThat(mongoParams).hasSize(1);
+    Document queryParam = mongoParams.get(0);
+    assertThat(queryParam.getString("name")).isEqualTo("query");
+    assertThat(queryParam.getString("label")).isEqualTo("query");
+    assertThat(queryParam.getString("type")).isEqualTo("textarea");
+    assertThat(queryParam.getBoolean("required")).isTrue();
+    assertThat(queryParam.getString("defaultValue")).startsWith("DBQuery.shellBatchSize");
+    assertThat(queryParam.containsKey("workflowRef")).isFalse();
+  }
+
+  // =====================================================================================
+  // _0025__V3MigrateRuns invariants (Batch D) - workflows_activity -> workflow_runs
+  // =====================================================================================
+
+  private void assertRunsMigrated() {
+    assertThat(collection("workflow_runs").countDocuments()).isEqualTo(18093);
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names).as("workflows_activity dropped after migration").doesNotContain(prefixed("workflows_activity"));
+
+    // Status mapping distribution across all 18093 real runs.
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "succeeded"))).isEqualTo(18065);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "cancelled"))).isEqualTo(13);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "failed"))).isEqualTo(8);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "invalid"))).isEqualTo(4);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "running"))).isEqualTo(3);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("phase", "finalized"))).isEqualTo(18093);
+
+    // trigger mapping - "scheduler" renamed to "schedule" (see _0025's javadoc).
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("trigger", "schedule"))).isEqualTo(17699);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("trigger", "manual"))).isEqualTo(176);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("trigger", "custom"))).isEqualTo(113);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("trigger", "webhook"))).isEqualTo(105);
+
+    // THE 4002 FIX - initiatedByRef was computed and discarded by legacy; written here. Exactly
+    // the 176 real runs that carry a v3 initiatedByUserId get one.
+    assertThat(collection("workflow_runs").countDocuments(Filters.exists("initiatedByRef"))).isEqualTo(176);
+
+    // Spot check: a straightforward manual/succeeded run.
+    Document run =
+        collection("workflow_runs").find(Filters.eq("_id", new ObjectId("614427071950a72949b00eff"))).first();
+    assertThat(run).isNotNull();
+    assertThat(run.getString("workflowRef")).isEqualTo("6144265f1950a72949b00efc");
+    assertThat(run.getString("workflowRevisionRef")).isEqualTo("614427031950a72949b00efe");
+    assertThat(run.getString("status")).isEqualTo("succeeded");
+    assertThat(run.getString("phase")).isEqualTo("finalized");
+    assertThat(run.getString("trigger")).isEqualTo("manual");
+    assertThat(run.getString("initiatedByRef")).isEqualTo("614415021950a72949b00efb");
+    assertThat(run.getLong("duration")).isEqualTo(28832L);
+    assertThat(run.getInteger("workflowVersion")).isEqualTo(0);
+    assertThat(run.getBoolean("isAwaitingApproval")).isFalse();
+    assertThat(run.getString("scope")).isEqualTo("system");
+
+    // Spot check: statusMessage direct passthrough (a real "invalid" run).
+    Document invalidRun =
+        collection("workflow_runs").find(Filters.eq("_id", new ObjectId("618dc495c87e7471580d099d"))).first();
+    assertThat(invalidRun).isNotNull();
+    assertThat(invalidRun.getString("statusMessage")).isEqualTo("Failed to run workflow: Incomplete workflow");
+
+    // Spot check: params extraction from a real run with properties[].
+    Document runWithParams =
+        collection("workflow_runs").find(Filters.eq("_id", new ObjectId("61637b7ba1747c3cd93f5024"))).first();
+    assertThat(runWithParams).isNotNull();
+    @SuppressWarnings("unchecked")
+    List<Document> runParams = (List<Document>) runWithParams.get("params");
+    assertThat(runParams).hasSize(2);
+    assertThat(runParams).anySatisfy(p -> {
+      assertThat(p.getString("name")).isEqualTo("email");
+      assertThat(p.getString("value")).isEqualTo("tyson@lawrie.com.au");
+    });
+
+    // Spot check: labels array -> map.
+    Document runWithLabels =
+        collection("workflow_runs").find(Filters.eq("_id", new ObjectId("614555131000b141daa8f869"))).first();
+    assertThat(runWithLabels).isNotNull();
+    @SuppressWarnings("unchecked")
+    Map<String, String> runLabels = (Map<String, String>) runWithLabels.get("labels");
+    assertThat(runLabels).containsEntry("eventId", "30eee071-00eb-47d5-b897-af19ab548f79");
+  }
+
+  // =====================================================================================
+  // _0025__V3MigrateRuns invariants (Batch D) - workflows_activity_approval -> actions
+  // =====================================================================================
+
+  @SuppressWarnings("unchecked")
+  private void assertActionsMigrated() {
+    assertThat(collection("actions").countDocuments()).isEqualTo(8);
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names)
+        .as("workflows_activity_approval dropped after migration")
+        .doesNotContain(prefixed("workflows_activity_approval"));
+
+    Document approved =
+        collection("actions").find(Filters.eq("_id", new ObjectId("61543b487162702bd3ee7624"))).first();
+    assertThat(approved).isNotNull();
+    assertThat(approved.getString("workflowRef")).isEqualTo("61543b087162702bd3ee761e");
+    assertThat(approved.getString("workflowRunRef")).isEqualTo("61543b487162702bd3ee7621");
+    assertThat(approved.getString("taskRunRef")).isEqualTo("61543b487162702bd3ee7623");
+    assertThat(approved.getString("status")).isEqualTo("approved");
+    assertThat(approved.getString("type")).isEqualTo("approval");
+    assertThat(approved.getInteger("numberOfApprovers")).isEqualTo(1);
+    List<Document> actioners = (List<Document>) approved.get("actioners");
+    assertThat(actioners).hasSize(1);
+    assertThat(actioners.get(0).getString("approverId")).isEqualTo("614415021950a72949b00efb");
+    assertThat(actioners.get(0).getBoolean("approved")).isTrue();
+    assertThat(actioners.get(0).get("date")).as("actionDate -> date").isNotNull();
+
+    // type "task" -> "manual" (legacy 4003).
+    Document taskType =
+        collection("actions").find(Filters.eq("_id", new ObjectId("61543b487162702bd3ee7625"))).first();
+    assertThat(taskType).isNotNull();
+    assertThat(taskType.getString("type")).isEqualTo("manual");
+    assertThat(taskType.getString("status")).isEqualTo("rejected");
+
+    // No actioners at all in the v3 source (submitted, not yet actioned) - must be an empty list,
+    // not null/absent.
+    Document submitted =
+        collection("actions").find(Filters.eq("_id", new ObjectId("630ef94ad5ff537e6cfad63d"))).first();
+    assertThat(submitted).isNotNull();
+    assertThat(submitted.getString("status")).isEqualTo("submitted");
+    assertThat((List<Document>) submitted.get("actioners")).isEmpty();
+  }
+
+  // =====================================================================================
+  // _0025__V3MigrateRuns invariants (Batch D) - workflows_schedules -> workflow_schedules
+  // =====================================================================================
+
+  @SuppressWarnings("unchecked")
+  private void assertSchedulesMigrated() {
+    assertThat(collection("workflow_schedules").countDocuments()).isEqualTo(90);
+    List<String> names = new ArrayList<>();
+    db.listCollectionNames().into(names);
+    assertThat(names)
+        .as("workflows_schedules dropped after migration")
+        .doesNotContain(prefixed("workflows_schedules"));
+
+    for (Document schedule : collection("workflow_schedules").find()) {
+      assertThat(schedule.containsKey("parameters"))
+          .as("FIX: the legacy 4017 'properties' stray-removal bug left this key behind - a fresh"
+              + " v5 document never carries it")
+          .isFalse();
+      assertThat(schedule.containsKey("cronSchedlue")).as("v3 typo'd key must not survive").isFalse();
+      assertThat(schedule.getString("workflowRef")).as("workflowRef must always be resolvable").isNotBlank();
+      assertThat(schedule.get("creationDate")).as("creationDate must always be set").isNotNull();
+      assertThat(schedule.containsKey("params")).isTrue();
+    }
+
+    // Spot check: the older v3 shape with no separate workflowId field at all - its own _id
+    // doubles as the workflow reference (see _0025's javadoc).
+    Document legacyShape =
+        collection("workflow_schedules").find(Filters.eq("_id", new ObjectId("6144265f1950a72949b00efc"))).first();
+    assertThat(legacyShape).isNotNull();
+    assertThat(legacyShape.getString("workflowRef")).isEqualTo("6144265f1950a72949b00efc");
+    assertThat(legacyShape.getString("cronSchedule"))
+        .isEqualTo("0 0 * ? * MON,TUE,WED,THU,FRI,SAT,SUN");
+    assertThat(legacyShape.getString("timezone")).isEqualTo("Australia/Melbourne");
+    assertThat(legacyShape.getString("type")).isEqualTo("advancedCron");
+    assertThat(legacyShape.getString("status")).isEqualTo("active");
+
+    // Spot check: the newer v3 shape with a real workflowId + parameters[] - proves FIX 2
+    // (type hardcoded to "string" rather than always-null).
+    Document newerShape =
+        collection("workflow_schedules").find(Filters.eq("_id", new ObjectId("61e8fe4897cae7264ceaca76"))).first();
+    assertThat(newerShape).isNotNull();
+    assertThat(newerShape.getString("workflowRef")).isEqualTo("61637ae9a1747c3cd93f5021");
+    assertThat(newerShape.getString("name")).isEqualTo("Run Scheduled Workflow 1");
+    assertThat(newerShape.getString("type")).isEqualTo("runOnce");
+    assertThat(newerShape.getString("status")).isEqualTo("deleted");
+    List<Document> scheduleParams = (List<Document>) newerShape.get("params");
+    assertThat(scheduleParams).hasSize(4);
+    for (Document param : scheduleParams) {
+      assertThat(param.getString("type")).isEqualTo("string");
+    }
+    assertThat(scheduleParams).anySatisfy(p -> {
+      assertThat(p.getString("name")).isEqualTo("timezone");
+      assertThat(p.getString("value")).isEqualTo("Australia/Melbourne");
+    });
+  }
+
+  // =====================================================================================
   // Later slices: add a new clearly-marked assertion section here per v3->v5 changeunit
-  // (e.g. the relationship-graph build, workflows/runs, ...) rather than folding new checks
-  // into the sections above.
+  // (e.g. the relationship-graph build, ...) rather than folding new checks into the sections
+  // above.
   // =====================================================================================
 
   private Map<String, Long> snapshotCounts() {
