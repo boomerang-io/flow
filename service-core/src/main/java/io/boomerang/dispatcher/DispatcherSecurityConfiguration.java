@@ -1,5 +1,6 @@
 package io.boomerang.dispatcher;
 
+import io.boomerang.core.TokenService;
 import io.boomerang.dispatcher.DispatcherAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -19,16 +20,23 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * SecurityConfiguration} / {@link SecurityDisabledConfiguration} (see {@code @Order}). This
  * preserves service-engine's pre-merge security posture exactly and independently of flow's
  * {@code flow.security.enabled} setting: the v1 surface stays network-protected permitAll, with
- * the worker-facing dispatcher paths ({@code /api/v1/dispatcher/**}) additionally gated by
- * {@link DispatcherAuthFilter} once {@code flow.dispatcher.token} is configured.
+ * the worker-facing dispatcher paths ({@code /api/v1/dispatcher/**}) additionally gated by {@link
+ * DispatcherAuthFilter} — real Flow-token validation by default (T6-1), see that class's javadoc
+ * for the {@code flow.dispatcher.auth.enabled} dev/test escape hatch.
  */
 @Configuration
 public class DispatcherSecurityConfiguration {
 
   private static final String V1_PATTERN = "/api/v1/**";
 
-  @Value("${flow.dispatcher.token:}")
-  private String dispatcherToken;
+  private final TokenService tokenService;
+
+  @Value("${flow.dispatcher.auth.enabled:true}")
+  private boolean dispatcherAuthEnabled;
+
+  public DispatcherSecurityConfiguration(TokenService tokenService) {
+    this.tokenService = tokenService;
+  }
 
   @Bean
   @Order(1)
@@ -37,7 +45,8 @@ public class DispatcherSecurityConfiguration {
         .csrf(AbstractHttpConfigurer::disable)
         .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
         .addFilterBefore(
-            new DispatcherAuthFilter(dispatcherToken), UsernamePasswordAuthenticationFilter.class);
+            new DispatcherAuthFilter(tokenService, dispatcherAuthEnabled),
+            UsernamePasswordAuthenticationFilter.class);
     return http.build();
   }
 }

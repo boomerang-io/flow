@@ -1,11 +1,8 @@
 package io.boomerang.loader.migration;
 
-import static io.boomerang.loader.migration.MigrationUtils.ensureIndex;
-
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Updates;
 import io.boomerang.loader.CollectionNames;
 import io.flamingock.api.annotations.Apply;
@@ -14,7 +11,6 @@ import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.HashSet;
 import java.util.Set;
-import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,10 +18,21 @@ import org.slf4j.LoggerFactory;
  * DD-06 worker-tier rename ({@code agent} -> {@code dispatcher}), the persisted half. The
  * code-level rename (DispatcherService/DispatcherControllerV1/api paths) shipped earlier; this
  * migrates the data still using the old names: the {@code agents} collection becomes {@code
- * dispatchers} (Mongo's {@code renameCollection} carries indexes over, including the {@code
- * (name, host)} unique index {@code _0005} created — re-asserted here regardless, since asserting
- * is cheap and covers a database where the rename happened out-of-band), and the {@code agentRef}
- * claim-owner field on {@code task_runs}/{@code workflow_runs} becomes {@code dispatcherRef}.
+ * dispatchers} (Mongo's {@code renameCollection} carries any existing indexes over — a fresh v4
+ * install never had one, since the old {@code (name, host)} uniqueness unit historically ran
+ * BEFORE the rename in a different chain position), and the {@code agentRef} claim-owner field on
+ * {@code task_runs}/{@code workflow_runs} becomes {@code dispatcherRef}.
+ *
+ * <p><b>Deliberately does NOT (re-)create the {@code registration} unique index here.</b> A real
+ * upgrade's {@code agents} collection can carry duplicate {@code (name, host)} registrations (the
+ * exact case the unique index guards against), and this unit runs BEFORE {@code
+ * _0019__DomainIndexes.dispatcherRegistrationUniqueness}, which dedupes {@code dispatchers} before
+ * building that index. An earlier revision of this unit asserted the index immediately after the
+ * rename as a "cheap, belt-and-braces" no-op — but under T6-2's fail-loud-on-unique posture that
+ * premature, unguarded attempt would throw on real duplicate data and abort the migration before
+ * the dedupe it depends on ever runs. {@code _0019} unconditionally targets {@code dispatchers}
+ * (not {@code agents}), so it covers both the normal case and a database where the rename already
+ * happened out-of-band — no coverage is lost by leaving index creation solely to {@code _0019}.
  *
  * <p>Idempotent: the collection rename is skipped once {@code dispatchers} already exists (or
  * {@code agents} no longer does), and the field {@code $rename}s only touch documents that still
@@ -61,15 +68,8 @@ public class _0015__DispatcherRename {
           existing.contains(agents),
           existing.contains(dispatchers));
     }
-
-    // renameCollection carries indexes, but assert/ensure regardless - cheap and covers a
-    // database where the rename already happened out-of-band without this changeunit's help.
-    ensureIndex(
-        db,
-        dispatchers,
-        "registration",
-        new Document("name", 1).append("host", 1),
-        new IndexOptions().unique(true));
+    // Unique "registration" index intentionally NOT (re-)asserted here - see the class javadoc:
+    // it must run AFTER _0019's dedupe, not immediately after this rename.
   }
 
   private void renameAgentRefField(MongoDatabase db, String collection) {

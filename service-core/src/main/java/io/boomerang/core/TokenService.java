@@ -13,8 +13,10 @@ import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
@@ -51,23 +53,30 @@ public class TokenService {
   @Value("${flow.token.max-user-session-duration}")
   private Integer MAX_SESSION_TOKEN_DURATION;
 
+  // Throttle window for lastUsedAt writes so a hot auth path (e.g. the dispatcher filter) doesn't
+  // write per request (T6-1, ARCHIE pattern).
+  private static final long LAST_USED_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
   private final TokenRepository tokenRepository;
   private final UserService userService;
   private final RoleRepository roleRepository;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
+  private final IdentityService identityService;
 
   public TokenService(
       TokenRepository tokenRepository,
       UserService userService,
       RoleRepository roleRepository,
       RelationshipService relationshipService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      IdentityService identityService) {
     this.tokenRepository = tokenRepository;
     this.userService = userService;
     this.roleRepository = roleRepository;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
+    this.identityService = identityService;
   }
 
   /*
@@ -125,6 +134,14 @@ public class TokenService {
     if (!AuthScope.global.equals(request.getType())) {
       tokenEntity.setPrincipal(request.getPrincipal());
     }
+    // T6-1: actorKind is caller-declared (like type/permissions above). createdBy is NEVER taken
+    // from the request body - it is always the server-resolved authenticated principal, or null
+    // if the creating call had none (e.g. an unauthenticated bootstrap path).
+    tokenEntity.setActorKind(request.getActorKind());
+    Token currentIdentity = identityService.getCurrentIdentity();
+    if (currentIdentity != null) {
+      tokenEntity.setCreatedBy(currentIdentity.getPrincipal());
+    }
 
     // Set Permissions
     if (AuthScope.user.equals(request.getType())) {
@@ -169,6 +186,7 @@ public class TokenService {
     tokenResponse.setId(tokenEntity.getId());
     tokenResponse.setType(request.getType());
     tokenResponse.setExpirationDate(request.getExpirationDate());
+    tokenResponse.setActorKind(request.getActorKind());
     return tokenResponse;
   }
 
@@ -205,6 +223,40 @@ public class TokenService {
     }
     LOGGER.debug("Token Validation - not valid");
     return false;
+  }
+
+  /**
+   * Full validation for a machine-actor bearer token (T6-1) — used by internal callers such as
+   * {@code DispatcherAuthFilter} that need more than the public {@link Token}/{@code validate}
+   * pair expose: hash -> lookup -> not expired -> {@code actorKind} is a machine kind -> {@code
+   * global} scope. Empty on any failure; never throws. Callers are expected to have already
+   * applied the cheap {@link io.boomerang.core.enums.TokenTypePrefix#isFlowToken} shape gate
+   * before reaching this (Mongo) lookup.
+   */
+  public Optional<TokenEntity> validateActorToken(String rawToken) {
+    return tokenRepository
+        .findByToken(hashString(rawToken))
+        .filter(te -> isValid(te.getExpirationDate()))
+        .filter(te -> te.getActorKind() != null)
+        .filter(te -> AuthScope.global.equals(te.getType()));
+  }
+
+  /**
+   * Best-effort "last used" stamp, throttled to at most one write per {@link
+   * #LAST_USED_THROTTLE_MS} so a busy dispatcher/integration doesn't hammer Mongo on every
+   * request (T6-1, ARCHIE pattern).
+   */
+  public void touchLastUsed(TokenEntity token) {
+    if (token == null) {
+      return;
+    }
+    Date now = new Date();
+    Date last = token.getLastUsedAt();
+    if (last != null && now.getTime() - last.getTime() < LAST_USED_THROTTLE_MS) {
+      return;
+    }
+    token.setLastUsedAt(now);
+    tokenRepository.save(token);
   }
 
   public boolean delete(String id) {

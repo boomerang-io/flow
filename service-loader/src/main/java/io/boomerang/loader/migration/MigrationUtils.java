@@ -17,8 +17,15 @@ public abstract class MigrationUtils {
   private MigrationUtils() {}
 
   /**
-   * Create an index if absent — identical name+keys+options is a server no-op; a conflicting
-   * definition logs a warning instead of failing the run.
+   * Create an index if absent — identical name+keys+options is a server no-op.
+   *
+   * <p><b>Failure posture (T6-2) depends on {@code options.isUnique()}:</b> every unique index in
+   * this codebase is preceded by a dedupe step, so a unique-index build failure (almost always
+   * Mongo's {@code E11000 duplicate key}) means the dedupe missed a case — a genuine
+   * data-integrity signal, not noise. That case is rethrown, aborting the change unit (and thus
+   * the migration/deploy) rather than reporting success with the index silently absent. A
+   * non-unique/performance index is best-effort: a conflicting definition (e.g. same name,
+   * different keys from an out-of-band index) logs a warning and the run continues.
    */
   public static boolean ensureIndex(
       MongoDatabase db, String collection, String name, Bson keys, IndexOptions options) {
@@ -27,6 +34,17 @@ public abstract class MigrationUtils {
       LOG.info("Ensured index {} on {}", name, collection);
       return true;
     } catch (RuntimeException e) {
+      if (Boolean.TRUE.equals(options.isUnique())) {
+        throw new IllegalStateException(
+            "Could not create UNIQUE index "
+                + name
+                + " on "
+                + collection
+                + " — a duplicate survived the dedupe step that must precede this call ("
+                + e.getMessage()
+                + ")",
+            e);
+      }
       LOG.warn("Could not create index {} on {} ({})", name, collection, e.getMessage());
       return false;
     }

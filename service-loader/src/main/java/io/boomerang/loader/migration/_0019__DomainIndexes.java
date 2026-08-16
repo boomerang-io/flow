@@ -165,22 +165,25 @@ public class _0019__DomainIndexes {
   /**
    * V3-only. Creates the indexes a v3-sourced install needs that neither the general, ungated
    * index units above (nor {@code _0017__RunIndexes}/{@code _0018__EventAndLockIndexes}) nor the
-   * v5 entities' own {@code @Indexed}/{@code @CompoundIndex} annotations (built by {@code
-   * spring.data.mongodb.auto-index-creation=true} at every {@code service-core} boot) already
-   * cover.
+   * v5 entities' own {@code @Indexed}/{@code @CompoundIndex} annotations already cover. (T6-2:
+   * {@code spring.data.mongodb.auto-index-creation} is now explicitly {@code false} — the loader
+   * is the sole index authority; those annotations document intent/overlap only, they are not
+   * built at {@code service-core} boot any more.)
    *
    * <p><b>Overlap analysis</b> (inspected against the other index units and every entity's {@code
    * @Indexed}/{@code @CompoundIndex} annotations before writing anything below):
    *
    * <ul>
    *   <li><b>{@code users.email}</b> — {@code UserEntity.email} is only {@code @Indexed}
-   *       (non-unique). GENUINELY MISSING: created here as a unique index. {@link
-   *       MigrationUtils#ensureIndex} already swallows a build failure and logs a warning rather
-   *       than aborting the run (see its javadoc) — the safe behaviour if a real install somehow
-   *       carries two users sharing an email; the duplicate-count pre-check below exists only to
-   *       make that situation loud, not to delete either user (deleting a real account to satisfy
-   *       an index is out of scope and far riskier than the {@code task_runs}/{@code actions}/
-   *       {@code dispatchers} bug-artifact dedupes above perform).
+   *       (non-unique). GENUINELY MISSING: created here as a unique index. Deliberately NOT
+   *       preceded by a dedupe (deleting a real user account to satisfy an index is out of scope
+   *       and far riskier than the {@code task_runs}/{@code actions}/{@code dispatchers}
+   *       bug-artifact dedupes above perform) — the duplicate-count pre-check below only makes a
+   *       real collision loud in the log BEFORE the index build itself does too. Under T6-2,
+   *       {@link MigrationUtils#ensureIndex} now rethrows a unique-index build failure, so a real
+   *       install with two users sharing an email will abort this change unit (and the deploy) —
+   *       intentional: a duplicate email is a genuine data-integrity problem that must be resolved
+   *       by an operator, not one this migration silently leaves unenforced.
    *   <li><b>{@code workflows.creationDate}</b> — {@code WorkflowEntity} indexes only {@code
    *       name}. {@code WorkflowService.query} both sorts and range-filters on {@code
    *       creationDate}. GENUINELY MISSING: created here.
@@ -276,8 +279,9 @@ public class _0019__DomainIndexes {
 
   /**
    * Loud, non-destructive warning only — see {@link #v3IndexParity}'s {@code users.email} bullet.
-   * {@link MigrationUtils#ensureIndex} already tolerates the unique-index build failing outright;
-   * this just gives operators a clearer signal than its generic "could not create index" log.
+   * Under T6-2, {@link MigrationUtils#ensureIndex} rethrows the unique-index build failure and
+   * aborts the change unit; this pre-check just gives operators a clearer, targeted signal ahead
+   * of that generic "could not create UNIQUE index" exception.
    */
   private void checkDuplicateEmails(MongoDatabase db, CollectionNames names) {
     List<Document> duplicates =
@@ -285,7 +289,8 @@ public class _0019__DomainIndexes {
     if (!duplicates.isEmpty()) {
       LOG.warn(
           "{} duplicate email value(s) found across users — the unique email_unique index will"
-              + " fail to build until these are resolved manually; no user document is deleted by"
+              + " fail to build (aborting this migration run) until these are resolved manually;"
+              + " no user document is deleted by"
               + " this migration.",
           duplicates.size());
     }
