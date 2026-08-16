@@ -119,14 +119,14 @@ public class ParameterManager {
 
     LOGGER.debug(
         "Received Global Params: " + wfRun.getAnnotations().get("boomerang.io/global-params"));
-    LOGGER.debug("Received Workspace Params: " + wfRun.getAnnotations().get("boomerang.io/team-params"));
+    LOGGER.debug("Received Workspace Params: " + wfRun.getAnnotations().get("boomerang.io/workspace-params"));
     LOGGER.debug(
         "Received Context Params: " + wfRun.getAnnotations().get("boomerang.io/context-params"));
 
-    if (wfRun.getAnnotations().containsKey("boomerang.io/team-params")
-        && wfRun.getAnnotations().get("boomerang.io/team-params") != null) {
+    if (wfRun.getAnnotations().containsKey("boomerang.io/workspace-params")
+        && wfRun.getAnnotations().get("boomerang.io/workspace-params") != null) {
       paramLayers.setTeamParams(
-          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/team-params"));
+          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/workspace-params"));
     }
     if (wfRun.getAnnotations().containsKey("boomerang.io/global-params")
         && wfRun.getAnnotations().get("boomerang.io/global-params") != null) {

@@ -386,7 +386,7 @@ class V3DumpMigrationTest {
     // the template extraction produces.
     assertThat(collection("users").countDocuments()).isEqualTo(usersBefore);
     assertThat(collection("settings").countDocuments()).isGreaterThan(0);
-    assertThat(collection("teams").countDocuments()).isGreaterThan(0);
+    assertThat(collection("workspaces").countDocuments()).isGreaterThan(0);
     // Not legacy at all - the live v5 ExtensionEntity collection, still written under this name.
     assertThat(collection("extensions").countDocuments()).isGreaterThan(0);
     // Kept forever: the historical record InstallGeneration.detect reads, and Mongock's own lock.
@@ -434,7 +434,7 @@ class V3DumpMigrationTest {
     // _0002/_0003/_0020 are NOT v3-skipped - the graph root, system workspace, and roles are
     // seeded exactly as on a fresh/v4 install, same as LoaderMigrationTest proves.
     assertThat(collection("rel_nodes").find(Filters.eq("_id", "root:root")).first()).isNotNull();
-    assertThat(collection("teams").find(Filters.eq("name", "system")).first()).isNotNull();
+    assertThat(collection("workspaces").find(Filters.eq("name", "system")).first()).isNotNull();
     assertThat(collection("roles").countDocuments()).isGreaterThanOrEqualTo(5);
   }
 
@@ -668,11 +668,11 @@ class V3DumpMigrationTest {
   private void assertWorkspacesMigrated() {
     // 28 real v3 teams + the 1 seeded "system" workspace (_0003, untouched by this batch) + one
     // personal workspace per real v3 user (57, see assertUsersMigrated/_0008) = 86.
-    assertThat(collection("teams").countDocuments()).isEqualTo(86);
+    assertThat(collection("workspaces").countDocuments()).isEqualTo(86);
 
     // The seeded system workspace is untouched: still matched by name, still v5-shaped exactly
     // as _0003 wrote it (unlimited quotas, type "system"), never touched by this v3-only batch.
-    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     assertThat(system).as("seeded system workspace must survive the v3 batch untouched").isNotNull();
     assertThat(system.getString("type")).isEqualTo("system");
     assertThat(system.getString("status")).isEqualTo("active");
@@ -685,7 +685,7 @@ class V3DumpMigrationTest {
     // only (never the legacy maxWorkflowExecutionMonthly/maxWorkflowExecutionTime/
     // maxConcurrentWorkflows names), and no leftover v3 "_class" discriminator.
     List<Document> migratedTeams =
-        collection("teams").find(Filters.eq("type", "hobby")).into(new ArrayList<>());
+        collection("workspaces").find(Filters.eq("type", "hobby")).into(new ArrayList<>());
     assertThat(migratedTeams).hasSize(28);
     for (Document workspace : migratedTeams) {
       assertThat(workspace.getString("name"))
@@ -720,7 +720,7 @@ class V3DumpMigrationTest {
 
     // Spot check a specific known team (SRC Innovations) end to end.
     Document src =
-        collection("teams").find(Filters.eq("_id", new ObjectId("615428b57162702bd3ee7605"))).first();
+        collection("workspaces").find(Filters.eq("_id", new ObjectId("615428b57162702bd3ee7605"))).first();
     assertThat(src).isNotNull();
     assertThat(src.getString("displayName")).isEqualTo("SRC Innovations");
     assertThat(src.getString("name")).isEqualTo("src-innovations");
@@ -734,9 +734,9 @@ class V3DumpMigrationTest {
     assertThat(srcQuotas.getInteger("maxConcurrentRuns")).isEqualTo(10);
 
     // 24 of the 28 real teams are isActive:false -> status "inactive".
-    assertThat(collection("teams").countDocuments(Filters.and(Filters.eq("type", "hobby"), Filters.eq("status", "inactive"))))
+    assertThat(collection("workspaces").countDocuments(Filters.and(Filters.eq("type", "hobby"), Filters.eq("status", "inactive"))))
         .isEqualTo(24);
-    assertThat(collection("teams").countDocuments(Filters.and(Filters.eq("type", "hobby"), Filters.eq("status", "active"))))
+    assertThat(collection("workspaces").countDocuments(Filters.and(Filters.eq("type", "hobby"), Filters.eq("status", "active"))))
         .isEqualTo(4);
 
     // Team Tyson: the one real team with a populated settings.properties[] entry - proves the
@@ -744,7 +744,7 @@ class V3DumpMigrationTest {
     // "value", so the values->value branch is a documented no-op here, but "key" must still be
     // gone and "name" present).
     Document teamTyson =
-        collection("teams").find(Filters.eq("_id", new ObjectId("61551ffaa1747c3cd93f4bed"))).first();
+        collection("workspaces").find(Filters.eq("_id", new ObjectId("61551ffaa1747c3cd93f4bed"))).first();
     assertThat(teamTyson).isNotNull();
     @SuppressWarnings("unchecked")
     List<Document> parameters = (List<Document>) teamTyson.get("parameters");
@@ -801,12 +801,12 @@ class V3DumpMigrationTest {
 
     // Every user has exactly one personal workspace, discoverable via type=personal +
     // externalRef=<userId> (the linkage _0008 leaves for Batch E to consume) - and none other.
-    long personalWorkspaces = collection("teams").countDocuments(Filters.eq("type", "personal"));
+    long personalWorkspaces = collection("workspaces").countDocuments(Filters.eq("type", "personal"));
     assertThat(personalWorkspaces).isEqualTo(57);
     for (Document user : collection("users").find()) {
       String userId = user.get("_id").toString();
       List<Document> owned =
-          collection("teams")
+          collection("workspaces")
               .find(Filters.and(Filters.eq("type", "personal"), Filters.eq("externalRef", userId)))
               .into(new ArrayList<>());
       assertThat(owned)
@@ -826,7 +826,7 @@ class V3DumpMigrationTest {
 
     // Spot check Tyson's own personal workspace naming - reproduces 4014's derivation literally.
     Document tysonPersonal =
-        collection("teams")
+        collection("workspaces")
             .find(
                 Filters.and(
                     Filters.eq("type", "personal"),
@@ -842,7 +842,7 @@ class V3DumpMigrationTest {
     Document adminUser = collection("users").find(Filters.eq("email", "admin@flowabl.io")).first();
     assertThat(adminUser).isNotNull();
     Document adminPersonal =
-        collection("teams")
+        collection("workspaces")
             .find(
                 Filters.and(
                     Filters.eq("type", "personal"),
@@ -1270,7 +1270,7 @@ class V3DumpMigrationTest {
 
     // ---- Workspace graph: one node + one root--contains--> edge per teams document (86: 28 real
     // v3 teams + 1 system + 57 personal). ----
-    assertThat(collection("teams").countDocuments()).isEqualTo(86);
+    assertThat(collection("workspaces").countDocuments()).isEqualTo(86);
     assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workspace"))).isEqualTo(86);
     assertThat(
             collection("rel_edges")
@@ -1290,9 +1290,9 @@ class V3DumpMigrationTest {
 
     // ---- Personal-workspace memberOf edges: exactly one per user (the batch instructions'
     // explicit ask), resolved via _0008's type=personal/externalRef=<userId> linkage. ----
-    assertThat(collection("teams").countDocuments(Filters.eq("type", "personal"))).isEqualTo(57);
+    assertThat(collection("workspaces").countDocuments(Filters.eq("type", "personal"))).isEqualTo(57);
     Document tysonPersonal =
-        collection("teams")
+        collection("workspaces")
             .find(Filters.and(Filters.eq("type", "personal"), Filters.eq("externalRef", "614415021950a72949b00efb")))
             .first();
     assertThat(tysonPersonal).isNotNull();
@@ -1335,7 +1335,7 @@ class V3DumpMigrationTest {
     long hobbyMemberships = 0;
     for (Document edge : collection("rel_edges").find(Filters.eq("label", "memberOf"))) {
       String to = edge.getString("to");
-      Document workspace = collection("teams").find(Filters.eq("_id", new ObjectId(to.substring("workspace:".length())))).first();
+      Document workspace = collection("workspaces").find(Filters.eq("_id", new ObjectId(to.substring("workspace:".length())))).first();
       if (workspace != null && "hobby".equals(workspace.getString("type"))) {
         hobbyMemberships++;
       }
@@ -1347,7 +1347,7 @@ class V3DumpMigrationTest {
     assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workflow"))).isEqualTo(65);
     assertThat(collection("rel_edges").countDocuments(Filters.eq("label", "hasWorkflow"))).isEqualTo(65);
 
-    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     String systemWorkspaceId = system.get("_id").toString();
     assertThat(
             collection("rel_edges")
@@ -1411,7 +1411,7 @@ class V3DumpMigrationTest {
   // =====================================================================================
 
   private void assertSystemWorkspaceMembersAttached() {
-    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     assertThat(system).isNotNull();
     String workspaceNodeId = "workspace:" + system.get("_id").toString();
 
@@ -1441,13 +1441,17 @@ class V3DumpMigrationTest {
   // =====================================================================================
 
   private void assertAuditSeeded() {
-    assertThat(collection("audit").countDocuments(Filters.eq("scope", "TEAM"))).isEqualTo(86);
+    // H14-c: _0013 originally seeds these as "TEAM" (AuditScope's pre-rename raw enum name);
+    // _0016__WorkspaceRename, later in the same chain, rewrites every one to "WORKSPACE" before
+    // this assertion (or any application code) ever reads them.
+    assertThat(collection("audit").countDocuments(Filters.eq("scope", "TEAM"))).isZero();
+    assertThat(collection("audit").countDocuments(Filters.eq("scope", "WORKSPACE"))).isEqualTo(86);
     assertThat(collection("audit").countDocuments(Filters.eq("scope", "WORKFLOW"))).isEqualTo(65);
 
-    Document system = collection("teams").find(Filters.eq("name", "system")).first();
+    Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     String systemWorkspaceId = system.get("_id").toString();
     Document systemAudit =
-        collection("audit").find(Filters.and(Filters.eq("scope", "TEAM"), Filters.eq("selfRef", systemWorkspaceId))).first();
+        collection("audit").find(Filters.and(Filters.eq("scope", "WORKSPACE"), Filters.eq("selfRef", systemWorkspaceId))).first();
     assertThat(systemAudit).isNotNull();
     assertThat(systemAudit.getString("selfName")).isEqualTo("system");
     assertThat(((Document) systemAudit.get("data")).getString("name")).isEqualTo("system");

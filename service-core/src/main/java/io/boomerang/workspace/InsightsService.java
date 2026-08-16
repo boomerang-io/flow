@@ -55,7 +55,7 @@ public class InsightsService {
     // Otherwise we turn to the audit table.
     if (workflowRefs.isEmpty()) {
       Optional<AuditRecord> teamAE =
-          auditQueryService.findFirstByScopeAndSelfName(AuditScope.TEAM, team);
+          auditQueryService.findFirstByScopeAndSelfName(AuditScope.WORKSPACE, team);
       if (teamAE.isPresent()) {
         LOGGER.debug("Audit Workspace: {}", teamAE.toString());
         List<AuditRecord> workflowAEList =

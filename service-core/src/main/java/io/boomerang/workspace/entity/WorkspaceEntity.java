@@ -18,7 +18,7 @@ import io.boomerang.workspace.model.WorkspaceType;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
-@Document(collection = "#{@mongoConfiguration.fullCollectionName('teams')}")
+@Document(collection = "#{@mongoConfiguration.fullCollectionName('workspaces')}")
 public class WorkspaceEntity {
 
   @Id private String id;

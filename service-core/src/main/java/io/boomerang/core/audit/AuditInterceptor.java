@@ -156,7 +156,7 @@ public class AuditInterceptor {
     String entityName = reflectGetter(entity, "getName");
     AuditEntity log =
         createLog(
-            AuditScope.TEAM,
+            AuditScope.WORKSPACE,
             entityId,
             Optional.of(entityName),
             Optional.empty(),
@@ -172,7 +172,7 @@ public class AuditInterceptor {
     String entityName = reflectGetter(entity, "getName");
     AuditEntity log =
         updateLog(
-            AuditScope.TEAM,
+            AuditScope.WORKSPACE,
             AuditType.updated,
             entityId,
             Optional.of(entityName),
@@ -309,12 +309,12 @@ public class AuditInterceptor {
       return teamNameToAuditId.get(name);
     }
     Optional<AuditEntity> optAuditEntity =
-        auditRepository.findFirstByScopeAndSelfName(AuditScope.TEAM, name);
+        auditRepository.findFirstByScopeAndSelfName(AuditScope.WORKSPACE, name);
     if (optAuditEntity.isPresent()) {
       teamNameToAuditId.put(name, optAuditEntity.get().getId());
       return optAuditEntity.get().getId();
     }
-    //    AuditEntity log = createLog(AuditScope.TEAM, "", Optional.of(name), Optional.empty(),
+    //    AuditEntity log = createLog(AuditScope.WORKSPACE, "", Optional.of(name), Optional.empty(),
     // Optional.of(Map.of("name", name)));
     //    teamNameToAuditId.put(name, log.getId());
     //    return log.getId();

@@ -51,6 +51,7 @@ class LoaderMigrationTest {
   private static ObjectId taskRunWithAgentRef;
   private static ObjectId workflowRunWithAgentRef;
   private static ObjectId tokenWithTeamScope;
+  private static ObjectId teamAudit;
   private static ObjectId roleWithTeamType;
   private static ObjectId adminUser;
   private static ObjectId regularUser;
@@ -67,6 +68,7 @@ class LoaderMigrationTest {
     seedTeamRelationshipGraph();
     tokenWithTeamScope = insertToken("team");
     roleWithTeamType = insertRole("team");
+    teamAudit = insertTeamAudit("t1", "acme");
     adminUser = insertUser("admin@example.com", "admin");
     regularUser = insertUser("user@example.com", "user");
 
@@ -131,7 +133,7 @@ class LoaderMigrationTest {
     List<Document> settingsBefore = snapshot("settings");
     List<Document> tasksBefore = snapshot("tasks");
     List<Document> taskRevisionsBefore = snapshot("task_revisions");
-    List<Document> workspacesBefore = snapshot("teams");
+    List<Document> workspacesBefore = snapshot("workspaces");
     List<Document> workflowTemplatesBefore = snapshot("workflow_templates");
     List<Document> integrationTemplatesBefore = snapshot("integration_templates");
 
@@ -150,7 +152,7 @@ class LoaderMigrationTest {
     assertThat(snapshot("settings")).isEqualTo(settingsBefore);
     assertThat(snapshot("tasks")).isEqualTo(tasksBefore);
     assertThat(snapshot("task_revisions")).isEqualTo(taskRevisionsBefore);
-    assertThat(snapshot("teams")).isEqualTo(workspacesBefore);
+    assertThat(snapshot("workspaces")).isEqualTo(workspacesBefore);
     assertThat(snapshot("workflow_templates")).isEqualTo(workflowTemplatesBefore);
     assertThat(snapshot("integration_templates")).isEqualTo(integrationTemplatesBefore);
 
@@ -169,7 +171,7 @@ class LoaderMigrationTest {
     assertThat(snapshot("settings")).isEqualTo(settingsBefore);
     assertThat(snapshot("tasks")).isEqualTo(tasksBefore);
     assertThat(snapshot("task_revisions")).isEqualTo(taskRevisionsBefore);
-    assertThat(snapshot("teams")).isEqualTo(workspacesBefore);
+    assertThat(snapshot("workspaces")).isEqualTo(workspacesBefore);
     assertThat(snapshot("workflow_templates")).isEqualTo(workflowTemplatesBefore);
     assertThat(snapshot("integration_templates")).isEqualTo(integrationTemplatesBefore);
   }
@@ -185,7 +187,7 @@ class LoaderMigrationTest {
   }
 
   private void assertSystemWorkspaceSeeded() {
-    Document workspace = collection("teams").find(Filters.eq("name", "system")).first();
+    Document workspace = collection("workspaces").find(Filters.eq("name", "system")).first();
     assertThat(workspace).isNotNull();
     assertThat(workspace.getString("displayName")).isEqualTo("System and Administration");
     assertThat(workspace.getString("type")).isEqualTo("system");
@@ -360,7 +362,7 @@ class LoaderMigrationTest {
         .isNotNull();
 
     Document workspace =
-        fresh.getCollection(PREFIX + "_teams").find(Filters.eq("name", "system")).first();
+        fresh.getCollection(PREFIX + "_workspaces").find(Filters.eq("name", "system")).first();
     assertThat(workspace).isNotNull();
     assertThat(workspace.getString("type")).isEqualTo("system");
     String workspaceNode = "workspace:" + workspace.get("_id");
@@ -395,7 +397,7 @@ class LoaderMigrationTest {
     assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
-    assertThat(fresh.getCollection(PREFIX + "_teams").countDocuments()).isEqualTo(1);
+    assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
     assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(89);
     assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(88);
   }
@@ -572,7 +574,7 @@ class LoaderMigrationTest {
     // exactly as on a fresh/v4 install.
     assertThat(v3.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "root:root")).first())
         .isNotNull();
-    assertThat(v3.getCollection(PREFIX + "_teams").find(Filters.eq("name", "system")).first())
+    assertThat(v3.getCollection(PREFIX + "_workspaces").find(Filters.eq("name", "system")).first())
         .isNotNull();
     assertThat(v3.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
 
@@ -685,7 +687,9 @@ class LoaderMigrationTest {
                 .append("taskVersion", null));
 
     // ---- _0025__V4RepairWorkflowAudit fixture ----
-    // A workspace whose TEAM audit record already exists (v4's own 4038 workspace half worked),
+    // A workspace whose (pre-H14, still "TEAM"-scoped at seed time - _0016 renames it to
+    // "WORKSPACE" before _0025 ever reads it) audit record already exists (v4's own 4038 workspace
+    // half worked),
     // one workflow that resolves cleanly (the repair case), one whose hasWorkflow edge is
     // missing (skip case 1), and one whose edge resolves but whose workspace has no audit record
     // at all (skip case 2 - defensive, should not happen on a genuine v4 install).
@@ -818,7 +822,7 @@ class LoaderMigrationTest {
                         Filters.eq("scope", "WORKFLOW"),
                         Filters.eq("selfRef", workflowNoWorkspaceAuditId.toString())))
                 .first())
-        .as("edge resolves but the workspace has no TEAM audit record - skipped, never fabricated")
+        .as("edge resolves but the workspace has no WORKSPACE audit record - skipped, never fabricated")
         .isNull();
   }
 
@@ -989,6 +993,45 @@ class LoaderMigrationTest {
     Document role = collection("roles").find(Filters.eq("_id", roleWithTeamType)).first();
     assertThat(role).isNotNull();
     assertThat(role.getString("type")).isEqualTo("workspace");
+
+    // H14-c: roles.permissions[] "team/x" -> "workspace/x", unrelated resources untouched.
+    assertThat(role.getList("permissions", String.class))
+        .containsExactlyInAnyOrder("workspace/read", "**/write");
+
+    // H14-c: tokens.permissions[].actions[] "team/x" -> "workspace/x" (nested inside the
+    // ResolvedPermissions subdocument array).
+    List<Document> tokenPermissions = token.getList("permissions", Document.class);
+    assertThat(tokenPermissions).hasSize(1);
+    assertThat(tokenPermissions.get(0).getList("actions", String.class))
+        .containsExactlyInAnyOrder("workspace/read", "workflow/write");
+
+    // H14-c: audit.scope "TEAM" -> "WORKSPACE" (Spring Data's default enum-name converter has no
+    // alias mechanism, so a stray "TEAM" would fail to deserialize as AuditScope).
+    Document audit = collection("audit").find(Filters.eq("_id", teamAudit)).first();
+    assertThat(audit).isNotNull();
+    assertThat(audit.getString("scope")).isEqualTo("WORKSPACE");
+    assertThat(collection("audit").countDocuments(Filters.eq("scope", "TEAM"))).isZero();
+
+    // H14-b: the "#"-escaped boomerang#io/team-* annotation keys -> boomerang#io/workspace-*, on
+    // both task_runs and workflow_runs.
+    Document taskRunAnnotated =
+        collection("task_runs").find(Filters.eq("_id", taskRunWithAgentRef)).first();
+    Document taskRunAnnotations = taskRunAnnotated.get("annotations", Document.class);
+    assertThat(taskRunAnnotations.getString("boomerang#io/workspace-name")).isEqualTo("acme");
+    assertThat(taskRunAnnotations.containsKey("boomerang#io/team-name")).isFalse();
+
+    Document workflowRunAnnotated =
+        collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
+    Document workflowRunAnnotations = workflowRunAnnotated.get("annotations", Document.class);
+    assertThat(workflowRunAnnotations.getString("boomerang#io/workspace-name")).isEqualTo("acme");
+    assertThat(workflowRunAnnotations.get("boomerang#io/workspace-params", Document.class))
+        .isEqualTo(new Document("foo", "bar"));
+    assertThat(workflowRunAnnotations.containsKey("boomerang#io/team-name")).isFalse();
+    assertThat(workflowRunAnnotations.containsKey("boomerang#io/team-params")).isFalse();
+
+    // H14-d: the "teams" collection is gone, "workspaces" carries its documents.
+    assertThat(db.listCollectionNames().into(new ArrayList<>())).doesNotContain(PREFIX + "_teams");
+    assertThat(collection("workspaces").countDocuments()).isGreaterThan(0);
   }
 
   private static MongoCollection<Document> collection(String name) {
@@ -1056,6 +1099,9 @@ class LoaderMigrationTest {
   private static ObjectId insertTaskRunWithAgentRef(
       String workflowRunRef, String agentRef, Date creationDate) {
     ObjectId id = new ObjectId();
+    // "#"-escaped dotted annotation keys, matching MongoConfiguration's setMapKeyDotReplacement
+    // convention (see _0016__WorkspaceRename's H14-b annotation-key rename).
+    Document annotations = new Document("boomerang#io/team-name", "acme");
     collection("task_runs")
         .insertOne(
             new Document("_id", id)
@@ -1063,18 +1109,23 @@ class LoaderMigrationTest {
                 .append("name", "claimed-task")
                 .append("status", "running")
                 .append("creationDate", creationDate)
-                .append("agentRef", agentRef));
+                .append("agentRef", agentRef)
+                .append("annotations", annotations));
     return id;
   }
 
   private static ObjectId insertWorkflowRunWithAgentRef(String agentRef, Date creationDate) {
     ObjectId id = new ObjectId();
+    Document annotations =
+        new Document("boomerang#io/team-name", "acme")
+            .append("boomerang#io/team-params", new Document("foo", "bar"));
     collection("workflow_runs")
         .insertOne(
             new Document("_id", id)
                 .append("status", "running")
                 .append("creationDate", creationDate)
-                .append("agentRef", agentRef));
+                .append("agentRef", agentRef)
+                .append("annotations", annotations));
     return id;
   }
 
@@ -1133,13 +1184,17 @@ class LoaderMigrationTest {
 
   private static ObjectId insertToken(String type) {
     ObjectId id = new ObjectId();
+    Document resolvedPermissions =
+        new Document("scope", type)
+            .append("principal", "t1")
+            .append("actions", List.of("team/read", "workflow/write"));
     collection("tokens")
         .insertOne(
             new Document("_id", id)
                 .append("type", type)
                 .append("name", "legacy-team-token")
                 .append("principal", "t1")
-                .append("permissions", new ArrayList<>()));
+                .append("permissions", List.of(resolvedPermissions)));
     return id;
   }
 
@@ -1150,7 +1205,22 @@ class LoaderMigrationTest {
             new Document("_id", id)
                 .append("type", type)
                 .append("name", "owner")
-                .append("permissions", new ArrayList<>()));
+                .append("permissions", List.of("team/read", "**/write")));
+    return id;
+  }
+
+  /** Legacy pre-DD-01 audit record: {@code scope="TEAM"} (AuditScope's raw enum name). */
+  private static ObjectId insertTeamAudit(String selfRef, String selfName) {
+    ObjectId id = new ObjectId();
+    collection("audit")
+        .insertOne(
+            new Document("_id", id)
+                .append("scope", "TEAM")
+                .append("selfRef", selfRef)
+                .append("selfName", selfName)
+                .append("creationDate", new Date())
+                .append("events", new ArrayList<>())
+                .append("data", new Document("name", selfName)));
     return id;
   }
 }

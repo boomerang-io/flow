@@ -52,7 +52,7 @@ public class WorkspaceControllerV2 {
   @PostMapping(value = "/validate-name")
   @AuthCriteria(
       action = PermissionAction.READ,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
   @Operation(summary = "Validate workspace name and check uniqueness.")
   @ApiResponses(
@@ -68,7 +68,7 @@ public class WorkspaceControllerV2 {
   @GetMapping(value = "/{workspace}")
   @AuthCriteria(
       action = PermissionAction.READ,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Get workspace")
   @ApiResponses(
@@ -90,7 +90,7 @@ public class WorkspaceControllerV2 {
   @GetMapping(value = "/query")
   @AuthCriteria(
       action = PermissionAction.READ,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Search for Workspaces")
   @ApiResponses(
@@ -146,7 +146,7 @@ public class WorkspaceControllerV2 {
   @PostMapping(value = "")
   @AuthCriteria(
       action = PermissionAction.WRITE,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
   @Operation(summary = "Create new workspace")
   @ApiResponses(
@@ -161,7 +161,7 @@ public class WorkspaceControllerV2 {
   @PatchMapping(value = "/{workspace}")
   @AuthCriteria(
       action = PermissionAction.WRITE,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Patch or update a workspace")
   @ApiResponses(
@@ -192,7 +192,7 @@ public class WorkspaceControllerV2 {
   @DeleteMapping(value = "/{workspace}/members")
   @AuthCriteria(
       action = PermissionAction.DELETE,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Remove Workspace Members")
   @ApiResponses(
@@ -215,7 +215,7 @@ public class WorkspaceControllerV2 {
   @DeleteMapping(value = "/{workspace}/leave")
   @AuthCriteria(
       action = PermissionAction.ACTION,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.user, AuthScope.session})
   @Operation(summary = "Leave Workspace")
   @ApiResponses(
@@ -233,7 +233,7 @@ public class WorkspaceControllerV2 {
   @DeleteMapping(value = "/{workspace}/parameters/{name}")
   @AuthCriteria(
       action = PermissionAction.DELETE,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Delete Workspace Parameter")
   @ApiResponses(
@@ -252,7 +252,7 @@ public class WorkspaceControllerV2 {
   @DeleteMapping(value = "/{workspace}/approvers")
   @AuthCriteria(
       action = PermissionAction.DELETE,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Delete Approver Groups")
   @ApiResponses(
@@ -271,7 +271,7 @@ public class WorkspaceControllerV2 {
   @DeleteMapping(value = "/{workspace}/quotas")
   @AuthCriteria(
       action = PermissionAction.DELETE,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Reset Workspace Quota")
   @ApiResponses(
@@ -289,7 +289,7 @@ public class WorkspaceControllerV2 {
   @GetMapping(value = "/quotas/default")
   @AuthCriteria(
       action = PermissionAction.READ,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Retrieve Default Workspace Quota")
   @ApiResponses(
@@ -304,7 +304,7 @@ public class WorkspaceControllerV2 {
   @GetMapping(value = "/roles")
   @AuthCriteria(
       action = PermissionAction.READ,
-      resource = PermissionResource.TEAM,
+      resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
   @Operation(summary = "Retrieve Workspace Roles")
   @ApiResponses(

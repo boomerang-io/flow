@@ -874,7 +874,7 @@ public class WorkflowRunService {
     // TODO determine if this should be done elsewhere
     wfRun.getAnnotations().remove("boomerang.io/global-params");
     wfRun.getAnnotations().remove("boomerang.io/context-params");
-    wfRun.getAnnotations().remove("boomerang.io/team-params");
+    wfRun.getAnnotations().remove("boomerang.io/workspace-params");
   }
 
   /*
