@@ -38,9 +38,7 @@ import org.springframework.stereotype.Service;
  * Ref: https://github.com/tektoncd/pipeline/blob/main/pkg/substitution/substitution.go Ref:
  * https://tekton.dev/docs/pipelines/variables/#fields-that-accept-variable-substitutions
  */
-// Explicit bean name: workflow.ParameterManager shares this simple name, and default bean
-// naming would collide at boot. Goes away when one of the two is renamed.
-@Service("engineParameterManager")
+@Service
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
