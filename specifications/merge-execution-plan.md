@@ -102,11 +102,52 @@ dissolves (A4), C10 dedup bindings, B9 stage-2 egress, H7 `RunScopeResolver`.
 layers: 24 class renames (`WorkspaceService`/`WorkspaceEntity`/`Workspace*` models/api shims+
 controllers); `/api/v2/team/**` ↔ `/api/v2/workspace/**` dual mappings (deprecation window);
 `AuthScope.workspace`/`RelationshipType.WORKSPACE`/`TokenTypePrefix.workspace` with "team"
-input-alias compat; `_0012__WorkspaceRename` changeunit (rel_nodes type + composite-`_id`
+input-alias compat; `_0016__WorkspaceRename` changeunit (rel_nodes type + composite-`_id`
 re-key, rel_edges prefixes, tokens.type, roles.type) — idempotency proven by LoaderMigrationTest.
 Deliberately wire-stable: `{team}` path var, JSON field names, `teams` collection, `bft` prefix,
 `boomerang.io/team-*` keys, `PermissionResource.TEAM`/`AuditScope.TEAM` strings — swept at the
 frontend re-baseline (H14).
+
+**H14 ✅ (2026-08-17):** the full wire-name sweep DD-01 deferred, minus JSON body field names
+(still deferred to the DD-04 frontend re-baseline — the frontend consumes those directly, so
+renaming them is coupled to that work, not this pass).
+
+- **H14-a (breaking):** `/api/v2/team/{team}/**` retired outright — `/api/v2/workspace/{workspace}/**`
+  is the only surface now. `{team}` → `{workspace}` path variable, `@Parameter(name="team")` →
+  `name="workspace"`, and the `team`/`teams` query params on `IntegrationControllerV2`/
+  `SystemControllerV2`/`WorkspaceControllerV2`'s `getWorkspaces` all renamed to match.
+  `EngineWorkspaceInterceptor(Configuration)` now matches `{workspace}` only.
+- **H14-b:** `boomerang.io/team-name`/`boomerang.io/team-params` → `boomerang.io/workspace-name`/
+  `boomerang.io/workspace-params` (12 code sites). Persisted on `workflow_runs`/`task_runs`
+  `annotations` (the `#`-escaped map keys) — `_0016__WorkspaceRename` now `$rename`s both.
+- **H14-c:** `PermissionResource.TEAM` → `WORKSPACE` (label `"team"`→`"workspace"`, alias kept) and
+  `AuditScope.TEAM` → `WORKSPACE` (raw enum name `"TEAM"`→`"WORKSPACE"` — no alias possible, since
+  `AuditScope` has no custom parse path at the Mongo boundary; a stray `"TEAM"` would throw on
+  load, so `_0016`'s rewrite is load-bearing, not cosmetic). `_0016` also rewrites
+  `roles.permissions[]` and `tokens.permissions[].actions[]` (`"team/x"`→`"workspace/x"`) and
+  `audit.scope`.
+- **H14-d:** `WorkspaceEntity`'s collection renamed `teams`→`workspaces`. Every v3/fresh-install
+  unit earlier in the loader chain (`_0003`/`_0007`/`_0008`/`_0012`/`_0013`) deliberately keeps
+  targeting the literal `teams` name; `_0016` (ungated, running after all of them) does a plain
+  `renameCollection` once nothing else needs the old name.
+- **H14-e:** `TokenTypePrefix.workspace` moved `"bft"` → `"bfk"` ("worKspace" — the next free
+  letter, since `"bfw"` is workflow's). **Deprecation window:** only the SHA-256 hash of the full
+  raw token is stored, so an already-issued `bft_...` token can never be rewritten in the
+  database — there is nothing to migrate, and both prefixes are accepted indefinitely (no fixed
+  retirement date; `bft` drops only once every token minted under it has naturally expired, at
+  whichever future release removes the alias). `TokenTypePrefix.TOKEN_PATTERN` (the pre-DB shape
+  gate `DispatcherAuthFilter`/`AuthenticationFilter` both rely on) and `BY_PREFIX` both accept
+  `t`/`bft` alongside the new `k`/`bfk`; new tokens mint with `bfk` only
+  (`TokenService.create`).
+- **H11:** new changeunit `_0027__V4DropResidualCollections` prefix-scans for `jr_*`/`_sch_*`
+  (JobRunr's old table-prefix conventions — `<collectionPrefix>jr_*` for the engine's retired
+  timeout-job instance, `<collectionPrefix>_sch_*` for flow's retired schedule-firing instance,
+  RAW string concatenation exactly matching the historical `org.jobrunr.database.table-prefix`
+  properties, not `CollectionNames.resolve`'s own separator convention) and drops the genuinely
+  unprefixed `locks` collection `alturkovic/distributed-lock` wrote verbatim (distinct from
+  `task_locks`, never touched). Ungated (cheap, idempotent, no-op wherever nothing matches) rather
+  than V4-gated, since our own pre-E5 dev/test environments can carry this residue on a
+  `FRESH`-generation install too.
 
 **Review item parked at DD-01 (H13):** whether any `Team*`/`Workspace*`-prefixed composition
 service still exists by then. The prefix is layer-disambiguation (vs the plain-named domain
@@ -286,7 +327,10 @@ prefix-regex pre-DB gate; throttled `lastUsedAt` writes; sampled auth-failure au
    default and the auth filter chain get an IDPZero-backed path when this lands.
 
 ### E11 — post-merge (ordered)
-H12 DD-03 versioning → A2 enforcement flip + A3 first-class `bfd` token + H2 public-`phase`
-decision → H11 collection drops (`locks`, `jr_*`, `_sch_*`) → H13 DD-01 Team→Workspace + H14
-DD-04 frontend → alias windows expire → H16 standalone/Phase 4. Plus deferred: worker
-leases/fencing, DD-07 re-decision.
+H12 DD-03 versioning → A2 enforcement flip + H2 public-`phase` decision → ~~H11 collection drops
+(`locks`, `jr_*`, `_sch_*`)~~ ✅ done, see the H14/H11 record above → ~~H13 DD-01 Team→Workspace +
+H14~~ ✅ H14 done (JSON body field names deferred to DD-04) → DD-04 frontend → alias windows
+expire (H14-a's `/api/v2/team` retirement already landed early; H14-e's `bft`→`bfk` token window
+still open, no fixed end date) → H16 standalone/Phase 4. Plus deferred: worker leases/fencing,
+DD-07 re-decision. (A3 first-class `bfd` token is superseded — see T6-1: dispatcher identity is
+`bfg` + `TokenActorKind`, not a new prefix.)
