@@ -29,7 +29,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
 
   const removeUserMutator = useMutation(resolver.deleteUser);
 
-  const workspaceCount = user.workspaces.length;
+  const workspaceCount = user.teams.length;
 
   const removeWorkspace = async () => {
     try {

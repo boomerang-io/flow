@@ -68,7 +68,7 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
                 <span>Your Workspaces</span>
               </li>
               <SwitcherDivider />
-              {userData.workspaces.map((workspace) => {
+              {userData.teams.map((workspace) => {
                 return (
                   <SwitcherItem large key={workspace.name} href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}>
                     {workspace.displayName}
