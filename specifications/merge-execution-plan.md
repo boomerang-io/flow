@@ -408,6 +408,23 @@ routes (`/:team/manage/tokens`, `/:team/editor/:workflow/...`) independently of 
 **user-visible URLs** — existing bookmarks and deep links break. Decide explicitly whether v5 ships
 redirects from the `/:team/*` shapes or accepts the break at the major.
 
+**T7-F4 — The token UI is broken beyond renaming; it needs rework.** `Constants/index.ts` declares
+`TokenType = {User:"user", Workflow:"workflow", Team:"team", Global:"global"}`. The restructured
+model is `AuthScope = {session, user, key, global}` with an **orthogonal** `TokenActorKind =
+{SERVICE, AGENT, WORKFLOW}`. So the token screens (`/admin/tokens`, `/:team/manage/tokens`) offer
+two classes the backend **deletes on migration** (`workflow`, `team`/`workspace`) and omit `key`
+entirely — now the principal creatable class. This is not a rename: the UI needs a class selector
+plus an actor-kind selector, because actor kind is what `workflow` used to encode. Highest-value
+frontend follow-up after the API repoint.
+
+**T7-F5 — `RunPhase` was missing `queued`** (frontend had pending/running/completed/finalized;
+backend leads with `queued`). Benign at the only two read sites — both test `=== Completed`, so an
+unmatched value simply hides an approval/manual action button — but the enum was wrong and any
+exhaustive handling added later would have silently mis-branched. **Fixed** in this track (one
+line). Cross-checked at the same time: **`RunStatus` matches the backend exactly**, all ten values
+and spellings — the "never add `PAUSED`/`SUPERSEDED` to `RunStatus`" invariant has held, and pause
+correctly remains invisible to the frontend enum.
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced

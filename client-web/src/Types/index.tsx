@@ -497,6 +497,7 @@ export enum RunStatus {
 }
 
 export enum RunPhase {
+  Queued = "queued",
   Pending = "pending",
   Running = "running",
   Completed = "completed",
