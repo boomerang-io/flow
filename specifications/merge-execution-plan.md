@@ -296,6 +296,68 @@ permission revalidation (eager push + lazy `permissionsUpdatedAt` vs `updatedAt`
 miss); stashing the full token entity in `Authentication.details` so authZ needs no second read;
 prefix-regex pre-DB gate; throttled `lastUsedAt` writes; sampled auth-failure auditing.
 
+**T6-3 — Token model restructured from scope-typed to actor/ceiling-typed.** `TokenEntity` had
+`type: AuthScope` (one scope) + `principal` (one) but `permissions: List<ResolvedPermissions>`
+where each grant carried its *own* scope+principal — scope was already multi-valued in grants
+while the top level forced one, and the grants could (and structurally did, for `workflow`-typed
+tokens) contradict the top-level field. Maintainer-ruled after comparing GitHub (actor prefixes),
+Slack (bot vs user), OpenAI (service accounts), Stripe (privilege-ceiling prefixes `sk_`/`rk_`),
+and incident.io (roles + plural `team_ids`): **prefixes encode actor or privilege ceiling, never
+resource scope.**
+
+*Four token classes* (`TokenEntity.type`, and the raw-token prefix):
+
+| Prefix | Class | Creation authority | Ceiling |
+|---|---|---|---|
+| `bfs` | `session` — human, short-lived | login/exchange | that user's access |
+| `bfu` | `user` — human PAT, long-lived | the user | that user's access |
+| `bfk` | `key` — machine (service/agent/workflow), workspace-bound | workspace owner | granted workspaces only — **never** a global grant |
+| `bfg` | `global` — platform/admin | admin only | everything |
+
+`workspace` (renamed to `key`, same `bfk` prefix) and `workflow` (folded into `key` +
+`actorKind=WORKFLOW`, `principal=<workflowId>`) are retired as top-level classes. `actorKind`
+(`SERVICE`/`AGENT`/`WORKFLOW`) is the orthogonal machine-actor discriminator, unchanged from T6-1
+except for the new `WORKFLOW` value.
+
+*Enum split (the crux).* `AuthScope` used to serve two jobs: the token's own class AND each
+grant's scope (`ResolvedPermissions.scope`). Split into two enums — **kept the name `AuthScope`**
+for the token-class enum (now `session|user|key|global`) since every one of its ~350 references
+across the codebase (`TokenEntity.type`, `Token`/`TokenCreateRequest`/`TokenCreateResponse`/
+`SessionToken`/`AuditActor.type`, `@AuthCriteria.assignableScopes`, `TokenRepository`,
+`IdentityService`, `RelationshipService`'s `identity.getType()` switches, `SecurityInterceptor`)
+was already in a token-class position — renaming would have been pure churn with no clarity gain.
+A **new `PermissionScope`** enum (`global|workspace`, named after ARCHIE's equivalent) took over
+the 3 genuine grant-scope positions: `ResolvedPermissions.scope`, `RoleEntity.type`, `Role.type`
+(`roles.type` was already confirmed grant-scope-shaped in real usage — `RoleRepository` is only
+ever queried with the literal strings `"workspace"`/`"global"`).
+
+*Invariants enforced in code* (`TokenService`): (1) `assertKeyTokenCeiling` rejects any `key`
+token whose permissions carry a `global`-scoped grant — structurally unreachable through the
+public `create()` API (grant scope is always derived server-side from the token's class: `key` →
+`workspace`, `global` → `global`), so the guard is tested directly against a constructed
+`TokenEntity`; (2) `create()` requires the caller's current identity to already hold a
+`global`-scoped grant before minting a `global` token (`TOKEN_ADMIN_REQUIRED`) — the internal
+bootstrap path (`createSessionToken`) never calls `create()`, so the first admin session token is
+unaffected; (3) `createdBy` was already server-injected from the authenticated identity, never
+the request body (T6-1) — reconfirmed, `TokenCreateRequest` has no `createdBy` field to spoof.
+
+*No backward-compatibility window* (maintainer correction, simplifying the original draft): the
+`bft`/`bfw` raw-token prefixes are dropped OUTRIGHT from `TokenTypePrefix`'s pre-DB shape gate —
+no deprecation period. A `bft_`/`bfw_` bearer fails the cheap shape gate exactly like any
+non-Flow bearer, before ever reaching Mongo (only the SHA-256 hash of the full raw token is
+stored, so there is no way to rewrite an already-issued raw token onto a new prefix regardless).
+Loader changeunit `_0028__TokenClassRestructure` therefore **deletes** (not renames)
+`tokens.type in ["workspace","workflow"]` outright and logs the count — operators re-issue,
+matching the existing "legacy v3 tokens are never migrated forward" posture (`_0026__TokenIndexes`).
+`global`/`user`/`session` tokens are completely untouched (narrow filter). No `roles`/grant-scope
+data needed migrating: `roles.type` was already `workspace`/`global` (seeded fresh, renamed from
+`team` by `_0016`), and every `workflow`-scoped `ResolvedPermissions.scope` only ever existed
+inside a `workflow`-typed token document, deleted wholesale by the same unit. (The real v3 dump
+carries no `tokens`/`roles` collections at all — legacy v3 tokens are a different shape dropped
+by `_0004`, and `roles` is v5-only — so this unit's behaviour is proven against
+`LoaderMigrationTest`'s synthetic fixture, re-verified idempotent and narrow via a surviving
+`global`-typed token fixture, not the real dump.)
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
