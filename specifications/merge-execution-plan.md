@@ -409,6 +409,31 @@ relationship approach") and confirmed already commented in the pre-merge `servic
 inherited v4 debt, NOT something the merge broke. Feeds the parked "WorkflowTemplates sunset"
 question: the feature is already half-dismantled.
 
+### T7 — inherited frontend quality debt (measured at fold-in)
+
+Both figures below are **pre-existing v4 debt**, confirmed against the parent commit, not caused by
+the rename — but they are now this repo's problem and they bound what the webapp CI can enforce.
+
+- **The test suite is effectively dead: 36 of 37 files and 52 of 53 tests fail.** Not a
+  configuration fault — `toBeInTheDocument` and friends register correctly; these are genuine
+  stale assertions and snapshots against components that moved on (e.g. a toggle-visibility
+  assertion in `PropertiesModalContent`, snapshots in `TaskApprovalModal`/`OutputPropertiesLog` —
+  all files with no workspace vocabulary in them at all). Consequence: `ci-web.yml`'s `test` job is
+  `continue-on-error` so it reports without gating merges — a permanently-red required check just
+  trains people to ignore CI. **Make it blocking again once repaired.**
+- **`tsc --noEmit` reports 354 errors.** The Vite build does not typecheck, which is why
+  `pnpm build` succeeds (verified: exit 0, `server/build/index.html` produced), so this blocks
+  nothing today — but there is no type safety net under the app, which is precisely why the
+  rename's one real bug (below) could not be caught by compilation.
+
+*The rename's one genuine bug, caught and fixed:* blanket-renaming turned three reads of the
+vendor `User.teams` field into `.workspaces`. That field belongs to
+`@boomerang-io/carbon-addons-boomerang-react`, which still ships `teams: any[]`, so the reads would
+have silently returned `undefined` — an empty workspace switcher and a broken count on account
+settings, with no error. Reverted to `.teams` at those three sites plus the mock fixture, while all
+local vocabulary keeps the new naming. Slack's own `SLACK_TEAM_ID` / `slack://channel?team=`
+protocol vocabulary was likewise deliberately left alone.
+
 ### T7 integration findings (fold-in scouting, not yet actioned)
 
 **T7-F1 — The webapp has no login flow of its own.** `axiosGlobalConfig.ts` is three lines
