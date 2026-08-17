@@ -1,1 +1,1 @@
-export { default } from "./TeamTasks";
+export { default } from "./WorkspaceTasks";

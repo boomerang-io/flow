@@ -27,8 +27,8 @@ const activity = [
           activityId: "12345",
           workflowId: "12345",
           workflowName: "Workflow Name",
-          teamId: "12345",
-          teamName: "Team Name",
+          workspaceId: "12345",
+          workspaceName: "Workspace Name",
           audit: {
             approverId: "12345",
             actionDate: 1601389025053,
@@ -119,7 +119,7 @@ const activity = [
           activityId: "5f74033d78c0d807c15532bd",
           taskActivityId: "5f74033e78c0d807c15532be",
           workflowId: "5f4fc9e95683833cf0b1335b",
-          teamId: "5eebc4b3aea46a0d8238fbe5",
+          workspaceId: "5eebc4b3aea46a0d8238fbe5",
           audit: {
             approverId: "5e736fb0a97b78000125ebe3",
             approverEmail: "mdroy@us.ibm.com",
@@ -130,7 +130,7 @@ const activity = [
         },
       },
     ],
-    teamName: "IBM Services Engineering",
+    workspaceName: "IBM Services Engineering",
   },
 ];
 

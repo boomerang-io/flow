@@ -5,7 +5,7 @@ import { screen, fireEvent } from "@testing-library/react";
 const mockfn = vi.fn();
 
 const props = {
-  fetchTeams: mockfn,
+  fetchWorkspaces: mockfn,
   handleImportWorkflow: mockfn,
   workflowId: "test",
 };

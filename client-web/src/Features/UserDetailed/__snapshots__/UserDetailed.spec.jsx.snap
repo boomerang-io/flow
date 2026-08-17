@@ -197,9 +197,9 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/users/5f170b3df6ab327e302cb0a5/teams"
+                  href="/admin/users/5f170b3df6ab327e302cb0a5/workspaces"
                 >
-                  Teams
+                  Workspaces
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link"

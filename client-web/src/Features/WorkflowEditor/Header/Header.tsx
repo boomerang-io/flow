@@ -28,7 +28,7 @@ interface DesignerHeaderProps {
   revisionMutator: UseMutationResult<
     AxiosResponse<any, any>,
     unknown,
-    { team: any; workflow: any; body: any },
+    { workspace: any; workflow: any; body: any },
     unknown
   >;
   revisionState: WorkflowCanvas;
@@ -45,7 +45,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
   revisionState,
   viewType,
 }) => {
-  const params = useParams<{ team: string; workflow: string }>();
+  const params = useParams<{ workspace: string; workflow: string }>();
   const { displayName } = revisionState;
   const { version: currentRevision } = revisionState;
   const isPreviousVersion = currentRevision < revisionCount;
@@ -63,7 +63,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{team ? team.displayName : "---"}</p>
+          <p>{workspace ? workspace.displayName : "---"}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );
@@ -79,7 +79,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
           </BreadcrumbItem>
           <BreadcrumbItem>
             {viewType === WorkflowView.Workflow ? (
-              <Link to={appLink.workflows({ team: params.team })}>Workflows</Link>
+              <Link to={appLink.workflows({ workspace: params.workspace })}>Workflows</Link>
             ) : (
               <Link to={appLink.templateWorkflows()}>Template Workflows</Link>
             )}
@@ -92,11 +92,11 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
       header={<HeaderTitle>Editor</HeaderTitle>}
       footer={
         <Tabs ariaLabel="Editor pages">
-          <Tab label="Canvas" to={appLink.editorCanvas({ team: params.team, workflow: params.workflow })} />
-          <Tab label="Parameters" to={appLink.editorProperties({ team: params.team, workflow: params.workflow })} />
-          <Tab label="Configure" to={appLink.editorConfigure({ team: params.team, workflow: params.workflow })} />
-          <Tab label="Schedules" to={appLink.editorSchedule({ team: params.team, workflow: params.workflow })} />
-          <Tab label="Change Log" to={appLink.editorChangelog({ team: params.team, workflow: params.workflow })} />
+          <Tab label="Canvas" to={appLink.editorCanvas({ workspace: params.workspace, workflow: params.workflow })} />
+          <Tab label="Parameters" to={appLink.editorProperties({ workspace: params.workspace, workflow: params.workflow })} />
+          <Tab label="Configure" to={appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow })} />
+          <Tab label="Schedules" to={appLink.editorSchedule({ workspace: params.workspace, workflow: params.workflow })} />
+          <Tab label="Change Log" to={appLink.editorChangelog({ workspace: params.workspace, workflow: params.workflow })} />
         </Tabs>
       }
       actions={

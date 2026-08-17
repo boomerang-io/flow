@@ -1,13 +1,13 @@
 import React from "react";
 import { startApiServer } from "ApiServer";
-import { teams, profile } from "ApiServer/fixtures";
+import { workspaces, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 import WorkflowCard from "./index";
 
 const props = {
-  teamId: teams[0].id,
-  quotas: teams[0].workflowQuotas,
-  workflow: teams[0].workflows,
+  workspaceId: workspaces[0].id,
+  quotas: workspaces[0].workflowQuotas,
+  workflow: workspaces[0].workflows,
 };
 
 let server;
@@ -28,7 +28,7 @@ describe("WorkflowCard --- Snapshot", () => {
           isTutorialActive: false,
           setIsTutorialActive: () => {},
           user: profile,
-          teams,
+          workspaces,
         }}
       >
         <WorkflowCard {...props} />

@@ -1,7 +1,7 @@
 import { notify, Loading, ModalForm, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import ReactMarkdown from "react-markdown";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { useQueryClient, useMutation } from "react-query";
 import "Styles/markdown.css";
 import { serviceUrl, resolver } from "Config/servicesConfig";
@@ -17,7 +17,7 @@ type Props = {
 // Need to get the approval and the instructions
 function TaskApprovalModal({ actionId, closeModal, instructions, workflowRunId }: Props) {
   const queryClient = useQueryClient();
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
 
   const {
     mutateAsync: approvalMutator,
@@ -25,7 +25,7 @@ function TaskApprovalModal({ actionId, closeModal, instructions, workflowRunId }
     error: approvalsError,
   } = useMutation(resolver.putAction, {
     onSuccess: () => {
-      queryClient.invalidateQueries(serviceUrl.team.workflowrun.getWorkflowRun({ team: team.name, id: workflowRunId }));
+      queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id: workflowRunId }));
     },
   });
 
@@ -38,7 +38,7 @@ function TaskApprovalModal({ actionId, closeModal, instructions, workflowRunId }
       },
     ];
     try {
-      await approvalMutator({ team: team.name, body });
+      await approvalMutator({ workspace: workspace.name, body });
       notify(
         <ToastNotification
           kind="success"

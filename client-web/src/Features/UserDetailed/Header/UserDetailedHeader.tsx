@@ -29,18 +29,18 @@ interface UserDetailedHeaderProps {
 function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }: UserDetailedHeaderProps) {
   const location: any = useLocation();
 
-  const backToTeam = location?.state?.fromTeam;
+  const backToWorkspace = location?.state?.fromWorkspace;
 
   const isActive = user?.status === "active";
 
   const NavigationComponent = () => {
-    return Boolean(backToTeam) ? (
+    return Boolean(backToWorkspace) ? (
       <Breadcrumb noTrailingSlash>
         <BreadcrumbItem>
-          <Link to={appLink.teamList()}>Teams</Link>
+          <Link to={appLink.workspaceList()}>Workspaces</Link>
         </BreadcrumbItem>
         <BreadcrumbItem>
-          <Link to={appLink.manageTeam({ team: backToTeam })}>{backToTeam}</Link>
+          <Link to={appLink.manageWorkspace({ workspace: backToWorkspace })}>{backToWorkspace}</Link>
         </BreadcrumbItem>
       </Breadcrumb>
     ) : (
@@ -139,7 +139,7 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
         !isError && (
           <section className={styles.headerActions}>
             <Tabs ariaLabel="User pages">
-              <Tab exact label="Teams" to={{ pathname: appLink.user({ userId: user?.id }), state: location.state }} />
+              <Tab exact label="Workspaces" to={{ pathname: appLink.user({ userId: user?.id }), state: location.state }} />
               <Tab
                 exact
                 label="Labels"

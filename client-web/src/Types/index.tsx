@@ -2,7 +2,7 @@ import { User } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Edge, EdgeProps, Node, NodeProps } from "reactflow";
 import {
   EdgeExecutionCondition,
-  FlowTeamStatus,
+  FlowWorkspaceStatus,
   NodeType,
   TokenType,
   UserRole,
@@ -83,13 +83,13 @@ export interface Action {
   taskRunRef: string;
   workflowRunRef: string;
   workflowRef: string;
-  teamRef: string;
+  workspaceRef: string;
   status: string;
   type: string;
   creationDate: string;
   taskName: string;
   workflowName: string;
-  teamName: string;
+  workspaceName: string;
   numberOfApprovals: number;
   approvalsRequired: number;
   actioners: SimpleApprover[];
@@ -251,7 +251,7 @@ type Pageable<T> = {
 };
 
 export type PaginatedUserResponse = Pageable<FlowUser>;
-export type PaginatedTeamResponse = Pageable<FlowTeam>;
+export type PaginatedWorkspaceResponse = Pageable<FlowWorkspace>;
 export type PaginatedTaskResponse = Pageable<Task>;
 export type PaginatedWorkflowResponse = Pageable<Workflow>;
 export type PaginatedSchedulesResponse = Pageable<ScheduleUnion>;
@@ -332,17 +332,17 @@ export interface TaskSpec {
   workingDir?: string;
 }
 
-export type FlowTeamStatusType = ObjectValues<typeof FlowTeamStatus>;
+export type FlowWorkspaceStatusType = ObjectValues<typeof FlowWorkspaceStatus>;
 
-export interface FlowTeam {
+export interface FlowWorkspace {
   name: string;
   displayName: string;
   description?: string;
   creationDate: string;
-  status: FlowTeamStatusType;
+  status: FlowWorkspaceStatusType;
   externalRef?: string;
   labels?: Record<string, string>;
-  quotas: FlowTeamQuotas;
+  quotas: FlowWorkspaceQuotas;
   members: Array<Member>;
   settings?: unknown;
   parameters: Array<DataDrivenInput>;
@@ -350,12 +350,12 @@ export interface FlowTeam {
 }
 
 // As part of the Profile
-export interface FlowTeamSummary {
+export interface FlowWorkspaceSummary {
   name: string;
   displayName: string;
   description?: string;
   creationDate: string;
-  status: ObjectValues<typeof FlowTeamStatus>;
+  status: ObjectValues<typeof FlowWorkspaceStatus>;
   externalRef?: string;
   labels?: Record<string, string>;
   insights: {
@@ -364,7 +364,7 @@ export interface FlowTeamSummary {
   };
 }
 
-export interface FlowTeamQuotas {
+export interface FlowWorkspaceQuotas {
   currentRuns: number;
   currentWorkflowCount: number;
   currentConcurrentRuns: number;
@@ -548,7 +548,7 @@ export interface ContextConfig {
     displayLogo: boolean;
     name: string;
     platformName: string;
-    privateTeams: boolean;
+    privateWorkspaces: boolean;
     sendMail: boolean;
     signOutUrl: string;
     version: string;
@@ -565,11 +565,11 @@ export type FlowFeatureKey =
   | "enable.verified.tasks.edit"
   | "global.parameters"
   | "insights"
-  | "team.management"
-  | "team.parameters"
-  | "team.tasks"
+  | "workspace.management"
+  | "workspace.parameters"
+  | "workspace.tasks"
   | "user.management"
-  | "team.quotas"
+  | "workspace.quotas"
   | "workflow.tokens"
   | "workflow.triggers";
 
@@ -745,7 +745,7 @@ export interface TaskRun {
 export interface RunAnnototations {
   "boomerang.io/task-deletion": string;
   "boomerang.io/task-default-image": string;
-  "boomerang.io/team-name": string;
+  "boomerang.io/workspace-name": string;
   "boomerang.io/kind": string;
   "boomerang.io/generation": string;
 }
@@ -757,7 +757,7 @@ export interface Param {
 
 export interface TaskAnnotations {
   "boomerang.io/position": BoomerangIoPosition;
-  "boomerang.io/team-name"?: string;
+  "boomerang.io/workspace-name"?: string;
   "boomerang.io/kind"?: string;
   "boomerang.io/generation"?: string;
 }

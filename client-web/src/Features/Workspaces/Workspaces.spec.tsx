@@ -1,5 +1,5 @@
 import React from "react";
-import Teams from ".";
+import Workspaces from ".";
 import { Route } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,35 +16,35 @@ afterEach(() => {
   server.shutdown();
 });
 
-describe("Teams --- Snapshot Test", () => {
-  it("Capturing Snapshot of Teams", async () => {
+describe("Workspaces --- Snapshot Test", () => {
+  it("Capturing Snapshot of Workspaces", async () => {
     const { baseElement } = global.rtlContextRouterRender(
-      <Route path={AppPath.TeamList}>
-        <Teams />
+      <Route path={AppPath.WorkspaceList}>
+        <Workspaces />
       </Route>,
-      { route: appLink.teamList() }
+      { route: appLink.workspaceList() }
     );
     await screen.findByText("WDC2 ISE QA");
     expect(baseElement).toMatchSnapshot();
   });
 });
 
-describe("Teams --- RTL", () => {
-  test("Create new team", async () => {
+describe("Workspaces --- RTL", () => {
+  test("Create new workspace", async () => {
     global.rtlContextRouterRender(
-      <Route path={AppPath.TeamList}>
-        <Teams />
+      <Route path={AppPath.WorkspaceList}>
+        <Workspaces />
       </Route>,
-      { route: appLink.teamList() }
+      { route: appLink.workspaceList() }
     );
-    const createTeamButton = await screen.findByText(/^Create Team$/i);
-    fireEvent.click(createTeamButton);
-    expect(screen.getByText(/^Scope your workflows and parameters to a team$/i)).toBeInTheDocument();
+    const createWorkspaceButton = await screen.findByText(/^Create Workspace$/i);
+    fireEvent.click(createWorkspaceButton);
+    expect(screen.getByText(/^Scope your workflows and parameters to a workspace$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Save$/i)).toBeDisabled();
-    const teamNameInput = screen.getByLabelText(/^Name$/i);
-    userEvent.type(teamNameInput, "Test team");
+    const workspaceNameInput = screen.getByLabelText(/^Name$/i);
+    userEvent.type(workspaceNameInput, "Test workspace");
     expect(screen.getByText(/^Save$/i)).toBeEnabled();
     fireEvent.click(screen.getByText(/^Save$/i));
-    expect(await screen.findByText(/Test team/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Test workspace/i)).toBeInTheDocument();
   });
 });

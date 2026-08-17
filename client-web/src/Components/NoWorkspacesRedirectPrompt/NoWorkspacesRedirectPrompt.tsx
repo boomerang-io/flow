@@ -4,24 +4,24 @@ import { Error403 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { FeatureFlag } from "Config/appConfig";
 import { CORE_ENV_URL } from "Config/appConfig";
 
-type NoTeamsRedirectPromptProps = {
+type NoWorkspacesRedirectPromptProps = {
   className?: string; 
   style?: object;
 }
 
-const NoTeamsRedirectPrompt = ({ className, style }: NoTeamsRedirectPromptProps) => {
-  const TeamManagementEnabled = useFeature(FeatureFlag.TeamManagementEnabled);
+const NoWorkspacesRedirectPrompt = ({ className, style }: NoWorkspacesRedirectPromptProps) => {
+  const WorkspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
 
-  const title = TeamManagementEnabled ? "Welcome to Boomerang Flow" : "Crikey, how did you get here?!";
-  const message = TeamManagementEnabled ? (
+  const title = WorkspaceManagementEnabled ? "Welcome to Boomerang Flow" : "Crikey, how did you get here?!";
+  const message = WorkspaceManagementEnabled ? (
     <p>
-      You’re not a member of any teams yet. Before you can do much in this wonderful tool, please have an admin add you
-      to a team.{" "}
+      You’re not a member of any workspaces yet. Before you can do much in this wonderful tool, please have an admin add you
+      to a workspace.{" "}
     </p>
   ) : (
     <p>
-      You’re not a member of any teams with access to Boomerang Flow.{" "}
-      <a href={`${CORE_ENV_URL}/launchpad`}>Head over to Launchpad</a> to join or create a team authorized for Flow.
+      You’re not a member of any workspaces with access to Boomerang Flow.{" "}
+      <a href={`${CORE_ENV_URL}/launchpad`}>Head over to Launchpad</a> to join or create a workspace authorized for Flow.
     </p>
   );
 
@@ -32,4 +32,4 @@ const NoTeamsRedirectPrompt = ({ className, style }: NoTeamsRedirectPromptProps)
   );
 };
 
-export default NoTeamsRedirectPrompt;
+export default NoWorkspacesRedirectPrompt;

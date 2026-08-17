@@ -8,7 +8,7 @@ import { Formik } from "formik";
 import { kebabCase } from "lodash";
 import capitalize from "lodash/capitalize";
 import * as Yup from "yup";
-import { FlowTeam, CreateWorkflowSummary, WorkflowViewType } from "Types";
+import { FlowWorkspace, CreateWorkflowSummary, WorkflowViewType } from "Types";
 import styles from "./createWorkflow.module.scss";
 
 let classnames = classNames.bind(styles);
@@ -18,9 +18,9 @@ interface CreateWorkflowContentProps {
   createError: object;
   createWorkflow: (workflowSummary: CreateWorkflowSummary) => Promise<void>;
   isLoading: boolean;
-  team?: FlowTeam;
+  workspace?: FlowWorkspace;
   existingWorkflowNames: string[];
-  teamQuotasEnabled: boolean;
+  workspaceQuotasEnabled: boolean;
   viewType: WorkflowViewType;
 }
 
@@ -29,14 +29,14 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
   createError,
   createWorkflow,
   isLoading,
-  team,
+  workspace,
   existingWorkflowNames,
-  teamQuotasEnabled,
+  workspaceQuotasEnabled,
   viewType,
 }) => {
   const formikRef = useRef<any>();
-  const hasReachedWorkflowLimit = team ? team.quotas.maxWorkflowCount <= team.quotas.currentWorkflowCount : false;
-  const createWorkflowsDisabled = teamQuotasEnabled && hasReachedWorkflowLimit;
+  const hasReachedWorkflowLimit = workspace ? workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount : false;
+  const createWorkflowsDisabled = workspaceQuotasEnabled && hasReachedWorkflowLimit;
 
   const handleSubmit = (values: any) => {
     const requestBody = {
@@ -72,7 +72,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
           })
           .notOneOf(
             existingWorkflowNames,
-            `There’s already a ${viewType} with that name in this team. Names must be unique.`,
+            `There’s already a ${viewType} with that name in this workspace. Names must be unique.`,
           ),
         displayName: Yup.string().required("Please provide a name for your Workflow"),
         description: Yup.string().max(250, "Description must not be greater than 250 characters"),
@@ -104,7 +104,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
                 id="name"
                 labelText="Name"
                 placeholder="e.g. my-workflow"
-                helperText="This is your unique identifier name within the Team. Can only contain letters, numbers, and dashes."
+                helperText="This is your unique identifier name within the Workspace. Can only contain letters, numbers, and dashes."
                 value={values.name}
                 onBlur={handleBlur}
                 onChange={handleChange}
@@ -156,7 +156,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
                   lowContrast
                   kind="error"
                   title="Quotas exceeded"
-                  subtitle="You cannot create new workflows for this team."
+                  subtitle="You cannot create new workflows for this workspace."
                 />
               )}
             </ModalBody>

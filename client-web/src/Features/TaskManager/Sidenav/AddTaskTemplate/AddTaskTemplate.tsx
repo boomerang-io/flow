@@ -24,15 +24,15 @@ function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTem
   const queryClient = useQueryClient();
   const createTaskTemplateMutation = useMutation(resolver.putApplyTaskTemplate);
   const createTaskTemplateYAMLMutation = useMutation(resolver.putApplyTaskTemplateYaml);
-  const createTeamTaskTemplateMutation = useMutation(resolver.putApplyTeamTaskTemplate);
-  const createTeamTaskTemplateYAMLMutation = useMutation(resolver.putApplyTeamTaskTemplateYaml);
+  const createWorkspaceTaskTemplateMutation = useMutation(resolver.putApplyWorkspaceTaskTemplate);
+  const createWorkspaceTaskTemplateYAMLMutation = useMutation(resolver.putApplyWorkspaceTaskTemplateYaml);
 
   const handleAddTaskTemplate = async ({ name, replace, body, closeModal }) => {
     setIsSubmitting(true);
     try {
       let response;
-      if (params.team) {
-        response = await createTeamTaskTemplateMutation.mutateAsync({ team: params.team, name: name, replace, body });
+      if (params.workspace) {
+        response = await createWorkspaceTaskTemplateMutation.mutateAsync({ workspace: params.workspace, name: name, replace, body });
       } else {
         response = await createTaskTemplateMutation.mutateAsync({ name: name, replace, body });
       }
@@ -46,9 +46,9 @@ function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTem
         />,
       );
       history.push(
-        params.team
+        params.workspace
           ? appLink.manageTasksEdit({
-              team: params.team,
+              workspace: params.workspace,
               name: name,
               version: "1",
             })
@@ -69,15 +69,15 @@ function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTem
     let response;
     try {
       if (type === "application/json") {
-        if (params.team) {
-          response = await createTeamTaskTemplateMutation.mutateAsync({ team: params.team, name: name, replace, body });
+        if (params.workspace) {
+          response = await createWorkspaceTaskTemplateMutation.mutateAsync({ workspace: params.workspace, name: name, replace, body });
         } else {
           response = await createTaskTemplateMutation.mutateAsync({ name: name, replace, body });
         }
       } else {
-        if (params.team) {
-          response = await createTeamTaskTemplateYAMLMutation.mutateAsync({
-            team: params.team,
+        if (params.workspace) {
+          response = await createWorkspaceTaskTemplateYAMLMutation.mutateAsync({
+            workspace: params.workspace,
             name: name,
             replace,
             body,
@@ -96,9 +96,9 @@ function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTem
         />,
       );
       history.push(
-        params.team
+        params.workspace
           ? appLink.manageTasksEdit({
-              team: params.team,
+              workspace: params.workspace,
               name: task.name,
               version: task.version.toString(),
             })

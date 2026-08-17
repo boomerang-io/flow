@@ -70,7 +70,7 @@ const headers = [
 ];
 
 function ActivityTable(props: ActivityTableProps) {
-  const { team } = useParams<{ team: string }>();
+  const { workspace } = useParams<{ workspace: string }>();
   let headerList = headers;
 
   function handlePaginationChange({ page, pageSize }) {
@@ -92,7 +92,7 @@ function ActivityTable(props: ActivityTableProps) {
   function executionViewRedirect(activityId) {
     const activity = props.tableData.content.find((activity) => activity.id === activityId);
     props.history.push({
-      pathname: appLink.execution({ team, runId: activity.id }),
+      pathname: appLink.execution({ workspace, runId: activity.id }),
       state: { fromUrl: `${props.match.url}${props.location.search}`, fromText: "Activity" },
     });
   }

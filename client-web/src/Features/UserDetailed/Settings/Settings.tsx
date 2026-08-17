@@ -43,27 +43,27 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
               <dd className={styles.detailedListDescription}>{user.email}</dd>
             </div>
           </div>
-          {/* <dt className={styles.detailedListTitle}>Team Description</dt>
-          {team.description ? (
-            <dd className={styles.detailedListDescription}>{team.description}</dd>
+          {/* <dt className={styles.detailedListTitle}>Workspace Description</dt>
+          {workspace.description ? (
+            <dd className={styles.detailedListDescription}>{workspace.description}</dd>
           ) : (
             <dd className={styles.detailedListDescriptionEmpty}>
-              No description. Add a brief description about this Team, which will appear in the header of this team
+              No description. Add a brief description about this Workspace, which will appear in the header of this workspace
               page.
             </dd>
           )}
           <dt className={styles.detailedListTitle}>Logo</dt>
-          {team.logo?.id && showLogo ? (
+          {workspace.logo?.id && showLogo ? (
             <>
               <dd className={styles.detailedListDescription} style={{ marginBottom: "1rem" }}>
-                {team.logo?.name ?? "---"}
+                {workspace.logo?.name ?? "---"}
               </dd>
-              {teamLogo}
+              {workspaceLogo}
             </>
           ) : (
             <dd className={styles.detailedListDescriptionEmpty}>
-              No logo. Upload a small image that will appear in the header of this team page. Useful if this team is
-              specific to a client or sector, to help team members recognize the Team alignment at a glance.
+              No logo. Upload a small image that will appear in the header of this workspace page. Useful if this workspace is
+              specific to a client or sector, to help workspace members recognize the Workspace alignment at a glance.
             </dd>
           )} */}
         </dl>

@@ -14,67 +14,67 @@ import { resolver, serviceUrl } from "Config/servicesConfig";
 import kebabcase from "lodash/kebabCase";
 import * as Yup from "yup";
 import { appLink } from "Config/appConfig";
-import styles from "./UpdateTeamName.module.scss";
-import { FlowTeam } from "Types";
+import styles from "./UpdateWorkspaceName.module.scss";
+import { FlowWorkspace } from "Types";
 
-interface UpdateTeamNameProps {
+interface UpdateWorkspaceNameProps {
   closeModal: () => void;
-  team: FlowTeam;
+  workspace: FlowWorkspace;
 }
 
-const UpdateTeamName: React.FC<UpdateTeamNameProps> = ({ closeModal, team }) => {
+const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, workspace }) => {
   const queryClient = useQueryClient();
   const history = useHistory();
 
-  const validateTeamNameMutator = useMutation(resolver.postTeamValidateName);
-  const updateTeamMutator = useMutation(resolver.patchUpdateTeam);
-  const updateTeamName = async (values: { name: string }) => {
-    const newTeamName = kebabcase(values.name?.replace(`'`, "-"));
+  const validateWorkspaceNameMutator = useMutation(resolver.postWorkspaceValidateName);
+  const updateWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
+  const updateWorkspaceName = async (values: { name: string }) => {
+    const newWorkspaceName = kebabcase(values.name?.replace(`'`, "-"));
     try {
-      await updateTeamMutator.mutateAsync({
-        team: team.name,
+      await updateWorkspaceMutator.mutateAsync({
+        workspace: workspace.name,
         body: {
-          name: newTeamName,
+          name: newWorkspaceName,
           displayName: values.name,
         },
       });
-      queryClient.invalidateQueries(serviceUrl.resourceTeam({ team: newTeamName }));
-      history.push(appLink.manageTeamSettings({ team: newTeamName }));
+      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: newWorkspaceName }));
+      history.push(appLink.manageWorkspaceSettings({ workspace: newWorkspaceName }));
       notify(
-        <ToastNotification kind="success" title="Update Team Settings" subtitle="Team settings successfully updated" />
+        <ToastNotification kind="success" title="Update Workspace Settings" subtitle="Workspace settings successfully updated" />
       );
       closeModal();
     } catch (error) {
-      notify(<ToastNotification kind="error" subtitle="Failed to update team settings" title="Something's Wrong" />);
+      notify(<ToastNotification kind="error" subtitle="Failed to update workspace settings" title="Something's Wrong" />);
     }
   };
 
   let buttonText = "Save";
-  if (updateTeamMutator.isLoading) {
+  if (updateWorkspaceMutator.isLoading) {
     buttonText = "Saving...";
-  } else if (updateTeamMutator.isError) {
+  } else if (updateWorkspaceMutator.isError) {
     buttonText = "Try again";
-  } else if (validateTeamNameMutator.isLoading) {
+  } else if (validateWorkspaceNameMutator.isLoading) {
     buttonText = "Validating...";
   }
 
   //TODO - update the error message to include the value of the Text Input
-  //TODO - update to not error on current team name
+  //TODO - update to not error on current workspace name
   return (
     <Formik
       initialValues={{
-        name: team.displayName,
+        name: workspace.displayName,
       }}
-      onSubmit={updateTeamName}
+      onSubmit={updateWorkspaceName}
       validationSchema={Yup.object().shape({
         name: Yup.string()
-          .required("Enter a team name")
-          .max(100, "Enter team name that is at most 100 characters in length")
+          .required("Enter a workspace name")
+          .max(100, "Enter workspace name that is at most 100 characters in length")
           .test("isUnique", "TAKEN", async (value) => {
             let isValid = true;
             if (value) {
               try {
-                await validateTeamNameMutator.mutateAsync({ body: { name: kebabcase(value.replace(`'`, "-")) } });
+                await validateWorkspaceNameMutator.mutateAsync({ body: { name: kebabcase(value.replace(`'`, "-")) } });
               } catch (e) {
                 console.error(e);
                 isValid = false;
@@ -91,12 +91,12 @@ const UpdateTeamName: React.FC<UpdateTeamNameProps> = ({ closeModal, team }) => 
           <ModalFlowForm>
             <ModalBody>
               <div className={styles.modalInputContainer}>
-                {updateTeamMutator.isLoading && <Loading />}
+                {updateWorkspaceMutator.isLoading && <Loading />}
                 <TextInput
-                  id="team-update-name-id"
-                  data-testid="text-input-team-name"
+                  id="workspace-update-name-id"
+                  data-testid="text-input-workspace-name"
                   labelText="Display Name"
-                  helperText="The display name of your team must make a unique name identifier."
+                  helperText="The display name of your workspace must make a unique name identifier."
                   value={values.name}
                   onChange={(value: React.ChangeEvent<HTMLInputElement>) => {
                     setFieldValue("name", value.target.value);
@@ -108,7 +108,7 @@ const UpdateTeamName: React.FC<UpdateTeamNameProps> = ({ closeModal, team }) => 
                       : errors.name
                   }
                 />
-                {updateTeamMutator.error && (
+                {updateWorkspaceMutator.error && (
                   <InlineNotification
                     lowContrast
                     kind="error"
@@ -119,13 +119,13 @@ const UpdateTeamName: React.FC<UpdateTeamNameProps> = ({ closeModal, team }) => 
                 <div className={styles.text}>
                   {values.name ? (
                     <p>
-                      Your updated unique team name identifier will be "
+                      Your updated unique workspace name identifier will be "
                       <b>{kebabcase(values ? values.name.replace(`'`, "-") : "")}</b>", which has been adjusted to
                       remove spaces and special characters.
                     </p>
                   ) : (
                     <p>
-                      Your updated unique team name identifier will be adjusted to remove spaces and special characters.
+                      Your updated unique workspace name identifier will be adjusted to remove spaces and special characters.
                     </p>
                   )}
                 </div>
@@ -139,12 +139,12 @@ const UpdateTeamName: React.FC<UpdateTeamNameProps> = ({ closeModal, team }) => 
               <Button
                 disabled={
                   errors.name ||
-                  updateTeamMutator.isLoading ||
-                  validateTeamNameMutator.error ||
-                  validateTeamNameMutator.isLoading
+                  updateWorkspaceMutator.isLoading ||
+                  validateWorkspaceNameMutator.error ||
+                  validateWorkspaceNameMutator.isLoading
                 }
                 onClick={handleSubmit}
-                data-testid="save-team-name"
+                data-testid="save-workspace-name"
               >
                 {buttonText}
               </Button>
@@ -156,4 +156,4 @@ const UpdateTeamName: React.FC<UpdateTeamNameProps> = ({ closeModal, team }) => 
   );
 };
 
-export default UpdateTeamName;
+export default UpdateWorkspaceName;

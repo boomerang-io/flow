@@ -15,14 +15,14 @@ const OnBoardGuideContainer = ({ index, nextScreen, previousScreen, closeModal, 
 
   const determineProps = () => {
     switch (index) {
-      case screens.TEAMS:
+      case screens.WORKSPACES:
         return {
           index,
           nextScreen,
           closeModal,
           screens,
           guideConfig,
-          ...guideConfig.teams,
+          ...guideConfig.workspaces,
         };
       case screens.SEARCH_FILTER:
         return { ...basicConfig, ...guideConfig.search_filter };

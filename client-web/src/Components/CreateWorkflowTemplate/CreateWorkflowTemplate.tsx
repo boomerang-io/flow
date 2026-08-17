@@ -55,7 +55,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
       }}
       modalHeaderProps={{
         title: `Import a new Workflow Template`,
-        subtitle: "Craft the Workflow in your team and import the file.",
+        subtitle: "Craft the Workflow in your workspace and import the file.",
       }}
     >
       {({ closeModal }) => (

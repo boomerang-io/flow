@@ -8,7 +8,7 @@ const insights = {
       status: "cancelled",
       creationDate: 1548327600006,
       startTime: 1548327600006,
-      teamName: "IBM Services Engineering",
+      workspaceName: "IBM Services Engineering",
       workflowName: "Tim Testing Slacks",
       workflowId: "5c3cf9ffbc521b00011b70aa",
     },

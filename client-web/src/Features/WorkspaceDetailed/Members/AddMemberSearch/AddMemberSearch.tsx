@@ -37,7 +37,7 @@ function AddMemberSearch({ memberList, handleSubmit, isSubmitting, error }: AddM
       composedModalProps={{ containerClassName: styles.modal }}
       modalHeaderProps={{
         title: "Add existing members",
-        subtitle: `Search for existing members to add to this team`,
+        subtitle: `Search for existing members to add to this workspace`,
       }}
     >
       {({ closeModal }: { closeModal: Function }) => (
@@ -192,7 +192,7 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
           Cancel
         </Button>
         <Button disabled={selectedUsers.length === 0 || isSubmitting} type="submit">
-          {isSubmitting ? "Adding..." : errorSubmit ? "Try Again" : "Add to team"}
+          {isSubmitting ? "Adding..." : errorSubmit ? "Try Again" : "Add to workspace"}
         </Button>
       </ModalFooter>
     </ModalForm>

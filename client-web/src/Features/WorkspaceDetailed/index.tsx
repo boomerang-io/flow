@@ -1,1 +1,1 @@
-export { default } from "./TeamDetailed";
+export { default } from "./WorkspaceDetailed";

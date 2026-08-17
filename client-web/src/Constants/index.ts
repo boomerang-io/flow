@@ -10,7 +10,7 @@ export const Envs = {
 
 export const WorkflowScope = {
   System: "system",
-  Team: "team",
+  Workspace: "workspace",
   User: "user",
   Template: "template",
 } as const;
@@ -198,17 +198,17 @@ export const UserRoleCopy: Record<UserRoleType, string> = {
 } as const;
 
 export const REQUEST_TYPES = {
-  JOIN_TEAM: "joingroup",
-  CREATE_TEAM: "creategroup",
-  LEAVE_TEAM: "leavegroup",
-  REMOVE_TEAM: "removegroup",
+  JOIN_WORKSPACE: "joingroup",
+  CREATE_WORKSPACE: "creategroup",
+  LEAVE_WORKSPACE: "leavegroup",
+  REMOVE_WORKSPACE: "removegroup",
 } as const;
 
 export const REQUEST_TYPES_TO_DISPLAY = {
-  [REQUEST_TYPES.JOIN_TEAM]: "Join a Team",
-  [REQUEST_TYPES.CREATE_TEAM]: "Create a Team",
-  [REQUEST_TYPES.LEAVE_TEAM]: "Leave a Team",
-  [REQUEST_TYPES.REMOVE_TEAM]: "Remove a Team",
+  [REQUEST_TYPES.JOIN_WORKSPACE]: "Join a Workspace",
+  [REQUEST_TYPES.CREATE_WORKSPACE]: "Create a Workspace",
+  [REQUEST_TYPES.LEAVE_WORKSPACE]: "Leave a Workspace",
+  [REQUEST_TYPES.REMOVE_WORKSPACE]: "Remove a Workspace",
 } as const;
 
 /**
@@ -240,7 +240,7 @@ export const executionStatusList = [
   RunStatus.TimedOut,
 ];
 
-export const FlowTeamStatus = {
+export const FlowWorkspaceStatus = {
   Active: "active",
   Inactive: "inactive",
 } as const;
@@ -275,7 +275,7 @@ export const EdgeExecutionCondition = {
 export const TokenType = {
   User: "user",
   Workflow: "workflow",
-  Team: "team",
+  Workspace: "workspace",
   Global: "global",
 } as const;
 

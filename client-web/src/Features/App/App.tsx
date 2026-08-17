@@ -17,11 +17,11 @@ import { useQuery, useQueryClient } from "react-query";
 import { Switch, Route, Redirect, useLocation, useParams } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
-import { AppContextProvider, TeamContextProvider, useAppContext } from "State/context";
+import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
 import { elevatedUserRoles } from "Constants";
 import { AppPath, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowFeatures, FlowNavigationItem, FlowTeam, FlowUser, ContextConfig, WorkflowTemplate } from "Types";
+import { FlowFeatures, FlowNavigationItem, FlowWorkspace, FlowUser, ContextConfig, WorkflowTemplate } from "Types";
 import Navbar from "./Navbar";
 import UnsupportedBrowserPrompt from "./UnsupportedBrowserPrompt";
 import styles from "./app.module.scss";
@@ -39,10 +39,10 @@ const Integrations = lazy(() => import("Features/Integrations"));
 const Schedules = lazy(() => import("Features/Schedules"));
 const Settings = lazy(() => import("Features/Settings"));
 const TemplateWorkflows = lazy(() => import("Features/TemplateWorkflows"));
-const Teams = lazy(() => import("Features/Teams"));
-const ManageTeam = lazy(() => import("Features/TeamDetailed"));
-const TeamParameters = lazy(() => import("Features/Parameters/TeamParameters"));
-const TeamTasks = lazy(() => import("Features/TaskManager/TeamTasks"));
+const Workspaces = lazy(() => import("Features/Workspaces"));
+const ManageWorkspace = lazy(() => import("Features/WorkspaceDetailed"));
+const WorkspaceParameters = lazy(() => import("Features/Parameters/WorkspaceParameters"));
+const WorkspaceTasks = lazy(() => import("Features/TaskManager/WorkspaceTasks"));
 const AdminTasks = lazy(() => import("Features/TaskManager/AdminTasks"));
 const Users = lazy(() => import("Features/Users"));
 const UserProfile = lazy(() => import("Features/UserProfile"));
@@ -59,14 +59,14 @@ const supportedBrowsers = ["chrome", "firefox", "safari", "edge"];
 export default function App() {
   const location = useLocation();
   const queryClient = useQueryClient();
-  const teamName =
+  const workspaceName =
     location.pathname.endsWith("/home") ||
     location.pathname.startsWith("/admin/") ||
     location.pathname.endsWith("/profile") ||
     location.pathname.endsWith("/connect")
       ? null
       : location.pathname.split("/").filter(Boolean)[0];
-  const query = teamName ? `?team=${teamName}` : "";
+  const query = workspaceName ? `?workspace=${workspaceName}` : "";
   const getNavigationUrl = serviceUrl.getNavigation({ query });
 
   const [shouldShowBrowserWarning, setShouldShowBrowserWarning] = useState(
@@ -172,11 +172,11 @@ export default function App() {
           EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
           GlobalParametersEnabled: feature["global.parameters"],
           InsightsEnabled: feature["insights"],
-          TeamManagementEnabled: feature["team.management"],
-          TeamParametersEnabled: feature["team.parameters"],
-          TeamTasksEnabled: feature["team.tasks"],
+          WorkspaceManagementEnabled: feature["workspace.management"],
+          WorkspaceParametersEnabled: feature["workspace.parameters"],
+          WorkspaceTasksEnabled: feature["workspace.tasks"],
           UserManagementEnabled: feature["user.management"],
-          TeamQuotasEnabled: feature["team.quotas"],
+          WorkspaceQuotasEnabled: feature["workspace.quotas"],
           WorkflowTokensEnabled: feature["workflow.tokens"],
           WorkflowTriggersEnabled: feature["workflow.triggers"],
         }}
@@ -244,7 +244,7 @@ function Main({
         setIsTutorialActive,
         communityUrl: contextData?.platform?.communityUrl ?? "",
         name: contextData?.platform?.name ?? "",
-        teams: sortBy(userData.teams, "name"),
+        workspaces: sortBy(userData.workspaces, "name"),
         user: userData,
         workflowTemplates: workflowTemplatesData,
       }}
@@ -261,8 +261,8 @@ interface AppFeaturesProps {
 const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeaturesProps) {
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
   const insightsEnabled = useFeature(FeatureFlag.InsightsEnabled);
-  const teamParametersEnabled = useFeature(FeatureFlag.TeamParametersEnabled);
-  //const teamTasksEnabled = useFeature(FeatureFlag.TeamTasksEnabled);
+  const workspaceParametersEnabled = useFeature(FeatureFlag.WorkspaceParametersEnabled);
+  //const workspaceTasksEnabled = useFeature(FeatureFlag.WorkspaceTasksEnabled);
 
   return (
     <main id="content" className={styles.container}>
@@ -317,8 +317,8 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
               />
               <ProtectedRoute
                 allowedUserRoles={elevatedUserRoles}
-                component={<Teams />}
-                path={AppPath.TeamList}
+                component={<Workspaces />}
+                path={AppPath.WorkspaceList}
                 userRole={platformRole}
               />
               <ProtectedRoute
@@ -330,8 +330,8 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
               <Redirect exact from="/" to={AppPath.Settings} />
             </Switch>
           </Route>
-          <Route path={"/:team"}>
-            <TeamContainer>
+          <Route path={"/:workspace"}>
+            <WorkspaceContainer>
               <Switch>
                 <ProtectedRoute
                   allowedUserRoles={["*"]}
@@ -353,12 +353,12 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
                 />
                 <ProtectedRoute
                   allowedUserRoles={["*"]}
-                  component={() => <TeamParameters />}
-                  path={AppPath.ManageTeamParameters}
-                  userRole={teamParametersEnabled ? "*" : ""}
+                  component={() => <WorkspaceParameters />}
+                  path={AppPath.ManageWorkspaceParameters}
+                  userRole={workspaceParametersEnabled ? "*" : ""}
                 />
-                <Route path={AppPath.ManageTeam}>
-                  <ManageTeam />
+                <Route path={AppPath.ManageWorkspace}>
+                  <ManageWorkspace />
                 </Route>
                 <Route path={AppPath.Actions}>
                   <Actions />
@@ -376,12 +376,12 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
                   <Integrations />
                 </Route>
                 <Route path={AppPath.ManageTasks}>
-                  <TeamTasks />
+                  <WorkspaceTasks />
                 </Route>
                 <Redirect exact from="/" to={AppPath.Workflows} />
                 <Route path="*" component={() => <Error404 theme="boomerang" />} />
               </Switch>
-            </TeamContainer>
+            </WorkspaceContainer>
           </Route>
           <Redirect to="/home" />
         </Switch>
@@ -392,28 +392,28 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
   );
 });
 
-function TeamContainer(props: { children: React.ReactNode }) {
-  const { team }: { team: string } = useParams();
-  const getTeamUrl = serviceUrl.resourceTeam({ team });
+function WorkspaceContainer(props: { children: React.ReactNode }) {
+  const { workspace }: { workspace: string } = useParams();
+  const getWorkspaceUrl = serviceUrl.resourceWorkspace({ workspace });
 
-  const teamQuery = useQuery<FlowTeam>({
-    queryKey: getTeamUrl,
-    queryFn: resolver.query(getTeamUrl),
+  const workspaceQuery = useQuery<FlowWorkspace>({
+    queryKey: getWorkspaceUrl,
+    queryFn: resolver.query(getWorkspaceUrl),
   });
 
-  if (teamQuery.isLoading || teamQuery.error) {
+  if (workspaceQuery.isLoading || workspaceQuery.error) {
     return null;
   }
 
-  if (teamQuery.data) {
+  if (workspaceQuery.data) {
     return (
-      <TeamContextProvider
+      <WorkspaceContextProvider
         value={{
-          team: teamQuery.data,
+          workspace: workspaceQuery.data,
         }}
       >
         {props.children}
-      </TeamContextProvider>
+      </WorkspaceContextProvider>
     );
   }
 
@@ -428,7 +428,7 @@ function TeamContainer(props: { children: React.ReactNode }) {
 // const home_steps = [
 //   {
 //     disableBeacon: true,
-//     target: "#your-teams",
+//     target: "#your-workspaces",
 //     content: "This is my awesome feature!",
 //   },
 //   {
@@ -447,7 +447,7 @@ const workflows_steps = [
 ];
 
 // const stepMapper = {
-//   ":team/workflows": workflows_steps,
+//   ":workspace/workflows": workflows_steps,
 // };
 
 function Tutorial() {

@@ -11,7 +11,7 @@ import { ErrorFilled } from "@carbon/react/icons";
 import { Loading, TextInput, TextArea } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik, FormikProps } from "formik";
 import * as Yup from "yup";
-import { FlowTeam, Workflow } from "Types";
+import { FlowWorkspace, Workflow } from "Types";
 import { requiredWorkflowProps } from "./constants";
 import styles from "./importWorkflowContent.module.scss";
 
@@ -40,12 +40,12 @@ interface ImportWorkflowContentProps {
   isLoading: boolean;
   importError: any;
   importWorkflow: (workflowExport: Workflow, closeModal: () => void) => Promise<void>;
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   type: string;
 }
 
 interface FormProps {
-  team?: FlowTeam;
+  workspace?: FlowWorkspace;
   name: string;
   displayName: string;
   description: string;
@@ -58,7 +58,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
   isLoading,
   importError,
   importWorkflow,
-  team,
+  workspace,
   type,
 }) => {
   /**
@@ -129,7 +129,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
           })
           .notOneOf(
             existingWorkflowNames,
-            `There’s already a ${type} with that name in this team. Names must be unique.`,
+            `There’s already a ${type} with that name in this workspace. Names must be unique.`,
           ),
         displayName: Yup.string().optional(),
         description: Yup.string().max(250, "Description must not be greater than 250 characters"),
@@ -215,7 +215,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
                       id="name"
                       labelText="Name"
                       placeholder="e.g. my-workflow"
-                      helperText="This is your unique identifier name within the Team. Can only contain letters, numbers, and dashes."
+                      helperText="This is your unique identifier name within the Workspace. Can only contain letters, numbers, and dashes."
                       value={values.name}
                       onBlur={handleBlur}
                       onChange={handleChange}

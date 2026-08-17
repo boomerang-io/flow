@@ -16,7 +16,7 @@ import cronstrue from "cronstrue";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { scheduleStatusOptions, scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
 import { resolver } from "Config/servicesConfig";
@@ -153,7 +153,7 @@ interface ScheduledListItemProps {
 }
 
 function ScheduledListItem(props: ScheduledListItemProps) {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [isToggleStatusModalOpen, setIsToggleStatusModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -185,7 +185,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
 
   const handleDeleteSchedule = async () => {
     try {
-      await deleteScheduleMutator({ team: team.name, id: props.schedule.id });
+      await deleteScheduleMutator({ workspace: workspace.name, id: props.schedule.id });
       notify(
         <ToastNotification
           kind="success"
@@ -215,7 +215,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
   const handleToggleStatus = async () => {
     const body = { ...props.schedule, status: isActive ? "inactive" : "active" };
     try {
-      await toggleScheduleStatusMutator({ team: team.name, body });
+      await toggleScheduleStatusMutator({ workspace: workspace.name, body });
       notify(
         <ToastNotification
           kind="success"

@@ -33,10 +33,10 @@ const profile = {
   notificationSettings: {},
   status: "active",
   projects: null,
-  teams: [
+  workspaces: [
       {
-          name: "tyson-team",
-          displayName: "Tyson Team",
+          name: "tyson-workspace",
+          displayName: "Tyson Workspace",
           creationDate: "2023-07-20T06:31:56.322+00:00",
           status: "active",
           externalRef: null,
@@ -47,8 +47,8 @@ const profile = {
           }
       },
       {
-          name: "admin-flowabl-io-personal-team",
-          displayName: "admin-flowabl-io Personal Team",
+          name: "admin-flowabl-io-personal-workspace",
+          displayName: "admin-flowabl-io Personal Workspace",
           creationDate: "2023-07-20T06:35:17.481+00:00",
           status: "active",
           externalRef: null,

@@ -2,11 +2,11 @@ import React from "react";
 import { startApiServer } from "ApiServer";
 import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
-import { FlowTeam } from "Types";
+import { FlowWorkspace } from "Types";
 import CreateServiceTokenButton from "./CreateToken";
 
 let server: any;
-const team: FlowTeam = {
+const workspace: FlowWorkspace = {
   higherLevelGroupId: "5c41596cf32aa30001e9d444",
   id: "5e3a35ad8c222700018ccd39",
   name: "IBM Services Engineering",
@@ -34,7 +34,7 @@ const team: FlowTeam = {
         },
       ],
       description: "Train and store ML model for Bot Efficiency.",
-      flowTeamId: "5e3a35ad8c222700018ccd39",
+      flowWorkspaceId: "5e3a35ad8c222700018ccd39",
       icon: "bot",
       id: "5eb2c4085a92d80001a16d87",
       name: "ML Train – Bot Efficiency",
@@ -120,7 +120,7 @@ afterEach(() => {
 
 describe("CreateServiceTokenButton --- Snapshot", () => {
   it("Capturing Snapshot of CreateServiceTokenButton", async () => {
-    const { baseElement } = global.rtlQueryRender(<CreateServiceTokenButton team={activeTeam} />);
+    const { baseElement } = global.rtlQueryRender(<CreateServiceTokenButton workspace={activeWorkspace} />);
     await screen.findByText(/Create Token/i);
     expect(baseElement).toMatchSnapshot();
   });
@@ -128,20 +128,20 @@ describe("CreateServiceTokenButton --- Snapshot", () => {
 
 describe("CreateServiceTokenButton --- RTL", () => {
   it("Open token creation modal", async () => {
-    global.rtlQueryRender(<CreateServiceTokenButton team={activeTeam} />);
+    global.rtlQueryRender(<CreateServiceTokenButton workspace={activeWorkspace} />);
     const button = screen.getByTestId(/create-token-button/i);
-    expect(screen.queryByText(/Create Team Token/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Create Workspace Token/i)).not.toBeInTheDocument();
     userEvent.click(button);
-    expect(screen.getByText(/Create Team Token/i)).toBeInTheDocument();
+    expect(screen.getByText(/Create Workspace Token/i)).toBeInTheDocument();
   });
 
   it("Fill out form", async () => {
-    global.rtlQueryRender(<CreateServiceTokenButton team={activeTeam} />);
+    global.rtlQueryRender(<CreateServiceTokenButton workspace={activeWorkspace} />);
     const button = screen.getByTestId(/create-token-button/i);
-    expect(screen.queryByText(/Create Team Token/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Create Workspace Token/i)).not.toBeInTheDocument();
     userEvent.click(button);
 
-    expect(screen.getByText(/Create Team Token/i)).toBeInTheDocument();
+    expect(screen.getByText(/Create Workspace Token/i)).toBeInTheDocument();
 
     const descriptionInput = screen.getByTestId("token-description");
     userEvent.type(descriptionInput, "Token test description");
@@ -150,6 +150,6 @@ describe("CreateServiceTokenButton --- RTL", () => {
 
     expect(createButton).toBeEnabled();
     userEvent.click(createButton);
-    expect(await screen.findByText(/Team token successfully created/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Workspace token successfully created/i)).toBeInTheDocument();
   });
 });

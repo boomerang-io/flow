@@ -227,21 +227,21 @@ export function TaskTemplateOverview({
   let getChangelogUrl = serviceUrl.task.getTaskChangelog({
     name: params.name,
   });
-  if (params.team) {
-    getTaskTemplateUrl = serviceUrl.team.task.getTask({
-      team: params.team,
+  if (params.workspace) {
+    getTaskTemplateUrl = serviceUrl.workspace.task.getTask({
+      workspace: params.workspace,
       name: params.name,
       version: params.version,
     });
-    getChangelogUrl = serviceUrl.team.task.getTaskChangelog({
-      team: params.team,
+    getChangelogUrl = serviceUrl.workspace.task.getTaskChangelog({
+      workspace: params.workspace,
       name: params.name,
     });
   }
   const getTaskTemplateQuery = useQuery(getTaskTemplateUrl);
   const getChangelogQuery = useQuery<ChangeLog>(getChangelogUrl);
   const applyTaskTemplateMutation = useMutation(resolver.putApplyTaskTemplate);
-  const applyTeamTaskTemplateMutation = useMutation(resolver.putApplyTeamTaskTemplate);
+  const applyWorkspaceTaskTemplateMutation = useMutation(resolver.putApplyWorkspaceTaskTemplate);
 
   if (getTaskTemplateQuery.isLoading || getChangelogQuery.isLoading) {
     return (
@@ -317,10 +317,10 @@ export function TaskTemplateOverview({
       let replace = requestType === TemplateRequestType.Overwrite ? "true" : "false";
       let response;
       console.log("Name:", params.name);
-      if (params.team) {
-        response = await applyTeamTaskTemplateMutation.mutateAsync({
+      if (params.workspace) {
+        response = await applyWorkspaceTaskTemplateMutation.mutateAsync({
           name: params.name,
-          team: params.team,
+          workspace: params.workspace,
           replace,
           body,
         });
@@ -340,9 +340,9 @@ export function TaskTemplateOverview({
       );
       resetForm();
       history.push(
-        params.team
+        params.workspace
           ? appLink.manageTasksEdit({
-              team: params.team,
+              workspace: params.workspace,
               name: response.data.name,
               version: response.data.version,
             })
@@ -380,10 +380,10 @@ export function TaskTemplateOverview({
   const handleArchiveTaskTemplate = async () => {
     try {
       selectedTaskTemplate.status = "inactive";
-      if (params.team) {
-        await applyTeamTaskTemplateMutation.mutateAsync({
+      if (params.workspace) {
+        await applyWorkspaceTaskTemplateMutation.mutateAsync({
           replace: "true",
-          team: params.team,
+          workspace: params.workspace,
           name: params.name,
           body: selectedTaskTemplate,
         });
@@ -416,10 +416,10 @@ export function TaskTemplateOverview({
   const handleRestoreTaskTemplate = async () => {
     try {
       selectedTaskTemplate.status = "active";
-      if (params.team) {
-        await applyTeamTaskTemplateMutation.mutateAsync({
+      if (params.workspace) {
+        await applyWorkspaceTaskTemplateMutation.mutateAsync({
           replace: "true",
-          team: params.team,
+          workspace: params.workspace,
           name: params.name,
           body: selectedTaskTemplate,
         });

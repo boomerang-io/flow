@@ -19,7 +19,7 @@ import moment from "moment";
 import { formatErrorMessage, sortByProp } from "@boomerang-io/utils";
 import { sortKeyDirection } from "Utils/arrayHelper";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowTeam, ApproverGroup, Approver } from "Types";
+import { FlowWorkspace, ApproverGroup, Approver } from "Types";
 import { TrashCan } from "@carbon/react/icons";
 import styles from "./approverGroupsTable.module.scss";
 
@@ -30,7 +30,7 @@ import styles from "./approverGroupsTable.module.scss";
 //         className={styles.header}
 //         header={
 //           <>
-//             <HeaderTitle className={styles.headerTitle}>Team Approvers</HeaderTitle>
+//             <HeaderTitle className={styles.headerTitle}>Workspace Approvers</HeaderTitle>
 //             <HeaderSubtitle>Manage groups of users to easily set gate approvers.</HeaderSubtitle>
 //           </>
 //         }
@@ -41,17 +41,17 @@ import styles from "./approverGroupsTable.module.scss";
 // };
 
 type ApproverGroupsTableProps = {
-  team?: FlowTeam | null;
+  workspace?: FlowWorkspace | null;
   canEdit: boolean;
 };
 
-function ApproverGroupsTable({ team, canEdit }: ApproverGroupsTableProps) {
+function ApproverGroupsTable({ workspace, canEdit }: ApproverGroupsTableProps) {
   const queryClient = useQueryClient();
   const [sortKey, setSortKey] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("ASC");
-  const approverGroups = team?.approverGroups ?? [];
+  const approverGroups = workspace?.approverGroups ?? [];
 
-  /** Delete Team Approver Group */
+  /** Delete Workspace Approver Group */
   const deleteApproverGroupMutation = useMutation(resolver.deleteApproverGroup);
 
   const headers = [
@@ -79,9 +79,9 @@ function ApproverGroupsTable({ team, canEdit }: ApproverGroupsTableProps) {
 
   const deleteApproverGroup = async (approverGroup: ApproverGroup) => {
     try {
-      await deleteApproverGroupMutation.mutateAsync({ team: team?.name, groupId: approverGroup.id });
-      //TODO - once we figure out if approverGroups are on the team or separate API call, we know what to invalidate
-      // queryClient.invalidateQueries(serviceUrl.resourceApproverGroups({ teamId: activeTeam?.id, groupId: undefined })),
+      await deleteApproverGroupMutation.mutateAsync({ workspace: workspace?.name, groupId: approverGroup.id });
+      //TODO - once we figure out if approverGroups are on the workspace or separate API call, we know what to invalidate
+      // queryClient.invalidateQueries(serviceUrl.resourceApproverGroups({ workspaceId: activeWorkspace?.id, groupId: undefined })),
       notify(
         <ToastNotification
           kind="success"
@@ -121,7 +121,7 @@ function ApproverGroupsTable({ team, canEdit }: ApproverGroupsTableProps) {
       case "actions":
         return canEdit ? (
           <div className={styles.tableActions}>
-            <CreateEditGroupModal isEdit approverGroup={approverGroup} approverGroups={approverGroups} team={team} />
+            <CreateEditGroupModal isEdit approverGroup={approverGroup} approverGroups={approverGroups} workspace={workspace} />
             <ConfirmModal
               modalTrigger={({ openModal }: any) => (
                 <Button
@@ -194,7 +194,7 @@ function ApproverGroupsTable({ team, canEdit }: ApproverGroupsTableProps) {
   //   return (
   //     <FeatureLayout>
   //       <DataTableSkeleton
-  //         data-testid="team-props-loading-skeleton"
+  //         data-testid="workspace-props-loading-skeleton"
   //         className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
   //         rowCount={3}
   //         columnCount={headers.length}
@@ -223,7 +223,7 @@ function ApproverGroupsTable({ team, canEdit }: ApproverGroupsTableProps) {
             Showing {approverGroups?.length ?? 0} approver group{approverGroups?.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {canEdit && <CreateEditGroupModal approverGroups={approverGroups} team={team} />}
+        {canEdit && <CreateEditGroupModal approverGroups={approverGroups} workspace={workspace} />}
       </section>
       {totalItems > 0 ? (
         <DataTable
@@ -288,7 +288,7 @@ function ApproverGroupsTable({ team, canEdit }: ApproverGroupsTableProps) {
                     <TableRow className={styles.tableHeadRow}>
                       {headers.map((header: any, key: any) => (
                         <TableHeader
-                          key={`no-team-config-table-key-${key}`}
+                          key={`no-workspace-config-table-key-${key}`}
                           className={`${styles.tableHeadHeader} ${styles[header.key]}`}
                         >
                           <span className="bx--table-header-label">{header.header}</span>

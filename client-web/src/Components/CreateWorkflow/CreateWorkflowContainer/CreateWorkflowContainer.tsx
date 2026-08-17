@@ -1,7 +1,7 @@
 import React from "react";
 import { ModalForm, RadioGroup } from "@boomerang-io/carbon-addons-boomerang-react";
 import { WorkflowView } from "Constants";
-import { FlowTeam, CreateWorkflowSummary, Workflow } from "Types";
+import { FlowWorkspace, CreateWorkflowSummary, Workflow } from "Types";
 import CreateWorkflowContent from "../CreateWorkflowContent";
 import ImportWorkflowContent from "../ImportWorkflowContent";
 import styles from "./createWorkflowContainer.module.scss";
@@ -14,11 +14,11 @@ interface CreateWorkflowContainerProps {
   createWorkflow: (workflowData: CreateWorkflowSummary) => Promise<void>;
   isLoading: boolean;
   importError: any;
-  importWorkflow: (workflowData: Workflow, closeModal: () => void, team: FlowTeam) => Promise<void>;
-  team: FlowTeam;
+  importWorkflow: (workflowData: Workflow, closeModal: () => void, workspace: FlowWorkspace) => Promise<void>;
+  workspace: FlowWorkspace;
   type: string;
   workflows: Array<Workflow>;
-  teamQuotasEnabled: boolean;
+  workspaceQuotasEnabled: boolean;
 }
 
 const CreateWorkflowContainer: React.FC<CreateWorkflowContainerProps> = ({
@@ -28,10 +28,10 @@ const CreateWorkflowContainer: React.FC<CreateWorkflowContainerProps> = ({
   importError,
   importWorkflow,
   isLoading,
-  team,
+  workspace,
   type,
   workflows,
-  teamQuotasEnabled,
+  workspaceQuotasEnabled,
 }) => {
   const [selectedOption, setSelectedOption] = React.useState(NEW_WORKFLOW);
   const radioWorkflowOptions = [
@@ -65,8 +65,8 @@ const CreateWorkflowContainer: React.FC<CreateWorkflowContainerProps> = ({
           createError={createError}
           existingWorkflowNames={existingWorkflowNames}
           isLoading={isLoading}
-          team={team}
-          teamQuotasEnabled={teamQuotasEnabled}
+          workspace={workspace}
+          workspaceQuotasEnabled={workspaceQuotasEnabled}
           viewType={WorkflowView.Workflow}
         />
       ) : (
@@ -76,7 +76,7 @@ const CreateWorkflowContainer: React.FC<CreateWorkflowContainerProps> = ({
           importError={importError}
           importWorkflow={importWorkflow}
           isLoading={isLoading}
-          team={team}
+          workspace={workspace}
           type={type}
         />
       )}

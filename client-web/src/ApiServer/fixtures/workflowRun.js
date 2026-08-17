@@ -25,9 +25,9 @@ const workflowRun = {
             "workflowrun-id": "651e4789ab1cb56bc8976ae4",
             "workflowrun-trigger": "manual"
         },
-        "boomerang.io/team-name": "Team",
+        "boomerang.io/workspace-name": "Workspace",
         "boomerang.io/kind": "WorkflowRun",
-        "boomerang.io/team-params": {
+        "boomerang.io/workspace-params": {
             "echo-parameter": "test"
         },
         "boomerang.io/global-params": {},
@@ -35,7 +35,7 @@ const workflowRun = {
     },
     "params": [
         {
-            "name": "echo-team-parameter",
+            "name": "echo-workspace-parameter",
             "value": "test"
         }
     ],
@@ -120,7 +120,7 @@ const workflowRun = {
                     "x": 38,
                     "y": -6
                 },
-                "boomerang.io/team-name": "Team",
+                "boomerang.io/workspace-name": "Workspace",
                 "boomerang.io/kind": "TaskRun",
                 "boomerang.io/generation": "4"
             },

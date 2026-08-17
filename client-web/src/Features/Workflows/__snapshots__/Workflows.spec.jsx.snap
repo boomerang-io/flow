@@ -121,7 +121,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             <h1
               class="cds--bmrg-feature-header-title"
             >
-              Team Workflows (4)
+              Workspace Workflows (4)
             </h1>
             <p
               class="cds--bmrg-feature-header-title _headerMessage_4d119f"
@@ -148,9 +148,9 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                 <a
                   aria-current="page"
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
-                  href="/workflows/teams"
+                  href="/workflows/workspaces"
                 >
-                  Team Workflows
+                  Workspace Workflows
                 </a>
               </ul>
             </nav>
@@ -205,7 +205,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             class="cds--layer-two _search_4d119f"
           >
             <div
-              aria-labelledby="search-team-workflows-search"
+              aria-labelledby="search-workspace-workflows-search"
               class="cds--search cds--search--md"
               role="search"
             >
@@ -230,16 +230,16 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
               </div>
               <label
                 class="cds--label"
-                for="search-team-workflows"
-                id="search-team-workflows-search"
+                for="search-workspace-workflows"
+                id="search-workspace-workflows-search"
               >
                 Search for a workflow
               </label>
               <input
                 autocomplete="off"
                 class="cds--search-input"
-                data-testid="workflows-team-search"
-                id="search-team-workflows"
+                data-testid="workflows-workspace-search"
+                id="search-workspace-workflows"
                 placeholder="Search for a workflow"
                 role="searchbox"
                 type="text"
@@ -279,7 +279,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                 for="b-search-filter__filter-input"
                 id="b-search-filter__filter-label"
               >
-                Filter by Team
+                Filter by Workspace
               </label>
               <div
                 class="cds--multi-select cds--combo-box cds--multi-select--filterable cds--list-box cds--list-box--light"
@@ -294,7 +294,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                     autocomplete="off"
                     class="cds--text-input cds--text-input--empty cds--text-input--light"
                     id="b-search-filter__filter-input"
-                    placeholder="Choose a team"
+                    placeholder="Choose a workspace"
                     role="combobox"
                     value=""
                   />
@@ -342,18 +342,18 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             class="_header_8fb188"
           >
             <h1
-              class="_team_8fb188"
+              class="_workspace_8fb188"
             >
               IBM Services Engineering (3)
             </h1>
             <div
-              class="_teamQuotaContainer_8fb188"
+              class="_workspaceQuotaContainer_8fb188"
             >
               <div
                 class="_quotaDescriptionContainer_8fb188"
               >
                 <p
-                  class="_teamQuotaText_8fb188"
+                  class="_workspaceQuotaText_8fb188"
                 >
                   Workflow quota - 1 of 10 used
                 </p>
@@ -806,18 +806,18 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             class="_header_8fb188"
           >
             <h1
-              class="_team_8fb188"
+              class="_workspace_8fb188"
             >
               IBM Services Essentials (1)
             </h1>
             <div
-              class="_teamQuotaContainer_8fb188"
+              class="_workspaceQuotaContainer_8fb188"
             >
               <div
                 class="_quotaDescriptionContainer_8fb188"
               >
                 <p
-                  class="_teamQuotaText_8fb188"
+                  class="_workspaceQuotaText_8fb188"
                 >
                   Workflow quota - 9 of 10 used
                 </p>

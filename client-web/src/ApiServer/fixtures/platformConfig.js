@@ -6,7 +6,7 @@ const platformNavigation = {
     platformName: "Boomerang",
     appName: "Flow",
     displayLogo: false,
-    privateTeams: false,
+    privateWorkspaces: false,
     sendMail: true,
   },
   features: { "notifications.enabled": false, "support.enabled": true, "docs.enabled": true },

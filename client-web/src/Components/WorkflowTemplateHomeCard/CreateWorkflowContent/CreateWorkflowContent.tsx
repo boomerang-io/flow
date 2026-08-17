@@ -7,7 +7,7 @@ import classNames from "classnames/bind";
 import { Formik } from "formik";
 import capitalize from "lodash/capitalize";
 import * as Yup from "yup";
-import { FlowTeam, Workflow, WorkflowTemplate } from "Types";
+import { FlowWorkspace, Workflow, WorkflowTemplate } from "Types";
 import styles from "./createWorkflow.module.scss";
 
 let classnames = classNames.bind(styles);
@@ -15,9 +15,9 @@ let classnames = classNames.bind(styles);
 interface CreateWorkflowContentProps {
   template: WorkflowTemplate;
   createError: any;
-  createWorkflow: (team: string, requestBody: { name: string; description: string; icon: string }) => Promise<void>;
+  createWorkflow: (workspace: string, requestBody: { name: string; description: string; icon: string }) => Promise<void>;
   isLoading: boolean;
-  teams: Array<FlowTeam>;
+  workspaces: Array<FlowWorkspace>;
 }
 
 const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
@@ -25,7 +25,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
   createError,
   createWorkflow,
   isLoading,
-  teams,
+  workspaces,
 }) => {
   const formikRef = useRef<any>();
 
@@ -36,10 +36,10 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
       icon: values.icon,
     };
     //@ts-ignore
-    createWorkflow(values.team, requestBody);
+    createWorkflow(values.workspace, requestBody);
   };
 
-  const teamOptions = teams?.map((t) => ({ id: t.name, text: t.displayName }));
+  const workspaceOptions = workspaces?.map((t) => ({ id: t.name, text: t.displayName }));
 
   return (
     <Formik
@@ -49,11 +49,11 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
         name: template.name,
         description: template.description ?? "",
         icon: template.icon,
-        team: "",
+        workspace: "",
       }}
       onSubmit={handleSubmit}
       validationSchema={Yup.object().shape({
-        team: Yup.string().required("Team is required"),
+        workspace: Yup.string().required("Workspace is required"),
         name: Yup.string().required("Name is required").max(64, "Name must not be greater than 64 characters"),
         description: Yup.string().max(250, "Description must not be greater than 250 characters"),
       })}
@@ -65,19 +65,19 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
             {isLoading && <Loading />}
             <ModalBody aria-label="inputs" className={styles.formBody}>
               <Dropdown
-                id="team"
+                id="workspace"
                 type="default"
-                label="Team"
+                label="Workspace"
                 ariaLabel="Dropdown"
                 light={false}
-                items={teamOptions}
+                items={workspaceOptions}
                 itemToString={(item) => (item ? item.text : "")}
-                value={values.team}
+                value={values.workspace}
                 className={styles.field}
-                invalid={Boolean(errors.team && touched.team)}
+                invalid={Boolean(errors.workspace && touched.workspace)}
                 onChange={({ selectedItem }: any) => {
                   console.log(selectedItem);
-                  setFieldValue("team", selectedItem.id);
+                  setFieldValue("workspace", selectedItem.id);
                 }}
               />
               <TextInput

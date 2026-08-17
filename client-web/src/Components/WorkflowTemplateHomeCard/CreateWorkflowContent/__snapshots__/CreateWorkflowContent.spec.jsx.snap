@@ -56,14 +56,14 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
                 >
                   <input
                     class="cds--radio-button"
-                    id="team"
+                    id="workspace"
                     name="workflow-options"
                     type="radio"
-                    value="team"
+                    value="workspace"
                   />
                   <label
                     class="cds--radio-button__label"
-                    for="team"
+                    for="workspace"
                   >
                     <span
                       class="cds--radio-button__appearance"
@@ -72,7 +72,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
                       class=""
                       dir="auto"
                     >
-                      Team Workflows
+                      Workspace Workflows
                     </span>
                   </label>
                 </div>

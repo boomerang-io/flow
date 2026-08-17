@@ -8,36 +8,36 @@ import type { ReactFlowInstance } from "reactflow";
 import { Box } from "reflexbox";
 import ReactFlow from "Features/Reactflow";
 import { useQuery } from "Hooks";
-import { useTeamContext, RunContextProvider } from "State/context";
+import { useWorkspaceContext, RunContextProvider } from "State/context";
 import { groupTasksByName } from "Utils";
 import { WorkflowEngineMode } from "Constants";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { FlowTeam, PaginatedTaskResponse, RunStatus, Task, WorkflowCanvas, WorkflowRun } from "Types";
+import { FlowWorkspace, PaginatedTaskResponse, RunStatus, Task, WorkflowCanvas, WorkflowRun } from "Types";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
 import WorkflowActions from "./WorkflowActions";
 import styles from "./WorkflowRun.module.scss";
 
 export default function WorkflowRunFeature() {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const queryClient = useQueryClient();
   const history = useHistory();
-  const params = useParams<{ team: string; workflow: string; runId: string }>();
+  const params = useParams<{ workspace: string; workflow: string; runId: string }>();
   const getTasksUrl = serviceUrl.task.queryTasks({
     query: queryString.stringify({ statuses: "active" }),
   });
-  const getTeamTasksUrl = serviceUrl.team.task.queryTasks({
+  const getWorkspaceTasksUrl = serviceUrl.workspace.task.queryTasks({
     query: queryString.stringify({ statuses: "active" }),
-    team: team.name,
+    workspace: workspace.name,
   });
-  const getExecutionUrl = serviceUrl.team.workflowrun.getWorkflowRun({ team: team.name, id: params.runId });
+  const getExecutionUrl = serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id: params.runId });
 
   function executionViewRedirect({ workflowRunRef }: { workflowRunRef: string }) {
     queryClient.invalidateQueries(getExecutionUrl);
     history.push(
       appLink.execution({
-        team: team.name,
+        workspace: workspace.name,
         runId: workflowRunRef,
       }),
     );
@@ -51,9 +51,9 @@ export default function WorkflowRunFeature() {
   });
 
   const tasksQuery = useQuery<PaginatedTaskResponse>(getTasksUrl);
-  const teamTasksQuery = useQuery<PaginatedTaskResponse>(getTeamTasksUrl);
+  const workspaceTasksQuery = useQuery<PaginatedTaskResponse>(getWorkspaceTasksUrl);
 
-  if (tasksQuery.isLoading || teamTasksQuery.isLoading || executionQuery.isLoading) {
+  if (tasksQuery.isLoading || workspaceTasksQuery.isLoading || executionQuery.isLoading) {
     return (
       <>
         <Helmet>
@@ -64,7 +64,7 @@ export default function WorkflowRunFeature() {
     );
   }
 
-  if (tasksQuery.error || teamTasksQuery.error || executionQuery.error) {
+  if (tasksQuery.error || workspaceTasksQuery.error || executionQuery.error) {
     return (
       <Box mt="5rem">
         <Helmet>
@@ -75,12 +75,12 @@ export default function WorkflowRunFeature() {
     );
   }
 
-  if (tasksQuery.data && teamTasksQuery.data && executionQuery.data) {
+  if (tasksQuery.data && workspaceTasksQuery.data && executionQuery.data) {
     return (
       <RevisionContainer
-        team={team.name}
+        workspace={workspace.name}
         workflowRun={executionQuery.data}
-        tasksData={[...tasksQuery.data.content, ...prefixTeamTask(teamTasksQuery.data.content, team)]}
+        tasksData={[...tasksQuery.data.content, ...prefixWorkspaceTask(workspaceTasksQuery.data.content, workspace)]}
         workflowRef={executionQuery.data.workflowName}
         executionViewRedirect={executionViewRedirect}
       />
@@ -91,17 +91,17 @@ export default function WorkflowRunFeature() {
 }
 
 type RevisionProps = {
-  team: string;
+  workspace: string;
   tasksData: Task[];
   workflowRef: string;
   workflowRun: WorkflowRun;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
 };
 
-function RevisionContainer({ team, workflowRun, tasksData, workflowRef, executionViewRedirect }: RevisionProps) {
+function RevisionContainer({ workspace, workflowRun, tasksData, workflowRef, executionViewRedirect }: RevisionProps) {
   const version = workflowRun.workflowVersion;
-  const getWorkflowUrl = serviceUrl.team.workflow.getWorkflowComposeRun({
-    team: team,
+  const getWorkflowUrl = serviceUrl.workspace.workflow.getWorkflowComposeRun({
+    workspace: workspace,
     workflow: workflowRef,
     version,
   });
@@ -215,12 +215,12 @@ function Main(props: MainProps) {
   );
 }
 
-function prefixTeamTask(taskList: Array<Task>, team: FlowTeam) {
+function prefixWorkspaceTask(taskList: Array<Task>, workspace: FlowWorkspace) {
   return taskList.map((task) => {
     return {
       ...task,
-      name: `${team.name}/${task.name}`,
-      displayName: `${team.displayName} - ${task.displayName}`,
+      name: `${workspace.name}/${task.name}`,
+      displayName: `${workspace.displayName} - ${task.displayName}`,
     };
   });
 }

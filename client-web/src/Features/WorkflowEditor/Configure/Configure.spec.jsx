@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import { screen } from "@testing-library/react";
 import Configure from "./index";
-import { teams, profile, summaries } from "ApiServer/fixtures";
+import { workspaces, profile, summaries } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 import { startApiServer } from "ApiServer";
 import { appLink } from "Config/appConfig";
@@ -13,7 +13,7 @@ const props = {
   history: {},
   params: { workflowId: "5eb2c4085a92d80001a16d87" },
   summaryData: summaries[0],
-  teams,
+  workspaces,
   updateSummary: mockfn,
 };
 let server;
@@ -31,8 +31,8 @@ describe("Inputs --- RTL", () => {
     rtlContextRouterRender(
       <FlagsProvider
         features={{
-          TeamManagementEnabled: true,
-          TeamQuotasEnabled: true,
+          WorkspaceManagementEnabled: true,
+          WorkspaceQuotasEnabled: true,
           SettingsEnabled: true,
           UserManagementEnabled: true,
           GlobalParametersEnabled: true,
@@ -40,7 +40,7 @@ describe("Inputs --- RTL", () => {
           TaskManagerEnabled: true,
           EditVerifiedTasksEnabled: true,
           WorkflowTriggersEnabled: true,
-          TeamParametersEnabled: true,
+          WorkspaceParametersEnabled: true,
 
           ActivityEnabled: true,
           InsightsEnabled: true,
@@ -51,7 +51,7 @@ describe("Inputs --- RTL", () => {
             isTutorialActive: false,
             setIsTutorialActive: () => {},
             user: profile,
-            teams,
+            workspaces,
           }}
         >
           <Configure {...props} />

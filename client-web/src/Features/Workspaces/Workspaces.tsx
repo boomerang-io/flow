@@ -17,12 +17,12 @@ import moment from "moment";
 import queryString from "query-string";
 import { Box } from "reflexbox";
 import EmptyState from "Components/EmptyState";
-import TeamCreateContent from "Components/TeamCardCreate/TeamCreateContent";
+import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
 import { useQuery } from "Hooks";
-import styles from "./Teams.module.scss";
+import styles from "./Workspaces.module.scss";
 import { appLink, queryStringOptions, FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { FlowTeam, ModalTriggerProps, PaginatedTeamResponse } from "Types";
+import { FlowWorkspace, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
 
 interface FeatureLayoutProps {
   handleSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -32,21 +32,21 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
   return (
     <>
       <Helmet>
-        <title>Teams</title>
+        <title>Workspaces</title>
       </Helmet>
       <Header
         includeBorder={false}
         header={
           <>
-            <HeaderTitle style={{ margin: "0" }}>Teams</HeaderTitle>
-            <HeaderSubtitle>View and manage teams</HeaderSubtitle>
+            <HeaderTitle style={{ margin: "0" }}>Workspaces</HeaderTitle>
+            <HeaderSubtitle>View and manage workspaces</HeaderSubtitle>
           </>
         }
       />
       <Box p="2rem" className={styles.content}>
         <>
           <Box mb="1rem" maxWidth="20rem">
-            <Search id="flow-teams" labelText="Search teams" placeholder="Search teams" onChange={handleSearchChange} />
+            <Search id="flow-workspaces" labelText="Search workspaces" placeholder="Search workspaces" onChange={handleSearchChange} />
           </Box>
           {children}
         </>
@@ -61,11 +61,11 @@ const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "name";
 const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
 
-const TeamList: React.FC = () => {
+const WorkspaceList: React.FC = () => {
   const history = useHistory();
   const location = useLocation();
   // TODO - make this read only
-  const teamManagementEnabled = useFeature(FeatureFlag.TeamManagementEnabled);
+  const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
 
   /**
    * Prepare queries and get some data
@@ -77,20 +77,20 @@ const TeamList: React.FC = () => {
     sort = DEFAULT_SORT,
   } = queryString.parse(location.search, queryStringOptions);
 
-  const teamsUrlQuery = queryString.stringify({
+  const workspacesUrlQuery = queryString.stringify({
     order,
     page,
     limit,
     sort,
   });
 
-  const teamsUrl = serviceUrl.getTeams({ query: teamsUrlQuery });
+  const workspacesUrl = serviceUrl.getWorkspaces({ query: workspacesUrlQuery });
 
   const {
-    data: teamsData,
-    error: teamsIsError,
-    isLoading: teamsIsLoading,
-  } = useQuery<PaginatedTeamResponse, string>(teamsUrl);
+    data: workspacesData,
+    error: workspacesIsError,
+    isLoading: workspacesIsLoading,
+  } = useQuery<PaginatedWorkspaceResponse, string>(workspacesUrl);
 
   /**
    * Function that updates url search history to persist state
@@ -121,21 +121,21 @@ const TeamList: React.FC = () => {
     debouncedSearch(query);
   }
 
-  function handleNavigateToTeam(team: string) {
+  function handleNavigateToWorkspace(workspace: string) {
     history.push({
-      pathname: appLink.manageTeam({ team }),
+      pathname: appLink.manageWorkspace({ workspace }),
       state: {
         navList: [
           {
             to: location.pathname,
-            text: "Teams",
+            text: "Workspaces",
           },
         ],
       },
     });
   }
 
-  if (teamsIsLoading) {
+  if (workspacesIsLoading) {
     return (
       <FeatureLayout handleSearchChange={handleSearchChange}>
         <DataTableSkeleton />
@@ -143,7 +143,7 @@ const TeamList: React.FC = () => {
     );
   }
 
-  if (teamsIsError) {
+  if (workspacesIsError) {
     return (
       <FeatureLayout handleSearchChange={handleSearchChange}>
         <ErrorMessage />
@@ -152,36 +152,36 @@ const TeamList: React.FC = () => {
   }
   return (
     <FeatureLayout handleSearchChange={handleSearchChange}>
-      {teamsData && teamManagementEnabled && (
+      {workspacesData && workspaceManagementEnabled && (
         <ComposedModal
           composedModalProps={{ shouldCloseOnOverlayClick: true }}
           modalHeaderProps={{
-            title: "Create Team",
-            subtitle: `Scope your workflows and parameters to a team`,
+            title: "Create Workspace",
+            subtitle: `Scope your workflows and parameters to a workspace`,
           }}
           modalTrigger={({ openModal }: ModalTriggerProps) => (
             <Button
               iconDescription="Create new version"
               onClick={openModal}
               size="md"
-              disabled={teamsIsError || teamsIsLoading}
-              className={styles.createTeamTrigger}
+              disabled={workspacesIsError || workspacesIsLoading}
+              className={styles.createWorkspaceTrigger}
             >
-              Create Team
+              Create Workspace
             </Button>
           )}
         >
           {({ closeModal }) => {
-            return <TeamCreateContent closeModal={closeModal} />;
+            return <WorkspaceCreateContent closeModal={closeModal} />;
           }}
         </ComposedModal>
       )}
-      <TeamListTable
-        handleNavigateToTeam={handleNavigateToTeam}
+      <WorkspaceListTable
+        handleNavigateToWorkspace={handleNavigateToWorkspace}
         location={location}
         sort={sort}
         order={order}
-        tableData={teamsData}
+        tableData={workspacesData}
         updateHistorySearch={updateHistorySearch}
       />
     </FeatureLayout>
@@ -207,8 +207,8 @@ const headers = [
   { header: "Status", key: "status" },
 ];
 
-interface TeamListTableProps {
-  handleNavigateToTeam: Function;
+interface WorkspaceListTableProps {
+  handleNavigateToWorkspace: Function;
   location: any;
   sort: string;
   order: string;
@@ -221,7 +221,7 @@ interface TeamListTableProps {
   updateHistorySearch: Function;
 }
 
-function TeamListTable(props: TeamListTableProps) {
+function WorkspaceListTable(props: WorkspaceListTableProps) {
   const { number, size, totalElements, content } = props.tableData;
   const { TableContainer, Table, TableHead, TableRow, TableBody, TableCell, TableHeader } = DataTable;
 
@@ -244,7 +244,7 @@ function TeamListTable(props: TeamListTableProps) {
   return content.length > 0 ? (
     <>
       <DataTable
-        rows={content.map((t: FlowTeam) => ({ ...t, id: t.name }))}
+        rows={content.map((t: FlowWorkspace) => ({ ...t, id: t.name }))}
         headers={headers}
         render={({ rows, headers, getHeaderProps }: any) => (
           <TableContainer>
@@ -272,10 +272,10 @@ function TeamListTable(props: TeamListTableProps) {
                   <TableRow
                     className={styles.tableRow}
                     key={row.id}
-                    data-testid="team-list-table-row"
-                    onClick={() => props.handleNavigateToTeam(row.id)}
+                    data-testid="workspace-list-table-row"
+                    onClick={() => props.handleNavigateToWorkspace(row.id)}
                     onKeyDown={(e: React.SyntheticEvent) =>
-                      isAccessibleKeyboardEvent(e) && props.handleNavigateToTeam(row.id)
+                      isAccessibleKeyboardEvent(e) && props.handleNavigateToWorkspace(row.id)
                     }
                     tabIndex={-1}
                   >
@@ -321,8 +321,8 @@ function TeamListTable(props: TeamListTableProps) {
       />
     </>
   ) : (
-    <EmptyState message={null} title="No teams found" />
+    <EmptyState message={null} title="No workspaces found" />
   );
 }
 
-export default TeamList;
+export default WorkspaceList;

@@ -11,7 +11,7 @@ type Props = {
 };
 
 function WorkflowActions({ workflow }: Props) {
-  const { team } = useParams<{ team: string }>();
+  const { workspace } = useParams<{ workspace: string }>();
   const history = useHistory();
 
   return (
@@ -20,7 +20,7 @@ function WorkflowActions({ workflow }: Props) {
       <Button
         kind="ghost"
         size="md"
-        onClick={() => history.push(appLink.editorCanvas({ team, workflow: workflow.name }))}
+        onClick={() => history.push(appLink.editorCanvas({ workspace, workflow: workflow.name }))}
         renderIcon={Edit}
       >
         Edit Workflow

@@ -8,7 +8,7 @@ import { vi } from "vitest";
 import { AppContextProvider } from "State/context";
 import {
   featureFlags as featureFlagsFixture,
-  teams as teamsFixture,
+  workspaces as workspacesFixture,
   profile as userFixture,
   userWorkflows as userWorkflowsFixture,
 } from "ApiServer/fixtures";
@@ -56,7 +56,7 @@ function rtlRouterRender(
 
 const defaultContextValue = {
   user: userFixture,
-  teams: teamsFixture,
+  workspaces: workspacesFixture,
   userWorkflows: userWorkflowsFixture,
 };
 
@@ -67,11 +67,11 @@ const defaultFeatures = {
   EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
   GlobalParametersEnabled: feature["global.parameters"],
   InsightsEnabled: feature["insights"],
-  TeamManagementEnabled: feature["team.management"],
-  TeamParametersEnabled: feature["team.parameters"],
-  TeamTasksEnabled: feature["team.tasks"],
+  WorkspaceManagementEnabled: feature["workspace.management"],
+  WorkspaceParametersEnabled: feature["workspace.parameters"],
+  WorkspaceTasksEnabled: feature["workspace.tasks"],
   UserManagementEnabled: feature["user.management"],
-  TeamQuotasEnabled: feature["team.quotas"],
+  WorkspaceQuotasEnabled: feature["workspace.quotas"],
   WorkflowTokensEnabled: feature["workflow.tokens"],
   WorkflowTriggersEnabled: feature["workflow.triggers"],
 };

@@ -29,9 +29,9 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
 
   const removeUserMutator = useMutation(resolver.deleteUser);
 
-  const teamCount = user.teams.length;
+  const workspaceCount = user.workspaces.length;
 
-  const removeTeam = async () => {
+  const removeWorkspace = async () => {
     try {
       await removeUserMutator.mutateAsync({ userId: user.id });
       notify(
@@ -71,15 +71,15 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
         editModal={
           <ComposedModal
             composedModalProps={{
-              containerClassName: styles.teamNameModalContainer,
+              containerClassName: styles.workspaceNameModalContainer,
             }}
             modalHeaderProps={{
-              title: "Change team name",
+              title: "Change workspace name",
               //   subtitle:
               //     "Try to keep it concise to avoid truncation in the sidebar. You must make sure the name is valid before it can be updated.",
             }}
             modalTrigger={({ openModal }) => (
-              <button className={styles.teamEditIcon} onClick={openModal} data-testid="open-change-name-modal">
+              <button className={styles.workspaceEditIcon} onClick={openModal} data-testid="open-change-name-modal">
                 <Edit />
               </button>
             )}
@@ -160,8 +160,8 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
             This action cannot be undone. Be sure you want to permanently delete your access.
           </p>
           <ConfirmModal
-            affirmativeAction={() => removeTeam()}
-            affirmativeButtonProps={{ disabled: teamCount > 0, kind: "danger", "data-testid": "confirm-close-account" }}
+            affirmativeAction={() => removeWorkspace()}
+            affirmativeButtonProps={{ disabled: workspaceCount > 0, kind: "danger", "data-testid": "confirm-close-account" }}
             title="Delete Account?"
             negativeText="Cancel"
             affirmativeText="Delete"
@@ -173,7 +173,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
                 onClick={openModal}
                 renderIcon={Close}
                 size="md"
-                data-testid="close-team"
+                data-testid="close-workspace"
               >
                 Delete Account
               </Button>
@@ -181,12 +181,12 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
           >
             Permanently remove your account and all of its contents. Deleting your account cannot be undone. Are you
             sure you want to do this?
-            {teamCount > 0 && (
+            {workspaceCount > 0 && (
               <InlineNotification
                 className={styles.inlineDelete}
                 lowContrast
                 kind="error"
-                subtitle={`You still have access to ${teamCount} teams. You must leave or delete all of your teams before you can delete your account.`}
+                subtitle={`You still have access to ${workspaceCount} workspaces. You must leave or delete all of your workspaces before you can delete your account.`}
               />
             )}
           </ConfirmModal>

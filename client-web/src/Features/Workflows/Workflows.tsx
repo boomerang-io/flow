@@ -12,21 +12,21 @@ import EmptyState from "Components/EmptyState";
 import WorkflowCard from "Components/WorkflowCard";
 import { WorkflowCardSkeleton } from "Components/WorkflowCard";
 import WorkflowsHeader from "Components/WorkflowsHeader";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { WorkflowView } from "Constants";
 import { FeatureFlag, appLink } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowTeam, ModalTriggerProps, PaginatedWorkflowResponse, Workflow } from "Types";
+import { FlowWorkspace, ModalTriggerProps, PaginatedWorkflowResponse, Workflow } from "Types";
 import WorkflowQuotaModalContent from "./WorkflowQuotaModalContent";
 import styles from "./workflows.module.scss";
 
 export default function Workflows() {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const history = useHistory();
   const location = useLocation();
 
-  const getWorkflowsUrl = serviceUrl.team.workflow.getWorkflows({
-    team: team?.name,
+  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({
+    workspace: workspace?.name,
     query: `statuses=active,inactive`,
   });
   const workflowsQuery = useQuery<PaginatedWorkflowResponse, string>({
@@ -34,8 +34,8 @@ export default function Workflows() {
     queryFn: resolver.query(getWorkflowsUrl),
   });
 
-  // TODO: make this smarter bc we shouldn't get to the route without an active team
-  if (!team) {
+  // TODO: make this smarter bc we shouldn't get to the route without an active workspace
+  if (!workspace) {
     return history.push(appLink.home());
   }
 
@@ -57,7 +57,7 @@ export default function Workflows() {
 
   if (workflowsQuery.isLoading) {
     return (
-      <Layout team={team} handleUpdateFilter={handleUpdateFilter} searchQuery={safeSearchQuery} workflowList={[]}>
+      <Layout workspace={workspace} handleUpdateFilter={handleUpdateFilter} searchQuery={safeSearchQuery} workflowList={[]}>
         <WorkflowCardSkeleton />
       </Layout>
     );
@@ -65,7 +65,7 @@ export default function Workflows() {
 
   if (workflowsQuery.error) {
     return (
-      <Layout team={team} handleUpdateFilter={handleUpdateFilter} searchQuery={safeSearchQuery} workflowList={[]}>
+      <Layout workspace={workspace} handleUpdateFilter={handleUpdateFilter} searchQuery={safeSearchQuery} workflowList={[]}>
         <Error />
       </Layout>
     );
@@ -74,13 +74,13 @@ export default function Workflows() {
   if (workflowsQuery.data) {
     return (
       <Layout
-        team={team}
+        workspace={workspace}
         handleUpdateFilter={handleUpdateFilter}
         searchQuery={safeSearchQuery}
         workflowList={workflowsQuery.data.content}
       >
         <WorkflowContent
-          team={team}
+          workspace={workspace}
           searchQuery={safeSearchQuery}
           workflowList={workflowsQuery.data.content}
           getWorkflowsUrl={getWorkflowsUrl}
@@ -93,7 +93,7 @@ export default function Workflows() {
 }
 
 interface LayoutProps {
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   children: React.ReactNode;
   handleUpdateFilter: (args: { query: string }) => void;
   searchQuery: string;
@@ -108,7 +108,7 @@ function Layout(props: LayoutProps) {
         subtitle="Your playground to create, execute, and collaborate on workflows. Work smarter with automation."
         handleUpdateFilter={props.handleUpdateFilter}
         searchQuery={props.searchQuery}
-        team={props.team}
+        workspace={props.workspace}
         workflowList={props.workflowList}
         viewType={WorkflowView.Workflow}
       />
@@ -120,16 +120,16 @@ function Layout(props: LayoutProps) {
 }
 
 interface WorkflowContentProps {
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   searchQuery: string;
   workflowList: Array<Workflow>;
   getWorkflowsUrl: string;
 }
 
-const WorkflowContent: React.FC<WorkflowContentProps> = ({ team, searchQuery, workflowList, getWorkflowsUrl }) => {
+const WorkflowContent: React.FC<WorkflowContentProps> = ({ workspace, searchQuery, workflowList, getWorkflowsUrl }) => {
   const hasWorkflows = workflowList.length > 0;
-  const teamQuotasEnabled = useFeature(FeatureFlag.TeamQuotasEnabled);
-  const hasReachedWorkflowLimit = team.quotas.maxWorkflowCount <= team.quotas.currentWorkflowCount;
+  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
+  const hasReachedWorkflowLimit = workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
 
   const filteredWorkflowList = Boolean(searchQuery)
     ? matchSorter(workflowList, searchQuery, { keys: ["name"] })
@@ -142,17 +142,17 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ team, searchQuery, wo
   return (
     <>
       <hgroup className={styles.header}>
-        {teamQuotasEnabled ? (
-          <div className={styles.teamQuotaContainer}>
+        {workspaceQuotasEnabled ? (
+          <div className={styles.workspaceQuotaContainer}>
             <div className={styles.quotaDescriptionContainer}>
               <p
-                className={styles.teamQuotaText}
-              >{`Workflow quota - ${team.quotas.currentWorkflowCount} of ${team.quotas.maxWorkflowCount} used`}</p>
+                className={styles.workspaceQuotaText}
+              >{`Workflow quota - ${workspace.quotas.currentWorkflowCount} of ${workspace.quotas.maxWorkflowCount} used`}</p>
               {hasReachedWorkflowLimit && (
                 <TooltipHover
                   direction="top"
                   tooltipText={
-                    "This team has reached the maximum number of Workflows allowed. Contact your administrator or team owner to increase the quota, or delete a Workflow to create a new one."
+                    "This workspace has reached the maximum number of Workflows allowed. Contact your administrator or workspace owner to increase the quota, or delete a Workflow to create a new one."
                   }
                 >
                   <WarningAlt className={styles.warningIcon} />
@@ -165,7 +165,7 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ team, searchQuery, wo
                 shouldCloseOnOverlayClick: true,
               }}
               modalHeaderProps={{
-                title: `Team quotas - ${team.displayName}`,
+                title: `Workspace quotas - ${workspace.displayName}`,
                 subtitle:
                   "Quotas are set by the administrator. If you have a concern about your allotted amounts, contact an administrator.",
               }}
@@ -175,14 +175,14 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ team, searchQuery, wo
                 </Button>
               )}
             >
-              {({ closeModal }) => <WorkflowQuotaModalContent closeModal={closeModal} quotas={team.quotas} />}
+              {({ closeModal }) => <WorkflowQuotaModalContent closeModal={closeModal} quotas={workspace.quotas} />}
             </ComposedModal>
           </div>
         ) : null}
 
         {hasWorkflows === false ? (
           <p className={styles.noWorkflowsMessage}>
-            This team doesn’t have any Workflows - be the first to take the plunge.
+            This workspace doesn’t have any Workflows - be the first to take the plunge.
           </p>
         ) : null}
       </hgroup>
@@ -190,8 +190,8 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ team, searchQuery, wo
         {filteredWorkflowList.map((workflow) => (
           <WorkflowCard
             key={workflow.name}
-            quotas={team.quotas}
-            teamName={team.name}
+            quotas={workspace.quotas}
+            workspaceName={workspace.name}
             viewType={WorkflowView.Workflow}
             workflow={workflow}
             getWorkflowsUrl={getWorkflowsUrl}
@@ -199,7 +199,7 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ team, searchQuery, wo
         ))}
         <CreateWorkflow
           hasReachedWorkflowLimit={hasReachedWorkflowLimit}
-          team={team}
+          workspace={workspace}
           viewType={WorkflowView.Workflow}
           workflows={workflowList}
         />

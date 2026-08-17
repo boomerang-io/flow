@@ -28,7 +28,7 @@ import EmptyState from "Components/EmptyState";
 import { arrayPagination, sortByProp } from "Utils/arrayHelper";
 import { TokenType } from "Constants";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import type { FlowTeam, Token } from "Types";
+import type { FlowWorkspace, Token } from "Types";
 import styles from "./tokens.module.scss";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -66,7 +66,7 @@ const HEADERS = [
   },
 ];
 
-function Tokens({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
+function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -74,7 +74,7 @@ function Tokens({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
   const [sortDirection, setSortDirection] = useState("DESC");
 
   const getTokensUrl = serviceUrl.getTokens({
-    query: queryString.stringify({ types: "team", principals: team?.name }),
+    query: queryString.stringify({ types: "workspace", principals: workspace?.name }),
   });
 
   const {
@@ -84,7 +84,7 @@ function Tokens({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
   } = useQuery({
     queryKey: getTokensUrl,
     queryFn: resolver.query(getTokensUrl),
-    enabled: Boolean(team?.name),
+    enabled: Boolean(workspace?.name),
   });
 
   const { mutateAsync: deleteTokenMutator } = useMutation(resolver.deleteToken, {
@@ -110,7 +110,7 @@ function Tokens({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
   const deleteToken = async (tokenId: string) => {
     try {
       await deleteTokenMutator({ tokenId });
-      notify(<ToastNotification kind="success" title="Delete Team Token" subtitle={`Token successfully deleted`} />);
+      notify(<ToastNotification kind="success" title="Delete Workspace Token" subtitle={`Token successfully deleted`} />);
     } catch (error) {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);
     }
@@ -156,9 +156,9 @@ function Tokens({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
   const { TableContainer, Table, TableHead, TableRow, TableBody, TableCell, TableHeader } = DataTable;
 
   return (
-    <section aria-label={`${team.displayName} Team Tokens`} className={styles.container}>
+    <section aria-label={`${workspace.displayName} Workspace Tokens`} className={styles.container}>
       <Helmet>
-        <title>{`Tokens - ${team.displayName}`}</title>
+        <title>{`Tokens - ${workspace.displayName}`}</title>
       </Helmet>
       <>
         {!canEdit ? (
@@ -168,14 +168,14 @@ function Tokens({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
               hideCloseButton={true}
               kind="info"
               title="Read-only"
-              subtitle="The team may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
+              subtitle="The workspace may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
               scenes."
             />
           </section>
         ) : null}
         <div className={styles.buttonContainer}>
-          {team && (
-            <CreateToken type={TokenType.Team} principal={team.name} getTokensUrl={getTokensUrl} disabled={!canEdit} />
+          {workspace && (
+            <CreateToken type={TokenType.Workspace} principal={workspace.name} getTokensUrl={getTokensUrl} disabled={!canEdit} />
           )}
         </div>
         {tokensData?.content?.length > 0 ? (

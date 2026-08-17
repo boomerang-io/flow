@@ -43,9 +43,9 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
               </a>
               <a
                 class="cds--tabs__nav-item cds--tabs__nav-link"
-                href="/workflows/teams"
+                href="/workflows/workspaces"
               >
-                Team Workflows
+                Workspace Workflows
               </a>
             </ul>
           </nav>
@@ -100,7 +100,7 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
           class="cds--layer-two _search_4d119f"
         >
           <div
-            aria-labelledby="search-team-workflows-search"
+            aria-labelledby="search-workspace-workflows-search"
             class="cds--search cds--search--md"
             role="search"
           >
@@ -125,16 +125,16 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
             </div>
             <label
               class="cds--label"
-              for="search-team-workflows"
-              id="search-team-workflows-search"
+              for="search-workspace-workflows"
+              id="search-workspace-workflows-search"
             >
               Search for a workflow
             </label>
             <input
               autocomplete="off"
               class="cds--search-input"
-              data-testid="workflows-team-search"
-              id="search-team-workflows"
+              data-testid="workflows-workspace-search"
+              id="search-workspace-workflows"
               placeholder="Search for a workflow"
               role="searchbox"
               type="text"

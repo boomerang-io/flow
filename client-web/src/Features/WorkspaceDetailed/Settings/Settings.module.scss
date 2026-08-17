@@ -27,7 +27,7 @@
   }
 }
 
-.editTeamNameContainer {
+.editWorkspaceNameContainer {
   margin: 2rem 0;
 }
 
@@ -36,13 +36,13 @@
   align-items: center;
 }
 
-.teamNameLabel {
+.workspaceNameLabel {
   color: var(--cds-icon-02);
   font-size: 0.75rem;
   margin-bottom: 0.5rem;
 }
 
-.teamEditIcon {
+.workspaceEditIcon {
   cursor: pointer;
   height: 1rem;
   margin-left: 1rem;
@@ -55,7 +55,7 @@
   }
 }
 
-.teamNameModalContainer {
+.workspaceNameModalContainer {
   max-height: 22rem;
 
   :global .cds--modal-content {
@@ -183,7 +183,7 @@
   max-width: 41.2rem;
 }
 
-.closeTeamButton {
+.closeWorkspaceButton {
   margin-left: -0.5rem;
   padding: 0.1875rem 0.5rem !important;
 }

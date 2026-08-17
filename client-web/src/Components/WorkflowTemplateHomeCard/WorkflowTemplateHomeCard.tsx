@@ -8,16 +8,16 @@ import { useMutation, useQueryClient } from "react-query";
 import { Link, useHistory } from "react-router-dom";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowTeam, ModalTriggerProps, WorkflowTemplate } from "Types";
+import { FlowWorkspace, ModalTriggerProps, WorkflowTemplate } from "Types";
 import CreateWorkflowContent from "./CreateWorkflowContent";
 import styles from "./workflowTemplateHomeCard.module.scss";
 
 interface WorkflowTemplateCardProps {
   template: WorkflowTemplate;
-  teams: Array<FlowTeam>;
+  workspaces: Array<FlowWorkspace>;
 }
 
-const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, teams }) => {
+const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, workspaces }) => {
   const history = useHistory();
 
   const {
@@ -27,16 +27,16 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, t
   } = useMutation(resolver.postCreateWorkflow);
 
   const handleCreateWorkflow = async (
-    team: string,
+    workspace: string,
     requestBody: { name: string; description: string; icon: string },
   ) => {
     try {
       const data = { ...template, ...requestBody };
       const { data: workflow } = await createTemplateWorkflowMutator({
-        team: team,
+        workspace: workspace,
         body: data,
       });
-      history.push(appLink.editorCanvas({ team: team, workflow: workflow.name }));
+      history.push(appLink.editorCanvas({ workspace: workspace, workflow: workflow.name }));
       notify(
         <ToastNotification
           kind="success"
@@ -89,7 +89,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, t
               createWorkflow={handleCreateWorkflow}
               createError={createTemplateWorkflowError}
               isLoading={isLoading}
-              teams={teams}
+              workspaces={workspaces}
             />
           )}
         </ComposedModal>

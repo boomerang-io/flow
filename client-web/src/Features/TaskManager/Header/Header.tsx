@@ -195,7 +195,7 @@ const Header: React.FC<HeaderProps> = ({
   isActive,
   isLoading,
 }) => {
-  const params: { team: string; name: string; version: string } = useParams();
+  const params: { workspace: string; name: string; version: string } = useParams();
 
   const TaskIcon = taskIcons.find((icon) => icon.name === selectedTaskTemplate.icon);
   const versionCount = changelog.length;
@@ -212,9 +212,9 @@ const Header: React.FC<HeaderProps> = ({
             exact
             label="Overview"
             to={
-              params.team
+              params.workspace
                 ? appLink.manageTasksEdit({
-                    team: params.team,
+                    workspace: params.workspace,
                     name: selectedTaskTemplate.name,
                     version: selectedTaskTemplate.version.toString(),
                   })
@@ -228,9 +228,9 @@ const Header: React.FC<HeaderProps> = ({
             exact
             label="Editor"
             to={
-              params.team
+              params.workspace
                 ? appLink.manageTasksYaml({
-                    team: params.team,
+                    workspace: params.workspace,
                     name: selectedTaskTemplate.name,
                     version: selectedTaskTemplate.version.toString(),
                   })
@@ -408,7 +408,7 @@ const Header: React.FC<HeaderProps> = ({
             content={
               <div className={styles.tooltipContainer}>
                 <strong>Community Task</strong>
-                <p style={{ marginTop: "0.5rem" }}>Contributed by a member and not validated by the Platform team.</p>
+                <p style={{ marginTop: "0.5rem" }}>Contributed by a member and not validated by the Platform workspace.</p>
               </div>
             }
           >

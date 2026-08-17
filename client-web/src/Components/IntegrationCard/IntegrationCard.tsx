@@ -11,12 +11,12 @@ import ModalContent from "./ModalContent";
 import styles from "./integrationCard.module.scss";
 
 interface IntegrationCardProps {
-  teamName: string;
+  workspaceName: string;
   data: any;
   url: string;
 }
 
-const IntegrationCard: React.FC<IntegrationCardProps> = ({ teamName, data, url }) => {
+const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, url }) => {
   const queryClient = useQueryClient();
   const [errorMessage, seterrorMessage] = useState(null);
 
@@ -24,7 +24,7 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ teamName, data, url }
 
   const handleDisable = async (closeModal: () => void) => {
     const requestBody = {
-      team: teamName,
+      workspace: workspaceName,
       ref: data.ref,
     };
     try {
@@ -69,7 +69,7 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ teamName, data, url }
       // queryClient.invalidateQueries(url);
       var link = data.link;
       if (data.name === "GitHub") {
-        link = `${link}?state=${encodeURIComponent(btoa(teamName))}`;
+        link = `${link}?state=${encodeURIComponent(btoa(workspaceName))}`;
       }
       window.open(link, "_blank");
       closeModal();

@@ -63,7 +63,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
       composedModalProps={{ containerClassName: styles.modal }}
       modalHeaderProps={{
         title: "Add members",
-        subtitle: `Add members to this team`,
+        subtitle: `Add members to this workspace`,
       }}
     >
       {({ closeModal }: { closeModal: Function }) => (

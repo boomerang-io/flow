@@ -8,7 +8,7 @@ import {
 import { Link } from "react-router-dom";
 import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
-import { FlowTeam, WorkflowViewType, Workflow } from "Types";
+import { FlowWorkspace, WorkflowViewType, Workflow } from "Types";
 import styles from "./workflowsHeader.module.scss";
 
 interface WorkflowsHeaderProps {
@@ -17,7 +17,7 @@ interface WorkflowsHeaderProps {
   subtitle: string;
   handleUpdateFilter: (args: { query: string }) => void;
   searchQuery: string | string[] | null;
-  team?: FlowTeam | null;
+  workspace?: FlowWorkspace | null;
   workflowList: Array<Workflow>;
   viewType: WorkflowViewType;
 }
@@ -28,7 +28,7 @@ const WorkflowsHeader: React.FC<WorkflowsHeaderProps> = ({
   subtitle,
   handleUpdateFilter,
   searchQuery,
-  team,
+  workspace,
   workflowList,
   viewType,
 }) => {
@@ -46,7 +46,7 @@ const WorkflowsHeader: React.FC<WorkflowsHeaderProps> = ({
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{team ? team.displayName : "---"}</p>
+          <p>{workspace ? workspace.displayName : "---"}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );
@@ -69,8 +69,8 @@ const WorkflowsHeader: React.FC<WorkflowsHeaderProps> = ({
           <Layer className={styles.search}>
             <Search
               disabled={!workflowsCount || workflowsCount === 0}
-              data-testid="workflows-team-search"
-              id="search-team-workflows"
+              data-testid="workflows-workspace-search"
+              id="search-workspace-workflows"
               labelText={`Search for a ${viewType}`}
               onChange={handleOnSearchInputChange}
               placeholder={`Search for a ${viewType}`}

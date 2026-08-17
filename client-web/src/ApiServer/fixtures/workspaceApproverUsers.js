@@ -1,4 +1,4 @@
-const teamApproverUsers = [
+const workspaceApproverUsers = [
   {
     userId: "5b69f3adf170ce00018106b6",
     userEmail: "isabela.kawabata@ibm.com",
@@ -56,4 +56,4 @@ const teamApproverUsers = [
   },
  ];
 
- export default teamApproverUsers;
+ export default workspaceApproverUsers;

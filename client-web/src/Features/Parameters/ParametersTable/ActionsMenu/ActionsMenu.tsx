@@ -52,7 +52,7 @@ const OverflowMenuComponent: React.FC<OverflowMenuComponentProps> = ({
         flipped
         ariaLabel="Overflow menu"
         iconDescription="Overflow menu icon"
-        data-testid="team-parameter-menu-button"
+        data-testid="workspace-parameter-menu-button"
       >
         {menuOptions.map((option, index) => (
           <OverflowMenuItem key={index} {...option} />

@@ -1,1 +1,1 @@
-export { default } from "./NoTeamsRedirectPrompt";
+export { default } from "./NoWorkspacesRedirectPrompt";

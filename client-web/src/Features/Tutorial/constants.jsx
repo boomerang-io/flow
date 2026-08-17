@@ -4,7 +4,7 @@ export const defaultScreens = {
 
 export const homeScreens = {
   WELCOME: 0,
-  TEAMS: 1,
+  WORKSPACES: 1,
   SEARCH_FILTER: 2,
   SIDENAV: 3,
   DONE: 4,
@@ -173,15 +173,15 @@ export const messageConfig = {
 };
 
 export const homeGuideConfig = {
-  teams: {
-    containerClassName: "c-onboard-screen--teams",
-    title: "Teams' workflows",
-    message: "See all of your workflows by team and execute them.",
+  workspaces: {
+    containerClassName: "c-onboard-screen--workspaces",
+    title: "Workspaces' workflows",
+    message: "See all of your workflows by workspace and execute them.",
   },
   search_filter: {
     containerClassName: "c-onboard-screen--search_filter",
     title: "Search and Filter",
-    message: "Search a workflow's name or filter workflows by team.",
+    message: "Search a workflow's name or filter workflows by workspace.",
   },
   sidenav: {
     containerClassName: "c-onboard-screen--sidenav",
@@ -223,7 +223,7 @@ export const activityGuideConfig = {
   activity_filters: {
     containerClassName: "c-onboard-screen--activity_filters",
     title: "Filters",
-    message: "Filter activity by status, team, workflow, trigger and date.",
+    message: "Filter activity by status, workspace, workflow, trigger and date.",
   },
   activity_numbers: {
     containerClassName: "c-onboard-screen--activity_numbers",

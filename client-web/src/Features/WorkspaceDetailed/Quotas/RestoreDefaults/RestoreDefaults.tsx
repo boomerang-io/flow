@@ -11,14 +11,14 @@ import React from "react";
 import { useMutation, useQuery } from "react-query";
 import styles from "./RestoreDefaults.module.scss";
 import { resolver, serviceUrl } from "Config/servicesConfig";
-import { ModalTriggerProps, FlowTeam } from "Types";
+import { ModalTriggerProps, FlowWorkspace } from "Types";
 
 interface RestoreDefaultsProps {
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   disabled: boolean;
 }
 
-const RestoreDefaults: React.FC<RestoreDefaultsProps> = ({ team, disabled }) => {
+const RestoreDefaults: React.FC<RestoreDefaultsProps> = ({ workspace, disabled }) => {
   return (
     <ComposedModal
       composedModalProps={{
@@ -34,27 +34,27 @@ const RestoreDefaults: React.FC<RestoreDefaultsProps> = ({ team, disabled }) => 
         </Button>
       )}
     >
-      {({ closeModal }) => <RestoreModalContent closeModal={closeModal} teamName={team.name} />}
+      {({ closeModal }) => <RestoreModalContent closeModal={closeModal} workspaceName={workspace.name} />}
     </ComposedModal>
   );
 };
 
 interface restoreDefaultProps {
   closeModal: Function;
-  teamName: string;
+  workspaceName: string;
 }
 
-const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, teamName }) => {
+const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, workspaceName }) => {
   const defaultQuotasQuery = useQuery({
-    queryKey: serviceUrl.getTeamQuotaDefaults(),
-    queryFn: resolver.query(serviceUrl.getTeamQuotaDefaults()),
+    queryKey: serviceUrl.getWorkspaceQuotaDefaults(),
+    queryFn: resolver.query(serviceUrl.getWorkspaceQuotaDefaults()),
   });
 
-  const resetQuotasMutator = useMutation(resolver.deleteTeamQuotas);
+  const resetQuotasMutator = useMutation(resolver.deleteWorkspaceQuotas);
 
   const handleRestoreDefaultQuota = async () => {
     try {
-      await resetQuotasMutator.mutateAsync({ team: teamName });
+      await resetQuotasMutator.mutateAsync({ workspace: workspaceName });
       closeModal();
       notify(
         <ToastNotification

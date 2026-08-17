@@ -24,7 +24,7 @@ const tokens = {
     },
     {
       id: "60e3a0b4e4b0c9b6e0b0b0b2",
-      type: "team",
+      type: "workspace",
       name: "test-token",
       description: null,
       creationDate: "2023-07-06T10:16:16.410+00:00",
@@ -33,17 +33,17 @@ const tokens = {
       principal: null,
       permissions: [
         {
-          scope: "team",
+          scope: "workspace",
           principal: "64b8d5a5040e205ee3383ab1",
           permissions: ["**/read", "**/write", "**/action"],
         },
         {
-          scope: "team",
+          scope: "workspace",
           principal: "61d67184c124cb2c190f4696",
           permissions: ["**/read", "**/write"],
         },
         {
-          scope: "team",
+          scope: "workspace",
           principal: "64b8d63b040e205ee3383abd",
           permissions: ["**/**"],
         },
@@ -51,7 +51,7 @@ const tokens = {
     },
     {
       id: "60e3a0b4e4b0c9b6e0b0b0b3",
-      type: "team",
+      type: "workspace",
       name: "test-token",
       description: null,
       creationDate: "2023-07-06T11:27:32.626+00:00",

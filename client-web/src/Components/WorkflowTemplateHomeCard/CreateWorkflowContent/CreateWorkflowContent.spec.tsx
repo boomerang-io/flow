@@ -8,7 +8,7 @@ const props = {
   createWorkflow: mockfn,
   isLoading: false,
   names: [],
-  teams: [{ value: "test", label: "Test" }],
+  workspaces: [{ value: "test", label: "Test" }],
   scope: "user",
   formData: {
     selectedWorkflow: {

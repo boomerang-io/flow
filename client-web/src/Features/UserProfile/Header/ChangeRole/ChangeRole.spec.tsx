@@ -11,7 +11,7 @@ const user = {
   type: PlatformRole.Admin,
   firstLoginDate: "2020-07-21T15:35:25.369+00:00",
   lastLoginDate: "2020-07-21T15:35:25.369+00:00",
-  flowTeams: [],
+  flowWorkspaces: [],
   status: UserStatus.Active,
   ifFirstVisit: false,
   platformRole: "admin",

@@ -1,6 +1,6 @@
 // Vitest Snapshot v1
 
-exports[`Teams --- Snapshot Test > Capturing Snapshot of Teams 1`] = `
+exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
 <body
   id="app"
 >
@@ -18,12 +18,12 @@ exports[`Teams --- Snapshot Test > Capturing Snapshot of Teams 1`] = `
             class="cds--bmrg-feature-header-title"
             style="margin: 0px;"
           >
-            Teams
+            Workspaces
           </h1>
           <p
             class="cds--bmrg-feature-header-title"
           >
-            View and manage Flow teams
+            View and manage Flow workspaces
           </p>
         </div>
       </section>
@@ -35,7 +35,7 @@ exports[`Teams --- Snapshot Test > Capturing Snapshot of Teams 1`] = `
         class="css-2o893x"
       >
         <div
-          aria-labelledby="flow-teams-search"
+          aria-labelledby="flow-workspaces-search"
           class="cds--search cds--search--md"
           role="search"
         >
@@ -60,16 +60,16 @@ exports[`Teams --- Snapshot Test > Capturing Snapshot of Teams 1`] = `
           </div>
           <label
             class="cds--label"
-            for="flow-teams"
-            id="flow-teams-search"
+            for="flow-workspaces"
+            id="flow-workspaces-search"
           >
-            Search teams
+            Search workspaces
           </label>
           <input
             autocomplete="off"
             class="cds--search-input"
-            id="flow-teams"
-            placeholder="Search teams"
+            id="flow-workspaces"
+            placeholder="Search workspaces"
             role="searchbox"
             type="text"
             value=""
@@ -98,11 +98,11 @@ exports[`Teams --- Snapshot Test > Capturing Snapshot of Teams 1`] = `
         </div>
       </div>
       <button
-        class="_createTeamTrigger_861edb cds--btn cds--btn--md cds--btn--primary"
+        class="_createWorkspaceTrigger_861edb cds--btn cds--btn--md cds--btn--primary"
         tabindex="0"
         type="button"
       >
-        Create Team
+        Create Workspace
       </button>
       <div
         class="cds--data-table-container"

@@ -11,7 +11,7 @@ import ScheduleCreator from "Components/ScheduleCreator";
 import ScheduleEditor from "Components/ScheduleEditor";
 import SchedulePanelDetail from "Components/SchedulePanelDetail";
 import SchedulePanelList from "Components/SchedulePanelList";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { scheduleStatusOptions } from "Constants";
 import { queryStringOptions } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
@@ -31,7 +31,7 @@ interface ScheduleProps {
 }
 
 export default function ScheduleView(props: ScheduleProps) {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const [activeSchedule, setActiveSchedule] = React.useState<ScheduleUnion | undefined>();
   const [newSchedule, setNewSchedule] = React.useState<Pick<ScheduleDate, "dateSchedule" | "type"> | undefined>();
   const [isPanelOpen, setIsPanelOpen] = React.useState(false);
@@ -51,7 +51,7 @@ export default function ScheduleView(props: ScheduleProps) {
     },
     queryStringOptions,
   );
-  const getSchedulesUrl = serviceUrl.team.schedule.getSchedules({ team: team?.name, query: schedulesUrlQuery });
+  const getSchedulesUrl = serviceUrl.workspace.schedule.getSchedules({ workspace: workspace?.name, query: schedulesUrlQuery });
 
   const schedulesQuery = useQuery<PaginatedSchedulesResponse, string>({
     queryKey: getSchedulesUrl,
@@ -78,7 +78,7 @@ export default function ScheduleView(props: ScheduleProps) {
     },
     queryStringOptions,
   );
-  const getCalendarUrl = serviceUrl.team.schedule.getSchedulesCalendars({ team: team?.name, query: calendarUrlQuery });
+  const getCalendarUrl = serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace: workspace?.name, query: calendarUrlQuery });
 
   const calendarQuery = useQuery<Array<CalendarEntry>, string>({
     queryKey: getCalendarUrl,

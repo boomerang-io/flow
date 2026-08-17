@@ -26,7 +26,7 @@ import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
 import { Switch, Route, Redirect, useHistory, useLocation, Link } from "react-router-dom";
 import HeaderWidget from "Components/HeaderWidget";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { ActionType } from "Constants";
 import { approvalStatusOptions } from "Constants/filterOptions";
 import { AppPath, appLink, queryStringOptions } from "Config/appConfig";
@@ -42,7 +42,7 @@ const DEFAULT_FROM_DATE = moment(new Date()).subtract("24", "hours").unix();
 const DEFAULT_TO_DATE = moment(new Date()).unix();
 
 function Actions() {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const history = useHistory();
   const location = useLocation();
 
@@ -51,7 +51,7 @@ function Actions() {
     toDate: DEFAULT_TO_DATE,
   });
 
-  const actionsSummaryUrl = serviceUrl.team.action.getActionsSummary({ team: team?.name, query: summaryQuery });
+  const actionsSummaryUrl = serviceUrl.workspace.action.getActionsSummary({ workspace: workspace?.name, query: summaryQuery });
 
   /** Define constants */
   const actionType = location.pathname.includes("/manual") ? ActionType.Manual : ActionType.Approval;
@@ -93,7 +93,7 @@ function Actions() {
       limit,
       sort,
       statuses,
-      teams: team?.name,
+      workspaces: workspace?.name,
       types: actionType,
       workflows,
       fromDate,
@@ -111,8 +111,8 @@ function Actions() {
     queryStringOptions,
   );
 
-  const actionsFilterSummaryUrl = serviceUrl.team.action.getActionsSummary({
-    team: team?.name,
+  const actionsFilterSummaryUrl = serviceUrl.workspace.action.getActionsSummary({
+    workspace: workspace?.name,
     query: actionsUrlSummaryQuery,
   });
 
@@ -125,7 +125,7 @@ function Actions() {
   const approvalsNumber = actionsFilterSummaryData ? actionsFilterSummaryData.approvals : 0;
   const manualTasksNumber = actionsFilterSummaryData ? actionsFilterSummaryData.manual : 0;
 
-  const actionsUrl = serviceUrl.team.action.getActions({ team: team?.name, query: actionsUrlQuery });
+  const actionsUrl = serviceUrl.workspace.action.getActions({ workspace: workspace?.name, query: actionsUrlQuery });
 
   /** Get table data */
   const actionsQuery = useQuery({
@@ -134,7 +134,7 @@ function Actions() {
   });
 
   /** Retrieve Workflows */
-  const getWorkflowsUrl = serviceUrl.team.workflow.getWorkflows({ team: team?.name });
+  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
   const {
     data: workflowsData,
     isLoading: workflowsIsLoading,
@@ -217,7 +217,7 @@ function Actions() {
     return sortByProp(workflowsList, "name", "ASC");
   }
 
-  if (team && workflowsData.content) {
+  if (workspace && workflowsData.content) {
     const { workflows = "", statuses = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
     const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
@@ -230,7 +230,7 @@ function Actions() {
             <Link to={appLink.home()}>Home</Link>
           </BreadcrumbItem>
           <BreadcrumbItem isCurrentPage>
-            <p>{team.displayName}</p>
+            <p>{workspace.displayName}</p>
           </BreadcrumbItem>
         </Breadcrumb>
       );
@@ -293,7 +293,7 @@ function Actions() {
                 exact
                 label={`Approvals (${approvalsNumber})`}
                 to={{
-                  pathname: appLink.actionsApprovals({ team: team.name }),
+                  pathname: appLink.actionsApprovals({ workspace: workspace.name }),
                   search: location.search,
                 }}
               />
@@ -301,7 +301,7 @@ function Actions() {
                 exact
                 label={`Manual Tasks (${manualTasksNumber})`}
                 to={{
-                  pathname: appLink.actionsManual({ team: team.name }),
+                  pathname: appLink.actionsManual({ workspace: workspace.name }),
                   search: location.search,
                 }}
               />

@@ -35,7 +35,7 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       insights: Model,
       integrations: Model,
       installations: Model,
-      manageTeam: Model,
+      manageWorkspace: Model,
       manageUser: Model,
       quotas: Model,
       revision: Model,
@@ -43,10 +43,10 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       summary: Model,
       task: Model,
       taskYaml: Model,
-      team: Model,
-      teamApproverUsers: Model,
-      teamNameValidate: Model,
-      teamProperties: Model,
+      workspace: Model,
+      workspaceApproverUsers: Model,
+      workspaceNameValidate: Model,
+      workspaceProperties: Model,
       tokens: Model,
       flowNavigation: Model,
       workflowCompose: Model,
@@ -78,23 +78,23 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return schema.db.flowNavigation;
       });
 
-      // this.get(serviceUrl.getMyTeams({ query: null }), (schema) => {
-      //   return schema.db.myTeams[0];
+      // this.get(serviceUrl.getMyWorkspaces({ query: null }), (schema) => {
+      //   return schema.db.myWorkspaces[0];
       // });
 
       this.get(serviceUrl.getFeatureFlags(), (schema) => {
         return schema.db.featureFlags[0];
       });
 
-      this.get(serviceUrl.team.schedule.getSchedule({ team: ":team", query: null }), (schema) => {
+      this.get(serviceUrl.workspace.schedule.getSchedule({ workspace: ":workspace", query: null }), (schema) => {
         return schema.db.workflowSchedules;
       });
 
-      this.get(serviceUrl.team.schedule.getSchedules({ team: ":team", query: null }), (schema) => {
+      this.get(serviceUrl.workspace.schedule.getSchedules({ workspace: ":workspace", query: null }), (schema) => {
         return schema.db.workflowSchedules[0];
       });
 
-      this.get(serviceUrl.team.workflow.getAvailableParameters({ team: ":team", name: ":name" }), (schema) => {
+      this.get(serviceUrl.workspace.workflow.getAvailableParameters({ workspace: ":workspace", name: ":name" }), (schema) => {
         return schema.db.availableParameters[0].data;
       });
 
@@ -102,16 +102,16 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return schema.db.workflowTemplates[0];
       });
 
-      this.get(serviceUrl.team.workflow.getWorkflows({ team: null, query: null }), (schema) => {
+      this.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: null, query: null }), (schema) => {
         return schema.db.workflows[0];
       });
 
-      // this.get(serviceUrl.getTeamQuotas({ id: ":id" }), (schema) => {
+      // this.get(serviceUrl.getWorkspaceQuotas({ id: ":id" }), (schema) => {
       //   return schema.db.quotas[0];
       // });
 
-      this.get(serviceUrl.getTeams({ query: null }), (schema) => {
-        return schema.db.teams[0];
+      this.get(serviceUrl.getWorkspaces({ query: null }), (schema) => {
+        return schema.db.workspaces[0];
       });
 
       this.put(serviceUrl.putActivationApp(), () => {
@@ -144,66 +144,66 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       });
 
       /**
-       * Team Propertiies
+       * Workspace Propertiies
        */
-      this.get(serviceUrl.team.resourceTeamParameters({ team: ":team" }), (schema, request) => {
-        let { team } = request.params;
-        let property = schema.teamProperties.find(team);
+      this.get(serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace" }), (schema, request) => {
+        let { workspace } = request.params;
+        let property = schema.workspaceProperties.find(workspace);
         return property && property.properties ? property.properties : [];
       });
-      this.post(serviceUrl.team.resourceTeamParameters({ team: ":team" }), (schema, request) => {
+      this.post(serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace" }), (schema, request) => {
         /**
-         * find team record, update the list of properties for that team
+         * find workspace record, update the list of properties for that workspace
          */
-        let { team } = request.params;
+        let { workspace } = request.params;
         let body = JSON.parse(request.requestBody);
-        let activeTeamProperty = schema.teamProperties.find(team);
-        let currentProperties = activeTeamProperty.attrs.properties;
+        let activeWorkspaceProperty = schema.workspaceProperties.find(workspace);
+        let currentProperties = activeWorkspaceProperty.attrs.properties;
         currentProperties.push({ id: uuid(), ...body });
-        activeTeamProperty.update({ properties: currentProperties });
-        return schema.teamProperties.all();
+        activeWorkspaceProperty.update({ properties: currentProperties });
+        return schema.workspaceProperties.all();
       });
       this.patch(
-        serviceUrl.team.resourceTeamParameters({ team: ":team", configurationId: ":configurationId" }),
+        serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace", configurationId: ":configurationId" }),
         (schema, request) => {
           /**
-           * find team record, update the list of properties for that team
+           * find workspace record, update the list of properties for that workspace
            */
-          let { team, configurationId } = request.params;
+          let { workspace, configurationId } = request.params;
           let body = JSON.parse(request.requestBody);
-          let activeTeamProperty = schema.teamProperties.find(team);
-          let currentProperties = activeTeamProperty.attrs.properties;
+          let activeWorkspaceProperty = schema.workspaceProperties.find(workspace);
+          let currentProperties = activeWorkspaceProperty.attrs.properties;
           let foundIndex = currentProperties.findIndex((prop) => prop.id === configurationId);
           currentProperties[foundIndex] = body;
-          activeTeamProperty.update({ properties: currentProperties });
-          return schema.teamProperties.all();
+          activeWorkspaceProperty.update({ properties: currentProperties });
+          return schema.workspaceProperties.all();
         },
       );
       this.delete(
-        serviceUrl.team.resourceTeamParameters({ team: ":team", configurationId: ":configurationId" }),
+        serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace", configurationId: ":configurationId" }),
         (schema, request) => {
           /**
-           * find team record, update the list of properties for that team
+           * find workspace record, update the list of properties for that workspace
            */
-          let { team, configurationId } = request.params;
-          let activeTeamProperty = schema.teamProperties.find(team);
-          let currentProperties = activeTeamProperty.attrs.properties;
+          let { workspace, configurationId } = request.params;
+          let activeWorkspaceProperty = schema.workspaceProperties.find(workspace);
+          let currentProperties = activeWorkspaceProperty.attrs.properties;
           let newProperties = currentProperties.filter((prop) => prop.id !== configurationId);
-          activeTeamProperty.update({ properties: newProperties });
-          return schema.teamProperties.all();
+          activeWorkspaceProperty.update({ properties: newProperties });
+          return schema.workspaceProperties.all();
         },
       );
 
       /**
        * Insights
        */
-      this.get(serviceUrl.team.getInsights({ team: ":team", query: null }), (schema, request) => {
+      this.get(serviceUrl.workspace.getInsights({ workspace: ":workspace", query: null }), (schema, request) => {
         //grab the querystring from the end of the request url
         const query = request.url.substring(14);
         // eslint-disable-next-line
-        const { fromDate = null, toDate = null, team = null } = queryString.parse(query);
-        const activeTeam = team && schema.db.myTeams.find(team);
-        let activeExecutions = activeTeam && schema.db.insights[0].executions.filter((t) => t.name === team.name);
+        const { fromDate = null, toDate = null, workspace = null } = queryString.parse(query);
+        const activeWorkspace = workspace && schema.db.myWorkspaces.find(workspace);
+        let activeExecutions = activeWorkspace && schema.db.insights[0].executions.filter((t) => t.name === workspace.name);
         return activeExecutions ? { ...schema.db.insights[0], executions: activeExecutions } : schema.db.insights[0];
       });
 
@@ -249,40 +249,40 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       this.post(serviceUrl.task.postValidateYaml(), (schema) => {
         return new Response(200, {}, { errors: ["Name is already taken"] });
       });
-      this.put(serviceUrl.task.putTask({ replace: "true", team: ":team" }), (schema, request) => {
+      this.put(serviceUrl.task.putTask({ replace: "true", workspace: ":workspace" }), (schema, request) => {
         return {};
       });
 
       /**
        * Workflows
        */
-      this.post(serviceUrl.team.workflow.postCreateWorkflow({ team: ":team" }), (schema, request) => {
+      this.post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace: ":workspace" }), (schema, request) => {
         let body = JSON.parse(request.requestBody);
         let workflow = { ...body, id: uuid(), createdDate: Date.now(), revisionCount: 1, status: "active" };
-        if (body.flowTeamId) {
-          let flowTeam = schema.myTeams.findBy({ id: body.flowTeamId });
-          const teamWorkflows = [...flowTeam.workflows];
-          teamWorkflows.push(workflow);
-          flowTeam.update({ workflows: teamWorkflows });
+        if (body.flowWorkspaceId) {
+          let flowWorkspace = schema.myWorkspaces.findBy({ id: body.flowWorkspaceId });
+          const workspaceWorkflows = [...flowWorkspace.workflows];
+          workspaceWorkflows.push(workflow);
+          flowWorkspace.update({ workflows: workspaceWorkflows });
           return schema.summaries.create(workflow);
         }
         return {};
       });
 
       this.get(
-        serviceUrl.team.workflow.getWorkflowCompose({ team: ":team", name: ":name", version: null }),
+        serviceUrl.workspace.workflow.getWorkflowCompose({ workspace: ":workspace", name: ":name", version: null }),
         (schema, request) => {
           let { id } = request.params;
           return schema.db.workflowCompose.findBy({ id });
         },
       );
 
-      this.del(serviceUrl.team.workflow.getWorkflow({ team: ":team", name: ":name" }), (schema, request) => {
+      this.del(serviceUrl.workspace.workflow.getWorkflow({ workspace: ":workspace", name: ":name" }), (schema, request) => {
         let { name } = request.params;
-        let flowTeam = schema.myTeams.where((team) => team.workflows.find((workflow) => workflow.name === name));
-        let { attrs } = flowTeam.models[0];
-        const teamWorkflows = attrs.workflows.filter((workflow) => workflow.name !== name);
-        flowTeam.update({ workflows: teamWorkflows });
+        let flowWorkspace = schema.myWorkspaces.where((workspace) => workspace.workflows.find((workflow) => workflow.name === name));
+        let { attrs } = flowWorkspace.models[0];
+        const workspaceWorkflows = attrs.workflows.filter((workflow) => workflow.name !== name);
+        flowWorkspace.update({ workflows: workspaceWorkflows });
         return schema.db.summaries.remove({ name: name });
       });
 
@@ -295,34 +295,34 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       });
 
       // Workflow Changelog
-      this.get(serviceUrl.team.workflow.getWorkflowChangelog({ team: ":team", name: ":name" }), (schema, request) => {
+      this.get(serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace: ":workspace", name: ":name" }), (schema, request) => {
         return schema.db.changelogs;
       });
 
       /**
        * Activity
        */
-      this.get(serviceUrl.team.workflowrun.getWorkflowRuns({ team: ":team", query: null }), (schema) => {
+      this.get(serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace: ":workspace", query: null }), (schema) => {
         return schema.db.workflowRuns[0];
       });
 
-      this.get(serviceUrl.team.workflowrun.getWorkflowRunCount({ team: ":team", query: null }), (schema, request) => {
+      this.get(serviceUrl.workspace.workflowrun.getWorkflowRunCount({ workspace: ":workspace", query: null }), (schema, request) => {
         return schema.db.workflowRunCount[0];
       });
 
-      this.get(serviceUrl.team.workflowrun.getWorkflowRun({ team: ":team", id: ":id" }), (schema, request) => {
+      this.get(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }), (schema, request) => {
         return schema.db.workflowExecution[0];
       });
 
       this.post(
-        serviceUrl.team.workflow.postSubmitWorkflow({ team: ":team", name: ":name", body: null }),
+        serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace: ":workspace", name: ":name", body: null }),
         (schema, request) => {
           return schema.db.workflowExecution[0];
         },
       );
 
       this.delete(
-        serviceUrl.team.workflowrun.deleteCancelWorkflow({ team: ":team", runId: ":id" }),
+        serviceUrl.workspace.workflowrun.deleteCancelWorkflow({ workspace: ":workspace", runId: ":id" }),
         (schema, request) => {
           return {};
         },
@@ -331,91 +331,91 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       /**
        * Actions
        */
-      this.get(serviceUrl.team.action.getActionsSummary({ team: ":team", query: null }), (schema) => {
+      this.get(serviceUrl.workspace.action.getActionsSummary({ workspace: ":workspace", query: null }), (schema) => {
         return schema.db.actionsSummary[0];
       });
 
-      this.get(serviceUrl.team.action.getActions({ team: ":team", query: null }), (schema, request) => {
+      this.get(serviceUrl.workspace.action.getActions({ workspace: ":workspace", query: null }), (schema, request) => {
         const { type } = request.queryParams;
         if (type === "approval") return schema.db.approvals[0];
         if (type === "task") return schema.db.manualTasks[0];
         return {};
       });
 
-      this.put(serviceUrl.team.action.putAction(), () => {
+      this.put(serviceUrl.workspace.action.putAction(), () => {
         return {};
       });
 
       /**
        * Approvers Group
        */
-      this.get(serviceUrl.resourceApproverGroups({ team: ":team" }), (schema) => {
+      this.get(serviceUrl.resourceApproverGroups({ workspace: ":workspace" }), (schema) => {
         return schema.db.approverGroups;
       });
 
       //Delete approver group
-      this.delete(serviceUrl.resourceApproverGroups({ team: ":team", groupId: ":groupId" }), (schema, request) => {
+      this.delete(serviceUrl.resourceApproverGroups({ workspace: ":workspace", groupId: ":groupId" }), (schema, request) => {
         const { groupId } = request.params;
         const approverGroup = schema.approverGroups.find(groupId);
         approverGroup.destroy();
       });
 
       //Create approver group
-      this.post(serviceUrl.resourceApproverGroups({ team: ":team" }), (schema, request) => {
+      this.post(serviceUrl.resourceApproverGroups({ workspace: ":workspace" }), (schema, request) => {
         const body = JSON.parse(request.requestBody);
         schema.approverGroups.create({ groupId: uuid(), ...body });
         return schema.approverGroups.all();
       });
 
       //Update approver group
-      this.put(serviceUrl.resourceApproverGroups({ team: ":team" }), (schema, request) => {
+      this.put(serviceUrl.resourceApproverGroups({ workspace: ":workspace" }), (schema, request) => {
         return {};
       });
 
       /**
-       * Manage Team
+       * Manage Workspace
        */
 
-      this.post(serviceUrl.postTeamValidateName(), (schema, request) => {
+      this.post(serviceUrl.postWorkspaceValidateName(), (schema, request) => {
         return new Response(422, {}, { errors: ["Name is already taken"] });
       });
 
-      this.get(serviceUrl.resourceTeam({ team: ":team" }), (schema, request) => {
-        // let { teamId } = request.params;
-        return schema.db.team[0];
+      this.get(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), (schema, request) => {
+        // let { workspaceId } = request.params;
+        return schema.db.workspace[0];
       });
 
-      this.patch(serviceUrl.resourceTeam({ team: ":team" }), (schema, request) => {
-        // let { teamId } = request.params;
+      this.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), (schema, request) => {
+        // let { workspaceId } = request.params;
         let body = JSON.parse(request.requestBody);
-        // let activeTeam = schema.db.myTeams[0].content.find(t => t.id === teamId);
-        let team = schema.db.team[0];
-        let activeUsers = team.users.filter((user) => body.includes(user.id));
-        team.update({ users: activeUsers });
-        return team;
+        // let activeWorkspace = schema.db.myWorkspaces[0].content.find(t => t.id === workspaceId);
+        let workspace = schema.db.workspace[0];
+        let activeUsers = workspace.users.filter((user) => body.includes(user.id));
+        workspace.update({ users: activeUsers });
+        return workspace;
       });
 
-      this.put(serviceUrl.resourceTeam({ team: ":team" }), (schema, request) => {
-        // let { teamId } = request.params;
+      this.put(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), (schema, request) => {
+        // let { workspaceId } = request.params;
         // let body = JSON.parse(request.requestBody);
-        // let activeTeam = schema.db.myTeams[0].content.find(t => t.id === teamId);
-        return schema.db.team[0];
+        // let activeWorkspace = schema.db.myWorkspaces[0].content.find(t => t.id === workspaceId);
+        return schema.db.workspace[0];
       });
 
-      this.patch(serviceUrl.getManageTeamLabels({ team: ":team" }), (schema, request) => {
-        // let { teamId } = request.params;
+      this.patch(serviceUrl.getManageWorkspaceLabels({ workspace: ":workspace" }), (schema, request) => {
+        // let { workspaceId } = request.params;
         let body = JSON.parse(request.requestBody);
-        // let activeTeam = schema.db.myTeams[0].content.find(t => t.id === teamId);
-        let team = schema.db.team[0];
-        team.update({ labels: body });
-        return team;
+        // let activeWorkspace = schema.db.myWorkspaces[0].content.find(t => t.id === workspaceId);
+        let workspace = schema.db.workspace[0];
+        workspace.update({ labels: body });
+        return workspace;
       });
 
-      this.post(serviceUrl.getManageTeamsCreate(), (schema, request) => {
+      this.post(serviceUrl.getManageWorkspacesCreate(), (schema, request) => {
         let body = JSON.parse(request.requestBody);
-        const teams = schema.teams.first();
-        const updatedRecords = teams.records.concat({ id: uuid(), isActive: true, ...body });
-        teams.update({ records: updatedRecords });
+        const workspaces = schema.workspaces.first();
+        const updatedRecords = workspaces.records.concat({ id: uuid(), isActive: true, ...body });
+        workspaces.update({ records: updatedRecords });
         return {};
       });
 
@@ -454,7 +454,7 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return {};
       });
 
-      this.get(serviceUrl.getTeamQuotaDefaults(), (schema, request) => {
+      this.get(serviceUrl.getWorkspaceQuotaDefaults(), (schema, request) => {
         return {
           maxWorkflowCount: 20,
           maxWorkflowRunMonthly: 150,
@@ -509,7 +509,7 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       /**
        * Integrations
        */
-      this.get(serviceUrl.getIntegrations({ team: null }), (schema, request) => {
+      this.get(serviceUrl.getIntegrations({ workspace: null }), (schema, request) => {
         return schema.db.integrations;
       });
 
@@ -517,7 +517,7 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return schema.db.installations[0];
       });
 
-      this.get(serviceUrl.getGitHubAppInstallationForTeam({ team: null }), (schema, request) => {
+      this.get(serviceUrl.getGitHubAppInstallationForWorkspace({ workspace: null }), (schema, request) => {
         return schema.db.installations[0];
       });
     },

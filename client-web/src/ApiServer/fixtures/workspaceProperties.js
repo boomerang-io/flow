@@ -1,4 +1,4 @@
-const teamProperties = [
+const workspaceProperties = [
   {
     id: "5e3a35ad8c222700018ccd39",
     properties: [
@@ -42,4 +42,4 @@ const teamProperties = [
   },
 ];
 
-export default teamProperties;
+export default workspaceProperties;

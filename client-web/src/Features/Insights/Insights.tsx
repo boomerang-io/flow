@@ -20,7 +20,7 @@ import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
 import { useHistory, useLocation, Link } from "react-router-dom";
 import ErrorDragon from "Components/ErrorDragon";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { timeSecondsToTimeUnit } from "Utils/timeSecondsToTimeUnit";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions, appLink } from "Config/appConfig";
@@ -31,7 +31,7 @@ import type {
   MultiSelectItem,
   MultiSelectItems,
   Workflow,
-  FlowTeam,
+  FlowWorkspace,
 } from "Types";
 import CarbonDonutChart from "./CarbonDonutChart";
 import CarbonLineChart from "./CarbonLineChart";
@@ -61,7 +61,7 @@ const defaultFromDate = moment().subtract(3, "months").valueOf();
 const defaultToDate = moment().endOf("day").valueOf();
 
 export default function Insights() {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const history = useHistory();
   const location = useLocation();
 
@@ -85,7 +85,7 @@ export default function Insights() {
     queryStringOptions,
   );
 
-  const insightsUrl = serviceUrl.team.getInsights({ team: team?.name, query: insightsSearchParams });
+  const insightsUrl = serviceUrl.workspace.getInsights({ workspace: workspace?.name, query: insightsSearchParams });
   const insightsQuery = useQuery<WorkflowInsightsRes>({
     queryKey: insightsUrl,
     queryFn: resolver.query(insightsUrl),
@@ -98,7 +98,7 @@ export default function Insights() {
   }
 
   /** Retrieve Workflows */
-  const getWorkflowsUrl = serviceUrl.team.workflow.getWorkflows({ team: team?.name });
+  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
   const {
     data: workflowsData,
     isLoading: workflowsIsLoading,
@@ -110,7 +110,7 @@ export default function Insights() {
 
   if (insightsQuery.error || workflowsIsError) {
     return (
-      <InsightsContainer team={team}>
+      <InsightsContainer workspace={workspace}>
         <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
         <ErrorDragon />
       </InsightsContainer>
@@ -119,7 +119,7 @@ export default function Insights() {
 
   if (insightsQuery.isLoading || workflowsIsLoading) {
     return (
-      <InsightsContainer team={team}>
+      <InsightsContainer workspace={workspace}>
         <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
         <div className={styles.cardPlaceholderContainer}>
           <SkeletonPlaceholder className={styles.cardPlaceholder} />
@@ -134,7 +134,7 @@ export default function Insights() {
 
   if (insightsQuery.data) {
     return (
-      <InsightsContainer team={team}>
+      <InsightsContainer workspace={workspace}>
         <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
         <Graphs data={insightsQuery.data} statuses={statuses as RunStatus | Array<RunStatus> | null} />
       </InsightsContainer>
@@ -144,11 +144,11 @@ export default function Insights() {
   return null;
 }
 interface InsightsContainerProps {
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   children: React.ReactNode;
 }
 
-function InsightsContainer({ team, children }: InsightsContainerProps) {
+function InsightsContainer({ workspace, children }: InsightsContainerProps) {
   const NavigationComponent = () => {
     return (
       <Breadcrumb noTrailingSlash>
@@ -156,7 +156,7 @@ function InsightsContainer({ team, children }: InsightsContainerProps) {
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{team.displayName}</p>
+          <p>{workspace.displayName}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );

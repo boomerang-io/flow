@@ -8,27 +8,27 @@ import styles from "./RemoveMember.module.scss";
 
 interface RemoveMemberProps {
   member: FlowUser;
-  teamName: string;
+  workspaceName: string;
   userId: string;
 }
 
-const RemoveMember: React.FC<RemoveMemberProps> = ({ member, teamName, userId }) => {
+const RemoveMember: React.FC<RemoveMemberProps> = ({ member, workspaceName, userId }) => {
   const queryClient = useQueryClient();
-  const leaveTeamMutator = useMutation(resolver.deleteTeamMembers);
+  const leaveWorkspaceMutator = useMutation(resolver.deleteWorkspaceMembers);
 
-  async function handleCreateLeaveTeamRequest() {
-    const leaveTeamData: Array<Member> = [
+  async function handleCreateLeaveWorkspaceRequest() {
+    const leaveWorkspaceData: Array<Member> = [
       {
         id: member.id,
       },
     ];
     try {
-      await leaveTeamMutator.mutateAsync({ team: teamName, body: leaveTeamData });
-      queryClient.invalidateQueries(serviceUrl.resourceTeam({ team: teamName }));
+      await leaveWorkspaceMutator.mutateAsync({ workspace: workspaceName, body: leaveWorkspaceData });
+      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspaceName }));
       notify(
         <ToastNotification
           title="Remove User Requested"
-          subtitle="Request to remove user from team successful"
+          subtitle="Request to remove user from workspace successful"
           kind="success"
           data-cy="b-toast_remove_success"
         />,
@@ -37,7 +37,7 @@ const RemoveMember: React.FC<RemoveMemberProps> = ({ member, teamName, userId })
       notify(
         <ToastNotification
           title="Something's Wrong"
-          subtitle="Request to remove user from team failed"
+          subtitle="Request to remove user from workspace failed"
           kind="error"
           data-cy="b-toast_remove_error"
         />,
@@ -47,14 +47,14 @@ const RemoveMember: React.FC<RemoveMemberProps> = ({ member, teamName, userId })
 
   return (
     <ConfirmModal
-      affirmativeAction={handleCreateLeaveTeamRequest}
-      affirmativeButtonProps={{ kind: "danger", disabled: leaveTeamMutator.isLoading, "data-testid": "remove-member" }}
-      negativeButtonsProps={{ disabled: leaveTeamMutator.isLoading }}
-      children={`Are you sure you want to remove ${member.name} from ${teamName}? The user will lose access to all team workflows.`}
-      title={`Remove from Team`}
+      affirmativeAction={handleCreateLeaveWorkspaceRequest}
+      affirmativeButtonProps={{ kind: "danger", disabled: leaveWorkspaceMutator.isLoading, "data-testid": "remove-member" }}
+      negativeButtonsProps={{ disabled: leaveWorkspaceMutator.isLoading }}
+      children={`Are you sure you want to remove ${member.name} from ${workspaceName}? The user will lose access to all workspace workflows.`}
+      title={`Remove from Workspace`}
       modalTrigger={({ openModal }) => (
         <button className={styles.removeButton} disabled={member.id === userId} onClick={openModal}>
-          Remove from Team
+          Remove from Workspace
           <TrashCan fill={"#f94d56"} />
         </button>
       )}

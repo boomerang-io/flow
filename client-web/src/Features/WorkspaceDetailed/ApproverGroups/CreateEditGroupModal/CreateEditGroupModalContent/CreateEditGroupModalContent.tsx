@@ -15,7 +15,7 @@ import { Button, Checkbox, InlineNotification, ModalBody, ModalFooter, Search } 
 import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { resolver } from "Config/servicesConfig";
 import { AddAlt, SubtractAlt } from "@carbon/react/icons";
-import { FlowTeam, Approver, ApproverGroup } from "Types";
+import { FlowWorkspace, Approver, ApproverGroup } from "Types";
 import styles from "./createEditGroupModalContent.module.scss";
 
 type RenderMembersListProps = {
@@ -63,14 +63,14 @@ function RenderMembersList({ members, approvers, setFieldValue }: RenderMembersL
       <Search
         labelText="member search"
         id="member-search"
-        placeholder="Search for Team Members by name or email"
+        placeholder="Search for Workspace Members by name or email"
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
       />
       <p className={styles.selectedUsers}>{`${approvers.length} users selected`}</p>
       <ul>
         <Checkbox
-          id="teamMembers"
-          labelText="Team members"
+          id="workspaceMembers"
+          labelText="Workspace members"
           checked={allMembersChecked}
           className={styles.selectAllMembers}
           onChange={handleSelectAllMembers}
@@ -146,7 +146,7 @@ function RenderEditMembersInGroup({ members, title, isRemove = false }: RenderEd
           />
         ) : (
           <div className={styles.noMembers}>
-            <p className={styles.noMembersTitle}>{isRemove ? "No group members" : "No team members"}</p>
+            <p className={styles.noMembersTitle}>{isRemove ? "No group members" : "No workspace members"}</p>
             <p className={styles.noMembersMessage}>
               {isRemove ? "Add members from the list below in order to save this group" : ""}
             </p>
@@ -162,8 +162,8 @@ type Props = {
   isEdit?: boolean;
   approverGroup?: ApproverGroup;
   approverGroups: string[];
-  team?: FlowTeam | null;
-  teamDetailsUrl: string;
+  workspace?: FlowWorkspace | null;
+  workspaceDetailsUrl: string;
 };
 
 function CreateEditGroupModalContent({
@@ -171,12 +171,12 @@ function CreateEditGroupModalContent({
   isEdit = false,
   approverGroup,
   approverGroups,
-  team,
-  teamDetailsUrl,
+  workspace,
+  workspaceDetailsUrl,
 }: Props) {
   const queryClient = useQueryClient();
-  const teamMembers = team?.members;
-  const approverGroupMutator = useMutation(resolver.patchTeam);
+  const workspaceMembers = workspace?.members;
+  const approverGroupMutator = useMutation(resolver.patchWorkspace);
 
   const { title, message: subtitle } = formatErrorMessage({
     error: approverGroupMutator.error,
@@ -191,10 +191,10 @@ function CreateEditGroupModalContent({
     };
     try {
       const response: any = await approverGroupMutator.mutateAsync({
-        team: team?.name,
+        workspace: workspace?.name,
         body: { approverGroups: [mutatedApproverGroup] },
       });
-      queryClient.invalidateQueries(teamDetailsUrl);
+      queryClient.invalidateQueries(workspaceDetailsUrl);
       if (isEdit) {
         notify(
           <ToastNotification
@@ -235,7 +235,7 @@ function CreateEditGroupModalContent({
         groupName: Yup.string()
           .lowercase()
           .required("Enter a group name")
-          .notOneOf(approverGroups, "Group name must be unique within the Team"),
+          .notOneOf(approverGroups, "Group name must be unique within the Workspace"),
         approvers: Yup.array().min(1, "Groups should have at least 1 member"),
       })}
     >
@@ -243,9 +243,9 @@ function CreateEditGroupModalContent({
         const { dirty, values, touched, errors, isValid, handleChange, handleBlur, handleSubmit, setFieldValue } =
           props;
         const currentGroupMembersIds = values.approvers.map((approver) => approver.id);
-        const sortedTeamMembers = sortBy(teamMembers, ["name"]);
-        const eligibleMembers = teamMembers
-          ? sortedTeamMembers.filter((teamMember) => !currentGroupMembersIds.includes(teamMember.id))
+        const sortedWorkspaceMembers = sortBy(workspaceMembers, ["name"]);
+        const eligibleMembers = workspaceMembers
+          ? sortedWorkspaceMembers.filter((workspaceMember) => !currentGroupMembersIds.includes(workspaceMember.id))
           : [];
 
         return (
@@ -258,7 +258,7 @@ function CreateEditGroupModalContent({
                   labelText="Group name"
                   placeholder="i.e. Senior level approvers"
                   name="groupName"
-                  helperText="Must be unique within the Team"
+                  helperText="Must be unique within the Workspace"
                   value={values.groupName}
                   onBlur={handleBlur}
                   onChange={handleChange}
@@ -269,11 +269,11 @@ function CreateEditGroupModalContent({
               {isEdit ? (
                 <>
                   <RenderEditMembersInGroup title="Group members" members={values.approvers} isRemove />
-                  <RenderEditMembersInGroup title="Team members not in this group" members={eligibleMembers} />
+                  <RenderEditMembersInGroup title="Workspace members not in this group" members={eligibleMembers} />
                 </>
               ) : (
                 <RenderMembersList
-                  members={sortedTeamMembers ?? []}
+                  members={sortedWorkspaceMembers ?? []}
                   approvers={values.approvers}
                   setFieldValue={setFieldValue}
                 />

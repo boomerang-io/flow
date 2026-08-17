@@ -1,1 +1,1 @@
-export { useTeamContext as default } from "State/context";
+export { useWorkspaceContext as default } from "State/context";

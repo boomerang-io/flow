@@ -14,11 +14,11 @@ interface QuotaEditProps {
   inputLabel: string;
   inputUnits: string;
   stepValue: number;
-  teamName: string;
+  workspaceName: string;
   quotaProperty: string;
   quotaValue: number;
   minValue: number;
-  teamDetailsUrl: string;
+  workspaceDetailsUrl: string;
 }
 
 const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
@@ -28,33 +28,33 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
   inputLabel,
   inputUnits,
   stepValue,
-  teamName,
+  workspaceName,
   quotaProperty,
   quotaValue,
   minValue,
-  teamDetailsUrl,
+  workspaceDetailsUrl,
 }) => {
   const queryClient = useQueryClient();
-  const updateTeamMutator = useMutation(resolver.patchUpdateTeam);
+  const updateWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
 
   const handleOnSubmit = async (values: { quotaFormValue: number | string }) => {
     let quotas = { [quotaProperty]: values.quotaFormValue };
     try {
-      await updateTeamMutator.mutateAsync({ team: teamName, body: { quotas: quotas } });
-      queryClient.invalidateQueries(teamDetailsUrl);
+      await updateWorkspaceMutator.mutateAsync({ workspace: workspaceName, body: { quotas: quotas } });
+      queryClient.invalidateQueries(workspaceDetailsUrl);
       closeModal();
       notify(
-        <ToastNotification kind="success" title="Update Team Quotas" subtitle="Team quota successfully updated" />,
+        <ToastNotification kind="success" title="Update Workspace Quotas" subtitle="Workspace quota successfully updated" />,
       );
     } catch {
-      notify(<ToastNotification kind="error" subtitle="Failed to update team quota" title="Something's Wrong" />);
+      notify(<ToastNotification kind="error" subtitle="Failed to update workspace quota" title="Something's Wrong" />);
     }
   };
 
   let buttonText = "Save";
-  if (updateTeamMutator.isLoading) {
+  if (updateWorkspaceMutator.isLoading) {
     buttonText = "Saving...";
-  } else if (updateTeamMutator.error) {
+  } else if (updateWorkspaceMutator.error) {
     buttonText = "Try again";
   }
 
@@ -74,13 +74,13 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
           <ModalForm>
             <ModalBody className={styles.modalBodyContainer}>
               <div className={styles.modalInputContainer}>
-                {updateTeamMutator.isLoading && <Loading />}
+                {updateWorkspaceMutator.isLoading && <Loading />}
                 <dt className={styles.detailedTitle}>{detailedTitle}</dt>
                 <dt className={styles.detailedData}>{detailedData}</dt>
                 <div className={styles.inputContainer}>
                   <NumberInput
-                    id="team-update-name-id"
-                    data-testid="text-input-team-name"
+                    id="workspace-update-name-id"
+                    data-testid="text-input-workspace-name"
                     labelText={inputLabel}
                     value={values.quotaFormValue}
                     step={stepValue}
@@ -96,7 +96,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                   />
                   {inputUnits && <span className={styles.inputUnits}>{inputUnits}</span>}
                 </div>
-                {updateTeamMutator.error && (
+                {updateWorkspaceMutator.error && (
                   <InlineNotification
                     lowContrast
                     kind="error"
@@ -111,7 +111,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                 Cancel
               </Button>
               <Button
-                disabled={errors.quotaFormValue || updateTeamMutator.isLoading || !dirty}
+                disabled={errors.quotaFormValue || updateWorkspaceMutator.isLoading || !dirty}
                 onClick={() => handleOnSubmit(values)}
               >
                 {buttonText}

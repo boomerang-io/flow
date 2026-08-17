@@ -10,7 +10,7 @@ import {
   ToastNotification,
   TooltipHover,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import UpdateTeamName from "./UpdateTeamName";
+import UpdateWorkspaceName from "./UpdateWorkspaceName";
 import {
   StructuredListWrapper,
   StructuredListHead,
@@ -21,7 +21,7 @@ import {
 import { Edit, Close, TrashCan, Add, Copy } from "@carbon/react/icons";
 import CopyToClipboard from "react-copy-to-clipboard";
 import sortBy from "lodash/sortBy";
-import { FlowTeam } from "Types";
+import { FlowWorkspace } from "Types";
 import LabelModal from "Components/LabelModal";
 import { appLink } from "Config/appConfig";
 import styles from "./Settings.module.scss";
@@ -32,23 +32,23 @@ interface Label {
   value: string;
 }
 
-export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: boolean }) {
+export default function Settings({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
   const [copyTokenText, setCopyTokenText] = useState("Copy");
   const queryClient = useQueryClient();
   const history = useHistory();
 
-  const patchTeamMutator = useMutation(resolver.patchUpdateTeam); 
-  const deleteTeamMutator = useMutation(resolver.deleteTeam); 
+  const patchWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace); 
+  const deleteWorkspaceMutator = useMutation(resolver.deleteWorkspace); 
 
-  const handleDeleteTeam = async () => {
+  const handleDeleteWorkspace = async () => {
     try {
-      await deleteTeamMutator.mutateAsync({ team: team.name });
+      await deleteWorkspaceMutator.mutateAsync({ workspace: workspace.name });
       queryClient.invalidateQueries(serviceUrl.getUserProfile());
       history.push(appLink.home());
       notify(
         <ToastNotification
-          title="Delete Team"
-          subtitle={`Request to delete '${team.displayName}' was successful`}
+          title="Delete Workspace"
+          subtitle={`Request to delete '${workspace.displayName}' was successful`}
           kind="success"
         />,
       );
@@ -58,7 +58,7 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
   };
 
   const handleAddLabel = async (value: Label) => {
-    const newLabels = [...teamLabels, value];
+    const newLabels = [...workspaceLabels, value];
     const newLabelsRecord = newLabels.reduce(
       (acc, label) => {
         acc[label.key] = label.value;
@@ -68,12 +68,12 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
     );
 
     try {
-      await patchTeamMutator.mutateAsync({ team: team.name, body: { labels: newLabelsRecord } });
-      queryClient.invalidateQueries(serviceUrl.resourceTeam({ team: team.name }));
+      await patchWorkspaceMutator.mutateAsync({ workspace: workspace.name, body: { labels: newLabelsRecord } });
+      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspace.name }));
       notify(
         <ToastNotification
           title="Add Label"
-          subtitle={`Added label to ${team.displayName} successfully`}
+          subtitle={`Added label to ${workspace.displayName} successfully`}
           kind="success"
         />,
       );
@@ -83,7 +83,7 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
   };
 
   const handleRemoveLabel = async (value: Label) => {
-    const newLabels = teamLabels.filter((label) => label.key !== value.key);
+    const newLabels = workspaceLabels.filter((label) => label.key !== value.key);
     const newLabelsRecord = newLabels.reduce(
       (acc, label) => {
         acc[label.key] = label.value;
@@ -93,12 +93,12 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
     );
 
     try {
-      await patchTeamMutator.mutateAsync({ team: team.name, body: { labels: newLabelsRecord } });
-      queryClient.invalidateQueries(serviceUrl.resourceTeam({ team: team.name }));
+      await patchWorkspaceMutator.mutateAsync({ workspace: workspace.name, body: { labels: newLabelsRecord } });
+      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspace.name }));
       notify(
         <ToastNotification
-          title="Remove Team"
-          subtitle={`Request to close ${team.displayName} successful`}
+          title="Remove Workspace"
+          subtitle={`Request to close ${workspace.displayName} successful`}
           kind="success"
         />,
       );
@@ -108,13 +108,13 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
   };
 
   // Convert Record/Map of Labels to Array of Label Object
-  const teamLabels = team.labels ? Object.entries(team.labels).map(([key, value]) => ({ key, value })) : [];
-  const labelsKeys = team.labels ? Object.keys(team.labels) : [];
+  const workspaceLabels = workspace.labels ? Object.entries(workspace.labels).map(([key, value]) => ({ key, value })) : [];
+  const labelsKeys = workspace.labels ? Object.keys(workspace.labels) : [];
 
   return (
-    <section aria-label="Team Settings" className={styles.settingsContainer}>
+    <section aria-label="Workspace Settings" className={styles.settingsContainer}>
       <Helmet>
-        <title>{`Settings - ${team.displayName}`}</title>
+        <title>{`Settings - ${workspace.displayName}`}</title>
       </Helmet>
       {!canEdit ? (
         <section className={styles.notificationsContainer}>
@@ -123,30 +123,30 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
             hideCloseButton={true}
             kind="info"
             title="Read-only"
-            subtitle="The team may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
+            subtitle="The workspace may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
             scenes."
           />
         </section>
       ) : null}
       <p className={styles.settingsDescription}>
-        Configurable settings for this Team.
+        Configurable settings for this Workspace.
       </p>
       <SettingSection
         title="Basic details"
         editModal={
           <ComposedModal
             composedModalProps={{
-              containerClassName: styles.teamNameModalContainer,
+              containerClassName: styles.workspaceNameModalContainer,
             }}
             modalHeaderProps={{
-              title: "Change team name",
+              title: "Change workspace name",
               //   subtitle:
               //     "Try to keep it concise to avoid truncation in the sidebar. You must make sure the name is valid before it can be updated.",
             }}
             modalTrigger={({ openModal }) => (
               <button
                 disabled={!canEdit}
-                className={styles.teamEditIcon}
+                className={styles.workspaceEditIcon}
                 onClick={openModal}
                 data-testid="open-change-name-modal"
               >
@@ -154,7 +154,7 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
               </button>
             )}
           >
-            {({ closeModal }) => <UpdateTeamName closeModal={closeModal} team={team} />}
+            {({ closeModal }) => <UpdateWorkspaceName closeModal={closeModal} workspace={workspace} />}
           </ComposedModal>
         }
       >
@@ -162,12 +162,12 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
           <div className={styles.detailedListGrid}>
             <div className={styles.detailedListGridItem}>
               <dt className={styles.detailedListTitle}>Display Name</dt>
-              <dd className={styles.detailedListDescription}>{team.displayName}</dd>
+              <dd className={styles.detailedListDescription}>{workspace.displayName}</dd>
             </div>
             <div className={styles.detailedListGridItem}>
               <dt className={styles.detailedListTitle}>Unique Identifier Name</dt>
               <dd className={styles.detailedListDescription}>
-                {team.name}
+                {workspace.name}
                 <TooltipHover direction="top" content={copyTokenText} hideOnClick={false}>
                   <button
                     className={styles.copyButton}
@@ -175,7 +175,7 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
                     onMouseLeave={() => setCopyTokenText("Copy")}
                     type="button"
                   >
-                    <CopyToClipboard text={team.name}>
+                    <CopyToClipboard text={workspace.name}>
                       <Copy fill={"#0072C3"} className={styles.actionIcon} alt="Copy" />
                     </CopyToClipboard>
                   </button>
@@ -201,8 +201,8 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
               </StructuredListRow>
             </StructuredListHead>
             <StructuredListBody>
-              {sortBy(teamLabels, "key").map((label: Label) => {
-                //const labelIndex = teamLabels.findIndex((labelFromList) => labelFromList.key === label.key);
+              {sortBy(workspaceLabels, "key").map((label: Label) => {
+                //const labelIndex = workspaceLabels.findIndex((labelFromList) => labelFromList.key === label.key);
                 return (
                   <StructuredListRow key={label.key}>
                     <StructuredListCell className={styles.labelKeyCell}>{label.key}</StructuredListCell>
@@ -266,17 +266,17 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
         </dl>
         {/* <CreateToken getTokensUrl={getTokensUrl} principal={user.id} type="user" /> */}
       </SettingSection>
-      <SettingSection title="Delete Team">
+      <SettingSection title="Delete Workspace">
         <div className={styles.buttonWithMessageContainer}>
           <p className={styles.buttonHelperText}>
-            Done with your work here? Deleting this team will permanently remove the team, including its Workflows, Task Templates, Runs, and Tokens. Its members will no longer be able to access this team. This action is irreversible - continue with caution.
+            Done with your work here? Deleting this workspace will permanently remove the workspace, including its Workflows, Task Templates, Runs, and Tokens. Its members will no longer be able to access this workspace. This action is irreversible - continue with caution.
           </p>
           <ConfirmModal
-            affirmativeAction={() => handleDeleteTeam()}
-            affirmativeButtonProps={{ kind: "danger", "data-testid": "confirm-close-team" }}
-            title={`Delete ${team.displayName}?`}
+            affirmativeAction={() => handleDeleteWorkspace()}
+            affirmativeButtonProps={{ kind: "danger", "data-testid": "confirm-close-workspace" }}
+            title={`Delete ${workspace.displayName}?`}
             negativeText="Cancel"
-            affirmativeText="Delete Team"
+            affirmativeText="Delete Workspace"
             modalTrigger={({ openModal }) => (
               <Button
                 disabled={!canEdit}
@@ -285,13 +285,13 @@ export default function Settings({ team, canEdit }: { team: FlowTeam; canEdit: b
                 onClick={openModal}
                 renderIcon={Close}
                 size="md"
-                data-testid="close-team"
+                data-testid="close-workspace"
               >
-                Delete Team
+                Delete Workspace
               </Button>
             )}
           >
-            This team will be permanently deleted, along with all of its Workflows, Task Templates, Runs, and Tokens. This action is irreversible - are you sure you want to do this?
+            This workspace will be permanently deleted, along with all of its Workflows, Task Templates, Runs, and Tokens. This action is irreversible - are you sure you want to do this?
           </ConfirmModal>
         </div>
       </SettingSection>

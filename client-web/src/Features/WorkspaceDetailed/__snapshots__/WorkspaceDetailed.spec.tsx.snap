@@ -1,6 +1,6 @@
 // Vitest Snapshot v1
 
-exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`] = `
+exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDetailed 1`] = `
 <body
   id="app"
 >
@@ -28,9 +28,9 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
                 >
                   <a
                     class="cds--link"
-                    href="/admin/teams"
+                    href="/admin/workspaces"
                   >
-                    Teams
+                    Workspaces
                   </a>
                 </li>
                 <li
@@ -91,7 +91,7 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
             class="cds--bmrg-feature-header__footer"
           >
             <nav
-              aria-label="Team pages"
+              aria-label="Workspace pages"
               class="cds--tabs"
             >
               <ul
@@ -100,25 +100,25 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
                 <a
                   aria-current="page"
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
-                  href="/admin/teams/5e7cccb94bbc6e0001c51773"
+                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773"
                 >
                   Members
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/teams/5e7cccb94bbc6e0001c51773/workflows"
+                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773/workflows"
                 >
                   Workflows
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/teams/5e7cccb94bbc6e0001c51773/labels"
+                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773/labels"
                 >
                   Labels
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/teams/5e7cccb94bbc6e0001c51773/settings"
+                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773/settings"
                 >
                   Settings
                 </a>
@@ -127,12 +127,12 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
           </div>
         </section>
         <section
-          class="_teamButtons_0b651a"
+          class="_workspaceButtons_0b651a"
         >
           <button
             aria-describedby="danger-description-1"
             class="cds--btn cds--btn--md cds--btn--danger"
-            data-testid="close-team"
+            data-testid="close-workspace"
             tabindex="0"
             type="button"
           >
@@ -142,7 +142,7 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
             >
               danger
             </span>
-            Close Team
+            Close Workspace
             <svg
               aria-hidden="true"
               aria-label="Close"
@@ -164,7 +164,7 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
         </section>
       </header>
       <section
-        aria-label="WDC2 ISE Dev Team Members"
+        aria-label="WDC2 ISE Dev Workspace Members"
         class="_container_72f9b4"
       >
         <section
@@ -176,7 +176,7 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
             <p
               class="_featureDescription_72f9b4"
             >
-              These are the people who have access to workflows for this Team.
+              These are the people who have access to workflows for this Workspace.
             </p>
             <p
               class="_memberCountText_72f9b4"
@@ -363,7 +363,7 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
                 <button
                   class="_removeButton_aa92f0"
                 >
-                  Remove from Team
+                  Remove from Workspace
                   <svg
                     aria-hidden="true"
                     fill="#f94d56"
@@ -430,7 +430,7 @@ exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`]
                 <button
                   class="_removeButton_aa92f0"
                 >
-                  Remove from Team
+                  Remove from Workspace
                   <svg
                     aria-hidden="true"
                     fill="#f94d56"

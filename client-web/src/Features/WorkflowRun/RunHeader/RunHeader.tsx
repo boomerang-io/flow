@@ -17,7 +17,7 @@ import { useMutation, useQueryClient } from "react-query";
 import { Link, useHistory, useParams } from "react-router-dom";
 import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem";
 import ErrorModal from "Components/ErrorModal";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
 import { RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
@@ -34,7 +34,7 @@ const cancelStatusTypes = [RunStatus.NotStarted, RunStatus.Waiting, RunStatus.Re
 const retryStatusTypes = [RunStatus.Cancelled, RunStatus.Failed, RunStatus.TimedOut, RunStatus.Invalid];
 
 export default function RunHeader({ workflow, workflowRun, version, executionViewRedirect }: Props) {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const history = useHistory<{ fromUrl: string; fromText: string }>();
   const state = history.location.state;
   const queryClient = useQueryClient();
@@ -44,16 +44,16 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   const displayRetryButton = retryStatusTypes.includes(status);
 
   const { mutateAsync: retryWorkflowRunMutation } = useMutation(resolver.putRetryWorkflowRun, {
-    onSuccess: () => queryClient.invalidateQueries(serviceUrl.team.workflowrun.getWorkflowRun({ team: team.name, id })),
+    onSuccess: () => queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id })),
   });
 
   const { mutateAsync: cancelWorkflowRunMutation } = useMutation(resolver.deleteCancelWorkflowRun, {
-    onSuccess: () => queryClient.invalidateQueries(serviceUrl.team.workflowrun.getWorkflowRun({ team: team.name, id })),
+    onSuccess: () => queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id })),
   });
 
   const handleRetryWorkflow = async () => {
     try {
-      await retryWorkflowRunMutation({ id, team: team.name });
+      await retryWorkflowRunMutation({ id, workspace: workspace.name });
       notify(<ToastNotification kind="success" title="Retry run" subtitle="Retry successful" />);
       executionViewRedirect({ workflowRunRef: id });
     } catch {
@@ -63,7 +63,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
 
   const handleCancelWorkflow = async () => {
     try {
-      await cancelWorkflowRunMutation({ id, team: team.name });
+      await cancelWorkflowRunMutation({ id, workspace: workspace.name });
       notify(<ToastNotification kind="success" title="Cancel run" subtitle="Run successfully cancelled" />);
     } catch {
       notify(<ToastNotification kind="error" title="Something's wrong" subtitle={`Failed to cancel this run`} />);
@@ -80,7 +80,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
               <Link to={appLink.home()}>Home</Link>
             </BreadcrumbItem>
             <BreadcrumbItem>
-              <Link to={state ? state.fromUrl : appLink.activity({ team: team.name })}>
+              <Link to={state ? state.fromUrl : appLink.activity({ workspace: workspace.name })}>
                 {state ? capitalize(state.fromText) : "Activity"}
               </Link>
             </BreadcrumbItem>
@@ -145,8 +145,8 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
             </div>
           )}
           <dl className={styles.data}>
-            <dt className={styles.dataTitle}>Team</dt>
-            <dd className={styles.dataValue}>{team.displayName ?? "---"}</dd>
+            <dt className={styles.dataTitle}>Workspace</dt>
+            <dd className={styles.dataValue}>{workspace.displayName ?? "---"}</dd>
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Version</dt>
@@ -220,7 +220,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
 }
 
 function WorkflowAdvancedDetail({ workflow }: { workflow: WorkflowCanvas }) {
-  const { team, workflow: workflowRef, runId } = useParams<{ team: string; workflow: string; runId: string }>();
+  const { workspace, workflow: workflowRef, runId } = useParams<{ workspace: string; workflow: string; runId: string }>();
   const [copyTokenText, setCopyTokenText] = React.useState("Copy");
 
   const labelTexts = [`boomerang.io/workflow-ref=${workflowRef}`, `boomerang.io/workflowrun-ref=${runId}`];

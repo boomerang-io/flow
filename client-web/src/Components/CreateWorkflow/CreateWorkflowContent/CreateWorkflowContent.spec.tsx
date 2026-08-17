@@ -8,7 +8,7 @@ const props = {
   createWorkflow: mockfn,
   isCreating: false,
   names: [],
-  teams: [{ value: "test", label: "Test" }],
+  workspaces: [{ value: "test", label: "Test" }],
 };
 
 describe("CreateWorkflowContent --- Snapshot Test", () => {

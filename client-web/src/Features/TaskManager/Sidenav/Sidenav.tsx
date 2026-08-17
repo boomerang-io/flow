@@ -14,7 +14,7 @@ import { useHistory } from "react-router-dom";
 import { taskIcons } from "Utils/taskIcons";
 import { TaskTemplateStatus } from "Constants";
 import { appLink } from "Config/appConfig";
-import { FlowTeam, Task } from "Types";
+import { FlowWorkspace, Task } from "Types";
 import AddTaskTemplate from "./AddTaskTemplate";
 import styles from "./sideInfo.module.scss";
 
@@ -30,13 +30,13 @@ const taskFilterElemList = taskIcons.map((TaskIcon) => ({
 }));
 
 interface SideInfoProps {
-  team?: FlowTeam;
+  workspace?: FlowWorkspace;
   isLoading?: boolean;
   tasks: Array<Task>;
   getTaskTemplatesUrl: string;
 }
 
-const SideInfo: React.FC<SideInfoProps> = ({ team, isLoading, tasks, getTaskTemplatesUrl }) => {
+const SideInfo: React.FC<SideInfoProps> = ({ workspace, isLoading, tasks, getTaskTemplatesUrl }) => {
   const history = useHistory();
   const [activeFilters, setActiveFilters] = React.useState<Array<string>>([]);
   const [openCategories, setOpenCategories] = React.useState(false);
@@ -67,7 +67,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ team, isLoading, tasks, getTaskTemp
   if (isLoading) {
     return (
       <SideNav className={styles.container} border="right">
-        <h1 className={styles.title}>{team ? "Team " : ""}Task manager</h1>
+        <h1 className={styles.title}>{workspace ? "Workspace " : ""}Task manager</h1>
         <p className={styles.description}>{DESCRIPTION}</p>
         <div style={{ padding: "1.5rem 1rem" }}>
           <SkeletonText />
@@ -112,7 +112,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ team, isLoading, tasks, getTaskTemp
 
   return (
     <SideNav className={styles.container} border="right">
-      <h1 className={styles.title}>{team ? "Team " : ""}Task manager</h1>
+      <h1 className={styles.title}>{workspace ? "Workspace " : ""}Task manager</h1>
       <p className={styles.description}>{DESCRIPTION}</p>
       {tasks && (
         <div className={styles.tasksContainer}>
@@ -201,7 +201,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ team, isLoading, tasks, getTaskTemp
                   {category.tasks.length > 0 ? (
                     category.tasks.map((task) => (
                       //@ts-ignore
-                      <TaskCard key={task.name} task={task} team={team ?? null} />
+                      <TaskCard key={task.name} task={task} workspace={workspace ?? null} />
                     ))
                   ) : (
                     <EmptyTask key={`${category.name}-empty`} />
@@ -218,19 +218,19 @@ const SideInfo: React.FC<SideInfoProps> = ({ team, isLoading, tasks, getTaskTemp
 
 interface TaskCardProps {
   task: Task;
-  team?: FlowTeam | null;
+  workspace?: FlowWorkspace | null;
 }
 const TaskCard: React.FC<TaskCardProps> = (props) => {
-  const { task, team } = props;
+  const { task, workspace } = props;
   const TaskIcon = taskIcons.find((icon) => icon.name === task.icon);
   const taskIsActive = task.status === TaskTemplateStatus.Active;
 
   return (
     <SideNavLink
       to={
-        team
+        workspace
           ? appLink.manageTasksEdit({
-              team: team.name,
+              workspace: workspace.name,
               name: task.name,
               version: task.version.toString(),
             })

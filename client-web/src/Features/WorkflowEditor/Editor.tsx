@@ -7,7 +7,7 @@ import { useMutation, useQueryClient, UseMutationResult } from "react-query";
 import { Prompt, Route, Switch, useLocation, useParams } from "react-router-dom";
 import type { ReactFlowInstance } from "reactflow";
 import { useImmerReducer } from "use-immer";
-import { useAppContext, useTeamContext, useQuery } from "Hooks";
+import { useAppContext, useWorkspaceContext, useQuery } from "Hooks";
 import { EditorContextProvider } from "State/context";
 import { RevisionActionTypes, revisionReducer, initRevisionReducerState } from "State/reducers/workflowRevision";
 import { WorkflowEngineMode, WorkspaceConfigType } from "Constants";
@@ -23,7 +23,7 @@ import {
   Task,
   Workflow,
   WorkflowCanvas,
-  FlowTeam,
+  FlowWorkspace,
 } from "Types";
 import ChangeLog from "./ChangeLog";
 import Configure from "./Configure";
@@ -45,16 +45,16 @@ const CREATEABLE_PATHS = [
 ];
 
 export default function EditorContainer() {
-  const { team }: { team: FlowTeam } = useTeamContext();
+  const { workspace }: { workspace: FlowWorkspace } = useWorkspaceContext();
   // Init revision number state is held here so we can easily refect the data on change via react-query
 
   const [revisionNumber, setRevisionNumber] = useState<string | number>("");
   const params = useParams<{ workflow: string }>();
 
-  const getWorkflowsUrl = serviceUrl.team.workflow.getWorkflows({ team: team.name });
-  const getChangelogUrl = serviceUrl.team.workflow.getWorkflowChangelog({ team: team.name, workflow: params.workflow });
-  const getWorkflowUrl = serviceUrl.team.workflow.getWorkflowCompose({
-    team: team.name,
+  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace.name });
+  const getChangelogUrl = serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace: workspace.name, workflow: params.workflow });
+  const getWorkflowUrl = serviceUrl.workspace.workflow.getWorkflowCompose({
+    workspace: workspace.name,
     workflow: params.workflow,
     version: revisionNumber,
   });
@@ -62,13 +62,13 @@ export default function EditorContainer() {
   const getTasksUrl = serviceUrl.task.queryTasks({
     query: queryString.stringify({ statuses: "active" }),
   });
-  const getTeamTasksUrl = serviceUrl.team.task.queryTasks({
+  const getWorkspaceTasksUrl = serviceUrl.workspace.task.queryTasks({
     query: queryString.stringify({ statuses: "active" }),
-    team: team.name,
+    workspace: workspace.name,
   });
 
-  const getAvailableParametersUrl = serviceUrl.team.workflow.getAvailableParameters({
-    team: team.name,
+  const getAvailableParametersUrl = serviceUrl.workspace.workflow.getAvailableParameters({
+    workspace: workspace.name,
     workflow: params.workflow,
   });
 
@@ -83,7 +83,7 @@ export default function EditorContainer() {
   const tasksQuery = useQuery<PaginatedTaskResponse>(getTasksUrl, {
     refetchOnWindowFocus: false,
   });
-  const teamTasksQuery = useQuery<PaginatedTaskResponse>(getTeamTasksUrl, {
+  const workspaceTasksQuery = useQuery<PaginatedTaskResponse>(getWorkspaceTasksUrl, {
     refetchOnWindowFocus: false,
   });
 
@@ -97,7 +97,7 @@ export default function EditorContainer() {
     workflowsQuery.isLoading ||
     changeLogQuery.isLoading ||
     tasksQuery.isLoading ||
-    teamTasksQuery.isLoading ||
+    workspaceTasksQuery.isLoading ||
     availableParametersQuery.isLoading
   ) {
     return <Loading />;
@@ -108,7 +108,7 @@ export default function EditorContainer() {
     workflowsQuery.error ||
     changeLogQuery.error ||
     tasksQuery.error ||
-    teamTasksQuery.error ||
+    workspaceTasksQuery.error ||
     availableParametersQuery.error
   ) {
     return <Error />;
@@ -119,10 +119,10 @@ export default function EditorContainer() {
     workflowsQuery.data &&
     changeLogQuery.data &&
     tasksQuery.data &&
-    teamTasksQuery.data &&
+    workspaceTasksQuery.data &&
     availableParametersQuery.data
   ) {
-    const taskList = [...tasksQuery.data.content, ...prefixTeamTask(teamTasksQuery.data.content, team)];
+    const taskList = [...tasksQuery.data.content, ...prefixWorkspaceTask(workspaceTasksQuery.data.content, workspace)];
     return (
       <EditorStateContainer
         availableParametersQueryData={availableParametersQuery.data}
@@ -137,7 +137,7 @@ export default function EditorContainer() {
         taskList={taskList}
         workflowRef={params.workflow}
         key={revisionNumber}
-        team={team}
+        workspace={workspace}
       />
     );
   }
@@ -152,7 +152,7 @@ interface EditorStateContainerProps {
   revisionMutator: UseMutationResult<
     AxiosResponse<Workflow, any>,
     unknown,
-    { team: any; workflow: any; body: any },
+    { workspace: any; workflow: any; body: any },
     unknown
   >;
   revisionNumber: string | number;
@@ -162,7 +162,7 @@ interface EditorStateContainerProps {
   workflowQueryData: WorkflowCanvas;
   workflowsQueryData: PaginatedWorkflowResponse;
   workflowRef: string;
-  team: FlowTeam;
+  workspace: FlowWorkspace;
 }
 
 /**
@@ -180,7 +180,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
   workflowQueryData,
   workflowsQueryData,
   workflowRef,
-  team,
+  workspace,
 }) => {
   const location = useLocation();
   const { quotas } = useAppContext();
@@ -209,7 +209,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
       };
 
       try {
-        const { data } = await revisionMutator.mutateAsync({ team: team.name, workflow: workflowRef, body: revision });
+        const { data } = await revisionMutator.mutateAsync({ workspace: workspace.name, workflow: workflowRef, body: revision });
         notify(
           <ToastNotification kind="success" title="Create Version" subtitle="Successfully created workflow version" />,
         );
@@ -244,13 +244,13 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
    * parameters - defined at the Workflow-level in the Parameters tab
    * deletedParams - parameters that were removed
    * availableParameters - parameters supplied by its relationship to other entities
-   *   - team
+   *   - workspace
    *   - global
    *   - context
    * that get requested and made available to Workflow task configuration
    * Parameters are represented in two ways, "flat" and "layer"
    * e.g. Workflow "api-token" as workflow.params.api-token and param.api-token.
-   * e.g. Team "api-token" as team.params.api-token and param.api-token.
+   * e.g. Workspace "api-token" as workspace.params.api-token and param.api-token.
    *
    * When a token of value `api-token` gets added we need to add both versions
    * When a token of value `api-token` gets deleted we need to delete the workflow
@@ -280,7 +280,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
         const higherLayerParamList = [
           `context.params.${deletedParameter.key}`,
           `global.params.${deletedParameter.key}`,
-          `team.params.${deletedParameter.key}`,
+          `workspace.params.${deletedParameter.key}`,
         ];
 
         availableParameterSet.delete(deletedWorkflowParamKey);
@@ -424,12 +424,12 @@ function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Pa
 }
 
 // TODO make shared util
-function prefixTeamTask(taskList: Array<Task>, team: FlowTeam) {
+function prefixWorkspaceTask(taskList: Array<Task>, workspace: FlowWorkspace) {
   return taskList.map((task) => {
     return {
       ...task,
-      name: `${team.name}/${task.name}`,
-      displayName: `${team.displayName} - ${task.displayName}`,
+      name: `${workspace.name}/${task.name}`,
+      displayName: `${workspace.displayName} - ${task.displayName}`,
     };
   });
 }

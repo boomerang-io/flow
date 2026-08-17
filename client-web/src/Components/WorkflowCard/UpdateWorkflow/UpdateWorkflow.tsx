@@ -8,7 +8,7 @@ import ImportWorkflowContent from "./ImportWorkflowContent";
 import styles from "./updateWorkflow.module.scss";
 
 interface UpdateWorkflowProps {
-  teamName: string | null;
+  workspaceName: string | null;
   workflowRef: string;
   getWorkflowsUrl: string;
   onCloseModal: () => void;
@@ -16,7 +16,7 @@ interface UpdateWorkflowProps {
 }
 
 const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({
-  teamName,
+  workspaceName,
   workflowRef,
   getWorkflowsUrl,
   onCloseModal,
@@ -28,7 +28,7 @@ const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({
   const { mutateAsync: importWorkflowMutator, isLoading: isPosting } = useMutation(resolver.putApplyWorkflow);
   const handleImportWorkflow = async (data: Workflow, closeModal: () => void) => {
     try {
-      await importWorkflowMutator({ team: teamName, workflow: workflowRef, body: data });
+      await importWorkflowMutator({ workspace: workspaceName, workflow: workflowRef, body: data });
       queryClient.invalidateQueries(getWorkflowsUrl);
       notify(<ToastNotification kind="success" title={`Update ${type}`} subtitle={`${type} successfully updated`} />);
       closeModal();

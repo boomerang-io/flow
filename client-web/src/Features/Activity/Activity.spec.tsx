@@ -50,16 +50,16 @@ describe("WorkflowActivity --- RTL", () => {
     );
   });
 
-  it("Filter by team", async () => {
+  it("Filter by workspace", async () => {
     const { history } = global.rtlContextRouterRender(<WorkflowActivity />);
     await screen.findByText(/This is all of the/i);
 
-    userEvent.click(screen.getByRole("combobox", { name: /Filter by Team/i }));
+    userEvent.click(screen.getByRole("combobox", { name: /Filter by Workspace/i }));
     userEvent.click(screen.getAllByText(/IBM Services Engineering/i)[0]);
 
     await waitFor(() =>
       expect(history.location.search).toBe(
-        "?" + queryString.stringify({ teamIds: "5e3a35ad8c222700018ccd39", ...basicQuery }, queryStringOptions)
+        "?" + queryString.stringify({ workspaceIds: "5e3a35ad8c222700018ccd39", ...basicQuery }, queryStringOptions)
       )
     );
   });

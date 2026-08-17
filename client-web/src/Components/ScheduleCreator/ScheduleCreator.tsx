@@ -3,7 +3,7 @@ import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-a
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { cronDayNumberMap } from "Utils/cronHelper";
 import { resolver } from "Config/servicesConfig";
 import { ScheduleManagerFormInputs, ScheduleDate, ScheduleUnion, Workflow, DayOfWeekCronAbbreviation } from "Types";
@@ -22,7 +22,7 @@ interface CreateScheduleProps {
 
 export default function CreateSchedule(props: CreateScheduleProps) {
   const queryClient = useQueryClient();
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   /**
    * Create schedule
    */
@@ -30,7 +30,7 @@ export default function CreateSchedule(props: CreateScheduleProps) {
 
   const handleCreateSchedule = async (schedule: ScheduleUnion) => {
     // intentionally don't handle error so it can be done by the ScheduleManagerForm
-    await createScheduleMutator({ team: team?.name, body: schedule });
+    await createScheduleMutator({ workspace: workspace?.name, body: schedule });
     notify(
       <ToastNotification
         kind="success"

@@ -8,7 +8,7 @@ const workflowExecution = {
   trigger: "webhook",
   properties: [
     {
-      key: "teamName",
+      key: "workspaceName",
       value: "AutoJoinTool",
     },
     {
@@ -28,7 +28,7 @@ const workflowExecution = {
       value: "asfa",
     },
     {
-      key: "requesterTeamRole",
+      key: "requesterWorkspaceRole",
       value: "owner",
     },
     {
@@ -44,7 +44,7 @@ const workflowExecution = {
       value: "Marcus Roy",
     },
     {
-      key: "teamId",
+      key: "workspaceId",
       value: "5efe1c7bdf010247e71272b8",
     },
     {
@@ -151,7 +151,7 @@ const workflowExecution = {
       preApproved: false,
     },
   ],
-  teamName: "AMHTest2",
+  workspaceName: "AMHTest2",
   awaitingApproval: false,
   error: {
     code: "002",

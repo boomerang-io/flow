@@ -1,12 +1,12 @@
 import React from "react";
 import CreateWorkflow from ".";
 import { screen, fireEvent } from "@testing-library/react";
-import { teams, profile } from "ApiServer/fixtures";
+import { workspaces, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 
 const props = {
-  team: teams[0],
-  teams: teams,
+  workspace: workspaces[0],
+  workspaces: workspaces,
 };
 
 describe("CreateWorkflow --- Snapshot Test", () => {
@@ -17,7 +17,7 @@ describe("CreateWorkflow --- Snapshot Test", () => {
           isTutorialActive: false,
           setIsTutorialActive: () => {},
           user: profile,
-          teams,
+          workspaces,
         }}
       >
         <CreateWorkflow {...props} />{" "}

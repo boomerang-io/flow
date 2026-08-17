@@ -11,11 +11,11 @@ function Connect() {
 
   const state = searchParams.get("state");
   const installationId = searchParams.get("installation_id");
-  const team = atob(decodeURIComponent(state));
-  console.log(team);
+  const workspace = atob(decodeURIComponent(state));
+  console.log(workspace);
   return (
     <div className={styles.container}>
-      <GitHub installId={installationId} team={team} />
+      <GitHub installId={installationId} workspace={workspace} />
     </div>
   );
 }

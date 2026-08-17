@@ -1,1 +1,1 @@
-export { default } from "./TeamParameters";
+export { default } from "./WorkspaceParameters";

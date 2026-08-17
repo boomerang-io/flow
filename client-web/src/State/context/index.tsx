@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  FlowTeam,
+  FlowWorkspace,
   FlowUser,
   PaginatedWorkflowResponse,
   Task,
@@ -26,7 +26,7 @@ type AppContext = {
   communityUrl: string;
   isTutorialActive: boolean;
   setIsTutorialActive: (isActive: boolean) => void;
-  teams: FlowTeam[] | null; // TODO - check if we need this
+  workspaces: FlowWorkspace[] | null; // TODO - check if we need this
   user: FlowUser;
   name: string;
   workflowTemplates: Array<WorkflowTemplate>;
@@ -54,8 +54,8 @@ interface EditorContext {
 
 export const [useEditorContext, EditorContextProvider] = createContext<EditorContext>();
 
-interface TeamContext {
-  team: FlowTeam;
+interface WorkspaceContext {
+  workspace: FlowWorkspace;
 }
 
-export const [useTeamContext, TeamContextProvider] = createContext<TeamContext>();
+export const [useWorkspaceContext, WorkspaceContextProvider] = createContext<WorkspaceContext>();

@@ -200,8 +200,8 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
                 }
               />
               <Toggle
-                id="secured-team-parameters-toggle"
-                data-testid="secured-team-parameters-toggle"
+                id="secured-workspace-parameters-toggle"
+                data-testid="secured-workspace-parameters-toggle"
                 disabled={isEdit}
                 labelText="Secured"
                 name="secured"
@@ -225,7 +225,7 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
                 Cancel
               </Button>
               <Button
-                data-testid="team-parameter-create-edit-submission-button"
+                data-testid="workspace-parameter-create-edit-submission-button"
                 type="submit"
                 disabled={!isValid || isSubmitting}
               >

@@ -6,7 +6,7 @@ import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 
 import { AppPath, appLink } from "Config/appConfig";
-import { teams, profile } from "ApiServer/fixtures";
+import { workspaces, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 
 const workflowId = "5eb2c4085a92d80001a16d87";
@@ -31,7 +31,7 @@ describe("Execution --- Snapshot", () => {
           isTutorialActive: false,
           setIsTutorialActive: () => {},
           user: profile,
-          teams,
+          workspaces,
         }}
       >
         <Route path={AppPath.Execution} component={WorkflowExecutionContainer} />

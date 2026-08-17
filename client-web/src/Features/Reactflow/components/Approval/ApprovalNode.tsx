@@ -1,6 +1,6 @@
 import React from "react";
 import { useWorkflowContext } from "Hooks";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { WorkflowEngineMode } from "Constants";
 import { WorkflowNodeProps } from "Types";
 import { TemplateNode } from "../Template";
@@ -15,10 +15,10 @@ export default function ApprovalNode(props: WorkflowNodeProps) {
 }
 
 function ApprovalNodeEditor(props: WorkflowNodeProps) {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
 
   const options =
-    team.approverGroups?.map((approverGroup) => ({
+    workspace.approverGroups?.map((approverGroup) => ({
       key: approverGroup.id,
       value: approverGroup.name,
     })) ?? [];
@@ -26,7 +26,7 @@ function ApprovalNodeEditor(props: WorkflowNodeProps) {
   const formInputsToMerge =
     options.length > 0
       ? [{ key: "approverGroupId", options }]
-      : [{ key: "approverGroupId", disabled: true, description: "No approver groups configured for this team." }];
+      : [{ key: "approverGroupId", disabled: true, description: "No approver groups configured for this workspace." }];
 
   return <TemplateNode {...props} formInputsToMerge={formInputsToMerge} />;
 }

@@ -466,7 +466,7 @@ const tasktemplate = {
       status: "active",
       creationDate: "2020-01-09T00:01:00.000+00:00",
       verified: true,
-      description: "Send platform notification to user or team",
+      description: "Send platform notification to user or workspace",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -3326,7 +3326,7 @@ const tasktemplate = {
       creationDate: "2020-01-09T00:01:00.000+00:00",
       verified: true,
       description:
-        "This task attempts to obtain a lock with the specified name. If no other workflow in the team is using a lock with that name, a lock with that name and is created. If another workflow in the team is using a lock with the specified name, the current workflow waits until the lock is available.",
+        "This task attempts to obtain a lock with the specified name. If no other workflow in the workspace is using a lock with that name, a lock with that name and is created. If another workflow in the workspace is using a lock with the specified name, the current workflow waits until the lock is available.",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -5798,7 +5798,7 @@ const tasktemplate = {
             defaultValue: "",
           },
           {
-            name: "teamId",
+            name: "workspaceId",
             type: "string",
             description: "",
             defaultValue: "",
@@ -5893,9 +5893,9 @@ const tasktemplate = {
           helperText: "The owner id of the ticket",
         },
         {
-          key: "teamId",
+          key: "workspaceId",
           description: "",
-          label: "Team Id",
+          label: "Workspace Id",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -5909,7 +5909,7 @@ const tasktemplate = {
           values: null,
           readOnly: false,
           hiddenValue: null,
-          helperText: "Set the team id the ticket is related to",
+          helperText: "Set the workspace id the ticket is related to",
         },
         {
           key: "catalogServiceId",
@@ -6044,7 +6044,7 @@ const tasktemplate = {
             defaultValue: "false",
           },
           {
-            name: "team",
+            name: "workspace",
             type: "string",
             description: "Required if organisation token is used",
             defaultValue: "",
@@ -6121,9 +6121,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "team",
+          key: "workspace",
           description: "Required if organisation token is used",
-          label: "Team",
+          label: "Workspace",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -6137,7 +6137,7 @@ const tasktemplate = {
           values: null,
           readOnly: false,
           hiddenValue: null,
-          helperText: "Encoded team id to create the channel in",
+          helperText: "Encoded workspace id to create the channel in",
         },
       ],
       icon: "Add",
@@ -6497,7 +6497,7 @@ const tasktemplate = {
             defaultValue: "",
           },
           {
-            name: "team",
+            name: "workspace",
             type: "string",
             description: "Required if token belongs to org-wide app",
             defaultValue: "",
@@ -6541,9 +6541,9 @@ const tasktemplate = {
           helperText: "The token is associated with the slack application",
         },
         {
-          key: "team",
+          key: "workspace",
           description: "Required if token belongs to org-wide app",
-          label: "Team",
+          label: "Workspace",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -6557,7 +6557,7 @@ const tasktemplate = {
           values: null,
           readOnly: false,
           hiddenValue: null,
-          helperText: "Encoded team id to list channels in",
+          helperText: "Encoded workspace id to list channels in",
         },
         {
           key: "types",
@@ -8801,15 +8801,15 @@ const tasktemplate = {
       icon: "API/HTTP call",
     },
     {
-      name: "get-all-teams-in-organization",
-      displayName: "Get All Teams in Organization",
+      name: "get-all-workspaces-in-organization",
+      displayName: "Get All Workspaces in Organization",
       type: "template",
       version: 2,
       status: "active",
       creationDate: "2021-03-24T13:32:48.238+00:00",
       verified: true,
       description:
-        "Lists all teams in an organization that are visible to the authenticated token. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
+        "Lists all workspaces in an organization that are visible to the authenticated token. For further reading on the underlying API see https://docs.github.com/en/rest/reference/workspaces#list-workspaces",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -8822,7 +8822,7 @@ const tasktemplate = {
       },
       category: "GitHub",
       spec: {
-        arguments: ["github", "findTeamsInOrg"],
+        arguments: ["github", "findWorkspacesInOrg"],
         command: [],
         params: [
           {
@@ -8850,7 +8850,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "teamsPerPage",
+            name: "workspacesPerPage",
             type: "string",
             description: "",
             defaultValue: null,
@@ -8866,8 +8866,8 @@ const tasktemplate = {
         image: "",
         results: [
           {
-            description: "List of teams in the organization",
-            name: "teams",
+            description: "List of workspaces in the organization",
+            name: "workspaces",
           },
         ],
         script: "",
@@ -8951,9 +8951,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "teamsPerPage",
+          key: "workspacesPerPage",
           description: "",
-          label: "Number of teams per page",
+          label: "Number of workspaces per page",
           type: "number",
           minValueLength: null,
           maxValueLength: null,
@@ -8992,15 +8992,15 @@ const tasktemplate = {
       icon: "API/HTTP call",
     },
     {
-      name: "get-team-in-organization",
-      displayName: "Get Team In Organization",
+      name: "get-workspace-in-organization",
+      displayName: "Get Workspace In Organization",
       type: "template",
       version: 2,
       status: "active",
       creationDate: "2021-03-24T13:37:23.232+00:00",
       verified: true,
       description:
-        "Retrieves the details of a team from a Github organization given the team name. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
+        "Retrieves the details of a workspace from a Github organization given the workspace name. For further reading on the underlying API see https://docs.github.com/en/rest/reference/workspaces#list-workspaces",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -9013,7 +9013,7 @@ const tasktemplate = {
       },
       category: "GitHub",
       spec: {
-        arguments: ["github", "getTeamInOrgByName"],
+        arguments: ["github", "getWorkspaceInOrgByName"],
         command: [],
         params: [
           {
@@ -9035,7 +9035,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "teamName",
+            name: "workspaceName",
             type: "string",
             description: "",
             defaultValue: null,
@@ -9051,8 +9051,8 @@ const tasktemplate = {
         image: "",
         results: [
           {
-            description: "Github team details",
-            name: "team",
+            description: "Github workspace details",
+            name: "workspace",
           },
         ],
         script: "",
@@ -9117,9 +9117,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "teamName",
+          key: "workspaceName",
           description: "",
-          label: "Team Name",
+          label: "Workspace Name",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -9158,15 +9158,15 @@ const tasktemplate = {
       icon: "API/HTTP call",
     },
     {
-      name: "remove-member-from-team",
-      displayName: "Remove Member from Team",
+      name: "remove-member-from-workspace",
+      displayName: "Remove Member from Workspace",
       type: "template",
       version: 1,
       status: "active",
       creationDate: "2021-03-24T13:40:58.891+00:00",
       verified: true,
       description:
-        "Remove a member from a team within the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#remove-team-membership-for-a-user",
+        "Remove a member from a workspace within the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/workspaces#remove-workspace-membership-for-a-user",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -9179,7 +9179,7 @@ const tasktemplate = {
       },
       category: "GitHub",
       spec: {
-        arguments: ["github", "removeMemberFromTeamInOrg"],
+        arguments: ["github", "removeMemberFromWorkspaceInOrg"],
         command: [],
         params: [
           {
@@ -9201,7 +9201,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "teamName",
+            name: "workspaceName",
             type: "string",
             description: "",
             defaultValue: null,
@@ -9278,9 +9278,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "teamName",
+          key: "workspaceName",
           description: "",
-          label: "Team Name",
+          label: "Workspace Name",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -9319,15 +9319,15 @@ const tasktemplate = {
       icon: "Delete",
     },
     {
-      name: "delete-team-from-organization",
-      displayName: "Delete Team from Organization",
+      name: "delete-workspace-from-organization",
+      displayName: "Delete Workspace from Organization",
       type: "template",
       version: 1,
       status: "active",
       creationDate: "2021-03-24T13:40:58.891+00:00",
       verified: true,
       description:
-        "Deletes a Github team from a Github organization based on the teamName parameter. For further reading on the underlying API see https://docs.github.com/rest/reference/teams/#delete-a-team",
+        "Deletes a Github workspace from a Github organization based on the workspaceName parameter. For further reading on the underlying API see https://docs.github.com/rest/reference/workspaces/#delete-a-workspace",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -9340,7 +9340,7 @@ const tasktemplate = {
       },
       category: "GitHub",
       spec: {
-        arguments: ["github", "deleteTeamByNameInOrg"],
+        arguments: ["github", "deleteWorkspaceByNameInOrg"],
         command: [],
         params: [
           {
@@ -9362,7 +9362,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "teamName",
+            name: "workspaceName",
             type: "string",
             description: "",
             defaultValue: null,
@@ -9433,9 +9433,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "teamName",
+          key: "workspaceName",
           description: "",
-          label: "Team Name",
+          label: "Workspace Name",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -9455,15 +9455,15 @@ const tasktemplate = {
       icon: "Delete",
     },
     {
-      name: "create-team-in-organization",
-      displayName: "Create Team in Organization",
+      name: "create-workspace-in-organization",
+      displayName: "Create Workspace in Organization",
       type: "template",
       version: 3,
       status: "active",
       creationDate: "2021-03-24T13:44:44.514+00:00",
       verified: true,
       description:
-        "Creates a Github team in the organization identified by the organizationName parameter. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#create-a-team",
+        "Creates a Github workspace in the organization identified by the organizationName parameter. For further reading on the underlying API see https://docs.github.com/en/rest/reference/workspaces#create-a-workspace",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -9476,7 +9476,7 @@ const tasktemplate = {
       },
       category: "GitHub",
       spec: {
-        arguments: ["github", "createTeamInOrg"],
+        arguments: ["github", "createWorkspaceInOrg"],
         command: [],
         params: [
           {
@@ -9498,7 +9498,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "teamName",
+            name: "workspaceName",
             type: "string",
             description: "",
             defaultValue: null,
@@ -9534,7 +9534,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "parentTeamId",
+            name: "parentWorkspaceId",
             type: "string",
             description: "",
             defaultValue: null,
@@ -9550,8 +9550,8 @@ const tasktemplate = {
         image: "",
         results: [
           {
-            description: "The newly created team",
-            name: "team",
+            description: "The newly created workspace",
+            name: "workspace",
           },
         ],
         script: "",
@@ -9616,9 +9616,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "teamName",
+          key: "workspaceName",
           description: "",
-          label: "Team Name",
+          label: "Workspace Name",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -9637,7 +9637,7 @@ const tasktemplate = {
         {
           key: "description",
           description: "",
-          label: "Team Description",
+          label: "Workspace Description",
           type: "textarea",
           minValueLength: null,
           maxValueLength: null,
@@ -9689,7 +9689,7 @@ const tasktemplate = {
           values: null,
           readOnly: false,
           hiddenValue: null,
-          helperText: "The full name of repositories to add the team to",
+          helperText: "The full name of repositories to add the workspace to",
         },
         {
           key: "privacy",
@@ -9717,12 +9717,12 @@ const tasktemplate = {
           values: null,
           readOnly: false,
           hiddenValue: null,
-          helperText: "Level of privacy this team should have",
+          helperText: "Level of privacy this workspace should have",
         },
         {
           key: "permission",
           description: "",
-          label: "Repository team's default permissions",
+          label: "Repository workspace's default permissions",
           type: "select",
           minValueLength: null,
           maxValueLength: null,
@@ -9752,9 +9752,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "parentTeamId",
+          key: "parentWorkspaceId",
           description: "",
-          label: "The ID of a team to set as the parent team",
+          label: "The ID of a workspace to set as the parent workspace",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -9793,15 +9793,15 @@ const tasktemplate = {
       icon: "Add",
     },
     {
-      name: "invite-member-to-team",
-      displayName: "Invite Member to Team",
+      name: "invite-member-to-workspace",
+      displayName: "Invite Member to Workspace",
       type: "template",
       version: 2,
       status: "active",
       creationDate: "2021-03-24T14:28:39.504+00:00",
       verified: true,
       description:
-        "Invite a Github member to be a team member in the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#add-or-update-team-membership-for-a-user",
+        "Invite a Github member to be a workspace member in the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/workspaces#add-or-update-workspace-membership-for-a-user",
       labels: {},
       annotations: {
         "boomerang.io/generation": "3",
@@ -9814,7 +9814,7 @@ const tasktemplate = {
       },
       category: "GitHub",
       spec: {
-        arguments: ["github", "inviteMemberToTeamInOrg"],
+        arguments: ["github", "inviteMemberToWorkspaceInOrg"],
         command: [],
         params: [
           {
@@ -9836,7 +9836,7 @@ const tasktemplate = {
             defaultValue: null,
           },
           {
-            name: "teamName",
+            name: "workspaceName",
             type: "string",
             description: "",
             defaultValue: null,
@@ -9930,9 +9930,9 @@ const tasktemplate = {
           helperText: "",
         },
         {
-          key: "teamName",
+          key: "workspaceName",
           description: "",
-          label: "Team Name",
+          label: "Workspace Name",
           type: "text",
           minValueLength: null,
           maxValueLength: null,
@@ -9993,7 +9993,7 @@ const tasktemplate = {
           values: null,
           readOnly: false,
           hiddenValue: null,
-          helperText: "The role that this user should have in the team",
+          helperText: "The role that this user should have in the workspace",
         },
         {
           key: "outputFilePath",

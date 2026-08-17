@@ -9,7 +9,7 @@ import styles from "./task.module.scss";
 
 function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: TaskType }) {
   const [isDragActive, setIsDragActive] = React.useState(false);
-  const isTeamTask = scope === "team";
+  const isWorkspaceTask = scope === "workspace";
   const TaskIcon = taskIcons.find((currentIcon) => currentIcon.name === icon);
 
   const onDragStart = (event: any, task: TaskType) => {
@@ -22,7 +22,7 @@ function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: 
       <Tile
         role="option"
         aria-selected={isDragActive}
-        className={cx(styles.container, { [styles.globalTask]: !isTeamTask })}
+        className={cx(styles.container, { [styles.globalTask]: !isWorkspaceTask })}
         draggable={true}
         onDragEnd={() => setIsDragActive(false)}
         onDragStart={(event: React.DragEvent<HTMLDivElement>) => {
@@ -35,14 +35,14 @@ function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: 
         <div className={styles.columnContainer}>
           <div className={styles.rowContainer}>
             {TaskIcon?.Icon ? (
-              <TaskIcon.Icon className={cx(styles.taskIcon, { [styles.teamTask]: isTeamTask })} />
+              <TaskIcon.Icon className={cx(styles.taskIcon, { [styles.workspaceTask]: isWorkspaceTask })} />
             ) : (
-              <Bee className={cx(styles.taskIcon, { [styles.teamTask]: isTeamTask })} />
+              <Bee className={cx(styles.taskIcon, { [styles.workspaceTask]: isWorkspaceTask })} />
             )}
             <p className={styles.taskName}> {name} </p>
             {verified && (
               <TooltipHover
-                className={cx(styles.tooltipHover, { [styles.teamTask]: isTeamTask })}
+                className={cx(styles.tooltipHover, { [styles.workspaceTask]: isWorkspaceTask })}
                 direction="top"
                 tooltipText={
                   <div className={styles.tooltipContainer}>
@@ -58,7 +58,7 @@ function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: 
             )}
           </div>
 
-          {isTeamTask && <p className={styles.taskSubtext}>Team Task</p>}
+          {isWorkspaceTask && <p className={styles.taskSubtext}>Workspace Task</p>}
         </div>
       </Tile>
     </li>

@@ -1,14 +1,14 @@
 import React from "react";
 import { ModalForm, RadioGroup } from "@boomerang-io/carbon-addons-boomerang-react";
 import { WorkflowView } from "Constants";
-import { FlowTeam, CreateWorkflowSummary, Workflow } from "Types";
+import { FlowWorkspace, CreateWorkflowSummary, Workflow } from "Types";
 import ImportWorkflowContent from "../ImportWorkflowContent";
 import styles from "./importWorkflowContainer.module.scss";
 
 interface ImportWorkflowContainerProps {
   closeModal: () => void;
   importError: any;
-  importWorkflow: (workflowData: Workflow, closeModal: () => void, team: FlowTeam) => Promise<void>;
+  importWorkflow: (workflowData: Workflow, closeModal: () => void, workspace: FlowWorkspace) => Promise<void>;
   workflows: Array<Workflow>;
 }
 

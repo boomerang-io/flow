@@ -22,19 +22,19 @@ exports[`ActivityTable --- Snapshot > Capturing Snapshot of ActivityTable 1`] = 
                 <tr>
                   <th
                     aria-sort="none"
-                    class="_tableHeadHeader_8eafaf _teamName_8eafaf"
-                    id="teamName"
+                    class="_tableHeadHeader_8eafaf _workspaceName_8eafaf"
+                    id="workspaceName"
                     scope="col"
                   >
                     <div
                       id="table-sort-1"
                       style="display: none;"
                     >
-                      Click to sort rows by Team header in ascending order
+                      Click to sort rows by Workspace header in ascending order
                     </div>
                     <button
                       aria-describedby="table-sort-1"
-                      class="_tableHeadHeader_8eafaf _teamName_8eafaf cds--table-sort"
+                      class="_tableHeadHeader_8eafaf _workspaceName_8eafaf cds--table-sort"
                       type="button"
                     >
                       <span
@@ -43,7 +43,7 @@ exports[`ActivityTable --- Snapshot > Capturing Snapshot of ActivityTable 1`] = 
                         <div
                           class="cds--table-header-label"
                         >
-                          Team
+                          Workspace
                         </div>
                         <svg
                           aria-hidden="true"

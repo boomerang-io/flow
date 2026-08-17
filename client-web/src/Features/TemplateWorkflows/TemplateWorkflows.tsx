@@ -48,13 +48,13 @@ export default function TemplateWorkflows() {
       <div className={styles.container}>
         <WorkflowsHeader
           title="Workflow Templates"
-          subtitle="Define reuseable Workflows available to all teams as Templates."
+          subtitle="Define reuseable Workflows available to all workspaces as Templates."
           handleUpdateFilter={handleUpdateFilter}
           searchQuery={searchQuery}
           workflowList={templatesWorkflowData?.content ? templatesWorkflowData.content : []}
           viewType={WorkflowView.Template}
         />
-        <div aria-label="Team Workflows" className={styles.content} role="region">
+        <div aria-label="Workspace Workflows" className={styles.content} role="region">
           <section className={styles.sectionContainer}>
             <RenderTemplates
               isLoading={isLoadingTemplatesWorkflow}

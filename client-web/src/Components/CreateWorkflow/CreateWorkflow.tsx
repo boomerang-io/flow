@@ -9,21 +9,21 @@ import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowTeam, ModalTriggerProps, CreateWorkflowSummary, Workflow, WorkflowViewType } from "Types";
+import { FlowWorkspace, ModalTriggerProps, CreateWorkflowSummary, Workflow, WorkflowViewType } from "Types";
 import CreateWorkflowContainer from "./CreateWorkflowContainer";
 import styles from "./createWorkflow.module.scss";
 
 interface CreateWorkflowProps {
-  team?: FlowTeam;
+  workspace?: FlowWorkspace;
   hasReachedWorkflowLimit: boolean;
   workflows: Array<Workflow>;
   viewType: WorkflowViewType;
 }
 
-const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ team, hasReachedWorkflowLimit, workflows, viewType }) => {
+const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {
   const queryClient = useQueryClient();
   const history = useHistory();
-  const teamQuotasEnabled = useFeature(FeatureFlag.TeamQuotasEnabled);
+  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
 
   const createWorkflowMutator = useMutation(resolver.postCreateWorkflow);
   const createTemplateMutator = useMutation(resolver.postCreateTemplate);
@@ -33,20 +33,20 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ team, hasReachedWorkflo
       const { data: newWorkflow } =
         viewType === WorkflowView.Workflow
           ? await createWorkflowMutator.mutateAsync({
-              team: team?.name,
+              workspace: workspace?.name,
               body: workflowSummary,
             })
           : await createTemplateMutator.mutateAsync({
               body: workflowSummary,
             });
-      history.push(appLink.editorCanvas({ team: team?.name!, workflow: newWorkflow.name }));
+      history.push(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
       notify(
         <ToastNotification kind="success" title={`Create ${viewType}`} subtitle={`${viewType} successfully created`} />,
       );
       if (viewType === WorkflowView.Template) {
         queryClient.invalidateQueries(serviceUrl.template.getWorkflowTemplates());
       } else {
-        queryClient.invalidateQueries(serviceUrl.team.workflow.getWorkflows({ team: team?.name }));
+        queryClient.invalidateQueries(serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name }));
       }
       return;
     } catch (e) {
@@ -61,13 +61,13 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ team, hasReachedWorkflo
       const { data: newWorkflow } =
         viewType === WorkflowView.Workflow
           ? await createWorkflowMutator.mutateAsync({
-              team: team?.name,
+              workspace: workspace?.name,
               body: workflow,
             })
           : await createTemplateMutator.mutateAsync({
               body: workflow,
             });
-      history.push(appLink.editorCanvas({ team: team?.name!, workflow: newWorkflow.name }));
+      history.push(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
       notify(
         <ToastNotification
           kind="success"
@@ -78,7 +78,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ team, hasReachedWorkflo
       if (viewType === WorkflowView.Template) {
         queryClient.invalidateQueries(serviceUrl.template.getWorkflowTemplates());
       } else {
-        queryClient.invalidateQueries(serviceUrl.team.workflow.getWorkflows({ team: team?.name! }));
+        queryClient.invalidateQueries(serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name! }));
       }
       closeModal();
     } catch (err) {
@@ -96,11 +96,11 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ team, hasReachedWorkflo
     <ComposedModal
       composedModalProps={{ containerClassName: styles.modalContainer }}
       modalTrigger={({ openModal }: ModalTriggerProps) =>
-        teamQuotasEnabled && hasReachedWorkflowLimit ? (
+        workspaceQuotasEnabled && hasReachedWorkflowLimit ? (
           <TooltipHover
             direction="top"
             tooltipText={
-              "This team has reached the maximum number of Workflows allowed. Contact your administrator or team owner to increase the quota, or delete a Workflow to create a new one."
+              "This workspace has reached the maximum number of Workflows allowed. Contact your administrator or workspace owner to increase the quota, or delete a Workflow to create a new one."
             }
           >
             <div className={styles.disabledCreate} data-testid="workflows-create-workflow-button">
@@ -132,11 +132,11 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ team, hasReachedWorkflo
           importWorkflowMutator={createWorkflowMutator.error}
           importWorkflow={handleImportWorkflow}
           isLoading={isLoading}
-          team={team}
+          workspace={workspace}
           type={viewType}
           workflows={workflows}
           //@ts-ignore
-          teamQuotasEnabled={teamQuotasEnabled}
+          workspaceQuotasEnabled={workspaceQuotasEnabled}
         />
       )}
     </ComposedModal>

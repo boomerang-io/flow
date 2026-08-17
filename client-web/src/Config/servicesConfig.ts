@@ -36,7 +36,7 @@ type WorkflowArg = {
 };
 
 type WorkspaceArg = {
-  team: string;
+  workspace: string;
 };
 
 type VersionArg = {
@@ -59,41 +59,41 @@ export const serviceUrl = {
   // No single-parameter GET exists; this is only used to build the delete-by-name URL below.
   getGlobalParameter: ({ name }: IdArg) => `${BASE_URL}/parameters/${name}`,
   getGlobalTokens: () => `${BASE_URL}/token/query?types=global`,
-  getManageTeamsCreate: () => `${BASE_URL}/workspace`,
-  // TODO: no dedicated labels route; labels are now merged in via patchTeam's request body.
-  getManageTeamLabels: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/labels`,
+  getManageWorkspacesCreate: () => `${BASE_URL}/workspace`,
+  // TODO: no dedicated labels route; labels are now merged in via patchWorkspace's request body.
+  getManageWorkspaceLabels: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/labels`,
   getContext: () => `${BASE_URL}/context`,
-  getTeams: ({ query }: QueryArg) => `${BASE_URL}/workspace/query${query ? "?" + query : ""}`,
-  deleteTeamQuotas: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/quotas`,
-  getTeamQuotaDefaults: () => `${BASE_URL}/workspace/quotas/default`,
+  getWorkspaces: ({ query }: QueryArg) => `${BASE_URL}/workspace/query${query ? "?" + query : ""}`,
+  deleteWorkspaceQuotas: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/quotas`,
+  getWorkspaceQuotaDefaults: () => `${BASE_URL}/workspace/quotas/default`,
   getTokens: ({ query }) => `${BASE_URL}/token/query${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   deleteUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserProfile: () => `${BASE_URL}/profile`,
   getUserProfileImage: ({ userEmail }) => `${BASE_CORE_USERS_URL}/image/${userEmail}`,
-  getIntegrations: ({ team }: WorkspaceArg) => `${BASE_URL}/integration${team ? "?workspace=" + team : ""}`,
+  getIntegrations: ({ workspace }: WorkspaceArg) => `${BASE_URL}/integration${workspace ? "?workspace=" + workspace : ""}`,
   getTaskrunLog: ({ id }: IdArg) => `${BASE_URL}/taskrun/${id}/log`,
   postToken: () => `${BASE_URL}/token`,
-  postTeamValidateName: () => `${BASE_URL}/workspace/validate-name`,
-  postTeam: () => `${BASE_URL}/workspace`,
-  // TODO: quota reset is now DELETE workspace/{workspace}/quotas (see deleteTeamQuotas); no POST .../quotas/reset route exists.
-  postTeamQuotasReset: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/quotas/reset`,
-  resourceTeam: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}`,
-  // TODO: create/update approver groups no longer exist as standalone routes (merged into patchTeam);
+  postWorkspaceValidateName: () => `${BASE_URL}/workspace/validate-name`,
+  postWorkspace: () => `${BASE_URL}/workspace`,
+  // TODO: quota reset is now DELETE workspace/{workspace}/quotas (see deleteWorkspaceQuotas); no POST .../quotas/reset route exists.
+  postWorkspaceQuotasReset: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/quotas/reset`,
+  resourceWorkspace: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}`,
+  // TODO: create/update approver groups no longer exist as standalone routes (merged into patchWorkspace);
   // delete now takes a request body of group names, not a /{groupId} path segment.
-  resourceApproverGroups: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/approvers`,
+  resourceApproverGroups: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/approvers`,
   putActivationApp: () => `${BASE_URL}/activate`,
   resourceSettings: () => `${BASE_URL}/settings`,
   resourceTrigger: () => `${BASE_URL}`,
   getGitHubAppInstallation: ({ id }: IdArg) => `${BASE_URL}/integration/github/installation${id ? "?id=" + id : ""}`,
-  getGitHubAppInstallationForTeam: ({ team }: WorkspaceArg) =>
-    `${BASE_URL}/integration/github/installation${team ? "?workspace=" + team : ""}`,
+  getGitHubAppInstallationForWorkspace: ({ workspace }: WorkspaceArg) =>
+    `${BASE_URL}/integration/github/installation${workspace ? "?workspace=" + workspace : ""}`,
   postGitHubAppLink: () => `${BASE_URL}/integration/github/link`,
   postGitHubAppUnlink: () => `${BASE_URL}/integration/github/unlink`,
   schedule: {
-    getCronValidation: ({ team, expression }) =>
-      `${BASE_URL}/workspace/${team}/schedule/validate-cron?cron=${expression}`,
+    getCronValidation: ({ workspace, expression }) =>
+      `${BASE_URL}/workspace/${workspace}/schedule/validate-cron?cron=${expression}`,
   },
   task: {
     // deleteArchiveTaskTemplate: ({ id }) => `${BASE_URL}/task/${id}`,
@@ -112,82 +112,82 @@ export const serviceUrl = {
     // TODO: export route removed from the Workflow Template API; no longer reachable.
     getExportWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}/export`,
   },
-  team: {
-    deleteTeamMembers: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/members`,
-    leaveTeam: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/leave`,
-    // TODO: no dedicated parameter create/list route; parameters are merged in via patchTeam's request body.
-    resourceTeamParameters: ({ team }) => `${BASE_URL}/workspace/${team}/parameters`,
-    deleteTeamParameter: ({ team, name }) => `${BASE_URL}/workspace/${team}/parameters/${name}`,
-    getInsights: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-      `${BASE_URL}/workspace/${team}/insights${query ? "?" + query : ""}`,
+  workspace: {
+    deleteWorkspaceMembers: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/members`,
+    leaveWorkspace: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/leave`,
+    // TODO: no dedicated parameter create/list route; parameters are merged in via patchWorkspace's request body.
+    resourceWorkspaceParameters: ({ workspace }) => `${BASE_URL}/workspace/${workspace}/parameters`,
+    deleteWorkspaceParameter: ({ workspace, name }) => `${BASE_URL}/workspace/${workspace}/parameters/${name}`,
+    getInsights: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+      `${BASE_URL}/workspace/${workspace}/insights${query ? "?" + query : ""}`,
     action: {
-      getActionsSummary: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/action/summary${query ? "?" + query : ""}`,
-      getActions: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/action/query${query ? "?" + query : ""}`,
-      putAction: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/action`,
+      getActionsSummary: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/action/summary${query ? "?" + query : ""}`,
+      getActions: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/action/query${query ? "?" + query : ""}`,
+      putAction: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/action`,
     },
     task: {
       // deleteArchiveTaskTemplate: ({ id }) => `${BASE_URL}/task/${id}`,
-      queryTasks: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/task/query${query ? "?" + query : ""}`,
-      getTask: ({ team, name, version }: WorkspaceArg & NameArg & Partial<VersionArg>) =>
-        `${BASE_URL}/workspace/${team}/task/${name}${version ? `?version=${version}` : ""}`,
-      getTaskChangelog: ({ team, name }: WorkspaceArg & NameArg) =>
-        `${BASE_URL}/workspace/${team}/task/${name}/changelog`,
-      putTask: ({ team, name, replace }: WorkspaceArg & NameArg & Partial<ReplaceArg>) =>
-        `${BASE_URL}/workspace/${team}/task/${name}?replace=${replace ? replace : false}`,
-      postValidateYaml: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/task/validate`,
+      queryTasks: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/task/query${query ? "?" + query : ""}`,
+      getTask: ({ workspace, name, version }: WorkspaceArg & NameArg & Partial<VersionArg>) =>
+        `${BASE_URL}/workspace/${workspace}/task/${name}${version ? `?version=${version}` : ""}`,
+      getTaskChangelog: ({ workspace, name }: WorkspaceArg & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/task/${name}/changelog`,
+      putTask: ({ workspace, name, replace }: WorkspaceArg & NameArg & Partial<ReplaceArg>) =>
+        `${BASE_URL}/workspace/${workspace}/task/${name}?replace=${replace ? replace : false}`,
+      postValidateYaml: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/task/validate`,
     },
     workflow: {
-      getWorkflow: ({ team, workflow, version }: WorkspaceArg & WorkflowArg & Partial<VersionArg>) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}${version ? `?version=${version}` : ""}`,
-      getWorkflows: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/workflow/query${query ? "?" + query : ""}`,
-      getWorkflowCompose: ({ team, workflow, version }: WorkspaceArg & WorkflowArg & Partial<VersionArg>) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/compose${version ? `?version=${version}` : ""}`,
+      getWorkflow: ({ workspace, workflow, version }: WorkspaceArg & WorkflowArg & Partial<VersionArg>) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}${version ? `?version=${version}` : ""}`,
+      getWorkflows: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/query${query ? "?" + query : ""}`,
+      getWorkflowCompose: ({ workspace, workflow, version }: WorkspaceArg & WorkflowArg & Partial<VersionArg>) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/compose${version ? `?version=${version}` : ""}`,
       // NOTE: kind=workflowRun is no longer read server-side (compose only accepts ?version); left as-is, harmless extra param.
-      getWorkflowComposeRun: ({ team, workflow, version }: WorkspaceArg & WorkflowArg & Partial<VersionArg>) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/compose${version ? `?version=${version}&kind=workflowRun` : ""}`,
-      getWorkflowChangelog: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/changelog`,
-      postCreateWorkflow: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/workflow`,
-      postDuplicateWorkflow: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/duplicate`,
-      postSubmitWorkflow: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/submit`,
-      getAvailableParameters: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/available-parameters`,
-      putApplyWorkflowCompose: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/compose`,
-      putApplyWorkflow: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/workflow`,
-      getExportWorkflow: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${team}/workflow/${workflow}/export`,
-      // TODO: no workflow-level validate-name route; only workspace names are validated (postTeamValidateName).
-      postValidateName: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/workflow/validate-name`,
+      getWorkflowComposeRun: ({ workspace, workflow, version }: WorkspaceArg & WorkflowArg & Partial<VersionArg>) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/compose${version ? `?version=${version}&kind=workflowRun` : ""}`,
+      getWorkflowChangelog: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/changelog`,
+      postCreateWorkflow: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow`,
+      postDuplicateWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/duplicate`,
+      postSubmitWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/submit`,
+      getAvailableParameters: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/available-parameters`,
+      putApplyWorkflowCompose: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/compose`,
+      putApplyWorkflow: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow`,
+      getExportWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/export`,
+      // TODO: no workflow-level validate-name route; only workspace names are validated (postWorkspaceValidateName).
+      postValidateName: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow/validate-name`,
     },
     workflowrun: {
-      deleteCancelWorkflow: ({ team, id }: WorkspaceArg & IdArg) =>
-        `${BASE_URL}/workspace/${team}/workflowrun/${id}/cancel`,
-      putRetryWorkflow: ({ team, id }: WorkspaceArg & IdArg) =>
-        `${BASE_URL}/workspace/${team}/workflowrun/${id}/retry`,
-      getWorkflowRunCount: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/workflowrun/count${query ? "?" + query : ""}`,
-      getWorkflowRuns: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/workflowrun/query${query ? "?" + query : ""}`,
-      getWorkflowRun: ({ team, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${team}/workflowrun/${id}`,
+      deleteCancelWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/cancel`,
+      putRetryWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/retry`,
+      getWorkflowRunCount: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/count${query ? "?" + query : ""}`,
+      getWorkflowRuns: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/query${query ? "?" + query : ""}`,
+      getWorkflowRun: ({ workspace, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${workspace}/workflowrun/${id}`,
     },
     schedule: {
-      getSchedules: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/schedule/query${query ? "?" + query : ""}`,
-      getSchedule: ({ team, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${team}/schedule/${id}`,
-      getSchedulesCalendars: ({ team, query }: WorkspaceArg & Partial<QueryArg>) =>
-        `${BASE_URL}/workspace/${team}/schedule/calendars${query ? "?" + query : ""}`,
-      deleteSchedule: ({ team, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${team}/schedule/${id}`,
+      getSchedules: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/schedule/query${query ? "?" + query : ""}`,
+      getSchedule: ({ workspace, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${workspace}/schedule/${id}`,
+      getSchedulesCalendars: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/schedule/calendars${query ? "?" + query : ""}`,
+      deleteSchedule: ({ workspace, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${workspace}/schedule/${id}`,
       // getScheduleCalendar: ({ scheduleId, query }) =>
       //   `${BASE_URL}/schedule/${scheduleId}/calendar${query ? "?" + query : ""}`,
-      putSchedule: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/schedule`,
-      postSchedule: ({ team }: WorkspaceArg) => `${BASE_URL}/workspace/${team}/schedule`,
+      putSchedule: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/schedule`,
+      postSchedule: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/schedule`,
     },
   },
 };
@@ -206,36 +206,36 @@ export const resolver = {
   patchMutation: (request) => axios.patch(request),
   putMutation: (request) => axios.put(request),
   // Approver groups are now deleted in bulk by name, not by a /{groupId} path segment.
-  deleteApproverGroup: ({ team, groupId }) =>
-    axios.delete(serviceUrl.resourceApproverGroups({ team }), { data: [groupId] }),
+  deleteApproverGroup: ({ workspace, groupId }) =>
+    axios.delete(serviceUrl.resourceApproverGroups({ workspace }), { data: [groupId] }),
   // deleteArchiveTaskTemplate: ({ id }) => axios.delete(serviceUrl.deleteArchiveTaskTemplate({ id })),
-  putRetryWorkflowRun: ({ team, id }) => axios.put(serviceUrl.team.workflowrun.putRetryWorkflow({ team, id })),
-  deleteCancelWorkflowRun: ({ team, id }) =>
-    axios.delete(serviceUrl.team.workflowrun.deleteCancelWorkflow({ team, id })),
+  putRetryWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putRetryWorkflow({ workspace, id })),
+  deleteCancelWorkflowRun: ({ workspace, id }) =>
+    axios.delete(serviceUrl.workspace.workflowrun.deleteCancelWorkflow({ workspace, id })),
   deleteGlobalParameter: ({ name }) => axios.delete(serviceUrl.getGlobalParameter({ name })),
-  deleteTeamMembers: ({ team, body }) =>
-    axios({ url: serviceUrl.team.deleteTeamMembers({ team }), data: body, method: HttpMethod.Delete }),
-  deleteTeamParameter: ({ team, name }) => axios.delete(serviceUrl.team.deleteTeamParameter({ team, name })),
-  deleteWorkflow: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-    axios.delete(serviceUrl.team.workflow.getWorkflow({ team, workflow })),
+  deleteWorkspaceMembers: ({ workspace, body }) =>
+    axios({ url: serviceUrl.workspace.deleteWorkspaceMembers({ workspace }), data: body, method: HttpMethod.Delete }),
+  deleteWorkspaceParameter: ({ workspace, name }) => axios.delete(serviceUrl.workspace.deleteWorkspaceParameter({ workspace, name })),
+  deleteWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+    axios.delete(serviceUrl.workspace.workflow.getWorkflow({ workspace, workflow })),
   deleteWorkflowTemplate: ({ name }) => axios.delete(serviceUrl.template.getWorkflowTemplate({ name })),
-  leaveTeam: ({ team }) => axios.delete(serviceUrl.team.leaveTeam({ team })),
-  deleteSchedule: ({ team, id }) => axios.delete(serviceUrl.team.schedule.deleteSchedule({ team, id })),
-  deleteTeam: ({ team }: WorkspaceArg) => axios.delete(serviceUrl.resourceTeam({ team })),
+  leaveWorkspace: ({ workspace }) => axios.delete(serviceUrl.workspace.leaveWorkspace({ workspace })),
+  deleteSchedule: ({ workspace, id }) => axios.delete(serviceUrl.workspace.schedule.deleteSchedule({ workspace, id })),
+  deleteWorkspace: ({ workspace }: WorkspaceArg) => axios.delete(serviceUrl.resourceWorkspace({ workspace })),
   deleteToken: ({ tokenId }) => axios.delete(serviceUrl.deleteToken({ tokenId })),
   deleteUser: ({ userId }) => axios.delete(serviceUrl.deleteUser({ userId })),
   // Params are now updated in bulk via PUT (no id in the path); the request body carries the full parameter.
   patchGlobalParameter: ({ body }) =>
     axios({ url: serviceUrl.getGlobalParameters(), data: body, method: HttpMethod.Put }),
-  patchTeam: ({ team, body }) => axios.patch(serviceUrl.resourceTeam({ team }), body),
-  patchManageTeamLabels: ({ team, body }) => axios.patch(serviceUrl.getManageTeamLabels({ team }), body),
+  patchWorkspace: ({ workspace, body }) => axios.patch(serviceUrl.resourceWorkspace({ workspace }), body),
+  patchManageWorkspaceLabels: ({ workspace, body }) => axios.patch(serviceUrl.getManageWorkspaceLabels({ workspace }), body),
   patchProfile: ({ body }) => axios({ url: serviceUrl.getUserProfile(), data: body, method: HttpMethod.Patch }),
   patchManageUser: ({ body, userId }) =>
     axios({ url: serviceUrl.getUser({ userId }), data: body, method: HttpMethod.Patch }),
-  putSchedule: ({ team, body }) => axios.put(serviceUrl.team.schedule.putSchedule({ team }), body),
-  postTeam: ({ body }) => axios.post(serviceUrl.postTeam(), body),
-  postTeamValidateName: ({ body }) => axios.post(serviceUrl.postTeamValidateName(), body),
-  postWorkflowValidateName: ({ team, body }) => axios.post(serviceUrl.team.workflow.postValidateName({ team }), body),
+  putSchedule: ({ workspace, body }) => axios.put(serviceUrl.workspace.schedule.putSchedule({ workspace }), body),
+  postWorkspace: ({ body }) => axios.post(serviceUrl.postWorkspace(), body),
+  postWorkspaceValidateName: ({ body }) => axios.post(serviceUrl.postWorkspaceValidateName(), body),
+  postWorkflowValidateName: ({ workspace, body }) => axios.post(serviceUrl.workspace.workflow.postValidateName({ workspace }), body),
   postValidateYaml: ({ body }) =>
     axios({
       method: HttpMethod.Post,
@@ -245,35 +245,35 @@ export const resolver = {
         "content-type": "application/x-yaml",
       },
     }),
-  // TODO: no dedicated parameter-update route; serviceUrl.getTeamParameter was never defined (pre-existing dead
-  // reference) and the underlying capability moved to patchTeam's request body regardless.
-  patchTeamParameter: ({ team, key, body }) =>
+  // TODO: no dedicated parameter-update route; serviceUrl.getWorkspaceParameter was never defined (pre-existing dead
+  // reference) and the underlying capability moved to patchWorkspace's request body regardless.
+  patchWorkspaceParameter: ({ workspace, key, body }) =>
     axios({
-      url: serviceUrl.getTeamParameter({ team, key }),
+      url: serviceUrl.getWorkspaceParameter({ workspace, key }),
       data: body,
       method: HttpMethod.Patch,
     }),
-  // TODO: create/update approver groups no longer exist as standalone routes; use patchTeam.
-  postApproverGroupRequest: ({ body, team }) =>
+  // TODO: create/update approver groups no longer exist as standalone routes; use patchWorkspace.
+  postApproverGroupRequest: ({ body, workspace }) =>
     axios({
-      url: serviceUrl.resourceApproverGroups({ team }),
+      url: serviceUrl.resourceApproverGroups({ workspace }),
       data: body,
       method: HttpMethod.Post,
     }),
   postCreateTemplate: ({ body }) =>
     axios({ url: serviceUrl.template.postWorkflowTemplate(), data: body, method: HttpMethod.Post }),
-  postCreateWorkflow: ({ team, body }) =>
-    axios({ url: serviceUrl.team.workflow.postCreateWorkflow({ team }), data: body, method: HttpMethod.Post }),
-  postDuplicateWorkflow: ({ team, workflow }: WorkspaceArg & WorkflowArg) =>
-    axios.post(serviceUrl.team.workflow.postDuplicateWorkflow({ team, workflow })),
+  postCreateWorkflow: ({ workspace, body }) =>
+    axios({ url: serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), data: body, method: HttpMethod.Post }),
+  postDuplicateWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+    axios.post(serviceUrl.workspace.workflow.postDuplicateWorkflow({ workspace, workflow })),
   // TODO: Workflow Template duplication was removed from the API; serviceUrl.postDuplicateWorkflow (top-level)
   // was also never defined (pre-existing dead reference).
   postTemplateWorkflow: ({ workflowId, body }) => axios.post(serviceUrl.postDuplicateWorkflow({ workflowId }), body),
   postToken: ({ body }) => axios({ url: serviceUrl.postToken(), data: body, method: HttpMethod.Post }),
   putApplyTaskTemplate: ({ name, replace, body }) =>
     axios({ url: serviceUrl.task.putTask({ name, replace }), data: body, method: HttpMethod.Put }),
-  putApplyTeamTaskTemplate: ({ team, name, replace, body }) =>
-    axios({ url: serviceUrl.team.task.putTask({ team, name, replace }), data: body, method: HttpMethod.Put }),
+  putApplyWorkspaceTaskTemplate: ({ workspace, name, replace, body }) =>
+    axios({ url: serviceUrl.workspace.task.putTask({ workspace, name, replace }), data: body, method: HttpMethod.Put }),
   putApplyTaskTemplateYaml: ({ name, replace, body }) =>
     axios({
       url: serviceUrl.task.putTask({ name, replace }),
@@ -281,26 +281,26 @@ export const resolver = {
       method: HttpMethod.Put,
       headers: { "content-type": "application/x-yaml" },
     }),
-  putApplyTeamTaskTemplateYaml: ({ team, name, replace, body }) =>
+  putApplyWorkspaceTaskTemplateYaml: ({ workspace, name, replace, body }) =>
     axios({
-      url: serviceUrl.team.task.putTask({ team, name, replace }),
+      url: serviceUrl.workspace.task.putTask({ workspace, name, replace }),
       data: body,
       method: HttpMethod.Put,
       headers: { "content-type": "application/x-yaml" },
     }),
-  postCreateTeam: ({ body }) => axios({ url: serviceUrl.getManageTeamsCreate(), data: body, method: HttpMethod.Post }),
-  putApplyWorkflow: ({ team, body }) =>
-    axios.put<Workflow, Workflow>(serviceUrl.team.workflow.putApplyWorkflow({ team }), body),
-  putApplyWorkflowCompose: ({ team, workflow, body }) =>
-    axios.put<Workflow, Workflow>(serviceUrl.team.workflow.putApplyWorkflowCompose({ team, workflow }), body),
-  postSubmitWorkflow: ({ team, workflow, body }) =>
-    axios.post(serviceUrl.team.workflow.postSubmitWorkflow({ team, workflow }), body),
+  postCreateWorkspace: ({ body }) => axios({ url: serviceUrl.getManageWorkspacesCreate(), data: body, method: HttpMethod.Post }),
+  putApplyWorkflow: ({ workspace, body }) =>
+    axios.put<Workflow, Workflow>(serviceUrl.workspace.workflow.putApplyWorkflow({ workspace }), body),
+  putApplyWorkflowCompose: ({ workspace, workflow, body }) =>
+    axios.put<Workflow, Workflow>(serviceUrl.workspace.workflow.putApplyWorkflowCompose({ workspace, workflow }), body),
+  postSubmitWorkflow: ({ workspace, workflow, body }) =>
+    axios.post(serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace, workflow }), body),
   postGlobalParameter: ({ body }) =>
     axios({ url: serviceUrl.getGlobalParameters(), data: body, method: HttpMethod.Post }),
-  postSchedule: ({ team, body }) => axios.post(serviceUrl.team.schedule.postSchedule({ team }), body),
-  // TODO: no dedicated parameter-create route; use patchTeam.
-  postTeamParameter: ({ team, body }) =>
-    axios({ url: serviceUrl.team.resourceTeamParameters({ team }), data: body, method: HttpMethod.Post }),
+  postSchedule: ({ workspace, body }) => axios.post(serviceUrl.workspace.schedule.postSchedule({ workspace }), body),
+  // TODO: no dedicated parameter-create route; use patchWorkspace.
+  postWorkspaceParameter: ({ workspace, body }) =>
+    axios({ url: serviceUrl.workspace.resourceWorkspaceParameters({ workspace }), data: body, method: HttpMethod.Post }),
   putActivationApp: ({ body }) =>
     axios({
       method: HttpMethod.Put,
@@ -308,19 +308,19 @@ export const resolver = {
       data: body,
       validateStatus: (status) => status >= 200 && status < 300,
     }),
-  // TODO: no PUT approver-group route; use patchTeam.
-  putApproverGroupRequest: ({ body, team }) =>
+  // TODO: no PUT approver-group route; use patchWorkspace.
+  putApproverGroupRequest: ({ body, workspace }) =>
     axios({
-      url: serviceUrl.resourceApproverGroups({ team }),
+      url: serviceUrl.resourceApproverGroups({ workspace }),
       data: body,
       method: HttpMethod.Put,
     }),
   putPlatformSettings: ({ body }) => axios.put(serviceUrl.resourceSettings(), body),
   putRestoreTaskTemplate: ({ id }: IdArg) => axios.put(serviceUrl.putRestoreTaskTemplate({ id })),
-  patchUpdateTeam: ({ team, body }) => axios.patch(serviceUrl.resourceTeam({ team }), body),
-  deleteTeamQuotas: ({ team }) => axios({ url: serviceUrl.deleteTeamQuotas({ team }), method: HttpMethod.Delete }),
-  putAction: ({ team, body }) =>
-    axios({ url: serviceUrl.team.action.putAction({ team }), data: body, method: HttpMethod.Put }),
+  patchUpdateWorkspace: ({ workspace, body }) => axios.patch(serviceUrl.resourceWorkspace({ workspace }), body),
+  deleteWorkspaceQuotas: ({ workspace }) => axios({ url: serviceUrl.deleteWorkspaceQuotas({ workspace }), method: HttpMethod.Delete }),
+  putAction: ({ workspace, body }) =>
+    axios({ url: serviceUrl.workspace.action.putAction({ workspace }), data: body, method: HttpMethod.Put }),
   postGitHubAppLink: ({ body }) => axios.post(serviceUrl.postGitHubAppLink(), body),
   postGitHubAppUnlink: ({ body }) => axios.post(serviceUrl.postGitHubAppUnlink(), body),
 };

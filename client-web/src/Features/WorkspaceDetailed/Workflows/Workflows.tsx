@@ -17,13 +17,13 @@ import { Link } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { appLink } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowTeam, PaginatedWorkflowResponse } from "Types";
+import { FlowWorkspace, PaginatedWorkflowResponse } from "Types";
 import styles from "./Workflows.module.scss";
 
-function Workflows({ team }: { team: FlowTeam }) {
+function Workflows({ workspace }: { workspace: FlowWorkspace }) {
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  const getWorkflowsUrl = serviceUrl.team.workflow.getWorkflows({ team: team?.name });
+  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
   const workflowsQuery = useQuery<PaginatedWorkflowResponse, string>({
     queryKey: getWorkflowsUrl,
     queryFn: resolver.query(getWorkflowsUrl),
@@ -33,13 +33,13 @@ function Workflows({ team }: { team: FlowTeam }) {
   const filteredWorkflowsList = searchQuery ? ms(workflows, searchQuery, { keys: ["name", "description"] }) : workflows;
 
   return (
-    <section aria-label={`${team.displayName} Team Workflows`} className={styles.container}>
+    <section aria-label={`${workspace.displayName} Workspace Workflows`} className={styles.container}>
       <Helmet>
-        <title>{`Workflows - ${team.displayName}`}</title>
+        <title>{`Workflows - ${workspace.displayName}`}</title>
       </Helmet>
       <section className={styles.actionsContainer}>
         <div className={styles.leftActions}>
-          <p className={styles.featureDescription}>These are the workflows for this Team.</p>
+          <p className={styles.featureDescription}>These are the workflows for this Workspace.</p>
           <p className={styles.workflowCountText}>
             Showing {filteredWorkflowsList.length} workflow{filteredWorkflowsList.length !== 1 ? "s" : ""}
           </p>
@@ -88,8 +88,8 @@ function Workflows({ team }: { team: FlowTeam }) {
                     <Link
                       className={styles.viewWorkflowLink}
                       to={{
-                        pathname: appLink.editorCanvas({ team: team.name, workflow: workflow.name }),
-                        state: { fromTeam: team.name },
+                        pathname: appLink.editorCanvas({ workspace: workspace.name, workflow: workflow.name }),
+                        state: { fromWorkspace: workspace.name },
                       }}
                     >
                       View/edit
@@ -99,9 +99,9 @@ function Workflows({ team }: { team: FlowTeam }) {
                     <Link
                       className={styles.viewWorkflowLink}
                       to={{
-                        pathname: appLink.activity({ team: team.name }),
+                        pathname: appLink.activity({ workspace: workspace.name }),
                         search: queryString.stringify({ page: 0, size: 10, workflows: workflow.name }),
-                        state: { fromTeam: team.name },
+                        state: { fromWorkspace: workspace.name },
                       }}
                     >
                       Activity

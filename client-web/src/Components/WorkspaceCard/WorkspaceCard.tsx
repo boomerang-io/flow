@@ -7,47 +7,47 @@ import { appLink } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { ArrowRight, Checkmark, Close } from "@carbon/react/icons";
 import moment from "moment";
-import { FlowTeamSummary } from "Types";
-import styles from "./teamCard.module.scss";
+import { FlowWorkspaceSummary } from "Types";
+import styles from "./workspaceCard.module.scss";
 
-interface TeamCardProps {
-  team: FlowTeamSummary;
+interface WorkspaceCardProps {
+  workspace: FlowWorkspaceSummary;
 }
 
-const TeamCard: React.FC<TeamCardProps> = ({ team }) => {
+const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const history = useHistory();
 
-  const leaveTeamMutator = useMutation(resolver.leaveTeam);
-  const handleLeaveTeam = async () => {
+  const leaveWorkspaceMutator = useMutation(resolver.leaveWorkspace);
+  const handleLeaveWorkspace = async () => {
     try {
-      await leaveTeamMutator.mutateAsync({ team: team.name });
+      await leaveWorkspaceMutator.mutateAsync({ workspace: workspace.name });
       notify(
-        <ToastNotification kind="success" title={`Leave Team`} subtitle={`${team.displayName} successfully left`} />,
+        <ToastNotification kind="success" title={`Leave Workspace`} subtitle={`${workspace.displayName} successfully left`} />,
       );
       queryClient.invalidateQueries(serviceUrl.getUserProfile());
     } catch {
-      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Request to leave team failed`} />);
+      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Request to leave workspace failed`} />);
     }
   };
 
   let menuOptions = [
     {
       itemText: "View Workflows",
-      onClick: () => history.push(appLink.workflows({ team: team.name })),
+      onClick: () => history.push(appLink.workflows({ workspace: workspace.name })),
     },
     {
       itemText: "View Actions",
-      onClick: () => history.push(appLink.actions({ team: team.name })),
+      onClick: () => history.push(appLink.actions({ workspace: workspace.name })),
     },
     {
       itemText: "View Activity",
-      onClick: () => history.push(appLink.activity({ team: team.name })),
+      onClick: () => history.push(appLink.activity({ workspace: workspace.name })),
     },
     {
-      itemText: "Manage Team",
-      onClick: () => history.push(appLink.manageTeam({ team: team.name })),
+      itemText: "Manage Workspace",
+      onClick: () => history.push(appLink.manageWorkspace({ workspace: workspace.name })),
     },
     {
       hasDivider: true,
@@ -60,49 +60,49 @@ const TeamCard: React.FC<TeamCardProps> = ({ team }) => {
 
   return (
     <div className={styles.container}>
-      <Link to={!leaveTeamMutator.isLoading ? appLink.workflows({ team: team.name }) : ""}>
+      <Link to={!leaveWorkspaceMutator.isLoading ? appLink.workflows({ workspace: workspace.name }) : ""}>
         <div className={styles.content}>
-          <h1 title={team.displayName} className={styles.displayName} data-testid="workflow-card-title">
-            {team.displayName}
+          <h1 title={workspace.displayName} className={styles.displayName} data-testid="workflow-card-title">
+            {workspace.displayName}
           </h1>
           {/* TODO - change name to display name and put the name slug underneath in small font */}
           <div className={styles.details}>
             <div className={styles.detailItem}>
               <div className={styles.detailLabel}>Workflows</div>
-              <div className={styles.detailValue}>{team.insights.workflows}</div>
+              <div className={styles.detailValue}>{workspace.insights.workflows}</div>
             </div>
             <div className={styles.detailItem}>
               <div className={styles.detailLabel}>Members</div>
-              <div className={styles.detailValue}>{team.insights.members}</div>
+              <div className={styles.detailValue}>{workspace.insights.members}</div>
             </div>
             <div className={styles.detailItem}>
               <div className={styles.detailLabel}>Status</div>
               <div className={styles.detailValue}>
-                {leaveTeamMutator.isLoading ? (
+                {leaveWorkspaceMutator.isLoading ? (
                   <div className={styles.detailStatus}>
                     <InlineLoading description="Leaving.." style={{ width: "fit-content" }} />
                   </div>
                 ) : (
                   <div className={styles.detailStatus}>
-                    {team.status === "active" ? (
+                    {workspace.status === "active" ? (
                       <Checkmark style={{ fill: "#009d9a" }} />
                     ) : (
                       <Close style={{ fill: "#da1e28" }} />
                     )}
-                    <p>{team.status === "active" ? "Active" : "Inactive"}</p>
+                    <p>{workspace.status === "active" ? "Active" : "Inactive"}</p>
                   </div>
                 )}
               </div>
             </div>
             <div className={styles.detailItem}>
               <div className={styles.detailLabel}>Creation Date</div>
-              <div className={styles.detailValue}>{moment(team.creationDate).format("YYYY-MM-DD")}</div>
+              <div className={styles.detailValue}>{moment(workspace.creationDate).format("YYYY-MM-DD")}</div>
             </div>
           </div>
         </div>
         <ArrowRight size={24} className={styles.cardIcon} />
       </Link>
-      {!leaveTeamMutator.isLoading ? (
+      {!leaveWorkspaceMutator.isLoading ? (
         <div style={{ position: "absolute", right: "0" }}>
           <OverflowMenu flipped ariaLabel="Overflow card menu" iconDescription="Overflow menu icon" size="sm">
             {menuOptions.map(({ onClick, itemText, ...rest }, index) => (
@@ -113,7 +113,7 @@ const TeamCard: React.FC<TeamCardProps> = ({ team }) => {
       ) : null}
       {isLeaveModalOpen && (
         <ConfirmModal
-          affirmativeAction={handleLeaveTeam}
+          affirmativeAction={handleLeaveWorkspace}
           affirmativeButtonProps={{ kind: "danger" }}
           affirmativeText="Leave"
           isOpen={isLeaveModalOpen}
@@ -124,13 +124,13 @@ const TeamCard: React.FC<TeamCardProps> = ({ team }) => {
           onCloseModal={() => {
             setIsLeaveModalOpen(false);
           }}
-          title={`Leave Team`}
+          title={`Leave Workspace`}
         >
-          {`Are you sure you want to leave Team (${team.displayName})? There's no going back from this decision.`}
+          {`Are you sure you want to leave Workspace (${workspace.displayName})? There's no going back from this decision.`}
         </ConfirmModal>
       )}
     </div>
   );
 };
 
-export default TeamCard;
+export default WorkspaceCard;

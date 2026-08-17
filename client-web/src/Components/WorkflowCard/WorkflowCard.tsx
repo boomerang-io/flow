@@ -24,25 +24,25 @@ import { WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { BASE_URL } from "Config/servicesConfig";
-import { FlowTeamQuotas, ModalTriggerProps, Workflow, WorkflowViewType, DataDrivenInput, Parameter } from "Types";
+import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowViewType, DataDrivenInput, Parameter } from "Types";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
 import WorkflowRunModalContent from "./WorkflowRunModalContent";
 import styles from "./workflowCard.module.scss";
 
 interface WorkflowCardProps {
-  teamName: string;
-  quotas: FlowTeamQuotas | null;
+  workspaceName: string;
+  quotas: FlowWorkspaceQuotas | null;
   workflow: Workflow;
   viewType: WorkflowViewType;
   getWorkflowsUrl: string;
 }
 
-const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow, viewType, getWorkflowsUrl }) => {
+const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType, getWorkflowsUrl }) => {
   const queryClient = useQueryClient();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
-  const teamQuotasEnabled = useFeature(FeatureFlag.TeamQuotasEnabled);
+  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
 
   const history = useHistory();
@@ -75,7 +75,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
 
   const handleDeleteWorkflow = async () => {
     try {
-      await deleteWorkflowMutator({ team: teamName, workflow: workflow.name });
+      await deleteWorkflowMutator({ workspace: workspaceName, workflow: workflow.name });
       notify(
         <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
       );
@@ -93,7 +93,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
 
   const handleDuplicateWorkflow = async (workflow: Workflow) => {
     try {
-      await duplicateWorkflowMutator({ team: teamName, workflow: workflow.name });
+      await duplicateWorkflowMutator({ workspace: workspaceName, workflow: workflow.name });
       notify(
         <ToastNotification
           kind="success"
@@ -122,7 +122,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
   const handleExportWorkflow = (workflow: Workflow) => {
     notify(<ToastNotification kind="info" title={`Export ${viewType}`} subtitle="Export starting soon" />);
     axios
-      .get(serviceUrl.team.workflow.getExportWorkflow({ team: teamName, workflow: workflow.name }))
+      .get(serviceUrl.workspace.workflow.getExportWorkflow({ workspace: workspaceName, workflow: workflow.name }))
       .then(({ data }) => {
         fileDownload(JSON.stringify(data, null, 4), `${workflow.name}.json`);
       })
@@ -151,7 +151,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
     try {
       // @ts-ignore:next-line
       const { data: execution } = await executeWorkflowMutator({
-        team: teamName,
+        workspace: workspaceName,
         workflow: workflow.name,
         body: body,
       });
@@ -164,8 +164,8 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
       );
       if (redirect) {
         history.push({
-          pathname: appLink.execution({ team: teamName, runId: execution.id }),
-          state: { fromUrl: appLink.workflows({ team: teamName }), fromText: `${viewType}s` },
+          pathname: appLink.execution({ workspace: workspaceName, runId: execution.id }),
+          state: { fromUrl: appLink.workflows({ workspace: workspaceName }), fromText: `${viewType}s` },
         });
       } else {
         queryClient.invalidateQueries(getWorkflowsUrl);
@@ -191,11 +191,11 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
   let menuOptions = [
     {
       itemText: "Edit",
-      onClick: () => history.push(appLink.editorCanvas({ team: teamName, workflow: workflow.name })),
+      onClick: () => history.push(appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name })),
     },
     {
       itemText: "View Activity",
-      onClick: () => history.push(appLink.workflowActivity({ team: teamName, workflow: workflow.name })),
+      onClick: () => history.push(appLink.workflowActivity({ workspace: workspaceName, workflow: workflow.name })),
     },
     {
       itemText: "Update",
@@ -233,8 +233,8 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
   }
 
   const canRunManually = workflow?.triggers?.manual?.enabled ?? false;
-  const isDisabledViaRunQuota = teamQuotasEnabled && hasReachedMonthlyRunLimit;
-  const isDisabledViaConcurrentQuota = teamQuotasEnabled && hasReachedConcurrentLimit;
+  const isDisabledViaRunQuota = workspaceQuotasEnabled && hasReachedMonthlyRunLimit;
+  const isDisabledViaConcurrentQuota = workspaceQuotasEnabled && hasReachedConcurrentLimit;
   const isDisabledViaTrigger = canRunManually === false;
   const isDisabled = isDisabledViaRunQuota || isDisabledViaConcurrentQuota || isDisabledViaTrigger;
 
@@ -250,7 +250,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
 
   return (
     <div className={styles.container}>
-      <Link to={!isDeleting ? appLink.editorCanvas({ team: teamName, workflow: workflow.name }) : ""}>
+      <Link to={!isDeleting ? appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name }) : ""}>
         <section className={styles.details}>
           <div className={styles.iconContainer}>
             <Icon className={styles.icon} alt={`${workflow.icon}`} />
@@ -352,14 +352,14 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
           {isDisabledViaRunQuota ? (
             <TooltipHover
               direction="top"
-              tooltipText="This team has reached the maximum number of runs (executions) allowed this month. Contact your administrator or team owner to increase the quota, or wait until the quota resets next month."
+              tooltipText="This workspace has reached the maximum number of runs (executions) allowed this month. Contact your administrator or workspace owner to increase the quota, or wait until the quota resets next month."
             >
               <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
             </TooltipHover>
           ) : isDisabledViaConcurrentQuota ? (
             <TooltipHover
               direction="top"
-              tooltipText="This team has reached the maximum number of concurrent runs (executions) allowed. Contact your administrator or team owner to increase the quota, or wait until a run has completed execution."
+              tooltipText="This workspace has reached the maximum number of concurrent runs (executions) allowed. Contact your administrator or workspace owner to increase the quota, or wait until a run has completed execution."
             >
               <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
             </TooltipHover>
@@ -397,7 +397,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ teamName, quotas, workflow,
           onCloseModal={() => setIsUpdateWorkflowModalOpen(false)}
           workflowRef={workflow.name}
           getWorkflowsUrl={getWorkflowsUrl}
-          teamName={teamName}
+          workspaceName={workspaceName}
           type={viewType}
         />
       )}

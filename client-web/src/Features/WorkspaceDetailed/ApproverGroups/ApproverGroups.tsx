@@ -9,7 +9,7 @@ import CreateEditGroupModal from "./CreateEditGroupModal";
 import moment from "moment";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { sortKeyDirection } from "Utils/arrayHelper";
-import { FlowTeam, ApproverGroup, Approver } from "Types";
+import { FlowWorkspace, ApproverGroup, Approver } from "Types";
 import { TrashCan } from "@carbon/react/icons";
 import styles from "./approverGroups.module.scss";
 
@@ -37,25 +37,25 @@ const HEADERS = [
 ];
 
 function ApproverGroups({
-  team,
+  workspace,
   canEdit,
-  teamDetailsUrl,
+  workspaceDetailsUrl,
 }: {
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   canEdit: boolean;
-  teamDetailsUrl: string;
+  workspaceDetailsUrl: string;
 }) {
   const [sortKey, setSortKey] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("ASC");
-  const approverGroups = team?.approverGroups ?? [];
-  /** Delete Team Approver Group */
+  const approverGroups = workspace?.approverGroups ?? [];
+  /** Delete Workspace Approver Group */
   const deleteApproverGroupMutation = useMutation(resolver.deleteApproverGroup);
 
   const deleteApproverGroup = async (approverGroup: ApproverGroup) => {
     try {
-      await deleteApproverGroupMutation.mutateAsync({ team: team?.name, groupId: approverGroup.id });
-      //TODO - replace with invalidate Team
-      // queryClient.invalidateQueries(serviceUrl.resourceApproverGroups({ teamId: activeTeam?.id, groupId: undefined })),
+      await deleteApproverGroupMutation.mutateAsync({ workspace: workspace?.name, groupId: approverGroup.id });
+      //TODO - replace with invalidate Workspace
+      // queryClient.invalidateQueries(serviceUrl.resourceApproverGroups({ workspaceId: activeWorkspace?.id, groupId: undefined })),
       notify(
         <ToastNotification
           kind="success"
@@ -99,8 +99,8 @@ function ApproverGroups({
               isEdit
               approverGroup={approverGroup}
               approverGroups={approverGroups}
-              team={team}
-              teamDetailsUrl={teamDetailsUrl}
+              workspace={workspace}
+              workspaceDetailsUrl={workspaceDetailsUrl}
             />
             <ConfirmModal
               modalTrigger={({ openModal }: any) => (
@@ -171,9 +171,9 @@ function ApproverGroups({
   const totalItems = approverGroups?.length;
 
   return (
-    <section aria-label={`${team.displayName} Team Approvers`} className={styles.container}>
+    <section aria-label={`${workspace.displayName} Workspace Approvers`} className={styles.container}>
       <Helmet>
-        <title>Team Approvers</title>
+        <title>Workspace Approvers</title>
       </Helmet>
       {!canEdit ? (
         <section className={styles.notificationsContainer}>
@@ -182,7 +182,7 @@ function ApproverGroups({
             hideCloseButton={true}
             kind="info"
             title="Read-only"
-            subtitle="The team may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
+            subtitle="The workspace may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
             scenes."
           />
         </section>
@@ -197,7 +197,7 @@ function ApproverGroups({
           </p>
         </div>
         {canEdit && (
-          <CreateEditGroupModal approverGroups={approverGroups} team={team} teamDetailsUrl={teamDetailsUrl} />
+          <CreateEditGroupModal approverGroups={approverGroups} workspace={workspace} workspaceDetailsUrl={workspaceDetailsUrl} />
         )}
       </section>
       {totalItems > 0 ? (
@@ -263,7 +263,7 @@ function ApproverGroups({
                     <TableRow className={styles.tableHeadRow}>
                       {headers.map((header: any, key: any) => (
                         <TableHeader
-                          key={`no-team-config-table-key-${key}`}
+                          key={`no-workspace-config-table-key-${key}`}
                           className={`${styles.tableHeadHeader} ${styles[header.key]}`}
                         >
                           <span className="bx--table-header-label">{header.header}</span>

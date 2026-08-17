@@ -12,8 +12,8 @@ import { useMutation, useQueryClient } from "react-query";
 import { useHistory, useLocation } from "react-router-dom";
 import HomeBanner from "Components/HomeBanner";
 import LearnCard from "Components/LearnCard";
-import TeamCard from "Components/TeamCard";
-import TeamCardCreate from "Components/TeamCardCreate";
+import WorkspaceCard from "Components/WorkspaceCard";
+import WorkspaceCardCreate from "Components/WorkspaceCardCreate";
 import WorkflowTemplateHomeCard from "Components/WorkflowTemplateHomeCard";
 import { useAppContext } from "Hooks";
 import { resolver, serviceUrl } from "Config/servicesConfig";
@@ -21,17 +21,17 @@ import { MemberRole } from "Types";
 import styles from "./home.module.scss";
 
 export default function Home() {
-  const { teams, name, user, workflowTemplates } = useAppContext();
+  const { workspaces, name, user, workflowTemplates } = useAppContext();
   const queryClient = useQueryClient();
   const location = useLocation();
   const history = useHistory();
-  const { action, teamName } = queryString.parse(location.search);
+  const { action, workspaceName } = queryString.parse(location.search);
 
-  const createTeamMutator = useMutation(resolver.postTeam);
+  const createWorkspaceMutator = useMutation(resolver.postWorkspace);
 
-  const createTeam = async (values: { name: string | undefined }, success_fn?: (...args: any) => any) => {
+  const createWorkspace = async (values: { name: string | undefined }, success_fn?: (...args: any) => any) => {
     try {
-      await createTeamMutator.mutateAsync({
+      await createWorkspaceMutator.mutateAsync({
         body: {
           name: kebabcase(values.name?.replace(`'`, "-")),
           displayName: values.name,
@@ -44,7 +44,7 @@ export default function Home() {
         },
       });
       queryClient.invalidateQueries(serviceUrl.getUserProfile());
-      notify(<ToastNotification kind="success" title="Create Team" subtitle="Team created successfully" />);
+      notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
       if (typeof success_fn === "function") {
         success_fn();
       }
@@ -56,21 +56,21 @@ export default function Home() {
     }
   };
 
-  // Only run this once if we have a team
-  React.useEffect(function createTeamOnLoad() {
-    if (action === "create-team" && typeof teamName === "string" && Boolean(teamName)) {
-      async function runCreateTeam() {
-        await createTeam({ name: teamName as string }, () =>
+  // Only run this once if we have a workspace
+  React.useEffect(function createWorkspaceOnLoad() {
+    if (action === "create-workspace" && typeof workspaceName === "string" && Boolean(workspaceName)) {
+      async function runCreateWorkspace() {
+        await createWorkspace({ name: workspaceName as string }, () =>
           history.replace({ pathname: location.pathname, search: "" }),
         );
       }
 
-      runCreateTeam();
+      runCreateWorkspace();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sortedTeams = useMemo(() => sortBy(teams, ["name"]), [teams]);
+  const sortedWorkspaces = useMemo(() => sortBy(workspaces, ["name"]), [workspaces]);
 
   return (
     <>
@@ -80,13 +80,13 @@ export default function Home() {
       </div>
       <div>
         <Layer>
-          <Section title="Your Teams">
+          <Section title="Your Workspaces">
             <nav className={styles.sectionLinks}>
-              {sortedTeams ? sortedTeams?.map((team) => <TeamCard key={team.name} team={team} />) : null}
-              <TeamCardCreate
-                createTeam={createTeam}
-                isError={createTeamMutator.isError}
-                isLoading={createTeamMutator.isLoading}
+              {sortedWorkspaces ? sortedWorkspaces?.map((workspace) => <WorkspaceCard key={workspace.name} workspace={workspace} />) : null}
+              <WorkspaceCardCreate
+                createWorkspace={createWorkspace}
+                isError={createWorkspaceMutator.isError}
+                isLoading={createWorkspaceMutator.isLoading}
               />
             </nav>
           </Section>
@@ -95,7 +95,7 @@ export default function Home() {
           <nav className={styles.sectionLinks}>
             {workflowTemplates
               ? workflowTemplates?.map((template) => (
-                  <WorkflowTemplateHomeCard template={template} teams={sortedTeams} />
+                  <WorkflowTemplateHomeCard template={template} workspaces={sortedWorkspaces} />
                 ))
               : null}
           </nav>
@@ -105,7 +105,7 @@ export default function Home() {
             <LearnCard
               icon={<Workflows style={{ height: "1.5rem", width: "1.5rem" }} />}
               key="first-workflow"
-              title="Create your first Team & Workflow"
+              title="Create your first Workspace & Workflow"
               description="Dive into the world of automation and create your first Workflow with our drag-and-drop designer."
               link="https://useboomerang.io/docs/introduction/getting-started"
               tags={["Getting started"]}
@@ -129,8 +129,8 @@ export default function Home() {
             <LearnCard
               icon={<Gear style={{ height: "1.5rem", width: "1.5rem" }} />}
               key="manage"
-              title="Manage your Team"
-              description="Everything you need to manage your team effectively. Its members, workflows, approver groups, quotas, tokens, and more."
+              title="Manage your Workspace"
+              description="Everything you need to manage your workspace effectively. Its members, workflows, approver groups, quotas, tokens, and more."
               link="https://useboomerang.io/docs/fundamentals/manage"
               tags={["Next steps"]}
             />

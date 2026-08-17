@@ -2,7 +2,7 @@ import React from "react";
 import { ModalBody } from "@carbon/react";
 import moment from "moment";
 import ProgressBar from "Components/ProgressBar";
-import { FlowTeamQuotas } from "Types";
+import { FlowWorkspaceQuotas } from "Types";
 import styles from "./WorkflowQuotaModalContent.module.scss";
 import { c } from "vitest/dist/reporters-5f784f42";
 
@@ -11,7 +11,7 @@ export default function WorkflowQuotaModalContent({
   quotas,
 }: {
   closeModal: () => void;
-  quotas: FlowTeamQuotas;
+  quotas: FlowWorkspaceQuotas;
 }) {
   let workflowLimitPercentage = (quotas.currentWorkflowCount / quotas.maxWorkflowCount) * 100;
   let concurrentLimitPercentage = (quotas.currentConcurrentRuns / quotas.maxConcurrentRuns) * 100;

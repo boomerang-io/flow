@@ -22,8 +22,8 @@ import { TokenScopeType } from "Types";
 import styles from "./form.module.scss";
 
 const ACCESS_TYPE_OPTIONS = [
-  { labelText: "All teams", value: "all" },
-  { labelText: "Only select teams", value: "select" },
+  { labelText: "All workspaces", value: "all" },
+  { labelText: "Only select workspaces", value: "select" },
 ];
 
 interface CreateServiceTokenFormProps {
@@ -45,15 +45,15 @@ function CreateServiceTokenForm({
   principal,
   getTokensUrl,
 }: CreateServiceTokenFormProps | any) {
-  const { teams } = useAppContext();
+  const { workspaces } = useAppContext();
   const [accessType, setAccessType] = React.useState<string>("all");
   const queryClient = useQueryClient();
   const tokenRequestMutation = useMutation(resolver.postToken);
 
-  const teamsComboxBoxList = teams?.map((team: any) => ({
-    label: team.displayName,
-    value: team.name,
-    disabled: team.status === "active" ? true : false,
+  const workspacesComboxBoxList = workspaces?.map((workspace: any) => ({
+    label: workspace.displayName,
+    value: workspace.name,
+    disabled: workspace.status === "active" ? true : false,
   }));
 
   const permissionsList = [
@@ -122,7 +122,7 @@ function CreateServiceTokenForm({
         description: "",
         principal: principal,
         permissions: [`**/read`],
-        teams: [],
+        workspaces: [],
       }}
       validateOnMount
       onSubmit={(values) => createToken(values)}

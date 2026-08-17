@@ -1,3 +1,3 @@
-const teamNameValidate = {};
+const workspaceNameValidate = {};
 
-export default teamNameValidate;
+export default workspaceNameValidate;

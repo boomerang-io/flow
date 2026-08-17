@@ -3,7 +3,7 @@ import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-a
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { cronDayNumberMap } from "Utils/cronHelper";
 import { resolver } from "Config/servicesConfig";
 import { ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
@@ -22,7 +22,7 @@ interface ScheduleEditorProps {
 
 function ScheduleEditor(props: ScheduleEditorProps) {
   const queryClient = useQueryClient();
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   /**
    * Update schedule
    */
@@ -31,7 +31,7 @@ function ScheduleEditor(props: ScheduleEditorProps) {
   const handleUpdateSchedule = async (updatedSchedule: ScheduleUnion) => {
     if (props.schedule) {
       // intentionally don't catch error so it can be done by the ScheduleManagerForm
-      await updateScheduleMutator({ team: team.name, body: updatedSchedule });
+      await updateScheduleMutator({ workspace: workspace.name, body: updatedSchedule });
       notify(
         <ToastNotification
           kind="success"

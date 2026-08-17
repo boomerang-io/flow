@@ -17,7 +17,7 @@ interface ActivityHeaderProps {
   isLoading: boolean;
   failedActivities: number | string;
   runActivities: number | string;
-  team: any;
+  workspace: any;
   succeededActivities: number | string;
 }
 
@@ -26,7 +26,7 @@ function ActivityHeader({
   isError,
   isLoading,
   runActivities,
-  team,
+  workspace,
   succeededActivities,
   failedActivities,
 }: ActivityHeaderProps) {
@@ -50,7 +50,7 @@ function ActivityHeader({
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{team.displayName}</p>
+          <p>{workspace.displayName}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );

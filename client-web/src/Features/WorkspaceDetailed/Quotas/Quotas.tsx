@@ -8,12 +8,12 @@ import ProgressBar from "Components/ProgressBar";
 import QuotaEditModalContent from "./QuotaEditModalContent";
 import styles from "./Quotas.module.scss";
 import RestoreDefaults from "./RestoreDefaults";
-import { ModalTriggerProps, FlowTeam } from "Types";
+import { ModalTriggerProps, FlowWorkspace } from "Types";
 
-function Quotas({ team, canEdit, teamDetailsUrl }: { team: FlowTeam; canEdit: boolean; teamDetailsUrl: string }) {
-  let workflowLimitPercentage = (team.quotas.currentWorkflowCount / team.quotas.maxWorkflowCount) * 100;
-  let concurrentLimitPercentage = (team.quotas.currentConcurrentRuns / team.quotas.maxConcurrentRuns) * 100;
-  let monthlyExecutionPercentage = (team.quotas.currentRuns / team.quotas.maxWorkflowRunMonthly) * 100;
+function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWorkspace; canEdit: boolean; workspaceDetailsUrl: string }) {
+  let workflowLimitPercentage = (workspace.quotas.currentWorkflowCount / workspace.quotas.maxWorkflowCount) * 100;
+  let concurrentLimitPercentage = (workspace.quotas.currentConcurrentRuns / workspace.quotas.maxConcurrentRuns) * 100;
+  let monthlyExecutionPercentage = (workspace.quotas.currentRuns / workspace.quotas.maxWorkflowRunMonthly) * 100;
 
   if (concurrentLimitPercentage > 100) concurrentLimitPercentage = 100; 
   if (workflowLimitPercentage > 100) workflowLimitPercentage = 100;
@@ -22,9 +22,9 @@ function Quotas({ team, canEdit, teamDetailsUrl }: { team: FlowTeam; canEdit: bo
   const coverageBarStyle = { height: "1rem", width: "17.625rem" };
 
   return (
-    <section aria-label={`${team.displayName} Team Quotas`} className={styles.container}>
+    <section aria-label={`${workspace.displayName} Workspace Quotas`} className={styles.container}>
       <Helmet>
-        <title>{`Quotas - ${team.displayName}`}</title>
+        <title>{`Quotas - ${workspace.displayName}`}</title>
       </Helmet>
       {!canEdit ? (
         <section className={styles.notificationsContainer}>
@@ -33,7 +33,7 @@ function Quotas({ team, canEdit, teamDetailsUrl }: { team: FlowTeam; canEdit: bo
             hideCloseButton={true}
             kind="info"
             title="Read-only"
-            subtitle="The team may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
+            subtitle="The workspace may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
             scenes."
           />
         </section>
@@ -41,63 +41,63 @@ function Quotas({ team, canEdit, teamDetailsUrl }: { team: FlowTeam; canEdit: bo
       <section className={styles.actionsContainer}>
         <div className={styles.leftActions}>
           <p className={styles.featureDescription}>
-            The following quotas have been set for the team - only administrators have access to adjust these.
+            The following quotas have been set for the workspace - only administrators have access to adjust these.
           </p>
         </div>
         <div className={styles.rightActions}>
-          <RestoreDefaults team={team} disabled={!canEdit} />
+          <RestoreDefaults workspace={workspace} disabled={!canEdit} />
         </div>
       </section>
       <section className={styles.cardsSection}>
         <QuotaCard
-          subtitle="Number of Workflows that can be created for this team."
+          subtitle="Number of Workflows that can be created for this workspace."
           title="Number of Workflows"
-          modalSubtitle="Set the maximum number of Workflows that can be created for this team."
-          //   minValue={team.quotas.currentWorkflowCount}
+          modalSubtitle="Set the maximum number of Workflows that can be created for this workspace."
+          //   minValue={workspace.quotas.currentWorkflowCount}
           minValue={1}
           detailedTitle="Current Usage"
-          detailedData={`${team.quotas.currentWorkflowCount}/${team.quotas.maxWorkflowCount}`}
+          detailedData={`${workspace.quotas.currentWorkflowCount}/${workspace.quotas.maxWorkflowCount}`}
           inputLabel="Maximum Workflows"
           inputUnits="Workflows"
           stepValue={1}
-          teamName={team.name}
+          workspaceName={workspace.name}
           quotaProperty="maxWorkflowCount"
-          quotaValue={team.quotas.maxWorkflowCount}
+          quotaValue={workspace.quotas.maxWorkflowCount}
           disabled={!canEdit}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         >
-          <h3 className={styles.detailedHeading}> {`${team.quotas.maxWorkflowCount} Workflows`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowCount} Workflows`}</h3>
           <ProgressBar
-            maxValue={team.quotas.maxWorkflowCount}
+            maxValue={workspace.quotas.maxWorkflowCount}
             value={workflowLimitPercentage}
             coverageBarStyle={coverageBarStyle}
           />
-          <p className={styles.detailedSmallText}>{`Current usage: ${team.quotas.currentWorkflowCount}`}</p>
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentWorkflowCount}`}</p>
         </QuotaCard>
         <QuotaCard
-          subtitle="Number of executions per month across all Workflows for this Team"
+          subtitle="Number of executions per month across all Workflows for this Workspace"
           title="Number of Executions"
-          modalSubtitle="Set the maximum total number of executions per month - this is the total amount across all Workflows for this Team."
-          //   minValue={team.quotas.currentWorkflowExecutionMonthly}
+          modalSubtitle="Set the maximum total number of executions per month - this is the total amount across all Workflows for this Workspace."
+          //   minValue={workspace.quotas.currentWorkflowExecutionMonthly}
           minValue={1}
           detailedTitle="Current Usage"
-          detailedData={`${team.quotas.currentRuns}/${team.quotas.maxWorkflowRunMonthly}`}
+          detailedData={`${workspace.quotas.currentRuns}/${workspace.quotas.maxWorkflowRunMonthly}`}
           inputLabel="Maximum executions"
           inputUnits="executions"
           stepValue={1}
-          teamName={team.name}
+          workspaceName={workspace.name}
           quotaProperty="maxWorkflowRunMonthly"
-          quotaValue={team.quotas.maxWorkflowRunMonthly}
+          quotaValue={workspace.quotas.maxWorkflowRunMonthly}
           disabled={!canEdit}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         >
-          <h3 className={styles.detailedHeading}> {`${team.quotas.maxWorkflowRunMonthly} per month`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunMonthly} per month`}</h3>
           <ProgressBar
-            maxValue={team.quotas.maxWorkflowRunMonthly}
+            maxValue={workspace.quotas.maxWorkflowRunMonthly}
             value={monthlyExecutionPercentage}
             coverageBarStyle={coverageBarStyle}
           />
-          <p className={styles.detailedSmallText}>{`Current usage: ${team.quotas.currentRuns}`}</p>
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentRuns}`}</p>
         </QuotaCard>
         <QuotaCard
           subtitle="Maximum amount of time that a single Workflow can take for one run (execution)."
@@ -105,17 +105,17 @@ function Quotas({ team, canEdit, teamDetailsUrl }: { team: FlowTeam; canEdit: bo
           modalSubtitle="Set the maximum amount of run time for a single Workflow."
           minValue={0}
           detailedTitle="Current average execution time"
-          detailedData={`${team.quotas.currentRunMedianDuration} minutes`}
+          detailedData={`${workspace.quotas.currentRunMedianDuration} minutes`}
           inputLabel="Maximum duration"
           inputUnits="minutes"
           stepValue={1}
-          teamName={team.name}
+          workspaceName={workspace.name}
           quotaProperty="maxWorkflowRunDuration"
-          quotaValue={team.quotas.maxWorkflowRunDuration}
+          quotaValue={workspace.quotas.maxWorkflowRunDuration}
           disabled={!canEdit}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         >
-          <h3 className={styles.detailedHeading}> {`${team.quotas.maxWorkflowRunDuration} minutes`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunDuration} minutes`}</h3>
         </QuotaCard>
         <QuotaCard
           subtitle="Max number of Workflows able to run at the same time."
@@ -123,59 +123,59 @@ function Quotas({ team, canEdit, teamDetailsUrl }: { team: FlowTeam; canEdit: bo
           modalSubtitle="Set the maximum number of Workflows that are able to run at the same time."
           minValue={1}
           detailedTitle="Current number of Concurrent Workflow Runs"
-          detailedData={`${team.quotas.currentConcurrentRuns} Workflow Runs`}
+          detailedData={`${workspace.quotas.currentConcurrentRuns} Workflow Runs`}
           inputLabel="Maximum concurrent"
           inputUnits="Workflows"
           stepValue={1}
-          teamName={team.name}
+          workspaceName={workspace.name}
           quotaProperty="maxConcurrentRuns"
-          quotaValue={team.quotas.maxConcurrentRuns}
+          quotaValue={workspace.quotas.maxConcurrentRuns}
           disabled={!canEdit}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         >
-          <h3 className={styles.detailedHeading}> {`${team.quotas.maxConcurrentRuns} Workflows`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxConcurrentRuns} Workflows`}</h3>
           <ProgressBar
-            maxValue={team.quotas.maxConcurrentRuns}
+            maxValue={workspace.quotas.maxConcurrentRuns}
             value={concurrentLimitPercentage}
             coverageBarStyle={coverageBarStyle}
           />
-          <p className={styles.detailedSmallText}>{`Current usage: ${team.quotas.currentConcurrentRuns}`}</p>
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentConcurrentRuns}`}</p>
         </QuotaCard>
         <QuotaCard
-          subtitle="Workspace size limit for each Workflow using persistent storage on this Team."
+          subtitle="Workspace size limit for each Workflow using persistent storage on this Workspace."
           title="Workspace Capacity - Per Workflow"
-          modalSubtitle="Set the storage size limit for each Workflow Workspace using persistent storage on this Team."
+          modalSubtitle="Set the storage size limit for each Workflow Workspace using persistent storage on this Workspace."
           minValue={0}
           detailedTitle="Persistent storage size limit"
-          detailedData={`${team.quotas.maxWorkflowStorage}GB per Workflow`}
+          detailedData={`${workspace.quotas.maxWorkflowStorage}GB per Workflow`}
           inputLabel="Storage limit"
           inputUnits="GB"
           stepValue={1}
-          teamName={team.name}
+          workspaceName={workspace.name}
           quotaProperty="maxWorkflowStorage"
-          quotaValue={team.quotas.maxWorkflowStorage}
+          quotaValue={workspace.quotas.maxWorkflowStorage}
           disabled={!canEdit}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         >
-          <h3 className={styles.detailedHeading}> {`${team.quotas.maxWorkflowStorage}GB per Workflow`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowStorage}GB per Workflow`}</h3>
         </QuotaCard>
         <QuotaCard
-          subtitle="Workspace size limit for each WorkflowRun using persistent storage on this Team."
+          subtitle="Workspace size limit for each WorkflowRun using persistent storage on this Workspace."
           title="Workspace Capacity - Per Run"
-          modalSubtitle="Set the storage size limit for each WorkflowRun Workspace using persistent storage on this Team."
+          modalSubtitle="Set the storage size limit for each WorkflowRun Workspace using persistent storage on this Workspace."
           minValue={0}
           detailedTitle="Persistent storage size limit"
-          detailedData={`${team.quotas.maxWorkflowRunStorage}GB per Workflow`}
+          detailedData={`${workspace.quotas.maxWorkflowRunStorage}GB per Workflow`}
           inputLabel="Storage limit"
           inputUnits="GB"
           stepValue={1}
-          teamName={team.name}
+          workspaceName={workspace.name}
           quotaProperty="maxWorkflowRunStorage"
-          quotaValue={team.quotas.maxWorkflowRunStorage}
+          quotaValue={workspace.quotas.maxWorkflowRunStorage}
           disabled={!canEdit}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         >
-          <h3 className={styles.detailedHeading}> {`${team.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}</h3>
         </QuotaCard>
       </section>
     </section>
@@ -191,12 +191,12 @@ interface QuotaCardProps {
   inputLabel: string;
   inputUnits: string;
   stepValue: number;
-  teamName: string;
+  workspaceName: string;
   quotaProperty: string;
   quotaValue: number;
   disabled: boolean;
   minValue: number;
-  teamDetailsUrl: string;
+  workspaceDetailsUrl: string;
 }
 
 const QuotaCard: React.FC<QuotaCardProps> = ({
@@ -209,12 +209,12 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
   inputLabel,
   inputUnits,
   stepValue,
-  teamName,
+  workspaceName,
   quotaProperty,
   quotaValue,
   disabled,
   minValue,
-  teamDetailsUrl,
+  workspaceDetailsUrl,
 }) => {
   return (
     <Tile className={styles.cardContainer}>
@@ -250,11 +250,11 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
               inputLabel={inputLabel}
               inputUnits={inputUnits}
               stepValue={stepValue}
-              teamName={teamName}
+              workspaceName={workspaceName}
               quotaProperty={quotaProperty}
               quotaValue={quotaValue}
               minValue={minValue}
-              teamDetailsUrl={teamDetailsUrl}
+              workspaceDetailsUrl={workspaceDetailsUrl}
             />
           )}
         </ComposedModal>

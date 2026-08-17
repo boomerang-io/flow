@@ -4,5 +4,5 @@ export { default as useEditorContext } from "./useEditorContext";
 export { default as useMutationObserver } from "./useMutationObserver";
 export { default as useQuery } from "./useQuery";
 export { default as useRunContext } from "./useRunContext";
-export { default as useTeamContext } from "./useTeamContext";
+export { default as useWorkspaceContext } from "./useWorkspaceContext";
 export { default as useWorkflowContext } from "./useWorkflowContext";

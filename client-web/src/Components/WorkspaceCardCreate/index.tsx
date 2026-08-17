@@ -1,1 +1,1 @@
-export { default } from "./TeamCardCreate";
+export { default } from "./WorkspaceCardCreate";

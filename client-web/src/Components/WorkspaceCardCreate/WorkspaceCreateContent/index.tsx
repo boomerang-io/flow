@@ -1,1 +1,1 @@
-export { default } from "./TeamCreateContent";
+export { default } from "./WorkspaceCreateContent";

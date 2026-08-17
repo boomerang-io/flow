@@ -11,38 +11,38 @@ const flowNavigation = [
   {
     name: "Workflows",
     type: "link",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/workflows",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/workflows",
   },
   {
     name: "Activity",
     type: "link",
     icon: "Activity",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/activity",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/activity",
   },
   {
     name: "Actions",
     type: "link",
     icon: "Stamp",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/actions",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/actions",
   },
   {
     disabled: true,
     name: "Schedules",
     type: "link",
     icon: "CalendarHeatMap",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/schedules",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/schedules",
   },
   {
     name: "Insights",
     type: "link",
     icon: "ChartScatter",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/insights",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/insights",
   },
   {
     name: "Integrations",
     type: "link",
     icon: "AppConnectivity",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/integrations",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/integrations",
     beta: true,
   },
   {
@@ -52,19 +52,19 @@ const flowNavigation = [
     name: "Task Manager",
     type: "link",
     icon: "TaskSettings",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/task-manager",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/task-manager",
   },
   {
     name: "Parameters",
     type: "link",
     icon: "Parameter",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/parameters",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/parameters",
   },
   {
-    name: "Manage Team",
+    name: "Manage Workspace",
     type: "link",
     icon: "SettingsAdjust",
-    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-team/manage",
+    link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/manage",
   },
   {
     name: "Admin",
@@ -72,9 +72,9 @@ const flowNavigation = [
     icon: "Settings",
     childLinks: [
       {
-        name: "Teams",
+        name: "Workspaces",
         type: "link",
-        link: "/BMRG_APP_ROOT_CONTEXT/admin/teams",
+        link: "/BMRG_APP_ROOT_CONTEXT/admin/workspaces",
       },
       {
         name: "Users",

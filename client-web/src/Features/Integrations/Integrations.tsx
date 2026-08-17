@@ -10,30 +10,30 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import IntegrationCard from "Components/IntegrationCard";
 import { IntegrationCardSkeleton } from "Components/IntegrationCard";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowTeam, Integration } from "Types";
+import { FlowWorkspace, Integration } from "Types";
 import styles from "./integrations.module.scss";
 
 export default function Integrations() {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const history = useHistory();
 
-  const getIntegrationsUrl = serviceUrl.getIntegrations({ team: team?.name });
+  const getIntegrationsUrl = serviceUrl.getIntegrations({ workspace: workspace?.name });
   const integrationsQuery = useQuery<Array<Integration>, string>({
     queryKey: getIntegrationsUrl,
     queryFn: resolver.query(getIntegrationsUrl),
   });
 
-  // TODO: make this smarter bc we shouldn't get to the route without an active team
-  if (!team) {
+  // TODO: make this smarter bc we shouldn't get to the route without an active workspace
+  if (!workspace) {
     return history.push(appLink.home());
   }
 
   if (integrationsQuery.isLoading) {
     return (
-      <Layout team={team}>
+      <Layout workspace={workspace}>
         <IntegrationCardSkeleton />
       </Layout>
     );
@@ -41,7 +41,7 @@ export default function Integrations() {
 
   if (integrationsQuery.error) {
     return (
-      <Layout team={team}>
+      <Layout workspace={workspace}>
         <Error />
       </Layout>
     );
@@ -49,10 +49,10 @@ export default function Integrations() {
 
   if (integrationsQuery.data) {
     return (
-      <Layout team={team}>
+      <Layout workspace={workspace}>
         <div className={styles.workflows}>
           {integrationsQuery.data.map((template: Integration) => (
-            <IntegrationCard key={template.id} teamName={team.name} data={template} url={getIntegrationsUrl} />
+            <IntegrationCard key={template.id} workspaceName={workspace.name} data={template} url={getIntegrationsUrl} />
           ))}
         </div>
       </Layout>
@@ -62,7 +62,7 @@ export default function Integrations() {
 }
 
 interface LayoutProps {
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   children: React.ReactNode;
 }
 
@@ -74,7 +74,7 @@ function Layout(props: LayoutProps) {
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{props.team.name}</p>
+          <p>{props.workspace.name}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );

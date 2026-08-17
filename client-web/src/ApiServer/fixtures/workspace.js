@@ -1,8 +1,8 @@
-const team = {
+const workspace = {
       id: "5e3a35ad8c222700018ccd39",
       name: "ibm-services-engineering",
       displayName: "IBM Services Engineering",
-      description: "Flow Team for IBM Services Engineering",
+      description: "Flow Workspace for IBM Services Engineering",
       creationDate: "2023-05-04T03:18:27.350Z",
       status: "active",
       labels: {
@@ -108,7 +108,7 @@ const team = {
       //       },
       //     ],
       //     description: "",
-      //     flowTeamId: "5e3a35ad8c222700018ccd39",
+      //     flowWorkspaceId: "5e3a35ad8c222700018ccd39",
       //     icon: "bot",
       //     id: "5eb2c4085a92d80001a16d87",
       //     name: "ML Train – Bot Efficiency",
@@ -147,7 +147,7 @@ const team = {
       //       },
       //     ],
       //     description: "",
-      //     flowTeamId: "5e3a35ad8c222700018ccd39",
+      //     flowWorkspaceId: "5e3a35ad8c222700018ccd39",
       //     icon: "cloud upload",
       //     id: "5e877e944bbc6e0001c51e6e",
       //     name: "Java - Deploy",
@@ -188,7 +188,7 @@ const team = {
       //     },
       //     tokens: [],
       //     enablePersistentStorage: false,
-      //     scope: "team",
+      //     scope: "workspace",
       //     revisionCount: 8,
       //     templateUpgradesAvailable: false,
       //   },
@@ -247,7 +247,7 @@ const team = {
       //       },
       //     ],
       //     description: "Java - Build",
-      //     flowTeamId: "5e3a35ad8c222700018ccd39",
+      //     flowWorkspaceId: "5e3a35ad8c222700018ccd39",
       //     icon: "delivery",
       //     id: "5e877d1f4bbc6e0001c51e12",
       //     name: "Java - Build",
@@ -295,4 +295,4 @@ const team = {
       // ],
     }
 
-export default team;
+export default workspace;

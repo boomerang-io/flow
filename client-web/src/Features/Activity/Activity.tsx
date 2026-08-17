@@ -7,7 +7,7 @@ import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useHistory, useLocation, useRouteMatch } from "react-router-dom";
-import { useTeamContext, useQuery } from "Hooks";
+import { useWorkspaceContext, useQuery } from "Hooks";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -26,7 +26,7 @@ const DEFAULT_FROM_DATE = moment().subtract(3, "months").valueOf();
 const DEFAULT_TO_DATE = moment().endOf("day").valueOf();
 
 function WorkflowActivity() {
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const history = useHistory();
   const location = useLocation();
   const match = useRouteMatch();
@@ -49,7 +49,7 @@ function WorkflowActivity() {
   } = queryString.parse(location.search, queryStringOptions);
 
   /** Retrieve Workflows */
-  const getWorkflowsUrl = serviceUrl.team.workflow.getWorkflows({ team: team?.name });
+  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
   const workflowsQuery = useQuery<PaginatedWorkflowResponse, string>(getWorkflowsUrl);
 
   /**** Start get some data ****/
@@ -68,11 +68,11 @@ function WorkflowActivity() {
     queryStringOptions,
   );
 
-  const wfRunSummaryUrl = serviceUrl.team.workflowrun.getWorkflowRunCount({
-    team: team?.name,
+  const wfRunSummaryUrl = serviceUrl.workspace.workflowrun.getWorkflowRunCount({
+    workspace: workspace?.name,
     query: workflowRunCountQuery,
   });
-  const wfRunUrl = serviceUrl.team.workflowrun.getWorkflowRuns({ team: team?.name, query: wfRunsURLQuery });
+  const wfRunUrl = serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace: workspace?.name, query: wfRunsURLQuery });
 
   const wfRunSummaryQuery = useQuery(wfRunSummaryUrl);
   const wfRunQuery = useQuery(wfRunUrl);
@@ -145,7 +145,7 @@ function WorkflowActivity() {
     return (
       <>
         <ActivityHeader
-          team={team}
+          workspace={workspace}
           failedActivities={"--"}
           inProgressActivities={"--"}
           isError={true}
@@ -160,7 +160,7 @@ function WorkflowActivity() {
     );
   }
 
-  if (team && workflowsQuery.data) {
+  if (workspace && workflowsQuery.data) {
     const { workflows = "", triggers = "", statuses = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowIds = typeof workflows === "string" ? [workflows] : workflows;
     const selectedTriggers = typeof triggers === "string" ? [triggers] : triggers;
@@ -192,7 +192,7 @@ function WorkflowActivity() {
           <title>Activity</title>
         </Helmet>
         <ActivityHeader
-          team={team}
+          workspace={workspace}
           isLoading={wfRunSummaryQuery.isLoading}
           inProgressActivities={
             (wfRunSummaryQuery.data?.status.running ?? 0) + (wfRunSummaryQuery.data?.status.waiting ?? 0)

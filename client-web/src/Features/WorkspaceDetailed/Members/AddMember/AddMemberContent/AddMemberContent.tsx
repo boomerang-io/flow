@@ -13,9 +13,9 @@ interface AddMemberContentProps {
   closeModal: Function;
   memberList: FlowUser[];
   memberIdList: string[];
-  teamName: string;
+  workspaceName: string;
 }
-const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberList, memberIdList, teamName }) => {
+const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberList, memberIdList, workspaceName }) => {
   const [{ data: usersList, error }, fetchUsersList] = useAxios({ method: "get" }, { manual: true });
   const [selectedUsers, setSelectedUsers] = useState<FlowUser[]>([]);
   const [usersListOpen, setUsersListOpen] = useState(false);
@@ -26,8 +26,8 @@ const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberL
     mutateAsync: addMemberMutator,
     isLoading: addMemberisLoading,
     error: addMemberError,
-  } = useMutation(resolver.patchTeam, {
-    onSuccess: () => queryClient.invalidateQueries(serviceUrl.resourceTeam({ team: teamName })),
+  } = useMutation(resolver.patchWorkspace, {
+    onSuccess: () => queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspaceName })),
   });
 
   const searchRef = React.useRef<HTMLDivElement | null>();
@@ -79,12 +79,12 @@ const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberL
     const addUserRequestData = memberIdList.concat(selectedUsers.map((user) => user.id));
 
     try {
-      await addMemberMutator({ team: teamName, body: addUserRequestData });
+      await addMemberMutator({ workspace: workspaceName, body: addUserRequestData });
       selectedUsers.forEach((user) => {
         return notify(
           <ToastNotification
             title="Add User"
-            subtitle={`Request to add ${user.name} to ${teamName} submitted`}
+            subtitle={`Request to add ${user.name} to ${workspaceName} submitted`}
             kind="success"
           />
         );
@@ -161,7 +161,7 @@ const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberL
           Cancel
         </Button>
         <Button disabled={selectedUsers.length === 0 || addMemberisLoading} type="submit">
-          {addMemberisLoading ? "Adding..." : addMemberError ? "Try Again" : "Add to team"}
+          {addMemberisLoading ? "Adding..." : addMemberError ? "Try Again" : "Add to workspace"}
         </Button>
       </ModalFooter>
     </ModalForm>

@@ -12,25 +12,25 @@ import { paramCase } from "change-case";
 import { Helmet } from "react-helmet";
 import { useMutation, useQueryClient } from "react-query";
 import { useHistory, Link } from "react-router-dom";
-import { useTeamContext } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
 import { DataDrivenInput } from "Types";
 import ParametersTable from "../ParametersTable";
 
-function TeamParameters() {
+function WorkspaceParameters() {
   const history = useHistory();
   const queryClient = useQueryClient();
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
 
-  /** Add / Update / Delete Team parameter */
-  const parameterMutation = useMutation(resolver.patchTeam);
-  const deleteParameterMutation = useMutation(resolver.deleteTeamParameter);
+  /** Add / Update / Delete Workspace parameter */
+  const parameterMutation = useMutation(resolver.patchWorkspace);
+  const deleteParameterMutation = useMutation(resolver.deleteWorkspaceParameter);
 
   const handleSubmit = async (isEdit: boolean, parameter: DataDrivenInput, closeModal: () => void) => {
     try {
       await parameterMutation.mutateAsync({
-        team: team?.name,
+        workspace: workspace?.name,
         body: { parameters: [parameter] },
       });
       if (isEdit) {
@@ -39,7 +39,7 @@ function TeamParameters() {
             kind="success"
             title={"Parameter Updated"}
             subtitle={`Request to update ${parameter.label} succeeded`}
-            data-testid="create-update-team-prop-notification"
+            data-testid="create-update-workspace-prop-notification"
           />,
         );
       } else {
@@ -48,11 +48,11 @@ function TeamParameters() {
             kind="success"
             title={"Parameter Created"}
             subtitle={`Request to create ${parameter.label} succeeded`}
-            data-testid="create-update-team-prop-notification"
+            data-testid="create-update-workspace-prop-notification"
           />,
         );
       }
-      queryClient.invalidateQueries([serviceUrl.resourceTeam({ team: team?.name })]);
+      queryClient.invalidateQueries([serviceUrl.resourceWorkspace({ workspace: workspace?.name })]);
       closeModal();
     } catch (err) {
       //TODO switch this to an inline
@@ -71,16 +71,16 @@ function TeamParameters() {
 
   const handleDelete = async (parameter: DataDrivenInput) => {
     try {
-      await deleteParameterMutation.mutateAsync({ team: team?.name, name: parameter.name });
+      await deleteParameterMutation.mutateAsync({ workspace: workspace?.name, name: parameter.name });
       notify(
         <ToastNotification
           kind="success"
           title={"Parameter Deleted"}
           subtitle={`Request to delete ${parameter.label} succeeded`}
-          data-testid="delete-team-param-notification"
+          data-testid="delete-workspace-param-notification"
         />,
       );
-      queryClient.invalidateQueries([serviceUrl.resourceTeam({ team: team?.name })]);
+      queryClient.invalidateQueries([serviceUrl.resourceWorkspace({ workspace: workspace?.name })]);
     } catch (err) {
       const errorMessages = formatErrorMessage({ error: err, defaultMessage: "Delete Configuration Failed" });
       notify(
@@ -88,14 +88,14 @@ function TeamParameters() {
           kind="error"
           title={errorMessages.title}
           subtitle={errorMessages.message}
-          data-testid="delete-team-param-notification"
+          data-testid="delete-workspace-param-notification"
         />,
       );
     }
   };
 
-  /** Check if there is an active team or redirect to home */
-  if (!team) {
+  /** Check if there is an active workspace or redirect to home */
+  if (!workspace) {
     return history.push(appLink.home());
   }
 
@@ -106,7 +106,7 @@ function TeamParameters() {
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{team?.name}</p>
+          <p>{workspace?.name}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );
@@ -115,22 +115,22 @@ function TeamParameters() {
   return (
     <>
       <Helmet>
-        <title>Team Parameters</title>
+        <title>Workspace Parameters</title>
       </Helmet>
       <Header
         includeBorder={false}
         nav={<NavigationComponent />}
         header={
           <>
-            <HeaderTitle>Team Parameters</HeaderTitle>
+            <HeaderTitle>Workspace Parameters</HeaderTitle>
             <HeaderSubtitle>
-              Set team-level parameters that are accessible to all workflows owned by the team.
+              Set workspace-level parameters that are accessible to all workflows owned by the workspace.
             </HeaderSubtitle>
           </>
         }
       />
       <ParametersTable
-        parameters={team.parameters ?? []}
+        parameters={workspace.parameters ?? []}
         isLoading={false}
         isSubmitting={parameterMutation.isLoading}
         errorSubmitting={parameterMutation.isError}
@@ -142,4 +142,4 @@ function TeamParameters() {
   );
 }
 
-export default TeamParameters;
+export default WorkspaceParameters;

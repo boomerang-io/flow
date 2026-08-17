@@ -65,13 +65,13 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
           component: (
             <Switcher>
               <li className={styles.switcherInfo}>
-                <span>Your Teams</span>
+                <span>Your Workspaces</span>
               </li>
               <SwitcherDivider />
-              {userData.teams.map((team) => {
+              {userData.workspaces.map((workspace) => {
                 return (
-                  <SwitcherItem large key={team.name} href={APP_ROOT + appLink.workflows({ team: team.name })}>
-                    {team.displayName}
+                  <SwitcherItem large key={workspace.name} href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}>
+                    {workspace.displayName}
                   </SwitcherItem>
                 );
               })}

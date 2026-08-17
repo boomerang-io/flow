@@ -15,7 +15,7 @@ import {
 } from "@carbon/react";
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { appLink } from "Config/appConfig";
-import { FlowTeam, FlowUser, Member } from "Types";
+import { FlowWorkspace, FlowUser, Member } from "Types";
 import EmptyState from "Components/EmptyState";
 import AddMember from "./AddMember";
 import AddMemberSearch from "./AddMemberSearch";
@@ -24,26 +24,26 @@ import styles from "./Members.module.scss";
 
 interface MemberProps {
   canEdit: boolean;
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   user: FlowUser;
-  teamDetailsUrl: string;
+  workspaceDetailsUrl: string;
 }
 
-const Members: React.FC<MemberProps> = ({ canEdit, team, user, teamDetailsUrl }) => {
+const Members: React.FC<MemberProps> = ({ canEdit, workspace, user, workspaceDetailsUrl }) => {
   const [searchQuery, setSearchQuery] = React.useState("");
-  const filteredMemberList = searchQuery ? ms(team.members, searchQuery, { keys: ["name", "email"] }) : team.members;
-  const memberMutator = useMutation(resolver.patchTeam);
+  const filteredMemberList = searchQuery ? ms(workspace.members, searchQuery, { keys: ["name", "email"] }) : workspace.members;
+  const memberMutator = useMutation(resolver.patchWorkspace);
   const queryClient = useQueryClient();
 
   const handleSubmit = async (request: Array<Member>) => {
     try {
-      await memberMutator.mutateAsync({ team: team.name, body: { members: request } });
-      queryClient.invalidateQueries([teamDetailsUrl]);
+      await memberMutator.mutateAsync({ workspace: workspace.name, body: { members: request } });
+      queryClient.invalidateQueries([workspaceDetailsUrl]);
       request.forEach((user: Member) => {
         return notify(
           <ToastNotification
             title="Add User"
-            subtitle={`Request to add ${user.email} to ${team.displayName} submitted`}
+            subtitle={`Request to add ${user.email} to ${workspace.displayName} submitted`}
             kind="success"
           />,
         );
@@ -55,13 +55,13 @@ const Members: React.FC<MemberProps> = ({ canEdit, team, user, teamDetailsUrl })
 
   const isAdmin = user?.type === "admin";
   return (
-    <section aria-label={`${team.displayName} Team Members`} className={styles.container}>
+    <section aria-label={`${workspace.displayName} Workspace Members`} className={styles.container}>
       <Helmet>
-        <title>{`Members - ${team.displayName}`}</title>
+        <title>{`Members - ${workspace.displayName}`}</title>
       </Helmet>
       <section className={styles.actionsContainer}>
         <div className={styles.leftActions}>
-          <p className={styles.featureDescription}>These are the people who have access to this Team.</p>
+          <p className={styles.featureDescription}>These are the people who have access to this Workspace.</p>
           <p className={styles.memberCountText}>
             Showing {filteredMemberList.length} member{filteredMemberList.length !== 1 ? "s" : ""}
           </p>
@@ -76,14 +76,14 @@ const Members: React.FC<MemberProps> = ({ canEdit, team, user, teamDetailsUrl })
           <div className={styles.rightActions}>
             {isAdmin && (
               <AddMemberSearch
-                memberList={team.members}
+                memberList={workspace.members}
                 handleSubmit={handleSubmit}
                 isSubmitting={memberMutator.isLoading}
                 error={memberMutator.error}
               />
             )}
             <AddMember
-              memberList={team.members}
+              memberList={workspace.members}
               handleSubmit={handleSubmit}
               isSubmitting={memberMutator.isLoading}
               error={memberMutator.error}
@@ -118,14 +118,14 @@ const Members: React.FC<MemberProps> = ({ canEdit, team, user, teamDetailsUrl })
                       className={styles.viewMemberLink}
                       to={{
                         pathname: appLink.user({ userId: member.id }),
-                        state: { fromTeam: team.name },
+                        state: { fromWorkspace: workspace.name },
                       }}
                     >
                       View user
                     </Link>
                   </StructuredListCell>
                   <StructuredListCell>
-                    {canEdit && <RemoveMember member={member} teamName={team.name} userId={user.id} />}
+                    {canEdit && <RemoveMember member={member} workspaceName={workspace.name} userId={user.id} />}
                   </StructuredListCell>
                 </StructuredListRow>
               );

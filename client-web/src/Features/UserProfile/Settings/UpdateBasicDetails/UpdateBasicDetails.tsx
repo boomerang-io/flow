@@ -48,7 +48,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
   }
 
   //TODO - update the error message to include the value of the Text Input
-  //TODO - update to not error on current team name
+  //TODO - update to not error on current workspace name
   return (
     <Formik
       initialValues={{

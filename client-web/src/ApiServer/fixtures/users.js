@@ -21,7 +21,7 @@ const users = {
         {
           properties: [],
           description: "",
-          flowTeamId: "5e3a35ad8c222700018ccd39",
+          flowWorkspaceId: "5e3a35ad8c222700018ccd39",
           icon: "bot",
           id: "5eb2c4085a92d80001a16d87",
           name: "Personal - ML Train – Bot Efficiency",
@@ -36,7 +36,7 @@ const users = {
         {
           properties: [],
           description: "Java - Build",
-          flowTeamId: "5e3a35ad8c222700018ccd38",
+          flowWorkspaceId: "5e3a35ad8c222700018ccd38",
           icon: "delivery",
           id: "5e877d1f4bbc6e0001c51e12",
           name: "Personal - Java - Build",
@@ -50,7 +50,7 @@ const users = {
           upgradesAvailable: true,
         },
       ],
-      userTeams: [
+      userWorkspaces: [
         {
           higherLevelGroupId: "5c41596cf32aa30001e9d444",
           id: "5e3a35ad8c222700018ccd39",
@@ -76,7 +76,7 @@ const users = {
         {
           properties: [],
           description: "",
-          flowTeamId: "5e3a35ad8c222700018ccd39",
+          flowWorkspaceId: "5e3a35ad8c222700018ccd39",
           icon: "bot",
           id: "5eb2c4085a92d80001a16d87",
           name: "Personal - ML Train – Bot Efficiency",
@@ -89,7 +89,7 @@ const users = {
           upgradesAvailable: false,
         },
       ],
-      userTeams: [
+      userWorkspaces: [
         {
           higherLevelGroupId: "5c41596cf32aa30001e9d444",
           id: "5e3a35ad8c222700018ccd39",
@@ -107,7 +107,7 @@ const users = {
       firstLoginDate: "2020-07-21T15:35:25.369+00:00",
       lastLoginDate: "2020-07-21T15:35:25.369+00:00",
       workflows: [],
-      userTeams: [],
+      userWorkspaces: [],
       status: "active",
     },
   ],

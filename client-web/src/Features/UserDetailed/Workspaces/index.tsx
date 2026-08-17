@@ -1,1 +1,1 @@
-export { default } from "./UserTeams";
+export { default } from "./UserWorkspaces";

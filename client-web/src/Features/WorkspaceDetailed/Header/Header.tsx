@@ -14,15 +14,15 @@ import { appLink } from "Config/appConfig";
 
 import styles from "./Header.module.scss";
 
-import { FlowTeam } from "Types";
+import { FlowWorkspace } from "Types";
 
-interface TeamDetailedHeaderProps {
-  team: FlowTeam;
+interface WorkspaceDetailedHeaderProps {
+  workspace: FlowWorkspace;
 }
 
-function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
+function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
   const location: any = useLocation();
-  const isActive = team.status === "active";
+  const isActive = workspace.status === "active";
 
   const navList = location?.state?.navList;
 
@@ -37,7 +37,7 @@ function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
           );
         })}
         <BreadcrumbItem isCurrentPage>
-          <p>{team.displayName}</p>
+          <p>{workspace.displayName}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     ) : (
@@ -46,7 +46,7 @@ function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{team.displayName}</p>
+          <p>{workspace.displayName}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );
@@ -60,10 +60,10 @@ function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
       header={
         <div className={styles.infoContainer}>
           <div>
-            <HeaderTitle>Manage Team</HeaderTitle>
-            <HeaderSubtitle>Team Owners & Administrators can manage this team.</HeaderSubtitle>
+            <HeaderTitle>Manage Workspace</HeaderTitle>
+            <HeaderSubtitle>Workspace Owners & Administrators can manage this workspace.</HeaderSubtitle>
           </div>
-          {team && (
+          {workspace && (
             <div className={styles.infoDetailsContainer}>
               <section className={styles.subHeaderContainer}>
                 <dl className={styles.detailedInfoContainer}>
@@ -77,7 +77,7 @@ function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Created</dt>
-                  <dd className={styles.dataValue}>{moment(team.creationDate).format("YYYY-MM-DD")}</dd>
+                  <dd className={styles.dataValue}>{moment(workspace.creationDate).format("YYYY-MM-DD")}</dd>
                 </dl>
               </section>
             </div>
@@ -85,36 +85,36 @@ function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
         </div>
       }
       footer={
-        <Tabs ariaLabel="Team pages">
+        <Tabs ariaLabel="Workspace pages">
           <Tab
             exact
             label="Members"
-            to={{ pathname: appLink.manageTeam({ team: team.name }), state: location.state }}
+            to={{ pathname: appLink.manageWorkspace({ workspace: workspace.name }), state: location.state }}
           />
           <Tab
             exact
             label="Workflows"
-            to={{ pathname: appLink.manageTeamWorkflows({ team: team.name }), state: location.state }}
+            to={{ pathname: appLink.manageWorkspaceWorkflows({ workspace: workspace.name }), state: location.state }}
           />
           <Tab
             exact
             label="Approver Groups"
-            to={{ pathname: appLink.manageTeamApprovers({ team: team.name }), state: location.state }}
+            to={{ pathname: appLink.manageWorkspaceApprovers({ workspace: workspace.name }), state: location.state }}
           />
           <Tab
             exact
             label="Quotas"
-            to={{ pathname: appLink.manageTeamQuotas({ team: team.name }), state: location.state }}
+            to={{ pathname: appLink.manageWorkspaceQuotas({ workspace: workspace.name }), state: location.state }}
           />
           <Tab
             exact
             label="Tokens"
-            to={{ pathname: appLink.manageTeamTokens({ team: team.name }), state: location.state }}
+            to={{ pathname: appLink.manageWorkspaceTokens({ workspace: workspace.name }), state: location.state }}
           />
           <Tab
             exact
             label="Settings"
-            to={{ pathname: appLink.manageTeamSettings({ team: team.name }), state: location.state }}
+            to={{ pathname: appLink.manageWorkspaceSettings({ workspace: workspace.name }), state: location.state }}
           />
         </Tabs>
       }
@@ -122,4 +122,4 @@ function TeamDetailedHeader({ team }: TeamDetailedHeaderProps) {
   );
 }
 
-export default TeamDetailedHeader;
+export default WorkspaceDetailedHeader;

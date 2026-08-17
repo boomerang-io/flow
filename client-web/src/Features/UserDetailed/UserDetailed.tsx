@@ -12,7 +12,7 @@ import { FlowUser } from "Types";
 import Header from "./Header";
 import Labels from "./Labels";
 import Settings from "./Settings";
-import Teams from "./Teams";
+import Workspaces from "./Workspaces";
 import styles from "./UserDetailed.module.scss";
 
 interface FeatureLayoutProps {
@@ -34,9 +34,9 @@ const FeatureLayout = ({ children, isLoading, isError }: FeatureLayoutProps) => 
   );
 };
 
-function TeamDetailedContainer() {
+function WorkspaceDetailedContainer() {
   const userManagementEnabled = useFeature(FeatureFlag.UserManagementEnabled);
-  const { teams } = useAppContext();
+  const { workspaces } = useAppContext();
   const match: { params: { userId: string } } = useRouteMatch();
   const userId = match?.params?.userId;
 
@@ -70,7 +70,7 @@ function TeamDetailedContainer() {
         <Header user={userDetailsData} userManagementEnabled={userManagementEnabled} />
         <Switch>
           <Route exact path={AppPath.User}>
-            <Teams user={userDetailsData} teams={teams} />
+            <Workspaces user={userDetailsData} workspaces={workspaces} />
           </Route>
           <Route exact path={AppPath.UserLabels}>
             <Labels user={userDetailsData} userManagementEnabled={userManagementEnabled} />
@@ -86,4 +86,4 @@ function TeamDetailedContainer() {
   return null;
 }
 
-export default TeamDetailedContainer;
+export default WorkspaceDetailedContainer;

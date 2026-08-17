@@ -2,7 +2,7 @@ import React from "react";
 import { useQueryClient, useMutation } from "react-query";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import { useAppContext, useTeamContext } from "Hooks";
+import { useAppContext, useWorkspaceContext } from "Hooks";
 import {
   ComposedModal,
   Loading,
@@ -108,7 +108,7 @@ function Form({
   type,
 }: FormProps) {
   const { user } = useAppContext();
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [approveLoading, setApproveLoading] = React.useState(false);
   const [rejectLoading, setRejectLoading] = React.useState(false);
@@ -131,7 +131,7 @@ function Form({
       });
 
       try {
-        await actionsMutation({ team: team?.name, body: request });
+        await actionsMutation({ workspace: workspace?.name, body: request });
         typeof setLoading === "function" && setLoading(false);
         onSuccessfulApprovalRejection();
         queryClient.invalidateQueries(queryToRefetch);
@@ -265,7 +265,7 @@ interface ActionSectionProps {
 }
 
 function ActionSection({ formikBag, action }: ActionSectionProps) {
-  const { id, teamName, workflowName } = action;
+  const { id, workspaceName, workflowName } = action;
   const { values, touched, errors, handleChange, handleBlur } = formikBag;
 
   const DataSection = ({ className, label, value }: any) => (
@@ -277,7 +277,7 @@ function ActionSection({ formikBag, action }: ActionSectionProps) {
 
   return (
     <section className={styles.action}>
-      <DataSection className={styles.data} label="Team" value={teamName} />
+      <DataSection className={styles.data} label="Workspace" value={workspaceName} />
       <DataSection className={styles.data} label="Workflow" value={workflowName} />
       <div className={styles.comment}>
         <TextArea
@@ -313,7 +313,7 @@ function SingleActionSection({ formikBag, action, isAlreadyApproved, user }: Sin
     id,
     status,
     workflowName,
-    teamName,
+    workspaceName,
     actioners = [],
   } = action;
   const { values, touched, errors, handleChange, handleBlur } = formikBag;
@@ -327,7 +327,7 @@ function SingleActionSection({ formikBag, action, isAlreadyApproved, user }: Sin
 
   return (
     <section className={styles.action}>
-      <DataSection className={styles.data} label="Team" value={teamName} />
+      <DataSection className={styles.data} label="Workspace" value={workspaceName} />
       <DataSection className={styles.data} label="Workflow" value={workflowName} />
       <span className={styles.creationDate}>{`Submitted ${dateHelper.humanizedSimpleTimeAgo(creationDate)}`}</span>
       {!isAlreadyApproved ? (

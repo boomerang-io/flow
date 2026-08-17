@@ -63,14 +63,14 @@ export function TaskTemplateYamlEditor({
   let getChangelogUrl = serviceUrl.task.getTaskChangelog({
     name: params.name,
   });
-  if (params.team) {
-    getTaskTemplateUrl = serviceUrl.team.task.getTask({
-      team: params.team,
+  if (params.workspace) {
+    getTaskTemplateUrl = serviceUrl.workspace.task.getTask({
+      workspace: params.workspace,
       name: params.name,
       version: params.version,
     });
-    getChangelogUrl = serviceUrl.team.task.getTaskChangelog({
-      team: params.team,
+    getChangelogUrl = serviceUrl.workspace.task.getTaskChangelog({
+      workspace: params.workspace,
       name: params.name,
     });
   }
@@ -82,14 +82,14 @@ export function TaskTemplateYamlEditor({
   const getChangelogQuery = useQuery<ChangeLog>(getChangelogUrl);
   const applyTaskTemplateMutation = useMutation(resolver.putApplyTaskTemplate);
   const applyTaskTemplateYamlMutation = useMutation(resolver.putApplyTaskTemplateYaml);
-  const applyTeamTaskTemplateMutation = useMutation(resolver.putApplyTeamTaskTemplate);
-  const applyTeamTaskTemplateYamlMutation = useMutation(resolver.putApplyTeamTaskTemplateYaml);
+  const applyWorkspaceTaskTemplateMutation = useMutation(resolver.putApplyWorkspaceTaskTemplate);
+  const applyWorkspaceTaskTemplateYamlMutation = useMutation(resolver.putApplyWorkspaceTaskTemplateYaml);
 
   if (
     getTaskTemplateYamlQuery.isLoading ||
     getChangelogQuery.isLoading ||
     applyTaskTemplateYamlMutation.isLoading ||
-    applyTeamTaskTemplateYamlMutation.isLoading
+    applyWorkspaceTaskTemplateYamlMutation.isLoading
   ) {
     return <Loading />;
   }
@@ -117,9 +117,9 @@ export function TaskTemplateYamlEditor({
           // eslint-disable-next-line no-template-curly-in-string
           changelog: { reason: "Version copied from ${values.currentConfig.version}" },
         };
-        if (params.team) {
-          response = await applyTeamTaskTemplateMutation.mutateAsync({
-            team: params.team,
+        if (params.workspace) {
+          response = await applyWorkspaceTaskTemplateMutation.mutateAsync({
+            workspace: params.workspace,
             name: params.name,
             replace: false,
             body,
@@ -136,10 +136,10 @@ export function TaskTemplateYamlEditor({
         if (requestType === TemplateRequestType.Overwrite) {
           replace = true;
         }
-        if (params.team) {
-          response = await applyTeamTaskTemplateYamlMutation.mutateAsync({
+        if (params.workspace) {
+          response = await applyWorkspaceTaskTemplateYamlMutation.mutateAsync({
             replace: replace,
-            team: params.team,
+            workspace: params.workspace,
             name: params.name,
             body: values.yaml,
           });
@@ -164,9 +164,9 @@ export function TaskTemplateYamlEditor({
       );
       resetForm();
       history.push(
-        params.team
+        params.workspace
           ? appLink.manageTasksEdit({
-              team: params.team,
+              workspace: params.workspace,
               name: response.data.name,
               version: response.data.version,
             })
@@ -204,10 +204,10 @@ export function TaskTemplateYamlEditor({
   const handleArchiveTaskTemplate = async () => {
     try {
       selectedTaskTemplate.status = "inactive";
-      if (params.team) {
-        await applyTeamTaskTemplateMutation.mutateAsync({
+      if (params.workspace) {
+        await applyWorkspaceTaskTemplateMutation.mutateAsync({
           replace: "true",
-          team: params.team,
+          workspace: params.workspace,
           name: selectedTaskTemplate.name, 
           body: selectedTaskTemplate,
         });
@@ -240,10 +240,10 @@ export function TaskTemplateYamlEditor({
   const handleRestoreTaskTemplate = async () => {
     try {
       selectedTaskTemplate.status = "active";
-      if (params.team) {
-        await applyTeamTaskTemplateMutation.mutateAsync({
+      if (params.workspace) {
+        await applyWorkspaceTaskTemplateMutation.mutateAsync({
           replace: "true",
-          team: params.team,
+          workspace: params.workspace,
           name: selectedTaskTemplate.name, 
           body: selectedTaskTemplate,
         });
@@ -276,9 +276,9 @@ export function TaskTemplateYamlEditor({
   const handleDownloadTaskTemplate = async () => {
     try {
       let url = serviceUrl.task.getTask({ name: selectedTaskTemplate.name, version: selectedTaskTemplate.version });
-      if (params.team) {
-        url = serviceUrl.team.task.getTask({
-          team: params.team,
+      if (params.workspace) {
+        url = serviceUrl.workspace.task.getTask({
+          workspace: params.workspace,
           name: selectedTaskTemplate.name,
           version: selectedTaskTemplate.version,
         });

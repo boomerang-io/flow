@@ -2,7 +2,7 @@ import React from "react";
 import { Button } from "@carbon/react";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import CreateEditGroupModalContent from "./CreateEditGroupModalContent";
-import { FlowTeam, ApproverGroup } from "Types";
+import { FlowWorkspace, ApproverGroup } from "Types";
 import { Add, Edit } from "@carbon/react/icons";
 import styles from "./createEditGroupModal.module.scss";
 
@@ -10,16 +10,16 @@ type CreateEditGroupModalProps = {
   approverGroup?: ApproverGroup;
   approverGroups: ApproverGroup[];
   isEdit?: boolean;
-  team?: FlowTeam | null;
-  teamDetailsUrl: string;
+  workspace?: FlowWorkspace | null;
+  workspaceDetailsUrl: string;
 };
 
 function CreateEditGroupModal({
   approverGroup,
   approverGroups,
   isEdit,
-  team,
-  teamDetailsUrl,
+  workspace,
+  workspaceDetailsUrl,
 }: CreateEditGroupModalProps) {
   /**
    * arrays of values for making the key unique
@@ -58,7 +58,7 @@ function CreateEditGroupModal({
       modalHeaderProps={{
         title: isEdit && approverGroup ? `Edit ${approverGroup.name}` : "Create new group",
         subtitle:
-          "Choose a group name, then add users from a selected Team. Groups can only be formed with users from the same Team. Members will receive an email notification about their new permissions.",
+          "Choose a group name, then add users from a selected Workspace. Groups can only be formed with users from the same Workspace. Members will receive an email notification about their new permissions.",
       }}
     >
       {({ closeModal }) => (
@@ -66,9 +66,9 @@ function CreateEditGroupModal({
           isEdit={isEdit}
           approverGroup={approverGroup}
           approverGroups={approverGroupNames}
-          team={team}
+          workspace={workspace}
           closeModal={closeModal}
-          teamDetailsUrl={teamDetailsUrl}
+          workspaceDetailsUrl={workspaceDetailsUrl}
         />
       )}
     </ComposedModal>

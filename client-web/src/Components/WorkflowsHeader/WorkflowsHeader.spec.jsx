@@ -5,12 +5,12 @@ const mockfn = vi.fn();
 
 const props = {
   workflowsLength: 1,
-  teamsQuery: [],
+  workspacesQuery: [],
   handleSearchFilter: mockfn,
   isLoading: false,
   options: [
     {
-      name: "test team",
+      name: "test workspace",
       id: "testid",
     },
   ],

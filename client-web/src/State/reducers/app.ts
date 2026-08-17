@@ -6,15 +6,15 @@ const useValue = ({ reducer, initialState }) => useReducer(reducer, initialState
 
 export const AppActionsTypes = {
   SetUser: "SET_USER",
-  SetTeams: "SET_TEAMS",
+  SetWorkspaces: "SET_WORKSPACES",
 };
 
 export const reducer = (state, action) => {
   switch (action.type) {
     case AppActionsTypes.SetUser:
       return { ...state, user: action.data };
-    case AppActionsTypes.SetTeams:
-      return { ...state, teams: action.data };
+    case AppActionsTypes.SetWorkspaces:
+      return { ...state, workspaces: action.data };
     default:
       throw new Error(`unknown action type: ${action.type}`);
   }

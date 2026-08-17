@@ -1,36 +1,36 @@
 import { Add } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import { ModalTriggerProps } from "Types";
-import TeamCreateContent from "./TeamCreateContent";
-import styles from "./teamCardCreate.module.scss";
+import WorkspaceCreateContent from "./WorkspaceCreateContent";
+import styles from "./workspaceCardCreate.module.scss";
 
-interface TeamCardProps {
-  createTeam: (values: { name: string | undefined }, success_fn: () => void) => void;
+interface WorkspaceCardProps {
+  createWorkspace: (values: { name: string | undefined }, success_fn: () => void) => void;
   isError: boolean;
   isLoading: boolean;
 }
 
-function TeamCard(props: TeamCardProps) {
+function WorkspaceCard(props: WorkspaceCardProps) {
   return (
     <div className={styles.container}>
       <ComposedModal
         composedModalProps={{ shouldCloseOnOverlayClick: true }}
         modalHeaderProps={{
-          title: "Create Team",
-          subtitle: `Set up your team. The display name will be used to create a unique identifier for your team. Display names can be adjusted post team creation.`,
+          title: "Create Workspace",
+          subtitle: `Set up your workspace. The display name will be used to create a unique identifier for your workspace. Display names can be adjusted post workspace creation.`,
         }}
         modalTrigger={({ openModal }: ModalTriggerProps) => (
           <button className={styles.content} onClick={openModal} data-testid="workflows-create-workflow-button">
             <Add className={styles.addIcon} />
-            <p className={styles.text}>{`Create a new Team`}</p>
+            <p className={styles.text}>{`Create a new Workspace`}</p>
           </button>
         )}
       >
         {({ closeModal }) => {
           return (
-            <TeamCreateContent
+            <WorkspaceCreateContent
               closeModal={closeModal}
-              createTeam={props.createTeam}
+              createWorkspace={props.createWorkspace}
               isError={props.isError}
               isLoading={props.isLoading}
             />
@@ -41,4 +41,4 @@ function TeamCard(props: TeamCardProps) {
   );
 }
 
-export default TeamCard;
+export default WorkspaceCard;

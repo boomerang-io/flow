@@ -11,7 +11,7 @@ import { ErrorFilled } from "@carbon/react/icons";
 import { Loading, TextInput, TextArea } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik, FormikProps } from "formik";
 import * as Yup from "yup";
-import { FlowTeam, Workflow } from "Types";
+import { FlowWorkspace, Workflow } from "Types";
 import { requiredWorkflowProps } from "./constants";
 import styles from "./importWorkflowContent.module.scss";
 
@@ -40,12 +40,12 @@ interface ImportWorkflowContentProps {
   isLoading: boolean;
   importError: any;
   importWorkflow: (workflowExport: Workflow, closeModal: () => void) => Promise<void>;
-  team: FlowTeam;
+  workspace: FlowWorkspace;
   type: string;
 }
 
 interface FormProps {
-  team?: FlowTeam;
+  workspace?: FlowWorkspace;
   name: string;
   description: string;
   file: Workflow | undefined;
@@ -57,7 +57,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
   isLoading,
   importError,
   importWorkflow,
-  team,
+  workspace,
   type,
 }) => {
   /**
@@ -119,7 +119,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
           .max(64, "Name must not be greater than 64 characters")
           .notOneOf(
             existingWorkflowNames,
-            `There’s already a ${type} with that name in this team, consider giving this one a different name.`,
+            `There’s already a ${type} with that name in this workspace, consider giving this one a different name.`,
           ),
         description: Yup.string().max(250, "Description must not be greater than 250 characters"),
         file: Yup.mixed()

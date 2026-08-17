@@ -28,7 +28,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                 >
                   <a
                     class="cds--link"
-                    href="/workflows/teams"
+                    href="/workflows/workspaces"
                   >
                     Workflows
                   </a>

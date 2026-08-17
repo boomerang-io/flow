@@ -94,10 +94,10 @@ exports[`WorkflowInsights --- Snapshot > Capturing Snapshot of WorkflowInsights 
         >
           <label
             class="cds--label"
-            for="insights-teams-select-input"
-            id="insights-teams-select-label"
+            for="insights-workspaces-select-input"
+            id="insights-workspaces-select-label"
           >
-            Filter by Team
+            Filter by Workspace
           </label>
           <div
             class="cds--multi-select cds--combo-box cds--multi-select--filterable cds--list-box"
@@ -111,8 +111,8 @@ exports[`WorkflowInsights --- Snapshot > Capturing Snapshot of WorkflowInsights 
                 aria-haspopup="listbox"
                 autocomplete="off"
                 class="cds--text-input cds--text-input--empty"
-                id="insights-teams-select-input"
-                placeholder="Choose team(s)"
+                id="insights-workspaces-select-input"
+                placeholder="Choose workspace(s)"
                 role="combobox"
                 value=""
               />

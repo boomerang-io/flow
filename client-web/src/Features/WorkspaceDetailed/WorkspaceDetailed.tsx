@@ -11,7 +11,7 @@ import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
 import { Switch, Route } from "react-router-dom";
 import { Box } from "reflexbox";
-import { useAppContext, useTeamContext } from "Hooks";
+import { useAppContext, useWorkspaceContext } from "Hooks";
 import { AppPath, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import ApproverGroups from "./ApproverGroups";
@@ -21,20 +21,20 @@ import Quotas from "./Quotas";
 import Settings from "./Settings";
 import Tokens from "./Tokens";
 import Workflows from "./Workflows";
-import styles from "./teamDetailed.module.scss";
+import styles from "./workspaceDetailed.module.scss";
 
 const FeatureLayout: React.FC = ({ children }) => {
   return (
     <>
       <Helmet>
-        <title>Teams</title>
+        <title>Workspaces</title>
       </Helmet>
       <FeatureHeader
         includeBorder={false}
         header={
           <>
-            <HeaderTitle style={{ margin: "0" }}>Teams</HeaderTitle>
-            <HeaderSubtitle>View and manage your teams</HeaderSubtitle>
+            <HeaderTitle style={{ margin: "0" }}>Workspaces</HeaderTitle>
+            <HeaderSubtitle>View and manage your workspaces</HeaderSubtitle>
           </>
         }
       />
@@ -43,60 +43,60 @@ const FeatureLayout: React.FC = ({ children }) => {
   );
 };
 
-function TeamDetailedContainer() {
-  const teamManagementEnabled = useFeature(FeatureFlag.TeamManagementEnabled);
-  const { team } = useTeamContext();
+function WorkspaceDetailedContainer() {
+  const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
+  const { workspace } = useWorkspaceContext();
   const { user } = useAppContext();
 
-  const teamDetailsUrl = serviceUrl.resourceTeam({ team: team.name });
+  const workspaceDetailsUrl = serviceUrl.resourceWorkspace({ workspace: workspace.name });
 
-  const teamDetailsQuery = useQuery({
-    queryKey: teamDetailsUrl,
-    queryFn: resolver.query(teamDetailsUrl),
+  const workspaceDetailsQuery = useQuery({
+    queryKey: workspaceDetailsUrl,
+    queryFn: resolver.query(workspaceDetailsUrl),
   });
 
-  if (teamDetailsQuery.isLoading)
+  if (workspaceDetailsQuery.isLoading)
     return (
       <FeatureLayout>
         <Loading />
       </FeatureLayout>
     );
 
-  if (teamDetailsQuery.error)
+  if (workspaceDetailsQuery.error)
     return (
       <FeatureLayout>
         <ErrorMessage />
       </FeatureLayout>
     );
 
-  if (teamDetailsQuery.data) {
-    const canEdit = teamManagementEnabled && teamDetailsQuery.data.status === "active";
-    // const teamOwnerIdList = teamDetailsData?.owners?.map((owner) => owner.ownerId);
+  if (workspaceDetailsQuery.data) {
+    const canEdit = workspaceManagementEnabled && workspaceDetailsQuery.data.status === "active";
+    // const workspaceOwnerIdList = workspaceDetailsData?.owners?.map((owner) => owner.ownerId);
     return (
       <div className={styles.container}>
-        <Header team={teamDetailsQuery.data} />
+        <Header workspace={workspaceDetailsQuery.data} />
         <Switch>
-          <Route exact path={AppPath.ManageTeam}>
-            <Members canEdit={canEdit} team={teamDetailsQuery.data} user={user} teamDetailsUrl={teamDetailsUrl} />
+          <Route exact path={AppPath.ManageWorkspace}>
+            <Members canEdit={canEdit} workspace={workspaceDetailsQuery.data} user={user} workspaceDetailsUrl={workspaceDetailsUrl} />
           </Route>
-          <Route exact path={AppPath.ManageTeamWorkflows}>
-            <Workflows team={teamDetailsQuery.data} />
+          <Route exact path={AppPath.ManageWorkspaceWorkflows}>
+            <Workflows workspace={workspaceDetailsQuery.data} />
           </Route>
-          <Route exact path={AppPath.ManageTeamApprovers}>
-            <ApproverGroups team={teamDetailsQuery.data} canEdit={canEdit} teamDetailsUrl={teamDetailsUrl} />
+          <Route exact path={AppPath.ManageWorkspaceApprovers}>
+            <ApproverGroups workspace={workspaceDetailsQuery.data} canEdit={canEdit} workspaceDetailsUrl={workspaceDetailsUrl} />
           </Route>
-          <Route exact path={AppPath.ManageTeamQuotas}>
+          <Route exact path={AppPath.ManageWorkspaceQuotas}>
             <Quotas
-              team={teamDetailsQuery.data}
+              workspace={workspaceDetailsQuery.data}
               canEdit={canEdit && user?.type === "admin"}
-              teamDetailsUrl={teamDetailsUrl}
+              workspaceDetailsUrl={workspaceDetailsUrl}
             />
           </Route>
-          <Route exact path={AppPath.ManageTeamTokens}>
-            <Tokens team={teamDetailsQuery.data} canEdit={canEdit} />
+          <Route exact path={AppPath.ManageWorkspaceTokens}>
+            <Tokens workspace={workspaceDetailsQuery.data} canEdit={canEdit} />
           </Route>
-          <Route exact path={AppPath.ManageTeamSettings}>
-            <Settings team={teamDetailsQuery.data} canEdit={canEdit} />
+          <Route exact path={AppPath.ManageWorkspaceSettings}>
+            <Settings workspace={workspaceDetailsQuery.data} canEdit={canEdit} />
           </Route>
         </Switch>
       </div>
@@ -106,4 +106,4 @@ function TeamDetailedContainer() {
   return null;
 }
 
-export default TeamDetailedContainer;
+export default WorkspaceDetailedContainer;

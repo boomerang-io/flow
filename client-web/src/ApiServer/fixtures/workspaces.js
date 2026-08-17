@@ -1,14 +1,14 @@
-const teams = {
+const workspaces = {
   "content": [
       {
           "id": "61d67184c124cb2c190f4696",
-          "name": "tyson-team",
-          "displayName": "Tyson Team",
+          "name": "tyson-workspace",
+          "displayName": "Tyson Workspace",
           "creationDate": "2023-09-18T19:51:26.474+00:00",
           "status": "active",
           "parameters": [
               {
-                  "key": "my-team-test-param",
+                  "key": "my-workspace-test-param",
                   "description": "",
                   "label": "Test Parameter",
                   "type": "text",
@@ -53,8 +53,8 @@ const teams = {
       },
       {
           "id": "6508aba2226e22dc216a3856",
-          "name": "tyson-personal-team",
-          "displayName": "Tyson Personal Team",
+          "name": "tyson-personal-workspace",
+          "displayName": "Tyson Personal Workspace",
           "creationDate": "2023-09-18T19:57:22.531+00:00",
           "status": "active",
           "quotas": {
@@ -125,8 +125,8 @@ const teams = {
       },
       {
           "id": "6508aba0226e22dc216a3852",
-          "name": "marcus-d-roy-gmail-com-personal-team",
-          "displayName": "marcus-d-roy-gmail-com Personal Team",
+          "name": "marcus-d-roy-gmail-com-personal-workspace",
+          "displayName": "marcus-d-roy-gmail-com Personal Workspace",
           "creationDate": "2023-09-18T19:57:20.772+00:00",
           "status": "active",
           "quotas": {
@@ -155,8 +155,8 @@ const teams = {
       },
       {
           "id": "6508ab50226e22dc216a3850",
-          "name": "boomerang-joe-personal-team",
-          "displayName": "Boomerang Joe Personal Team",
+          "name": "boomerang-joe-personal-workspace",
+          "displayName": "Boomerang Joe Personal Workspace",
           "creationDate": "2023-09-18T19:56:00.062+00:00",
           "status": "active",
           "quotas": {
@@ -185,8 +185,8 @@ const teams = {
       },
       {
           "id": "6508aba1226e22dc216a3854",
-          "name": "bob-personal-team",
-          "displayName": "Bob Personal Team",
+          "name": "bob-personal-workspace",
+          "displayName": "Bob Personal Workspace",
           "creationDate": "2023-09-18T19:57:21.652+00:00",
           "status": "active",
           "quotas": {
@@ -215,8 +215,8 @@ const teams = {
       },
       {
           "id": "6508ab0b226e22dc216a384d",
-          "name": "admin-flowabl-io-personal-team",
-          "displayName": "admin-flowabl-io Personal Team",
+          "name": "admin-flowabl-io-personal-workspace",
+          "displayName": "admin-flowabl-io Personal Workspace",
           "creationDate": "2023-09-18T19:54:51.556+00:00",
           "status": "active",
           "quotas": {
@@ -271,4 +271,4 @@ const teams = {
   "empty": false
 };
 
-export default teams;
+export default workspaces;

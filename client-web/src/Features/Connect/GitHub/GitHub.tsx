@@ -9,10 +9,10 @@ import styles from "./github.module.scss";
 
 interface GitHubProps {
   installId: string;
-  team: string;
+  workspace: string;
 }
 
-export default function Github({ installId, team }: GitHubProps) {
+export default function Github({ installId, workspace }: GitHubProps) {
   const history = useHistory();
 
   const postGitHubAppLinkMutation = useMutation(resolver.postGitHubAppLink);
@@ -20,7 +20,7 @@ export default function Github({ installId, team }: GitHubProps) {
   useEffect(() => {
     const handleLink = async () => {
       const requestBody = {
-        team: team,
+        workspace: workspace,
         ref: installId,
       };
       try {
@@ -29,12 +29,12 @@ export default function Github({ installId, team }: GitHubProps) {
           <ToastNotification
             kind="success"
             title="Link Successful"
-            subtitle={`${team} successfully linked to GitHub`}
+            subtitle={`${workspace} successfully linked to GitHub`}
           />,
         );
         setTimeout(() => {
           history.push({
-            pathname: appLink.integrations({ team: team }),
+            pathname: appLink.integrations({ workspace: workspace }),
           });
         }, 1000); // 1000ms = 1 seconds
       } catch (error) {
@@ -45,7 +45,7 @@ export default function Github({ installId, team }: GitHubProps) {
     };
 
     handleLink();
-  }, [installId, team, history]);
+  }, [installId, workspace, history]);
 
   return (
     <section aria-label="User Settings" className={styles.settingsContainer}>
@@ -57,7 +57,7 @@ export default function Github({ installId, team }: GitHubProps) {
         <h1>GitHub App Integration</h1>
         <p>Thank you for installing the GitHub App!</p>
         <br />
-        <p>Last step - we are connecting the GitHub App to your team ({team}).</p>
+        <p>Last step - we are connecting the GitHub App to your workspace ({workspace}).</p>
         <br />
         <p>This page will redirect when complete</p>
       </section>

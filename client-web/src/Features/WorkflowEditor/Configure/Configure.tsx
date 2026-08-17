@@ -19,11 +19,11 @@ import { useQuery } from "react-query";
 import { Switch, Route, Redirect, useLocation, useParams } from "react-router-dom";
 import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
-import { useEditorContext, useTeamContext } from "Hooks";
+import { useEditorContext, useWorkspaceContext } from "Hooks";
 import { WorkspaceConfigType } from "Constants";
 import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
-import { Workflow, ConfigureWorkflowFormValues, FlowTeam } from "Types";
+import { Workflow, ConfigureWorkflowFormValues, FlowWorkspace } from "Types";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureEventTrigger from "./ConfigureEventTrigger";
 import ConfigureStorage from "./ConfigureStorage";
@@ -56,24 +56,24 @@ interface ConfigureContainerProps {
 }
 
 function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) {
-  const { team } = useTeamContext();
-  const params = useParams<{ team: string; workflow: string }>();
+  const { workspace } = useWorkspaceContext();
+  const params = useParams<{ workspace: string; workflow: string }>();
   const workflowTriggersEnabled = useFeature(FeatureFlag.WorkflowTriggersEnabled);
   const location = useLocation();
   const { workflowsQueryData } = useEditorContext();
 
-  const getGitHubAppInstallationForTeam = serviceUrl.getGitHubAppInstallationForTeam({
-    team: params.team,
+  const getGitHubAppInstallationForWorkspace = serviceUrl.getGitHubAppInstallationForWorkspace({
+    workspace: params.workspace,
   });
 
   const getGitHubInstallationQuery = useQuery({
-    queryKey: getGitHubAppInstallationForTeam,
-    queryFn: resolver.query(getGitHubAppInstallationForTeam),
-    enabled: Boolean(params.team),
+    queryKey: getGitHubAppInstallationForWorkspace,
+    queryFn: resolver.query(getGitHubAppInstallationForWorkspace),
+    enabled: Boolean(params.workspace),
   });
 
   const isOnConfigurePath = location.pathname.startsWith(
-    appLink.editorConfigure({ team: params.team, workflow: params.workflow }),
+    appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow }),
   );
 
   // Find the specific workspace configs we want that are used for storage storage
@@ -147,15 +147,15 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
             })
             .notOneOf(
               existingWorkflowNames,
-              `There’s already a workflow with that name in this team. Names must be unique.`,
+              `There’s already a workflow with that name in this workspace. Names must be unique.`,
             ),
           displayName: Yup.string().optional(),
           retries: Yup.number().min(0),
           timeout: Yup.number()
             .min(0)
             .max(
-              team.quotas.maxWorkflowRunDuration,
-              `Timeout must not exceed quota of ${team.quotas.maxWorkflowRunDuration} minutes`,
+              workspace.quotas.maxWorkflowRunDuration,
+              `Timeout must not exceed quota of ${workspace.quotas.maxWorkflowRunDuration} minutes`,
             ),
           triggers: Yup.object().shape({
             schedule: TRIGGER_YUP_SCHEMA,
@@ -169,13 +169,13 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
         {(formikProps) =>
           isOnConfigurePath ? (
             <div className={styles.container}>
-              <NavPanel team={params.team} workflowRef={params.workflow}></NavPanel>
+              <NavPanel workspace={params.workspace} workflowRef={params.workflow}></NavPanel>
               <Configure
                 workflowTriggersEnabled={workflowTriggersEnabled as boolean}
                 formikProps={formikProps}
                 workflow={workflow}
                 githubAppInstallation={getGitHubInstallationQuery.data}
-                team={team}
+                workspace={workspace}
               />
             </div>
           ) : null
@@ -192,7 +192,7 @@ interface ConfigureProps {
   formikProps: FormikProps<ConfigureWorkflowFormValues>;
   workflow: Workflow;
   githubAppInstallation: any;
-  team: FlowTeam;
+  workspace: FlowWorkspace;
 }
 
 function Configure(props: ConfigureProps) {
@@ -225,7 +225,7 @@ function Configure(props: ConfigureProps) {
             <TextInput
               id="name"
               label="Name"
-              helperText="This is your unique identifier name within the Team. Can only contain letters, numbers, and dashes."
+              helperText="This is your unique identifier name within the Workspace. Can only contain letters, numbers, and dashes."
               placeholder="Name"
               value={values.name}
               onBlur={handleBlur}
@@ -693,7 +693,7 @@ function Configure(props: ConfigureProps) {
                 <TextInput
                   id="timeout"
                   label="Timeout"
-                  helperText={`In minutes. Maximum defined by your Team quota is ${props.team.quotas.maxWorkflowRunDuration} minutes.`}
+                  helperText={`In minutes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkflowRunDuration} minutes.`}
                   value={values.timeout}
                   onBlur={handleBlur}
                   onChange={(e) => props.formikProps.handleChange(e)}
@@ -719,7 +719,7 @@ function Configure(props: ConfigureProps) {
           <Section
             title="Workspaces"
             description="Declare storage options to be used at execution time. This will be
-                  limited by your teams Storage quotas which will error executions if you exceed the allowed maximum."
+                  limited by your workspaces Storage quotas which will error executions if you exceed the allowed maximum."
           >
             <div className={styles.storageToggle}>
               <div className={styles.toggleContainer}>
@@ -776,7 +776,7 @@ function Configure(props: ConfigureProps) {
                           setFieldValue("storage.workflow", storageValues);
                         }}
                         closeModal={closeModal}
-                        quota={props.team.quotas.maxWorkflowStorage}
+                        quota={props.workspace.quotas.maxWorkflowStorage}
                       />
                     )}
                   </ComposedModal>
@@ -827,7 +827,7 @@ function Configure(props: ConfigureProps) {
                           setFieldValue("storage.activity", storageValues);
                         }}
                         closeModal={closeModal}
-                        quota={props.team.quotas.maxWorkflowRunStorage}
+                        quota={props.workspace.quotas.maxWorkflowRunStorage}
                         isActivity
                       />
                     )}

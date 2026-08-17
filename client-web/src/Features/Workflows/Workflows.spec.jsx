@@ -3,12 +3,12 @@ import { vi } from "vitest";
 import { Route } from "react-router-dom";
 import WorkflowsHome from "./index";
 import { startApiServer } from "ApiServer";
-import { teams, profile } from "ApiServer/fixtures";
+import { workspaces, profile } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
 import { AppContextProvider } from "State/context";
 
 const props = {
-  teamsState: {
+  workspacesState: {
     isFetching: false,
     status: "success",
     error: "",
@@ -41,14 +41,14 @@ describe("WorkflowsHome --- Snapshot", () => {
           communityUrl: "www.ibm.com",
           setIsTutorialActive: () => {},
           user: profile,
-          teams,
+          workspaces,
         }}
       >
-        <Route path={AppPath.WorkflowsTeams}>
+        <Route path={AppPath.WorkflowsWorkspaces}>
           <WorkflowsHome {...props} />
         </Route>
       </AppContextProvider>,
-      { route: appLink.workflowsTeams() }
+      { route: appLink.workflowsWorkspaces() }
     );
     await screen.findByText("These are your");
     expect(baseElement).toMatchSnapshot();

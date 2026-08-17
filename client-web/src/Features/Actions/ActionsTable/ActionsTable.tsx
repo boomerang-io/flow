@@ -7,7 +7,7 @@ import cx from "classnames";
 import queryString from "query-string";
 import { Link } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
-import { useAppContext, useTeamContext } from "Hooks";
+import { useAppContext, useWorkspaceContext } from "Hooks";
 import dateHelper from "Utils/dateHelper";
 import { appLink } from "Config/appConfig";
 import { Action, ApprovalStatus } from "Types";
@@ -80,7 +80,7 @@ const headers = [
 
 function ActionsTable(props: ActionsTableProps) {
   const { user } = useAppContext();
-  const { team } = useTeamContext();
+  const { workspace } = useWorkspaceContext();
   const isManual = props.location.pathname.includes("/manual");
   const [selectedActions, setSelectedActions] = React.useState<string[]>([]);
   const noSelectedActions = selectedActions.length === 0;
@@ -205,7 +205,7 @@ function ActionsTable(props: ActionsTableProps) {
         return (
           <Link
             to={appLink.execution({
-              team: team.name,
+              workspace: workspace.name,
               runId: currentAction?.workflowRunRef,
             })}
           >

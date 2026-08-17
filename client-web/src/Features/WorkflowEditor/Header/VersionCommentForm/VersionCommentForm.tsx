@@ -9,7 +9,7 @@ interface VersionCommentFormProps {
   closeModal(): void;
   createRevision: (reason: string, callback?: () => any) => void;
   revisionMutator: UseMutationResult<any>;
-  team: string;
+  workspace: string;
 }
 
 class VersionCommentForm extends Component<VersionCommentFormProps> {
