@@ -358,6 +358,31 @@ by `_0004`, and `roles` is v5-only — so this unit's behaviour is proven agains
 `LoaderMigrationTest`'s synthetic fixture, re-verified idempotent and narrow via a surviving
 `global`-typed token fixture, not the real dump.)
 
+## Track 7 — DD-04 frontend fold-in (2026-08-18)
+
+**T7-1 — Folded in at `client-web/` via `git subtree`, full history preserved.** Source is the
+**v4 line** (`flow.client.web` `main`, tag `4.0.0` + 3 commits), NOT 3.12.x — DD-04's original
+wording was stale. The `3.12.0` in `package.json` is a dead field; releases here are tag-driven
+(`4.0.0`, `4.0.0-beta.290`), exactly as on the backend whose poms still read `4.0.0`/`1.0.0`. The
+webapp joins the DD-03 unified product version at **5.x**. 873 files, 2,003 commits imported
+(monorepo now 3,377); `.git` grew ~8 MB, so preserving history cost almost nothing.
+
+**T7-2 — Packaging: separate image, built from the monorepo.** Keeps today's model (its own Node
+container, `boomerang-webapp-server serve`, runtime `rewriteAssetPaths`, `BASE_URL` from
+`PRODUCT_SERVICE_ENV_URL`); becomes the **4th image** on the product tag alongside core, agent and
+loader. Mode gating lives in the chart — engine mode simply does not deploy it (AM-7: the webapp
+is standalone-only). **Deferred for later discussion: bundling the Vite output into
+`service-core`'s static resources** for a single deployable — that would drop the node server and
+the runtime asset-path rewriting, so it is a behavioural change, not just packaging.
+
+**T7-3 — Full Workspace rename in the frontend, not just URL repointing.** H14 retired
+`/api/v2/team/**`, so the app cannot talk to `feat-v5` at all: 45 `/team/` URL sites in
+`servicesConfig.ts`, consumed by 75+ files. Beyond repointing to `/workspace/`, the frontend's own
+`Team*` types, components, variables and user-facing copy are renamed, completing DD-01 in the UI
+so backend and frontend do not carry split vocabulary.
+*Verified compatible:* the frontend reads `TaskRun.phase` at 2 sites — kept at E7-2. It declares
+`WorkflowRun.phase` but never reads it, so E7-2's removal there is harmless.
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
