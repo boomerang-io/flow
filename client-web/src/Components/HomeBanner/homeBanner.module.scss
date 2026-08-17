@@ -1,0 +1,70 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.container {
+  // background-color: #07192b;
+  position: relative;
+  padding: 0rem 2.5rem 3rem;
+  transition: max-height $carbon-motion--timing--productive $carbon-motion--easing--productive,
+    min-height $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  width: 100%;
+  z-index: 0;
+  flex-direction: column;
+  background: linear-gradient(
+    0deg,
+    var(--cds-bmrg-header-menu-options-active-background) 0%,
+    var(--cds-bmrg-primary) 100%
+  );
+
+  // &::after {
+  //   content: "";
+  //   background-image: url("../../Assets/svg/bkg-skyline.svg");
+  //   background-position: center;
+  //   background-repeat: no-repeat;
+  //   background-size: cover;
+  //   opacity: 0.3;
+  //   top: 0;
+  //   left: 0;
+  //   bottom: 0;
+  //   right: 0;
+  //   position: absolute;
+  //   transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  //   z-index: -1;
+  // }
+}
+
+.content {
+  align-items: left;
+  vertical-align: baseline;
+  display: flex;
+  flex-direction: column;
+  margin-top: 3rem;
+  opacity: 1;
+  transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive,
+    margin-top $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  width: 100%;
+}
+
+.title {
+  color: #f2f4f8;
+  font-size: 3rem;
+  font-weight: 600;
+  line-height: 3.5rem;
+  margin: 0;
+  text-align: left;
+  background: -webkit-linear-gradient(-70deg,var(--cds-button-primary, #0f62fe) 0%,  #20d5d2 50%);
+    background-clip: border-box;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    -webkit-box-decoration-break: clone;
+}
+
+.subtitle {
+  color: #f2f4f8;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.5625rem;
+  margin-top: 0.5rem;
+  text-align: left;
+}

@@ -1,0 +1,118 @@
+@import "Styles/mixins";
+
+.rbc-toolbar-label {
+  font-size: 1.25rem;
+}
+
+.rbc-day-bg {
+  background: var(--cds-ui-01);
+  cursor: pointer;
+}
+
+.rbc-off-range-bg {
+  background: var(--cds-background);
+}
+
+.rbc-event {
+  background-color: transparent;
+  border-radius: 0;
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01), -0.125rem);
+  }
+  &.rbc-selected {
+    background-color: var(--cds-selected-ui);
+    z-index: 1;
+  }
+}
+
+.rbc-today {
+  background: var(--cds-highlight);
+}
+
+.rbc-agenda-table {
+  background: var(--cds-ui-01);
+}
+
+.rbc-event-label {
+  display: none;
+}
+
+.rbc-toolbar {
+  gap: 1rem;
+  justify-content: flex-start;
+}
+
+.rbc-btn-group {
+  display: flex;
+  align-self: start;
+  gap: 0.5rem;
+  button {
+    box-sizing: border-box;
+    background-color: var(--cds-interactive-01);
+    color: white;
+    font-size: 100%;
+    font-family: inherit;
+    vertical-align: baseline;
+    border: 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.28572;
+    letter-spacing: 0.16px;
+    position: relative;
+    display: -webkit-inline-flex;
+    display: inline-flex;
+    -webkit-flex-shrink: 0;
+    flex-shrink: 0;
+    -webkit-align-items: center;
+    align-items: center;
+    -webkit-justify-content: space-between;
+    justify-content: space-between;
+    max-width: 20rem;
+    min-height: 2.5rem;
+    margin: 0;
+    text-align: left;
+    text-decoration: none;
+    vertical-align: top;
+    border-radius: 0.25rem !important;
+    outline: none;
+    cursor: pointer;
+    transition: background 70ms cubic-bezier(0, 0, 0.38, 0.9), box-shadow 70ms cubic-bezier(0, 0, 0.38, 0.9),
+      border-color 70ms cubic-bezier(0, 0, 0.38, 0.9), outline 70ms cubic-bezier(0, 0, 0.38, 0.9);
+    &:hover {
+      background: var(--cds-interactive-01);
+      color: #ffffff;
+    }
+    &:focus {
+      background: var(--cds-interactive-01);
+      border-color: var(--cds-interactive-01);
+      box-shadow: inset 0 0 0 1px var(--cds-interactive-01), inset 0 0 0 2px #f2f4f8;
+      color: #ffffff;
+    }
+    &:focus:active {
+      background-color: #003a6d;
+      color: #ffffff;
+    }
+
+    &.rbc-active {
+      background-color: #003a6d;
+      &:hover {
+        background-color: #003a6d;
+        color: #ffffff;
+      }
+      &:focus {
+        background-color: #003a6d;
+        border-color: var(--cds-interactive-01);
+        box-shadow: inset 0 0 0 1px var(--cds-interactive-01), inset 0 0 0 2px #f2f4f8;
+        color: #ffffff;
+      }
+    }
+  }
+}
+
+.rbc-current-time-indicator {
+  background-color: var(--cds-link-visited);
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px solid var(--cds-ui-03);
+}

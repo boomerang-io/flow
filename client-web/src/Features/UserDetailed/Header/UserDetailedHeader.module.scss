@@ -1,0 +1,118 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  flex-direction: column;
+  //height: 10.5rem;
+  justify-content: space-between;
+  padding-bottom: 0rem !important;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.breadcrumbContainer {
+  height: 1.5rem;
+}
+
+.headerSubtitle {
+  display: flex;
+}
+
+.headerActions {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+
+  :global .bx--bmrg-feature-nav-tab {
+    cursor: pointer !important;
+  }
+}
+
+.status {
+  align-items: center;
+  display: flex;
+  font-size: 1rem;
+  gap: 0.5rem;
+}
+.statusDivider {
+  margin: 0 1rem;
+}
+.statusText {
+  font-size: 1rem;
+}
+
+.removedUserDetail {
+  color: var(--cds-inverse-support-01);
+  font-size: 0.8rem;
+}
+
+.actionButtons {
+  bottom: 0.25rem;
+  position: absolute;
+  right: 1.5rem;
+  z-index: 1;
+}
+
+.infoContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.userDetailsContainer {
+  align-self: flex-end;
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+}
+
+.actionButtonsContainer {
+  align-items: baseline;
+  justify-content: flex-end;
+  display: flex;
+  width: 100%;
+}
+
+.subHeaderContainer {
+  display: flex;
+  flex-direction: row;
+  & > * + * {
+    margin-left: 2.5rem;
+  }
+}
+
+.dataTitle {
+  font-size: 0.875rem;
+  font-weight: 300;
+  line-height: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.dataValueEmail {
+  font-size: 1rem;
+  line-height: 1.25;
+  max-width: 16rem;
+  @include text-overflow-ellipsis();
+}
+
+.dataValue {
+  font-size: 1rem;
+  line-height: 1.25;
+  max-width: 16rem;
+  text-transform: capitalize;
+  @include text-overflow-ellipsis();
+}
+
+.userContainer {
+  margin: 0rem 0 0rem 0;
+  max-width: calc(100% - 30rem);
+  display: flex;
+  align-items: center;
+
+  :global .cds--bmrg-avatar {
+    path {
+      fill: var(--cds-text-01);
+    }
+  }
+}

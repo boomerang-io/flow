@@ -1,0 +1,99 @@
+// Vitest Snapshot v1
+
+exports[`ChangeRole --- Snapshot Test > Capturing Snapshot of ChangeRole 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <form
+      class="cds--bmrg-modal-flow-form"
+    >
+      <div
+        class="cds--modal-content"
+      >
+        <div
+          class="_gridContainer_7666e5"
+        >
+          <div
+            class="cds--form-item"
+          >
+            <fieldset
+              class="cds--radio-button-group cds--radio-button-group--vertical cds--radio-button-group--label-right"
+            >
+              <div
+                class="cds--radio-button-wrapper"
+              >
+                <input
+                  class="cds--radio-button"
+                  id="platform-role-admin"
+                  name="platform-role"
+                  type="radio"
+                  value="admin"
+                />
+                <label
+                  class="cds--radio-button__label"
+                  for="platform-role-admin"
+                >
+                  <span
+                    class="cds--radio-button__appearance"
+                  />
+                  <span
+                    class=""
+                    dir="auto"
+                  >
+                    Admin
+                  </span>
+                </label>
+              </div>
+              <div
+                class="cds--radio-button-wrapper"
+              >
+                <input
+                  class="cds--radio-button"
+                  id="platform-role-user"
+                  name="platform-role"
+                  type="radio"
+                  value="user"
+                />
+                <label
+                  class="cds--radio-button__label"
+                  for="platform-role-user"
+                >
+                  <span
+                    class="cds--radio-button__appearance"
+                  />
+                  <span
+                    class=""
+                    dir="auto"
+                  >
+                    User
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+      </div>
+      <div
+        class="cds--modal-footer cds--btn-set"
+      >
+        <button
+          class="cds--btn cds--btn--secondary"
+          tabindex="0"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="cds--btn cds--btn--primary cds--btn--disabled"
+          disabled=""
+          tabindex="0"
+          type="submit"
+        >
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+`;

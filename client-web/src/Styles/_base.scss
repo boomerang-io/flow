@@ -1,0 +1,169 @@
+@import "Styles/mixins";
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  background-color: var(--cds-ui-background);
+  color: var(--cds-text-01);
+  line-height: 1.3;
+  letter-spacing: 0.0375rem;
+}
+
+button {
+  background: transparent;
+  border: none;
+  font-family: "IBM Plex Sans";
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  text-decoration: none;
+}
+
+/* fix for carbon menu */
+.cds--list-box__menu {
+  z-index: 998;
+}
+
+#app {
+  //overwrite carbon components
+  .cds--list-box__label {
+    color: var(--cds-text-01);
+    font-weight: 400;
+  }
+}
+
+textarea {
+  resize: none !important;
+}
+
+
+.c-textEditorContainer {
+  height: 100%;
+  
+  .b-task-text-area {
+    display: flex;
+    margin-bottom: 0.5rem;
+    .b-task-text-area__language-dropdown {
+      min-width: 15rem;
+      margin: 0.125rem;
+      margin-left: auto;
+      .cds--list-box__field {
+        background-color: initial !important;
+      }
+    }
+  
+    &__button {
+      padding: 0.6875rem 0.75rem 0.6875rem 0.75rem !important;
+      margin: 0.125rem !important;
+    }
+  
+    .cds--search {
+      width: 20rem;
+    }
+  
+    .cds--list-box__field {
+      height: 2.625rem !important;
+    }
+  }
+  
+  .bmrg-c-text-area-modal-wrapper {
+    cursor: pointer;
+    width: 100%;
+    .cds--text-area__wrapper {
+      width: 100%;
+    }
+  }
+}
+
+.react-codemirror2 {
+  height: 90%;
+}
+
+.CodeMirror {
+  height: 100%;
+  letter-spacing: inherit;
+  * {
+    font-size: 0.875rem;
+    letter-spacing: 0.06125rem;
+    font-family: "IBM Plex Mono", SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier, monospace !important;
+  }
+}
+
+.CodeMirror-sizer {
+  font-size: 1rem;
+}
+
+.CodeMirror-hints {
+  border: none;
+  letter-spacing: 0.0625rem;
+  box-shadow: 0px 3px 3px 0 rgba(0, 0, 0, 0.1);
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 15rem;
+  background-color: var(--cds-ui-01) fff;
+  max-height: 8.75rem;
+  overflow-y: auto;
+  z-index: 9098;
+  margin: 0;
+  padding: 0;
+  @include border-radius();
+}
+
+li.CodeMirror-hint-active {
+  background-color: #e5e5e5;
+  color: #242a2e;
+  border-color: transparent;
+}
+
+.CodeMirror-hint {
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.125rem;
+  letter-spacing: 0.01rem;
+  height: 2.5rem;
+  color: #565656;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+
+  display: block;
+  padding: 0.6875rem 0;
+  margin: 0;
+  text-indent: 1rem;
+  border-top: 0.0625rem solid transparent;
+  border-top-color: transparent;
+  border-bottom: 0.0625rem solid transparent;
+  border-top-color: #dcdcdc;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: border-color 70ms cubic-bezier(0.2, 0, 0.38, 0.9), color 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.CodeMirror-hints.material {
+  z-index: 1001;
+}
+
+
+
+.cm-s-material.CodeMirror {
+  background-color: var(--cds-text-01);
+}
+
+.cm-s-material .CodeMirror-gutters {
+  background-color: var(--cds-text-01);
+}
+
+.cm-s-material .CodeMirror-linenumber {
+  color: var(--cds-ui-04);
+  font-size: 0.75rem;
+}

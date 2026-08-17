@@ -1,0 +1,121 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  max-width: 18rem;
+  min-width: 18rem;
+  height: 12rem;
+  position: relative;
+  @include border-radius();
+
+  a {
+    background-color: var(--cds-ui-01);
+    border-radius: 0.25rem;
+    height: 100%;
+    transition: background-color 0.15s ease;
+    &:focus {
+      @include focus-outline($offset: 0rem);
+    }
+    &:hover {
+      background-color: var(--cds-background-hover);
+    }
+    &[disabled] {
+      pointer-events: none;
+    }
+  }
+
+  :global .cds--overflow-menu {
+    height: 2rem;
+  }
+
+  :global .cds--overflow-menu-options__btn {
+    color: var(--cds-text-03);
+    text-decoration: none !important;
+  }
+  :global .cds--overflow-menu-options--open {
+    @include border-radius();
+    overflow: hidden;
+    z-index: 998;
+  }
+
+  :global .cds--overflow-menu-options__option {
+    min-width: 11.125rem;
+    // &:hover {
+    //   background-color: $cool-gray-1;
+    // }
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  line-height: 1rem;
+  margin-left: auto;
+  padding: 1rem 2.5rem 1rem 1rem;
+  &:focus {
+    outline: none;
+  }
+}
+
+.details {
+  flex-wrap: wrap;
+  display: flex;
+  padding-top: 1rem;
+}
+
+.detailItem {
+  flex-basis: 50%;
+  width: 50%;
+  margin-bottom: 0.5rem;
+  padding-right: 1rem;
+  padding-bottom: 0.5rem;
+  word-break: break-word;
+  // border: 1px solid #161616;
+}
+
+.detailLabel {
+  padding-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--cds-text-02, #525252);
+}
+
+.detailValue {
+  color: var(--cds-text-primary);
+  font-size: var(--cds-body-long-01-font-size, 0.875rem);
+  font-weight: var(--cds-body-long-01-font-weight, 400);
+  line-height: var(--cds-body-long-01-line-height, 1.42857);
+  letter-spacing: var(--cds-body-long-01-letter-spacing, 0.16px);
+}
+
+.detailStatus {
+  align-items: center;
+  display: flex;
+}
+
+.cardIcon {
+  bottom: 1rem;
+  position: absolute;
+  right: 1rem;
+  width: 1.125rem;
+}
+
+.displayName {
+  color: var(--cds-text-primary);
+  font-size: var(--cds-heading-02-font-size, 0.875rem);
+  font-weight: var(--cds-heading-02-font-weight, 600);
+  line-height: var(--cds-heading-02-line-height, 1.42857);
+  letter-spacing: var(--cds-heading-02-letter-spacing, 0.16px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+
+.modalContainer {
+  height: 46rem;
+  max-height: 84vh;
+}

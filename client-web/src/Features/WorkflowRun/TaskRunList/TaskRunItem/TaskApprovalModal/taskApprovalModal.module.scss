@@ -1,0 +1,57 @@
+.modalContainer {
+  max-height: 51rem;
+}
+
+.modalBody {
+  padding-right: 1rem;
+}
+
+.approval {
+  border-top: 0.0625rem solid var(--cds-skeleton-02);
+  padding: 1rem 0 0.5rem 0;
+  position: relative;
+  width: 100%;
+}
+
+.approvalTime {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 1rem;
+  position: absolute;
+  top: 1rem;
+  right: 0rem;
+}
+
+.componentData {
+  display: flex;
+  margin-bottom: 1.5rem;
+}
+
+.pipelineData {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.leftData {
+  width: 12.6875rem;
+}
+
+.inputs {
+  align-items: flex-end;
+  display: flex;
+}
+
+.comment {
+  position: relative;
+  width: 37.75rem;
+}
+
+.commentArea {
+  height: 4.5rem;
+  resize: vertical !important;
+}
+
+.decisionButtons {
+  margin: 0 0 1rem 1.5rem;
+}

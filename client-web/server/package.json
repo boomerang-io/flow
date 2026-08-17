@@ -1,0 +1,19 @@
+{
+  "name": "boomerang-flow-server",
+  "version": "0.0.1",
+  "description": "Boomerang Flow Express Server",
+  "scripts": {
+    "start": "boomerang-webapp-server serve",
+    "dev": "boomerang-webapp-server serve -p \"config/.env.local\""
+  },
+  "contributors": [
+    {
+      "name": "Tim Bula",
+      "email": "trbula@us.ibm.com"
+    }
+  ],
+  "dependencies": {
+    "@boomerang-io/webapp-spa-server": "1.2.1",
+    "replace-in-file": "^6.3.2"
+  }
+}

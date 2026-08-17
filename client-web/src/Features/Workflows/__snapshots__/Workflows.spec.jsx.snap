@@ -1,0 +1,1028 @@
+// Vitest Snapshot v1
+
+exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_71d97d"
+    >
+      <section
+        class="_closeHideButtons_71d97d"
+      >
+        <button
+          class="_closeButton_71d97d"
+        >
+          <svg
+            aria-label="close"
+            class="_closeIcon_71d97d"
+            fill="currentColor"
+            focusable="false"
+            height="32"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            viewBox="0 0 32 32"
+            width="32"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+            />
+          </svg>
+          <p
+            class="_closeText_71d97d"
+          >
+            Don't show again
+          </p>
+        </button>
+        <button
+          class="_collapseButton_71d97d"
+        >
+          <p
+            class="_collapseText_71d97d"
+          >
+            Collapse
+          </p>
+          <svg
+            aria-label="collapse"
+            class="_collapseIcon_71d97d"
+            fill="currentColor"
+            focusable="false"
+            height="32"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            viewBox="0 0 32 32"
+            width="32"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M16 10L26 20 24.6 21.4 16 12.8 7.4 21.4 6 20z"
+            />
+          </svg>
+        </button>
+      </section>
+      <div
+        class="_content_71d97d"
+      >
+        <h1
+          class="_title_71d97d"
+        >
+          Welcome to your Workflows
+        </h1>
+        <p
+          class="_subtitle_71d97d"
+        >
+          Turn ideation into Automation
+        </p>
+        <div
+          class="_buttons_71d97d"
+        >
+          <button
+            class="_button_71d97d"
+          >
+            <p
+              class="_buttonText_71d97d"
+            >
+              Learn the basics
+            </p>
+          </button>
+          <a
+            class="_button_71d97d"
+            href="slack://channel?team=T27TLPNS1&id=CFKN6FJD6"
+            tabindex="0"
+          >
+            <p
+              class="_buttonText_71d97d"
+            >
+              Slack us feedback
+            </p>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div
+      class="_container_8fb188"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_4d119f"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <p
+              class="cds--bmrg-feature-header-title"
+            >
+              These are your
+            </p>
+            <h1
+              class="cds--bmrg-feature-header-title"
+            >
+              Team Workflows (4)
+            </h1>
+            <p
+              class="cds--bmrg-feature-header-title _headerMessage_4d119f"
+            >
+              Shared workflows to collaborate on
+            </p>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__footer"
+          >
+            <nav
+              aria-label="Workflows view"
+              class="cds--tabs"
+            >
+              <ul
+                class="cds--tab--list"
+              >
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link"
+                  href="/workflows/mine"
+                >
+                  My Workflows
+                </a>
+                <a
+                  aria-current="page"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
+                  href="/workflows/teams"
+                >
+                  Team Workflows
+                </a>
+              </ul>
+            </nav>
+          </div>
+        </section>
+        <div
+          class="_filterContainer_4d119f"
+        >
+          <button
+            class="cds--btn cds--btn--md cds--btn--ghost"
+            data-testid="workflows-create-workflow-template-button"
+            tabindex="0"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              class="_addIcon_e88a2f"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 32 32"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M26 6v4H6V6H26m0-2H6A2 2 0 004 6v4a2 2 0 002 2H26a2 2 0 002-2V6a2 2 0 00-2-2zM10 16V26H6V16h4m0-2H6a2 2 0 00-2 2V26a2 2 0 002 2h4a2 2 0 002-2V16a2 2 0 00-2-2zM26 16V26H16V16H26m0-2H16a2 2 0 00-2 2V26a2 2 0 002 2H26a2 2 0 002-2V16a2 2 0 00-2-2z"
+              />
+            </svg>
+            <p
+              class="_text_e88a2f"
+            >
+              Templates
+            </p>
+            <svg
+              aria-hidden="true"
+              class="cds--btn__icon"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 32 32"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+              />
+            </svg>
+          </button>
+          <div
+            class="cds--layer-two _search_4d119f"
+          >
+            <div
+              aria-labelledby="search-team-workflows-search"
+              class="cds--search cds--search--md"
+              role="search"
+            >
+              <div
+                class="cds--search-magnifier"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--search-magnifier-icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </div>
+              <label
+                class="cds--label"
+                for="search-team-workflows"
+                id="search-team-workflows-search"
+              >
+                Search for a workflow
+              </label>
+              <input
+                autocomplete="off"
+                class="cds--search-input"
+                data-testid="workflows-team-search"
+                id="search-team-workflows"
+                placeholder="Search for a workflow"
+                role="searchbox"
+                type="text"
+                value=""
+              />
+              <button
+                aria-label="Clear search input"
+                class="cds--search-close cds--search-close--hidden"
+                title="Clear search input"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="_filter_4d119f"
+          >
+            <div
+              class="cds--multi-select__wrapper cds--list-box__wrapper"
+            >
+              <label
+                class="cds--label"
+                for="b-search-filter__filter-input"
+                id="b-search-filter__filter-label"
+              >
+                Filter by Team
+              </label>
+              <div
+                class="cds--multi-select cds--combo-box cds--multi-select--filterable cds--list-box cds--list-box--light"
+              >
+                <div
+                  class="cds--list-box__field"
+                >
+                  <input
+                    aria-autocomplete="list"
+                    aria-expanded="false"
+                    aria-haspopup="listbox"
+                    autocomplete="off"
+                    class="cds--text-input cds--text-input--empty cds--text-input--light"
+                    id="b-search-filter__filter-input"
+                    placeholder="Choose a team"
+                    role="combobox"
+                    value=""
+                  />
+                  
+                  <button
+                    aria-haspopup="true"
+                    aria-label="Open"
+                    class="cds--list-box__menu-icon"
+                    data-toggle="true"
+                    role="button"
+                    tabindex="-1"
+                    title="Open"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div
+        aria-label="My Workflows"
+        class="_content_8fb188"
+        role="region"
+      >
+        <section
+          class="_sectionContainer_8fb188"
+        >
+          <hgroup
+            class="_header_8fb188"
+          >
+            <h1
+              class="_team_8fb188"
+            >
+              IBM Services Engineering (3)
+            </h1>
+            <div
+              class="_teamQuotaContainer_8fb188"
+            >
+              <div
+                class="_quotaDescriptionContainer_8fb188"
+              >
+                <p
+                  class="_teamQuotaText_8fb188"
+                >
+                  Workflow quota - 1 of 10 used
+                </p>
+              </div>
+              <button
+                class="cds--btn cds--btn--sm cds--btn--ghost"
+                tabindex="0"
+                type="button"
+              >
+                View more quotas
+              </button>
+            </div>
+          </hgroup>
+          <div
+            class="_workflows_8fb188"
+          >
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/editor/5eb2c4085a92d80001a16d87/workflow"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      alt="bot"
+                      aria-hidden="true"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M18 10H20V12H18zM12 10H14V12H12z"
+                      />
+                      <path
+                        d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="ML Train – Bot Efficiency"
+                    >
+                      ML Train – Bot Efficiency
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title="Train and store ML model for Bot Efficiency."
+                    >
+                      Train and store ML model for Bot Efficiency.
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--btn--primary cds--btn--disabled"
+                  disabled=""
+                  tabindex="0"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run Workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <button
+                aria-expanded="false"
+                aria-haspopup="true"
+                aria-label="Overflow card menu"
+                class="cds--overflow-menu cds--overflow-menu--md"
+                style="position: absolute; right: 0px;"
+                type="button"
+              >
+                <svg
+                  aria-label="Overflow menu icon"
+                  class="cds--overflow-menu__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="16"
+                    cy="8"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="24"
+                    r="2"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/editor/5e877e944bbc6e0001c51e6e/workflow"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      alt="cloud upload"
+                      aria-hidden="true"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M11 18L12.41 19.41 15 16.83 15 29 17 29 17 16.83 19.59 19.41 21 18 16 13 11 18z"
+                      />
+                      <path
+                        d="M23.5,22H23V20h.5a4.5,4.5,0,0,0,.36-9L23,11l-.1-.82a7,7,0,0,0-13.88,0L9,11,8.14,11a4.5,4.5,0,0,0,.36,9H9v2H8.5A6.5,6.5,0,0,1,7.2,9.14a9,9,0,0,1,17.6,0A6.5,6.5,0,0,1,23.5,22Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="Java - Deploy"
+                    >
+                      Java - Deploy
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title=""
+                    />
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--btn--primary"
+                  tabindex="0"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run Workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <button
+                aria-expanded="false"
+                aria-haspopup="true"
+                aria-label="Overflow card menu"
+                class="cds--overflow-menu cds--overflow-menu--md"
+                style="position: absolute; right: 0px;"
+                type="button"
+              >
+                <svg
+                  aria-label="Overflow menu icon"
+                  class="cds--overflow-menu__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="16"
+                    cy="8"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="24"
+                    r="2"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/editor/5e877d1f4bbc6e0001c51e12/workflow"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      alt="delivery"
+                      aria-hidden="true"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M29.92,16.61l-3-7A1,1,0,0,0,26,9H23V7a1,1,0,0,0-1-1H3A1,1,0,0,0,2,7V24a1,1,0,0,0,1,1H5.14a4,4,0,0,0,7.72,0h6.28a4,4,0,0,0,7.72,0H29a1,1,0,0,0,1-1V17A1,1,0,0,0,29.92,16.61ZM23,11h2.34l2.14,5H23ZM9,26a2,2,0,1,1,2-2A2,2,0,0,1,9,26Zm10.14-3H12.86a4,4,0,0,0-7.72,0H4V8H21V20.56A4,4,0,0,0,19.14,23ZM23,26a2,2,0,1,1,2-2A2,2,0,0,1,23,26Zm5-3H26.86A4,4,0,0,0,23,20V18h5Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="Java - Build"
+                    >
+                      Java - Build
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title="Java - Build"
+                    >
+                      Java - Build
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--btn--primary"
+                  tabindex="0"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run Workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <div
+                class="_templatesWarningIcon_483afa"
+              >
+                <div>
+                  <svg
+                    alt="Workflow warning button"
+                    class="_button_f89d84"
+                    height="26"
+                    role="button"
+                    style="will-change: auto;"
+                    tabindex="0"
+                    viewBox="0 0 26 26"
+                    width="26"
+                  >
+                    <title>
+                      x
+                    </title>
+                    <g
+                      fill="none"
+                      fill-rule="evenodd"
+                      transform="translate(1 1)"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        fill="#F9C100"
+                        r="12"
+                        stroke="#0072C3"
+                      />
+                      <path
+                        d="M18.5 18h-13c-.2 0-.3-.1-.4-.2-.1-.2-.1-.3 0-.5l6.5-12c.1-.3.4-.4.6-.2.1 0 .2.1.2.2l6.5 12c.1.2.1.3 0 .5 0 .1-.2.2-.4.2zM6.3 17h11.3L12 6.5 6.3 17zm5.2-7h1v3.5h-1V10zm.5 4.8c-.4 0-.8.3-.8.8s.3.8.8.8c.4 0 .8-.3.8-.8s-.4-.8-.8-.8z"
+                        fill="#000"
+                      />
+                    </g>
+                  </svg>
+                </div>
+              </div>
+              <button
+                aria-expanded="false"
+                aria-haspopup="true"
+                aria-label="Overflow card menu"
+                class="cds--overflow-menu cds--overflow-menu--md"
+                style="position: absolute; right: 0px;"
+                type="button"
+              >
+                <svg
+                  aria-label="Overflow menu icon"
+                  class="cds--overflow-menu__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="16"
+                    cy="8"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="24"
+                    r="2"
+                  />
+                </svg>
+              </button>
+            </div>
+            <button
+              class="_container_7b50b0"
+              data-testid="workflows-create-workflow-button"
+            >
+              <svg
+                aria-hidden="true"
+                class="_addIcon_7b50b0"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+              <p
+                class="_text_7b50b0"
+              >
+                Create a new Workflow
+              </p>
+            </button>
+          </div>
+        </section>
+        <section
+          class="_sectionContainer_8fb188"
+        >
+          <hgroup
+            class="_header_8fb188"
+          >
+            <h1
+              class="_team_8fb188"
+            >
+              IBM Services Essentials (1)
+            </h1>
+            <div
+              class="_teamQuotaContainer_8fb188"
+            >
+              <div
+                class="_quotaDescriptionContainer_8fb188"
+              >
+                <p
+                  class="_teamQuotaText_8fb188"
+                >
+                  Workflow quota - 9 of 10 used
+                </p>
+              </div>
+              <button
+                class="cds--btn cds--btn--sm cds--btn--ghost"
+                tabindex="0"
+                type="button"
+              >
+                View more quotas
+              </button>
+            </div>
+          </hgroup>
+          <div
+            class="_workflows_8fb188"
+          >
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/editor/5eb2c4085a92d80001a16d87/workflow"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      alt="clean"
+                      aria-hidden="true"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M20 18H26V20H20z"
+                        transform="rotate(-180 23 19)"
+                      />
+                      <path
+                        d="M24 26H30V28H24z"
+                        transform="rotate(-180 27 27)"
+                      />
+                      <path
+                        d="M22 22H28V24H22z"
+                        transform="rotate(-180 25 23)"
+                      />
+                      <path
+                        d="M17.0029,20a4.8952,4.8952,0,0,0-2.4044-4.1729L22,3,20.2691,2,12.6933,15.126A5.6988,5.6988,0,0,0,7.45,16.6289C3.7064,20.24,3.9963,28.6821,4.01,29.04a1,1,0,0,0,1,.96H20.0012a1,1,0,0,0,.6-1.8C17.0615,25.5439,17.0029,20.0537,17.0029,20ZM11.93,16.9971A3.11,3.11,0,0,1,15.0041,20c0,.0381.0019.208.0168.4688L9.1215,17.8452A3.8,3.8,0,0,1,11.93,16.9971ZM15.4494,28A5.2,5.2,0,0,1,14,25H12a6.4993,6.4993,0,0,0,.9684,3H10.7451A16.6166,16.6166,0,0,1,10,24H8a17.3424,17.3424,0,0,0,.6652,4H6c.031-1.8364.29-5.8921,1.8027-8.5527l7.533,3.35A13.0253,13.0253,0,0,0,17.5968,28Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="Essentials Training – Bot Efficiency"
+                    >
+                      Essentials Training – Bot Efficiency
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title="Train and store ML model for Bot Efficiency."
+                    >
+                      Train and store ML model for Bot Efficiency.
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--btn--primary cds--btn--disabled"
+                  disabled=""
+                  tabindex="0"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run Workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <button
+                aria-expanded="false"
+                aria-haspopup="true"
+                aria-label="Overflow card menu"
+                class="cds--overflow-menu cds--overflow-menu--md"
+                style="position: absolute; right: 0px;"
+                type="button"
+              >
+                <svg
+                  aria-label="Overflow menu icon"
+                  class="cds--overflow-menu__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="16"
+                    cy="8"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="24"
+                    r="2"
+                  />
+                </svg>
+              </button>
+            </div>
+            <button
+              class="_container_7b50b0"
+              data-testid="workflows-create-workflow-button"
+            >
+              <svg
+                aria-hidden="true"
+                class="_addIcon_7b50b0"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+              <p
+                class="_text_7b50b0"
+              >
+                Create a new Workflow
+              </p>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

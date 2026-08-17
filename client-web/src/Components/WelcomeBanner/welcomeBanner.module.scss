@@ -1,0 +1,196 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.container {
+  background-color: #07192b;
+  max-height: 14.25rem;
+  min-height: 14.25rem;
+  overflow: hidden;
+  position: relative;
+  transition: max-height $carbon-motion--timing--productive $carbon-motion--easing--productive,
+    min-height $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  width: 100%;
+  z-index: 0;
+
+  &::after {
+    content: "";
+    background-image: url("../../Assets/svg/bkg-skyline.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    opacity: 0.3;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    position: absolute;
+    transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
+    z-index: -1;
+  }
+}
+
+.collapsed {
+  max-height: 3.25rem;
+  min-height: 3.25rem;
+  overflow: hidden;
+  &::after {
+    opacity: 0;
+  }
+}
+
+.closeHideButtons {
+  display: flex;
+  justify-content: space-between;
+  height: 2.25rem;
+  padding: 0 1rem;
+  margin-top: 0.5rem;
+}
+
+.closeButton {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  padding: 0 0.25rem;
+  &:focus {
+    @include focus-outline(#20d5d2);
+  }
+}
+
+.closeIcon {
+  fill: #f2f4f8;
+  height: 1.25rem;
+  margin-right: 0.25rem;
+  width: 1.25rem;
+}
+
+.closeText {
+  color: #f2f4f8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.collapseButton {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  padding: 0 0.25rem;
+
+  &:focus {
+    @include focus-outline(#20d5d2);
+  }
+}
+
+.collapseIcon {
+  fill: #20d5d2;
+  height: 1.25rem;
+  margin-left: 0.25rem;
+  transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  width: 1.25rem;
+
+  &.closed {
+    transform: rotate(180deg);
+  }
+}
+
+.collapseText {
+  color: #20d5d2;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.content {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  margin-top: -1rem;
+  opacity: 1;
+  transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive,
+    margin-top $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  width: 100%;
+
+  &.closed {
+    margin-top: 0rem;
+    opacity: 0.01;
+  }
+}
+
+.title {
+  color: #f2f4f8;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.625rem;
+  margin: 0;
+  text-align: center;
+}
+
+.subtitle {
+  color: #f2f4f8;
+  font-size: 1.25rem;
+  line-height: 1.5625rem;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+.buttons {
+  display: flex;
+  margin-top: 2rem;
+  // &.closed {
+  //   animation: hide-element $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  // }
+}
+
+.button {
+  align-items: center;
+  background-color: #20d5d2;
+  border-radius: 0.25rem;
+  border-width: 0.1875rem;
+  border-style: solid;
+  border-color: transparent;
+  color: var(--cds-brand-02);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 3.5625rem;
+  outline: 1px solid transparent;
+  outline-offset: -0.25rem;
+  transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  width: 15.625rem;
+
+  &:first-of-type {
+    margin-right: 2.5rem;
+  }
+
+  &:hover {
+    background-color: #00bab6;
+  }
+
+  &:focus {
+    border-color: #20d5d2;
+    outline-color: var(--cds-brand-02);
+  }
+}
+
+.buttonMiddle {
+  margin: 0 2.5rem;
+}
+
+.buttonText {
+  color: var(--cds-text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.5625rem;
+  text-align: center;
+}
+
+.buttonSubtext {
+  color: var(--cds-text-primary);
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  margin-top: 0.125rem;
+  text-align: center;
+}

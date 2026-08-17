@@ -1,0 +1,14 @@
+.content {
+  overflow: auto;
+  position: relative;
+}
+
+.createTeamTrigger {
+  position: absolute;
+  right: 2rem;
+  top: 2rem;
+}
+
+.tableRow:hover {
+  cursor: pointer;
+}

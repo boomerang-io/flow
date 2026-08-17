@@ -1,0 +1,44 @@
+.search {
+  margin-bottom: 1.31rem;
+  max-width: 20rem;
+}
+
+.tableContainer {
+  margin-bottom: 4.5rem;
+}
+
+.tableHeadHeader {
+  font-size: inherit;
+  font-family: inherit;
+  height: 3rem;
+
+  button {
+    width: 100% !important;
+  }
+}
+
+.tableBody {
+  font-weight: 300;
+  .version {
+    width: 10%;
+  }
+  .date {
+    width: 20%;
+  }
+  .userName {
+    width: 20%;
+  }
+}
+
+
+
+.tableText {
+  background: inherit;
+  margin-left: 0.25rem;
+  max-width: 100%;
+  resize: none;
+  text-align: left;
+  white-space: normal;
+  width: 90%;
+  word-break: break-all;
+}

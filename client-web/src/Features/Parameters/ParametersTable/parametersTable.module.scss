@@ -1,0 +1,88 @@
+.header {
+  padding: 1rem 2rem 0;
+}
+
+.headerTitle {
+  margin: 0;
+}
+
+.tableContainer {
+  margin: 2.5rem 2.5rem 4.5rem 2.5rem;
+
+  :global .cds--pagination__control-buttons {
+    z-index: 1;
+  }
+}
+
+.tableActions {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.dropdown {
+  width: 20rem;
+}
+
+.tableHeadHeader {
+  font-size: inherit;
+  font-family: inherit;
+  height: 3rem;
+
+  button {
+    width: 100% !important;
+  }
+
+  &.label {
+    width: 20%;
+  }
+
+  &.key {
+    width: 20%;
+  }
+
+  &.description {
+    width: 25%;
+  }
+
+  &.value {
+    width: 25%;
+  }
+
+  &.secured {
+    width: 5%;
+  }
+}
+
+.tableBody {
+  font-weight: 300;
+}
+
+.tableCell {
+  .tableSecured {
+    height: 1.25rem;
+    width: 1.25rem;
+  }
+
+  .secured {
+    path {
+      fill: var(--cds-support-02);
+    }
+  }
+
+  .unsecured {
+    path {
+      fill: var(--cds-support-01);
+    }
+  }
+}
+
+.wombat {
+  display: flex;
+  flex-direction: column;
+  height: 21rem;
+  margin-top: 5rem;
+  width: 100%;
+}

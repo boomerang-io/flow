@@ -1,0 +1,20 @@
+// Vitest Snapshot v1
+
+exports[`OutputPropertiesLog --- Snapshot > Capturing Snapshot of OutputPropertiesLog 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <button
+      class="cds--btn cds--btn--sm cds--btn--ghost"
+      tabindex="0"
+      type="button"
+    >
+      View Parameters
+    </button>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

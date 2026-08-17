@@ -1,0 +1,275 @@
+@import "Styles/mixins";
+
+.closeButton {
+  position: absolute;
+  right: -0.75rem;
+  top: -1rem;
+}
+
+.editButton {
+  position: absolute;
+  right: 1.5rem;
+  top: -1rem;
+}
+
+.updateButton {
+  position: absolute;
+  right: 6rem;
+  top: -01rem;
+}
+
+.updateTaskModalContainer {
+  max-height: 62.5rem !important;
+  max-width: 60rem !important;
+}
+
+.badgeContainer {
+  background-color: var(--cds-ui-01);
+  border: 1px solid var(--cds-text-02);
+  border-radius: 0.25rem;
+  left: -1.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+  position: absolute;
+  top: -0.75rem;
+}
+
+.badgeText {
+  color: var(--cds-text-primary);
+  font-size: 0.625rem;
+  line-height: 0.8125rem;
+}
+
+:global .c-workflow-diagram-execution {
+  .node.srd-node {
+    cursor: initial;
+  }
+}
+
+.normal {
+  border: none;
+}
+
+.badgeContainer {
+  background-color: var(--cds-ui-01);
+  border: 1px solid var(--cds-text-02);
+  border-radius: 0.25rem;
+  left: -1.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+  position: absolute;
+  top: -0.75rem;
+}
+
+.badgeText {
+  color: var(--cds-text-primary);
+  font-size: 0.625rem;
+  line-height: 0.8125rem;
+}
+
+@import "Styles/mixins";
+
+:global .srd-node--selected > * {
+  border-color: var(--cds-interactive-01) !important;
+}
+
+.node {
+  background: var(--cds-ui-01);
+  border: 0.125rem solid var(--cds-interactive-01);
+  border-color: var(--cds-interactive-01);
+  height: 5rem;
+  padding: 1rem;
+  position: relative;
+  width: 15rem;
+  @include border-radius();
+
+  &.locked {
+    .port.right {
+      background-color: #50565b;
+      border: 0.0625rem solid #50565b;
+      right: -2.1875rem;
+    }
+
+    .port.left {
+      background-color: #d5d9e0;
+      border: 0.0625rem solid #50565b;
+      border-right: none;
+      left: -2.1875rem;
+    }
+
+    &.running {
+      .port {
+        opacity: 0.5;
+      }
+    }
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+
+  svg {
+    height: 1rem;
+    width: 1rem;
+  }
+}
+
+.title {
+  height: 1.125rem;
+  color: var(--cds-text-primary);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin: 0;
+  margin-left: 0.5rem;
+  @include text-overflow-ellipsis();
+}
+
+.subtitle {
+  height: 0.9375rem;
+  color: var(--cds-text-primary);
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  margin-top: 0.5rem;
+  padding-left: 1.5rem;
+  @include text-overflow-ellipsis();
+}
+
+.notstarted {
+  border: 0.1875rem solid var(--cds-ui-01) !important;
+  opacity: 0.7;
+}
+
+.waiting {
+  border: 0.1875rem solid var(--flow-wait) !important;
+}
+
+.running {
+  border: 0.1875rem solid var(--cds-ui-01) !important;
+}
+
+.disabled {
+  border: 0.1875rem solid var(--cds-ui-01) !important;
+  opacity: 0.5;
+}
+.cancelled
+.timedout,
+.failed {
+  border: 0.1875rem solid var(--flow-failure) !important;
+}
+
+.succeeded {
+  border: 0.1875rem solid var(--cds-support-02) !important;
+}
+
+.notstarted,
+.invalid,
+.skipped {
+  border: 0.125rem solid var(--cds-ui-01) !important;
+}
+
+.progressBar {
+  position: absolute;
+  display: block;
+  height: 0.1875rem;
+  top: -0.1875rem;
+  left: -0.09rem;
+  transition: width 0.3s linear;
+  width: 15rem;
+  overflow: hidden;
+
+  &:before {
+    content: "";
+    position: absolute;
+    background-color: var(--cds-interactive-01);
+    top: 0;
+    left: 0;
+    bottom: 0;
+    will-change: left, right;
+    animation: indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+  }
+
+  &:after {
+    content: "";
+    position: absolute;
+    background-color: var(--cds-interactive-01);
+    top: 0;
+    left: 0;
+    bottom: 0;
+    will-change: left, right;
+    animation: indeterminate-short 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) infinite;
+    animation-delay: 1.15s;
+  }
+}
+
+@keyframes indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}
+
+@keyframes indeterminate-short {
+  0% {
+    left: -200%;
+    right: 100%;
+  }
+  60% {
+    left: 107%;
+    right: -8%;
+  }
+  100% {
+    left: 107%;
+    right: -8%;
+  }
+}
+
+.port {
+  height: 2.25rem;
+  width: 2rem;
+
+  &.right {
+    background-color: var(--cds-interactive-01);
+    border: 0.0625rem solid var(--cds-interactive-01);
+    border-left: none;
+    right: -2.125rem;
+    top: 2.5rem;
+    border-bottom-left-radius: 0;
+    border-top-left-radius: 0;
+    border-bottom-right-radius: 50%;
+    border-top-right-radius: 50%;
+    background-image: url("../../../../../Assets/icons/chevron_white.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    &.locked {
+      right: -2.1875rem;
+    }
+  }
+  &.left {
+    background-color: #b3e6ff;
+    border: 0.0625rem solid var(--cds-interactive-01);
+    border-right: none;
+    border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 50%;
+    border-top-left-radius: 50%;
+    left: -2.125rem;
+    top: 2.5rem;
+    background-image: url("../../../../../Assets/icons/chevron.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  &:hover {
+    filter: brightness(110%);
+  }
+
+  &.locked:hover {
+    filter: brightness(100%);
+  }
+}

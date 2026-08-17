@@ -1,0 +1,2993 @@
+// Vitest Snapshot v1
+
+exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContainer 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_e789f0"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_58bfae --bordered"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <div
+              class="_headerNav_58bfae"
+            >
+              <nav
+                aria-label="Breadcrumb"
+              >
+                <ol
+                  class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+                >
+                  <li
+                    class="cds--breadcrumb-item"
+                  >
+                    <a
+                      class="cds--link"
+                      href="/activity"
+                    >
+                      Activity
+                    </a>
+                  </li>
+                  <li
+                    class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                  >
+                    <p
+                      class="cds--link"
+                    >
+                      ML Train – Bot Efficiency
+                    </p>
+                  </li>
+                </ol>
+              </nav>
+              <button
+                class="_workflowAdvancedDetailTrigger_58bfae"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M26,2H8A2,2,0,0,0,6,4V8H4v2H6v5H4v2H6v5H4v2H6v4a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V4A2,2,0,0,0,26,2Zm0,26H8V24h2V22H8V17h2V15H8V10h2V8H8V4H26Z"
+                  />
+                  <path
+                    d="M14 8H22V10H14zM14 15H22V17H14zM14 22H22V24H14z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <div
+              style="display: flex;"
+            >
+              <h1
+                class="cds--bmrg-feature-header-title"
+              >
+                Workflow run detail
+              </h1>
+              <button
+                class="_workflowErrorTrigger_58bfae cds--btn cds--btn--sm cds--btn--ghost"
+                tabindex="0"
+                type="button"
+              >
+                View Execution Error
+                <svg
+                  aria-hidden="true"
+                  class="cds--btn__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8,1C4.1,1,1,4.1,1,8s3.1,7,7,7s7-3.1,7-7S11.9,1,8,1z M8,14c-3.3,0-6-2.7-6-6s2.7-6,6-6s6,2.7,6,6S11.3,14,8,14z"
+                  />
+                  <path
+                    d="M7.5 4H8.5V9H7.5zM8 10.2c-.4 0-.8.3-.8.8s.3.8.8.8c.4 0 .8-.3.8-.8S8.4 10.2 8 10.2z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+        <div
+          class="_content_58bfae"
+        >
+          <div
+            class="_workflowOutputLog_58bfae"
+          >
+            <button
+              class="cds--btn cds--btn--sm cds--btn--ghost"
+              tabindex="0"
+              type="button"
+            >
+              View Parameters
+            </button>
+          </div>
+          <dl
+            class="_data_58bfae"
+          >
+            <dt
+              class="_dataTitle_58bfae"
+            >
+              Team
+            </dt>
+            <dd
+              class="_dataValue_58bfae"
+            >
+              AMHTest2
+            </dd>
+          </dl>
+          <dl
+            class="_data_58bfae"
+          >
+            <dt
+              class="_dataTitle_58bfae"
+            >
+              Version
+            </dt>
+            <dd
+              class="_dataValue_58bfae"
+            >
+              2
+            </dd>
+          </dl>
+          <dl
+            class="_data_58bfae"
+          >
+            <dt
+              class="_dataTitle_58bfae"
+            >
+              Initiated by
+            </dt>
+            <dd
+              aria-hidden="false"
+              aria-label="robot"
+              role="img"
+            >
+              🤖
+            </dd>
+          </dl>
+          <dl
+            class="_data_58bfae"
+          >
+            <dt
+              class="_dataTitle_58bfae"
+            >
+              Trigger
+            </dt>
+            <dd
+              class="_dataValue_58bfae"
+            >
+              webhook
+            </dd>
+          </dl>
+          <dl
+            class="_data_58bfae"
+          >
+            <dt
+              class="_dataTitle_58bfae"
+            >
+              Start time
+            </dt>
+            <dd
+              class="_dataValue_58bfae"
+            >
+              2020-10-19 10:57 PM
+            </dd>
+          </dl>
+          <dl
+            class="_dataButton_58bfae"
+          />
+        </div>
+      </header>
+      <section
+        aria-label="Executions"
+        class="_executionResultContainer_e789f0"
+      >
+        <aside
+          class="_container_bbdcfb "
+        >
+          <section
+            class="_statusBlock_bbdcfb _completed_bbdcfb"
+          >
+            <div
+              class="_duration_bbdcfb"
+            >
+              <p
+                class="_title_bbdcfb"
+              >
+                Duration
+              </p>
+              <time
+                class="_value_bbdcfb"
+              >
+                31s
+              </time>
+            </div>
+            <div
+              class="_status_bbdcfb"
+            >
+              <p
+                class="_title_bbdcfb"
+              >
+                Status
+              </p>
+              <div
+                class="_statusData_bbdcfb"
+              >
+                <svg
+                  aria-label="completed"
+                  class="_statusIcon_bbdcfb"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                  />
+                  <path
+                    d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                  />
+                </svg>
+                <p
+                  class="_value_bbdcfb"
+                >
+                  Succeeded
+                </p>
+              </div>
+            </div>
+            <button
+              class="_collapseButton_bbdcfb"
+            >
+              <svg
+                aria-hidden="true"
+                class="_chevron_bbdcfb"
+                fill="currentColor"
+                focusable="false"
+                height="32"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="32"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10 16L20 6 21.4 7.4 12.8 16 21.4 24.6 20 26z"
+                />
+              </svg>
+            </button>
+          </section>
+          <section
+            class="_taskbar_bbdcfb"
+          >
+            <p
+              class="_taskbarTitle_bbdcfb"
+            >
+              Task log
+            </p>
+            <span
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+            >
+              <button
+                aria-labelledby="tooltip-4"
+                class="cds--btn--icon-only cds--btn cds--btn--sm cds--btn--ghost cds--btn--icon-only cds--btn cds--btn--sm cds--btn--ghost"
+                data-testid="taskbar-button"
+                tabindex="0"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                  />
+                </svg>
+              </button>
+              <span
+                aria-hidden="true"
+                class="cds--popover"
+                id="tooltip-4"
+                role="tooltip"
+              >
+                <span
+                  class="cds--popover-content cds--tooltip-content"
+                >
+                  Change sort direction (by start time)
+                </span>
+                <span
+                  class="cds--popover-caret"
+                />
+              </span>
+            </span>
+          </section>
+          <ul
+            class="_tasklog_bbdcfb"
+          >
+            <li
+              class="_taskitem_1bda0d _completed_1bda0d"
+              id="task-ecececb3-5334-41d1-bd02-449733f5d8f3"
+              tabindex="0"
+            >
+              <div
+                class="_progressBar_1bda0d"
+              />
+              <section
+                class="_header_1bda0d"
+              >
+                <div
+                  class="_title_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_taskIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p
+                    data-testid="taskitem-name"
+                    title="Set Output Property 1"
+                  >
+                    Set Output Property 1
+                  </p>
+                </div>
+                <div
+                  class="_status_1bda0d _completed_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_statusIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p>
+                    Succeeded
+                  </p>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Start time
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    10:58:21 PM
+                  </time>
+                </div>
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Duration
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    63 ms
+                  </time>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              />
+            </li>
+            <li
+              class="_taskitem_1bda0d _completed_1bda0d"
+              id="task-225e86b9-e187-4d09-9e5f-a6f4d5778868"
+              tabindex="0"
+            >
+              <div
+                class="_progressBar_1bda0d"
+              />
+              <section
+                class="_header_1bda0d"
+              >
+                <div
+                  class="_title_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_taskIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p
+                    data-testid="taskitem-name"
+                    title="Json Path To Property 1"
+                  >
+                    Json Path To Property 1
+                  </p>
+                </div>
+                <div
+                  class="_status_1bda0d _completed_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_statusIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p>
+                    Succeeded
+                  </p>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Start time
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    10:58:17 PM
+                  </time>
+                </div>
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Duration
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    3 secs
+                  </time>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <button
+                  class="_trigger_d45153 cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Log
+                </button>
+                <button
+                  class="cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Parameters
+                </button>
+              </section>
+            </li>
+            <li
+              class="_taskitem_1bda0d _completed_1bda0d"
+              id="task-ea1b88d6-2c85-416f-b45e-50f4f5fa3a94"
+              tabindex="0"
+            >
+              <div
+                class="_progressBar_1bda0d"
+              />
+              <section
+                class="_header_1bda0d"
+              >
+                <div
+                  class="_title_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_taskIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p
+                    data-testid="taskitem-name"
+                    title="Execute HTTP Call 1"
+                  >
+                    Execute HTTP Call 1
+                  </p>
+                </div>
+                <div
+                  class="_status_1bda0d _completed_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_statusIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p>
+                    Succeeded
+                  </p>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Start time
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    10:58:03 PM
+                  </time>
+                </div>
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Duration
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    14 secs
+                  </time>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <button
+                  class="_trigger_d45153 cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Log
+                </button>
+                <button
+                  class="cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Parameters
+                </button>
+              </section>
+            </li>
+            <li
+              class="_taskitem_1bda0d _completed_1bda0d"
+              id="task-fe6a167c-4c2b-429d-ae68-9d1e3d030b37"
+              tabindex="0"
+            >
+              <div
+                class="_progressBar_1bda0d"
+              />
+              <section
+                class="_header_1bda0d"
+              >
+                <div
+                  class="_title_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_taskIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p
+                    data-testid="taskitem-name"
+                    title="Execute Shell 1"
+                  >
+                    Execute Shell 1
+                  </p>
+                </div>
+                <div
+                  class="_status_1bda0d _completed_1bda0d"
+                >
+                  <svg
+                    aria-label="completed"
+                    class="_statusIcon_1bda0d"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414L9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p>
+                    Succeeded
+                  </p>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Start time
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    10:57:50 PM
+                  </time>
+                </div>
+                <div
+                  class="_time_1bda0d"
+                >
+                  <p
+                    class="_timeTitle_1bda0d"
+                  >
+                    Duration
+                  </p>
+                  <time
+                    class="_timeValue_1bda0d"
+                  >
+                    12 secs
+                  </time>
+                </div>
+              </section>
+              <section
+                class="_data_1bda0d"
+              >
+                <button
+                  class="_trigger_d45153 cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Log
+                </button>
+                <button
+                  class="cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Parameters
+                </button>
+                <button
+                  class="cds--btn cds--btn--sm cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  View Error
+                </button>
+              </section>
+            </li>
+          </ul>
+        </aside>
+        <div
+          class="_executionDesignerContainer_e789f0"
+        >
+          <div
+            class="_executionWorkflowActions_e789f0"
+          >
+            <div
+              class="_container_a7ddc5"
+            >
+              <p
+                class="_messageText_a7ddc5"
+              >
+                Read-only
+              </p>
+              <button
+                class="cds--btn cds--btn--md cds--btn--ghost"
+                tabindex="0"
+                type="button"
+              >
+                Edit Workflow
+                <svg
+                  aria-hidden="true"
+                  class="cds--btn__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M2 26H30V28H2zM25.4 9c.8-.8.8-2 0-2.8 0 0 0 0 0 0l-3.6-3.6c-.8-.8-2-.8-2.8 0 0 0 0 0 0 0l-15 15V24h6.4L25.4 9zM20.4 4L24 7.6l-3 3L17.4 7 20.4 4zM6 22v-3.6l10-10 3.6 3.6-10 10H6z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div
+              class="_zoomIcons_e10b08"
+            >
+              <button
+                class="_zoomButton_e10b08"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="_zoomIcon_e10b08"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4 6H9V7H4z"
+                  />
+                  <path
+                    d="M10.7,10C11.5,9,12,7.8,12,6.5C12,3.5,9.5,1,6.5,1S1,3.5,1,6.5S3.5,12,6.5,12c1.3,0,2.5-0.5,3.5-1.3l3.8,3.8l0.7-0.7 L10.7,10z M6.5,11C4,11,2,9,2,6.5S4,2,6.5,2S11,4,11,6.5S9,11,6.5,11L6.5,11z"
+                  />
+                </svg>
+              </button>
+              <button
+                class="_zoomButton_e10b08"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="_zoomIcon_e10b08"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9 6L7 6 7 4 6 4 6 6 4 6 4 7 6 7 6 9 7 9 7 7 9 7z"
+                  />
+                  <path
+                    d="M10.7,10C11.5,9,12,7.8,12,6.5C12,3.5,9.5,1,6.5,1S1,3.5,1,6.5S3.5,12,6.5,12c1.3,0,2.5-0.5,3.5-1.3l3.8,3.8l0.7-0.7 L10.7,10z M6.5,11C4,11,2,9,2,6.5S4,2,6.5,2S11,4,11,6.5S9,11,6.5,11L6.5,11z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="srd-diagram _diagram_e789f0 "
+          >
+            <svg
+              class="srd-link-layer "
+              style="transform: translate(0px,0px) scale(NaN);"
+            >
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _failure_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-failure
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-failure"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#A2191F"
+                                id="Organization-/-Status-/-misuse--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M10.7,11.5 L8,8.8 L5.3,11.5 L4.5,10.7 L7.2,8 L4.5,5.3 L5.3,4.5 L8,7.2 L10.7,4.5 L11.5,5.3 L8.8,8 L11.5,10.7 L10.7,11.5 Z"
+                                  id="Fill"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="c626f312-483c-4f34-8a50-255792b0985d"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _failure_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-failure
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-failure"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#A2191F"
+                                id="Organization-/-Status-/-misuse--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M10.7,11.5 L8,8.8 L5.3,11.5 L4.5,10.7 L7.2,8 L4.5,5.3 L5.3,4.5 L8,7.2 L10.7,4.5 L11.5,5.3 L8.8,8 L11.5,10.7 L10.7,11.5 Z"
+                                  id="Fill"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="e9c70a8b-c855-4581-a92e-45f5fb7d8382"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_started_05f0c3 _locked_bc76f7"
+                    >
+                      <g />
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="6b7df93a-5a27-4021-8d1f-6ef2c6122f78"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_started_05f0c3 _locked_bc76f7"
+                    >
+                      <g />
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="74466aa8-f501-4f62-ba78-a45458ce80c9"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="670e4745-ca5b-4c7e-9a4a-f7cdc81e510c"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="0f68a4e8-bade-4a09-be6e-09c7eadc86e0"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _failure_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-failure
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-failure"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#A2191F"
+                                id="Organization-/-Status-/-misuse--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M10.7,11.5 L8,8.8 L5.3,11.5 L4.5,10.7 L7.2,8 L4.5,5.3 L5.3,4.5 L8,7.2 L10.7,4.5 L11.5,5.3 L8.8,8 L11.5,10.7 L10.7,11.5 Z"
+                                  id="Fill"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="affd672f-78eb-4a85-91fa-e1ba2e9aeca8"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _failure_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-failure
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-failure"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#A2191F"
+                                id="Organization-/-Status-/-misuse--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M10.7,11.5 L8,8.8 L5.3,11.5 L4.5,10.7 L7.2,8 L4.5,5.3 L5.3,4.5 L8,7.2 L10.7,4.5 L11.5,5.3 L8.8,8 L11.5,10.7 L10.7,11.5 Z"
+                                  id="Fill"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _success_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-success
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-success"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#009C98"
+                                id="Organization-/-Status-/-checkmark--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M7,10.8 L4.5,8.3 L5.3,7.5 L7,9.2 L10.7,5.5 L11.5,6.3 L7,10.8 Z"
+                                  id="Fill"
+                                  stroke="#0DA29F"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="3e54d40b-ef98-4c6f-abca-7cf2d18e1fbd"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _success_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-success
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-success"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#009C98"
+                                id="Organization-/-Status-/-checkmark--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M7,10.8 L4.5,8.3 L5.3,7.5 L7,9.2 L10.7,5.5 L11.5,6.3 L7,10.8 Z"
+                                  id="Fill"
+                                  stroke="#0DA29F"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _success_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-success
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-success"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#009C98"
+                                id="Organization-/-Status-/-checkmark--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M7,10.8 L4.5,8.3 L5.3,7.5 L7,9.2 L10.7,5.5 L11.5,6.3 L7,10.8 Z"
+                                  id="Fill"
+                                  stroke="#0DA29F"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="1f197a20-1a45-4a74-8c0a-8a0e67de5bf6"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _success_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-success
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-success"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#009C98"
+                                id="Organization-/-Status-/-checkmark--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M7,10.8 L4.5,8.3 L5.3,7.5 L7,9.2 L10.7,5.5 L11.5,6.3 L7,10.8 Z"
+                                  id="Fill"
+                                  stroke="#0DA29F"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="1cdabcd8-552b-41f2-aeaf-fb63da161ecd"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _always_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-proceed
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-proceed"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#000000"
+                                id="Actions-/-Navigation-/-arrow--right-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <polygon
+                                  id="Fill"
+                                  points="9.3 3.7 13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _success_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-success
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-success"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#009C98"
+                                id="Organization-/-Status-/-checkmark--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M7,10.8 L4.5,8.3 L5.3,7.5 L7,9.2 L10.7,5.5 L11.5,6.3 L7,10.8 Z"
+                                  id="Fill"
+                                  stroke="#0DA29F"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="68904aea-869a-482b-afda-ddf8dc9106fd"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _success_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-success
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-success"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#009C98"
+                                id="Organization-/-Status-/-checkmark--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M7,10.8 L4.5,8.3 L5.3,7.5 L7,9.2 L10.7,5.5 L11.5,6.3 L7,10.8 Z"
+                                  id="Fill"
+                                  stroke="#0DA29F"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+              <g
+                class="srd-default-link "
+              >
+                <g>
+                  <g>
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _failure_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-failure
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-failure"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#A2191F"
+                                id="Organization-/-Status-/-misuse--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M10.7,11.5 L8,8.8 L5.3,11.5 L4.5,10.7 L7.2,8 L4.5,5.3 L5.3,4.5 L8,7.2 L10.7,4.5 L11.5,5.3 L8.8,8 L11.5,10.7 L10.7,11.5 Z"
+                                  id="Fill"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                  <g
+                    data-linkid="17e79bd1-1b2c-49af-8fe1-2939e782b5f2"
+                    stroke-linecap="round"
+                    stroke-opacity="0"
+                    stroke-width="20"
+                  >
+                    <svg
+                      class="_locked_bc76f7"
+                    >
+                      <g
+                        transform="translate(NaN, NaN)"
+                      >
+                        <svg
+                          class="_container_8e3247 _execution_8e3247 _failure_8e3247"
+                          height="26px"
+                          viewBox="0 0 26 26"
+                          width="26px"
+                        >
+                          <title>
+                            logic-failure
+                          </title>
+                          <desc>
+                            Created with Sketch.
+                          </desc>
+                          <g
+                            fill="none"
+                            fill-rule="evenodd"
+                            id="30-editor"
+                            stroke="none"
+                            stroke-width="1"
+                          >
+                            <g
+                              id="logic-failure"
+                              transform="translate(1.000000, 1.000000)"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                fill="#FFFFFF"
+                                id="Oval"
+                                r="12"
+                                stroke="#0072C3"
+                              />
+                              <g
+                                fill="#A2191F"
+                                id="Organization-/-Status-/-misuse--outline-/-16"
+                                transform="translate(4.000000, 4.000000)"
+                              >
+                                <path
+                                  d="M8,1 C4.1,1 1,4.1 1,8 C1,11.9 4.1,15 8,15 C11.9,15 15,11.9 15,8 C15,4.1 11.9,1 8,1 Z M8,14 C4.7,14 2,11.3 2,8 C2,4.7 4.7,2 8,2 C11.3,2 14,4.7 14,8 C14,11.3 11.3,14 8,14 Z M10.7,11.5 L8,8.8 L5.3,11.5 L4.5,10.7 L7.2,8 L4.5,5.3 L5.3,4.5 L8,7.2 L10.7,4.5 L11.5,5.3 L8.8,8 L11.5,10.7 L10.7,11.5 Z"
+                                  id="Fill"
+                                />
+                              </g>
+                            </g>
+                          </g>
+                        </svg>
+                      </g>
+                      <path
+                        class="_path_bc76f7 _locked_bc76f7"
+                        d="MNaN,NaN C NaN,NaN
+    NaN,NaN NaN,NaN"
+                        stroke-width="3"
+                      />
+                    </svg>
+                  </g>
+                </g>
+              </g>
+            </svg>
+            <div
+              class="srd-node-layer "
+              style="transform: translate(0px,0px) scale(NaN);"
+            >
+              <div
+                class="node srd-node "
+                data-nodeid="7a5efdf0-b0c8-4c11-9026-dc5e84638ea9"
+                style="top: 398.7717660708584px; left: 300px;"
+              >
+                <div
+                  class="b-startEnd-node --locked"
+                >
+                  <div
+                    class="b-startEnd-node__title"
+                  >
+                     
+                    Start
+                     
+                  </div>
+                  <div
+                    class="port srd-port b-startEnd-node__port --right --locked "
+                    data-name="right"
+                    data-nodeid="7a5efdf0-b0c8-4c11-9026-dc5e84638ea9"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="3ea18e09-060a-42d9-8690-244eb5ffe2cd"
+                style="top: 276.27645443298724px; left: 3235.7365619948823px;"
+              >
+                <div
+                  class="b-startEnd-node --locked"
+                >
+                  <div
+                    class="b-startEnd-node__title"
+                  >
+                     
+                    End
+                     
+                  </div>
+                  <div
+                    class="port srd-port b-startEnd-node__port --left --locked "
+                    data-name="left"
+                    data-nodeid="3ea18e09-060a-42d9-8690-244eb5ffe2cd"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="23201b45-6f91-4bc4-9129-37eb3dcc981f"
+                style="top: 396.30159063226193px; left: 588.7271929824564px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type download"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M13 7L12.3 6.3 8.5 10.1 8.5 1 7.5 1 7.5 10.1 3.7 6.3 3 7 8 12zM13 12v2H3v-2H2v2l0 0c0 .6.4 1 1 1h10c.6 0 1-.4 1-1l0 0v-2H13z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Artifactory File Download"
+                    >
+                      Artifactory File Download
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Download Train Samples"
+                  >
+                    Download Train Samples
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="23201b45-6f91-4bc4-9129-37eb3dcc981f"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="23201b45-6f91-4bc4-9129-37eb3dcc981f"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="0821727a-b336-48ac-b42e-34f7b062dd8c"
+                style="top: 540.5152367209439px; left: 2441.4174405167087px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type terminal"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,2v4H6V6ZM6,26V12H26V26Z"
+                        transform="translate(0 .01)"
+                      />
+                      <path
+                        d="M10.76 16.18L13.58 19.01 10.76 21.84 12.17 23.25 16.41 19.01 12.17 14.77 10.76 16.18z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Execute Shell"
+                    >
+                      Execute Shell
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Print Persistence Folder"
+                  >
+                    Print Persistence Folder
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="0821727a-b336-48ac-b42e-34f7b062dd8c"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="0821727a-b336-48ac-b42e-34f7b062dd8c"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="997213d5-f1ec-4fa9-9d95-719fa4db7253"
+                style="top: 396.4666787931217px; left: 965.9297863121px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type download"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M13 7L12.3 6.3 8.5 10.1 8.5 1 7.5 1 7.5 10.1 3.7 6.3 3 7 8 12zM13 12v2H3v-2H2v2l0 0c0 .6.4 1 1 1h10c.6 0 1-.4 1-1l0 0v-2H13z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Artifactory File Download"
+                    >
+                      Artifactory File Download
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Download Latest Published Version"
+                  >
+                    Download Latest Published Version
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="997213d5-f1ec-4fa9-9d95-719fa4db7253"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="997213d5-f1ec-4fa9-9d95-719fa4db7253"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="5d1f2eaf-790e-456e-b278-cf4a52ea829a"
+                style="top: 396.3056611764126px; left: 1344.6179538804047px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type terminal"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,2v4H6V6ZM6,26V12H26V26Z"
+                        transform="translate(0 .01)"
+                      />
+                      <path
+                        d="M10.76 16.18L13.58 19.01 10.76 21.84 12.17 23.25 16.41 19.01 12.17 14.77 10.76 16.18z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Execute Shell"
+                    >
+                      Execute Shell
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Check Version File Type"
+                  >
+                    Check Version File Type
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="5d1f2eaf-790e-456e-b278-cf4a52ea829a"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="5d1f2eaf-790e-456e-b278-cf4a52ea829a"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="62f77206-e48e-4e0d-aeb8-5db0607eeb03"
+                style="top: 273.8076847036865px; left: 1722.2744351364279px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type terminal"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,2v4H6V6ZM6,26V12H26V26Z"
+                        transform="translate(0 .01)"
+                      />
+                      <path
+                        d="M10.76 16.18L13.58 19.01 10.76 21.84 12.17 23.25 16.41 19.01 12.17 14.77 10.76 16.18z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Execute Shell"
+                    >
+                      Execute Shell
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Create New Version File"
+                  >
+                    Create New Version File
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="62f77206-e48e-4e0d-aeb8-5db0607eeb03"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="62f77206-e48e-4e0d-aeb8-5db0607eeb03"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="9f00063f-8235-48e4-b38b-c43361ee8990"
+                style="top: 395.94258425847954px; left: 2068.0136269066384px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type upload"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3 9L3.7 9.7 7.5 5.9 7.5 15 8.5 15 8.5 5.9 12.3 9.7 13 9 8 4zM3 4V2h10v2h1V2c0-.6-.4-1-1-1H3C2.4 1 2 1.4 2 2v2H3z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Artifactory File Upload"
+                    >
+                      Artifactory File Upload
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Upload Incremented Version"
+                  >
+                    Upload Incremented Version
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="9f00063f-8235-48e4-b38b-c43361ee8990"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="9f00063f-8235-48e4-b38b-c43361ee8990"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="bcd28f73-7215-4159-a27f-0d49658d3d79"
+                style="top: 396.56172278306974px; left: 2441.0579354956567px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_e32579"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type code"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M31 16L24 23 22.59 21.59 28.17 16 22.59 10.41 24 9 31 16zM1 16L8 9 9.41 10.41 3.83 16 9.41 21.59 8 23 1 16z"
+                      />
+                      <path
+                        d="M5.91 15H26.080000000000002V17H5.91z"
+                        transform="rotate(-75 15.996 16)"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Run Custom Task"
+                    >
+                      Run Custom Task
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Train Machine Learning Model"
+                  >
+                    Train Machine Learning Model
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="bcd28f73-7215-4159-a27f-0d49658d3d79"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="bcd28f73-7215-4159-a27f-0d49658d3d79"
+                  />
+                  <div
+                    class="_progressBar_e32579"
+                  />
+                  <div
+                    class="_badgeContainer_e32579"
+                  >
+                    <p
+                      class="_badgeText_e32579"
+                    >
+                      Custom
+                    </p>
+                  </div>
+                  <div
+                    class="_progressBar_e32579"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="19116efd-a273-46c8-9b9c-879a9f5cfcb1"
+                style="top: 395.95530479161073px; left: 2835.255333668321px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type upload"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3 9L3.7 9.7 7.5 5.9 7.5 15 8.5 15 8.5 5.9 12.3 9.7 13 9 8 4zM3 4V2h10v2h1V2c0-.6-.4-1-1-1H3C2.4 1 2 1.4 2 2v2H3z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Artifactory File Upload"
+                    >
+                      Artifactory File Upload
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Artifactory File Upload 2"
+                  >
+                    Artifactory File Upload 2
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="19116efd-a273-46c8-9b9c-879a9f5cfcb1"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="19116efd-a273-46c8-9b9c-879a9f5cfcb1"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+              <div
+                class="node srd-node "
+                data-nodeid="11189d82-e4c4-4774-b28d-93f248a857ba"
+                style="top: 275.81965061249633px; left: 2836.318481050438px;"
+              >
+                <div
+                  class="_node_1250a8 _skipped_c055db"
+                >
+                  <header
+                    class="_header_1250a8"
+                  >
+                    <svg
+                      alt="Task node type terminal"
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      style="will-change: auto;"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,2v4H6V6ZM6,26V12H26V26Z"
+                        transform="translate(0 .01)"
+                      />
+                      <path
+                        d="M10.76 16.18L13.58 19.01 10.76 21.84 12.17 23.25 16.41 19.01 12.17 14.77 10.76 16.18z"
+                      />
+                    </svg>
+                    <h1
+                      class="_title_1250a8"
+                      title="Execute Shell"
+                    >
+                      Execute Shell
+                    </h1>
+                  </header>
+                  <p
+                    class="_subtitle_1250a8"
+                    title="Log Persistence Folder"
+                  >
+                    Log Persistence Folder
+                  </p>
+                  <div
+                    class="port srd-port _port_dff5bb _left_dff5bb _execution_dff5bb "
+                    data-name="left"
+                    data-nodeid="11189d82-e4c4-4774-b28d-93f248a857ba"
+                  />
+                  <div
+                    class="port srd-port _port_dff5bb _right_dff5bb _execution_dff5bb "
+                    data-name="right"
+                    data-nodeid="11189d82-e4c4-4774-b28d-93f248a857ba"
+                  />
+                  <div
+                    class="_progressBar_c055db"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

@@ -1,0 +1,1218 @@
+// Vitest Snapshot v1
+
+exports[`CreateWorkflow --- Snapshot Test > Capturing Snapshot of CreateWorkflow 1`] = `
+<body
+  aria-hidden="true"
+  class="cds--bmrg-body-modal-is-open"
+  id="app"
+>
+  <div
+    data-react-modal-body-trap=""
+    style="position: absolute; opacity: 0;"
+    tabindex="0"
+  />
+  <div>
+    <button
+      class="_container_7b50b0"
+      data-testid="workflows-create-workflow-button"
+    >
+      <svg
+        aria-hidden="true"
+        class="_addIcon_7b50b0"
+        fill="currentColor"
+        focusable="false"
+        height="32"
+        preserveAspectRatio="xMidYMid meet"
+        viewBox="0 0 32 32"
+        width="32"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+        />
+      </svg>
+      <p
+        class="_text_7b50b0"
+      >
+        Create a new Workflow
+      </p>
+    </button>
+     
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  >
+    <div
+      class="cds--bmrg-modal-overlay"
+    >
+      <div
+        aria-modal="true"
+        class="cds--bmrg-modal-container cds--bmrg-modal-composed-container cds--modal-container modal-container-fix-width _modalContainer_7b50b0"
+        role="dialog"
+        tabindex="-1"
+      >
+        <div
+          class="cds--modal-header"
+        >
+          <h3
+            class="cds--modal-header__heading cds--type-beta"
+          >
+            Create a new Workflow
+          </h3>
+          <p
+            class="cds--bmrg-modal-composed-subtitle"
+          >
+            Get started with these basics, then proceed to designing it out.
+          </p>
+          <button
+            aria-label="Close"
+            class="cds--modal-close"
+            title="Close"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              class="cds--modal-close__icon"
+              fill="currentColor"
+              focusable="false"
+              height="20"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 32 32"
+              width="20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <form
+          class="cds--bmrg-modal-form"
+        >
+          <div
+            class="_typeRadio_88573e"
+          >
+            <div
+              class="cds--bmrg-radio-group"
+              style="--height: 6rem;"
+            >
+              <div
+                class="cds--form-item"
+              >
+                <fieldset
+                  class="cds--radio-button-group cds--radio-button-group--label-right"
+                >
+                  <div
+                    class="cds--radio-button-wrapper"
+                  >
+                    <input
+                      checked=""
+                      class="cds--radio-button"
+                      id="Start from scratch"
+                      name="workflow-options"
+                      type="radio"
+                      value="Start from scratch"
+                    />
+                    <label
+                      class="cds--radio-button__label"
+                      for="Start from scratch"
+                    >
+                      <span
+                        class="cds--radio-button__appearance"
+                      />
+                      <span
+                        class=""
+                        dir="auto"
+                      >
+                        Start from scratch
+                      </span>
+                    </label>
+                  </div>
+                  <div
+                    class="cds--radio-button-wrapper"
+                  >
+                    <input
+                      class="cds--radio-button"
+                      id="Import a Workflow"
+                      name="workflow-options"
+                      type="radio"
+                      value="Import a Workflow"
+                    />
+                    <label
+                      class="cds--radio-button__label"
+                      for="Import a Workflow"
+                    >
+                      <span
+                        class="cds--radio-button__appearance"
+                      />
+                      <span
+                        class=""
+                        dir="auto"
+                      >
+                        Import a Workflow
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+          <div
+            aria-label="inputs"
+            class="cds--modal-content _formBody_e5bb29"
+          >
+            <div
+              class="cds--bmrg-text-input"
+            >
+              <div
+                class="cds--form-item cds--text-input-wrapper"
+              >
+                <label
+                  class="cds--label"
+                  for="name"
+                >
+                  <div
+                    class="cds--bmrg-text-input__label"
+                  >
+                    <div>
+                      Workflow Name
+                    </div>
+                  </div>
+                </label>
+                <div
+                  class="cds--text-input__field-outer-wrapper"
+                >
+                  <div
+                    class="cds--text-input__field-wrapper"
+                  >
+                    <input
+                      class="cds--text-input cds--text-input--md"
+                      id="name"
+                      type="text"
+                      value=""
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="cds--bmrg-text-input"
+            >
+              <div
+                class="cds--form-item cds--text-input-wrapper"
+              >
+                <label
+                  class="cds--label"
+                  for="summary"
+                >
+                  <div
+                    class="cds--bmrg-text-input__label"
+                  >
+                    <div>
+                      Summary
+                    </div>
+                  </div>
+                </label>
+                <div
+                  class="cds--text-input__field-outer-wrapper"
+                >
+                  <div
+                    class="cds--text-input__field-wrapper"
+                  >
+                    <input
+                      class="cds--text-input cds--text-input--md"
+                      id="summary"
+                      type="text"
+                      value=""
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="cds--bmrg-text-area"
+            >
+              <div
+                class="cds--form-item"
+              >
+                <div
+                  class="cds--text-area__label-wrapper"
+                >
+                  <label
+                    class="cds--label"
+                    for="description"
+                  >
+                    <div
+                      style="display: flex;"
+                    >
+                      <div>
+                        Description
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <div
+                  class="cds--text-area__wrapper"
+                >
+                  <textarea
+                    class="cds--text-area"
+                    cols="50"
+                    id="description"
+                    rows="4"
+                    style="resize: none; width: 100%;"
+                  />
+                </div>
+              </div>
+            </div>
+            <h2
+              class="_iconsTitle_e5bb29"
+            >
+              Pick an icon (any icon)
+            </h2>
+            <div
+              class="_icons_e5bb29"
+            >
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="analytics"
+                />
+                <svg
+                  alt="analytics icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4,2H2V28a2,2,0,0,0,2,2H30V28H4Z"
+                  />
+                  <path
+                    d="M30,9H23v2h3.59L19,18.59l-4.29-4.3a1,1,0,0,0-1.42,0L6,21.59,7.41,23,14,16.41l4.29,4.3a1,1,0,0,0,1.42,0L28,12.41V16h2Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="api"
+                />
+                <svg
+                  alt="api icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M26,22a3.86,3.86,0,0,0-2,.57l-3.09-3.1a6,6,0,0,0,0-6.94L24,9.43A3.86,3.86,0,0,0,26,10a4,4,0,1,0-4-4,3.86,3.86,0,0,0,.57,2l-3.1,3.09a6,6,0,0,0-6.94,0L9.43,8A3.86,3.86,0,0,0,10,6a4,4,0,1,0-4,4,3.86,3.86,0,0,0,2-.57l3.09,3.1a6,6,0,0,0,0,6.94L8,22.57A3.86,3.86,0,0,0,6,22a4,4,0,1,0,4,4,3.86,3.86,0,0,0-.57-2l3.1-3.09a6,6,0,0,0,6.94,0L22.57,24A3.86,3.86,0,0,0,22,26a4,4,0,1,0,4-4ZM26,4a2,2,0,1,1-2,2A2,2,0,0,1,26,4ZM4,6A2,2,0,1,1,6,8,2,2,0,0,1,4,6ZM6,28a2,2,0,1,1,2-2A2,2,0,0,1,6,28Zm10-8a4,4,0,1,1,4-4A4,4,0,0,1,16,20Zm10,8a2,2,0,1,1,2-2A2,2,0,0,1,26,28Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29 __activeIcon_e5bb29_e5bb29"
+              >
+                <input
+                  checked=""
+                  readonly=""
+                  type="radio"
+                  value="bot"
+                />
+                <svg
+                  alt="bot icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M18 10H20V12H18zM12 10H14V12H12z"
+                  />
+                  <path
+                    d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="chat"
+                />
+                <svg
+                  alt="chat icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17.74,30,16,29l4-7h6a2,2,0,0,0,2-2V8a2,2,0,0,0-2-2H6A2,2,0,0,0,4,8V20a2,2,0,0,0,2,2h9v2H6a4,4,0,0,1-4-4V8A4,4,0,0,1,6,4H26a4,4,0,0,1,4,4V20a4,4,0,0,1-4,4H21.16Z"
+                  />
+                  <path
+                    d="M8 10H24V12H8zM8 16H18V18H8z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="choices"
+                />
+                <svg
+                  alt="choices icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M28 13L28 4 19 4 19 6 24.586 6 16 14.586 7.414 6 13 6 13 4 4 4 4 13 6 13 6 7.414 15 16.414 15 26 4 26 4 28 28 28 28 26 17 26 17 16.414 26 7.414 26 13 28 13z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="code"
+                />
+                <svg
+                  alt="code icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M31 16L24 23 22.59 21.59 28.17 16 22.59 10.41 24 9 31 16zM1 16L8 9 9.41 10.41 3.83 16 9.41 21.59 8 23 1 16z"
+                  />
+                  <path
+                    d="M5.91 15H26.080000000000002V17H5.91z"
+                    transform="rotate(-75 15.996 16)"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="clean"
+                />
+                <svg
+                  alt="clean icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M20 18H26V20H20z"
+                    transform="rotate(-180 23 19)"
+                  />
+                  <path
+                    d="M24 26H30V28H24z"
+                    transform="rotate(-180 27 27)"
+                  />
+                  <path
+                    d="M22 22H28V24H22z"
+                    transform="rotate(-180 25 23)"
+                  />
+                  <path
+                    d="M17.0029,20a4.8952,4.8952,0,0,0-2.4044-4.1729L22,3,20.2691,2,12.6933,15.126A5.6988,5.6988,0,0,0,7.45,16.6289C3.7064,20.24,3.9963,28.6821,4.01,29.04a1,1,0,0,0,1,.96H20.0012a1,1,0,0,0,.6-1.8C17.0615,25.5439,17.0029,20.0537,17.0029,20ZM11.93,16.9971A3.11,3.11,0,0,1,15.0041,20c0,.0381.0019.208.0168.4688L9.1215,17.8452A3.8,3.8,0,0,1,11.93,16.9971ZM15.4494,28A5.2,5.2,0,0,1,14,25H12a6.4993,6.4993,0,0,0,.9684,3H10.7451A16.6166,16.6166,0,0,1,10,24H8a17.3424,17.3424,0,0,0,.6652,4H6c.031-1.8364.29-5.8921,1.8027-8.5527l7.533,3.35A13.0253,13.0253,0,0,0,17.5968,28Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="cloud"
+                />
+                <svg
+                  alt="cloud icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M16,7h0a7.66,7.66,0,0,1,1.51.15,8,8,0,0,1,6.35,6.34l.26,1.35,1.35.24a5.5,5.5,0,0,1-1,10.92H7.5a5.5,5.5,0,0,1-1-10.92l1.34-.24.26-1.35A8,8,0,0,1,16,7m0-2a10,10,0,0,0-9.83,8.12A7.5,7.5,0,0,0,7.49,28h17a7.5,7.5,0,0,0,1.32-14.88,10,10,0,0,0-7.94-7.94A10.27,10.27,0,0,0,16,5Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="cloud download"
+                />
+                <svg
+                  alt="cloud download icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M23.5,22H23V20h.5a4.5,4.5,0,0,0,.36-9L23,11l-.1-.82a7,7,0,0,0-13.88,0L9,11,8.14,11a4.5,4.5,0,0,0,.36,9H9v2H8.5A6.5,6.5,0,0,1,7.2,9.14a9,9,0,0,1,17.6,0A6.5,6.5,0,0,1,23.5,22Z"
+                  />
+                  <path
+                    d="M17 26.17L17 14 15 14 15 26.17 12.41 23.59 11 25 16 30 21 25 19.59 23.59 17 26.17z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="cloud upload"
+                />
+                <svg
+                  alt="cloud upload icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 18L12.41 19.41 15 16.83 15 29 17 29 17 16.83 19.59 19.41 21 18 16 13 11 18z"
+                  />
+                  <path
+                    d="M23.5,22H23V20h.5a4.5,4.5,0,0,0,.36-9L23,11l-.1-.82a7,7,0,0,0-13.88,0L9,11,8.14,11a4.5,4.5,0,0,0,.36,9H9v2H8.5A6.5,6.5,0,0,1,7.2,9.14a9,9,0,0,1,17.6,0A6.5,6.5,0,0,1,23.5,22Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="delivery"
+                />
+                <svg
+                  alt="delivery icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M29.92,16.61l-3-7A1,1,0,0,0,26,9H23V7a1,1,0,0,0-1-1H3A1,1,0,0,0,2,7V24a1,1,0,0,0,1,1H5.14a4,4,0,0,0,7.72,0h6.28a4,4,0,0,0,7.72,0H29a1,1,0,0,0,1-1V17A1,1,0,0,0,29.92,16.61ZM23,11h2.34l2.14,5H23ZM9,26a2,2,0,1,1,2-2A2,2,0,0,1,9,26Zm10.14-3H12.86a4,4,0,0,0-7.72,0H4V8H21V20.56A4,4,0,0,0,19.14,23ZM23,26a2,2,0,1,1,2-2A2,2,0,0,1,23,26Zm5-3H26.86A4,4,0,0,0,23,20V18h5Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="document"
+                />
+                <svg
+                  alt="document icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3	z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"
+                  />
+                  <path
+                    d="M10 22H22V24H10zM10 16H22V18H10z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="download"
+                />
+                <svg
+                  alt="download icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M13 7L12.3 6.3 8.5 10.1 8.5 1 7.5 1 7.5 10.1 3.7 6.3 3 7 8 12zM13 12v2H3v-2H2v2l0 0c0 .6.4 1 1 1h10c.6 0 1-.4 1-1l0 0v-2H13z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="Email"
+                />
+                <svg
+                  alt="Email icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M28,6H4A2,2,0,0,0,2,8V24a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V8A2,2,0,0,0,28,6ZM25.8,8,16,14.78,6.2,8ZM4,24V8.91l11.43,7.91a1,1,0,0,0,1.14,0L28,8.91V24Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="idea"
+                />
+                <svg
+                  alt="idea icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 24H21V26H11zM13 28H19V30H13zM16 2A10 10 0 006 12a9.19 9.19 0 003.46 7.62c1 .93 1.54 1.46 1.54 2.38h2c0-1.84-1.11-2.87-2.19-3.86A7.2 7.2 0 018 12a8 8 0 0116 0 7.2 7.2 0 01-2.82 6.14c-1.07 1-2.18 2-2.18 3.86h2c0-.92.53-1.45 1.54-2.39A9.18 9.18 0 0026 12 10 10 0 0016 2z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="schedule"
+                />
+                <svg
+                  alt="schedule icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M21,30a8,8,0,1,1,8-8A8,8,0,0,1,21,30Zm0-14a6,6,0,1,0,6,6A6,6,0,0,0,21,16Z"
+                  />
+                  <path
+                    d="M22.59 25L20 22.41 20 18 22 18 22 21.59 24 23.59 22.59 25z"
+                  />
+                  <path
+                    d="M28,6a2,2,0,0,0-2-2H22V2H20V4H12V2H10V4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V6h4V8h2V6h8V8h2V6h4v6h2Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="filter"
+                />
+                <svg
+                  alt="filter icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M18,28H14a2,2,0,0,1-2-2V18.41L4.59,11A2,2,0,0,1,4,9.59V6A2,2,0,0,1,6,4H26a2,2,0,0,1,2,2V9.59A2,2,0,0,1,27.41,11L20,18.41V26A2,2,0,0,1,18,28ZM6,6V9.59l8,8V26h4V17.59l8-8V6Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="flow"
+                />
+                <svg
+                  alt="flow icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M20,23H11.86a4.17,4.17,0,0,0-.43-1L22,11.43A3.86,3.86,0,0,0,24,12a4,4,0,1,0-3.86-5H11.86a4,4,0,1,0,0,2h8.28a4.17,4.17,0,0,0,.43,1L10,20.57A3.86,3.86,0,0,0,8,20a4,4,0,1,0,3.86,5H20v3h8V20H20ZM8,10a2,2,0,1,1,2-2A2,2,0,0,1,8,10ZM24,6a2,2,0,1,1-2,2A2,2,0,0,1,24,6ZM8,26a2,2,0,1,1,2-2A2,2,0,0,1,8,26Zm14-4h4v4H22Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="fork"
+                />
+                <svg
+                  alt="fork icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M26,18a3.9962,3.9962,0,0,0-3.8579,3H17V11h5.1421a4,4,0,1,0,0-2H17a2.002,2.002,0,0,0-2,2v4H9.8579a4,4,0,1,0,0,2H15v4a2.002,2.002,0,0,0,2,2h5.1421A3.9934,3.9934,0,1,0,26,18ZM26,8a2,2,0,1,1-2,2A2.002,2.002,0,0,1,26,8ZM6,18a2,2,0,1,1,2-2A2.002,2.002,0,0,1,6,18Zm20,6a2,2,0,1,1,2-2A2.002,2.002,0,0,1,26,24Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="external"
+                />
+                <svg
+                  alt="external icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M13,14H3c-0.6,0-1-0.4-1-1V3c0-0.6,0.4-1,1-1h5v1H3v10h10V8h1v5C14,13.6,13.6,14,13,14z"
+                  />
+                  <path
+                    d="M10 1L10 2 13.3 2 9 6.3 9.7 7 14 2.7 14 6 15 6 15 1z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="notify"
+                />
+                <svg
+                  alt="notify icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M14.4,10.1L13,8.8V6.5c0-2.6-1.9-4.7-4.5-5v-1h-1v1C5,1.8,3,3.9,3,6.5v2.3l-1.4,1.3c-0.1,0.1-0.2,0.2-0.1,0.4V12	c0,0.3,0.2,0.5,0.4,0.5c0,0,0,0,0.1,0h3.5C5.5,13.9,6.6,15,8,15s2.5-1.1,2.5-2.5H14c0.3,0,0.5-0.2,0.5-0.4c0,0,0,0,0-0.1v-1.5	C14.5,10.4,14.4,10.2,14.4,10.1z M8,14c-0.8,0-1.5-0.7-1.5-1.5h3C9.5,13.3,8.8,14,8,14z M13.5,11.5h-11v-0.8l1.3-1.4	C3.9,9.3,4,9.1,4,9V6.5c0-2.2,1.8-4,4-4s4,1.8,4,4V9c0,0.1,0.1,0.3,0.1,0.4l1.4,1.3V11.5z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="power"
+                />
+                <svg
+                  alt="power icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11.2,2.9l-0.5,0.9c2.6,1.5,3.5,4.9,2,7.5s-4.9,3.5-7.5,2s-3.5-4.9-2-7.5c0.5-0.8,1.2-1.5,2-2L4.8,2.9	c-3.1,1.8-4.2,5.8-2.4,8.9s5.8,4.2,8.9,2.4s4.2-5.8,2.4-8.9C13.1,4.3,12.2,3.4,11.2,2.9z"
+                  />
+                  <path
+                    d="M7.5 1H8.5V8H7.5z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="restart"
+                />
+                <svg
+                  alt="restart icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M13,9c0,2.8-2.2,5-5,5s-5-2.2-5-5s2.2-5,5-5h3.1L9.3,5.8L10,6.5l3-3l-3-3L9.3,1.2L11.1,3H8C4.7,3,2,5.7,2,9s2.7,6,6,6	s6-2.7,6-6H13z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="rocket"
+                />
+                <svg
+                  alt="rocket icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M6.34 19H17.65V21H6.34z"
+                    transform="rotate(-45 11.995 20.002)"
+                  />
+                  <path
+                    d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="save"
+                />
+                <svg
+                  alt="save icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M13.9,4.6l-2.5-2.5C11.3,2.1,11.1,2,11,2H3C2.4,2,2,2.4,2,3v10c0,0.6,0.4,1,1,1h10c0.6,0,1-0.4,1-1V5	C14,4.9,13.9,4.7,13.9,4.6z M6,3h4v2H6V3z M10,13H6V9h4V13z M11,13V9c0-0.6-0.4-1-1-1H6C5.4,8,5,8.4,5,9v4H3V3h2v2c0,0.6,0.4,1,1,1	h4c0.6,0,1-0.4,1-1V3.2l2,2V13H11z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="search"
+                />
+                <svg
+                  alt="search icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5	C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="settings"
+                />
+                <svg
+                  alt="settings icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M13.5,8.4c0-0.1,0-0.3,0-0.4c0-0.1,0-0.3,0-0.4l1-0.8c0.4-0.3,0.4-0.9,0.2-1.3l-1.2-2C13.3,3.2,13,3,12.6,3	c-0.1,0-0.2,0-0.3,0.1l-1.2,0.4c-0.2-0.1-0.4-0.3-0.7-0.4l-0.3-1.3C10.1,1.3,9.7,1,9.2,1H6.8c-0.5,0-0.9,0.3-1,0.8L5.6,3.1	C5.3,3.2,5.1,3.3,4.9,3.4L3.7,3C3.6,3,3.5,3,3.4,3C3,3,2.7,3.2,2.5,3.5l-1.2,2C1.1,5.9,1.2,6.4,1.6,6.8l0.9,0.9c0,0.1,0,0.3,0,0.4	c0,0.1,0,0.3,0,0.4L1.6,9.2c-0.4,0.3-0.5,0.9-0.2,1.3l1.2,2C2.7,12.8,3,13,3.4,13c0.1,0,0.2,0,0.3-0.1l1.2-0.4	c0.2,0.1,0.4,0.3,0.7,0.4l0.3,1.3c0.1,0.5,0.5,0.8,1,0.8h2.4c0.5,0,0.9-0.3,1-0.8l0.3-1.3c0.2-0.1,0.4-0.2,0.7-0.4l1.2,0.4	c0.1,0,0.2,0.1,0.3,0.1c0.4,0,0.7-0.2,0.9-0.5l1.1-2c0.2-0.4,0.2-0.9-0.2-1.3L13.5,8.4z M12.6,12l-1.7-0.6c-0.4,0.3-0.9,0.6-1.4,0.8	L9.2,14H6.8l-0.4-1.8c-0.5-0.2-0.9-0.5-1.4-0.8L3.4,12l-1.2-2l1.4-1.2c-0.1-0.5-0.1-1.1,0-1.6L2.2,6l1.2-2l1.7,0.6	C5.5,4.2,6,4,6.5,3.8L6.8,2h2.4l0.4,1.8c0.5,0.2,0.9,0.5,1.4,0.8L12.6,4l1.2,2l-1.4,1.2c0.1,0.5,0.1,1.1,0,1.6l1.4,1.2L12.6,12z"
+                  />
+                  <path
+                    d="M8,11c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3C11,9.6,9.7,11,8,11C8,11,8,11,8,11z M8,6C6.9,6,6,6.8,6,7.9C6,7.9,6,8,6,8	c0,1.1,0.8,2,1.9,2c0,0,0.1,0,0.1,0c1.1,0,2-0.8,2-1.9c0,0,0-0.1,0-0.1C10,6.9,9.2,6,8,6C8.1,6,8,6,8,6z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="task"
+                />
+                <svg
+                  alt="task icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M14 20.18L10.41 16.59 9 18 14 23 23 14 21.59 12.58 14 20.18z"
+                  />
+                  <path
+                    d="M25,5H22V4a2,2,0,0,0-2-2H12a2,2,0,0,0-2,2V5H7A2,2,0,0,0,5,7V28a2,2,0,0,0,2,2H25a2,2,0,0,0,2-2V7A2,2,0,0,0,25,5ZM12,4h8V8H12ZM25,28H7V7h3v3H22V7h3Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="terminal"
+                />
+                <svg
+                  alt="terminal icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,2v4H6V6ZM6,26V12H26V26Z"
+                    transform="translate(0 .01)"
+                  />
+                  <path
+                    d="M10.76 16.18L13.58 19.01 10.76 21.84 12.17 23.25 16.41 19.01 12.17 14.77 10.76 16.18z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="time"
+                />
+                <svg
+                  alt="time icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M16,30A14,14,0,1,1,30,16,14,14,0,0,1,16,30ZM16,4A12,12,0,1,0,28,16,12,12,0,0,0,16,4Z"
+                  />
+                  <path
+                    d="M20.59 22L15 16.41 15 7 17 7 17 15.58 22 20.59 20.59 22z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="tools"
+                />
+                <svg
+                  alt="tools icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12.1,2A9.8,9.8,0,0,0,6.7,3.6L13.1,10a2.1,2.1,0,0,1,.2,3,2.1,2.1,0,0,1-3-.2L3.7,6.4A9.84,9.84,0,0,0,2,12.1,10.14,10.14,0,0,0,12.1,22.2a10.9,10.9,0,0,0,2.6-.3l6.7,6.7a5,5,0,0,0,7.1-7.1l-6.7-6.7a10.9,10.9,0,0,0,.3-2.6A10,10,0,0,0,12.1,2Zm8,10.1a7.61,7.61,0,0,1-.3,2.1l-.3,1.1.8.8L27,22.8a2.88,2.88,0,0,1,.9,2.1A2.72,2.72,0,0,1,27,27a2.9,2.9,0,0,1-4.2,0l-6.7-6.7-.8-.8-1.1.3a7.61,7.61,0,0,1-2.1.3,8.27,8.27,0,0,1-5.7-2.3A7.63,7.63,0,0,1,4,12.1a8.33,8.33,0,0,1,.3-2.2l4.4,4.4a4.14,4.14,0,0,0,5.9.2,4.14,4.14,0,0,0-.2-5.9L10,4.2a6.45,6.45,0,0,1,2-.3,8.27,8.27,0,0,1,5.7,2.3A8.49,8.49,0,0,1,20.1,12.1Z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="delete"
+                />
+                <svg
+                  alt="delete icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 12H14V24H12zM18 12H20V24H18z"
+                  />
+                  <path
+                    d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="upgrade"
+                />
+                <svg
+                  alt="upgrade icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M21 24H11a2 2 0 00-2 2v2a2 2 0 002 2H21a2 2 0 002-2V26A2 2 0 0021 24zm0 4H11V26H21zM28.707 14.293l-12-12a.9994.9994 0 00-1.414 0l-12 12A1 1 0 004 16H9v4a2.0023 2.0023 0 002 2H21a2.0027 2.0027 0 002-2V16h5a1 1 0 00.707-1.707zM21 14v6H11V14H6.4141L16 4.4141 25.5859 14z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="upload"
+                />
+                <svg
+                  alt="upload icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M3 9L3.7 9.7 7.5 5.9 7.5 15 8.5 15 8.5 5.9 12.3 9.7 13 9 8 4zM3 4V2h10v2h1V2c0-.6-.4-1-1-1H3C2.4 1 2 1.4 2 2v2H3z"
+                  />
+                </svg>
+              </label>
+              <label
+                class="__icon_e5bb29_e5bb29"
+              >
+                <input
+                  readonly=""
+                  type="radio"
+                  value="user"
+                />
+                <svg
+                  alt="user icon"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8 2c1.4 0 2.5 1.1 2.5 2.5S9.4 7 8 7 5.5 5.9 5.5 4.5 6.6 2 8 2M8 1C6.1 1 4.5 2.6 4.5 4.5S6.1 8 8 8s3.5-1.6 3.5-3.5S9.9 1 8 1zM13 15h-1v-2.5c0-1.4-1.1-2.5-2.5-2.5h-3C5.1 10 4 11.1 4 12.5V15H3v-2.5C3 10.6 4.6 9 6.5 9h3c1.9 0 3.5 1.6 3.5 3.5V15z"
+                  />
+                </svg>
+              </label>
+            </div>
+          </div>
+          <div
+            class="cds--modal-footer cds--btn-set"
+          >
+            <button
+              class="cds--btn cds--btn--secondary"
+              tabindex="0"
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              class="cds--btn cds--btn--primary cds--btn--disabled"
+              data-testid="workflows-create-workflow-submit"
+              disabled=""
+              tabindex="0"
+              type="button"
+            >
+              Create
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div
+    data-react-modal-body-trap=""
+    style="position: absolute; opacity: 0;"
+    tabindex="0"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

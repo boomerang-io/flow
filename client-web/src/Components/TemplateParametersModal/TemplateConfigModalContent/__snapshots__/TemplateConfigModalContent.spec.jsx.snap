@@ -1,0 +1,113 @@
+// Vitest Snapshot v1
+
+exports[`TemplateConfigModalContent --- Snapshot > Capturing Snapshot of Task Templates 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <form
+      class="cds--bmrg-modal-form"
+    >
+      <div
+        aria-label="inputs"
+        class="cds--modal-content _container_625b3b"
+      >
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="name"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Name
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input cds--text-input--md"
+                  id="name"
+                  type="text"
+                  value="test"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="description"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Description 
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input cds--text-input--md"
+                  id="description"
+                  type="text"
+                  value="test description"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="cds--modal-footer cds--btn-set"
+      >
+        <button
+          class="cds--btn cds--btn--secondary"
+          tabindex="0"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="cds--btn cds--btn--primary"
+          tabindex="0"
+          type="submit"
+        >
+          Create
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+`;

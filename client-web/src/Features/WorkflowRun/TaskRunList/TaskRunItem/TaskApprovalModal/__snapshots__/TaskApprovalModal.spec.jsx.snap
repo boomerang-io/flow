@@ -1,0 +1,170 @@
+// Vitest Snapshot v1
+
+exports[`TaskApprovalModal --- Snapshot > Capturing Snapshot of TaskApprovalModal 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <form
+      class="cds--bmrg-modal-form"
+    >
+      <div
+        class="cds--modal-content _modalBody_7e51d1"
+      >
+        <section
+          class="_approval_7e51d1"
+        >
+          <div
+            class="_inputs_7e51d1"
+          >
+            <div
+              class="_comment_7e51d1"
+            >
+              <div
+                class="cds--bmrg-text-area"
+              >
+                <div
+                  class="cds--form-item _commentArea_7e51d1"
+                >
+                  <div
+                    class="cds--text-area__label-wrapper"
+                  >
+                    <label
+                      class="cds--label"
+                      for="comment"
+                    >
+                      <div
+                        style="display: flex;"
+                      >
+                        <div>
+                          Comments (optional)
+                        </div>
+                      </div>
+                    </label>
+                    <div
+                      class="cds--label"
+                    >
+                      0/200
+                    </div>
+                  </div>
+                  <div
+                    class="cds--text-area__wrapper"
+                  >
+                    <textarea
+                      class="cds--text-area"
+                      cols="50"
+                      id="comment"
+                      maxlength="200"
+                      placeholder="Add some reasoning for your decision"
+                      rows="4"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="cds--bmrg-decision-buttons"
+            >
+              <div
+                class="cds--form-item"
+              >
+                <div
+                  class="cds--radio-button-group _decisionButtons_7e51d1"
+                >
+                  <label
+                    class="cds--bmrg-decision-button-wrapper"
+                    for="decision-buttons-REJECTED-0"
+                  >
+                    <input
+                      id="decision-buttons-REJECTED-0"
+                      name="decision-buttons"
+                      readonly=""
+                      type="radio"
+                      value="REJECTED"
+                    />
+                    <div
+                      class="cds--bmrg-decision-button cds--bmrg-decision-button--negative"
+                    >
+                      <span>
+                        Reject
+                      </span>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--bmrg-decision-button-icon"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M30,16V9a7.0078,7.0078,0,0,0-7-7H2V16H8.4648l3.5774,5.3662.8453,5.9165A2.0094,2.0094,0,0,0,14.8672,29H17a3.0033,3.0033,0,0,0,3-3V20h6A4.0045,4.0045,0,0,0,30,16ZM8,14H4V4H8Zm20,2a2.0025,2.0025,0,0,1-2,2H18v8a1.0008,1.0008,0,0,1-1,1H14.8672l-.9094-6.3662L10,14.6973V4H23a5.0057,5.0057,0,0,1,5,5Z"
+                        />
+                      </svg>
+                    </div>
+                  </label>
+                  <label
+                    class="cds--bmrg-decision-button-wrapper"
+                    for="decision-buttons-APPROVED-1"
+                  >
+                    <input
+                      id="decision-buttons-APPROVED-1"
+                      name="decision-buttons"
+                      readonly=""
+                      type="radio"
+                      value="APPROVED"
+                    />
+                    <div
+                      class="cds--bmrg-decision-button cds--bmrg-decision-button--positive"
+                    >
+                      <span>
+                        Approve
+                      </span>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--bmrg-decision-button-icon"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M26,12H20V6a3.0033,3.0033,0,0,0-3-3H14.8672a2.0094,2.0094,0,0,0-1.98,1.7173l-.8453,5.9165L8.4648,16H2V30H23a7.0078,7.0078,0,0,0,7-7V16A4.0045,4.0045,0,0,0,26,12ZM8,28H4V18H8Zm20-5a5.0057,5.0057,0,0,1-5,5H10V17.3027l3.9578-5.9365L14.8672,5H17a1.0008,1.0008,0,0,1,1,1v8h8a2.0025,2.0025,0,0,1,2,2Z"
+                        />
+                      </svg>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div
+        class="cds--modal-footer cds--btn-set"
+      >
+        <button
+          class="cds--btn cds--btn--secondary"
+          tabindex="0"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="cds--btn cds--btn--primary cds--btn--disabled"
+          disabled=""
+          tabindex="0"
+          type="submit"
+        >
+          Submit decisions
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+`;

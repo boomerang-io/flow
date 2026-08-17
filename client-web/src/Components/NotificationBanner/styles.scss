@@ -1,0 +1,40 @@
+.b-notification-banner {
+  position: fixed;
+  z-index: 99;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  background-color: var(--cds-interactive-01);
+  padding: 1rem 3rem 1rem 1rem;
+  transition: transform 1.5 ease;
+  top: 3rem;
+}
+
+.b-notification-banner__text {
+  color: var(--cds-ui-01);
+  font-size: 1rem;
+  font-weight: 300;
+  letter-spacing: 0.03125rem;
+  line-height: 1.75rem;
+  text-align: center;
+  width: calc(100% - 2rem);
+
+  a {
+    color: var(--flow-lightest-teal);
+  }
+}
+
+.b-notification-banner__button {
+  background-color: inherit;
+  border: none;
+  cursor: pointer;
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.b-notification-banner__close-icon {
+  fill: var(--cds-ui-01);
+  height: 1.5rem;
+  width: 1.5rem;
+}

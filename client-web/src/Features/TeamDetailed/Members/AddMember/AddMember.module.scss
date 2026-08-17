@@ -1,0 +1,27 @@
+.modal {
+  max-height: 43.4375rem;
+  max-width: 37.5rem;
+}
+
+.addMemberContainer {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.roleDropdown {
+  min-width: 8rem;
+}
+
+
+.tileContainer {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+}
+
+.divider {
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  margin: 1rem 0;
+  width: 100%;
+}

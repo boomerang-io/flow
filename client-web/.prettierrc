@@ -1,0 +1,26 @@
+{
+  "printWidth": 120,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrder": [
+    "^react$",
+    "@carbon/react",
+    "@boomerang-io/carbon-addons-boomerang-react",
+    "<THIRD_PARTY_MODULES>",
+    "^Features",
+    "^Features/(.*)$",
+    "^Components",
+    "^Components/(.*)$",
+    "^Hooks",
+    "^Hooks/(.*)$",
+    "^State",
+    "^State/(.*)$",
+    "^Utils",
+    "^Utils/(.*)$",
+    "^Constants",
+    "^Constants/(.*)$",
+    "^Config",
+    "^Config/(.*)$",
+    "^Types",
+    "^[./]"
+  ]
+}

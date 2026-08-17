@@ -1,0 +1,56 @@
+@import "Styles/mixins";
+
+.settingsContainer {
+  padding: 1.5rem 2rem;
+  position: relative;
+  display: flex; /* Make parent a flex-container */
+  justify-content: center; /* Centers child horizontally */
+  align-items: center; /* Centers child vertically */
+}
+
+.container {
+  padding: 1.5rem 2rem;
+  position: relative;
+  text-align:center;
+  max-width:800px;
+}
+
+.title {
+  color: var(--cds-text-01);
+  font-size: 1.125rem;
+  letter-spacing: 0;
+  line-height: 1.4375rem;
+  margin-top: 0rem;
+  margin-bottom: 1rem;
+  width: 16rem;
+}
+
+.field {
+  max-width: 14rem;
+  min-width: 14rem;
+  text-align: left;
+  background-color: var(--cds-field);
+}
+
+.skeletonField {
+  max-width: 28rem;
+  min-width: 28rem;
+  width: 28rem;
+}
+
+.linkRow{
+  display: flex;
+  justify-content: center;
+}
+
+.buttonContainer {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 1rem;
+}
+
+
+.button {
+  width: 8rem;
+}

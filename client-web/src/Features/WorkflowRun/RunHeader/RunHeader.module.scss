@@ -1,0 +1,119 @@
+@import "Styles/mixins";
+
+.container {
+  h1 {
+    margin: 0;
+  }
+}
+
+.headerNav {
+  display: flex;
+}
+
+.workflowNameSkeleton {
+  height: 1.125rem;
+}
+
+.workflowAdvancedDetailTrigger {
+  align-items: center;
+  cursor: pointer;
+  display: flex !important;
+  justify-content: center;
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.workflowErrorTrigger {
+  align-items: center;
+  cursor: pointer;
+  display: flex !important;
+  justify-content: center;
+  margin-left: 1rem;
+}
+
+.content {
+  align-items: center;
+  display: flex;
+  margin: 1.125rem 0 1.5rem 0;
+  overflow: hidden;
+}
+
+.data {
+  color: var(--cds-text-01);
+  margin-left: 2.5rem;
+}
+
+.dataButton {
+  color: var(--cds-text-01);
+  margin-left: 1.5rem;
+}
+
+.dataTitle {
+  font-size: 0.875rem;
+  font-weight: 300;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.dataValue {
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.25;
+  max-width: 20rem;
+  text-transform: capitalize;
+  @include text-overflow-ellipsis();
+}
+
+.headerContentSkeleton {
+  height: 4.31rem;
+  width: 40rem;
+}
+
+.workflowOutputLog {
+  margin-left: 0.5rem;
+}
+
+/**
+ * AdvancedDetail Modal
+ */
+
+.detailHeading {
+  margin: 1rem 0 0.5rem 0;
+}
+
+.workflowLabels {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.workflowLabelBubble {
+  margin-left: 0;
+}
+
+.kubernetes {
+  align-items: center;
+  display: flex;
+  margin-top: 1rem;
+  padding-right: 1rem;
+}
+
+.kubernetesCopyContainer {
+  height: 2rem;
+  margin-left: 0.5rem;
+  width: 2rem;
+}
+
+.kubernetesCopy {
+  justify-content: center;
+  width: 2rem;
+
+  :global .cds--btn__icon {
+    margin: 0;
+  }
+}
+
+.cancelRun {
+  margin-bottom: -1rem;
+}

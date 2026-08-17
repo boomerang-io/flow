@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="-2 0 18 18" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 51 (57462) - http://www.bohemiancoding.com/sketch -->
+    <title>resources / icons / alert2</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="80-settings" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="80.33-save-error" transform="translate(-1196.000000, -503.000000)">
+            <g id="resources-/-icons-/-alert2" transform="translate(1196.000000, 503.000000)">
+                <circle id="Oval" fill="#c0bfc0" cx="8" cy="8" r="8"></circle>
+                <path d="M8.74418605,13.0232558 L7.25581395,11.5348837 L7.25581395,6.3255814 L8.74418605,6.3255814 L8.74418605,13.0232558 Z M7.25581395,3.1627907 L8.74418605,3.1627907 L8.74418605,4.65116279 L7.25581395,4.65116279 L7.25581395,3.1627907 Z" id="Combined-Shape" fill="#F8FAFA" transform="translate(8.000000, 8.093023) scale(1, -1) translate(-8.000000, -8.093023) "></path>
+            </g>
+        </g>
+    </g>
+</svg>

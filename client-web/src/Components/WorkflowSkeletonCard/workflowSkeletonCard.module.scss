@@ -1,0 +1,17 @@
+@import "Styles/mixins";
+
+.skeletonCardContainer {
+  display: flex;
+  gap: 1.5rem
+}
+
+.skeletonCard {
+  min-width: 19.375rem;
+  width: 19.375rem;
+  height: 10.31255rem;
+  @include border-radius();
+}
+
+.skeletonText {
+  width: 10rem !important;
+}

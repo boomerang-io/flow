@@ -1,0 +1,74 @@
+// app.scss
+@use "sass:map";
+
+// Carbon base styles and utilities
+@use "@carbon/react/scss/config" with (
+  $use-akamai-cdn: true
+);
+@use "@carbon/react/scss/reset";
+@use "@carbon/react/scss/motion";
+@use "@carbon/react/scss/type";
+
+// Themes
+@use "@boomerang-io/carbon-addons-boomerang-react/scss/global/themes/boomerang";
+@use "@carbon/react/scss/compat/themes" as compat;
+@use "@carbon/react/scss/compat/theme" with (
+  $theme: map.merge(compat.$white, boomerang.$theme)
+);
+
+// More base styles, components, and component tokens
+@use "@carbon/react/scss/fonts";
+@use "@carbon/react/scss/grid";
+@use "@carbon/react/scss/layer";
+@use "@carbon/react/scss/zone";
+@use "@carbon/react/scss/components/button/tokens" as button;
+@use "@carbon/react/scss/components/notification/tokens" as notification;
+@use "@carbon/react/scss/components/tag/tokens" as tag;
+@use "@carbon/react/scss/components";
+
+// Addons library with boomerang enabled
+@use "@boomerang-io/carbon-addons-boomerang-react/scss/global" with (
+  $use-theme-boomerang: true
+);
+
+// Finally include the theme to include all of the css custom properties
+[data-carbon-theme="boomerang"] {
+  @include theme.add-component-tokens(map.merge(button.$button-tokens, boomerang.$v11-button-tokens));
+  @include theme.add-component-tokens(notification.$notification-tokens);
+  @include theme.add-component-tokens(tag.$tag-tokens);
+  @include theme.theme();
+}
+
+// Global overrides
+.cds--list-box__menu-icon > svg {
+  fill: var(--cds-text-01);
+}
+
+.cds--date-picker__calendar {
+  padding: 0rem;
+}
+
+.cds--text-area {
+  width: 100%;
+}
+
+.cds--combo-box[data-invalid]:not(.cds--multi-select--selected) .cds--text-input:not(:focus) {
+  outline: 0px;
+}
+
+.cds--bmrg-feature-header {
+  min-height: initial;
+}
+
+.cds--tabs__nav-link {
+  display: flex !important;
+  align-items: center !important;
+}
+ 
+:root {
+  --cds-font-family: "IBM Plex Sans", "Helvetica Neue", Arial, Helvetica, sans-serif;
+}
+
+
+
+//@import "@carbon/charts/styles/styles.scss";

@@ -1,0 +1,25 @@
+@import "Styles/mixins";
+
+.accordionTitle {
+  display: flex;
+  align-items: center;
+  position: relative;
+  margin: 0;
+  font-size: 1.125rem;
+  padding: 0.25rem;
+}
+
+.accordionDescription {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  margin-left: 1rem;
+  @include multiline-text-overflow-ellipsis();
+}
+
+.saveButton {
+  position: absolute;
+  right: 0rem;
+  top: -2.5rem;
+}

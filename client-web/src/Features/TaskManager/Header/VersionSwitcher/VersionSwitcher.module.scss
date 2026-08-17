@@ -1,0 +1,64 @@
+@import "Styles/mixins";
+
+$disabled-color: #bebec0;
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 2.5rem;
+
+  &.disabled {
+    pointer-events: none;
+    .versionText {
+      color: $disabled-color;
+    }
+    .icon {
+      fill: $disabled-color;
+    }
+  }
+}
+
+.buttonListContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  width: 13.75rem;
+  margin: 0 3rem 0 0;
+}
+
+.buttonList {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  height: 100%;
+  width: 4rem;
+  button {
+    line-height: 0;
+  }
+}
+
+.button {
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.icon {
+  cursor: pointer;
+  fill: var(--cds-interactive-01);
+  height: 1.5rem;
+  width: 1.5rem;
+
+  &.disabled {
+    cursor: default;
+    fill: $disabled-color;
+  }
+}
+
+.versionText {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+}

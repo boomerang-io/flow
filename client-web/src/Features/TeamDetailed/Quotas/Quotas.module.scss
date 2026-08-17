@@ -1,0 +1,112 @@
+.container {
+  width: 100%;
+  padding: 1.5rem 2rem;
+}
+
+.cardsSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 20.625rem);
+  column-gap: 1.5rem;
+  row-gap: 1.5rem;
+}
+
+.cardContainer {
+  background: var(--cds-ui-01);
+  padding: 1.5rem;
+  height: 15.0625rem;
+  width: 20.625rem;
+}
+
+.titleSection {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  margin-bottom: 1.375rem;
+}
+
+.title {
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.subtitle {
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+}
+
+.detailedHeading {
+  font-size: 1.25rem;
+  letter-spacing: 0;
+  line-height: 1.5625rem;
+  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+}
+
+.detailedSmallText {
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+}
+
+.detailedData {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  margin-top: 0.5rem;
+}
+
+.persistentStorage {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1.375rem;
+}
+
+.modalContainer {
+  height: 24.625rem;
+  width: 30rem;
+}
+
+.editButton {
+  :global .cds--btn__icon {
+    margin-left: 0 !important;
+  }
+}
+
+.actionsContainer {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  width: 100%;
+
+  :global .cds--search {
+    max-width: 24rem;
+  }
+}
+
+.leftActions {
+  min-width: 24rem;
+}
+
+.featureDescription {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 1.375rem;
+}
+
+.notificationsContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  :global .cds--inline-notification {
+    max-width: 100%;
+  }
+}

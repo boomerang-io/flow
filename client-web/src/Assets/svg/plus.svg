@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="34px" height="34px" viewBox="0 0 34 34" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 43.2 (39069) - http://www.bohemiancoding.com/sketch -->
+    <title>plus</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="nav-/-sidebar-/-sidebar" transform="translate(-108.000000, -979.000000)">
+            <g id="add-team">
+                <g transform="translate(0.000000, 968.000000)">
+                    <g id="plus" transform="translate(108.000000, 11.000000)">
+                        <rect id="Rectangle-5" x="0" y="0" width="34" height="34"></rect>
+                        <polygon id="Rectangle-6" fill="#A6A5A6" points="0 16.2342342 34 16.2342342 34 17.4594595 1.22522523 17.4594595"></polygon>
+                        <polygon id="Rectangle-6" fill="#A6A5A6" transform="translate(16.846847, 17.000000) rotate(-90.000000) translate(-16.846847, -17.000000) " points="-0.153153153 16.3873874 33.8468468 16.3873874 33.8468468 17.6126126 1.07207207 17.6126126"></polygon>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

@@ -1,0 +1,598 @@
+// Vitest Snapshot v1
+
+exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Templates 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <form
+      class="cds--bmrg-modal-form"
+    >
+      <div
+        aria-label="inputs"
+        class="cds--modal-content"
+      >
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="name"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Name
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  aria-describedby="name-helper-text"
+                  class="cds--text-input cds--text-input--md"
+                  id="name"
+                  placeholder="Enter a name"
+                  title="Enter a name"
+                  type="text"
+                  value="Test name"
+                />
+              </div>
+              <div
+                class="cds--form__helper-text"
+                id="name-helper-text"
+              >
+                Must be unique
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="category"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Category
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  aria-describedby="category-helper-text"
+                  class="cds--text-input cds--text-input--md"
+                  id="category"
+                  placeholder="e.g. communication"
+                  title="e.g. communication"
+                  type="text"
+                  value=""
+                />
+              </div>
+              <div
+                class="cds--form__helper-text"
+                id="category-helper-text"
+              >
+                Categories have strict matching, type as you want to see it
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-select"
+        >
+          <div
+            class="cds--list-box__wrapper"
+          >
+            <label
+              class="cds--label"
+              dir="auto"
+              for="select-icon"
+              id="downshift-0-label"
+            >
+              <div
+                style="display: flex;"
+              >
+                <div>
+                  Icon
+                </div>
+              </div>
+            </label>
+            <div
+              class="cds--combo-box cds--list-box"
+            >
+              <div
+                class="cds--list-box__field"
+              >
+                <input
+                  aria-autocomplete="list"
+                  aria-expanded="false"
+                  aria-haspopup="listbox"
+                  autocomplete="off"
+                  class="cds--text-input cds--text-input--empty"
+                  id="select-icon"
+                  placeholder="Choose an icon"
+                  role="combobox"
+                  tabindex="0"
+                  title=""
+                  type="text"
+                  value=""
+                />
+                
+                <button
+                  aria-haspopup="true"
+                  aria-label="Open"
+                  class="cds--list-box__menu-icon"
+                  data-toggle="true"
+                  role="button"
+                  tabindex="-1"
+                  title="Open"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div
+                aria-label="Choose an item"
+                class="cds--list-box__menu"
+                id="downshift-0-menu"
+                role="listbox"
+              />
+            </div>
+            <div
+              class="cds--form__helper-text"
+              dir="auto"
+              id="combobox-helper-text-3"
+            >
+              Choose the icon that best fits this task
+            </div>
+          </div>
+        </div>
+        <div
+          class="_description_923547"
+        >
+          <p
+            class="_descriptionLength_923547"
+          >
+            16
+            /200
+          </p>
+          <div
+            class="cds--bmrg-text-area"
+          >
+            <div
+              class="cds--form-item"
+            >
+              <div
+                class="cds--text-area__label-wrapper"
+              >
+                <label
+                  class="cds--label"
+                  for="description"
+                >
+                  <div
+                    style="display: flex;"
+                  >
+                    <div>
+                      Description
+                    </div>
+                  </div>
+                </label>
+              </div>
+              <div
+                class="cds--text-area__wrapper"
+              >
+                <textarea
+                  class="cds--text-area"
+                  cols="50"
+                  id="description"
+                  rows="4"
+                >
+                  Test description
+                </textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="image"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Image (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  aria-describedby="image-helper-text"
+                  class="cds--text-input cds--text-input--md"
+                  id="image"
+                  name="image"
+                  type="text"
+                  value=""
+                />
+              </div>
+              <div
+                class="cds--form__helper-text"
+                id="image-helper-text"
+              >
+                Path to container image
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-area"
+        >
+          <div
+            class="cds--form-item"
+          >
+            <div
+              class="cds--text-area__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="command"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <div>
+                    Command (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-area__wrapper"
+            >
+              <textarea
+                class="cds--text-area"
+                cols="50"
+                id="command"
+                name="command"
+                rows="4"
+              />
+            </div>
+            <div
+              class="cds--form__helper-text"
+            >
+              Override the entry point of the container
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-area"
+        >
+          <div
+            class="cds--form-item"
+          >
+            <div
+              class="cds--text-area__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="arguments"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <div>
+                    Arguments (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-area__wrapper"
+            >
+              <textarea
+                class="cds--text-area"
+                cols="50"
+                id="arguments"
+                name="arguments"
+                placeholder="e.g. system sleep"
+                rows="4"
+              >
+                slack
+              </textarea>
+            </div>
+            <div
+              class="cds--form__helper-text"
+            >
+              Enter arguments delimited by a new line
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-area"
+        >
+          <div
+            class="cds--form-item"
+          >
+            <div
+              class="cds--text-area__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="script"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <div>
+                    Script (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-area__wrapper"
+            >
+              <textarea
+                class="cds--text-area"
+                cols="50"
+                id="script"
+                rows="4"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="workingDir"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Working Directory (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input cds--text-input--md"
+                  id="workingDir"
+                  type="text"
+                  value=""
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-creatable"
+        >
+          <div
+            class="cds--bmrg-creatable__input"
+          >
+            <div
+              class="cds--bmrg-creatable__key-value-inputs"
+            >
+              <div
+                style="margin-bottom: 0rem; margin-top: 0px;"
+              >
+                <div
+                  class="cds--form-item cds--text-input-wrapper"
+                >
+                  <div
+                    class="cds--text-input__label-wrapper"
+                  >
+                    <label
+                      class="cds--label"
+                      for="envs-key"
+                    >
+                      Environments (optional)
+                    </label>
+                  </div>
+                  <div
+                    class="cds--text-input__field-outer-wrapper"
+                  >
+                    <div
+                      class="cds--text-input__field-wrapper"
+                    >
+                      <input
+                        class="cds--text-input cds--text-input--md"
+                        id="envs-key"
+                        type="text"
+                        value=""
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <span
+                class="cds--bmrg-creatable__colon"
+                style="margin-top: 2.25rem;"
+              >
+                :
+              </span>
+              <div
+                style="margin-bottom: 0rem; margin-top: 1.5rem;"
+              >
+                <div
+                  class="cds--form-item cds--text-input-wrapper"
+                >
+                  <div
+                    class="cds--text-input__label-wrapper"
+                  />
+                  <div
+                    class="cds--text-input__field-outer-wrapper"
+                  >
+                    <div
+                      class="cds--text-input__field-wrapper"
+                    >
+                      <input
+                        class="cds--text-input cds--text-input--md"
+                        id="envs-value"
+                        type="text"
+                        value=""
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              class="cds--bmrg-creatable__button cds--btn cds--btn--md cds--btn--primary cds--btn--disabled"
+              disabled=""
+              tabindex="0"
+              type="button"
+            >
+              Add
+              <svg
+                aria-hidden="true"
+                aria-label="Add"
+                class="cds--btn__icon"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div
+            class="cds--bmrg-creatable__tags"
+          >
+            <div
+              aria-label="Clear filter test:TEST"
+              class="cds--tag cds--tag--filter cds--tag--teal"
+              id="tag-1"
+            >
+              <span
+                class="cds--tag__label"
+                title="test:TEST"
+              >
+                test:TEST
+              </span>
+              <button
+                aria-labelledby="tag-1"
+                class="cds--tag__close-icon"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="cds--modal-footer cds--btn-set"
+      >
+        <button
+          class="cds--btn cds--btn--secondary"
+          tabindex="0"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="cds--btn cds--btn--primary cds--btn--disabled"
+          disabled=""
+          tabindex="0"
+          type="submit"
+        >
+          Update
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+`;

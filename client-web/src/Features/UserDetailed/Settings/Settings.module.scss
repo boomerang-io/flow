@@ -1,0 +1,166 @@
+@import "Styles/mixins";
+
+.settingsContainer {
+  padding: 1.5rem 2rem;
+  position: relative;
+
+  :global .cds--bmrg-toggle {
+    margin-bottom: 2rem;
+  }
+
+  :global .cds--label {
+    color: var(--cds-text-01);
+    font-size: 0.875rem;
+    margin-bottom: 1rem !important;
+  }
+
+  :global .cds--form__helper-text {
+    align-items: center;
+    display: flex;
+    color: var(--cds-text-01);
+    font-size: 0.75rem;
+    font-style: normal !important;
+    line-height: 0.9375rem;
+    margin-bottom: 1rem !important;
+    max-width: 100%;
+  }
+}
+
+.editTeamNameContainer {
+  margin: 2rem 0;
+}
+
+.actionableNameContainer {
+  display: flex;
+  align-items: center;
+}
+
+.teamNameLabel {
+  color: var(--cds-icon-02);
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.teamEditIcon {
+  cursor: pointer;
+  height: 1rem;
+  margin-left: 1rem;
+  &:focus {
+    @include focus-outline();
+  }
+  path,
+  rect {
+    fill: var(--cds-interactive-01);
+  }
+}
+
+.teamNameModalContainer {
+  max-height: 22rem;
+
+  :global .cds--modal-content {
+    padding-right: 1rem;
+  }
+}
+
+.detailedListGrid {
+  display: grid;
+  column-gap: 1rem;
+  grid-template-columns: repeat(auto-fill, 20.6rem);
+  width: 43rem;
+}
+
+.detailedListGridItem {
+  width: 20.6rem;
+}
+
+.detailedListTitle {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  @include text-overflow-ellipsis();
+}
+
+.detailedListDescription {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  max-width: 41.2rem;
+  @include multiline-text-overflow-ellipsis();
+}
+
+.detailedListDescriptionEmpty {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  font-style: italic;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  max-width: 41.2rem;
+}
+
+.editButton {
+  justify-content: center;
+  width: 2rem;
+
+  :global .bx--btn__icon {
+    margin: 0;
+    height: 0.875rem;
+  }
+}
+
+.readOnlyTag {
+  align-items: center;
+  background: var(--cds-ui-01);
+  border-radius: 0.875rem;
+  display: flex;
+  font-size: 0.875rem;
+  height: 1.875rem;
+  justify-content: center;
+  letter-spacing: 0;
+  margin-bottom: 0.75rem;
+  width: 6.0625rem;
+}
+
+.readOnlyText {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  max-width: 42rem;
+}
+
+.settingsDescription {
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  max-width: 41.25rem;
+}
+
+
+.sectionContainer {
+  border-top: 0.0625rem solid var(--cds-active-ui);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  width: 100%;
+}
+
+.sectionHeader {
+  align-items: center;
+  display: flex;
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  letter-spacing: 0;
+  line-height: 1.4375rem;
+  margin: 0 0.5rem 0 0;
+}
+
+.sectionDescription {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  margin-top: 1.25rem;
+  width: 41.1875rem;
+}

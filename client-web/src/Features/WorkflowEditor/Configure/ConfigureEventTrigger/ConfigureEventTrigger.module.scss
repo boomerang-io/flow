@@ -1,0 +1,35 @@
+@import "Styles/mixins";
+
+.codeSnippet{
+  background: var(--cds-background, #f2f4f8);
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-block-end: none !important;
+  min-height: 48px;
+
+  button{
+    border-radius: 0 !important;
+    background: var(--cds-background, #f2f4f8);
+  }
+
+  pre {
+    padding-block-end: 0 !important;
+  }
+}
+
+.codeSnippetInline{
+  background: var(--cds-background, #f2f4f8);
+}
+
+.sectionHeader {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9rem;
+}
+
+.sectionHeader:nth-child(n+2) {
+  margin-top: 2.5rem;
+}

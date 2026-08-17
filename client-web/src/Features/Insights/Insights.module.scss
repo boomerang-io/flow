@@ -1,0 +1,151 @@
+@import "Styles/mixins";
+
+.container {
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.875rem 1.5rem 10rem;
+  width: 100%;
+
+  :global svg:not(:root) {
+    overflow: visible !important;
+  }
+
+  :global .recharts-cartesian-axis.recharts-yAxis {
+    font-family: "IBM Plex Sans";
+    > text {
+      font-size: 0.875rem;
+      transform-origin: -4% -9%;
+    }
+  }
+
+  :global .cds--list-box {
+    cursor: pointer;
+    height: 2.5rem;
+    max-height: 2.5rem;
+    width: 16rem;
+  }
+
+  :global .cds--list-box__field {
+    width: 16rem;
+  }
+
+  :global .cds--list-box__label {
+    @include text-overflow-ellipsis();
+  }
+
+  :global .cds--list-box__menu {
+    min-width: 12rem;
+    // width: max-content;
+    height: auto;
+    max-height: unset;
+    right: 0;
+    left: unset;
+  }
+
+  :global .cds--list-box__menu-item--highlighted {
+    text-decoration: none;
+  }
+
+  :global .c-legend {
+    margin-top: 1rem;
+  }
+
+  :global .cds--cc--title > p.title {
+    font-size: 0.875rem;
+    font-weight: 300;
+  }
+
+  :global .cds--overflow-menu-options.cds--overflow-menu--flip {
+    position: absolute !important;
+  }
+}
+
+.header {
+  padding: 1rem 2rem 0;
+  min-height: auto !important;
+}
+
+.navigation {
+  position: absolute;
+}
+
+.dataFilters {
+  align-items: flex-end;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 1rem;
+}
+
+.timeFilters {
+  margin-left: auto;
+}
+
+.noTeams {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.statsWidgets {
+  display: flex;
+  flex-flow: row wrap;
+  margin-top: 3.375rem;
+  gap: 2rem;
+}
+
+.graphsWidgets {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2rem;
+  gap: 2rem;
+}
+
+.donut {
+  background-color: var(--cds-ui-01);
+  padding: 0.625rem 1.25rem 1.25rem;
+  height: 24rem;
+  width: 24.5rem;
+  @include border-radius();
+}
+
+.statsLabel,
+.graphsLabel {
+  display: flex;
+  height: 13rem;
+  width: 23rem;
+  justify-content: center;
+  align-items: center;
+  color: var(--cds-text-02);
+  font-size: 5rem;
+  font-weight: 500;
+  line-height: 6.5rem;
+  text-align: center;
+  &.--no-data {
+    width: auto;
+    align-self: center;
+    font-size: 2.5rem;
+    line-height: 6.5rem;
+  }
+}
+
+.cardPlaceholderContainer {
+  display: flex;
+  gap: 2rem;
+  margin: 3.375rem 0rem 2rem;
+}
+
+.cardPlaceholder {
+  height: 24rem;
+  width: 18rem;
+
+  &.wide {
+    min-width: 26.25rem;
+  }
+}
+
+.graphPlaceholder {
+  max-width: 86rem;
+  height: 27rem;
+  width: 100%;
+  margin-bottom: 2rem;
+}

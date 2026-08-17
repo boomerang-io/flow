@@ -1,0 +1,69 @@
+.header {
+  h1 {
+    margin: 0;
+  }
+}
+
+.container {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+
+  :global .cds--accordion__content {
+    padding-right: 1rem;
+    padding-top: 3rem;
+  }
+  :global .cds--bmrg-dynamic-formik {
+    align-items: flex-start;
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: flex-start;
+    position: relative;
+  }
+  :global .cds--bmrg-text-input {
+    display: flex;
+    flex: 0 0 50%;
+    position: relative;
+    min-width: 30rem;
+    padding: 1rem 1rem 0;
+  }
+  :global .cds--dropdown__wrapper,
+  :global .cds--bmrg-select,
+  :global .cds--bmrg-multi-select {
+    display: flex;
+    flex: 0 0 50%;
+    flex-direction: column;
+    left: 1rem;
+    position: relative;
+    min-width: 30rem;
+    padding: 1rem 2rem 0 0;
+  }
+  :global .cds--bmrg-toggle__container {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding: 1rem 1rem 0;
+  }
+
+  :global .cds--accordion__heading {
+    align-items: center;
+  }
+}
+
+.skeletonPlacholderContainer {
+  * {
+    width: 100%;
+  }
+
+  > * + * {
+    margin-top: 1rem;
+  }
+
+  :first-child {
+    height: 14rem;
+  }
+
+  :not(:first-child) {
+    height: 3rem;
+    min-height: 3rem;
+  }
+}

@@ -1,0 +1,458 @@
+// Vitest Snapshot v1
+
+exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_86126e"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_b9e313 --bordered"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <nav
+              aria-label="Breadcrumb"
+            >
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+              >
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    href="/admin/users"
+                  >
+                    Users
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    Tim Bula
+                  </p>
+                </li>
+              </ol>
+            </nav>
+          </div>
+          <div
+            class="_infoContainer_b9e313"
+          >
+            <div
+              class="_userContainer_b9e313"
+            >
+              <img
+                alt="Avatar for undefined"
+                class="_userAvatar_b9e313 --medium"
+                src="/api/users/image/trbula@us.ibm.com"
+                title="Avatar for undefined"
+                user="trbula@us.ibm.com"
+              />
+              <h1
+                class="cds--bmrg-feature-header-title"
+                style="margin: 0px 1rem 0px 0px;"
+                title="Tim Bula"
+              >
+                Tim Bula
+              </h1>
+              <div
+                class="_headerSubtitle_b9e313"
+                title="trbula@us.ibm.com"
+              >
+                <div
+                  class="_status_b9e313"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    style="fill: #009d9a;"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
+                    />
+                  </svg>
+                  <p
+                    class="_statusText_b9e313"
+                  >
+                    Active
+                  </p>
+                </div>
+                <span
+                  class="_statusDivider_b9e313"
+                >
+                  -
+                </span>
+                trbula@us.ibm.com
+              </div>
+            </div>
+            <div
+              class="_userDetailsContainer_b9e313"
+            >
+              <section
+                class="_subHeaderContainer_b9e313"
+              >
+                <dl
+                  class="_detailedInfoContainer_b9e313"
+                >
+                  <dt
+                    class="_dataTitle_b9e313"
+                  >
+                    Platform Role
+                  </dt>
+                  <dd
+                    class="_dataValue_b9e313"
+                  >
+                    Admin
+                  </dd>
+                </dl>
+                <dl
+                  class="_detailedInfoContainer_b9e313"
+                >
+                  <dt
+                    class="_dataTitle_b9e313"
+                  >
+                    Date Joined
+                  </dt>
+                  <dd
+                    class="_dataValue_b9e313"
+                  >
+                    2020-07-21 3:35pm
+                  </dd>
+                </dl>
+                <dl
+                  class="_detailedInfoContainer_b9e313"
+                >
+                  <dt
+                    class="_dataTitle_b9e313"
+                  >
+                    Last Login
+                  </dt>
+                  <dd
+                    class="_dataValue_b9e313"
+                  >
+                    2020-07-21 3:35pm
+                  </dd>
+                </dl>
+              </section>
+              <section
+                class="_actionButtonsContainer_b9e313"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--btn--ghost"
+                  tabindex="0"
+                  type="button"
+                >
+                  Change role
+                  <svg
+                    aria-hidden="true"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8 2c1.4 0 2.5 1.1 2.5 2.5S9.4 7 8 7 5.5 5.9 5.5 4.5 6.6 2 8 2M8 1C6.1 1 4.5 2.6 4.5 4.5S6.1 8 8 8s3.5-1.6 3.5-3.5S9.9 1 8 1zM13 15h-1v-2.5c0-1.4-1.1-2.5-2.5-2.5h-3C5.1 10 4 11.1 4 12.5V15H3v-2.5C3 10.6 4.6 9 6.5 9h3c1.9 0 3.5 1.6 3.5 3.5V15z"
+                    />
+                  </svg>
+                </button>
+              </section>
+            </div>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__footer"
+          >
+            <nav
+              aria-label="User pages"
+              class="cds--tabs"
+            >
+              <ul
+                class="cds--tab--list"
+              >
+                <a
+                  aria-current="page"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
+                  href="/admin/users/5f170b3df6ab327e302cb0a5"
+                >
+                  Workflows
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link"
+                  href="/admin/users/5f170b3df6ab327e302cb0a5/teams"
+                >
+                  Teams
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link"
+                  href="/admin/users/5f170b3df6ab327e302cb0a5/labels"
+                >
+                  Labels
+                </a>
+              </ul>
+            </nav>
+          </div>
+        </section>
+      </header>
+      <section
+        aria-label="Tim Bula Workflows"
+        class="_container_cb85e4"
+      >
+        <section
+          class="_actionsContainer_cb85e4"
+        >
+          <div
+            class="_leftActions_cb85e4"
+          >
+            <p
+              class="_featureDescription_cb85e4"
+            >
+              These are Tim Bula's workflows
+            </p>
+            <p
+              class="_workflowCountText_cb85e4"
+            >
+              Showing 
+              2
+               workflow
+              s
+            </p>
+            <div
+              aria-labelledby="workflow-search-search"
+              class="cds--search cds--search--sm"
+              role="search"
+            >
+              <div
+                class="cds--search-magnifier"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--search-magnifier-icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </div>
+              <label
+                class="cds--label"
+                for="workflow-search"
+                id="workflow-search-search"
+              >
+                workflow search
+              </label>
+              <input
+                autocomplete="off"
+                class="cds--search-input"
+                id="workflow-search"
+                placeholder="Search for a workflow"
+                role="searchbox"
+                type="text"
+                value=""
+              />
+              <button
+                aria-label="Clear search input"
+                class="cds--search-close cds--search-close--hidden"
+                title="Clear search input"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+        <div
+          aria-label="Structured list section"
+          class="cds--structured-list"
+          role="table"
+        >
+          <div
+            class="cds--structured-list-thead"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row cds--structured-list-row--header-row"
+              role="row"
+            >
+              <span
+                class="cds--structured-list-th"
+                role="columnheader"
+              >
+                Name
+              </span>
+              <span
+                class="cds--structured-list-th"
+                role="columnheader"
+              >
+                Summary
+              </span>
+              <span
+                class="cds--structured-list-th"
+                role="columnheader"
+              >
+                Revision Count
+              </span>
+              <span
+                class="cds--structured-list-th"
+                role="columnheader"
+              />
+              <span
+                class="cds--structured-list-th"
+                role="columnheader"
+              />
+            </div>
+          </div>
+          <div
+            class="cds--structured-list-tbody"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <div
+                  class="_workflowNameContainer_cb85e4"
+                >
+                  <p>
+                    Personal - Java - Build
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                Java - Build
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                16
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkflowLink_cb85e4"
+                  href="/editor/5e877d1f4bbc6e0001c51e12/workflow"
+                >
+                  View/edit
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkflowLink_cb85e4"
+                  href="/activity?page=0&size=10&workflowIds=5e877d1f4bbc6e0001c51e12"
+                >
+                  Activity
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <div
+                  class="_workflowNameContainer_cb85e4"
+                >
+                  <p>
+                    Personal - ML Train – Bot Efficiency
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                Train and store ML model for Bot Efficiency.
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                2
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkflowLink_cb85e4"
+                  href="/editor/5eb2c4085a92d80001a16d87/workflow"
+                >
+                  View/edit
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkflowLink_cb85e4"
+                  href="/activity?page=0&size=10&workflowIds=5eb2c4085a92d80001a16d87"
+                >
+                  Activity
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

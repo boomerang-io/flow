@@ -1,0 +1,68 @@
+.teamAndName {
+  display: flex;
+  justify-content: space-between;
+  :global .cds--bmrg-text-input {
+    margin-left: 1rem;
+    margin-top: 0;
+    width: 40rem;
+  }
+}
+.iconsTitle {
+  color: var(--cds-text-primary);
+  letter-spacing: 0.0625rem;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 2.7rem);
+  gap: 0.5rem;
+  width: 75%;
+}
+
+.icon {
+  align-items: center;
+  border: 0.125rem solid transparent;
+  border-radius: 5rem;
+  cursor: pointer;
+  display: flex;
+  height: 2.7rem;
+  justify-content: center;
+  transition: all 0.15s ease;
+  width: 2.7rem;
+
+  [type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  [type="radio"] + img {
+    cursor: pointer;
+  }
+
+  &:focus {
+    outline: default;
+  }
+  svg {
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0.25rem 0.425rem;
+  }
+
+  &.activeIcon {
+    background: var(--cds-support-02);
+    svg {
+      fill: var(--cds-ui-01);
+    }
+    &:hover {
+      background: var(--cds-support-02);
+    }
+  }
+  &:hover {
+    background: #bae6ff;
+  }
+}

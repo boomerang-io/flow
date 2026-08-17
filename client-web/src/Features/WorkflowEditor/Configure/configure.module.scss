@@ -1,0 +1,274 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  gap: 1rem;
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
+}
+
+.wrapper {
+  width: 100%;
+  overflow: auto;
+  padding-left: 0.5rem;
+  padding-bottom: 3rem;
+  position: relative;
+
+  :global .cds--text-area__wrapper {
+    width: 100%;
+  }
+
+  :global .cds--bmrg-text-input,
+  :global .cds--bmrg-select,
+  :global .cds--bmrg-multi-select,
+  :global .cds--bmrg-toggle,
+  :global .cds--dropdown
+  :global .cds--bmrg-creatable {
+    padding-bottom: 1rem;
+  }
+}
+
+.iconTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 2rem 0 1rem 0;
+}
+
+.icons {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, 2.7rem);
+
+  :global .cds--assistive-text {
+    text-transform: capitalize;
+  }
+}
+
+.icon {
+  align-items: center;
+  border: 0.125rem solid transparent;
+  border-radius: 5rem;
+  cursor: pointer;
+  display: flex;
+  height: 2.7rem;
+  justify-content: center;
+  margin: 0 0.5rem;
+  transition: all 0.15s ease;
+  width: 2.7rem;
+
+  [type="radio"] {
+    height: 0;
+    opacity: 0;
+    position: absolute;
+    width: 0;
+  }
+
+  [type="radio"] + img {
+    cursor: pointer;
+  }
+
+  &.active {
+    background: var(--cds-support-02);
+    svg {
+      fill: var(--cds-ui-01);
+    }
+
+    &:hover {
+      background: var(--cds-support-02);
+      svg {
+        fill: var(--cds-ui-01);
+      }
+    }
+  }
+
+  svg {
+    height: 2.5rem;
+    padding: 0.25rem 0.425rem;
+    width: 2.5rem;
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:hover {
+    background: #bae6ff;
+  }
+}
+
+.toggleContainer {
+  :global .cds--bmrg-toggle {
+    justify-content: flex-end;
+    padding-bottom: 0.5rem;
+
+    .cds--form-item {
+      margin-right: 1.5rem;
+    }
+
+    .cds--label {
+      font-size: 0.875rem;
+      color: var(--cds-text-01);
+    }
+  }
+}
+
+.webhookContainer {
+  padding-left: 3.5rem;
+}
+
+.webhookWrapper {
+  align-items: center;
+  display: flex;
+  margin-bottom: 0.5rem;
+  padding: 0;
+  width: 100%;
+  word-break: break-word;
+
+  :global .cds--bmrg-text-input {
+    background-color: transparent;
+    color: var(--cds-text-01);
+    font-size: 0.75rem;
+    line-height: 0.9375rem;
+    margin-bottom: 0;
+    padding: 0;
+  }
+}
+
+.informationWrapper {
+  margin-bottom: 0.5rem;
+}
+
+.tagsContainer {
+  margin-bottom: 0.5rem;
+
+  :global .cds--tag--filter {
+    margin-left: 0 !important;
+  }
+}
+
+.descriptionContainer {
+  position: relative;
+}
+
+.descriptionLength {
+  color: #525252;
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 1rem;
+  position: absolute;
+  right: 0;
+}
+
+.regenerateText {
+  cursor: pointer;
+  color: var(--cds-interactive-01);
+  display: flex;
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  padding: 0.125rem;
+  margin-left: -0.125rem;
+
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.schedulerContainer {
+  padding-left: 3.5rem;
+  p {
+    font-size: 0.875rem;
+  }
+}
+
+.triggerContainer {
+  padding-bottom: 2.5rem;
+
+  > * + * {
+    margin-top: 1rem;
+  }
+
+  :global .cds--label {
+    color: var(--cds-text-01);
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+  }
+}
+
+.labelsContainer {
+  padding-bottom: 2.5rem;
+}
+
+.buildWebhookContainer {
+  max-height: 44.5rem;
+}
+
+.link {
+  color: var(--cds-interactive-01);
+  margin-left: 0.25rem;
+  &:focus {
+    @include focus-outline;
+  }
+}
+
+.storageToggle {
+  margin-bottom: 0.5rem;
+}
+
+.runOptionsSection {
+  max-width: 25rem;
+}
+
+.sectionContainer {
+  width: 100%;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+  max-width: 50rem;
+}
+
+.sectionContainer:nth-of-type(n+2) {
+    border-top: 0.0625rem solid var(--cds-active-ui);
+  } 
+
+.sectionHeader {
+  align-items: center;
+  display: flex;
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  letter-spacing: 0;
+  line-height: 1.4375rem;
+  margin: 0 0.5rem 0 0;
+  font-weight: 600;
+}
+
+.sectionDescription {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  margin-top: 1.25rem;
+  margin-bottom: .75rem;
+  width: 41.1875rem;
+}
+
+.githubTriggerContainer {
+  :global .cds--bmrg-checkbox-list__list {
+    display: grid;
+    grid-template-columns: auto auto;
+  }
+}
+.detailedListContainer {
+  margin-bottom: 1rem;
+  margin-top: 0.5rem;
+  width: 75rem;
+}
+
+.detailedListParagraph {
+  color: var(--cds-text-02);
+  font-size: var(--cds-heading-01-font-size, 0.875rem);
+  font-style: normal !important;
+  line-height: 0.9375rem;
+  margin-bottom: 2rem !important;
+  width: 75rem;
+}

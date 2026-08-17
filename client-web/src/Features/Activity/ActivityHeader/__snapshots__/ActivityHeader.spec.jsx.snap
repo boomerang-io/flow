@@ -1,0 +1,169 @@
+// Vitest Snapshot v1
+
+exports[`ActivityHeader --- Snapshot > Capturing Snapshot of ActivityHeader 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <header
+      class="cds--bmrg-feature-header _container_76bf80"
+    >
+      <section
+        class="cds--bmrg-feature-header__content"
+      >
+        <div
+          class="cds--bmrg-feature-header__header"
+        >
+          <p
+            class="cds--bmrg-feature-header-title"
+          >
+            This is all of the
+          </p>
+          <h1
+            class="cds--bmrg-feature-header-title"
+          >
+            Activity
+          </h1>
+        </div>
+      </section>
+      <section
+        class="_content_76bf80"
+      >
+        <p
+          class="_text_76bf80"
+        >
+          Today's numbers
+        </p>
+        <div
+          class="_container_87f8c4"
+        >
+          <div
+            class="_valueAndIcon_87f8c4"
+          >
+            <p
+              class="_value_87f8c4"
+            >
+              25
+            </p>
+            <svg
+              aria-label="Runs"
+              class="_icon_87f8c4"
+              fill="currentColor"
+              focusable="false"
+              height="32"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              viewBox="0 0 32 32"
+              width="32"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M10 6L10 8 22.59 8 6 24.59 7.41 26 24 9.41 24 22 26 22 26 6 10 6z"
+              />
+            </svg>
+          </div>
+          <p
+            class="_text_87f8c4"
+          >
+            Runs
+          </p>
+        </div>
+        <div
+          class="_container_87f8c4"
+        >
+          <div
+            class="_valueAndIcon_87f8c4"
+          >
+            <p
+              class="_value_87f8c4"
+            >
+              13
+            </p>
+            <svg
+              aria-label="Successes"
+              class="_icon_87f8c4"
+              fill="currentColor"
+              focusable="false"
+              height="32"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              viewBox="0 0 32 32"
+              width="32"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M10 6L10 8 22.59 8 6 24.59 7.41 26 24 9.41 24 22 26 22 26 6 10 6z"
+              />
+            </svg>
+          </div>
+          <p
+            class="_text_87f8c4"
+          >
+            Successes
+          </p>
+        </div>
+        <div
+          class="_container_87f8c4"
+        >
+          <div
+            class="_valueAndIcon_87f8c4"
+          >
+            <p
+              class="_value_87f8c4"
+            >
+              10
+            </p>
+            <svg
+              aria-label="Failures"
+              class="_icon_87f8c4"
+              fill="currentColor"
+              focusable="false"
+              height="32"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              viewBox="0 0 32 32"
+              width="32"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M10 26L10 24 22.59 24 6 7.41 7.41 6 24 22.59 24 10 26 10 26 26 10 26z"
+              />
+            </svg>
+          </div>
+          <p
+            class="_text_87f8c4"
+          >
+            Failures
+          </p>
+        </div>
+        <div
+          class="_container_87f8c4"
+        >
+          <div
+            class="_valueAndIcon_87f8c4"
+          >
+            <p
+              class="_value_87f8c4"
+            >
+              52%
+            </p>
+            <span
+              aria-hidden="false"
+              aria-label="Success rate"
+              class="_emoji_87f8c4"
+              role="img"
+            >
+              😮
+            </span>
+          </div>
+          <p
+            class="_text_87f8c4"
+          >
+            Success rate
+          </p>
+        </div>
+      </section>
+    </header>
+  </div>
+</body>
+`;

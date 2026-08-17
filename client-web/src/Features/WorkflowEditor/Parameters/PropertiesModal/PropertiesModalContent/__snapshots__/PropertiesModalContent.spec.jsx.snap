@@ -1,0 +1,402 @@
+// Vitest Snapshot v1
+
+exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <form
+      class="cds--bmrg-modal-flow-form"
+    >
+      <div
+        aria-label="inputs"
+        class="cds--modal-content _container_4e189b"
+      >
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper cds--text-input-wrapper--readonly"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="key"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Key (read-only)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  aria-describedby="key-helper-text"
+                  class="cds--text-input cds--text-input--md"
+                  id="key"
+                  placeholder=".e.g. token"
+                  readonly=""
+                  title=".e.g. token"
+                  type="text"
+                  value="tim-property"
+                />
+              </div>
+              <div
+                class="cds--form__helper-text"
+                id="key-helper-text"
+              >
+                Reference value for parameter in workflow. It can't be changed after parameter creation.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-select"
+        >
+          <div
+            class="cds--list-box__wrapper"
+          >
+            <label
+              class="cds--label"
+              dir="auto"
+              for="type"
+              id="downshift-0-label"
+            >
+              <div
+                style="display: flex;"
+              >
+                <div>
+                  Type
+                </div>
+              </div>
+            </label>
+            <div
+              class="cds--combo-box cds--list-box"
+            >
+              <div
+                class="cds--list-box__field"
+              >
+                <input
+                  aria-autocomplete="list"
+                  aria-expanded="false"
+                  aria-haspopup="listbox"
+                  autocomplete="off"
+                  class="cds--text-input"
+                  id="type"
+                  placeholder="Select an item"
+                  role="combobox"
+                  tabindex="0"
+                  title="Text"
+                  type="text"
+                  value="Text"
+                />
+                <button
+                  aria-label="Clear selected item"
+                  class="cds--list-box__selection"
+                  tabindex="0"
+                  title="Clear selected item"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-haspopup="true"
+                  aria-label="Open"
+                  class="cds--list-box__menu-icon"
+                  data-toggle="true"
+                  role="button"
+                  tabindex="-1"
+                  title="Open"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div
+                aria-label="Choose an item"
+                class="cds--list-box__menu"
+                id="downshift-0-menu"
+                role="listbox"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="label"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Label
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input cds--text-input--md"
+                  id="label"
+                  placeholder="e.g. Token"
+                  title="e.g. Token"
+                  type="text"
+                  value="Tim Property"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="description"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Description (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input cds--text-input--md"
+                  id="description"
+                  type="text"
+                  value="Tim property"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="jsonPath"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Event Payload JsonPath (optional)
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  aria-describedby="jsonPath-helper-text"
+                  class="cds--text-input cds--text-input--md"
+                  id="jsonPath"
+                  placeholder="e.g. $.repository.image[2]"
+                  title="e.g. $.repository.image[2]"
+                  type="text"
+                  value=""
+                />
+              </div>
+              <div
+                class="cds--form__helper-text"
+                id="jsonPath-helper-text"
+              >
+                Retrieves value matching dot notation path in the event payload
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-toggle__container"
+        >
+          <div
+            class="cds--bmrg-toggle --vertical"
+          >
+            <div
+              class="cds--bmrg-toggle__title"
+            >
+              <label
+                class="cds--label"
+                for="required"
+                id="required-label"
+                style="margin-bottom: 0px;"
+              >
+                Required
+              </label>
+            </div>
+            <div
+              class="cds--toggle"
+            >
+              <button
+                aria-checked="false"
+                aria-labelledby="required-label"
+                class="cds--toggle__button"
+                data-testid="toggle-test-id"
+                id="required"
+                role="switch"
+                type="button"
+              />
+              <label
+                class="cds--toggle__label"
+                for="required"
+              >
+                <span
+                  class="cds--toggle__label-text"
+                />
+                <div
+                  class="cds--toggle__appearance"
+                >
+                  <div
+                    class="cds--toggle__switch"
+                  />
+                  <span
+                    aria-hidden="true"
+                    class="cds--toggle__text"
+                  />
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                for="defaultValue"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Default Value
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input cds--text-input--md"
+                  data-testid="text-input"
+                  id="defaultValue"
+                  placeholder="Default Value"
+                  title="Default Value"
+                  type="text"
+                  value="dogs"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="cds--modal-footer cds--btn-set"
+      >
+        <button
+          class="cds--btn cds--btn--secondary"
+          tabindex="0"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="cds--btn cds--btn--primary cds--btn--disabled"
+          data-testid="parameter-modal-confirm-button"
+          disabled=""
+          tabindex="0"
+          type="submit"
+        >
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+`;

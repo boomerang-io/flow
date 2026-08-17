@@ -1,0 +1,242 @@
+@import "Styles/mixins";
+
+.tableSkeleton {
+  th {
+    color: var(--cds-interactive-01);
+  }
+  thead {
+    background-color: #d5d9e0;
+    th:nth-of-type(1) {
+      width: 15% !important;
+    }
+
+    th:nth-of-type(2) {
+      width: 25% !important;
+    }
+
+    th:nth-of-type(3) {
+      width: 10% !important;
+    }
+
+    th:nth-of-type(4) {
+      width: 15% !important;
+    }
+
+    th:nth-of-type(5) {
+      width: 15% !important;
+    }
+
+    th:nth-of-type(6) {
+      width: 10% !important;
+    }
+
+    th:nth-of-type(7) {
+      width: 10% !important;
+    }
+  }
+}
+
+.tableContainer {
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.tableHeadHeader {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  font-weight: 600;
+  height: 3rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+
+  button {
+    width: 100% !important;
+  }
+
+  &.teamName {
+    width: 15%;
+  }
+
+  &.workflowName {
+    width: 25%;
+  }
+
+  &.trigger {
+    width: 10%;
+  }
+
+  &.initiatedByUserName {
+    width: 15%;
+  }
+
+  &.creationDate {
+    width: 15%;
+  }
+
+  &.duration {
+    width: 10%;
+  }
+
+  &.status {
+    width: 10%;
+  }
+
+  &.scope {
+    width: 10%;
+  }
+}
+
+.tableBody {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+}
+
+.tableRow {
+  cursor: pointer;
+
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01), -0.125rem);
+  }
+
+  &.succeeded {
+    .status {
+      color: var(--cds-support-02);
+      svg {
+        fill: var(--cds-support-02);
+      }
+    }
+  }
+
+  &.failed, &.cancelled {
+    td {
+      background-color: #fcd0d3;
+    }
+
+    &:hover {
+      background-color: #fcd0d3;
+      td {
+        background-color: #fcd0d3;
+      }
+    }
+
+    .status {
+      color: var(--flow-failure);
+      svg {
+        fill: var(--flow-failure);
+      }
+    }
+  }
+
+  &.invalid {
+    td {
+      background-color: #d5d9e0;
+    }
+
+    &:hover {
+      background-color: #d5d9e0;
+      td {
+        background-color: #d5d9e0;
+      }
+    }
+  }
+
+  &.invalid,
+  &.skipped {
+    color: var(--cds-text-01);
+    .status {
+      color: var(--cds-text-01);
+      svg {
+        fill: var(--cds-text-01);
+      }
+    }
+  }
+
+  &.notstarted {
+    .status {
+      color: #50565b;
+      svg {
+        fill: #50565b;
+      }
+    }
+  }
+
+  &.running {
+    .tableCell {
+      animation: runningText 3.75s infinite;
+      svg {
+        animation: runningIcon 3.75s infinite;
+      }
+    }
+  }
+}
+
+@keyframes runningText {
+  0% {
+    color: var(--cds-text-02);
+  }
+  20% {
+    color: var(--cds-interactive-01);
+  }
+  40% {
+    color: var(--cds-support-02);
+  }
+  60% {
+    color: var(--cds-inverse-support-04);
+  }
+  80% {
+    color: var(--cds-text-03);
+  }
+  100% {
+    color: var(--cds-text-02);
+  }
+}
+
+@keyframes runningIcon {
+  0% {
+    fill: var(--cds-text-02);
+  }
+  20% {
+    fill: var(--cds-interactive-01);
+  }
+  40% {
+    fill: var(--cds-support-02);
+  }
+  60% {
+    fill: var(--cds-inverse-support-04);
+  }
+  80% {
+    fill: var(--cds-text-03);
+  }
+  100% {
+    fill: var(--cds-text-02);
+  }
+}
+
+.tableCell {
+  .status {
+    align-items: center;
+    display: flex;
+    .statusIcon {
+      height: 1rem;
+      width: 1rem;
+      margin-right: 0.5rem;
+    }
+  }
+}
+
+.tableTextarea {
+  background: inherit;
+  margin-left: 0.25rem;
+  max-width: 100%;
+  resize: none;
+  text-align: left;
+  white-space: normal;
+  width: 90%;
+  word-break: break-all;
+}

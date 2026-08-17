@@ -1,0 +1,22 @@
+.editButton {
+  position: absolute;
+  right: 1.75rem;
+  top: -0.75rem;
+  width: 1.5rem;
+}
+
+.badgeContainer {
+  background-color: var(--cds-ui-01);
+  border: 1px solid var(--cds-interactive-01);
+  border-radius: 0.25rem;
+  left: -1.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+  position: absolute;
+  top: -0.75rem;
+}
+
+.badgeText {
+  color: var(--cds-text-primary);
+  font-size: 0.625rem;
+  line-height: 0.8125rem;
+}

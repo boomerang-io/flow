@@ -1,0 +1,27 @@
+.tab {
+  border-bottom: 0.125rem solid #b9bfc7;
+  color: var(--cds-icon-secondary);
+  font-size: 0.875rem;
+  letter-spacing: 00.01rem;
+  line-height: 1.125rem;
+  padding: 0.75rem 1rem 0.5rem;
+  text-decoration: none;
+  transition: border-bottom 150ms cubic-bezier(.2,0,.38,.9),
+    color 150ms cubic-bezier(.2,0,.38,.9);
+  width: 10rem;
+
+  &:hover {
+    border-bottom: 0.125rem solid #5d6168;
+    color: var(--cds-text-primary);
+  }
+}
+
+.activeTab {
+  border-bottom: 0.125rem solid var(--cds-background-brand);
+  color: var(--cds-text-primary);
+  font-weight: 600;
+
+  &:hover {
+    border-bottom: 0.125rem solid var(--cds-background-brand);
+  }
+}

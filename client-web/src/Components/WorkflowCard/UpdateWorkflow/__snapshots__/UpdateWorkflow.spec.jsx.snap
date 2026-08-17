@@ -1,0 +1,126 @@
+// Vitest Snapshot v1
+
+exports[`ImportWorkflow --- Snapshot Test > Capturing Snapshot of ImportWorkflow 1`] = `
+<body
+  class="cds--bmrg-body-modal-is-open"
+  id="app"
+>
+  <div
+    data-react-modal-body-trap=""
+    style="position: absolute; opacity: 0;"
+    tabindex="0"
+  />
+  <div />
+  <div
+    data-react-modal-body-trap=""
+    style="position: absolute; opacity: 0;"
+    tabindex="0"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  >
+    <div
+      class="cds--bmrg-modal-overlay"
+    >
+      <div
+        aria-modal="true"
+        class="cds--bmrg-modal-container cds--bmrg-modal-flow-container cds--modal-container modal-container-fix-width _container_fe4e61"
+        role="dialog"
+        tabindex="-1"
+      >
+        <div
+          class="cds--modal-header"
+        >
+          <h3
+            class="cds--modal-header__heading cds--type-beta"
+          >
+            Update undefined
+          </h3>
+          <button
+            aria-label="Close"
+            class="cds--modal-close"
+            title="Close"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              class="cds--modal-close__icon"
+              fill="currentColor"
+              focusable="false"
+              height="20"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 32 32"
+              width="20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <form
+          class="cds--bmrg-modal-flow-form"
+        >
+          <p
+            class="cds--bmrg-modal-flow-form__title"
+          >
+            Select the undefined JSON file you want to update the current undefined with. The undefined id must match.
+          </p>
+          <div
+            class="cds--modal-content"
+            style="height: 21rem; width: 100%;"
+          >
+            <div
+              class="cds--file"
+            >
+              <label
+                class="cds--file-browse-btn"
+                for="id1"
+                tabindex="0"
+              >
+                <div
+                  class="cds--file__drop-container"
+                  role="button"
+                >
+                  Choose a file or drag one here
+                </div>
+              </label>
+              <input
+                accept=".json"
+                class="cds--file-input"
+                id="id1"
+                name="Workflow"
+                tabindex="-1"
+                type="file"
+              />
+            </div>
+          </div>
+          <div
+            class="cds--modal-footer cds--btn-set"
+          >
+            <button
+              class="cds--btn cds--btn--secondary"
+              tabindex="0"
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              class="cds--btn cds--btn--primary cds--btn--disabled"
+              disabled=""
+              tabindex="0"
+              type="submit"
+            >
+              Update
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

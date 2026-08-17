@@ -1,0 +1,23 @@
+@import "Styles/mixins";
+
+.container {
+  opacity: inherit;
+  &.designer {
+    cursor: pointer;
+    path {
+      fill: var(--flow-switch-primary);
+    }
+    &:focus {
+      @include focus-outline(var(--flow-switch-primary));
+    }
+  }
+
+  &.disabled {
+    path {
+      fill: var(--cds-text-primary);
+    }
+    rect {
+      stroke: var(--cds-text-primary);
+    }
+  }
+}

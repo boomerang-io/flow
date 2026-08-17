@@ -1,0 +1,65 @@
+@import "Styles/animation";
+
+.container {
+  height: 100%;
+  margin: 0 auto;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.content {
+  padding: 0rem 2rem 2rem;
+}
+
+.sectionContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  margin-top: 1.25rem;
+  margin-bottom: 2.75rem;
+}
+
+.noWorkflowsMessage {
+  margin-top: 1rem;
+  color: #697077;
+  font-size: 1rem;
+  font-weight: 300;
+  line-height: 1.25;
+}
+
+.team {
+  margin-left: 1rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0rem;
+  letter-spacing: 0.0625rem;
+}
+
+.workflows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 19.375rem);
+  column-gap: 1.5rem;
+  row-gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.quotaModalContainer {
+  max-height: 44rem;
+  max-width: 37.5rem;
+}
+
+.teamQuotaContainer {
+  display: flex;
+  align-items: baseline;
+}
+
+.quotaDescriptionContainer {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+}
+
+.warningIcon {
+  margin-left: 0.5rem;
+}

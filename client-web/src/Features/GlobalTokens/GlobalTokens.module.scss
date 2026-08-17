@@ -1,0 +1,144 @@
+@import "@boomerang-io/styles/lib/colors";
+
+.container {
+  background: var(--cds-ui-background);
+  color: var(--cds-text-01);
+  height: calc(100vh - 3rem);
+  overflow-y: auto;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  margin: 2.5rem 2.5rem 4.5rem 2.5rem;
+}
+.tableSkeleton {
+  thead {
+    th:nth-of-type(1) {
+      width: 25% !important;
+    }
+
+    th:nth-of-type(2) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(3) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(4) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(5) {
+      width: 5% !important;
+    }
+  }
+}
+
+.buttonSkeleton {
+  align-self: flex-end;
+  margin-bottom: 1rem;
+  margin-top: -1rem;
+  min-width: 12rem;
+}
+
+.header {
+  padding: 1rem 2rem 0;
+}
+
+.headerTitle {
+  margin: 0;
+}
+
+.tableHeadHeader {
+  font-size: inherit;
+  font-family: inherit;
+  :global .cds--table-header-label {
+    color: var(--cds-text-01);
+  }
+
+  button {
+    width: 100% !important;
+  }
+
+  &.creatorName {
+    width: 25%;
+  }
+
+  &.description {
+    width: 20%;
+  }
+
+  &.creationDate {
+    width: 20%;
+  }
+
+  &.expiryDate {
+    width: 20%;
+  }
+
+  &.delete {
+    width: 5%;
+  }
+}
+.tableBody {
+  font-weight: 300;
+}
+
+.tableCell {
+  align-items: center;
+  display: flex;
+  height: 3.625rem;
+  line-height: 1.2;
+  overflow-y: auto;
+  padding-left: 0.75rem;
+  width: 100%;
+}
+
+.tableTextarea {
+  background: inherit;
+  margin-left: 0.25rem;
+  max-width: 100%;
+  resize: none;
+  text-align: left;
+  white-space: normal;
+  width: 90%;
+  word-break: break-all;
+}
+
+.tokenContainer {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.buttonContainer {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.headerWithIcon {
+  display: flex;
+}
+
+.headerHoverIcon {
+  margin-left: 0.25rem;
+}
+
+.dataTable {
+    :global .cds--data-table thead {
+        background: var(--cds-ui-background) !important;
+    }
+    :global .cds--data-table th {
+        background: var(--cds-ui-background) !important;
+    }
+    :global .cds--data-table-container {
+        padding-bottom: 1rem;
+    }
+}

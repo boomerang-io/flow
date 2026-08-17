@@ -1,0 +1,476 @@
+// Vitest Snapshot v1
+
+exports[`TeamDetailed --- Snapshot Test > Capturing Snapshot of TeamDetailed 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_1b3db8"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_0b651a --bordered"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <nav
+              aria-label="Breadcrumb"
+            >
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+              >
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    href="/admin/teams"
+                  >
+                    Teams
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    WDC2 ISE Dev
+                  </p>
+                </li>
+              </ol>
+            </nav>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <h1
+              class="cds--bmrg-feature-header-title"
+            >
+              WDC2 ISE Dev
+            </h1>
+            <div
+              class="_subtitle_0b651a"
+            >
+              <div
+                class="_status_0b651a"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  style="fill: #009d9a;"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
+                  />
+                </svg>
+                <p
+                  class="_statusText_0b651a"
+                >
+                  Active
+                </p>
+              </div>
+              <span
+                class="_statusDivider_0b651a"
+              >
+                -
+              </span>
+            </div>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__footer"
+          >
+            <nav
+              class="cds--bmrg-feature-nav-tabs"
+            >
+              <a
+                aria-current="page"
+                class="cds--bmrg-feature-nav-tab cds--bmrg-feature-nav-tab--active"
+                href="/admin/teams/5e7cccb94bbc6e0001c51773"
+              >
+                Members
+              </a>
+              <a
+                class="cds--bmrg-feature-nav-tab"
+                href="/admin/teams/5e7cccb94bbc6e0001c51773/workflows"
+              >
+                Workflows
+              </a>
+              <a
+                class="cds--bmrg-feature-nav-tab"
+                href="/admin/teams/5e7cccb94bbc6e0001c51773/labels"
+              >
+                Labels
+              </a>
+              <a
+                class="cds--bmrg-feature-nav-tab"
+                href="/admin/teams/5e7cccb94bbc6e0001c51773/settings"
+              >
+                Settings
+              </a>
+            </nav>
+          </div>
+        </section>
+        <section
+          class="_teamButtons_0b651a"
+        >
+          <button
+            aria-describedby="danger-description-1"
+            class="cds--btn cds--btn--md cds--btn--danger"
+            data-testid="close-team"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="cds--visually-hidden"
+              id="danger-description-1"
+            >
+              danger
+            </span>
+            Close Team
+            <svg
+              aria-hidden="true"
+              aria-label="Close"
+              class="cds--btn__icon"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              viewBox="0 0 32 32"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+              />
+            </svg>
+          </button>
+        </section>
+      </header>
+      <section
+        aria-label="WDC2 ISE Dev Team Members"
+        class="_container_72f9b4"
+      >
+        <section
+          class="_actionsContainer_72f9b4"
+        >
+          <div
+            class="_leftActions_72f9b4"
+          >
+            <p
+              class="_featureDescription_72f9b4"
+            >
+              These are the people who have access to workflows for this Team.
+            </p>
+            <p
+              class="_memberCountText_72f9b4"
+            >
+              Showing 
+              2
+               member
+              s
+            </p>
+            <div
+              aria-labelledby="member-search-search"
+              class="cds--search cds--search--xl"
+              role="search"
+            >
+              <div
+                class="cds--search-magnifier"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--search-magnifier-icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5	C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </div>
+              <label
+                class="cds--label"
+                for="member-search"
+                id="member-search-search"
+              >
+                member search
+              </label>
+              <input
+                autocomplete="off"
+                class="cds--search-input"
+                id="member-search"
+                placeholder="Search for a member"
+                role="searchbox"
+                type="text"
+              />
+              <button
+                aria-label="Clear search input"
+                class="cds--search-close cds--search-close--hidden"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="_rightActions_72f9b4"
+          >
+            <button
+              class="cds--btn cds--btn--md cds--btn--primary"
+              data-testid="add-members-button"
+              tabindex="0"
+              type="button"
+            >
+              Add Members
+              <svg
+                aria-hidden="true"
+                aria-label="Add members"
+                class="cds--btn__icon"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+            </button>
+          </div>
+        </section>
+        <div
+          aria-label="Structured list section"
+          class="cds--structured-list"
+          role="table"
+        >
+          <div
+            class="cds--structured-list-thead"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row cds--structured-list-row--header-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-th"
+                role="columnheader"
+              >
+                Name
+              </div>
+              <div
+                class="cds--structured-list-th"
+                role="columnheader"
+              >
+                Email
+              </div>
+              <div
+                class="cds--structured-list-th"
+                role="columnheader"
+              >
+                Added on
+              </div>
+              <div
+                class="cds--structured-list-th"
+                role="columnheader"
+              />
+              <div
+                class="cds--structured-list-th"
+                role="columnheader"
+              />
+              <div
+                class="cds--structured-list-th"
+                role="columnheader"
+              />
+            </div>
+          </div>
+          <div
+            class="cds--structured-list-tbody"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <div
+                  class="_memberNameContainer_72f9b4"
+                >
+                  <p>
+                    Marcus Roy
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                mdroy@us.ibm.com
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                July 21, 2020
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <button
+                  class="_removeButton_aa92f0"
+                >
+                  Remove from Team
+                  <svg
+                    aria-hidden="true"
+                    fill="#f94d56"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12H14V24H12zM18 12H20V24H18z"
+                    />
+                    <path
+                      d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_72f9b4"
+                  href="/admin/users/kg3p380ad09662744c240e47"
+                >
+                  View user
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <div
+                  class="_memberNameContainer_72f9b4"
+                >
+                  <p>
+                    Tim Bula
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                trbula@us.ibm.com
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                July 21, 2020
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <button
+                  class="_removeButton_aa92f0"
+                >
+                  Remove from Team
+                  <svg
+                    aria-hidden="true"
+                    fill="#f94d56"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12H14V24H12zM18 12H20V24H18z"
+                    />
+                    <path
+                      d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_72f9b4"
+                  href="/admin/users/5f17380ad09662744c240e47"
+                >
+                  View user
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

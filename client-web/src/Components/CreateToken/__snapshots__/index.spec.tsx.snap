@@ -1,0 +1,39 @@
+// Vitest Snapshot v1
+
+exports[`CreateServiceTokenButton --- Snapshot > Capturing Snapshot of CreateServiceTokenButton 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <button
+      class="cds--btn cds--btn--md cds--btn--primary"
+      data-testid="create-token-button"
+      style="width: 12rem;"
+      tabindex="0"
+      type="button"
+    >
+      Create Token
+      <svg
+        aria-hidden="true"
+        aria-label="Create Token"
+        class="cds--btn__icon"
+        fill="currentColor"
+        focusable="false"
+        height="16"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        viewBox="0 0 32 32"
+        width="16"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+        />
+      </svg>
+    </button>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

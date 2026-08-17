@@ -1,0 +1,141 @@
+@import "Styles/mixins";
+
+.container {
+  background-color: var(--cds-ui-01);
+  min-width: 21.875rem;
+
+  :global .cds--bmrg-feature-sidenav-link-content {
+    width: 100%;
+  }
+
+  :global .cds--bmrg-select {
+    padding-left: 1rem;
+    padding-right: 1rem;
+
+    :global .cds--list-box__selection {
+      display: none;
+    }
+  }
+}
+.tools {
+  display: flex;
+  padding: 0 1rem;
+  :global .cds--overflow-menu {
+    margin: 0 0.5rem;
+  }
+}
+.filters {
+  display: flex;
+  flex-direction: column;
+  width: 14.5rem;
+  &:focus {
+    outline: none;
+  }
+}
+.filterHeader {
+  align-items: center;
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  display: flex;
+  height: 3rem;
+  justify-content: space-between;
+  padding: 0.5rem;
+  width: 100%;
+}
+.filterTitle {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.resetFilter {
+  color: var(--cds-link-01);
+  cursor: pointer;
+  font-size: 0.875rem;
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01));
+  }
+}
+.sectionTitle {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  margin: 0.5rem 0.1rem;
+}
+.filter {
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+  width: 100%;
+}
+.title {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.625rem;
+  padding: 0 1rem;
+  margin-bottom: 0;
+}
+.description {
+  font-size: 0.875rem;
+  font-weight: 300;
+  line-height: 1.125rem;
+  margin: 1rem;
+}
+.addTaskContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+}
+.taskCategory {
+  :global .cds--accordion__title {
+    text-transform: none !important;
+  }
+}
+.tasksInfo {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+.info {
+  color: var(--cds-text-02);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  margin: 1rem;
+}
+.expandCollapse {
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin: 1rem;
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01));
+  }
+}
+.task {
+  align-items: center;
+  display: flex;
+  height: 3rem;
+  width: 100%;
+  justify-content: space-between;
+
+  svg {
+    fill: #0072c3;
+  }
+}
+
+.checkboxOption {
+  align-items: center;
+  display: flex;
+  svg {
+    height: 1rem;
+    margin-right: 0.5rem;
+    width: 1rem;
+  }
+}
+
+.iconContainer {
+  display: flex;
+  flex-direction: row;
+
+  svg {
+    margin-left: 0.5rem !important;
+  }
+}

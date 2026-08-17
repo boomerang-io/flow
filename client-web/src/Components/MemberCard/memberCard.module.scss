@@ -1,0 +1,166 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  background-color: var(--cds-ui-02);
+  flex-direction: column;
+  justify-content: space-between;
+  height: 6rem;
+  position: relative;
+  @include border-radius();
+
+  a {
+    height: 100%;
+    &:focus {
+      @include focus-outline($offset: 0rem);
+    }
+    &[disabled] {
+      pointer-events: none;
+    }
+  }
+
+  :global .cds--overflow-menu {
+    height: 2rem;
+  }
+
+  :global .cds--overflow-menu-options__btn {
+    color: var(--cds-text-03);
+    text-decoration: none !important;
+  }
+  :global .cds--overflow-menu-options--open {
+    @include border-radius();
+    overflow: hidden;
+    z-index: 998;
+  }
+
+  :global .cds--overflow-menu-options__option {
+    min-width: 11.125rem;
+    // &:hover {
+    //   background-color: $cool-gray-1;
+    // }
+  }
+}
+
+.details {
+  display: flex;
+  box-sizing: border-box;
+  justify-content: space-between;
+  height: 6.5rem;
+  padding: 1rem;
+}
+
+.cardIcon {
+  bottom: 1rem;
+  position: absolute;
+  right: 1rem;
+  width: 1.125rem;
+}
+
+.descriptionContainer {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  margin-right: 1rem;
+  width: 15rem;
+  &:focus {
+    outline: none;
+  }
+}
+.name {
+  color: var(--cds-text-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0rem;
+  line-height: 1.25;
+  margin: 0;
+  margin-bottom: 0.5rem;
+  text-align: left;
+  @include multiline-text-overflow-ellipsis();
+}
+
+.description {
+  color: var(--cds-text-primary);
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0rem;
+  line-height: 0.9375rem;
+  text-align: left;
+  @include multiline-text-overflow-ellipsis();
+}
+
+.launch {
+  cursor: pointer;
+  width: 100%;
+  :global .cds--btn {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    flex-direction: row-reverse;
+    font-size: 1rem;
+    font-weight: 600;
+    justify-content: center;
+    max-width: 19.375rem;
+    padding: 0rem 0.25rem;
+    width: 19.375rem;
+
+    .cds--btn__icon {
+      height: 1.5rem;
+      margin-right: 1rem;
+      position: initial;
+      width: 1.5rem;
+    }
+  }
+}
+
+.executeWorkflow {
+  height: 16rem;
+  width: 30rem;
+  text-align: left;
+}
+
+:global .cds--overflow-menu-options.cds--overflow-menu--flip {
+  position: fixed !important;
+}
+
+.templatesWarningIcon {
+  height: 1.5rem;
+  width: 1.5rem;
+  position: absolute;
+  top: -0.5rem;
+  right: calc(50% - 0.75rem);
+
+  circle {
+    stroke: var(--cds-text-primary);
+  }
+}
+
+.teamQuotaContainer {
+  display: flex;
+  align-items: baseline;
+}
+
+.quotaDescriptionContainer {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+
+  position: absolute;
+  bottom: 44px;
+  right: 0;
+}
+
+.warningIcon {
+  margin-left: 0.5rem;
+}
+
+.teamQuotaText {
+  color: #4d5358;
+  font-size: 12px;
+  letter-spacing: 0;
+  line-height: 15px;
+}
+
+.actionButton {
+  margin-left: 1rem;
+  height: 1rem;
+  position: absolute;
+  right: 0;
+}
