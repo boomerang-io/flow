@@ -1,0 +1,81 @@
+name: CI Web
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Triggers the workflow on push (branch) or pull request events
+  push:
+    branches:
+      - main
+    paths:
+      - 'client-web/**'
+      - '.github/workflows/ci-web.yml'
+  pull_request:
+    paths:
+      - 'client-web/**'
+      - '.github/workflows/ci-web.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'pnpm'
+          cache-dependency-path: client-web/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: client-web
+        run: pnpm install
+      - name: Test
+        working-directory: client-web
+        run: pnpm test
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'pnpm'
+          cache-dependency-path: client-web/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: client-web
+        run: pnpm install
+      - name: Build
+        working-directory: client-web
+        run: pnpm run build
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+# Release/deploy (Docker build + push) lives in ci-release.yml, triggered by the
+# product tag (`x.y.z`, optional `-beta.N`/`-rc.N`). This workflow only tests and builds the app.

@@ -29,7 +29,6 @@
     "test:staged": "cross-env TZ=UTC CI=true vitest related --changed --passWithNoTests",
     "upgradePackage": "node scripts/upgradePackage",
     "preview": "vite preview",
-    "prepare": "husky install",
     "precommit": "lint-staged"
   },
   "dependencies": {
