@@ -69,13 +69,7 @@ public class WebhookEventControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
-      assignableScopes = {
-        AuthScope.session,
-        AuthScope.user,
-        AuthScope.global,
-        AuthScope.workflow,
-        AuthScope.workspace
-      })
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
   @Operation(summary = "Accept Webhook payloads from various sources.")
   public ResponseEntity<?> acceptWebhook(
       @Parameter(
@@ -140,13 +134,7 @@ public class WebhookEventControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
-      assignableScopes = {
-        AuthScope.session,
-        AuthScope.user,
-        AuthScope.global,
-        AuthScope.workflow,
-        AuthScope.workspace
-      })
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
   @Operation(summary = "Accept Wait for Event Callback with JSON Payload")
   public void acceptWaitForEvent(
       @Parameter(
@@ -183,13 +171,7 @@ public class WebhookEventControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
-      assignableScopes = {
-        AuthScope.session,
-        AuthScope.user,
-        AuthScope.global,
-        AuthScope.workflow,
-        AuthScope.workspace
-      })
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
   @Operation(summary = "Accept Wait for Event Callbcak")
   public void acceptWaitForEvent(
       @Parameter(
@@ -223,13 +205,7 @@ public class WebhookEventControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
-      assignableScopes = {
-        AuthScope.session,
-        AuthScope.user,
-        AuthScope.global,
-        AuthScope.workflow,
-        AuthScope.workspace
-      })
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
   @Operation(summary = "Accept CloudEvent")
   public ResponseEntity<?> accept(
       @Parameter(
@@ -247,13 +223,7 @@ public class WebhookEventControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
-      assignableScopes = {
-        AuthScope.session,
-        AuthScope.user,
-        AuthScope.global,
-        AuthScope.workflow,
-        AuthScope.workspace
-      })
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
   @Operation(summary = "Accept CloudEvent")
   public ResponseEntity<?> acceptEvent(
       @Parameter(

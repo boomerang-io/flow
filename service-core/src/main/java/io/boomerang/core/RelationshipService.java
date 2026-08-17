@@ -8,7 +8,7 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RelationshipEdgeRepository;
 import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.core.security.IdentityService;
-import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
@@ -178,14 +178,37 @@ public class RelationshipService {
   public void createEdge(RelationshipType toType, String to, Optional<Map<String, String>> data) {
     Token identity = identityService.getCurrentIdentity();
     LOGGER.debug("Creating edge for: {}", identity.getPrincipal());
-    RelationshipType fromType;
-    if (AuthScope.session.equals(identity.getType())) {
-      fromType = RelationshipType.USER;
-    } else {
-      fromType = RelationshipType.valueOfLabel(identity.getType().getLabel());
-    }
     this.createEdge(
-        fromType, identity.getPrincipal(), RelationshipLabel.MEMBER_OF, toType, to, data);
+        identityRelationshipType(identity),
+        identity.getPrincipal(),
+        RelationshipLabel.MEMBER_OF,
+        toType,
+        to,
+        data);
+  }
+
+  /**
+   * T6-3: the {@link RelationshipType} an identity's OWN node lives under - shared by every
+   * "for the current principal" convenience overload ({@link #createEdge(RelationshipType,
+   * String, Optional)}, {@link #updateEdgeData(RelationshipType, String, Map)}, {@link
+   * #removeEdge(RelationshipType, String)}). {@code identity.getType().getLabel()}
+   * (session/user/key/global) no longer maps 1:1 onto a {@code RelationshipType} the way the
+   * retired {@code workspace}/{@code workflow} token classes used to - {@code key} folds them
+   * together, so {@code actorKind} (only ever {@code WORKFLOW} here) tells them apart, same as
+   * {@link #check}/{@link #filter} above.
+   */
+  private RelationshipType identityRelationshipType(Token identity) {
+    switch (identity.getType()) {
+      case session:
+      case user:
+        return RelationshipType.USER;
+      case key:
+        return TokenActorKind.WORKFLOW.equals(identity.getActorKind())
+            ? RelationshipType.WORKFLOW
+            : RelationshipType.WORKSPACE;
+      default:
+        return RelationshipType.valueOfLabel(identity.getType().getLabel());
+    }
   }
 
   /*
@@ -228,11 +251,7 @@ public class RelationshipService {
   public void updateEdgeData(RelationshipType toType, String to, Map<String, String> data) {
     Token identity = identityService.getCurrentIdentity();
     this.updateEdgeData(
-        RelationshipType.valueOfLabel(identity.getType().getLabel()),
-        identity.getPrincipal(),
-        toType,
-        to,
-        data);
+        identityRelationshipType(identity), identity.getPrincipal(), toType, to, data);
   }
 
   /*
@@ -250,11 +269,7 @@ public class RelationshipService {
    */
   public void removeEdge(RelationshipType toType, String to) {
     Token identity = identityService.getCurrentIdentity();
-    this.removeEdge(
-        RelationshipType.valueOfLabel(identity.getType().getLabel()),
-        identity.getPrincipal(),
-        toType,
-        to);
+    this.removeEdge(identityRelationshipType(identity), identity.getPrincipal(), toType, to);
   }
 
   /*
@@ -331,6 +346,16 @@ public class RelationshipService {
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
     Token identity = identityService.getCurrentIdentity();
+    if (identity == null) {
+      // No principal on the SecurityContext (e.g. flow.mode=engine, security disabled - no
+      // AuthenticationFilter runs). No principal-based narrowing is possible, so this mirrors the
+      // `global` token case below: allow, unscoped.
+      LOGGER.debug(
+          "RelationshipService.check() - no principal on SecurityContext, allowing unscoped: {}:{}",
+          type.getLabel(),
+          toList);
+      return true;
+    }
     String principal = identity.getPrincipal();
     if (!checkPermissions(identity.getPermissions(), type, toList)) {
       // Shadow enforcement: the failed permission check is recorded but not enforced -
@@ -365,17 +390,14 @@ public class RelationshipService {
             Optional.of(toList),
             intermediateType,
             intermediateList);
-      case workflow:
+      case key:
+        // T6-3: `key` folds the retired `workflow`/`workspace` classes together - actorKind
+        // (only ever WORKFLOW here) tells them apart. No actorKind (or a non-workflow one, e.g.
+        // SERVICE) means the old `workspace` shape: principal is a workspace id.
         return hasNodes(
-            RelationshipType.WORKFLOW,
-            principal,
-            type,
-            Optional.of(toList),
-            intermediateType,
-            intermediateList);
-      case workspace:
-        return hasNodes(
-            RelationshipType.WORKSPACE,
+            TokenActorKind.WORKFLOW.equals(identity.getActorKind())
+                ? RelationshipType.WORKFLOW
+                : RelationshipType.WORKSPACE,
             principal,
             type,
             Optional.of(toList),
@@ -438,11 +460,18 @@ public class RelationshipService {
     List<String> refs = new ArrayList<>();
     Token identity = identityService.getCurrentIdentity();
     RelationshipType fromType = null;
-    String from = identity.getPrincipal();
+    String from = identity == null ? "root" : identity.getPrincipal();
 
     if (RelationshipType.TASK.equals(toType)) {
       // Tasks are a global catalogue: every principal sees every task, so the walk anchors
       // at the root node instead of the principal.
+      fromType = RelationshipType.ROOT;
+      from = "root";
+    } else if (identity == null) {
+      // No principal on the SecurityContext (e.g. flow.mode=engine, security disabled - no
+      // AuthenticationFilter runs). No principal-based narrowing is possible, so this mirrors the
+      // `global` token case below: anchor at root, unscoped.
+      LOGGER.debug("Filtering {} for root (no principal)", toType.getLabel());
       fromType = RelationshipType.ROOT;
       from = "root";
     } else {
@@ -451,20 +480,23 @@ public class RelationshipService {
         case user:
           fromType = RelationshipType.USER;
           break;
-        case workflow:
-          fromType = RelationshipType.WORKFLOW;
-          if (fromType.equals(toType)
-              && toRefsOrSlugs.isPresent()
-              && toRefsOrSlugs.get().contains(from)) {
-            // A workflow token accessing its own workflow record: anchor at root, scoped to
-            // itself, as the workflow node has no outgoing edge back to itself.
-            toRefsOrSlugs = Optional.of(List.of(from));
-            fromType = RelationshipType.ROOT;
-            from = "root";
+        case key:
+          // T6-3: `key` folds the retired `workflow`/`workspace` classes together - actorKind
+          // (only ever WORKFLOW here) tells them apart, same as check() above.
+          if (TokenActorKind.WORKFLOW.equals(identity.getActorKind())) {
+            fromType = RelationshipType.WORKFLOW;
+            if (fromType.equals(toType)
+                && toRefsOrSlugs.isPresent()
+                && toRefsOrSlugs.get().contains(from)) {
+              // A workflow token accessing its own workflow record: anchor at root, scoped to
+              // itself, as the workflow node has no outgoing edge back to itself.
+              toRefsOrSlugs = Optional.of(List.of(from));
+              fromType = RelationshipType.ROOT;
+              from = "root";
+            }
+          } else {
+            fromType = RelationshipType.WORKSPACE;
           }
-          break;
-        case workspace:
-          fromType = RelationshipType.WORKSPACE;
           break;
         case global:
           // Allow anything with no filtering - retrieve all nodes of a type in the system.

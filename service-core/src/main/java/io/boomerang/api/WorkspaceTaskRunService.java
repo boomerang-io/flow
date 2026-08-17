@@ -3,7 +3,7 @@ package io.boomerang.api;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.TaskRunService;
-import io.boomerang.workflow.ParameterManager;
+import io.boomerang.workflow.ParamLayerService;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,15 +23,15 @@ public class WorkspaceTaskRunService {
 
   private final RestTemplate restTemplate;
   private final TaskRunService engineTaskRunService;
-  private final ParameterManager parameterManager;
+  private final ParamLayerService paramLayerService;
 
   public WorkspaceTaskRunService(
       @Qualifier("internalRestTemplate") RestTemplate restTemplate,
       TaskRunService engineTaskRunService,
-      ParameterManager parameterManager) {
+      ParamLayerService paramLayerService) {
     this.restTemplate = restTemplate;
     this.engineTaskRunService = engineTaskRunService;
-    this.parameterManager = parameterManager;
+    this.paramLayerService = paramLayerService;
   }
 
   public StreamingResponseBody streamLog(String taskRunId) {

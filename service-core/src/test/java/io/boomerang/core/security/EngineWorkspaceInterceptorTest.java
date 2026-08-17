@@ -22,9 +22,10 @@ import org.springframework.web.context.WebApplicationContext;
 
 /**
  * Behavioural guard for AM-10: in engine mode, {@link EngineWorkspaceInterceptor} must reject any
- * workspace-scoped request whose {@code {team}} path variable is not {@code system}, on both the
- * {@code /team/} and {@code /workspace/} DD-01 aliases, while letting {@code system} straight
- * through to the real controller/service.
+ * workspace-scoped request whose {@code {workspace}} path variable is not {@code system}, while
+ * letting {@code system} straight through to the real controller/service. H14-a retired the
+ * deprecated {@code /api/v2/team/{team}} alias entirely, so only {@code /api/v2/workspace/}
+ * remains to test.
  *
  * <p>MockMvc is built from the real {@link WebApplicationContext} (same established pattern as
  * {@code DispatcherAuthTest}) so the request genuinely traverses Spring MVC's
@@ -76,16 +77,7 @@ class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void systemWorkspacePassesOnTeamAlias() throws Exception {
-    seedGlobalIdentity();
-    mockMvc
-        .perform(get("/api/v2/team/system/workflow/" + MISSING_WORKFLOW))
-        .andExpect(status().isBadRequest())
-        .andExpect(content().string(containsString("WORKFLOW_INVALID_REFERENCE")));
-  }
-
-  @Test
-  void systemWorkspacePassesOnWorkspaceAlias() throws Exception {
+  void systemWorkspacePasses() throws Exception {
     seedGlobalIdentity();
     mockMvc
         .perform(get("/api/v2/workspace/system/workflow/" + MISSING_WORKFLOW))
@@ -94,15 +86,7 @@ class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void nonSystemWorkspaceIsRejectedOnTeamAlias() throws Exception {
-    mockMvc
-        .perform(get("/api/v2/team/not-system/workflow/" + MISSING_WORKFLOW))
-        .andExpect(status().isBadRequest())
-        .andExpect(content().string(containsString("TEAM_INVALID_REF")));
-  }
-
-  @Test
-  void nonSystemWorkspaceIsRejectedOnWorkspaceAlias() throws Exception {
+  void nonSystemWorkspaceIsRejected() throws Exception {
     mockMvc
         .perform(get("/api/v2/workspace/not-system/workflow/" + MISSING_WORKFLOW))
         .andExpect(status().isBadRequest())

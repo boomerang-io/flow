@@ -36,13 +36,7 @@ public class TokenControllerV2 {
 
   @PostMapping("/token")
   @AuthCriteria(
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.user,
-        AuthScope.workspace,
-        AuthScope.workflow,
-        AuthScope.session
-      },
+      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.WRITE)
   @Operation(summary = "Create Token")
@@ -52,13 +46,7 @@ public class TokenControllerV2 {
 
   @GetMapping("/token/query")
   @AuthCriteria(
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.user,
-        AuthScope.workspace,
-        AuthScope.workflow,
-        AuthScope.session
-      },
+      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.READ)
   @Operation(summary = "Search for Tokens")
@@ -123,13 +111,7 @@ public class TokenControllerV2 {
 
   @DeleteMapping("/token/{id}")
   @AuthCriteria(
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.user,
-        AuthScope.workspace,
-        AuthScope.workflow,
-        AuthScope.session
-      },
+      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.DELETE)
   @Operation(summary = "Delete Token")

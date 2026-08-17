@@ -1,7 +1,7 @@
 package io.boomerang.core.model;
 
 import io.boomerang.core.entity.RoleEntity;
-import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
 import java.util.LinkedList;
 import java.util.List;
 import lombok.Data;
@@ -12,7 +12,7 @@ public class Role {
 
   //  @JsonIgnore
   private String id;
-  private AuthScope type;
+  private PermissionScope type;
   private String name;
   private String description;
   private List<String> permissions = new LinkedList<>();

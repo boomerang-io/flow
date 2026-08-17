@@ -43,7 +43,7 @@ import io.boomerang.workflow.model.CanvasNodePosition;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.schedule.ScheduleService;
-import io.boomerang.workflow.ParameterManager;
+import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;
 import java.io.ByteArrayInputStream;
@@ -106,7 +106,7 @@ public class WorkspaceWorkflowService {
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
   private final ScheduleService scheduleService;
-  private final ParameterManager parameterManager;
+  private final ParamLayerService paramLayerService;
   private final SettingsService settingsService;
   private final WorkspaceActionService workspaceActionService;
   private final TokenService tokenService;
@@ -116,7 +116,7 @@ public class WorkspaceWorkflowService {
       WorkflowService workflowService,
       RelationshipService relationshipService,
       @Lazy ScheduleService scheduleService,
-      ParameterManager parameterManager,
+      ParamLayerService paramLayerService,
       SettingsService settingsService,
       WorkspaceActionService workspaceActionService,
       TokenService tokenService,
@@ -124,7 +124,7 @@ public class WorkspaceWorkflowService {
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.scheduleService = scheduleService;
-    this.parameterManager = parameterManager;
+    this.paramLayerService = paramLayerService;
     this.settingsService = settingsService;
     this.workspaceActionService = workspaceActionService;
     this.tokenService = tokenService;
@@ -529,14 +529,14 @@ public class WorkspaceWorkflowService {
         this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue());
 
     // Add Context, Global, and Workspace parameters to the WorkflowRun request
-    ParamLayers paramLayers = parameterManager.buildParamLayers(team, workflow);
+    ParamLayers paramLayers = paramLayerService.buildParamLayers(team, workflow);
     executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
     executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
-    executionAnnotations.put("boomerang.io/team-params", paramLayers.getTeamParams());
+    executionAnnotations.put("boomerang.io/workspace-params", paramLayers.getTeamParams());
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.
-    executionAnnotations.put("boomerang.io/team-name", team);
+    executionAnnotations.put("boomerang.io/workspace-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
     WorkflowRun wfRun = workflowService.submit(workflowId, request, start);
@@ -697,7 +697,7 @@ public class WorkspaceWorkflowService {
     }
 
     final Workflow workflow = this.get(team, name, Optional.empty(), true);
-    List<String> paramKeys = parameterManager.buildParamKeys(team, workflow);
+    List<String> paramKeys = paramLayerService.buildParamKeys(team, workflow);
     workflow
         .getTasks()
         .forEach(

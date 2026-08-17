@@ -715,8 +715,8 @@ public class TaskExecutionService {
     }
     String key = ParameterUtil.getValue(params, "key").toString();
     if (taskExecution.getAnnotations() != null
-        && taskExecution.getAnnotations().containsKey("boomerang.io/team-name")) {
-      return taskExecution.getAnnotations().get("boomerang.io/team-name").toString() + ":" + key;
+        && taskExecution.getAnnotations().containsKey("boomerang.io/workspace-name")) {
+      return taskExecution.getAnnotations().get("boomerang.io/workspace-name").toString() + ":" + key;
     }
     return key;
   }

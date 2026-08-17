@@ -2,6 +2,7 @@ package io.boomerang.core.model;
 
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import java.util.Date;
 import java.util.LinkedList;
@@ -22,6 +23,10 @@ public class Token {
   private boolean valid;
   private String principal;
   private List<ResolvedPermissions> permissions = new LinkedList<>();
+  // T6-1: surfaced for audit/UI visibility - null on every human/pre-existing token.
+  private TokenActorKind actorKind;
+  private String createdBy;
+  private Date lastUsedAt;
 
   public Token() {}
 

@@ -10,6 +10,7 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,7 +62,8 @@ class SecurityInterceptorTests {
     Token token = new Token(AuthScope.global);
     token.setPrincipal("test-user");
     token.setPermissions(
-        List.of(new ResolvedPermissions(AuthScope.global, "test-user", List.of("workflow/write"))));
+        List.of(
+            new ResolvedPermissions(PermissionScope.global, "test-user", List.of("workflow/write"))));
     when(identityService.getCurrentScope()).thenReturn(AuthScope.global);
     when(identityService.getCurrentIdentity()).thenReturn(token);
 

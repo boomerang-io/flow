@@ -28,13 +28,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping({"/api/v2/team/{team}/workflowrun", "/api/v2/workspace/{team}/workflowrun"})
+@RequestMapping("/api/v2/workspace/{workspace}/workflowrun")
 @Tag(
     name = "WorkflowRuns",
     description =
         "Submit requests to execute Workflows and provide the ability to search and retrieve"
-            + " Workflow activities. The /api/v2/team path is a deprecated alias for"
-            + " /api/v2/workspace.")
+            + " Workflow activities.")
 @SecurityRequirement(name = "BearerAuth")
 @SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowRunControllerV2 {
@@ -49,13 +48,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Search for WorkflowRuns")
   @ApiResponses(
       value = {
@@ -64,12 +57,12 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public Page<WorkflowRun> query(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "labels",
               description =
@@ -137,7 +130,7 @@ public class WorkspaceWorkflowRunControllerV2 {
           @RequestParam
           Optional<Long> toDate) {
     return workspaceWorkflowRunService.query(
-        team,
+        workspace,
         fromDate,
         toDate,
         limit,
@@ -155,13 +148,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve a summary of WorkflowRuns by Status.")
   @ApiResponses(
       value = {
@@ -170,12 +157,12 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public WorkflowRunCount count(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "labels",
               description =
@@ -205,20 +192,14 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = false)
           @RequestParam
           Optional<Long> toDate) {
-    return workspaceWorkflowRunService.count(team, fromDate, toDate, labels, workflows);
+    return workspaceWorkflowRunService.count(workspace, fromDate, toDate, labels, workflows);
   }
 
   @GetMapping(value = "/{workflowRunId}")
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve a specific WorkflowRun.")
   @ApiResponses(
       value = {
@@ -227,12 +208,12 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> get(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(name = "workflowRunId", description = "ID of WorkflowRun", required = true)
           @PathVariable
           String workflowRunId,
@@ -242,20 +223,14 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return workspaceWorkflowRunService.get(team, workflowRunId, withTasks);
+    return workspaceWorkflowRunService.get(workspace, workflowRunId, withTasks);
   }
 
   @PutMapping(value = "/{workflowRunId}/start")
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Start WorkflowRun execution. The WorkflowRun has to already have been queued.")
   @ApiResponses(
@@ -265,12 +240,12 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> start(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Start",
@@ -278,20 +253,14 @@ public class WorkspaceWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workspaceWorkflowRunService.start(team, workflowRunId, runRequest);
+    return workspaceWorkflowRunService.start(workspace, workflowRunId, runRequest);
   }
 
   @PutMapping(value = "/{workflowRunId}/finalize")
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "End a WorkflowRun")
   @ApiResponses(
       value = {
@@ -300,32 +269,26 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> finalize(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Finalize",
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.finalize(team, workflowRunId);
+    return workspaceWorkflowRunService.finalize(workspace, workflowRunId);
   }
 
   @DeleteMapping(value = "/{workflowRunId}/cancel")
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Cancel a WorkflowRun")
   @ApiResponses(
       value = {
@@ -334,32 +297,26 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> cancel(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Cancel",
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.cancel(team, workflowRunId);
+    return workspaceWorkflowRunService.cancel(workspace, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/pause")
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Pause a running WorkflowRun")
   @ApiResponses(
       value = {
@@ -368,32 +325,26 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> pause(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Pause",
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.pause(team, workflowRunId);
+    return workspaceWorkflowRunService.pause(workspace, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/resume")
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Resume a paused WorkflowRun")
   @ApiResponses(
       value = {
@@ -402,32 +353,26 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> resume(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Resume",
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.resume(team, workflowRunId);
+    return workspaceWorkflowRunService.resume(workspace, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/retry")
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retry WorkflowRun execution.")
   @ApiResponses(
       value = {
@@ -436,12 +381,12 @@ public class WorkspaceWorkflowRunControllerV2 {
       })
   public ResponseEntity<WorkflowRun> retry(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Retry.",
@@ -449,6 +394,6 @@ public class WorkspaceWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workspaceWorkflowRunService.retry(team, workflowRunId);
+    return workspaceWorkflowRunService.retry(workspace, workflowRunId);
   }
 }

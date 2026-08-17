@@ -70,9 +70,9 @@ public class GitHubService {
     }
   }
 
-  public ResponseEntity<?> getInstallationForTeam(String team) {
+  public ResponseEntity<?> getInstallationForWorkspace(String workspace) {
     List<String> refs =
-        relationshipService.findNodeRefs(RelationshipType.WORKSPACE, team, RelationshipType.INTEGRATION);
+        relationshipService.findNodeRefs(RelationshipType.WORKSPACE, workspace, RelationshipType.INTEGRATION);
     if (!refs.isEmpty()) {
       Optional<IntegrationsEntity> optEntity = integrationsRepository.findById(refs.get(0));
       if (optEntity.isPresent()) {

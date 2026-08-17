@@ -46,7 +46,9 @@ public class RestConfig {
   @Value("${proxy.port:#{null}}")
   private Optional<String> boomerangProxyPort;
 
-  // Static shared-secret bearer token sent to the engine's dispatcher endpoints. Blank = omit.
+  // Bearer token sent to the engine's dispatcher endpoints. Blank = omit. T6-1: now expected to
+  // be a real Flow token (global scope, actorKind=SERVICE) - this class just forwards whatever
+  // value is configured, unchanged.
   @Value("${flow.engine.dispatcher.token:}")
   private String dispatcherToken;
 

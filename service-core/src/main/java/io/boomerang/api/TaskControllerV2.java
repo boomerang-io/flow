@@ -87,7 +87,7 @@ public class TaskControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
       summary =
-          "Search for Task. If teams are provided it will query the teams. If no teams are provided it will query Global Task Templates")
+          "Search for Task. If workspaces are provided it will query the workspaces. If no workspaces are provided it will query Global Task Templates")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

@@ -38,9 +38,7 @@ import org.springframework.stereotype.Service;
  * Ref: https://github.com/tektoncd/pipeline/blob/main/pkg/substitution/substitution.go Ref:
  * https://tekton.dev/docs/pipelines/variables/#fields-that-accept-variable-substitutions
  */
-// Explicit bean name: workflow.ParameterManager shares this simple name, and default bean
-// naming would collide at boot. Goes away when one of the two is renamed.
-@Service("engineParameterManager")
+@Service
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -121,14 +119,14 @@ public class ParameterManager {
 
     LOGGER.debug(
         "Received Global Params: " + wfRun.getAnnotations().get("boomerang.io/global-params"));
-    LOGGER.debug("Received Workspace Params: " + wfRun.getAnnotations().get("boomerang.io/team-params"));
+    LOGGER.debug("Received Workspace Params: " + wfRun.getAnnotations().get("boomerang.io/workspace-params"));
     LOGGER.debug(
         "Received Context Params: " + wfRun.getAnnotations().get("boomerang.io/context-params"));
 
-    if (wfRun.getAnnotations().containsKey("boomerang.io/team-params")
-        && wfRun.getAnnotations().get("boomerang.io/team-params") != null) {
+    if (wfRun.getAnnotations().containsKey("boomerang.io/workspace-params")
+        && wfRun.getAnnotations().get("boomerang.io/workspace-params") != null) {
       paramLayers.setTeamParams(
-          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/team-params"));
+          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/workspace-params"));
     }
     if (wfRun.getAnnotations().containsKey("boomerang.io/global-params")
         && wfRun.getAnnotations().get("boomerang.io/global-params") != null) {

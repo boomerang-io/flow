@@ -27,7 +27,9 @@ import org.slf4j.LoggerFactory;
  * type in this codebase is written lowercase ({@code RelationshipType.getLabel()} — {@code
  * "workflow"}, never {@code "WORKFLOW"}), so that filter matched nothing on any real v4 install.
  * Its workspace half used the correct casing and DID work, so a v4 install has {@code
- * scope=TEAM} audit records already (this unit does not touch or recreate those — see the "what
+ * scope=WORKSPACE} audit records already (once {@link _0016__WorkspaceRename} has normalised the
+ * legacy {@code scope=TEAM} value it originally wrote — this unit does not touch or recreate those
+ * — see the "what
  * this unit assumes already exists" note below) but zero {@code scope=WORKFLOW} ones. This is
  * exactly {@link _0013__V3SeedAudit}'s finding, re-applied here for the v4 case: that unit seeds
  * BOTH scopes from scratch (a v3 install never had an {@code audit} collection at all); this one
@@ -39,11 +41,11 @@ import org.slf4j.LoggerFactory;
  * workflow's own {@code _id}; {@code selfName} <- its {@code name}; {@code parent} <- the owning
  * workspace's OWN AUDIT RECORD id (never the workspace's domain {@code _id}), resolved by walking
  * {@code rel_edges} for the {@code hasWorkflow} edge pointing at {@code workflow:<id>} and reading
- * its {@code from} workspace's EXISTING {@code scope=TEAM} audit record; {@code data} <- {@code
+ * its {@code from} workspace's EXISTING {@code scope=WORKSPACE} audit record; {@code data} <- {@code
  * {name: <workflow name>}}.
  *
- * <p><b>What this unit assumes already exists, and never creates itself:</b> {@code scope=TEAM}
- * workspace audit records — legacy {@code 4038}'s workspace half worked correctly on v4, so every
+ * <p><b>What this unit assumes already exists, and never creates itself:</b> {@code
+ * scope=WORKSPACE} workspace audit records — legacy {@code 4038}'s workspace half worked correctly on v4, so every
  * v4 install's workspaces already have one. If a workflow's resolved workspace turns out to have
  * no audit record anyway (should not happen on a genuine v4 install, but handled defensively), its
  * workflow audit record is skipped and logged rather than written with a fabricated/null parent —
@@ -103,11 +105,11 @@ public class _0025__V4RepairWorkflowAudit {
       String workspaceNodeId = hasWorkflowEdge.getString("from");
       String workspaceId = workspaceNodeId.substring("workspace:".length());
       Document workspaceAudit =
-          audit.find(Filters.and(Filters.eq("scope", "TEAM"), Filters.eq("selfRef", workspaceId))).first();
+          audit.find(Filters.and(Filters.eq("scope", "WORKSPACE"), Filters.eq("selfRef", workspaceId))).first();
       if (workspaceAudit == null) {
         noWorkspaceAudit++;
         LOG.warn(
-            "Workflow {} resolves to workspace {} which has no TEAM audit record (expected to"
+            "Workflow {} resolves to workspace {} which has no WORKSPACE audit record (expected to"
                 + " already exist on a v4 install) — skipping",
             workflowId,
             workspaceId);

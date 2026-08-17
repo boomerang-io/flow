@@ -24,6 +24,12 @@ import org.slf4j.LoggerFactory;
  * findByScopeAndParent}/{@code findFirstByScopeAndSelfRef}), which a v3 install has never had since
  * the {@code audit} collection is a v5-only concept.
  *
+ * <p><b>H14-c note:</b> this unit still writes the pre-DD-01 {@code scope="TEAM"} value (matching
+ * the pre-rename {@code AuditScope} enum-name convention, unchanged here to keep this
+ * already-dump-verified unit minimal) — {@link _0016__WorkspaceRename}, which runs UNGATED later
+ * in this same chain, rewrites every {@code scope="TEAM"} record to {@code "WORKSPACE"} before any
+ * v4-repair or application code ever reads it.
+ *
  * <p><b>Legacy 4038 is the nominal reference, but its workflow half never actually worked</b>
  * (verified against the live {@code AuditInterceptor}/relationship-graph code, matching the batch
  * instructions' own finding): it matched {@code Filters.eq("type","WORKFLOW")} against the

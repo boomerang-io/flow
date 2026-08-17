@@ -13,8 +13,11 @@ import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
@@ -51,23 +54,30 @@ public class TokenService {
   @Value("${flow.token.max-user-session-duration}")
   private Integer MAX_SESSION_TOKEN_DURATION;
 
+  // Throttle window for lastUsedAt writes so a hot auth path (e.g. the dispatcher filter) doesn't
+  // write per request (T6-1, ARCHIE pattern).
+  private static final long LAST_USED_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
   private final TokenRepository tokenRepository;
   private final UserService userService;
   private final RoleRepository roleRepository;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
+  private final IdentityService identityService;
 
   public TokenService(
       TokenRepository tokenRepository,
       UserService userService,
       RoleRepository roleRepository,
       RelationshipService relationshipService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      IdentityService identityService) {
     this.tokenRepository = tokenRepository;
     this.userService = userService;
     this.roleRepository = roleRepository;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
+    this.identityService = identityService;
   }
 
   /*
@@ -95,6 +105,19 @@ public class TokenService {
         || (!AuthScope.user.equals(request.getType())
             && (request.getPermissions() == null || request.getPermissions().isEmpty()))) {
       throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
+    }
+
+    // createdBy is ALWAYS the server-resolved authenticated principal - NEVER taken from the
+    // request body (T6-1/T6-3 invariant #3). Resolved once, up front, so both the createdBy
+    // stamp and the admin-authority check below use the same identity snapshot.
+    Token currentIdentity = identityService.getCurrentIdentity();
+
+    // T6-3 invariant #2: minting a `global` token requires the caller to already hold a
+    // `global`-scoped grant (admin authority) - enforced here, not just documented. Internal
+    // bootstrap minting (TokenService#createSessionToken) never calls this method, so the
+    // very first admin session token is unaffected.
+    if (AuthScope.global.equals(request.getType()) && !hasGlobalGrant(currentIdentity)) {
+      throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
     }
 
     // Validate permissions matches the REGEX
@@ -125,31 +148,47 @@ public class TokenService {
     if (!AuthScope.global.equals(request.getType())) {
       tokenEntity.setPrincipal(request.getPrincipal());
     }
+    // T6-1: actorKind is caller-declared (like type/permissions above).
+    tokenEntity.setActorKind(request.getActorKind());
+    if (currentIdentity != null) {
+      tokenEntity.setCreatedBy(currentIdentity.getPrincipal());
+    }
 
-    // Set Permissions
+    // Set Permissions. Grant scope (PermissionScope) is ALWAYS derived server-side from the
+    // token's own class - the request body has no way to set it directly, which is itself part
+    // of how T6-3 invariant #1 (a `key` token can never hold a `global` grant) holds by
+    // construction: `key` tokens only ever get `workspace`-scoped grants below.
     if (AuthScope.user.equals(request.getType())) {
       // TODO do i need to check if user is Admin or Operator
       Map<String, String> teamsAndRoles = relationshipService.roles(request.getPrincipal());
       for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
         ResolvedPermissions resolvedPermissions =
             new ResolvedPermissions(
-                AuthScope.workspace,
+                PermissionScope.workspace,
                 entry.getKey(),
                 roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions());
         tokenEntity.getPermissions().add(resolvedPermissions);
       }
     } else {
+      PermissionScope grantScope =
+          AuthScope.global.equals(request.getType())
+              ? PermissionScope.global
+              : PermissionScope.workspace;
       tokenEntity
           .getPermissions()
           .add(
               new ResolvedPermissions(
-                  request.getType(),
+                  grantScope,
                   request.getPrincipal() != null && !request.getPrincipal().isBlank()
                       ? request.getPrincipal()
                       : "**",
                   request.getPermissions()));
     }
     LOGGER.debug(tokenEntity.getPermissions().toString());
+
+    // T6-3 invariant #1, enforced (not just constructed-to-avoid): defence in depth against any
+    // future path that builds a key token's permissions differently.
+    assertKeyTokenCeiling(tokenEntity);
 
     String prefix = TokenTypePrefix.valueOf(request.getType().toString()).getPrefix();
     String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
@@ -169,7 +208,38 @@ public class TokenService {
     tokenResponse.setId(tokenEntity.getId());
     tokenResponse.setType(request.getType());
     tokenResponse.setExpirationDate(request.getExpirationDate());
+    tokenResponse.setActorKind(request.getActorKind());
     return tokenResponse;
+  }
+
+  /**
+   * T6-3 invariant #2's predicate: does {@code identity} already hold a {@code global}-scoped
+   * grant (the closest existing concept to "admin authority" - it's exactly what {@code
+   * createSessionToken} gives an {@code admin}/{@code operator} user, and what an existing {@code
+   * global} token's own permissions always carry).
+   */
+  private boolean hasGlobalGrant(Token identity) {
+    return identity != null
+        && identity.getPermissions() != null
+        && identity.getPermissions().stream()
+            .anyMatch(p -> PermissionScope.global.equals(p.getScope()));
+  }
+
+  /**
+   * T6-3 invariant #1: a {@code key} token may never carry a {@code global}-scoped grant - its
+   * ceiling is only the workspaces it was explicitly granted (Stripe {@code sk_}/{@code rk_}
+   * privilege-ceiling pattern). Package-private (not {@code private}) specifically so it is
+   * directly unit-testable against a constructed {@link TokenEntity} - the public {@link #create}
+   * flow above cannot actually violate this (a {@code key} token's grant scope is always derived
+   * as {@code workspace}), so this method is the only way to exercise the enforcement itself.
+   */
+  void assertKeyTokenCeiling(TokenEntity tokenEntity) {
+    if (AuthScope.key.equals(tokenEntity.getType())
+        && tokenEntity.getPermissions() != null
+        && tokenEntity.getPermissions().stream()
+            .anyMatch(p -> PermissionScope.global.equals(p.getScope()))) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_CEILING);
+    }
   }
 
   public String hashString(String originalString) {
@@ -205,6 +275,40 @@ public class TokenService {
     }
     LOGGER.debug("Token Validation - not valid");
     return false;
+  }
+
+  /**
+   * Full validation for a machine-actor bearer token (T6-1) — used by internal callers such as
+   * {@code DispatcherAuthFilter} that need more than the public {@link Token}/{@code validate}
+   * pair expose: hash -> lookup -> not expired -> {@code actorKind} is a machine kind -> {@code
+   * global} scope. Empty on any failure; never throws. Callers are expected to have already
+   * applied the cheap {@link io.boomerang.core.enums.TokenTypePrefix#isFlowToken} shape gate
+   * before reaching this (Mongo) lookup.
+   */
+  public Optional<TokenEntity> validateActorToken(String rawToken) {
+    return tokenRepository
+        .findByToken(hashString(rawToken))
+        .filter(te -> isValid(te.getExpirationDate()))
+        .filter(te -> te.getActorKind() != null)
+        .filter(te -> AuthScope.global.equals(te.getType()));
+  }
+
+  /**
+   * Best-effort "last used" stamp, throttled to at most one write per {@link
+   * #LAST_USED_THROTTLE_MS} so a busy dispatcher/integration doesn't hammer Mongo on every
+   * request (T6-1, ARCHIE pattern).
+   */
+  public void touchLastUsed(TokenEntity token) {
+    if (token == null) {
+      return;
+    }
+    Date now = new Date();
+    Date last = token.getLastUsedAt();
+    if (last != null && now.getTime() - last.getTime() < LAST_USED_THROTTLE_MS) {
+      return;
+    }
+    token.setLastUsedAt(now);
+    tokenRepository.save(token);
   }
 
   public boolean delete(String id) {
@@ -373,7 +477,7 @@ public class TokenService {
           .getPermissions()
           .add(
               new ResolvedPermissions(
-                  AuthScope.global,
+                  PermissionScope.global,
                   "**",
                   roleRepository
                       .findByTypeAndName("global", user.get().getType().toString())
@@ -386,7 +490,7 @@ public class TokenService {
             .getPermissions()
             .add(
                 new ResolvedPermissions(
-                    AuthScope.workspace,
+                    PermissionScope.workspace,
                     entry.getKey(),
                     roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
       }
@@ -427,11 +531,16 @@ public class TokenService {
 
   /*
    * Creates a Workflow / System token for use by the scheduled task
+   *
+   * T6-3: the retired `workflow` token class (bfw) is replaced 1:1 by a `key` token
+   * (AuthScope.key, prefix bfk) carrying actorKind=WORKFLOW - principal still holds the workflow
+   * id, and its grant is workspace-scoped (never global) exactly like every other key token.
    */
   public Token createWorkflowSchedulerToken(String workflowRef) {
     TokenCreateRequest tokenRequest = new TokenCreateRequest();
     tokenRequest.setName("scheduled-job-token");
-    tokenRequest.setType(AuthScope.workflow);
+    tokenRequest.setType(AuthScope.key);
+    tokenRequest.setActorKind(TokenActorKind.WORKFLOW);
     tokenRequest.setPrincipal(workflowRef);
     tokenRequest.setPermissions(List.of("workflow/**"));
 

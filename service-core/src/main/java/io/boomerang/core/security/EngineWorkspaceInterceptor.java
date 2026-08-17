@@ -16,9 +16,9 @@ import org.springframework.web.servlet.HandlerMapping;
  * seeded by changeunit _0014__SeedSystemWorkspace (unlimited-quota, undeletable) and `system` is
  * in WorkspaceService.RESERVED_WORKSPACE_NAMES, so no user workspace can ever shadow it.
  *
- * Rejects any workspace-scoped request whose {team} path variable is not "system". Registered
- * only in engine mode, and only on the workspace-scoped v2 paths - see
- * EngineWorkspaceInterceptorConfiguration. Does not normalise/rewrite {team} to "system" - a
+ * Rejects any workspace-scoped request whose {workspace} path variable is not "system".
+ * Registered only in engine mode, and only on the workspace-scoped v2 paths - see
+ * EngineWorkspaceInterceptorConfiguration. Does not normalise/rewrite {workspace} to "system" - a
  * mismatched workspace is rejected, never silently remapped.
  */
 public class EngineWorkspaceInterceptor implements HandlerInterceptor {
@@ -34,14 +34,14 @@ public class EngineWorkspaceInterceptor implements HandlerInterceptor {
         request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
     if (uriTemplateVariables instanceof Map) {
       Map<String, String> variables = (Map<String, String>) uriTemplateVariables;
-      String team = variables.get("team");
-      if (team != null && !SYSTEM_WORKSPACE.equals(team)) {
+      String workspace = variables.get("workspace");
+      if (workspace != null && !SYSTEM_WORKSPACE.equals(workspace)) {
         LOGGER.warn(
             "EngineWorkspaceInterceptor - rejecting workspace-scoped request for '{}': engine "
                 + "mode only serves the '{}' workspace.",
-            team,
+            workspace,
             SYSTEM_WORKSPACE);
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF, team);
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF, workspace);
       }
     }
     return true;

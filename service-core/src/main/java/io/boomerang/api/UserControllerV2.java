@@ -42,7 +42,7 @@ public class UserControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.USER,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Get a Users details")
   @ApiResponses(
       value = {
@@ -62,7 +62,7 @@ public class UserControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.USER,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Search for Users")
   @ApiResponses(
       value = {

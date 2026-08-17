@@ -277,6 +277,29 @@ class RelationshipServiceTest {
   }
 
   @Test
+  @DisplayName(
+      "With no principal on the SecurityContext, check()/filter() behave unscoped instead of"
+          + " throwing (e.g. flow.mode=engine with security disabled)")
+  void noPrincipalIsUnscopedNotDenied() {
+    when(identityService.getCurrentIdentity()).thenReturn(null);
+
+    assertTrue(
+        service.check(RelationshipType.WORKFLOW, "w1", Optional.empty(), Optional.empty()));
+    assertTrue(
+        service.check(RelationshipType.WORKFLOW, "w3", Optional.empty(), Optional.empty()));
+
+    assertEquals(
+        List.of("w1", "w2", "w3"),
+        service
+            .filter(
+                RelationshipType.WORKFLOW, Optional.empty(), Optional.empty(), Optional.empty(),
+                false)
+            .stream()
+            .sorted()
+            .toList());
+  }
+
+  @Test
   @DisplayName("The per-request memo never serves a node that a mutation has since changed")
   void requestMemoInvalidatedByMutation() {
     RequestContextHolder.setRequestAttributes(

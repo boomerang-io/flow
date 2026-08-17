@@ -36,12 +36,8 @@ import org.springframework.web.bind.annotation.RestController;
 // E8: hard-depends on schedule.ScheduleService, which is unsupported in engine mode (I2) -
 // standalone only.
 @RestController
-@RequestMapping({"/api/v2/team/{team}/schedule", "/api/v2/workspace/{team}/schedule"})
-@Tag(
-    name = "Schedules",
-    description =
-        "Create, list and manage your Schedules. The /api/v2/team path is a deprecated alias"
-            + " for /api/v2/workspace.")
+@RequestMapping("/api/v2/workspace/{workspace}/schedule")
+@Tag(name = "Schedules", description = "Create, list and manage your Schedules.")
 @ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceScheduleControllerV2 {
 
@@ -59,13 +55,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Validate a Schedules CRON.")
   public CronValidationResponse validateCron(
       @Parameter(name = "cron", description = "A CRON expression to validate", required = true)
@@ -78,46 +68,34 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve a Schedule.")
   public WorkflowSchedule get(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @PathVariable String scheduleId) {
-    return workflowScheduleService.get(team, scheduleId);
+    return workflowScheduleService.get(workspace, scheduleId);
   }
 
   @GetMapping(value = "/query")
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Search for Schedules")
   public Page<WorkflowSchedule> query(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @Parameter(
               name = "statuses",
               description = "List of statuses to filter for. Defaults to all.",
@@ -145,36 +123,30 @@ public class WorkspaceScheduleControllerV2 {
           @RequestParam(defaultValue = "0")
           int page) {
     final Sort sort = Sort.by(new Order(Direction.ASC, "creationDate"));
-    return workflowScheduleService.query(team, page, limit, sort, statuses, types, workflows);
+    return workflowScheduleService.query(workspace, page, limit, sort, statuses, types, workflows);
   }
 
   @GetMapping(value = "/calendars")
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve Calendars for Schedules by Dates.")
   public List<WorkflowScheduleCalendar> getCalendarsForSchedules(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestParam List<String> schedules,
       @RequestParam Long fromDate,
       @RequestParam Long toDate) {
     if (schedules != null && !schedules.isEmpty() && fromDate != null && toDate != null) {
       Date from = new Date(fromDate * 1000);
       Date to = new Date(toDate * 1000);
-      return workflowScheduleService.calendars(team, schedules, from, to);
+      return workflowScheduleService.calendars(workspace, schedules, from, to);
     } else {
       throw new BoomerangException(0, "Invalid fromDate or toDate", HttpStatus.BAD_REQUEST);
     }
@@ -184,72 +156,54 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Create a Schedule.")
   public WorkflowSchedule createSchedule(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @RequestBody WorkflowSchedule schedule) {
-    return workflowScheduleService.create(team, schedule);
+    return workflowScheduleService.create(workspace, schedule);
   }
 
   @PutMapping(value = "")
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Apply a Schedule.")
   public WorkflowSchedule updateSchedule(
       @RequestBody WorkflowSchedule schedule,
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team) {
-    return workflowScheduleService.apply(team, schedule);
+          String workspace) {
+    return workflowScheduleService.apply(workspace, schedule);
   }
 
   @DeleteMapping(value = "/{scheduleId}")
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Delete a Schedule.")
   public void deleteSchedule(
       @Parameter(
-              name = "team",
-              description = "Owning team name.",
-              example = "my-amazing-team",
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
               required = true)
           @PathVariable
-          String team,
+          String workspace,
       @PathVariable String scheduleId) {
-    workflowScheduleService.delete(team, scheduleId);
+    workflowScheduleService.delete(workspace, scheduleId);
   }
 
   // TODO: commented out in Web - is this useful?

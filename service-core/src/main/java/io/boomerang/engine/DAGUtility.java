@@ -154,10 +154,10 @@ public class DAGUtility {
           // Add Request Annotations from Workflow Service
           if (wfRunEntity.getAnnotations() != null
               && !wfRunEntity.getAnnotations().isEmpty()
-              && wfRunEntity.getAnnotations().containsKey("boomerang.io/team-name")) {
+              && wfRunEntity.getAnnotations().containsKey("boomerang.io/workspace-name")) {
             annotations.put(
-                "boomerang.io/team-name",
-                wfRunEntity.getAnnotations().get("boomerang.io/team-name"));
+                "boomerang.io/workspace-name",
+                wfRunEntity.getAnnotations().get("boomerang.io/workspace-name"));
           }
           taskRunEntity.getAnnotations().putAll(annotations);
 
