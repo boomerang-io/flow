@@ -3,7 +3,7 @@ package io.boomerang.core.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
 import java.util.LinkedList;
 import java.util.List;
 import lombok.Data;
@@ -18,7 +18,9 @@ public class RoleEntity {
   // TODO if we make workflow by unique name this will need to move to be a prefixed string of
   // /workspace/workspace-name/workflow/workflowId or /user/userId etc
   private String id;
-  private AuthScope type;
+  // T6-3: a role's "type" is a GRANT scope (workspace/global), not a token class - split from the
+  // (former) overloaded AuthScope. See ResolvedPermissions.scope / TokenService.
+  private PermissionScope type;
   private String name;
   private String description;
   private List<String> permissions = new LinkedList<>();
