@@ -383,6 +383,32 @@ so backend and frontend do not carry split vocabulary.
 *Verified compatible:* the frontend reads `TaskRun.phase` at 2 sites — kept at E7-2. It declares
 `WorkflowRun.phase` but never reads it, so E7-2's removal there is harmless.
 
+### T7 API repoint — capability gaps the rename exposed (ACTION NEEDED)
+
+The API layer was repointed by verifying all ~48 team-scoped URLs against the live controllers in
+`io.boomerang.api.**`, not by string-replacing `/team/`. Beyond the rename, four endpoints had
+genuinely **drifted** and were repointed onto real v5 routes (each verified to exist):
+`/tokens/global-tokens` → `GET /token/query?types=global` (token restructure);
+`PATCH /parameters/{name}` → `PUT /parameters` (bulk upsert; only `DELETE` keeps `/{name}`);
+`DELETE .../approvers/{groupId}` → `DELETE /workspace/{workspace}/approvers` with a body;
+`/manage/teams` → `/workspace` (the old path was never served at all). Two long-standing v4 bugs
+were fixed in passing: `postCreateTeam` passed `body` instead of `data` to axios, so **the create
+payload was never sent**, and `resourceTrigger()` carried a phantom `/trigger` segment.
+
+**The gap that matters: seven frontend operations now have no backend route.** These are marked
+`// TODO:` in `servicesConfig.ts` and are a *product* decision, not a porting detail — the
+capability was folded into `PATCH /workspace/{workspace}` (labels, workspace parameters, approver
+group create/update) or dropped outright (`POST .../quotas/reset`, workflow-level `validate-name`).
+Either the frontend screens are rewritten to compose the coarse workspace PATCH, or the backend
+re-exposes fine-grained routes. **Nothing should ship on 5.x with these left as TODOs.**
+
+*Not a regression, despite appearances:* `WorkflowTemplateControllerV2`'s export / compose /
+duplicate / available-parameters endpoints are commented out server-side, so Workflow Templates
+lack what per-workspace Workflows still have. Traced to commit `4dc06234` ("use latest
+relationship approach") and confirmed already commented in the pre-merge `service-flow` — this is
+inherited v4 debt, NOT something the merge broke. Feeds the parked "WorkflowTemplates sunset"
+question: the feature is already half-dismantled.
+
 ### T7 integration findings (fold-in scouting, not yet actioned)
 
 **T7-F1 — The webapp has no login flow of its own.** `axiosGlobalConfig.ts` is three lines
