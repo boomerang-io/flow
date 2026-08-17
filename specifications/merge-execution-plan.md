@@ -417,6 +417,21 @@ entirely — now the principal creatable class. This is not a rename: the UI nee
 plus an actor-kind selector, because actor kind is what `workflow` used to encode. Highest-value
 frontend follow-up after the API repoint.
 
+**T7-F6 — The image has no build stage; asset packaging is implicit and fails silently.**
+`Dockerfile` only does `COPY server .` + `npm install --production`. The app assets reach the
+image as a *side effect* of the root build: `pnpm build` = Vite → `build/`, then `ncp build
+server/build`. If a release job runs `docker build` without `pnpm install && pnpm build`
+immediately before it in the same workspace, **the image builds successfully and ships empty** —
+it starts, serves nothing, and only fails at runtime. Deliberately two package managers: pnpm for
+the app, npm inside `server/`. Worth making explicit (a real build stage) rather than leaving it
+load-bearing on job ordering.
+
+**T7-F7 — Dead internal-registry config.** `.npmrc` scoped `@boomerang:registry` to
+`tools.boomerangplatform.net/artifactory` (IBM-era, unreachable from CI). **Zero** dependencies use
+that scope — everything is `@boomerang-io/*`, resolving from public npm (0 lockfile references to
+the host). So the line was inert and no registry credentials are needed; removed as part of the
+imported-config cleanup.
+
 **T7-F5 — `RunPhase` was missing `queued`** (frontend had pending/running/completed/finalized;
 backend leads with `queued`). Benign at the only two read sites — both test `=== Completed`, so an
 unmatched value simply hides an approval/manual action button — but the enum was wrong and any
