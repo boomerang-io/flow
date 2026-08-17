@@ -426,6 +426,23 @@ it starts, serves nothing, and only fails at runtime. Deliberately two package m
 the app, npm inside `server/`. Worth making explicit (a real build stage) rather than leaving it
 load-bearing on job ordering.
 
+**T7-F8 — The webapp still builds and ships on Node 18, EOL since April 2025.** Kept deliberately
+at fold-in (it is what the lockfile and imported CI were built against; `setup-node@v4` still
+installs it, so nothing breaks today). Two distinct decisions, and the second is the sharper one:
+the CI build Node, and the **`node:18-alpine` runtime base in the `Dockerfile`** — the latter means
+the product container ships an EOL runtime, which the SBOM/CVE pipeline will flag. Bumping the
+base risks `@boomerang-io/webapp-spa-server@1.2.1` compatibility, so it needs a test, not a
+one-line edit. Decide before the first 5.x release.
+
+**T7-F9 — Husky would have hijacked the whole monorepo's git hooks.** The imported
+`client-web/package.json` had `"prepare": "husky install"`; husky v8 sets `core.hooksPath`
+relative to the **git root**, which is now the monorepo — so one `pnpm install` inside
+`client-web/` would have repointed commit hooks repo-wide to `client-web/.husky` and applied the
+frontend's commitlint rules to backend commits. Removed the hooks and the `prepare` script
+(`commitlint.config.js` and the devDependency left in place, inert, to avoid churning the
+lockfile). A genuine hazard of subtree-importing a repo that assumed it was the git root — worth
+checking for on any future fold-in.
+
 **T7-F7 — Dead internal-registry config.** `.npmrc` scoped `@boomerang:registry` to
 `tools.boomerangplatform.net/artifactory` (IBM-era, unreachable from CI). **Zero** dependencies use
 that scope — everything is `@boomerang-io/*`, resolving from public npm (0 lockfile references to
