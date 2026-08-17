@@ -383,6 +383,31 @@ so backend and frontend do not carry split vocabulary.
 *Verified compatible:* the frontend reads `TaskRun.phase` at 2 sites — kept at E7-2. It declares
 `WorkflowRun.phase` but never reads it, so E7-2's removal there is harmless.
 
+### T7 integration findings (fold-in scouting, not yet actioned)
+
+**T7-F1 — The webapp has no login flow of its own.** `axiosGlobalConfig.ts` is three lines
+(`axios.defaults.withCredentials = true`); identity is bootstrapped from `GET /profile` on the
+session cookie, and there is no sign-in route, no OIDC client and no 401 handling anywhere in
+`src/`. The app therefore assumes an **authenticating reverse proxy in front of it** — true on the
+IBM-era deployments it grew up on, NOT true for a fresh install. This is the concrete shape of the
+already-recorded "standalone uses IDPZero locally, which requires frontend changes" item: the
+frontend needs a real sign-in path plus 401→re-auth handling, and the session it obtains must
+mint the `bfs` session token the restructured token model expects. **Blocks a usable standalone
+install; does not block engine mode** (no webapp there).
+
+**T7-F2 — A dangling second backend.** `servicesConfig.ts` declares `CORE_SERVICE_ENV_URL`
+(legacy Boomerang "core services" platform) alongside `PRODUCT_SERVICE_ENV_URL`, but the entire
+v5-irrelevant dependency is used for exactly **one** call: `getUserProfileImage` →
+`${CORE_SERVICE_ENV_URL}/users/image/{email}`. v5 ships no such service. Drop the base URL and
+render avatars locally (initials/Gravatar) — a one-endpoint change that removes a whole external
+platform dependency.
+
+**T7-F3 — Client-side route vocabulary is Team-shaped too.** `appConfig.ts` carries the *browser*
+routes (`/:team/manage/tokens`, `/:team/editor/:workflow/...`) independently of the API URLs in
+`servicesConfig.ts`. The Workspace rename must cover both, and changing `appConfig.ts` changes
+**user-visible URLs** — existing bookmarks and deep links break. Decide explicitly whether v5 ships
+redirects from the `/:team/*` shapes or accepts the break at the major.
+
 ## Latent bugs found while testing (unfixed, out of scope when found)
 
 1. **`RelationshipService.filter` NPEs when no principal is on the `SecurityContext`.** Surfaced
