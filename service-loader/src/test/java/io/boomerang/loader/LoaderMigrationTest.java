@@ -51,6 +51,7 @@ class LoaderMigrationTest {
   private static ObjectId taskRunWithAgentRef;
   private static ObjectId workflowRunWithAgentRef;
   private static ObjectId tokenWithTeamScope;
+  private static ObjectId survivingGlobalToken;
   private static ObjectId teamAudit;
   private static ObjectId roleWithTeamType;
   private static ObjectId adminUser;
@@ -67,6 +68,9 @@ class LoaderMigrationTest {
 
     seedTeamRelationshipGraph();
     tokenWithTeamScope = insertToken("team");
+    // T6-3: a `global`-typed token, seeded to prove _0028__TokenClassRestructure's deletion is
+    // narrow - only the retired workspace/workflow classes are touched.
+    survivingGlobalToken = insertToken("global");
     roleWithTeamType = insertRole("team");
     teamAudit = insertTeamAudit("t1", "acme");
     adminUser = insertUser("admin@example.com", "admin");
@@ -1006,11 +1010,9 @@ class LoaderMigrationTest {
                         Filters.eq("from", "workspace:t1"), Filters.eq("to", "workflow:w1"))))
         .isEqualTo(1);
 
-    // tokens.type / roles.type: "team" -> "workspace".
-    Document token = collection("tokens").find(Filters.eq("_id", tokenWithTeamScope)).first();
-    assertThat(token).isNotNull();
-    assertThat(token.getString("type")).isEqualTo("workspace");
-
+    // roles.type: "team" -> "workspace" (unaffected by T6-3 - roles are never deleted, only the
+    // AuthScope->PermissionScope Java type changed, and the stored string values were already
+    // correct).
     Document role = collection("roles").find(Filters.eq("_id", roleWithTeamType)).first();
     assertThat(role).isNotNull();
     assertThat(role.getString("type")).isEqualTo("workspace");
@@ -1019,9 +1021,24 @@ class LoaderMigrationTest {
     assertThat(role.getList("permissions", String.class))
         .containsExactlyInAnyOrder("workspace/read", "**/write");
 
-    // H14-c: tokens.permissions[].actions[] "team/x" -> "workspace/x" (nested inside the
-    // ResolvedPermissions subdocument array).
-    List<Document> tokenPermissions = token.getList("permissions", Document.class);
+    // T6-3 (_0028__TokenClassRestructure): the token that was type "team" -> "workspace" by
+    // _0016 is a retired class - it is DELETED outright (no deprecation window; its raw bearer
+    // could never authenticate again since "bft"/"bfw" prefixes are dropped from the pre-DB
+    // shape gate), not merely renamed to "key".
+    assertThat(collection("tokens").find(Filters.eq("_id", tokenWithTeamScope)).first()).isNull();
+    assertThat(collection("tokens").countDocuments(Filters.in("type", List.of("workspace", "workflow"))))
+        .as("no surviving token may carry a retired class")
+        .isZero();
+
+    // The surviving `global` token is completely untouched by the T6-3 deletion (narrow filter -
+    // only workspace/workflow classes are touched), but H14-c's tokens.permissions[].actions[]
+    // "team/x" -> "workspace/x" rewrite still applies to it (nested inside the ResolvedPermissions
+    // subdocument array) since that rewrite is not type-scoped.
+    Document survivingToken =
+        collection("tokens").find(Filters.eq("_id", survivingGlobalToken)).first();
+    assertThat(survivingToken).isNotNull();
+    assertThat(survivingToken.getString("type")).isEqualTo("global");
+    List<Document> tokenPermissions = survivingToken.getList("permissions", Document.class);
     assertThat(tokenPermissions).hasSize(1);
     assertThat(tokenPermissions.get(0).getList("actions", String.class))
         .containsExactlyInAnyOrder("workspace/read", "workflow/write");
