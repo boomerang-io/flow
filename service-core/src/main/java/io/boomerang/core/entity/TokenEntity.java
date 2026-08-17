@@ -20,6 +20,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class TokenEntity {
 
   @Id private String id;
+  // T6-3: the token's CLASS (actor/ceiling-typed: session/user/key/global) - never a resource
+  // scope. Each grant's own scope lives on ResolvedPermissions.scope (PermissionScope) instead.
   private AuthScope type;
   private String name;
   private String description;

@@ -7,6 +7,7 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
 import java.util.List;
@@ -139,8 +140,10 @@ public class ParamLayerService {
     contextParams.put("wfe-url", this.settingsService.getWFEURL());
     contextParams.put("event-url", this.settingsService.getEventURL());
 
+    // T6-3: the retired `workflow` token class is now `key` + actorKind=WORKFLOW.
     Optional<List<TokenEntity>> tokens =
-        tokenRepository.findByPrincipalAndType(workflow.getId(), AuthScope.workflow);
+        tokenRepository.findByPrincipalAndTypeAndActorKind(
+            workflow.getId(), AuthScope.key, TokenActorKind.WORKFLOW);
     // Add Tokens
     if (tokens.isPresent() && !tokens.isEmpty()) {
       for (TokenEntity t : tokens.get()) {

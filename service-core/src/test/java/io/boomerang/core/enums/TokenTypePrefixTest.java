@@ -5,36 +5,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * H14-e: the workspace token prefix moved from "bft" to "bfk". Every already-issued "bft_..."
- * token has only its SHA-256 hash stored (see {@code TokenService#hashString}/{@code validate}),
- * so it can never be rewritten in the database - both prefixes must keep resolving for the life
- * of the deprecation window, while new tokens mint with "bfk" only.
+ * T6-3: the workspace/workflow token classes (and their "bft"/"bfw" prefixes) are RETIRED
+ * outright, with no deprecation window (maintainer ruling — operators re-issue tokens). Only the
+ * four live-class prefixes ({@code bfg}/{@code bfk}/{@code bfu}/{@code bfs}) are ever accepted;
+ * a retired-prefix bearer fails the cheap pre-DB shape gate exactly like any non-Flow bearer,
+ * before {@code TokenService} ever touches Mongo.
  */
 class TokenTypePrefixTest {
 
   @Test
-  void newTokensMintWithTheNewWorkspacePrefix() {
-    assertThat(TokenTypePrefix.workspace.getPrefix()).isEqualTo("bfk");
+  void keyTokensMintWithTheKeyPrefix() {
+    assertThat(TokenTypePrefix.key.getPrefix()).isEqualTo("bfk");
+    assertThat(TokenTypePrefix.valueOfPrefix("bfk")).isEqualTo(TokenTypePrefix.key);
   }
 
   @Test
-  void legacyAndNewWorkspacePrefixBothResolve() {
-    assertThat(TokenTypePrefix.valueOfPrefix("bfk")).isEqualTo(TokenTypePrefix.workspace);
-    assertThat(TokenTypePrefix.valueOfPrefix("bft")).isEqualTo(TokenTypePrefix.workspace);
+  void retiredPrefixesAreRejectedWithoutAnyDbLookup() {
+    // The gate itself: shape-only, no Mongo involved - proves a "bft_"/"bfw_" bearer never
+    // reaches TokenService/TokenRepository at all.
+    assertThat(TokenTypePrefix.isFlowToken("bft_abc-123")).isFalse();
+    assertThat(TokenTypePrefix.isFlowToken("bfw_abc-123")).isFalse();
+    // And valueOfPrefix resolves neither retired prefix to any class.
+    assertThat(TokenTypePrefix.valueOfPrefix("bft")).isNull();
+    assertThat(TokenTypePrefix.valueOfPrefix("bfw")).isNull();
   }
 
   @Test
-  void isFlowTokenAcceptsBothTheLegacyAndNewWorkspacePrefix() {
-    assertThat(TokenTypePrefix.isFlowToken("bft_" + "abc-123")).isTrue();
+  void isFlowTokenAcceptsExactlyTheFourLiveClassPrefixes() {
+    assertThat(TokenTypePrefix.isFlowToken("bfg_" + "abc-123")).isTrue();
     assertThat(TokenTypePrefix.isFlowToken("bfk_" + "abc-123")).isTrue();
-  }
-
-  @Test
-  void isFlowTokenStillAcceptsEveryOtherPrefix() {
-    assertThat(TokenTypePrefix.isFlowToken("bfg_x")).isTrue();
-    assertThat(TokenTypePrefix.isFlowToken("bfw_x")).isTrue();
-    assertThat(TokenTypePrefix.isFlowToken("bfu_x")).isTrue();
-    assertThat(TokenTypePrefix.isFlowToken("bfs_x")).isTrue();
+    assertThat(TokenTypePrefix.isFlowToken("bfu_" + "abc-123")).isTrue();
+    assertThat(TokenTypePrefix.isFlowToken("bfs_" + "abc-123")).isTrue();
   }
 
   @Test
@@ -46,6 +47,7 @@ class TokenTypePrefixTest {
 
   @Test
   void everyPrefixIsUniqueAndThreeCharacters() {
+    assertThat(TokenTypePrefix.values()).hasSize(4);
     for (TokenTypePrefix type : TokenTypePrefix.values()) {
       assertThat(type.getPrefix()).hasSize(3).startsWith("bf");
     }

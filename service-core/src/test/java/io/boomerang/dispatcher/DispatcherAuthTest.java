@@ -7,20 +7,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.TokenTypePrefix;
+import io.boomerang.core.model.Token;
 import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.model.TokenCreateResponse;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import jakarta.servlet.Filter;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -57,6 +64,11 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   void setUp() {
     mockMvc =
         MockMvcBuilders.webAppContextSetup(context).addFilters(springSecurityFilterChain).build();
+  }
+
+  @AfterEach
+  void tearDown() {
+    SecurityContextHolder.clearContext();
   }
 
   @Test
@@ -114,17 +126,39 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   }
 
   private String mintToken(AuthScope type, TokenActorKind actorKind, Date expirationDate) {
-    TokenCreateRequest request = new TokenCreateRequest();
-    request.setType(type);
-    request.setName("dispatcher-auth-test");
-    request.setActorKind(actorKind);
-    request.setExpirationDate(expirationDate);
-    if (AuthScope.user.equals(type)) {
-      request.setPrincipal("human-user-1");
-    } else {
-      request.setPermissions(List.of("**/**"));
+    // T6-3 invariant #2: minting a `global` token requires the caller to already hold a
+    // `global`-scoped grant. This helper calls TokenService.create() directly (bypassing
+    // AuthenticationFilter, which is what populates the SecurityContext on a real HTTP request),
+    // so it seeds one itself - cleared in tearDown() before the MockMvc request below runs.
+    if (AuthScope.global.equals(type)) {
+      seedGlobalAdminIdentity();
     }
-    TokenCreateResponse response = tokenService.create(request);
-    return response.getToken();
+    try {
+      TokenCreateRequest request = new TokenCreateRequest();
+      request.setType(type);
+      request.setName("dispatcher-auth-test");
+      request.setActorKind(actorKind);
+      request.setExpirationDate(expirationDate);
+      if (AuthScope.user.equals(type)) {
+        request.setPrincipal("human-user-1");
+      } else {
+        request.setPermissions(List.of("**/**"));
+      }
+      TokenCreateResponse response = tokenService.create(request);
+      return response.getToken();
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  private void seedGlobalAdminIdentity() {
+    Token admin = new Token(AuthScope.global);
+    admin.setPrincipal("dispatcher-auth-test-admin");
+    admin.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
+    Authentication authentication =
+        new UsernamePasswordAuthenticationToken(admin.getPrincipal(), null);
+    ((UsernamePasswordAuthenticationToken) authentication).setDetails(admin);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 }
