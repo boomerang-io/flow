@@ -5,14 +5,16 @@
 Boomerang Flow is an open-source, cloud-native, low-code/no-code workflow automation platform.
 Workflows execute as Directed Acyclic Graphs (DAGs). Apache-2.0 licensed.
 
-This is a **Java 21 / Spring Boot 3 monorepo**. Current code state (pre-merge):
+This is a **Java 25 / Spring Boot 4 monorepo** (plus one pnpm/Vite frontend). Current code state
+(post-merge — `service-flow` + `service-engine` were merged into `service-core` at E8, per DD-02):
 
 | Module           | Role                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------- |
-| `service-flow`   | v2 RESTful API layer. CRUD for Workflows, Teams, Users, Tokens, Schedules. Auth/authz.   |
-| `service-engine` | DAG execution backbone. WorkflowRun orchestration, TaskRun lifecycle, CloudEvents.       |
-| `service-agent`  | Pluggable execution worker. Default implementation: Tekton on Kubernetes.                |
+| `service-core`   | The merged deployable: v2 REST API, auth/authz, workspaces, workflows, AND the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Nine flat feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations,api}`. |
+| `service-agent`  | Pluggable execution worker (→ `dispatcher` per DD-06). Default implementation: Tekton on Kubernetes. |
+| `service-loader`  | Flamingock migrations + bootstrap seeding, run as a pre-deploy Job (DD-07).              |
 | `lib-common`     | Shared domain model, entities, enums, error handling. (Being dissolved per Q-202.)       |
+| `client-web`     | The React 17 + Carbon v11 webapp (DD-04), folded in from `flow.client.web` with full history at the v4 line. Its own image; served only in `standalone` mode. |
 
 ## You Are Working On: v5
 
@@ -154,6 +156,12 @@ docker run -e JAVA_OPTS="-Dspring.data.mongodb.uri=mongodb://localhost:27017/boo
 
 mvn clean install
 mvn spring-boot:run -pl service-core
+```
+
+The webapp runs separately against it (`standalone` mode only):
+
+```bash
+cd client-web && pnpm install && pnpm start   # Vite dev server; BASE_URL ← PRODUCT_SERVICE_ENV_URL
 ```
 
 Security can be disabled for local development (one property; default derives from `flow.mode`):
