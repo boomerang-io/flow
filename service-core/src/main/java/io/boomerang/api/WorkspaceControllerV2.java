@@ -69,7 +69,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Get workspace")
   @ApiResponses(
       value = {
@@ -91,7 +91,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Search for Workspaces")
   @ApiResponses(
       value = {
@@ -162,7 +162,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Patch or update a workspace")
   @ApiResponses(
       value = {
@@ -193,7 +193,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Remove Workspace Members")
   @ApiResponses(
       value = {
@@ -234,7 +234,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Delete Workspace Parameter")
   @ApiResponses(
       value = {
@@ -253,7 +253,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Delete Approver Groups")
   @ApiResponses(
       value = {
@@ -272,7 +272,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Reset Workspace Quota")
   @ApiResponses(
       value = {
@@ -290,7 +290,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Retrieve Default Workspace Quota")
   @ApiResponses(
       value = {
@@ -305,7 +305,7 @@ public class WorkspaceControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKSPACE,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.workspace, AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Retrieve Workspace Roles")
   @ApiResponses(
       value = {

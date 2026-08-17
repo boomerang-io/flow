@@ -48,13 +48,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Retrieve a Workflow",
       description =
@@ -95,13 +89,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Search for Workflows", description = "")
   @ApiResponses(
       value = {
@@ -156,13 +144,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Create a new workflow")
   @ApiResponses(
       value = {
@@ -185,13 +167,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Update, replace, or create new, Workflow")
   @ApiResponses(
       value = {
@@ -217,13 +193,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Retrieve the changlog",
       description = "Retrieves each versions changelog and returns them all as a list.")
@@ -254,13 +224,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Delete a workflow")
   @ApiResponses(
       value = {
@@ -289,13 +253,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Submit a Workflow to be run. Will queue the WorkflowRun ready for execution.")
   @ApiResponses(
@@ -332,13 +290,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Export the Workflow as JSON.")
   public ResponseEntity<InputStreamResource> export(
       @Parameter(
@@ -362,13 +314,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Convert workflow to compose model for UI Designer and detailed Activity screens.")
   @ApiResponses(
@@ -401,13 +347,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Update, replace, or create new, Workflow for Canvas")
   @ApiResponses(
       value = {
@@ -433,13 +373,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Duplicates the workflow.")
   public Workflow duplicateWorkflow(
       @Parameter(
@@ -463,13 +397,7 @@ public class WorkspaceWorkflowControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve the parameters.")
   public List<String> getAvailableParameters(
       @Parameter(

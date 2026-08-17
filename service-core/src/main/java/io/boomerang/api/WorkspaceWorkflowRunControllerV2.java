@@ -48,13 +48,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Search for WorkflowRuns")
   @ApiResponses(
       value = {
@@ -154,13 +148,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve a summary of WorkflowRuns by Status.")
   @ApiResponses(
       value = {
@@ -211,13 +199,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve a specific WorkflowRun.")
   @ApiResponses(
       value = {
@@ -248,13 +230,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Start WorkflowRun execution. The WorkflowRun has to already have been queued.")
   @ApiResponses(
@@ -284,13 +260,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "End a WorkflowRun")
   @ApiResponses(
       value = {
@@ -318,13 +288,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Cancel a WorkflowRun")
   @ApiResponses(
       value = {
@@ -352,13 +316,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Pause a running WorkflowRun")
   @ApiResponses(
       value = {
@@ -386,13 +344,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Resume a paused WorkflowRun")
   @ApiResponses(
       value = {
@@ -420,13 +372,7 @@ public class WorkspaceWorkflowRunControllerV2 {
   @AuthCriteria(
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.session,
-        AuthScope.workflow
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retry WorkflowRun execution.")
   @ApiResponses(
       value = {

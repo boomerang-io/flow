@@ -55,13 +55,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Validate a Schedules CRON.")
   public CronValidationResponse validateCron(
       @Parameter(name = "cron", description = "A CRON expression to validate", required = true)
@@ -74,13 +68,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve a Schedule.")
   public WorkflowSchedule get(
       @Parameter(
@@ -98,13 +86,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Search for Schedules")
   public Page<WorkflowSchedule> query(
       @Parameter(
@@ -148,13 +130,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Retrieve Calendars for Schedules by Dates.")
   public List<WorkflowScheduleCalendar> getCalendarsForSchedules(
       @Parameter(
@@ -180,13 +156,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Create a Schedule.")
   public WorkflowSchedule createSchedule(
       @Parameter(
@@ -204,13 +174,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Apply a Schedule.")
   public WorkflowSchedule updateSchedule(
       @RequestBody WorkflowSchedule schedule,
@@ -228,13 +192,7 @@ public class WorkspaceScheduleControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.SCHEDULE,
-      assignableScopes = {
-        AuthScope.global,
-        AuthScope.workspace,
-        AuthScope.user,
-        AuthScope.workflow,
-        AuthScope.session
-      })
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Delete a Schedule.")
   public void deleteSchedule(
       @Parameter(
