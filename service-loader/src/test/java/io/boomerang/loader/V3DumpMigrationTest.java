@@ -476,14 +476,25 @@ class V3DumpMigrationTest {
         collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
     assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
 
-    // integration (v3 "extensions"): renamed + GitHub config appended (github.appId/pem/appName),
-    // while the pre-existing (operator-set) slack.* keys survive untouched - including
-    // slack.installURL, which the v5 seed shape does not model at all (documented divergence).
+    // integration (v3 "extensions"): renamed + GitHub config appended (github.appId/pem/appName)
+    // by _0005, then github.pem renamed to github.jwt and the OAuth client/webhook settings
+    // backfilled by _0029, while the pre-existing (operator-set) slack.* keys survive untouched -
+    // including slack.installURL, which the v5 seed shape does not model at all (documented
+    // divergence).
     Document integration =
         collection("settings").find(Filters.eq("_id", new ObjectId("62a7bec0a6166d30aff64a5b"))).first();
     assertThat(integration.getString("name")).isEqualTo("Integration Configuration");
     assertThat(configKeys(integration))
-        .contains("github.appId", "github.pem", "github.appName", "slack.token", "slack.installURL");
+        .contains(
+            "github.appId",
+            "github.jwt",
+            "github.appName",
+            "github.clientId",
+            "github.clientSecret",
+            "github.webhookSecret",
+            "slack.token",
+            "slack.installURL");
+    assertThat(configKeys(integration)).doesNotContain("github.pem");
 
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
     // max.workflowrun.storage entry legacy 4039 introduced.

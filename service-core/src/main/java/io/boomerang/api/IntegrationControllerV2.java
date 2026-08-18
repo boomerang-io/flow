@@ -245,25 +245,38 @@ public class IntegrationControllerV2 {
     return ResponseEntity.badRequest().build();
   }
 
-  @PostMapping(value = "/github/link")
-  @Operation(summary = "Links the GitHub Installation ID with a Workspace")
+  @PostMapping(value = "/github/unlink")
+  @Operation(summary = "Unlinks the GitHub Installation ID from a Workspace")
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.INTEGRATION,
       assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session, AuthScope.global})
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "404", description = "Not Found")
-      })
-  ResponseEntity<?> githubLink(@RequestBody GHLinkRequest request) throws IOException {
-    return githubService.linkAppInstallation(request);
-  }
-
-  @PostMapping(value = "/github/unlink")
-  @Operation(summary = "Unlinks the GitHub Installation ID from a Workspace")
   @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
   void githubUnlink(@RequestBody GHLinkRequest request) throws IOException {
     githubService.unlinkAppInstallation(request);
+  }
+
+  /**
+   * GitHub App setup callback. Reached by a browser redirect from GitHub after installation, so
+   * it cannot carry a bearer token - its security comes from the signed, short-lived state issued
+   * by {@code GET /api/v2/integration} (never trusted unverified), the workspace-membership check,
+   * and the installer-ownership check performed against GitHub's own OAuth token exchange.
+   * Deliberately unauthenticated (see the exemptions in SecurityConfiguration and
+   * AuthenticationFilter) - intentional, unlike the previously-missing @AuthCriteria on unlink.
+   */
+  @GetMapping(value = "/github/callback")
+  @Operation(summary = "Receive the GitHub App installation setup callback")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "302", description = "Found"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  ResponseEntity<?> githubCallback(
+      @RequestParam(name = "installation_id") Integer installationId,
+      @RequestParam(name = "setup_action", required = false) String setupAction,
+      @RequestParam String code,
+      @RequestParam String state) {
+    LOGGER.debug("GitHub callback - installation: {}, setup_action: {}", installationId, setupAction);
+    return githubService.handleInstallCallback(installationId, code, state);
   }
 }

@@ -194,7 +194,7 @@
           "readOnly": false
         },
         {
-          "key": "github.pem",
+          "key": "github.jwt",
           "description": "Private key used to sign access token requests",
           "label": "GitHub Private Key",
           "type": "secured",
@@ -207,6 +207,30 @@
           "label": "GitHub App Name",
           "type": "text",
           "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client ID from your GitHub App credentials.",
+          "key": "github.clientId",
+          "label": "GitHub Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client Secret from your GitHub App credentials.",
+          "key": "github.clientSecret",
+          "label": "GitHub Client Secret",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.webhookSecret",
+          "label": "GitHub Webhook Secret",
+          "value": "",
+          "description": "The Webhook Secret configured on your GitHub App, used to verify the X-Hub-Signature-256 header on incoming webhook payloads.",
+          "type": "secured",
           "readOnly": false
         }
       ],

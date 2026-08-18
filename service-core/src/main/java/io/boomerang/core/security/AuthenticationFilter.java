@@ -287,6 +287,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     String path = request.getServletPath();
     return path.startsWith("/error")
         || path.startsWith("/health")
-        || path.startsWith("/api/docs");
+        || path.startsWith("/api/docs")
+        || path.equals(SecurityConfiguration.GITHUB_CALLBACK);
   }
 }

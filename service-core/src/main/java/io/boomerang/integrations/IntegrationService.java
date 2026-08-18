@@ -7,12 +7,16 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.integrations.entity.IntegrationTemplateEntity;
 import io.boomerang.integrations.entity.IntegrationsEntity;
 import io.boomerang.integrations.enums.IntegrationStatus;
 import io.boomerang.integrations.model.Integration;
 import io.boomerang.integrations.repository.IntegrationTemplateRepository;
 import io.boomerang.integrations.repository.IntegrationsRepository;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -33,16 +37,22 @@ public class IntegrationService {
   private final IntegrationsRepository integrationsRepository;
   private final RelationshipService relationshipService;
   private final SettingsService settingsService;
+  private final GitHubService gitHubService;
+  private final IdentityService identityService;
 
   public IntegrationService(
       IntegrationTemplateRepository integrationTemplateRepository,
       IntegrationsRepository integrationsRepository,
       RelationshipService relationshipService,
-      SettingsService settingsService) {
+      SettingsService settingsService,
+      GitHubService gitHubService,
+      IdentityService identityService) {
     this.integrationTemplateRepository = integrationTemplateRepository;
     this.integrationsRepository = integrationsRepository;
     this.relationshipService = relationshipService;
     this.settingsService = settingsService;
+    this.gitHubService = gitHubService;
+    this.identityService = identityService;
   }
 
   public List<Integration> get(String workspace) {
@@ -71,15 +81,18 @@ public class IntegrationService {
             }
           }
           if ("github".equals(i.getName().toLowerCase())) {
-            LOGGER.debug(
-                settingsService.getSettingConfig("integration", "github.appName").getValue());
-            i.setLink(
-                i.getLink()
-                    .replace(
-                        "{app_name}",
-                        settingsService
-                            .getSettingConfig("integration", "github.appName")
-                            .getValue()));
+            String appName =
+                settingsService.getSettingConfig("integration", "github.appName").getValue();
+            String link = i.getLink().replace("{app_name}", appName);
+            // GitHub warns the installation_id callback parameter can be spoofed, so the state
+            // that identifies who is installing and for which workspace is issued and signed
+            // here, never trusted from the browser.
+            Token identity = identityService.getCurrentIdentity();
+            if (identity != null && identity.getPrincipal() != null) {
+              String state = gitHubService.createSignedState(workspace, identity.getPrincipal());
+              link = link + "?state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
+            }
+            i.setLink(link);
           }
           integrations.add(i);
         });
@@ -103,10 +116,21 @@ public class IntegrationService {
     return null;
   }
 
+  /*
+   * Idempotent on ref: the GitHub install callback and the "installation" webhook can both race
+   * to persist the same installation, so a second call returns the existing record rather than
+   * creating a duplicate node.
+   */
   public IntegrationsEntity create(String type, JsonNode data) {
+    String ref = data.get("id").asText();
+    Optional<IntegrationsEntity> existing = integrationsRepository.findByRef(ref);
+    if (existing.isPresent()) {
+      return existing.get();
+    }
+
     IntegrationsEntity entity = new IntegrationsEntity();
     entity.setType(type);
-    entity.setRef(data.get("id").asText());
+    entity.setRef(ref);
     entity.setData(Document.parse(data.toString()));
     entity = integrationsRepository.save(entity);
 

@@ -74,7 +74,12 @@ public enum BoomerangError {
   // Merged from service-engine (E8.2a). NOTE: code 1802 clash with
   // PARAMS_NON_UNIQUE_REFERENCE above - both sides' original codes kept per merge
   // plan (do not renumber silently); see merge commit message for detail.
-  PARAMS_NON_UNIQUE_KEY(1802, "PARAMS_NON_UNIQUE_KEY", HttpStatus.BAD_REQUEST);
+  PARAMS_NON_UNIQUE_KEY(1802, "PARAMS_NON_UNIQUE_KEY", HttpStatus.BAD_REQUEST),
+  // 19xx: Integration based errors
+  INTEGRATION_INVALID_REF(1901, "INTEGRATION_INVALID_REF", HttpStatus.BAD_REQUEST),
+  INTEGRATION_INVALID_STATE(1902, "INTEGRATION_INVALID_STATE", HttpStatus.BAD_REQUEST),
+  INTEGRATION_UNAUTHORIZED(1903, "INTEGRATION_UNAUTHORIZED", HttpStatus.FORBIDDEN),
+  INTEGRATION_INSTALL_MISMATCH(1904, "INTEGRATION_INSTALL_MISMATCH", HttpStatus.FORBIDDEN);
 
   private final int code;
   private final String reason;

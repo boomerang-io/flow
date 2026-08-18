@@ -18,6 +18,7 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.integrations.GitHubService;
 import io.boomerang.integrations.IntegrationService;
 import io.boomerang.api.WorkspaceWorkflowService;
 import io.boomerang.engine.WorkflowRunService;
@@ -47,19 +48,22 @@ public class WebhookEventService {
 
   private final WorkspaceWorkflowService workspaceWorkflowService;
   private final WorkflowRunService workflowRunService;
-  // H6: IntegrationService only exists in flow.mode=standalone (io.boomerang.integrations is
-  // mode-gated) - Optional so this service still constructs in engine mode.
+  // H6: IntegrationService/GitHubService only exist in flow.mode=standalone (io.boomerang.integrations
+  // is mode-gated) - Optional so this service still constructs in engine mode.
   private final Optional<IntegrationService> integrationService;
+  private final Optional<GitHubService> gitHubService;
   private final RelationshipService relationshipService;
 
   public WebhookEventService(
       WorkspaceWorkflowService workspaceWorkflowService,
       WorkflowRunService workflowRunService,
       Optional<IntegrationService> integrationService,
+      Optional<GitHubService> gitHubService,
       RelationshipService relationshipService) {
     this.workspaceWorkflowService = workspaceWorkflowService;
     this.workflowRunService = workflowRunService;
     this.integrationService = integrationService;
+    this.gitHubService = gitHubService;
     this.relationshipService = relationshipService;
   }
 
@@ -126,7 +130,8 @@ public class WebhookEventService {
   /*
 
   */
-  public ResponseEntity<?> processGitHubWebhook(String eventType, JsonNode payload) {
+  public ResponseEntity<?> processGitHubWebhook(
+      String eventType, Optional<String> signature, String rawBody, JsonNode payload) {
     if (integrationService.isEmpty()) {
       LOGGER.warn(
           "GitHub webhook received but integrations are not active in this flow.mode - ignoring.");
@@ -136,6 +141,14 @@ public class WebhookEventService {
     LOGGER.debug("GitHub webhook received - {}: {}", eventType, payload.toString());
     switch (eventType) {
       case "installation" -> {
+        // The installation webhook manages the link itself (create/delete) - unlike ordinary
+        // trigger events, an unsigned or forged payload here could unlink another workspace's
+        // integration, so it must always carry a valid signature.
+        if (gitHubService.isEmpty()
+            || !gitHubService.get().verifyWebhookSignature(signature.orElse(null), rawBody)) {
+          LOGGER.warn("GitHub installation webhook rejected - missing or invalid signature.");
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         if (payload.get("action") != null) {
           if ("created".equals(payload.get("action").asText())) {
             integrations.create("github_app", payload.get("installation"));

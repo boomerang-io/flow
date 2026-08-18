@@ -30,6 +30,10 @@ public class SecurityConfiguration {
 
   private static final String SLACK_INSTALL = "/api/v2/extensions/slack/install";
 
+  // Reached by a browser redirect from GitHub - cannot carry a bearer token. Also exempted from
+  // AuthenticationFilter below, since that filter runs ahead of this authorization decision.
+  static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
+
   @Autowired
   private TokenService tokenService;
 
@@ -55,7 +59,7 @@ public class SecurityConfiguration {
           .authorizeHttpRequests(
               authorize ->
                   authorize
-                      .requestMatchers(HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL)
+                      .requestMatchers(HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL, GITHUB_CALLBACK)
                       .permitAll()
                       .anyRequest()
                       .authenticated())
