@@ -23,9 +23,11 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The nested {@code config[].key} entries ({@code max.workflow.count} etc.) are unchanged -
  * they never carried the team wording. The {@code features} document's {@code teamQuotas}/{@code
- * teamParameters}/{@code teamManagement}/{@code teamTasks} flag keys are deliberately NOT renamed
- * here: the webapp reads them by those keys ({@code feature["team.quotas"]}), so that rename is a
- * coordinated frontend change, tracked separately.
+ * teamParameters}/{@code teamManagement}/{@code teamTasks} flag keys are a different document and
+ * were left alone here on the reasoning that the webapp reads them by those keys ({@code
+ * feature["team.quotas"]}), making that rename a coordinated frontend change. That reasoning is
+ * superseded: {@link _0034__WorkspaceFeatureFlagSettingsKeys} renames those four keys (webapp,
+ * {@code FeatureService}, and this settings document, all in the same change) to close the gap.
  *
  * <p>Idempotent: only a document still keyed {@code "teams"} is touched. If a {@code "workspaces"}
  * document already exists (a fresh install seeded by {@code _0021__SeedSettings} from the updated

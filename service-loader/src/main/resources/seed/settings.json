@@ -68,9 +68,9 @@
           "readOnly": false
         },
         {
-          "description": "Enforce Team level quotas",
-          "key": "teamQuotas",
-          "label": "Team Quotas",
+          "description": "Enforce Workspace level quotas",
+          "key": "workspaceQuotas",
+          "label": "Workspace Quotas",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -92,9 +92,9 @@
           "readOnly": false
         },
         {
-          "description": "Enable users to access and create Team Parameters",
-          "key": "teamParameters",
-          "label": "Team Parameters",
+          "description": "Enable users to access and create Workspace Parameters",
+          "key": "workspaceParameters",
+          "label": "Workspace Parameters",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -108,9 +108,9 @@
           "readOnly": false
         },
         {
-          "description": "Allow management and editing of Teams. The Teams screen will always be visible but if disabled will be in view only mode",
-          "key": "teamManagement",
-          "label": "Team Management",
+          "description": "Allow management and editing of Workspaces. The Workspaces screen will always be visible but if disabled will be in view only mode",
+          "key": "workspaceManagement",
+          "label": "Workspace Management",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -124,9 +124,9 @@
           "readOnly": false
         },
         {
-          "description": "Allow users to access and create Team Tasks",
-          "key": "teamTasks",
-          "label": "Team Tasks",
+          "description": "Allow users to access and create Workspace Tasks",
+          "key": "workspaceTasks",
+          "label": "Workspace Tasks",
           "type": "boolean",
           "value": "true",
           "readOnly": false
