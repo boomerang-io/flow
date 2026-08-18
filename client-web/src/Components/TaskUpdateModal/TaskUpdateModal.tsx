@@ -8,7 +8,7 @@ import EmptyState from "Components/EmptyState";
 import TextEditorModal from "Components/TextEditorModal";
 import { TEXT_AREA_TYPES } from "Constants/formInputTypes";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { ObjectValues, Task, WorkflowNode } from "Types";
+import { DataDrivenInput as DataDrivenInputConfig, ObjectValues, Task, WorkflowNode } from "Types";
 import styles from "./taskUpdateModal.module.scss";
 
 interface TaskUpdateModalProps {
@@ -40,17 +40,20 @@ const formatAutoSuggestProperties = (availableParameters: Array<string> = []) =>
   }));
 };
 
+const isTextAreaType = (type: string): type is keyof typeof TEXT_AREA_TYPES => type in TEXT_AREA_TYPES;
+
 const textAreaProps =
   (availableParameters?: Array<string>) =>
-  ({ input, formikProps }: any) => {
+  ({ input, formikProps }: { input: DataDrivenInputConfig; formikProps: any }) => {
     const { values, setFieldValue } = formikProps;
     const { key, type, ...rest } = input;
-    const itemConfig = TEXT_AREA_TYPES[type];
+    const inputKey = key ?? input.name;
+    const itemConfig = isTextAreaType(type) ? TEXT_AREA_TYPES[type] : undefined;
 
     return {
       autoSuggestions: formatAutoSuggestProperties(availableParameters),
-      formikSetFieldValue: (value: string) => setFieldValue(key, value),
-      initialValue: values[key],
+      formikSetFieldValue: (value: string) => setFieldValue(inputKey, value),
+      initialValue: values[inputKey],
       availableParameters: availableParameters,
       item: input,
       ...itemConfig,
@@ -96,13 +99,15 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
   }
   if (templateQuery.data) {
     const currentTaskTemplate = templateQuery.data;
+    const currentTaskConfig = currentTaskTemplate.spec.params ?? [];
+    const latestTaskConfig = latestTaskTemplate.spec.params ?? [];
 
-    const removedInputs = currentTaskTemplate.config
-      .filter((input) => !latestTaskTemplate.config.find((newInput) => newInput.key === input.key))
+    const removedInputs = currentTaskConfig
+      .filter((input) => !latestTaskConfig.find((newInput) => newInput.key === input.key))
       .map((input) => input?.key);
 
-    const addedInputs = latestTaskTemplate.config
-      .filter((input) => !currentTaskTemplate.config.find((currentInput) => currentInput.key === input.key))
+    const addedInputs = latestTaskConfig
+      .filter((input) => !currentTaskConfig.find((currentInput) => currentInput.key === input.key))
       .map((input) => `['${input?.key}']`);
 
     const handleSubmit = (values: Record<string, string>) => {
@@ -110,10 +115,11 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
       closeModal();
     };
 
-    const initialValues = { taskName: node.name };
-    currentTaskTemplate.config.forEach((input) => {
+    const initialValues: Record<string, unknown> = { taskName: node.name };
+    currentTaskConfig.forEach((input) => {
+      const inputKey = input.key ?? input.name;
       const initialValue = node.params.find((param) => param.name === input.key)?.["value"] ?? "";
-      initialValues[input.key] = Boolean(initialValue) ? initialValue : input.defaultValue;
+      initialValues[inputKey] = Boolean(initialValue) ? initialValue : input.defaultValue;
     });
 
     return (
@@ -124,7 +130,7 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
           TextEditor: TextEditorInput,
         }}
         initialValues={initialValues}
-        inputs={latestTaskTemplate.config}
+        inputs={latestTaskConfig}
         onSubmit={handleSubmit}
         textEditorProps={textAreaProps(availableParameters)}
         toggleProps={toggleProps}
@@ -132,33 +138,42 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
         {({ inputs, formikProps }) => {
           return (
             <ModalForm noValidate onSubmit={formikProps.handleSubmit}>
-              <ModalBody ModalBody className={styles.versionsContainer}>
+              <ModalBody className={styles.versionsContainer}>
                 <VersionSection subtitle="Current version in this workflow" version={currentTaskTemplate.version}>
-                  {currentTaskTemplate.config.map((input) => (
-                    <StateHighlighter
-                      key={input.key}
-                      type={removedInputs.includes(input.key) ? UpdateType.Remove : UpdateType.NoChange}
-                    >
-                      <DataDrivenInput
-                        {...input}
-                        readOnly
-                        id={`${input.key}-current`}
-                        orientation={input.type === "boolean" ? "vertical" : undefined}
-                        value={Boolean(initialValues[input.key]) ? initialValues[input.key] : input.defaultValue}
-                      />
-                    </StateHighlighter>
-                  ))}
+                  {currentTaskConfig.map((input) => {
+                    const inputKey = input.key ?? input.name;
+                    return (
+                      <StateHighlighter
+                        key={inputKey}
+                        type={removedInputs.includes(input.key) ? UpdateType.Remove : UpdateType.NoChange}
+                      >
+                        <DataDrivenInput
+                          {...input}
+                          readOnly
+                          id={`${inputKey}-current`}
+                          orientation={input.type === "boolean" ? "vertical" : undefined}
+                          value={Boolean(initialValues[inputKey]) ? initialValues[inputKey] : input.defaultValue}
+                        />
+                      </StateHighlighter>
+                    );
+                  })}
                 </VersionSection>
                 <div style={{ width: "1rem" }} />
                 <VersionSection latest subtitle="Latest version available" version={latestTaskTemplate.version}>
-                  {inputs.map((input) => (
-                    <StateHighlighter
-                      key={input.props.id}
-                      type={addedInputs.includes(input.props.id) ? UpdateType.Add : UpdateType.NoChange}
-                    >
-                      {input}
-                    </StateHighlighter>
-                  ))}
+                  {inputs.map((input, index) => {
+                    if (!React.isValidElement<{ id?: string }>(input)) {
+                      return null;
+                    }
+                    const inputId = input.props.id ?? String(index);
+                    return (
+                      <StateHighlighter
+                        key={inputId}
+                        type={addedInputs.includes(inputId) ? UpdateType.Add : UpdateType.NoChange}
+                      >
+                        {input}
+                      </StateHighlighter>
+                    );
+                  })}
                 </VersionSection>
               </ModalBody>
               <ModalFooter>
