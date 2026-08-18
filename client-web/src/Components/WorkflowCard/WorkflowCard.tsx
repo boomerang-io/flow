@@ -253,7 +253,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
       <Link to={!isDeleting ? appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name }) : ""}>
         <section className={styles.details}>
           <div className={styles.iconContainer}>
-            <Icon className={styles.icon} alt={`${workflow.icon}`} />
+            <Icon className={styles.icon} aria-label={`${workflow.icon}`} />
           </div>
           <div className={styles.descriptionContainer}>
             <h1 title={workflow.name} className={styles.name} data-testid="workflow-card-title">

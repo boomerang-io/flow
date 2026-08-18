@@ -101,8 +101,8 @@ export default function WorkspaceCreateContent({ closeModal, createWorkspace, is
                 Cancel
               </Button>
               <Button
-                disabled={!dirty || errors.name || isLoading || validateWorkspaceNameMutator.isLoading}
-                onClick={handleSubmit}
+                disabled={!dirty || Boolean(errors.name) || isLoading || validateWorkspaceNameMutator.isLoading}
+                onClick={() => handleSubmit()}
                 data-testid="save-workspace-name"
               >
                 {buttonText}

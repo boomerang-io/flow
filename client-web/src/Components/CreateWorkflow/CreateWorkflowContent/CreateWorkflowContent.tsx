@@ -167,7 +167,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
               <Button
                 data-testid="workflows-create-workflow-submit"
                 disabled={!isValid || isLoading || createWorkflowsDisabled}
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
               >
                 {isLoading ? "Creating..." : "Create"}
               </Button>

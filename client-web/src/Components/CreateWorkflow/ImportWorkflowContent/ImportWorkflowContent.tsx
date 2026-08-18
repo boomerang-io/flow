@@ -259,7 +259,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
               <Button onClick={closeModal} kind="secondary">
                 Cancel
               </Button>
-              <Button disabled={!isValid || !Boolean(values.file)} kind="primary" onClick={handleSubmit}>
+              <Button disabled={!isValid || !Boolean(values.file)} kind="primary" onClick={() => handleSubmit()}>
                 {isLoading ? "Creating..." : "Create"}
               </Button>
             </ModalFooter>

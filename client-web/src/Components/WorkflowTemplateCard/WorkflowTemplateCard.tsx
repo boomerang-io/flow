@@ -86,7 +86,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow, g
     <div className={styles.container}>
       <section className={styles.details}>
         <div className={styles.iconContainer}>
-          <Icon className={styles.icon} alt={`${name}`} />
+          <Icon className={styles.icon} aria-label={`${name}`} />
         </div>
         <div className={styles.descriptionContainer}>
           <h1 title={workflow.name} className={styles.name} data-testid="workflow-card-title">
