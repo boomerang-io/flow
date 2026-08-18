@@ -173,13 +173,12 @@ global.localStorage = localStorageMock;
 global.sessionStorage = sessionStorageMock;
 
 // Dates
-const moment = vi.importActual("moment-timezone");
-vi.importMock("moment", () => {
-  moment.tz.setDefault("UTC");
-  moment.tz.guess(false);
-  const DATE_TO_USE = new Date("Jan 1 2020 00:00:00 UTC");
-  vi.setSystemTime(DATE_TO_USE);
-  const mom = () => vi.importActual("moment")(DATE_TO_USE);
-  mom.utc = vi.importActual("moment").utc;
-  return mom;
-});
+// Freeze the test clock so date-dependent renders (calendars, "time ago" labels, relative-date
+// snapshots) are deterministic across CI runs and operator machines/timezones. Previously this
+// was attempted via `vi.importMock("moment", factory)` — `importMock` takes no factory argument
+// (see the vitest type defs) and its returned Promise was never awaited or used, so this never
+// actually pinned anything: every date-bearing test was silently rendering against the real
+// wall-clock date/time, which is why snapshots have drifted over time. `vi.setSystemTime` mocks
+// the global `Date` (and therefore `moment()`) without needing `vi.useFakeTimers()`.
+const DATE_TO_USE = new Date("2020-01-01T00:00:00.000Z");
+vi.setSystemTime(DATE_TO_USE);

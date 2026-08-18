@@ -210,7 +210,9 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                       class="_name_483afa"
                       data-testid="workflow-card-title"
                       title="Personal - ML Train – Bot Efficiency"
-                    />
+                    >
+                      Personal - ML Train – Bot Efficiency
+                    </h1>
                     <p
                       class="_description_483afa"
                       title="Train and store ML model for Bot Efficiency."
@@ -382,7 +384,9 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                       class="_name_483afa"
                       data-testid="workflow-card-title"
                       title="Personal - Java - Deploy"
-                    />
+                    >
+                      Personal - Java - Deploy
+                    </h1>
                     <p
                       class="_description_483afa"
                       title=""
@@ -549,7 +553,9 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                       class="_name_483afa"
                       data-testid="workflow-card-title"
                       title="Personal - Java - Build"
-                    />
+                    >
+                      Personal - Java - Build
+                    </h1>
                     <p
                       class="_description_483afa"
                       title="Java - Build"

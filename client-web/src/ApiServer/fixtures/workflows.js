@@ -3,6 +3,7 @@ const workflows = {
     {
       id: "5eb2c4085a92d80001a16d87",
       name: "Personal - ML Train – Bot Efficiency",
+      displayName: "Personal - ML Train – Bot Efficiency",
       description: "Train and store ML model for Bot Efficiency.",
       creationDate: "2022-01-05T22:50:12.204+00:00",
       version: 2,
@@ -67,6 +68,7 @@ const workflows = {
     {
       id: "5e877e944bbc6e0001c51e6e",
       name: "Personal - Java - Deploy",
+      displayName: "Personal - Java - Deploy",
       description: "",
       creationDate: "2022-01-07T00:29:47.041+00:00",
       version: 8,
@@ -133,6 +135,7 @@ const workflows = {
     {
       id: "5e877d1f4bbc6e0001c51e12",
       name: "Personal - Java - Build",
+      displayName: "Personal - Java - Build",
       description: "Java - Build",
       version: 16,
       icon: "delivery",
