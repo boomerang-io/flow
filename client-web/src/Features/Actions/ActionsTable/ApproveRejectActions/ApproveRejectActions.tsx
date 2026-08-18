@@ -391,10 +391,10 @@ function SingleActionSection({ formikBag, action, isAlreadyApproved, user }: Sin
                     <p className={styles.approverComment}>{approver.comments ?? "---"}</p>
                   </StructuredListCell>
                   <StructuredListCell noWrap>
-                    {approver.actionDate ? dateHelper.humanizedSimpleTimeAgo(approver.actionDate) : "---"}
+                    {approver.date ? dateHelper.humanizedSimpleTimeAgo(approver.date) : "---"}
                   </StructuredListCell>
                   <StructuredListCell className={styles.approverActioned} noWrap>
-                    {approver.actioned ? ApprovalStatus.Approved : ApprovalStatus.Rejected}
+                    {approver.approved ? ApprovalStatus.Approved : ApprovalStatus.Rejected}
                   </StructuredListCell>
                 </StructuredListRow>
               ))}
