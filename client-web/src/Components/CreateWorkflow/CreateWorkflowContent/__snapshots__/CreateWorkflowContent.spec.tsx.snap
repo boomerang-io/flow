@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateWorkflowContent 1`] = `
 <body
@@ -20,13 +20,14 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
           >
             <label
               class="cds--label"
-              for="name"
+              dir="auto"
+              for="displayName"
             >
               <div
                 class="cds--bmrg-text-input__label"
               >
                 <div>
-                  Workflow Name
+                  Display Name
                 </div>
               </div>
             </label>
@@ -38,11 +39,25 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
               class="cds--text-input__field-wrapper"
             >
               <input
-                class="cds--text-input cds--text-input--md"
-                id="name"
+                aria-describedby="displayName-helper-text"
+                class="cds--text-input"
+                id="displayName"
+                placeholder="e.g. My Fantastical Workflow"
+                title="e.g. My Fantastical Workflow"
                 type="text"
                 value=""
               />
+              <span
+                class="cds--text-input__counter-alert"
+                role="alert"
+              />
+            </div>
+            <div
+              class="cds--form__helper-text"
+              dir="auto"
+              id="displayName-helper-text"
+            >
+              This is the name that will be displayed in the UI.
             </div>
           </div>
         </div>
@@ -58,13 +73,14 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
           >
             <label
               class="cds--label"
-              for="summary"
+              dir="auto"
+              for="name"
             >
               <div
                 class="cds--bmrg-text-input__label"
               >
                 <div>
-                  Summary
+                  Name
                 </div>
               </div>
             </label>
@@ -76,11 +92,25 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
               class="cds--text-input__field-wrapper"
             >
               <input
-                class="cds--text-input cds--text-input--md"
-                id="summary"
+                aria-describedby="name-helper-text"
+                class="cds--text-input"
+                id="name"
+                placeholder="e.g. my-workflow"
+                title="e.g. my-workflow"
                 type="text"
                 value=""
               />
+              <span
+                class="cds--text-input__counter-alert"
+                role="alert"
+              />
+            </div>
+            <div
+              class="cds--form__helper-text"
+              dir="auto"
+              id="name-helper-text"
+            >
+              This is your unique identifier name within the Workspace. Can only contain letters, numbers, and dashes.
             </div>
           </div>
         </div>
@@ -96,13 +126,14 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
           >
             <label
               class="cds--label"
+              dir="auto"
               for="description"
             >
               <div
                 style="display: flex;"
               >
                 <div>
-                  Description
+                  Description (optional)
                 </div>
               </div>
             </label>
@@ -111,11 +142,16 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             class="cds--text-area__wrapper"
           >
             <textarea
+              aria-invalid="false"
               class="cds--text-area"
-              cols="50"
               id="description"
+              placeholder=""
               rows="4"
               style="resize: none; width: 100%;"
+            />
+            <span
+              class="cds--text-area__counter-alert"
+              role="alert"
             />
           </div>
         </div>
@@ -621,7 +657,8 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M26,18a3.9962,3.9962,0,0,0-3.8579,3H17V11h5.1421a4,4,0,1,0,0-2H17a2.002,2.002,0,0,0-2,2v4H9.8579a4,4,0,1,0,0,2H15v4a2.002,2.002,0,0,0,2,2h5.1421A3.9934,3.9934,0,1,0,26,18ZM26,8a2,2,0,1,1-2,2A2.002,2.002,0,0,1,26,8ZM6,18a2,2,0,1,1,2-2A2.002,2.002,0,0,1,6,18Zm20,6a2,2,0,1,1,2-2A2.002,2.002,0,0,1,26,24Z"
+              d="m20,6c0,1.8584,1.2798,3.4106,3,3.8579v5.1421h-14v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4c0,1.8584,1.2798,3.4106,3,3.8579v5.1421c0,1.103.897,2,2,2h6v5.1421c-1.7202.4473-3,1.9995-3,3.8579,0,2.2056,1.7944,4,4,4s4-1.7944,4-4c0-1.8584-1.2798-3.4106-3-3.8579v-5.1421h6c1.103,0,2-.897,2-2v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4Zm-14,0c0-1.103.897-2,2-2s2,.897,2,2c0,1.103-.897,2-2,2s-2-.897-2-2Zm12,20c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2ZM26,6c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2Z"
+              stroke-width="0"
             />
           </svg>
         </label>
@@ -1038,11 +1075,11 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
       </div>
     </div>
     <div
+      aria-busy="false"
       class="cds--modal-footer cds--btn-set"
     >
       <button
         class="cds--btn cds--btn--secondary"
-        tabindex="0"
         type="button"
       >
         Cancel
@@ -1051,7 +1088,6 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
         class="cds--btn cds--btn--primary cds--btn--disabled"
         data-testid="workflows-create-workflow-submit"
         disabled=""
-        tabindex="0"
         type="button"
       >
         Create

@@ -42,6 +42,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "61d38d133aa9034ded32cae6",
@@ -72,6 +73,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "62aa6f7aa6166d30affb1c46",
@@ -102,6 +104,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "61d38d133aa9034ded32cae6",
@@ -144,6 +147,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "61ddfb07c5d30f5de052426b",
@@ -174,6 +178,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "61d5db083aa9034ded32cae7",
@@ -204,6 +209,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "6271cf5bc97e6a3e39911c79",
@@ -234,6 +240,7 @@ const workspaces = {
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
+          "approverGroups": [],
           "members": [
               {
                   "id": "61d38d133aa9034ded32cae6",

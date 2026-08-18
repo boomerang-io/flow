@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateWorkflowContent 1`] = `
 <body
@@ -10,74 +10,65 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
     >
       <div
         aria-label="inputs"
-        class="cds--modal-content _formBody_9cda0f"
+        class="cds--modal-content _formBody_4c38b8"
       >
         <div
-          class="_typeRadio_9cda0f"
+          class="cds--dropdown__wrapper cds--list-box__wrapper _field_4c38b8"
         >
+          
           <div
-            class="cds--bmrg-radio-group"
-            style="--height: 6rem;"
+            aria-label="Dropdown"
+            class="cds--dropdown cds--list-box"
+            id="workspace"
           >
-            <div
-              class="cds--form-item"
+            <button
+              aria-activedescendant=""
+              aria-controls="downshift-0-menu"
+              aria-expanded="false"
+              aria-haspopup="listbox"
+              aria-labelledby="downshift-0-label"
+              class="cds--list-box__field"
+              id="downshift-0-toggle-button"
+              role="combobox"
+              tabindex="0"
+              title="Workspace"
+              type="button"
             >
-              <fieldset
-                class="cds--radio-button-group cds--radio-button-group--label-right"
+              <span
+                class="cds--list-box__label"
               >
-                <div
-                  class="cds--radio-button-wrapper"
+                Workspace
+              </span>
+              <div
+                class="cds--list-box__menu-icon"
+              >
+                <svg
+                  aria-label="Open menu"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  name="chevron--down"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <input
-                    checked=""
-                    class="cds--radio-button"
-                    id="user"
-                    name="workflow-options"
-                    type="radio"
-                    value="user"
+                  <path
+                    d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
                   />
-                  <label
-                    class="cds--radio-button__label"
-                    for="user"
-                  >
-                    <span
-                      class="cds--radio-button__appearance"
-                    />
-                    <span
-                      class=""
-                      dir="auto"
-                    >
-                      My Workflows
-                    </span>
-                  </label>
-                </div>
-                <div
-                  class="cds--radio-button-wrapper"
-                >
-                  <input
-                    class="cds--radio-button"
-                    id="workspace"
-                    name="workflow-options"
-                    type="radio"
-                    value="workspace"
-                  />
-                  <label
-                    class="cds--radio-button__label"
-                    for="workspace"
-                  >
-                    <span
-                      class="cds--radio-button__appearance"
-                    />
-                    <span
-                      class=""
-                      dir="auto"
-                    >
-                      Workspace Workflows
-                    </span>
-                  </label>
-                </div>
-              </fieldset>
-            </div>
+                  <title>
+                    Open menu
+                  </title>
+                </svg>
+              </div>
+            </button>
+            <ul
+              aria-labelledby="downshift-0-label"
+              class="cds--list-box__menu"
+              id="downshift-0-menu"
+              role="listbox"
+            />
           </div>
         </div>
         <div
@@ -91,6 +82,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="name"
               >
                 <div
@@ -109,48 +101,14 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
                 class="cds--text-input__field-wrapper"
               >
                 <input
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="name"
                   type="text"
-                  value="test template"
+                  value="test-template"
                 />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          class="cds--bmrg-text-input"
-        >
-          <div
-            class="cds--form-item cds--text-input-wrapper"
-          >
-            <div
-              class="cds--text-input__label-wrapper"
-            >
-              <label
-                class="cds--label"
-                for="summary"
-              >
-                <div
-                  class="cds--bmrg-text-input__label"
-                >
-                  <div>
-                    Summary
-                  </div>
-                </div>
-              </label>
-            </div>
-            <div
-              class="cds--text-input__field-outer-wrapper"
-            >
-              <div
-                class="cds--text-input__field-wrapper"
-              >
-                <input
-                  class="cds--text-input cds--text-input--md"
-                  id="summary"
-                  type="text"
-                  value=""
+                <span
+                  class="cds--text-input__counter-alert"
+                  role="alert"
                 />
               </div>
             </div>
@@ -167,13 +125,14 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="description"
               >
                 <div
                   style="display: flex;"
                 >
                   <div>
-                    Description
+                    Description (optional)
                   </div>
                 </div>
               </label>
@@ -182,25 +141,32 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
               class="cds--text-area__wrapper"
             >
               <textarea
+                aria-invalid="false"
                 class="cds--text-area"
-                cols="50"
                 id="description"
+                placeholder=""
                 rows="4"
                 style="resize: none; width: 100%;"
+              >
+                A test template
+              </textarea>
+              <span
+                class="cds--text-area__counter-alert"
+                role="alert"
               />
             </div>
           </div>
         </div>
         <h2
-          class="_iconsTitle_9cda0f"
+          class="_iconsTitle_4c38b8"
         >
           Pick an icon (any icon)
         </h2>
         <div
-          class="_icons_9cda0f"
+          class="_icons_4c38b8"
         >
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -227,7 +193,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -251,7 +217,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f __activeIcon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8 __activeIcon_4c38b8_4c38b8"
           >
             <input
               checked=""
@@ -279,7 +245,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -306,7 +272,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -330,7 +296,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -358,7 +324,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -394,7 +360,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -418,7 +384,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -445,7 +411,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -472,7 +438,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -496,7 +462,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -523,7 +489,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -547,7 +513,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -571,7 +537,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -595,7 +561,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -625,7 +591,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -649,7 +615,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -673,7 +639,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -692,12 +658,13 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
               xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M26,18a3.9962,3.9962,0,0,0-3.8579,3H17V11h5.1421a4,4,0,1,0,0-2H17a2.002,2.002,0,0,0-2,2v4H9.8579a4,4,0,1,0,0,2H15v4a2.002,2.002,0,0,0,2,2h5.1421A3.9934,3.9934,0,1,0,26,18ZM26,8a2,2,0,1,1-2,2A2.002,2.002,0,0,1,26,8ZM6,18a2,2,0,1,1,2-2A2.002,2.002,0,0,1,6,18Zm20,6a2,2,0,1,1,2-2A2.002,2.002,0,0,1,26,24Z"
+                d="m20,6c0,1.8584,1.2798,3.4106,3,3.8579v5.1421h-14v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4c0,1.8584,1.2798,3.4106,3,3.8579v5.1421c0,1.103.897,2,2,2h6v5.1421c-1.7202.4473-3,1.9995-3,3.8579,0,2.2056,1.7944,4,4,4s4-1.7944,4-4c0-1.8584-1.2798-3.4106-3-3.8579v-5.1421h6c1.103,0,2-.897,2-2v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4Zm-14,0c0-1.103.897-2,2-2s2,.897,2,2c0,1.103-.897,2-2,2s-2-.897-2-2Zm12,20c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2ZM26,6c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2Z"
+                stroke-width="0"
               />
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -724,7 +691,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -748,7 +715,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -775,7 +742,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -799,7 +766,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -827,7 +794,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -851,7 +818,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -875,7 +842,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -902,7 +869,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -929,7 +896,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -957,7 +924,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -984,7 +951,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -1008,7 +975,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -1035,7 +1002,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -1059,7 +1026,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -1083,7 +1050,7 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
             </svg>
           </label>
           <label
-            class="__icon_9cda0f_9cda0f"
+            class="__icon_4c38b8_4c38b8"
           >
             <input
               readonly=""
@@ -1109,22 +1076,15 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
         </div>
       </div>
       <div
+        aria-busy="false"
         class="cds--modal-footer cds--btn-set"
       >
         <button
-          class="cds--btn cds--btn--secondary"
-          tabindex="0"
-          type="button"
-        >
-          Back
-        </button>
-        <button
           class="cds--btn cds--btn--primary"
           data-testid="workflows-create-workflow-submit"
-          tabindex="0"
           type="button"
         >
-          Create
+          Create and View
         </button>
       </div>
     </form>

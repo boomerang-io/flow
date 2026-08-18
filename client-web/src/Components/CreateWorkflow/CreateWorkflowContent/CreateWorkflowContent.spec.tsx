@@ -7,7 +7,7 @@ import CreateWorkflowContent from ".";
 const mockfn = vi.fn();
 const props = {
   closeModal: () => {},
-  createError: {},
+  createError: null,
   createWorkflow: mockfn,
   isLoading: false,
   existingWorkflowNames: [],

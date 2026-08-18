@@ -1,12 +1,15 @@
 import React from "react";
 import CreateWorkflow from ".";
 import { screen, fireEvent } from "@testing-library/react";
-import { workspaces, profile } from "ApiServer/fixtures";
+import { workspaces, workflows, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
+import { WorkflowView } from "Constants";
 
 const props = {
-  workspace: workspaces[0],
-  workspaces: workspaces,
+  workspace: workspaces.content[0],
+  hasReachedWorkflowLimit: false,
+  workflows: workflows.content,
+  viewType: WorkflowView.Workflow,
 };
 
 describe("CreateWorkflow --- Snapshot Test", () => {

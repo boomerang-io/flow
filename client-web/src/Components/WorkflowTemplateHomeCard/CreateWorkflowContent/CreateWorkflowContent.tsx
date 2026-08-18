@@ -102,9 +102,8 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
               <h2 className={styles.iconsTitle}>Pick an icon (any icon)</h2>
               <div className={styles.icons}>
                 {workflowIcons.map(({ name, Icon }: any, index) => (
-                  <TooltipHover direction="top" tooltipText={capitalize(name)}>
+                  <TooltipHover key={index} direction="top" tooltipText={capitalize(name)}>
                     <label
-                      key={index}
                       className={classnames(styles.icon, {
                         [styles.activeIcon]: values.icon === name,
                       })}
