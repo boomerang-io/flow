@@ -63,7 +63,7 @@ of boundaries landing, else Q-211 re-opens).
   `InternalController` deleted — **gap A4 closed**); H6 mode gates applied per the matrix +
   engine/standalone boot tests. Relationship seam: **ungated-interim** (a single-anchor no-op
   would silently corrupt access control — revisit with J1's `/:team → default` remapping at
-  E10). **E7-5** ✅ — `DispatcherEntity`/`dispatchers`/`dispatcherRef` + `_0011__DispatcherRename`
+  E10). **E7-5** ✅ — `DispatcherEntity`/`dispatchers`/`dispatcherRef` + `_0011__DispatcherRename` (2026-08-18: `dispatcherRef` folded into `claim.by` — it was a duplicate; see `entity-diff-v4-v5.md` §2)
   changeunit (collection rename, `$rename` on run docs), exercised by `LoaderMigrationTest`.
   Deliberately deferred to E10: J1 engine-mode default-team remapping; the api `Team*` shim
   dissolution (H7).
