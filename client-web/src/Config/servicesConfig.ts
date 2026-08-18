@@ -67,6 +67,9 @@ export const serviceUrl = {
   deleteWorkspaceQuotas: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/quotas`,
   getWorkspaceQuotaDefaults: () => `${BASE_URL}/workspace/quotas/default`,
   getTokens: ({ query }) => `${BASE_URL}/token/query${query ? "?" + query : ""}`,
+  // Resources/actions/role presets a token's permission grid is allowed to offer - server-driven
+  // so the picker can't drift from what is actually enforced.
+  getTokenCatalog: ({ query }) => `${BASE_URL}/token/catalog${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   deleteUser: ({ userId }) => `${BASE_URL}/user/${userId}`,

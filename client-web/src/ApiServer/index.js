@@ -498,6 +498,10 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return schema.db.tokens[0];
       });
 
+      this.get(serviceUrl.getTokenCatalog({ query: null }), (schema) => {
+        return schema.db.tokenCatalog[0];
+      });
+
       this.get(serviceUrl.getGlobalTokens(), (schema) => {
         return schema.db.tokens;
       });

@@ -273,11 +273,21 @@ export const EdgeExecutionCondition = {
   Always: "always",
 } as const;
 
+// Creatable token classes (AuthScope). "session" is system-only and can never be created via
+// the API, so it is intentionally not part of this set. The retired "workflow"/"workspace"
+// classes both map to "key" now - see TokenActorKind for what "workflow" used to encode.
 export const TokenType = {
   User: "user",
-  Workflow: "workflow",
-  Workspace: "workspace",
+  Key: "key",
   Global: "global",
+} as const;
+
+// Orthogonal discriminator carried alongside a "key"/"global" token to say what/who it
+// represents - mirrors the backend's TokenActorKind. Undefined on a normal human-driven token.
+export const TokenActorKind = {
+  Service: "SERVICE",
+  Agent: "AGENT",
+  Workflow: "WORKFLOW",
 } as const;
 
 export const elevatedUserRoles = [PlatformRole.Admin, PlatformRole.Operator];

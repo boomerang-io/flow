@@ -30,7 +30,6 @@ function GlobalParameters() {
     if (isEdit) {
       try {
         const response = await updateParameterMutation.mutateAsync({
-          key: parameter.key,
           body: parameter,
         });
         queryClient.invalidateQueries([parametersUrl]);

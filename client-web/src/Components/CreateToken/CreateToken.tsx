@@ -5,17 +5,28 @@ import React from "react";
 import styles from "./CreateToken.module.scss";
 import CreateServiceTokenForm from "./Form";
 import CreateServiceTokenResult from "./Result";
-import { TokenType } from "Constants";
+import { TokenType, TokenActorKind } from "Constants";
 import { TokenScopeType } from "Types";
+
+type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
 
 interface CreateServiceTokenButtonProps {
   type: TokenScopeType;
   principal?: string | null;
   getTokensUrl: string;
+  // Orthogonal to `type` - badges a `key` token minted for a Workflow's own use (see
+  // TokenActorKind). Undefined for a normal human-driven token.
+  actorKind?: TokenActorKindType;
   [key: string]: any; // This allows for any additional optional props
 }
 
-function CreateServiceTokenButton({ type, principal, getTokensUrl, ...otherProps }: CreateServiceTokenButtonProps) {
+function CreateServiceTokenButton({
+  type,
+  principal,
+  getTokensUrl,
+  actorKind,
+  ...otherProps
+}: CreateServiceTokenButtonProps) {
   const [isTokenCreated, setIsTokenCreated] = React.useState(false);
   return (
     <ModalFlow
@@ -31,7 +42,7 @@ function CreateServiceTokenButton({ type, principal, getTokensUrl, ...otherProps
           style={{ width: "12rem" }}
           size="md"
           data-testid="create-token-button"
-          kind={type === TokenType.User || type === TokenType.Workflow ? "tertiary" : "primary"}
+          kind={type === TokenType.User || actorKind === TokenActorKind.Workflow ? "tertiary" : "primary"}
           {...otherProps}
         >
           Create token
@@ -49,6 +60,7 @@ function CreateServiceTokenButton({ type, principal, getTokensUrl, ...otherProps
         setIsTokenCreated={() => setIsTokenCreated(true)}
         type={type}
         principal={principal}
+        actorKind={actorKind}
         getTokensUrl={getTokensUrl}
       />
       <CreateServiceTokenResult />

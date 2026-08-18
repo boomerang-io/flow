@@ -3,7 +3,6 @@ import React from "react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import { Add } from "@carbon/react/icons";
 import { ComposedModal, ModalFlowForm, TextInput, Toggle } from "@boomerang-io/carbon-addons-boomerang-react";
-import { updatedDiff } from "deep-object-diff";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import { InputType, PROPERTY_KEY_REGEX, PASSWORD_CONSTANT } from "Constants";
@@ -56,12 +55,10 @@ function CreateEditParametersModal({
     const newParameter = isEdit ? { ...values, type, id: parameter.id } : { ...values, type };
     delete newParameter.secured;
 
-    if (isEdit) {
-      const updatedFields = updatedDiff(initialState, newParameter);
-      handleSubmit(true, updatedFields, closeModal);
-    } else {
-      handleSubmit(false, newParameter, closeModal);
-    }
+    // The backend looks the record up by `name` and otherwise replaces the whole stored
+    // parameter - a partial diff would both drop the lookup key and null out any field the
+    // diff omitted, so edits send the same full shape the create path does.
+    handleSubmit(isEdit, newParameter, closeModal);
   };
 
   return (

@@ -25,7 +25,7 @@ afterEach(() => {
 describe("CreateServiceTokenButton --- Snapshot", () => {
   it("Capturing Snapshot of CreateServiceTokenButton", async () => {
     const { baseElement } = global.rtlContextRouterRender(
-      <CreateServiceTokenButton type={TokenType.Workspace} getTokensUrl={getTokensUrl} />,
+      <CreateServiceTokenButton type={TokenType.Key} getTokensUrl={getTokensUrl} />,
       { contextValue }
     );
     await screen.findByText(/Create Token/i);
@@ -35,7 +35,7 @@ describe("CreateServiceTokenButton --- Snapshot", () => {
 
 describe("CreateServiceTokenButton --- RTL", () => {
   it("Open token creation modal", async () => {
-    global.rtlContextRouterRender(<CreateServiceTokenButton type={TokenType.Workspace} getTokensUrl={getTokensUrl} />, {
+    global.rtlContextRouterRender(<CreateServiceTokenButton type={TokenType.Key} getTokensUrl={getTokensUrl} />, {
       contextValue,
     });
     const button = screen.getByTestId(/create-token-button/i);
@@ -45,7 +45,7 @@ describe("CreateServiceTokenButton --- RTL", () => {
   });
 
   it("Fill out form", async () => {
-    global.rtlContextRouterRender(<CreateServiceTokenButton type={TokenType.Workspace} getTokensUrl={getTokensUrl} />, {
+    global.rtlContextRouterRender(<CreateServiceTokenButton type={TokenType.Key} getTokensUrl={getTokensUrl} />, {
       contextValue,
     });
     const button = screen.getByTestId(/create-token-button/i);

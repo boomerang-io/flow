@@ -25,9 +25,12 @@ import queryString from "query-string";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
+import { TokenActorKind } from "Constants";
 import { resolver, serviceUrl } from "Config/servicesConfig";
 import type { Token, TokenScopeType } from "Types";
 import styles from "./TokenSection.module.scss";
+
+type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
 
 const HEADERS = [
   {
@@ -46,6 +49,16 @@ const HEADERS = [
     sortable: true,
   },
   {
+    header: "Actor",
+    key: "actorKind",
+    sortable: true,
+  },
+  {
+    header: "Created By",
+    key: "createdBy",
+    sortable: true,
+  },
+  {
     header: "Creation Date",
     key: "creationDate",
     sortable: true,
@@ -53,6 +66,11 @@ const HEADERS = [
   {
     header: "Expiration Date",
     key: "expirationDate",
+    sortable: true,
+  },
+  {
+    header: "Last Used",
+    key: "lastUsedAt",
     sortable: true,
   },
   {
@@ -65,9 +83,10 @@ const HEADERS = [
 interface TokenProps {
   type: TokenScopeType;
   principal?: string;
+  actorKind?: TokenActorKindType;
 }
 
-const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
+const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
   const queryClient = useQueryClient();
   const getTokensUrl = serviceUrl.getTokens({
     query: queryString.stringify({ types: type, principals: principal }),
@@ -107,12 +126,6 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
     const tokenDetails = tokens.find((token: Token) => token.id === tokenItemId);
     const column = HEADERS[cellIndex];
     switch (column.key) {
-      case "permissions":
-        return (
-          <p className={styles.tableTextarea}>
-            {value && tokenDetails ? tokenDetails.permissions.join(", ") : "---"}
-          </p>
-        );
       case "valid":
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
       case "creationDate":
@@ -122,6 +135,8 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
             {value ? moment(value).utc().startOf("day").format("MMMM DD, YYYY") : "---"}
           </p>
         );
+      case "lastUsedAt":
+        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format("MMMM DD, YYYY") : "Never"}</p>;
       case "delete":
         return tokenDetails && tokenDetails.id ? (
           <DeleteToken tokenItem={tokenDetails} deleteToken={deleteToken} />
@@ -135,7 +150,7 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
 
   return (
     <div className={styles.dataTable}>
-      <CreateToken getTokensUrl={getTokensUrl} principal={principal} type={type} />
+      <CreateToken getTokensUrl={getTokensUrl} principal={principal} type={type} actorKind={actorKind} />
       {tokens.length > 0 && (
         <DataTable<Token, any[]>
           rows={tokens}

@@ -25,6 +25,7 @@ export { default as revisions } from "./revisions";
 export { default as workspace } from "./workspace";
 export { default as workspaceApproverUsers } from "./workspaceApproverUsers";
 export { default as tokens } from "./tokens";
+export { default as tokenCatalog } from "./tokenCatalog";
 export { default as workspaceProperties } from "./workspaceProperties";
 export { default as workflows } from "./workflows";
 export { default as quotas } from "./quotas";

@@ -20,7 +20,7 @@ import { Switch, Route, Redirect, useLocation, useParams } from "react-router-do
 import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
 import { useEditorContext, useWorkspaceContext } from "Hooks";
-import { WorkspaceConfigType } from "Constants";
+import { TokenActorKind, TokenType, WorkspaceConfigType } from "Constants";
 import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
@@ -867,7 +867,7 @@ function Configure(props: ConfigureProps) {
             )}
             <div>
               <dl className={styles.detailedListContainer}>
-                <TokenSection type="workflow" principal={props.workflow.name} />
+                <TokenSection type={TokenType.Key} actorKind={TokenActorKind.Workflow} principal={props.workflow.name} />
               </dl>
             </div>
           </Section>

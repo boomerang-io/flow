@@ -5,26 +5,20 @@ import {
   ModalFlowForm,
   TextArea,
   TextInput,
-  CheckboxList,
-  RadioGroup,
   Loading,
   TooltipHover,
-  ComboBoxMultiSelect,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
 import moment from "moment";
 import { useMutation, useQueryClient } from "react-query";
 import * as Yup from "yup";
-import { useAppContext } from "Hooks";
-import { TokenType } from "Constants";
+import { TokenType, TokenActorKind } from "Constants";
 import { resolver } from "Config/servicesConfig";
 import { TokenScopeType } from "Types";
+import PermissionSelector, { PermissionSelection } from "./PermissionSelector";
 import styles from "./form.module.scss";
 
-const ACCESS_TYPE_OPTIONS = [
-  { labelText: "All workspaces", value: "all" },
-  { labelText: "Only select workspaces", value: "select" },
-];
+type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
 
 interface CreateServiceTokenFormProps {
   closeModal: () => void;
@@ -33,6 +27,7 @@ interface CreateServiceTokenFormProps {
   setIsTokenCreated: () => any;
   type: TokenScopeType;
   principal: string | null;
+  actorKind?: TokenActorKindType;
   getTokensUrl: string;
 }
 
@@ -43,37 +38,11 @@ function CreateServiceTokenForm({
   setIsTokenCreated,
   type,
   principal,
+  actorKind,
   getTokensUrl,
 }: CreateServiceTokenFormProps | any) {
-  const { workspaces } = useAppContext();
-  const [accessType, setAccessType] = React.useState<string>("all");
   const queryClient = useQueryClient();
   const tokenRequestMutation = useMutation(resolver.postToken);
-
-  const workspacesComboxBoxList = workspaces?.map((workspace: any) => ({
-    label: workspace.displayName,
-    value: workspace.name,
-    disabled: workspace.status === "active" ? true : false,
-  }));
-
-  const permissionsList = [
-    {
-      id: `**/read`,
-      labelText: "Read",
-    },
-    {
-      id: `**/write`,
-      labelText: "Write",
-    },
-    {
-      id: `**/action`,
-      labelText: "Action",
-    },
-    {
-      id: `**/delete`,
-      labelText: "Delete",
-    },
-  ];
 
   const createToken = async (values: any) => {
     const request = {
@@ -82,10 +51,11 @@ function CreateServiceTokenForm({
       expirationDate: values.date ? parseInt(moment.utc(values.date).startOf("day").format("x"), 10) : null,
       description: values.description,
       principal: values.principal,
-      ...(type !== TokenType.User ? { permissions: values.permissions } : {}),
+      ...(actorKind ? { actorKind } : {}),
+      // Exactly one of role/permissions travels with the request.
+      ...(type !== TokenType.User ? (values.role ? { role: values.role } : { permissions: values.permissions ?? [] }) : {}),
     };
 
-    console.log("request", request);
     try {
       const response = await tokenRequestMutation.mutateAsync({ body: request });
       queryClient.invalidateQueries(getTokensUrl);
@@ -105,11 +75,6 @@ function CreateServiceTokenForm({
     }
   };
 
-  const handleCheckboxListChange = (setFieldValue: any, value: any, checked: boolean, label: string) => {
-    value = checked ? [...value, label] : value.filter((item: string) => item !== label);
-    setFieldValue("permissions", value);
-  };
-
   return (
     <Formik
       initialValues={{
@@ -118,8 +83,8 @@ function CreateServiceTokenForm({
         expirationDate: "",
         description: "",
         principal: principal,
-        permissions: [`**/read`],
-        workspaces: [],
+        role: undefined,
+        permissions: undefined,
       }}
       validateOnMount
       onSubmit={(values) => createToken(values)}
@@ -134,6 +99,10 @@ function CreateServiceTokenForm({
       })}
     >
       {({ errors, touched, handleBlur, handleSubmit, setFieldValue, isValid, isSubmitting, values }) => {
+        const handlePermissionSelectionChange = (selection: PermissionSelection) => {
+          setFieldValue("role", selection.role);
+          setFieldValue("permissions", selection.permissions);
+        };
         return (
           <ModalFlowForm className={styles.container} onSubmit={handleSubmit}>
             <ModalBody>
@@ -141,8 +110,12 @@ function CreateServiceTokenForm({
               <p className={styles.modalHelper}>
                 This token will allow{" "}
                 {type === TokenType.Global
-                  ? `system wide access access to the APIs. `
-                  : `access to the APIs as if they were ${type === TokenType.User ? "you" : "this " + type}. `}{" "}
+                  ? `system wide access to the APIs. `
+                  : type === TokenType.User
+                    ? `access to the APIs as if they were you. `
+                    : `access to the APIs as if they were this ${
+                        actorKind === TokenActorKind.Workflow ? "workflow" : "workspace"
+                      }. `}{" "}
                 Be careful how you distribute this token.
               </p>
               <TextInput
@@ -157,15 +130,10 @@ function CreateServiceTokenForm({
                 value={values.name}
               />
               {type !== TokenType.User ? (
-                <CheckboxList
-                  id="permissions"
-                  helperText="Select at least one permission."
-                  selectedItems={values.permissions}
-                  labelText="Permissions"
-                  options={permissionsList}
-                  onChange={(checked: boolean, label: string) =>
-                    handleCheckboxListChange(setFieldValue, values.permissions, checked, label)
-                  }
+                <PermissionSelector
+                  scope={type === TokenType.Global ? "global" : "workspace"}
+                  principal={principal}
+                  onChange={handlePermissionSelectionChange}
                 />
               ) : null}
               <DatePicker

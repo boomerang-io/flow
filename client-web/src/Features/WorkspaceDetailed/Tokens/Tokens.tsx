@@ -50,6 +50,16 @@ const HEADERS = [
     sortable: true,
   },
   {
+    header: "Actor",
+    key: "actorKind",
+    sortable: true,
+  },
+  {
+    header: "Created By",
+    key: "createdBy",
+    sortable: true,
+  },
+  {
     header: "Creation Date",
     key: "creationDate",
     sortable: true,
@@ -57,6 +67,11 @@ const HEADERS = [
   {
     header: "Expiration Date",
     key: "expirationDate",
+    sortable: true,
+  },
+  {
+    header: "Last Used",
+    key: "lastUsedAt",
     sortable: true,
   },
   {
@@ -74,7 +89,7 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
   const [sortDirection, setSortDirection] = useState("DESC");
 
   const getTokensUrl = serviceUrl.getTokens({
-    query: queryString.stringify({ types: "workspace", principals: workspace?.name }),
+    query: queryString.stringify({ types: TokenType.Key, principals: workspace?.name }),
   });
 
   const {
@@ -120,8 +135,6 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
     const tokenDetails = tokensData?.content.find((token: Token) => token.id === tokenItemId);
     const column = HEADERS[cellIndex];
     switch (column.key) {
-      case "permissions":
-        return <p className={styles.tableTextarea}>{value ? tokenDetails.permissions.join(", ") : "---"}</p>;
       case "valid":
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
       case "creationDate":
@@ -131,6 +144,8 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
             {value ? moment(value).utc().startOf("day").format("MMMM DD, YYYY") : "---"}
           </p>
         );
+      case "lastUsedAt":
+        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format("MMMM DD, YYYY") : "Never"}</p>;
       case "delete":
         return tokenDetails && tokenDetails.id ? (
           <DeleteToken tokenItem={tokenDetails} deleteToken={deleteToken} />
@@ -175,7 +190,7 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
         ) : null}
         <div className={styles.buttonContainer}>
           {workspace && (
-            <CreateToken type={TokenType.Workspace} principal={workspace.name} getTokensUrl={getTokensUrl} disabled={!canEdit} />
+            <CreateToken type={TokenType.Key} principal={workspace.name} getTokensUrl={getTokensUrl} disabled={!canEdit} />
           )}
         </div>
         {tokensData?.content?.length > 0 ? (
