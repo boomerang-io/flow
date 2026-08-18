@@ -88,15 +88,11 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
               <Button kind="secondary" type="button" onClick={closeModal}>
                 Cancel
               </Button>
-              {/* @ts-ignore */}
               <Button
-                disabled={
-                  errors.displayName ||
-                  updateMutator.isLoading ||
-                  updateMutator.error ||
-                  updateMutator.isLoading
-                }
-                onClick={handleSubmit}
+                disabled={Boolean(
+                  errors.displayName || updateMutator.isLoading || updateMutator.error || updateMutator.isLoading,
+                )}
+                onClick={() => handleSubmit()}
                 data-testid="save-profile-displayname"
               >
                 {buttonText}

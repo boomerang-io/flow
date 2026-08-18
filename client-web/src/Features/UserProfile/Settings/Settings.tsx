@@ -13,6 +13,7 @@ import { Helmet } from "react-helmet";
 import { useMutation } from "react-query";
 import TokenSection from "Components/TokenSection";
 import { TokenType } from "Constants";
+import { formatErrorMessage } from "@boomerang-io/utils";
 import { resolver } from "Config/servicesConfig";
 import type { FlowUser } from "Types";
 import styles from "./Settings.module.scss";
@@ -29,7 +30,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
 
   const removeUserMutator = useMutation(resolver.deleteUser);
 
-  const workspaceCount = user.teams.length;
+  const workspaceCount = user.teams?.length ?? 0;
 
   const removeWorkspace = async () => {
     try {
@@ -38,10 +39,11 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
         <ToastNotification title="Close Account" subtitle="Request to close your account successful" kind="success" />,
       );
     } catch (error) {
+      const errorMessages = formatErrorMessage({ error, defaultMessage: "Unable to close the account." });
       notify(
         <ToastNotification
           title="Close Account"
-          subtitle={`Unable to close the account. ${error.message}. Please contact support.`}
+          subtitle={`${errorMessages.message}. Please contact support.`}
           kind="error"
         />,
       );
@@ -135,7 +137,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
                         onMouseLeave={() => setCopyTokenText("Copy ID")}
                         type="button"
                       >
-                        <CopyFile fill={"#0072C3"} className={styles.actionIcon} alt="Copy ID" />
+                        <CopyFile fill={"#0072C3"} className={styles.actionIcon} aria-label="Copy ID" />
                       </button>
                     </CopyToClipboard>
                   </div>
