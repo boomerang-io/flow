@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Templates 1`] = `
 <body
@@ -16,13 +16,14 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
           class="cds--bmrg-text-input"
         >
           <div
-            class="cds--form-item cds--text-input-wrapper"
+            class="cds--form-item cds--text-input-wrapper cds--text-input-wrapper--readonly"
           >
             <div
               class="cds--text-input__label-wrapper"
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="name"
               >
                 <div
@@ -42,19 +43,25 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               >
                 <input
                   aria-describedby="name-helper-text"
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="name"
                   placeholder="Enter a name"
+                  readonly=""
                   title="Enter a name"
                   type="text"
                   value="Test name"
                 />
+                <span
+                  class="cds--text-input__counter-alert"
+                  role="alert"
+                />
               </div>
               <div
                 class="cds--form__helper-text"
+                dir="auto"
                 id="name-helper-text"
               >
-                Must be unique
+                Names cannot be changed after creation
               </div>
             </div>
           </div>
@@ -70,6 +77,52 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <label
                 class="cds--label"
+                dir="auto"
+                for="displayName"
+              >
+                <div
+                  class="cds--bmrg-text-input__label"
+                >
+                  <div>
+                    Display Name
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div
+              class="cds--text-input__field-outer-wrapper"
+            >
+              <div
+                class="cds--text-input__field-wrapper"
+              >
+                <input
+                  class="cds--text-input"
+                  id="displayName"
+                  placeholder="Enter a name"
+                  title="Enter a name"
+                  type="text"
+                  value=""
+                />
+                <span
+                  class="cds--text-input__counter-alert"
+                  role="alert"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-text-input"
+        >
+          <div
+            class="cds--form-item cds--text-input-wrapper"
+          >
+            <div
+              class="cds--text-input__label-wrapper"
+            >
+              <label
+                class="cds--label"
+                dir="auto"
                 for="category"
               >
                 <div
@@ -89,16 +142,21 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               >
                 <input
                   aria-describedby="category-helper-text"
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="category"
                   placeholder="e.g. communication"
                   title="e.g. communication"
                   type="text"
                   value=""
                 />
+                <span
+                  class="cds--text-input__counter-alert"
+                  role="alert"
+                />
               </div>
               <div
                 class="cds--form__helper-text"
+                dir="auto"
                 id="category-helper-text"
               >
                 Categories have strict matching, type as you want to see it
@@ -133,26 +191,30 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 class="cds--list-box__field"
               >
                 <input
+                  aria-activedescendant=""
                   aria-autocomplete="list"
+                  aria-controls="downshift-0-menu"
+                  aria-describedby="combobox-helper-text-3"
                   aria-expanded="false"
                   aria-haspopup="listbox"
+                  aria-labelledby="downshift-0-label"
+                  aria-owns="downshift-0-menu"
                   autocomplete="off"
                   class="cds--text-input cds--text-input--empty"
                   id="select-icon"
                   placeholder="Choose an icon"
                   role="combobox"
                   tabindex="0"
-                  title=""
                   type="text"
                   value=""
                 />
                 
                 <button
-                  aria-haspopup="true"
+                  aria-controls="downshift-0-menu"
+                  aria-expanded="false"
                   aria-label="Open"
                   class="cds--list-box__menu-icon"
-                  data-toggle="true"
-                  role="button"
+                  id="downshift-0-toggle-button"
                   tabindex="-1"
                   title="Open"
                   type="button"
@@ -173,7 +235,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   </svg>
                 </button>
               </div>
-              <div
+              <ul
                 aria-label="Choose an item"
                 class="cds--list-box__menu"
                 id="downshift-0-menu"
@@ -209,13 +271,14 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               >
                 <label
                   class="cds--label"
+                  dir="auto"
                   for="description"
                 >
                   <div
                     style="display: flex;"
                   >
                     <div>
-                      Description
+                      Description (optional)
                     </div>
                   </div>
                 </label>
@@ -224,13 +287,19 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 class="cds--text-area__wrapper"
               >
                 <textarea
+                  aria-invalid="false"
                   class="cds--text-area"
-                  cols="50"
                   id="description"
+                  placeholder=""
                   rows="4"
+                  style="width: 100%;"
                 >
                   Test description
                 </textarea>
+                <span
+                  class="cds--text-area__counter-alert"
+                  role="alert"
+                />
               </div>
             </div>
           </div>
@@ -246,6 +315,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="image"
               >
                 <div
@@ -265,15 +335,20 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               >
                 <input
                   aria-describedby="image-helper-text"
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="image"
                   name="image"
                   type="text"
                   value=""
                 />
+                <span
+                  class="cds--text-input__counter-alert"
+                  role="alert"
+                />
               </div>
               <div
                 class="cds--form__helper-text"
+                dir="auto"
                 id="image-helper-text"
               >
                 Path to container image
@@ -292,6 +367,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="command"
               >
                 <div
@@ -307,15 +383,24 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
+                aria-describedby="text-area-helper-text-2"
+                aria-invalid="false"
                 class="cds--text-area"
-                cols="50"
                 id="command"
                 name="command"
+                placeholder=""
                 rows="4"
+                style="width: 100%;"
+              />
+              <span
+                class="cds--text-area__counter-alert"
+                role="alert"
               />
             </div>
             <div
               class="cds--form__helper-text"
+              dir="auto"
+              id="text-area-helper-text-2"
             >
               Override the entry point of the container
             </div>
@@ -332,6 +417,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="arguments"
               >
                 <div
@@ -347,18 +433,26 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
+                aria-describedby="text-area-helper-text-3"
+                aria-invalid="false"
                 class="cds--text-area"
-                cols="50"
                 id="arguments"
                 name="arguments"
                 placeholder="e.g. system sleep"
                 rows="4"
+                style="width: 100%;"
               >
                 slack
               </textarea>
+              <span
+                class="cds--text-area__counter-alert"
+                role="alert"
+              />
             </div>
             <div
               class="cds--form__helper-text"
+              dir="auto"
+              id="text-area-helper-text-3"
             >
               Enter arguments delimited by a new line
             </div>
@@ -375,6 +469,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="script"
               >
                 <div
@@ -390,10 +485,16 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
+                aria-invalid="false"
                 class="cds--text-area"
-                cols="50"
                 id="script"
+                placeholder=""
                 rows="4"
+                style="width: 100%;"
+              />
+              <span
+                class="cds--text-area__counter-alert"
+                role="alert"
               />
             </div>
           </div>
@@ -409,6 +510,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="workingDir"
               >
                 <div
@@ -427,10 +529,14 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 class="cds--text-input__field-wrapper"
               >
                 <input
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="workingDir"
                   type="text"
                   value=""
+                />
+                <span
+                  class="cds--text-input__counter-alert"
+                  role="alert"
                 />
               </div>
             </div>
@@ -456,6 +562,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   >
                     <label
                       class="cds--label"
+                      dir="auto"
                       for="envs-key"
                     >
                       Environments (optional)
@@ -468,10 +575,14 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                       class="cds--text-input__field-wrapper"
                     >
                       <input
-                        class="cds--text-input cds--text-input--md"
+                        class="cds--text-input"
                         id="envs-key"
                         type="text"
                         value=""
+                      />
+                      <span
+                        class="cds--text-input__counter-alert"
+                        role="alert"
                       />
                     </div>
                   </div>
@@ -499,10 +610,14 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                       class="cds--text-input__field-wrapper"
                     >
                       <input
-                        class="cds--text-input cds--text-input--md"
+                        class="cds--text-input"
                         id="envs-value"
                         type="text"
                         value=""
+                      />
+                      <span
+                        class="cds--text-input__counter-alert"
+                        role="alert"
                       />
                     </div>
                   </div>
@@ -510,9 +625,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               </div>
             </div>
             <button
-              class="cds--bmrg-creatable__button cds--btn cds--btn--md cds--btn--primary cds--btn--disabled"
+              class="cds--bmrg-creatable__button cds--btn cds--btn--md cds--layout--size-md cds--btn--primary cds--btn--disabled"
               disabled=""
-              tabindex="0"
               type="button"
             >
               Add
@@ -539,19 +653,21 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             class="cds--bmrg-creatable__tags"
           >
             <div
-              aria-label="Clear filter test:TEST"
               class="cds--tag cds--tag--filter cds--tag--teal"
               id="tag-1"
             >
+              
               <span
                 class="cds--tag__label"
+                dir="auto"
                 title="test:TEST"
               >
                 test:TEST
               </span>
               <button
-                aria-labelledby="tag-1"
+                aria-label="Clear filter"
                 class="cds--tag__close-icon"
+                title="Clear filter"
                 type="button"
               >
                 <svg
@@ -565,7 +681,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                    d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                   />
                 </svg>
               </button>
@@ -574,11 +690,11 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
         </div>
       </div>
       <div
+        aria-busy="false"
         class="cds--modal-footer cds--btn-set"
       >
         <button
           class="cds--btn cds--btn--secondary"
-          tabindex="0"
           type="button"
         >
           Cancel
@@ -586,7 +702,6 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
         <button
           class="cds--btn cds--btn--primary cds--btn--disabled"
           disabled=""
-          tabindex="0"
           type="submit"
         >
           Update

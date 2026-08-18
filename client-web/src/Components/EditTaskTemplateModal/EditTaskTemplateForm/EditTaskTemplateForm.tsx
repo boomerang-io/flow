@@ -24,7 +24,14 @@ function EditTaskTemplateForm({ closeModal, handleEditTaskTemplateModal, taskTem
   const orderedIcons = orderBy(taskIcons, ["name"]);
   const selectedIcon = orderedIcons.find((icon) => icon.name === templateData.icon);
   const handleSubmit = async (values) => {
-    await handleEditTaskTemplateModal({ newValues: values });
+    const newValues = {
+      ...values,
+      arguments: Boolean(values.arguments) ? values.arguments.trim().split(/\n{1,}/) : templateData.arguments,
+      command: Boolean(values.command) ? values.command.trim().split(/\n{1,}/) : templateData.command,
+      script: values.script ? values.script : templateData.script,
+      workingDir: values.workingDir ? values.workingDir : templateData.workingDir,
+    };
+    await handleEditTaskTemplateModal({ newValues });
     closeModal();
   };
 
@@ -40,12 +47,14 @@ function EditTaskTemplateForm({ closeModal, handleEditTaskTemplateModal, taskTem
         category: templateData.category,
         icon: selectedIcon ? { value: selectedIcon.name, label: selectedIcon.name, icon: selectedIcon.icon } : {},
         description: templateData.description,
-        arguments: templateData.arguments,
-        command: templateData.command,
+        arguments: Array.isArray(templateData.arguments)
+          ? templateData.arguments.join("\n")
+          : templateData.arguments ?? "",
+        command: Array.isArray(templateData.command) ? templateData.command.join("\n") : templateData.command ?? "",
         image: templateData.image,
         type: templateData.type,
-        script: templateData.script,
-        workingDir: templateData.workingDir,
+        script: templateData.script ?? "",
+        workingDir: templateData.workingDir ?? "",
         envs: formattedEnvs,
       }}
       validationSchema={Yup.object().shape({
