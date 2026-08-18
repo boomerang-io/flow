@@ -502,6 +502,37 @@ blast radius is the whole repo. Parallel-agent briefs now ban repo-wide `checkou
 and require committing coherent units immediately rather than holding large uncommitted changes;
 root-cause work that others build on runs to completion and commits BEFORE any fan-out.
 
+### T8-0 — the test suite was failing partly because the mock server lied
+
+Repairing the suite (35 failing files → 22 passing, in progress) surfaced a cause nobody had
+suspected: **`ApiServer/index.js`, the Mirage mock server, was itself broken in five places**, so
+many specs were failing against a fake backend that did not behave like the real one.
+
+- `putAction` was registered without its required `workspace` argument, crashing mock-server
+  construction for nearly every spec that started it.
+- `getWorkflows` was registered with a literal `workspace: null` instead of `:workspace`, so it
+  never matched a request and the Workflows page hung on its skeleton forever.
+- The workspace PATCH handler called `.update()` on a plain `schema.db` record, so every
+  name/label/member/quota edit 500'd.
+- `validate-name` returned 422 "already taken" unconditionally, blocking every create and rename
+  flow behind a failed async validation.
+- Workspace create never seeded `quotas`/`status`/`members`, crashing the list table on creation.
+
+**Fixtures were lying too**, in the same way and with the same consequence — a test that passes
+against a shape the API never sends is worse than no test. The shared app-context fixture supplied
+the **paginated response object** where the real app supplies a flat array (`App.tsx` does
+`sortBy(userData.teams, "name")`), so every default-context spec saw a user with zero workspaces and
+wrongly rendered empty states. The `users`/`profile` fixtures carried legacy
+`firstLoginDate`/`lastLoginDate` but not `creationDate`, and because `moment(undefined)` silently
+returns *now*, "First Login" and "Date Joined" always displayed today's date — in the app, not just
+in tests. Both corrected to the real shape rather than bending components toward the fixture.
+
+**Process lesson recorded:** one agent ran a bare `vitest run -u` instead of the project's
+`TZ=UTC`-pinned script and baked the machine's local UTC+10 offset into date-bearing snapshots. It
+caught and redid them, but snapshot updates must always go through the project script. Blind `-u`
+across a stale suite is banned outright — it enshrines whatever bug currently exists as the expected
+output, which is strictly worse than a red test.
+
 ### T8-0 — the typecheck net paid for itself in bugs, not types
 
 Driving `tsc` to zero was justified as a safety net for the migrations. It also surfaced **nine
