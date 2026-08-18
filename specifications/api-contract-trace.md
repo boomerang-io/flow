@@ -145,6 +145,42 @@ Net shape: the frontend `Connect` page, the `GitHub.tsx` link mutation, and the 
 code-only**: the GitHub App needs its Setup URL repointed, "Request user authorization (OAuth)
 during installation" enabled so a `code` is returned, and new client id/secret settings populated.
 
+## 2d. Workflow Templates — demoted to static content (ruled 2026-08-18)
+
+**They were not gone.** The premise "we got rid of Workflow Templates" was checked and is false:
+`Home.tsx` renders a "Get Started With A Template" section for **every** user, and `App.tsx` gates
+the entire app's loading *and* error state on the templates query — if it fails, nobody gets past
+the spinner. Every install also holds data (loader seeds a starter set; v3 installs migrate their
+`scope=template` workflows in).
+
+**But the consumption path never treated them as an entity.** `WorkflowTemplateHomeCard` doesn't
+call any template endpoint to instantiate — it spreads the template's fields into an ordinary
+`POST /workspace/{workspace}/workflow`. Templates were already just seed content; only their
+*storage* pretended otherwise.
+
+**Ruling: templates become static content shipped with the product**, imported into a workspace
+exactly like create-from-JSON/YAML. Served read-only from the backend's resources folder rather
+than embedded in the UI bundle — the frontend keeps its existing query URL (no churn), templates
+stay one artifact for any client, and an install-specific override via a mounted file stays possible.
+
+*Removed:* the `workflow_templates` collection, `WorkflowTemplateEntity`/repository, the CRUD
+routes (`POST`/`PUT`/`DELETE`), `PermissionResource.WORKFLOWTEMPLATE` and its `@AuthCriteria`
+wiring, the admin surface (`Features/TemplateWorkflows`, `Components/WorkflowTemplateCard`,
+`CreateWorkflowTemplate`), and the loader's template seed + v3 extraction.
+*Kept:* a read-only query endpoint reading resource files, the Home-page consumption, and the
+`WorkflowTemplate` wire shape.
+
+**Legacy data — export and retain, do not destroy.** The v3 extraction's own javadoc records
+exactly **2** `scope=template` workflows in the dump it was verified against. Those are exported for
+manual uplift into resource files, and the existing collection is **retained as an archive rather
+than dropped**, so the demotion is reversible until the maintainer confirms the uplift. Dropping it
+is a separate, later step.
+
+*Note:* this retires two defects fixed in the interim — the missing `save()` in
+`WorkflowTemplateService.create` (every "Import new Workflow Template" showed success and lost the
+data) and the Export menu item pointing at a route commented out since `4dc06234`. Both fixes were
+correct for the code as it stood and cost little.
+
 ## 3. Security findings
 
 - **TaskRun log streaming has no ownership check at any layer. [reported]** The workspace check in
