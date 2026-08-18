@@ -83,8 +83,9 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
     return workflow;
   }
 
-  // setUpWorkspaceDefaults/canCreateWithQuotas both read "features"."teamQuotas" unconditionally
-  // - the loader normally seeds it, but this shared Testcontainers Mongo starts empty.
+  // setUpWorkspaceDefaults/canCreateWithQuotas both read "features"."workspaceQuotas"
+  // unconditionally - the loader normally seeds it, but this shared Testcontainers Mongo starts
+  // empty.
   private void seedFeatureQuotaSettingDisabled() {
     if (settingsRepository.findOneByKey("features") != null) {
       return;
@@ -92,11 +93,11 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
     SettingEntity settings = new SettingEntity();
     settings.setKey("features");
     settings.setName("Features");
-    SettingConfig teamQuotas = new SettingConfig();
-    teamQuotas.setKey("teamQuotas");
-    teamQuotas.setType("boolean");
-    teamQuotas.setValue("false");
-    settings.setConfig(List.of(teamQuotas));
+    SettingConfig workspaceQuotas = new SettingConfig();
+    workspaceQuotas.setKey("workspaceQuotas");
+    workspaceQuotas.setType("boolean");
+    workspaceQuotas.setValue("false");
+    settings.setConfig(List.of(workspaceQuotas));
     settingsRepository.save(settings);
   }
 }

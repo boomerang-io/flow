@@ -57,7 +57,7 @@ public class ParamLayerService {
       buildGlobalParams(globalParams);
     }
     // Set Workspace Params
-    if (settingsService.getSettingConfig("features", "teamParameters").getBooleanValue()) {
+    if (settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue()) {
       buildTeamParams(teamParams, teamId);
     }
     // Set the Keys from the Workflow - ignore values
@@ -78,7 +78,7 @@ public class ParamLayerService {
     Map<String, Object> globalParams = paramLayers.getGlobalParams();
     Map<String, Object> contextParams = paramLayers.getContextParams();
     // Set Workspace Params
-    if (settingsService.getSettingConfig("features", "teamParameters").getBooleanValue()) {
+    if (settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue()) {
       buildTeamParams(teamParams, teamId);
     }
     // Set Global Params

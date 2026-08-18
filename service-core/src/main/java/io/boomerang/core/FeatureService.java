@@ -29,8 +29,8 @@ public class FeatureService {
       features.put(VERIFIED_TASK_EDIT_KEY, false);
     }
     features.put(
-        "team.quotas",
-        settingsService.getSettingConfig("features", "teamQuotas").getBooleanValue());
+        "workspace.quotas",
+        settingsService.getSettingConfig("features", "workspaceQuotas").getBooleanValue());
     features.put(
         "workflow.triggers",
         settingsService.getSettingConfig("features", "workflowTriggers").getBooleanValue());
@@ -38,14 +38,14 @@ public class FeatureService {
         "workflow.tokens",
         settingsService.getSettingConfig("features", "workflowTokens").getBooleanValue());
     features.put(
-        "team.parameters",
-        settingsService.getSettingConfig("features", "teamParameters").getBooleanValue());
+        "workspace.parameters",
+        settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue());
     features.put(
         "global.parameters",
         settingsService.getSettingConfig("features", "globalParameters").getBooleanValue());
     features.put(
-        "team.management",
-        settingsService.getSettingConfig("features", "teamManagement").getBooleanValue());
+        "workspace.management",
+        settingsService.getSettingConfig("features", "workspaceManagement").getBooleanValue());
     features.put(
         "user.management",
         settingsService.getSettingConfig("features", "userManagement").getBooleanValue());
@@ -54,7 +54,8 @@ public class FeatureService {
     features.put(
         "insights", settingsService.getSettingConfig("features", "insights").getBooleanValue());
     features.put(
-        "team.tasks", settingsService.getSettingConfig("features", "teamTasks").getBooleanValue());
+        "workspace.tasks",
+        settingsService.getSettingConfig("features", "workspaceTasks").getBooleanValue());
 
     flowFeatures.setFeatures(features);
     return flowFeatures;

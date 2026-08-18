@@ -96,7 +96,7 @@ public class WorkspaceWorkflowService {
 
   private static final String TASK_REF_SEPERATOR = "/";
   public static final String FEATURES_SETTINGS_KEY = "features";
-  public static final String FEATURES_TEAM_QUOTA = "teamQuotas";
+  public static final String FEATURES_WORKSPACE_QUOTA = "workspaceQuotas";
   public static final String QUOTA_MAX_WORKFLOW_DURATION = "max.workflow.duration";
   public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
   public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
@@ -329,7 +329,7 @@ public class WorkspaceWorkflowService {
   private void setUpWorkspaceDefaults(Workflow request) {
     boolean quotasEnabled =
         settingsService
-            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
+            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
             .getBooleanValue();
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       // Workflow Storage
@@ -767,7 +767,7 @@ public class WorkspaceWorkflowService {
    */
   private void canCreateWithQuotas(String team) {
     if (settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
+        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
         .getBooleanValue()) {
       CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
@@ -786,7 +786,7 @@ public class WorkspaceWorkflowService {
    */
   private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
     if (settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
+        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
         .getBooleanValue()) {
       CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
