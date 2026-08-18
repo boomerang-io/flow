@@ -35,7 +35,7 @@ export default function SchedulePanelDetail(props: SchedulePanelDetailProps) {
       DATETIME_LOCAL_DISPLAY_FORMAT,
     );
 
-    const labels = [];
+    const labels: React.ReactNode[] = [];
     //TODO: fix labels
     // for (const entry of schedule?.labels || []) {
     //   labels.push(
@@ -54,7 +54,7 @@ export default function SchedulePanelDetail(props: SchedulePanelDetailProps) {
               <Button
                 size="sm"
                 kind="ghost"
-                onClick={props.setIsEditorOpen}
+                onClick={() => props.setIsEditorOpen(true)}
                 renderIcon={SettingsAdjust}
                 style={{ marginLeft: "auto" }}
               >

@@ -20,7 +20,7 @@ import { useWorkspaceContext } from "Hooks";
 import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { scheduleStatusOptions, scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
 import { resolver } from "Config/servicesConfig";
-import { ScheduleUnion, PaginatedSchedulesResponse } from "Types";
+import { ScheduleStatus, ScheduleUnion, PaginatedSchedulesResponse } from "Types";
 import styles from "./SchedulePanelList.module.scss";
 
 interface SchedulePanelListProps {
@@ -112,11 +112,10 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
       <div style={{ display: "flex", alignItems: "end", gap: "0.5rem", width: "100%" }}>
         <div style={{ width: props.includeStatusFilter ? "50%" : "100%" }}>
           <Search
-            light
             id="schedules-filter"
             labelText="Filter Schedules"
             placeholder="Search Schedules"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterQuery(e.target.value)}
+            onChange={(e: { target: HTMLInputElement; type: "change" }) => setFilterQuery(e.target.value)}
           />
         </div>
         {props.includeStatusFilter && (
@@ -125,13 +124,12 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
               hideLabel
               id="actions-statuses-select"
               label="Choose status(es)"
-              placeholder="Choose status(es)"
               invalid={false}
-              onChange={({ selectedItems }: { selectedItems: Array<{ key: string; value: string }> }) =>
-                setSelectedStatuses(selectedItems.map((item: { key: string; value: string }) => item.value))
+              onChange={(data: { selectedItems: Array<{ label: string; value: ScheduleStatus }> | null }) =>
+                setSelectedStatuses((data.selectedItems ?? []).map((item) => item.value))
               }
               items={scheduleStatusOptions}
-              selectedItem={selectedStatuses}
+              selectedItems={scheduleStatusOptions.filter((option) => selectedStatuses.includes(option.value))}
               titleText="Filter by status"
             />
           </Layer>
