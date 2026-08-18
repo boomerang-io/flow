@@ -58,6 +58,16 @@ export enum UserStatus {
   Archived = "archived",
 }
 
+export type PermissionScope = "global" | "workspace";
+
+// A single resolved grant: a set of resource/action strings (e.g. "workflow/read"),
+// scoped globally (principal "**") or to one workspace (principal = its reference).
+export interface ResolvedPermissions {
+  scope: PermissionScope;
+  principal: string;
+  actions: string[];
+}
+
 export interface FlowUser extends User {
   id: string;
   email: string;
@@ -72,7 +82,7 @@ export interface FlowUser extends User {
   // Only present on the profile response; carries the caller's resolved workspace
   // memberships and permissions alongside the base user record.
   teams?: Array<FlowWorkspaceSummary>;
-  permissions?: Array<string>;
+  permissions?: Array<ResolvedPermissions>;
 }
 
 export interface FlowUserSettings {
@@ -501,6 +511,9 @@ export interface Token {
     principal: string;
     actions: Array<string>;
   }>;
+  actorKind?: string;
+  createdBy?: string;
+  lastUsedAt?: string;
 }
 
 export interface TokenRequest {

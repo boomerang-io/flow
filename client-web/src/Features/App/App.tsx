@@ -18,10 +18,10 @@ import { Switch, Route, Redirect, useLocation, useParams } from "react-router-do
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
 import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
-import { elevatedUserRoles } from "Constants";
 import { AppPath, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { FlowFeatures, FlowNavigationItem, FlowWorkspace, FlowUser, ContextConfig, WorkflowTemplate } from "Types";
+import { hasPermission } from "Utils/permissionHelper";
 import Navbar from "./Navbar";
 import UnsupportedBrowserPrompt from "./UnsupportedBrowserPrompt";
 import styles from "./app.module.scss";
@@ -226,7 +226,7 @@ function Main({
   userData,
   workflowTemplatesData,
 }: MainProps) {
-  const { id: userId, type: platformRole } = userData;
+  const { id: userId } = userData;
 
   // Don't show anything to a user that doesn't exist, the UIShell will show the redirect
   if (!userId) {
@@ -249,20 +249,27 @@ function Main({
         workflowTemplates: workflowTemplatesData,
       }}
     >
-      <AppFeatures platformRole={platformRole} />
+      <AppFeatures />
     </AppContextProvider>
   );
 }
 
-interface AppFeaturesProps {
-  platformRole: string;
-}
-
-const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeaturesProps) {
+const AppFeatures = React.memo(function AppFeatures() {
+  const { user } = useAppContext();
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
   const insightsEnabled = useFeature(FeatureFlag.InsightsEnabled);
   const workspaceParametersEnabled = useFeature(FeatureFlag.WorkspaceParametersEnabled);
   //const workspaceTasksEnabled = useFeature(FeatureFlag.WorkspaceTasksEnabled);
+
+  // The admin section is gated on real grants, not a role guess: each screen requires
+  // the global read/write it actually needs, resolved from the profile's permission list.
+  const canReadSettings = hasPermission(user, "system", "read");
+  const canReadParameters = hasPermission(user, "parameter", "read");
+  const canReadWorkflowTemplates = hasPermission(user, "workflowtemplate", "read");
+  const canReadTasks = hasPermission(user, "task", "read");
+  const canReadTokens = hasPermission(user, "token", "read");
+  const canReadWorkspaces = hasPermission(user, "workspace", "read");
+  const canReadUsers = hasPermission(user, "user", "read");
 
   return (
     <main id="content" className={styles.container}>
@@ -283,46 +290,46 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
           <Route path={"/admin"}>
             <Switch>
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<Settings />}
                 path={AppPath.Settings}
-                userRole={platformRole}
+                userRole={canReadSettings ? "*" : ""}
               />
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<GlobalParameters />}
                 path={AppPath.Properties}
-                userRole={platformRole}
+                userRole={canReadParameters ? "*" : ""}
               />
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<TemplateWorkflows />}
                 path={AppPath.TemplateWorkflows}
-                userRole={platformRole}
+                userRole={canReadWorkflowTemplates ? "*" : ""}
               />
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<AdminTasks />}
                 path={AppPath.Tasks}
-                userRole={platformRole}
+                userRole={canReadTasks ? "*" : ""}
               />
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<Tokens />}
                 path={AppPath.Tokens}
-                userRole={platformRole}
+                userRole={canReadTokens ? "*" : ""}
               />
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<Workspaces />}
                 path={AppPath.WorkspaceList}
-                userRole={platformRole}
+                userRole={canReadWorkspaces ? "*" : ""}
               />
               <ProtectedRoute
-                allowedUserRoles={elevatedUserRoles}
+                allowedUserRoles={["*"]}
                 component={<Users />}
                 path={AppPath.UserList}
-                userRole={platformRole}
+                userRole={canReadUsers ? "*" : ""}
               />
               <Redirect exact from="/" to={AppPath.Settings} />
             </Switch>
