@@ -81,14 +81,13 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                   <NumberInput
                     id="workspace-update-name-id"
                     data-testid="text-input-workspace-name"
-                    labelText={inputLabel}
+                    label={inputLabel}
                     value={values.quotaFormValue}
                     step={stepValue}
                     min={minValue}
                     //Need a max value in order to work - need to update in case of invalid value
                     max={99999}
-                    onChange={(evt: React.ChangeEvent<HTMLInputElement>, { value }: { value: number }) => {
-                      //@ts-ignore
+                    onChange={(evt: React.MouseEvent<HTMLButtonElement>, { value }: { value: number | string }) => {
                       setFieldValue("quotaFormValue", value);
                     }}
                     invalid={Boolean(errors.quotaFormValue && !touched.quotaFormValue)}
@@ -111,7 +110,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                 Cancel
               </Button>
               <Button
-                disabled={errors.quotaFormValue || updateWorkspaceMutator.isLoading || !dirty}
+                disabled={Boolean(errors.quotaFormValue) || updateWorkspaceMutator.isLoading || !dirty}
                 onClick={() => handleOnSubmit(values)}
               >
                 {buttonText}

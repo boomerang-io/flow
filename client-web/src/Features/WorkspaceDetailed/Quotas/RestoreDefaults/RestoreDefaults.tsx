@@ -125,7 +125,7 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
         )}
       </ModalBody>
       <ModalFooter>
-        <Button kind="secondary" type="button" onClick={closeModal}>
+        <Button kind="secondary" type="button" onClick={() => closeModal()}>
           Cancel
         </Button>
         <Button disabled={resetQuotasMutator.isLoading} onClick={handleRestoreDefaultQuota}>
