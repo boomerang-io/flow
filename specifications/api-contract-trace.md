@@ -65,6 +65,44 @@ These are not degraded, they are dead. Ordered by user impact.
    menu item; the route is commented out server-side. Inherited v4 debt (`4dc06234`), not a merge
    regression. **Remove the button or restore the route.**
 
+## 2b. Schedule / integration domain
+
+**Schedule labels are broken end to end. [reported]** Labels are discarded on save (both create and
+edit), never render in `SchedulePanelDetail`, render empty in `SchedulePanelList`, and the search
+keys are array-shaped against what is actually a `Record<string,string>` map. The map-treated-as-array
+confusion recurs at every layer — the same root cause as the confirmed edit-time labels loss.
+
+**The frontend did not know a schedule could be `completed`. [verified — fixed]** Backend
+`WorkflowScheduleStatus` has six values; the TS union had five, omitting `completed`. A `runOnce`
+schedule becomes `completed` once it fires — the single most common one-shot case — so it rendered
+with no status label (the `Record<ScheduleStatus,string>` had no entry) and could not be filtered.
+Widened the union and added the label; the `Record` type then enforced the map update, which is the
+type system doing exactly the job T8-0 was built for.
+
+**Disabling any non-GitHub integration would unlink the wrong thing. [verified]**
+`IntegrationCard.tsx:23` hardcodes `useMutation(resolver.postGitHubAppUnlink)` and calls it
+regardless of `data.name` — so a Slack card's "Disable" posts the Slack entity's `ref` to the
+**GitHub** unlink endpoint. Latent today only because Slack templates are seeded inactive and never
+returned; it becomes live the moment a second integration type ships. Directly relevant to the
+parked Slack redo.
+
+**`GHLinkRequest.team` is the DD-01 outlier. [verified]** The frontend already sends `{workspace,
+ref}` — correct post-rename. The backend model still declares `team`, read in `GitHubService`'s link
+and unlink paths. **The backend is what should change**, not the frontend. Whether the mismatch
+currently manifests as a hard 400 or a silent null is *unconfirmed*: this codebase is on Jackson 3,
+`GHLinkRequest` lacks the `@JsonIgnoreProperties(ignoreUnknown = true)` its sibling DTOs opt into,
+and no global override was found — both outcomes point to the same fix.
+
+**Also reported:** the webhook/event trigger sends `?workflow=` where the backend reads `?ref=`;
+`ScheduleStatus` filtering and cron-dialect concerns noted above. **Verified as NOT a bug:**
+`Schedule.workflow` is absent from the wire by design (only `workflowRef` is sent) and is joined
+client-side in `Schedules.tsx` — worth stating because it has exactly the shape of the
+missing-field defects elsewhere in this document.
+
+*Confidence note:* date-field serialisation (ISO-8601 vs epoch) was **inferred from the absence of
+Jackson configuration, not runtime-verified**. Confirm with a live `GET /schedule/{id}` before
+relying on it.
+
 ## 3. Security findings
 
 - **TaskRun log streaming has no ownership check at any layer. [reported]** The workspace check in
