@@ -409,6 +409,67 @@ relationship approach") and confirmed already commented in the pre-merge `servic
 inherited v4 debt, NOT something the merge broke. Feeds the parked "WorkflowTemplates sunset"
 question: the feature is already half-dismantled.
 
+## Track 8 — frontend refactor (2026-08-18)
+
+**T8-D1 — Full SSR, decided.** React Router v7 framework mode with `ssr: true`. This **replaces
+`@boomerang-io/webapp-spa-server`** and reworks the runtime `PRODUCT_SERVICE_ENV_URL` asset-path
+rewriting (server rendering can read env at request time, so the `rewriteAssetPaths` hack goes
+away — a net simplification). It also **closes T7-2's deferred "bundle the webapp into
+`service-core`" option**: SSR means a permanent Node runtime, so single-deployable standalone is
+off the table. Recorded as the resolution of that deferral, not an open question.
+
+**T8-D2 — Drop TanStack Query from app code; use loaders/actions.** The 289 `useQuery`/`useMutation`
+call sites across 66 files move straight to route loaders and actions — they are NOT migrated
+react-query v3 → TanStack v5 first, which would be doing the same 289 sites twice. *Caveat:* the
+design system's `UIShell` and `Header` use react-query internally and the app uses both, so a query
+provider stays mounted for the shell until those components are replaced. "Remove TanStack" means
+from our data layer, not from the tree.
+
+**T8-D3 — The design system does NOT gate Router v7** (correcting the initial read of its peer
+ranges). `@boomerang-io/carbon-addons-boomerang-react` declares `react-router-dom ^5.3.4` even at
+latest, but touches it in only three components: `FeatureSideNavLink` and `FeatureNavTab` use
+`NavLink` (unchanged in v6/v7), and `ProtectedRoute` uses `Route`. Only `ProtectedRoute` breaks; the
+app uses it at 12 sites and replaces it in-app (in a loaders world it becomes a loader-based
+redirect). `.npmrc` already sets `strict-peer-dependencies=false`, so the declared range does not
+block installation. **Verify declared peers against actual imports before treating a pin as a
+blocker.**
+
+**T8-D4 — React 18 is the ceiling.** The wrapper's latest (`4.9.0-beta.15`) peers `react ^18.3.1`.
+React 19 is not available without dropping the design system, which 143 files import.
+
+### T8 sequence
+
+| Step | Work |
+| ---- | ---- |
+| T8-0 | **Safety net first** (maintainer ruling: tests AND typecheck, both blocking). Mirrors the ruled E0-before-E4 discipline — no migration starts without verification. |
+| T8-1 | React 18 + Carbon 1.75 + wrapper 4.9 + axios 1.x. |
+| T8-2 | Router v5 → v7: replace `ProtectedRoute`, convert 93 `Switch` / 52 `useHistory` / 48 `Redirect` / 8 `useRouteMatch`. |
+| T8-3 | Data layer → loaders/actions (the 289 sites), with API-call separation landing here. |
+| T8-4 | Resolved per-workspace permissions + UI gating. |
+
+**Sequencing note — permissions before the A2 flip.** The backend still soft-fails permission
+checks, so frontend gating mistakes are invisible today and become user-visible 403s the moment A2
+flips to enforcement. Do T8-4 while mistakes are still cheap.
+
+**Sequencing risk SSR introduces — auth moves earlier.** With `ssr: true`, loaders run
+**server-side** and must carry the user's session to reach the API, but T7-F1 established the app
+has no login flow and relies on a cookie set by an upstream proxy. SSR therefore forces the
+credential-forwarding and session story to be solved during T8-3, not deferred to T8-4. Expect two
+API base URLs as well: an internal one for server-side loaders, the public one for the browser.
+
+### T8-0 baseline (measured 2026-08-18)
+
+354 `tsc` errors — **277 in app code, 77 in specs** — plus 36 of 37 test files failing.
+- ~46 spec errors are a single config gap: jest-dom matchers are registered at **runtime** but not
+  **typed** (`toBeInTheDocument`, `toMatchSnapshot`, `toBe` "does not exist on type 'Assertion'").
+  One fix.
+- The 166 `TS2322`s are a genuine long tail, 166 of them in app code and only 1 in a spec: Carbon
+  component prop mismatches, event-handler signatures (`FormEvent` vs `MouseEventHandler`),
+  `string | undefined` vs `string`. No single systematic fix.
+- Several trace to domain types drifting from the backend (`Task.config`, `Member.name`,
+  `Member[]` vs `Approver[]`) — these are fixed once, centrally, against the real `service-core`
+  models before the long tail is parallelised.
+
 ### T7 — inherited frontend quality debt (measured at fold-in)
 
 Both figures below are **pre-existing v4 debt**, confirmed against the parent commit, not caused by
