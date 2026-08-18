@@ -58,8 +58,11 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
 - **Timeouts & crash recovery = WorkflowWatcher recovery sweep** — instance-agnostic reaping
   (any survivor reaps a crashed claimant's runs; lease/fencing makes it safe). No per-run
   timers. Run timeout must be ≥ the transport timeout of the guarded work.
-- **Three retry failure classes**: generic backoff, rate-limit (own base + higher cap),
-  deterministic-terminal (no retry). Backoff stored as `retryAfter` = claim-eligibility.
+- **Retry: ONE generic backoff class is built** (`Backoff`, 10s base → 5m ceiling, stored as
+  `retryAfter` = claim-eligibility). The designed rate-limit and deterministic-terminal classes
+  were **never implemented** — there is no `retryClass` field, and an agent-reported *failure*
+  (vs a timeout) is not retried at all. Ruled 2026-08-18: correct the spec rather than build them
+  ahead of proven need.
 - **Pause is a committed v5 feature** (`pauseRequestedAt: Instant` flag — NEVER a RunStatus
   value) enforced at a **single admission gate**: a paused run admits no new TaskRuns (the
   DAG advance/queue chokepoint at `TaskExecutionService.queue`), while work already in flight
@@ -67,8 +70,10 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
   deadline regardless of pause. Resume = clear flag + reconcile. (The earlier three-chokepoint
   design — claim-query exclusion + transition gate + sweep-skip — collapsed to the admission
   gate once claim-query exclusion proved redundant and needlessly held back in-flight work.)
-- **Starvation-safe typed queues**: FIFO on a compound index; backoff exclusion IN the query;
-  per-type concurrency caps; kill switch.
+- **Starvation-safe typed queues**: FIFO on a compound index (loader-managed — the entity index
+  annotations are inert, `auto-index-creation=false`); backoff exclusion IN the query.
+  **Per-type concurrency caps and the kill switch do not exist** — `findClaimable` filters only by
+  the agent's registered task types. Load testing reopens this, not speculation.
 - **Relationship layer**: keep the existing `rel_nodes`/`rel_edges` schema, adopt CHEER's
   direct-query anchored walk; the in-memory JGraphT singleton is **rejected** (per-replica
   staleness = authz bug). `$graphLookup` is the escalation path for deeper walks. Hot
