@@ -50,9 +50,12 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
 
 ## v5 Execution-Model Direction (verified against ARCHIE/CHEER shipped code)
 
-- **Atomic claiming via `findAndModify`** — no distributed locks. Claims carry ownership
-  metadata: `claimedBy`/`claimedAt`/`leaseExpiresAt`/`claimEpoch` (fencing validated on
-  result writes). ARCHIE writes `claimedBy` but never reads it — Flow adds the semantics.
+- **Atomic claiming via `findAndModify`** — no distributed locks. Claims carry `claim.by`/
+  `claim.at`/`claim.seq`, and **fencing is genuinely validated on result writes**
+  (`claimantIsValid` at start/end) — ARCHIE writes `claimedBy` but never reads it, and Flow does
+  add the semantics. `leaseExpiresAt` is declared and indexed but **written nowhere** (only ever
+  unset), so leases are inert vocabulary: crash recovery is pure deadline-based reaping off
+  `timeoutAt`. Do not describe leases as a working guard.
 - **Contended transitions use status-CAS `findAndModify`** (`tryTransition(expected→target)`)
   — NOT `@Version` retries. The watcher/sweep re-drives after swallowed conflicts.
 - **Timeouts & crash recovery = WorkflowWatcher recovery sweep** — instance-agnostic reaping
