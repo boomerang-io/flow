@@ -95,7 +95,6 @@ public class WorkspaceWorkflowService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String TASK_REF_SEPERATOR = "/";
-  public static final String TEAMS_SETTINGS_KEY = "teams";
   public static final String FEATURES_SETTINGS_KEY = "features";
   public static final String FEATURES_TEAM_QUOTA = "teamQuotas";
   public static final String QUOTA_MAX_WORKFLOW_DURATION = "max.workflow.duration";
@@ -268,11 +267,14 @@ public class WorkspaceWorkflowService {
     LOGGER.debug("Workflow DisplayName: {}", request.getDisplayName());
 
     // Ensure Workflow name is unique within Workspace
-    if (relationshipService.check(
-        RelationshipType.WORKFLOW,
-        request.getName(),
-        Optional.of(RelationshipType.WORKSPACE),
-        Optional.of(List.of(team)))) {
+    List<String> existingWorkflowRefs =
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(request.getName())),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!existingWorkflowRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
@@ -335,7 +337,7 @@ public class WorkspaceWorkflowService {
         if (ws.getType().equals("workflow")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                   .getValue()
                   .replace("Gi", "");
           ws.setName("workflow");
@@ -360,7 +362,7 @@ public class WorkspaceWorkflowService {
         } else if (ws.getType().equals("workflowrun")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                   .getValue()
                   .replace("Gi", "");
           ws.setName("workflowrun");

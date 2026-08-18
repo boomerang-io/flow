@@ -34,8 +34,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>{@code global}/{@code user}/{@code session} tokens are completely unaffected</b> — their
  * prefixes and classes are unchanged, so they keep working with no migration at all. This unit's
- * filter is narrow by construction ({@code type} exactly {@code "workspace"} or {@code
- * "workflow"}) so it cannot touch them.
+ * filter is narrow by construction ({@code type} exactly {@code "team"} - the pre-DD-01 spelling
+ * of the retired workspace class, which {@code _0016__WorkspaceRename} no longer rewrites -,
+ * {@code "workspace"} - the spelling on databases where an earlier revision of {@code _0016} did
+ * rewrite it -, or {@code "workflow"}) so it cannot touch them.
  *
  * <p><b>Why no other data needs migrating.</b> {@code ResolvedPermissions.scope} (now typed
  * {@code PermissionScope} instead of the former overloaded {@code AuthScope}) only ever took the
@@ -60,7 +62,7 @@ public class _0028__TokenClassRestructure {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0028__TokenClassRestructure.class);
 
-  private static final List<String> RETIRED_TYPES = List.of("workspace", "workflow");
+  private static final List<String> RETIRED_TYPES = List.of("team", "workspace", "workflow");
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

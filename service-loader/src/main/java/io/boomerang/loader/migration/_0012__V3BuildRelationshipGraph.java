@@ -303,7 +303,7 @@ public class _0012__V3BuildRelationshipGraph {
   }
 
   // =====================================================================================
-  // user --memberOf--> workspace:<teamId>  (real v3 team membership — see _0028's flowTeamRefs)
+  // user --memberOf--> workspace:<teamId>  (real v3 team membership — see _0008's flowTeamRefs)
   // =====================================================================================
 
   @SuppressWarnings("unchecked")

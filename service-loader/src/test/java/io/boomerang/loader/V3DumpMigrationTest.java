@@ -456,7 +456,7 @@ class V3DumpMigrationTest {
     List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(settingsKeys)
         .containsExactlyInAnyOrder(
-            "task", "workflowrun", "workflow", "features", "teams", "integration", "customizations");
+            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations");
 
     // None of the 7 surviving documents carry the stale v3 _class discriminator any more -
     // MappingMongoConverter would fail to resolve io.boomerang.mongo.entity.FlowSettingsEntity
@@ -499,7 +499,8 @@ class V3DumpMigrationTest {
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
     // max.workflowrun.storage entry legacy 4039 introduced.
     Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
-    assertThat(teams.getString("name")).isEqualTo("Team Quotas");
+    assertThat(teams.getString("key")).isEqualTo("workspaces");
+    assertThat(teams.getString("name")).isEqualTo("Workspace Quotas");
     assertThat(configKeys(teams))
         .containsExactlyInAnyOrder(
             "max.workflowrun.concurrent",
@@ -899,23 +900,25 @@ class V3DumpMigrationTest {
     assertThat(heartbeat.getString("name")).isEqualTo("better-uptime-heartbeat");
     assertThat(heartbeat.getString("description")).isEqualTo("This does a daily heart beat check with Better Update");
     assertThat(heartbeat.getString("status")).isEqualTo("active");
-    assertThat(heartbeat.getString("scope")).isEqualTo("system");
-    assertThat(heartbeat.containsKey("ownerRef")).as("system-scope workflow has no owner").isFalse();
+    // _0009's scope/ownerRef hand-off fields are consumed by _0012 and then removed by _0031.
+    assertThat(heartbeat.containsKey("scope")).isFalse();
+    assertThat(heartbeat.containsKey("ownerRef")).isFalse();
     Document heartbeatTriggers = (Document) heartbeat.get("triggers");
     assertThat(((Document) heartbeatTriggers.get("manual")).getBoolean("enabled")).isTrue();
     assertThat(((Document) heartbeatTriggers.get("schedule")).getBoolean("enabled")).isTrue();
     assertThat(((Document) heartbeatTriggers.get("webhook")).getBoolean("enabled")).isFalse();
     assertThat(((Document) heartbeatTriggers.get("event")).getBoolean("enabled")).isFalse();
 
-    // Spot check: "Approval Generator" (scope=team) - proves the scope/ownerRef extra-field
-    // discoverability _0009's javadoc documents, and the storage->workspaces[] (both enabled)
-    // move onto the revision rather than the workflow.
+    // Spot check: "Approval Generator" (scope=team) - its ownership is proven via the rel_edges
+    // built by _0012 (asserted below); the scope/ownerRef hand-off fields _0009 wrote for that
+    // purpose are removed again by _0031. Also the storage->workspaces[] (both enabled) move
+    // onto the revision rather than the workflow.
     Document approvalGenerator =
         collection("workflows").find(Filters.eq("_id", new ObjectId("6437a414ec19f9693daab0c2"))).first();
     assertThat(approvalGenerator).isNotNull();
     assertThat(approvalGenerator.getString("name")).isEqualTo("approval-generator");
-    assertThat(approvalGenerator.getString("scope")).isEqualTo("team");
-    assertThat(approvalGenerator.getString("ownerRef")).isEqualTo("61551ffaa1747c3cd93f4bed");
+    assertThat(approvalGenerator.containsKey("scope")).isFalse();
+    assertThat(approvalGenerator.containsKey("ownerRef")).isFalse();
 
     // 151 real v3 revisions minus the 2 belonging to the extracted template workflows.
     assertThat(collection("workflow_revisions").countDocuments()).isEqualTo(149);
@@ -1112,7 +1115,7 @@ class V3DumpMigrationTest {
     assertThat(run.getLong("duration")).isEqualTo(28832L);
     assertThat(run.getInteger("workflowVersion")).isEqualTo(0);
     assertThat(run.getBoolean("isAwaitingApproval")).isFalse();
-    assertThat(run.getString("scope")).isEqualTo("system");
+    assertThat(run.containsKey("scope")).as("_0011's hand-off field is removed by _0031").isFalse();
 
     // Spot check: statusMessage direct passthrough (a real "invalid" run).
     Document invalidRun =

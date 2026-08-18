@@ -2,8 +2,6 @@ package io.boomerang.loader.migration;
 
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Updates;
 import io.boomerang.loader.CollectionNames;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
@@ -34,9 +32,15 @@ import org.slf4j.LoggerFactory;
  * (not {@code agents}), so it covers both the normal case and a database where the rename already
  * happened out-of-band — no coverage is lost by leaving index creation solely to {@code _0019}.
  *
+ * <p><b>The {@code agentRef} -> {@code dispatcherRef} field rename was dropped from this unit.</b>
+ * The claim owner is recorded once, on {@code claim.by}; the separate {@code dispatcherRef} field
+ * was a duplicate of it and was removed from {@code TaskRunEntity}/{@code WorkflowRunEntity}.
+ * Renaming the legacy field only to unset it again would be a second full pass over every run
+ * document, so {@code _0031__DropOrphanedFieldsAndCollections} unsets both spellings in one pass
+ * (covering databases where an earlier revision of this unit already performed the rename).
+ *
  * <p>Idempotent: the collection rename is skipped once {@code dispatchers} already exists (or
- * {@code agents} no longer does), and the field {@code $rename}s only touch documents that still
- * carry the old field name.
+ * {@code agents} no longer does).
  */
 @Change(id = "0015-dispatcher-rename", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -47,8 +51,6 @@ public class _0015__DispatcherRename {
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
     renameAgentsCollection(db, names);
-    renameAgentRefField(db, names.resolve("task_runs"));
-    renameAgentRefField(db, names.resolve("workflow_runs"));
   }
 
   private void renameAgentsCollection(MongoDatabase db, CollectionNames names) {
@@ -72,18 +74,9 @@ public class _0015__DispatcherRename {
     // it must run AFTER _0019's dedupe, not immediately after this rename.
   }
 
-  private void renameAgentRefField(MongoDatabase db, String collection) {
-    long renamed =
-        db.getCollection(collection)
-            .updateMany(Filters.exists("agentRef"), Updates.rename("agentRef", "dispatcherRef"))
-            .getModifiedCount();
-    LOG.info("Renamed agentRef -> dispatcherRef on {} document(s) in {}", renamed, collection);
-  }
-
   @Rollback
   public void rollback(MongoDatabase db, CollectionNames names) {
-    // Field renames are not restored - dispatcherRef is authoritative going forward, matching the
-    // other online migrations' rollback scope. Only the collection rename is reversed.
+    // Only the collection rename is reversed.
     String agents = names.resolve("agents");
     String dispatchers = names.resolve("dispatchers");
     Set<String> existing = new HashSet<>();

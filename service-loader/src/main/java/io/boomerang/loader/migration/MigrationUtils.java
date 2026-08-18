@@ -50,6 +50,30 @@ public abstract class MigrationUtils {
     }
   }
 
+  /**
+   * Create an index unless one with the same key pattern already exists under ANY name. Use this
+   * for indexes that Spring Data used to auto-build from entity annotations on v4 installs (named
+   * after the field, e.g. {@code name}, or the annotation's own {@code name}): re-creating the same
+   * keys under a loader-chosen name would fail with {@code IndexOptionsConflict}, so the existing
+   * index is kept and reported instead. Delegates to {@link #ensureIndex} when absent.
+   */
+  public static boolean ensureIndexKeys(
+      MongoDatabase db, String collection, String name, Document keys, IndexOptions options) {
+    for (Document existing : db.getCollection(collection).listIndexes()) {
+      Document existingKeys = existing.get("key", Document.class);
+      if (existingKeys != null && existingKeys.equals(keys)) {
+        LOG.info(
+            "Index on {} {} already exists as '{}' - not creating '{}'",
+            collection,
+            keys.toJson(),
+            existing.getString("name"),
+            name);
+        return true;
+      }
+    }
+    return ensureIndex(db, collection, name, keys, options);
+  }
+
   /** Drop an index if present — best effort, absence is not an error. */
   public static void dropIndex(MongoDatabase db, String collection, String name) {
     try {

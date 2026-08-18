@@ -22,7 +22,9 @@ import org.springframework.data.mongodb.core.query.Update;
 /**
  * A claim must bake a durable deadline of its own - otherwise a dispatcher that dies between
  * claiming a TaskRun and reporting its start leaves it stuck in {@code queued} forever, since the
- * timeout reap only ever selects on {@code timeoutAt}.
+ * timeout reap only ever selects on {@code timeoutAt}. That deadline is the task's real budget
+ * (claimedAt + effectiveTimeout + grace), computed once at claim time - not an arbitrary window
+ * later replaced at start.
  */
 class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
 
@@ -30,7 +32,7 @@ class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
   @Autowired private MongoTemplate mongoTemplate;
 
   @Test
-  void claimBakesAProvisionalDeadline() {
+  void claimBakesTheTasksRealDeadlineAtClaimTime() {
     WorkflowRunEntity wfRun = savedWorkflowRun("claim-deadline-wf", RunStatus.running, RunPhase.running);
     TaskRunEntity taskRun =
         savedTaskRun(
@@ -40,19 +42,57 @@ class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
             RunPhase.pending,
             wfRun.getWorkflowRef(),
             wfRun.getId());
+    taskRun.setTimeout(45L);
+    taskRunRepository.save(taskRun);
 
+    Date beforeClaim = new Date();
     TaskRunEntity claimed = taskRunService.tryClaim(taskRun.getId(), "some-dispatcher");
 
     assertNotNull(claimed);
     assertEquals(RunPhase.queued, claimed.getPhase());
-    assertNotNull(
-        claimed.getTimeoutAt(), "the claim must bake a provisional deadline for the reap sweep");
+    assertNotNull(claimed.getTimeoutAt(), "the claim must bake the task's real deadline");
+
+    // The task's own 45-minute budget, not a fixed claim-to-start window - comfortably past
+    // where a 10-minute provisional constant would have landed.
+    Date fortyMinutesOut = new Date(beforeClaim.getTime() + 40 * 60000);
+    Date fiftyMinutesOut = new Date(beforeClaim.getTime() + 50 * 60000);
     assertTrue(
-        claimed.getTimeoutAt().after(new Date()),
-        "the provisional deadline must sit in the future at claim time");
+        claimed.getTimeoutAt().after(fortyMinutesOut),
+        "the deadline must reflect the task's own 45-minute budget, not a short provisional one");
+    assertTrue(
+        claimed.getTimeoutAt().before(fiftyMinutesOut),
+        "the deadline must not run away past the task's own budget plus grace");
 
     TaskRunEntity persisted = taskRunRepository.findById(taskRun.getId()).orElseThrow();
-    assertNotNull(persisted.getTimeoutAt(), "the deadline must be durable, not just in-memory");
+    assertEquals(
+        claimed.getTimeoutAt(),
+        persisted.getTimeoutAt(),
+        "the deadline must be durable, not just in-memory");
+  }
+
+  @Test
+  void aTaskStillWithinItsClaimedBudgetIsNotReaped() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("claim-in-budget-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity taskRun =
+        savedTaskRun(
+            "in-budget",
+            TaskType.template,
+            RunStatus.ready,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    taskRun.setTimeout(30L);
+    taskRunRepository.save(taskRun);
+
+    taskRunService.tryClaim(taskRun.getId(), "healthy-dispatcher");
+
+    // A dispatcher that is merely slow (e.g. still pulling an image) must not be reaped just
+    // because it has not yet reported starting - it is well inside its real budget.
+    watcher.reapTaskTimeouts();
+
+    TaskRunEntity untouched = taskRunRepository.findById(taskRun.getId()).orElseThrow();
+    assertEquals(RunPhase.queued, untouched.getPhase(), "a claim within budget must survive the sweep");
+    assertNotNull(untouched.getClaim().getBy(), "the claim must not be released early");
   }
 
   @Test
@@ -66,12 +106,14 @@ class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
             RunPhase.pending,
             wfRun.getWorkflowRef(),
             wfRun.getId());
+    taskRun.setTimeout(30L);
+    taskRunRepository.save(taskRun);
 
-    // The real claim path - no manual field poking - bakes the provisional deadline.
+    // The real claim path - no manual field poking - bakes the task's real deadline.
     taskRunService.tryClaim(taskRun.getId(), "dispatcher-that-then-dies");
 
     // The dispatcher vanishes before ever calling start(): fast-forward the deadline to
-    // reproduce a claim that has sat unstarted past its provisional budget.
+    // reproduce a claim that has sat unstarted past its budget.
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(taskRun.getId())),
         new Update().set("timeoutAt", new Date(System.currentTimeMillis() - 1000)),
@@ -89,7 +131,7 @@ class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void startExecutionReplacesTheProvisionalDeadlineWithTheTasksOwnBudget() {
+  void startExecutionRebakesTheDeadlineFromTheActualStartTime() {
     WorkflowRunEntity wfRun = savedWorkflowRun("claim-start-wf", RunStatus.running, RunPhase.running);
     TaskRunEntity taskRun =
         savedTaskRun(
@@ -99,24 +141,26 @@ class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
             RunPhase.pending,
             wfRun.getWorkflowRef(),
             wfRun.getId());
+    taskRun.setTimeout(5L);
+    taskRunRepository.save(taskRun);
 
     TaskRunEntity claimed = taskRunService.tryClaim(taskRun.getId(), "dispatcher-1");
-    Date provisionalDeadline = claimed.getTimeoutAt();
-    assertNotNull(provisionalDeadline);
+    Date claimDeadline = claimed.getTimeoutAt();
+    assertNotNull(claimDeadline);
 
-    // A budget well past the 10-minute provisional window - starting must replace, not keep,
-    // the claim-to-start deadline.
+    // Execution actually starts later, with a larger real budget than what was baked at claim -
+    // starting must rebake from the actual start time, not keep measuring from claim time.
     Date startTime = new Date();
     TaskRunEntity started = taskRunService.tryStartExecution(taskRun.getId(), startTime, 120L);
 
     assertNotNull(started, "starting a freshly-claimed task must win the Compare-And-Set");
     assertNotEquals(
-        provisionalDeadline,
+        claimDeadline,
         started.getTimeoutAt(),
-        "the task's own budget must replace the provisional claim-to-start deadline");
+        "the task's execution deadline must be rebaked from the actual start time");
     assertTrue(
-        started.getTimeoutAt().after(provisionalDeadline),
-        "a 120-minute budget must push the deadline out past the 10-minute provisional one");
+        started.getTimeoutAt().after(claimDeadline),
+        "a 120-minute budget from start must push the deadline out past the 5-minute claim deadline");
 
     TaskRunEntity persisted = taskRunRepository.findById(taskRun.getId()).orElseThrow();
     assertEquals(started.getTimeoutAt(), persisted.getTimeoutAt());

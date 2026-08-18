@@ -365,12 +365,12 @@
           "readOnly": false
         }
       ],
-      "description": "Define default team quotas which are referenced unless overridden on the Team.",
-      "key": "teams",
+      "description": "Define default workspace quotas which are referenced unless overridden on the Workspace.",
+      "key": "workspaces",
       "lastModiifed": {
         "$date": "2021-08-23T21:57:01.577Z"
       },
-      "name": "Team Quotas",
+      "name": "Workspace Quotas",
       "type": "ValuesList"
     },
     {

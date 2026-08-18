@@ -7,6 +7,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.repository.SettingsRepository;
@@ -66,16 +67,16 @@ public abstract class AbstractEngineIntegrationTest {
     relationshipService.createNode(RelationshipType.ROOT, "root", "root", Optional.empty());
   }
 
-  // WorkspaceService.setDefaultQuotas reads the "teams" settings document the loader normally
+  // WorkspaceService.setDefaultQuotas reads the "workspaces" settings document the loader normally
   // seeds. Mirrors the shipped default quota values (seed/settings.json) so a workspace-creating
   // test does not need its own copy.
   protected void seedTeamQuotaSettings() {
-    if (settingsRepository.findOneByKey("teams") != null) {
+    if (settingsRepository.findOneByKey(WorkspaceService.WORKSPACES_SETTINGS_KEY) != null) {
       return;
     }
     SettingEntity settings = new SettingEntity();
-    settings.setKey("teams");
-    settings.setName("Team Quotas");
+    settings.setKey(WorkspaceService.WORKSPACES_SETTINGS_KEY);
+    settings.setName("Workspace Quotas");
     settings.setConfig(
         List.of(
             quotaConfig("max.workflowrun.concurrent", "4"),

@@ -312,7 +312,7 @@ public class WorkflowWatcher {
     SweepRunner.forEachIsolated(
         taskRunService.findClaimed(PAGE_SIZE),
         taskRun -> {
-          String dispatcherRef = taskRun.getDispatcherRef();
+          String dispatcherRef = (taskRun.getClaim() != null) ? taskRun.getClaim().getBy() : null;
           if (dispatcherRef == null || isDispatcherLive(dispatcherRef)) {
             return;
           }

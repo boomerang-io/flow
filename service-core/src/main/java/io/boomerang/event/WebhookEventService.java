@@ -92,8 +92,10 @@ public class WebhookEventService {
     LOGGER.debug("Webhook Request: " + request.toString());
 
     // Check principal has relationship to the Workflow
-    relationshipService.check(
-        RelationshipType.WORKFLOW, workflowRef, Optional.empty(), Optional.empty());
+    if (!relationshipService.check(
+        RelationshipType.WORKFLOW, workflowRef, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
 
     // Get the Workflows team
     String teamRef =
