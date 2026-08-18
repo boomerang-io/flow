@@ -64,7 +64,7 @@ function RenderMembersList({ members, approvers, setFieldValue }: RenderMembersL
         labelText="member search"
         id="member-search"
         placeholder="Search for Workspace Members by name or email"
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+        onChange={(e: { target: HTMLInputElement; type: "change" }) => setSearchQuery(e.target.value)}
       />
       <p className={styles.selectedUsers}>{`${approvers.length} users selected`}</p>
       <ul>
@@ -81,8 +81,8 @@ function RenderMembersList({ members, approvers, setFieldValue }: RenderMembersL
             filteredMembers.map((member: Approver, index: number) => (
               <li className={styles.userListCheckItem}>
                 <Checkbox
-                  id={member.id}
-                  labelText={member.name}
+                  id={member.id ?? ""}
+                  labelText={member.name ?? ""}
                   checked={currentApproversIds.includes(member.id)}
                   className={styles.userName}
                   onChange={() => handleSelectMember({ member, arrayHelpers })}
@@ -122,9 +122,9 @@ function RenderEditMembersInGroup({ members, title, isRemove = false }: RenderEd
                   {isRemove ? (
                     <div
                       role="button"
-                      onClick={() => arrayHelpers.remove(determineMemberIndex(member.id))}
+                      onClick={() => arrayHelpers.remove(determineMemberIndex(member.id ?? ""))}
                       onKeyDown={(e: any) =>
-                        isAccessibleKeyboardEvent(e) && arrayHelpers.remove(determineMemberIndex(member.id))
+                        isAccessibleKeyboardEvent(e) && arrayHelpers.remove(determineMemberIndex(member.id ?? ""))
                       }
                       tabIndex={0}
                     >

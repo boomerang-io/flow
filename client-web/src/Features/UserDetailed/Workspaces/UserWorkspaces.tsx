@@ -41,7 +41,7 @@ function UserWorkspaces({ user, workspaces }: UserWorkspacesProps) {
             labelText="workspaces search"
             id="workspaces-search"
             placeholder="Search for a workspace"
-            onChange={(e: React.FormEvent<HTMLInputElement>) => setSearchQuery(e.currentTarget.value)}
+            onChange={(e: { target: HTMLInputElement; type: "change" }) => setSearchQuery(e.target.value)}
           />
         </div>
       </section>

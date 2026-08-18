@@ -25,7 +25,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
 
 interface FeatureLayoutProps {
-  handleSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 
 const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchChange }) => {
@@ -116,7 +116,7 @@ const WorkspaceList: React.FC = () => {
     [],
   );
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleSearchChange(e: { target: HTMLInputElement; type: "change" }) {
     const query = e.target.value;
     debouncedSearch(query);
   }
