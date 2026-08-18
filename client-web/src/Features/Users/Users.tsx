@@ -77,12 +77,11 @@ const UserList: React.FC = () => {
   const history = useHistory();
   const location = useLocation();
 
-  const {
-    order = DEFAULT_ORDER,
-    page = DEFAULT_PAGE,
-    limit = DEFAULT_LIMIT,
-    sort = DEFAULT_SORT,
-  } = queryString.parse(location.search, queryStringOptions);
+  const parsedQuery = queryString.parse(location.search, queryStringOptions);
+  const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
+  const page = parsedQuery.page ?? DEFAULT_PAGE;
+  const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
+  const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
 
   const usersUrlQuery = queryString.stringify({
     order,
@@ -139,7 +138,7 @@ const UserList: React.FC = () => {
     );
   }
 
-  if (usersIsError) {
+  if (usersIsError || !usersData) {
     return (
       <FeatureLayout handleSearchChange={handleSearchChange}>
         <ErrorMessage />

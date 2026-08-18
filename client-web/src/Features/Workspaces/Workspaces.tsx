@@ -4,25 +4,29 @@ import {
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,
   FeatureHeaderSubtitle as HeaderSubtitle,
+  notify,
+  ToastNotification,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, DataTable, DataTableSkeleton, Pagination, Search } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import React from "react";
 import { Helmet } from "react-helmet";
 import { useHistory, useLocation } from "react-router-dom";
-import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
+import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import debounce from "lodash/debounce";
+import kebabcase from "lodash/kebabCase";
 import moment from "moment";
 import queryString from "query-string";
+import { useMutation, useQueryClient } from "react-query";
 import { Box } from "reflexbox";
 import EmptyState from "Components/EmptyState";
 import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
-import { useQuery } from "Hooks";
+import { useAppContext, useQuery } from "Hooks";
 import styles from "./Workspaces.module.scss";
 import { appLink, queryStringOptions, FeatureFlag } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
-import { FlowWorkspace, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
+import { resolver, serviceUrl } from "Config/servicesConfig";
+import { FlowWorkspace, MemberRole, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
 
 interface FeatureLayoutProps {
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
@@ -64,18 +68,19 @@ const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
 const WorkspaceList: React.FC = () => {
   const history = useHistory();
   const location = useLocation();
+  const { user } = useAppContext();
+  const queryClient = useQueryClient();
   // TODO - make this read only
   const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
 
   /**
    * Prepare queries and get some data
    */
-  const {
-    order = DEFAULT_ORDER,
-    page = DEFAULT_PAGE,
-    limit = DEFAULT_LIMIT,
-    sort = DEFAULT_SORT,
-  } = queryString.parse(location.search, queryStringOptions);
+  const parsedQuery = queryString.parse(location.search, queryStringOptions);
+  const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
+  const page = parsedQuery.page ?? DEFAULT_PAGE;
+  const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
+  const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
 
   const workspacesUrlQuery = queryString.stringify({
     order,
@@ -85,6 +90,33 @@ const WorkspaceList: React.FC = () => {
   });
 
   const workspacesUrl = serviceUrl.getWorkspaces({ query: workspacesUrlQuery });
+
+  const createWorkspaceMutator = useMutation(resolver.postWorkspace);
+
+  const createWorkspace = async (values: { name: string | undefined }, success_fn?: (...args: any) => any) => {
+    try {
+      await createWorkspaceMutator.mutateAsync({
+        body: {
+          name: kebabcase(values.name?.replace(`'`, "-")),
+          displayName: values.name,
+          members: [
+            {
+              email: user.email,
+              role: MemberRole.Owner,
+            },
+          ],
+        },
+      });
+      queryClient.invalidateQueries(workspacesUrl);
+      notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
+      if (typeof success_fn === "function") {
+        success_fn();
+      }
+    } catch (error) {
+      const errorMessages = formatErrorMessage({ error });
+      notify(<ToastNotification kind="error" title="Something went wrong" subtitle={errorMessages.message} />);
+    }
+  };
 
   const {
     data: workspacesData,
@@ -143,7 +175,7 @@ const WorkspaceList: React.FC = () => {
     );
   }
 
-  if (workspacesIsError) {
+  if (workspacesIsError || !workspacesData) {
     return (
       <FeatureLayout handleSearchChange={handleSearchChange}>
         <ErrorMessage />
@@ -164,7 +196,7 @@ const WorkspaceList: React.FC = () => {
               iconDescription="Create new version"
               onClick={openModal}
               size="md"
-              disabled={workspacesIsError || workspacesIsLoading}
+              disabled={Boolean(workspacesIsError) || workspacesIsLoading}
               className={styles.createWorkspaceTrigger}
             >
               Create Workspace
@@ -172,7 +204,14 @@ const WorkspaceList: React.FC = () => {
           )}
         >
           {({ closeModal }) => {
-            return <WorkspaceCreateContent closeModal={closeModal} />;
+            return (
+              <WorkspaceCreateContent
+                closeModal={closeModal}
+                createWorkspace={createWorkspace}
+                isError={createWorkspaceMutator.isError}
+                isLoading={createWorkspaceMutator.isLoading}
+              />
+            );
           }}
         </ComposedModal>
       )}
