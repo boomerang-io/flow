@@ -34,16 +34,14 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, index, settin
     <AccordionItem
       open={index === 0}
       title={
-        <div className={styles.accordionTitle}>
+        <div id={settingsGroup.key} data-testid="settings-section" className={styles.accordionTitle}>
           <h2>{settingsGroup.name}</h2>
           <p title={settingsGroup.description} className={styles.accordionDescription}>
             {settingsGroup.description}
           </p>
         </div>
       }
-      id={settingsGroup.key}
       key={`${settingsGroup.key}${index}`}
-      data-testid="settings-section"
     >
       <DynamicFormik
         enableReinitialize
@@ -67,7 +65,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, index, settin
                   className={styles.saveButton}
                   disabled={!formikProps.isValid || !formikProps.dirty}
                   iconDescription="Save settings"
-                  onClick={formikProps.handleSubmit}
+                  onClick={() => formikProps.handleSubmit()}
                   renderIcon={Save}
                   size="md"
                 >
