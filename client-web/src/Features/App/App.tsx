@@ -29,7 +29,6 @@ import styles from "./app.module.scss";
 const AppActivation = lazy(() => import("./AppActivation"));
 const Activity = lazy(() => import("Features/Activity"));
 const Actions = lazy(() => import("Features/Actions"));
-const Connect = lazy(() => import("Features/Connect"));
 const Editor = lazy(() => import("Features/WorkflowEditor"));
 const Execution = lazy(() => import("Features/WorkflowRun"));
 const GlobalParameters = lazy(() => import("Features/Parameters/GlobalParameters"));
@@ -62,8 +61,7 @@ export default function App() {
   const workspaceName =
     location.pathname.endsWith("/home") ||
     location.pathname.startsWith("/admin/") ||
-    location.pathname.endsWith("/profile") ||
-    location.pathname.endsWith("/connect")
+    location.pathname.endsWith("/profile")
       ? null
       : location.pathname.split("/").filter(Boolean)[0];
   const query = workspaceName ? `?workspace=${workspaceName}` : "";
@@ -278,9 +276,6 @@ const AppFeatures = React.memo(function AppFeatures({ platformRole }: AppFeature
         <Switch>
           <Route path={"/home"}>
             <Home />
-          </Route>
-          <Route path={"/connect"}>
-            <Connect />
           </Route>
           <Route path={"/profile"}>
             <UserProfile />

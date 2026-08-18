@@ -89,7 +89,6 @@ export const serviceUrl = {
   getGitHubAppInstallation: ({ id }: IdArg) => `${BASE_URL}/integration/github/installation${id ? "?id=" + id : ""}`,
   getGitHubAppInstallationForWorkspace: ({ workspace }: WorkspaceArg) =>
     `${BASE_URL}/integration/github/installation${workspace ? "?workspace=" + workspace : ""}`,
-  postGitHubAppLink: () => `${BASE_URL}/integration/github/link`,
   postGitHubAppUnlink: () => `${BASE_URL}/integration/github/unlink`,
   schedule: {
     getCronValidation: ({ workspace, expression }) =>
@@ -321,6 +320,5 @@ export const resolver = {
   deleteWorkspaceQuotas: ({ workspace }) => axios({ url: serviceUrl.deleteWorkspaceQuotas({ workspace }), method: HttpMethod.Delete }),
   putAction: ({ workspace, body }) =>
     axios({ url: serviceUrl.workspace.action.putAction({ workspace }), data: body, method: HttpMethod.Put }),
-  postGitHubAppLink: ({ body }) => axios.post(serviceUrl.postGitHubAppLink(), body),
   postGitHubAppUnlink: ({ body }) => axios.post(serviceUrl.postGitHubAppUnlink(), body),
 };

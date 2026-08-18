@@ -16,11 +16,16 @@ interface IntegrationCardProps {
   url: string;
 }
 
+// Each integration type unlinks through its own endpoint; keyed by the integration's display name.
+const unlinkResolverByIntegrationName: Record<string, typeof resolver.postGitHubAppUnlink> = {
+  GitHub: resolver.postGitHubAppUnlink,
+};
+
 const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, url }) => {
   const queryClient = useQueryClient();
   const [errorMessage, seterrorMessage] = useState(null);
 
-  const unlinkIntegrationMutator = useMutation(resolver.postGitHubAppUnlink);
+  const unlinkIntegrationMutator = useMutation(unlinkResolverByIntegrationName[data.name]);
 
   const handleDisable = async (closeModal: () => void) => {
     const requestBody = {
@@ -49,29 +54,9 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, 
     }
   };
 
-  /*
-   * This function is used to handle the execution of a workflow. It only needs to work for WorkflowView.Workflow as Templates cant be executed
-   */
-  // TODO: besides GitHub, do different Integrations work in different ways. Are some a pop out and some internal?
   const handleEnable = async (closeModal: () => void) => {
     try {
-      // // @ts-ignore:next-line
-      // await executeWorkflowMutator({
-      //   data: "",
-      // });
-      // notify(
-      //   <ToastNotification
-      //     kind="success"
-      //     title={`Enable Integration}`}
-      //     subtitle={`Successfully enabled ${data.name.toLowerCase()} integration`}
-      //   />
-      // );
-      // queryClient.invalidateQueries(url);
-      var link = data.link;
-      if (data.name === "GitHub") {
-        link = `${link}?state=${encodeURIComponent(btoa(workspaceName))}`;
-      }
-      window.open(link, "_blank");
+      window.open(data.link, "_blank");
       closeModal();
     } catch (err) {
       seterrorMessage(
@@ -150,31 +135,5 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, 
     </ComposedModal>
   );
 };
-
-{
-  /* {Array.isArray(formattedProperties) && formattedProperties.length !== 0 ? (
-          <ComposedModal
-            modalHeaderProps={{
-              title: `Workflow Parameters`,
-              subtitle: `Provide parameter values for your Workflow`,
-            }}
-            modalTrigger={({ openModal }: ModalTriggerProps) => (
-              <Button size="md" onClick={openModal}>
-                Enable
-              </Button>
-            )}
-          >
-            {({ closeModal }) => (
-              <WorkflowInputModalContent
-                closeModal={closeModal}
-                executeError={executeError}
-                executeWorkflow={handleExecuteWorkflow}
-                isExecuting={isExecuting}
-                inputs={formattedProperties}
-              />
-            )}
-          </ComposedModal>
-        ) : ( */
-}
 
 export default IntegrationCard;
