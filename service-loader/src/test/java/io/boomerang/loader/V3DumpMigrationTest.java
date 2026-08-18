@@ -513,11 +513,16 @@ class V3DumpMigrationTest {
         configOf(teams).stream().filter(c -> "max.workflowrun.storage".equals(c.getString("key"))).findFirst().get();
     assertThat(newStorageEntry.getString("value")).isEqualTo("2Gi");
 
-    // features: workflowQuotas -> teamQuotas.
+    // features: workflowQuotas -> teamQuotas (legacy 4040) -> workspaceQuotas (_0034); the other
+    // three DD-01 flag keys (teamParameters/teamManagement/teamTasks) carried the "team" wording
+    // straight through from v3 with no historical rename, so _0034 is the first thing to touch
+    // them.
     Document features =
         collection("settings").find(Filters.eq("_id", new ObjectId("612904d60b07a54cdc4dc6a9"))).first();
-    assertThat(configKeys(features)).contains("teamQuotas");
-    assertThat(configKeys(features)).doesNotContain("workflowQuotas");
+    assertThat(configKeys(features))
+        .contains("workspaceQuotas", "workspaceParameters", "workspaceManagement", "workspaceTasks");
+    assertThat(configKeys(features))
+        .doesNotContain("workflowQuotas", "teamQuotas", "teamParameters", "teamManagement", "teamTasks");
   }
 
   @SuppressWarnings("unchecked")

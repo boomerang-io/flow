@@ -60,6 +60,9 @@ class LoaderMigrationTest {
   /** {@code seed/settings.json}'s _id for the workspace-quota defaults document. */
   private static final ObjectId LEGACY_TEAM_QUOTAS_SETTINGS_ID =
       new ObjectId("61393f5966c5eea103dfe134");
+  /** {@code seed/settings.json}'s _id for the feature-flag toggles document. */
+  private static final ObjectId LEGACY_FEATURES_SETTINGS_ID =
+      new ObjectId("612904d60b07a54cdc4dc6a9");
 
   @BeforeAll
   static void seedExistingInstallation() {
@@ -100,6 +103,7 @@ class LoaderMigrationTest {
     seedV4ResidualCollections();
     seedOrphanedFieldResidue();
     seedLegacyTeamQuotaSettings();
+    seedLegacyFeatureFlagSettings();
   }
 
   /**
@@ -152,6 +156,36 @@ class LoaderMigrationTest {
   }
 
   /**
+   * A pre-DD-01 {@code features} document under the seed's own {@code _id} but still carrying the
+   * legacy {@code teamQuotas}/{@code teamParameters}/{@code teamManagement}/{@code teamTasks}
+   * config keys: {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
+   * _0034__WorkspaceFeatureFlagSettingsKeys} must rename each in place.
+   */
+  private static void seedLegacyFeatureFlagSettings() {
+    collection("settings")
+        .insertOne(
+            new Document("_id", LEGACY_FEATURES_SETTINGS_ID)
+                .append("key", "features")
+                .append("name", "Features")
+                .append(
+                    "config",
+                    List.of(
+                        new Document("key", "activity").append("value", "true"),
+                        new Document("key", "teamQuotas")
+                            .append("label", "Team Quotas")
+                            .append("value", "true"),
+                        new Document("key", "teamParameters")
+                            .append("label", "Team Parameters")
+                            .append("value", "true"),
+                        new Document("key", "teamManagement")
+                            .append("label", "Team Management")
+                            .append("value", "true"),
+                        new Document("key", "teamTasks")
+                            .append("label", "Team Tasks")
+                            .append("value", "true"))));
+  }
+
+  /**
    * H11 fixture: residue from the two retired JobRunr instances, RAW string-concatenated exactly
    * like their historical {@code org.jobrunr.database.table-prefix} properties ({@code
    * <collectionPrefix>jr_} for engine's timeout jobs, {@code <collectionPrefix>_sch_} for flow's
@@ -195,6 +229,7 @@ class LoaderMigrationTest {
     assertClaimOwnerResidueRemoved();
     assertOrphanedFieldResidueRemoved();
     assertWorkspaceQuotaSettingsKeyRenamed();
+    assertWorkspaceFeatureFlagSettingsKeysRenamed();
     assertDefinitionIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
@@ -1082,6 +1117,23 @@ class LoaderMigrationTest {
     assertThat(quotas.getString("key")).isEqualTo("workspaces");
     assertThat(quotas.getString("name")).isEqualTo("Workspace Quotas");
     assertThat(collection("settings").countDocuments(Filters.eq("key", "workspaces"))).isEqualTo(1);
+  }
+
+  /** {@code _0034}: the "features" document's legacy team.* config keys are renamed in place. */
+  private void assertWorkspaceFeatureFlagSettingsKeysRenamed() {
+    Document features =
+        collection("settings").find(Filters.eq("_id", LEGACY_FEATURES_SETTINGS_ID)).first();
+    assertThat(features).isNotNull();
+    List<Document> config = features.getList("config", Document.class);
+    List<String> keys = config.stream().map(c -> c.getString("key")).toList();
+    assertThat(keys)
+        .contains("workspaceQuotas", "workspaceParameters", "workspaceManagement", "workspaceTasks");
+    assertThat(keys)
+        .doesNotContain("teamQuotas", "teamParameters", "teamManagement", "teamTasks");
+
+    Document workspaceManagement =
+        config.stream().filter(c -> "workspaceManagement".equals(c.getString("key"))).findFirst().get();
+    assertThat(workspaceManagement.getString("label")).isEqualTo("Workspace Management");
   }
 
   /** {@code _0033}: the definition-side lookup indexes the inert entity annotations described. */
