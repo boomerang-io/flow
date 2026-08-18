@@ -333,15 +333,16 @@ public class WorkspaceService {
     // Delete all Tokens
     tokenService.deleteAllForPrincipal(team);
 
-    // Delete all Workspace Tasks
-    List<String> templateRefs =
+    // Delete all Workspace Tasks. TEAMTASK is the relationship type that anchors a task under
+    // a workspace - TASK anchors the global catalogue under root and would never match here.
+    List<String> templateNames =
         relationshipService.filter(
-            RelationshipType.TASK,
+            RelationshipType.TEAMTASK,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)));
-    if (templateRefs.size() > 0) {
-      templateRefs.forEach(ref -> workspaceTaskService.delete(ref, team));
+    if (templateNames.size() > 0) {
+      templateNames.forEach(name -> workspaceTaskService.delete(team, name));
     }
 
     // TODO - Delete Workspace Integration Installations
@@ -525,6 +526,22 @@ public class WorkspaceService {
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
       LOGGER.debug("Starting Parameters: " + parameters.toString());
+      // A secured parameter's value is never returned to the caller, so a request that only
+      // edits another field arrives with a blank value - carry the stored secret forward
+      // instead of letting the wholesale replacement below wipe it out.
+      Map<String, AbstractParam> existingByName =
+          parameters.stream()
+              .collect(Collectors.toMap(AbstractParam::getName, p -> p, (a, b) -> a));
+      request.forEach(
+          p -> {
+            AbstractParam existing = existingByName.get(p.getName());
+            if (existing != null
+                && FieldType.PASSWORD.value().equals(existing.getType())
+                && isBlankValue(p.getValue())) {
+              p.setValue(existing.getValue());
+            }
+          });
+
       List<String> names = request.stream().map(AbstractParam::getName).toList();
       // Check if parameter exists and remove
       parameters =
@@ -537,6 +554,12 @@ public class WorkspaceService {
     }
     LOGGER.debug("Ending Parameters: " + parameters.toString());
     return parameters;
+  }
+
+  // Blank covers both a null value (a filtered secured value is never serialised) and an empty
+  // string (a client that round-trips a form field literally).
+  private static boolean isBlankValue(Object value) {
+    return value == null || (value instanceof String s && s.isBlank());
   }
 
   /*

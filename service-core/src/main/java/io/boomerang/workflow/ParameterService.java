@@ -55,13 +55,25 @@ public class ParameterService {
     if (!Objects.isNull(param) && param.getName() != null) {
       Optional<GlobalParamEntity> optParamEntity = paramRepository.findOneByName(param.getName());
       if (!optParamEntity.isEmpty()) {
-        // Copy updatedParam to ParamEntity except for ID (requester should not know ID);
-        BeanUtils.copyProperties(param, optParamEntity.get(), "id");
-        GlobalParamEntity entity = paramRepository.save(optParamEntity.get());
+        GlobalParamEntity entity = optParamEntity.get();
+        // GET never returns a secured value (it is filtered to null), so an edit to any other
+        // field arrives with the value blank - copying it through would destroy the stored
+        // secret. Preserve the stored value whenever the incoming one carries nothing new.
+        boolean preserveStoredValue =
+            FieldType.PASSWORD.value().equals(entity.getType()) && isBlank(param.getValue());
+        BeanUtils.copyProperties(
+            param, entity, preserveStoredValue ? new String[] {"id", "value"} : new String[] {"id"});
+        entity = paramRepository.save(entity);
         return convertToAbstractParamAndFilter(entity);
       }
     }
     throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
+  }
+
+  // Blank covers both a null value (Jackson never emits the omitted field, so it decodes as
+  // null) and an empty string (a client that round-trips a form field literally).
+  private static boolean isBlank(Object value) {
+    return value == null || (value instanceof String s && s.isBlank());
   }
 
   public AbstractParam create(AbstractParam request) {

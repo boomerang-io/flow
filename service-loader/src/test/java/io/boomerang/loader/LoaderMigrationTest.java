@@ -132,6 +132,7 @@ class LoaderMigrationTest {
     assertUniqueIndex("dispatchers", "registration", List.of("name", "host"));
     assertEventCollectionIndexes();
     assertLockAndWorkflowIndexes();
+    assertWorkspaceSearchIndexes();
     assertTaskRunDedupe();
     assertActionDedupe();
     assertAgentDedupe();
@@ -908,6 +909,14 @@ class LoaderMigrationTest {
     Map<String, Document> workflows = indexesByName("workflows");
     assertThat(workflows.get("status_lookup").get("key", Document.class).keySet())
         .containsExactly("status");
+  }
+
+  private void assertWorkspaceSearchIndexes() {
+    Map<String, Document> workspaces = indexesByName("workspaces");
+    assertThat(workspaces.get("name_lookup").get("key", Document.class).keySet())
+        .containsExactly("name");
+    assertThat(workspaces.get("display_name_lookup").get("key", Document.class).keySet())
+        .containsExactly("displayName");
   }
 
   private static long ttlSeconds(Document index) {
