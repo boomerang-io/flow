@@ -79,8 +79,18 @@ class BasicSlider extends Component<Props, State> {
     return (
       <div className="c-slider__wrapper">
         <div className="c-slider__container">
-          <Slider {...this.propsHandler()} />
-          <TextInput className="c-slider__slider-input" max={max} min={min} type="number" value={this.state.value} onChange={this.handleSliderInputChange}/>
+          <Slider {...this.propsHandler()} min={min} max={max} value={parseInt(this.state.value)} />
+          <TextInput
+            className="c-slider__slider-input"
+            id={`${this.props.id}-text-input`}
+            hideLabel
+            labelText={this.props.labelText ?? ""}
+            max={max}
+            min={min}
+            type="number"
+            value={this.state.value}
+            onChange={this.handleSliderInputChange}
+          />
         </div>
         {helperText && <p className="c-slider__helper-text">{this.props.helperText}</p>}
         <div className="c-slider__input-divider" />
