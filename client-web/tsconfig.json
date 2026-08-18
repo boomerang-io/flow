@@ -25,7 +25,7 @@
         "name": "typescript-plugin-css-modules"
       }
     ],
-    "types": ["cypress", "@testing-library/cypress"],
+    "types": ["vitest/globals"],
     "noFallthroughCasesInSwitch": true
   },
   "exclude": [

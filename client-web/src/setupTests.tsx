@@ -29,6 +29,18 @@ declare global {
       rtlQueryRender: any;
     }
   }
+
+  // Some specs call these as bare identifiers (relying on the `global.rtlX = rtlX`
+  // assignment below making them ambient), others go through `global.rtlX`
+  // explicitly — both need a type here.
+  // eslint-disable-next-line no-var
+  var rtlContextRouterRender: typeof rtlContextRouterRender;
+  // eslint-disable-next-line no-var
+  var rtlRouterRender: typeof rtlRouterRender;
+  // eslint-disable-next-line no-var
+  var rtlRender: typeof rtlRender;
+  // eslint-disable-next-line no-var
+  var rtlQueryRender: typeof rtlQueryRender;
 }
 
 function rtlQueryRender(ui, { queryConfig = {} } = {}) {
