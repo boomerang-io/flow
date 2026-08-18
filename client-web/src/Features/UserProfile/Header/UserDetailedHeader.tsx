@@ -5,15 +5,22 @@ import {
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { UserRoleCopy } from "Constants";
+import { UserRole, UserRoleCopy } from "Constants";
 import { serviceUrl } from "Config/servicesConfig";
-import { FlowUser } from "Types";
+import { FlowUser, UserRoleType } from "Types";
 import { Checkmark, Close } from "@carbon/react/icons";
 import styles from "./UserDetailedHeader.module.scss";
 
 interface UserDetailedHeaderProps {
   user: FlowUser;
   userManagementEnabled?: any;
+}
+
+const manageableUserRoles: string[] = Object.values(UserRole);
+
+/** Not every PlatformRole (e.g. sponsor, partner) has a UserRoleCopy label. */
+function hasRoleLabel(role: string): role is UserRoleType {
+  return manageableUserRoles.includes(role);
 }
 
 function UserDetailedHeader({ user, userManagementEnabled }: UserDetailedHeaderProps) {
@@ -29,7 +36,7 @@ function UserDetailedHeader({ user, userManagementEnabled }: UserDetailedHeaderP
             <Avatar
               className={styles.userAvatar}
               src={serviceUrl.getUserProfileImage({ userEmail: user?.email })}
-              user={user?.email}
+              userName={user?.email}
             />
             <HeaderTitle style={{ margin: "0 1rem 0 1rem" }} title={user?.name}>
               {user?.name ?? "---"}
@@ -49,7 +56,9 @@ function UserDetailedHeader({ user, userManagementEnabled }: UserDetailedHeaderP
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Role</dt>
-                  <dd className={styles.dataValue}>{user?.type ? UserRoleCopy[user.type] : "---"}</dd>
+                  <dd className={styles.dataValue}>
+                    {user?.type && hasRoleLabel(user.type) ? UserRoleCopy[user.type] : (user?.type ?? "---")}
+                  </dd>
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Joined</dt>

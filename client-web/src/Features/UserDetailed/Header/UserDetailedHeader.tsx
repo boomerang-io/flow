@@ -16,14 +16,21 @@ import ChangeRole from "./ChangeRole";
 import styles from "./UserDetailedHeader.module.scss";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { UserRoleCopy } from "Constants";
-import { FlowUser } from "Types";
+import { UserRole, UserRoleCopy } from "Constants";
+import { FlowUser, UserRoleType } from "Types";
 
 interface UserDetailedHeaderProps {
   isError?: boolean;
   isLoading?: boolean;
   user?: FlowUser;
   userManagementEnabled?: any;
+}
+
+const manageableUserRoles: string[] = Object.values(UserRole);
+
+/** Not every PlatformRole (e.g. sponsor, partner) has a UserRoleCopy label. */
+function hasRoleLabel(role: string): role is UserRoleType {
+  return manageableUserRoles.includes(role);
 }
 
 function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }: UserDetailedHeaderProps) {
@@ -95,7 +102,7 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
             <Avatar
               className={styles.userAvatar}
               src={serviceUrl.getUserProfileImage({ userEmail: user?.email })}
-              user={user?.email}
+              userName={user?.email}
             />
             <HeaderTitle style={{ margin: "0 1rem 0 1rem" }} title={user?.name}>
               {user?.name ?? "---"}
@@ -119,7 +126,9 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Role</dt>
-                  <dd className={styles.dataValue}>{user?.type ? UserRoleCopy[user.type] : "---"}</dd>
+                  <dd className={styles.dataValue}>
+                    {user?.type && hasRoleLabel(user.type) ? UserRoleCopy[user.type] : (user?.type ?? "---")}
+                  </dd>
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Joined</dt>
@@ -139,16 +148,20 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
         !isError && (
           <section className={styles.headerActions}>
             <Tabs ariaLabel="User pages">
-              <Tab exact label="Workspaces" to={{ pathname: appLink.user({ userId: user?.id }), state: location.state }} />
+              <Tab
+                exact
+                label="Workspaces"
+                to={{ pathname: appLink.user({ userId: user?.id ?? "" }), state: location.state }}
+              />
               <Tab
                 exact
                 label="Labels"
-                to={{ pathname: appLink.userLabels({ userId: user?.id }), state: location.state }}
+                to={{ pathname: appLink.userLabels({ userId: user?.id ?? "" }), state: location.state }}
               />
               <Tab
                 exact
                 label="Settings"
-                to={{ pathname: appLink.userSettings({ userId: user?.id }), state: location.state }}
+                to={{ pathname: appLink.userSettings({ userId: user?.id ?? "" }), state: location.state }}
               />
             </Tabs>
           </section>

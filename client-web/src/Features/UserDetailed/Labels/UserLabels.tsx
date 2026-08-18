@@ -19,7 +19,7 @@ import EmptyState from "Components/EmptyState";
 import LabelModal from "Components/LabelModal";
 import { serviceUrl } from "Config/servicesConfig";
 import { Add, Edit, Save, TrashCan } from "@carbon/react/icons";
-import { FlowUser } from "Types";
+import { FlowUser, ModalTriggerProps } from "Types";
 import styles from "./UserLabels.module.scss";
 
 interface UserLabelsProps {
@@ -98,14 +98,14 @@ function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
                             iconDescription="save labels"
                             renderIcon={Save}
                             size="md"
-                            onClick={handleSubmit}
+                            onClick={() => handleSubmit()}
                           >
                             {isLoading ? "Saving..." : "Save"}
                           </Button>
                           <LabelModal
                             action={(label: Label) => arrayHelpers.push(label)}
                             labelsKeys={labelsKeys}
-                            modalTrigger={({ openModal }: { openModal: Function }) => (
+                            modalTrigger={({ openModal }: ModalTriggerProps) => (
                               <Button
                                 kind="secondary"
                                 iconDescription="add a new label"
@@ -145,7 +145,7 @@ function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
                                         isEdit
                                         labelsKeys={labelsKeys.filter((labelKey) => labelKey !== label.key)}
                                         selectedLabel={label}
-                                        modalTrigger={({ openModal }: { openModal: Function }) => (
+                                        modalTrigger={({ openModal }: ModalTriggerProps) => (
                                           <Button
                                             kind="ghost"
                                             iconDescription="edit label"
