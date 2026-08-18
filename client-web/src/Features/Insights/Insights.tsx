@@ -60,6 +60,38 @@ const maxDate = moment().format("MM/DD/YYYY");
 const defaultFromDate = moment().subtract(3, "months").valueOf();
 const defaultToDate = moment().endOf("day").valueOf();
 
+// FilterableMultiSelect's item type requires an (optional) `disabled` field;
+// carry it alongside our domain types rather than widening them.
+type SelectableWorkflow = Workflow & { disabled?: boolean };
+type SelectableStatus = MultiSelectItem & { disabled?: boolean };
+
+// FilterableMultiSelectProps declares filterItems/compareItems/sortItems as required,
+// even though the component supplies working defaults at runtime. Provide equivalents
+// (mirroring Carbon's own default filter/sort behaviour) to satisfy the contract.
+function filterItemsByLabel<Item>(items: readonly Item[], { itemToString, inputValue }: { itemToString: (item: Item) => string; inputValue: string | null }): Item[] {
+  if (!inputValue) {
+    return items.slice();
+  }
+  return items.filter((item) => itemToString(item).toLowerCase().includes(inputValue.toLowerCase()));
+}
+
+function compareItemLabels(itemA: string, itemB: string, { locale }: { locale: string }): number {
+  return itemA.localeCompare(itemB, locale, { numeric: true });
+}
+
+function sortItemsBySelection<Item>(
+  items: Item[],
+  { selectedItems = [], itemToString, compareItems, locale = "en" }: { selectedItems?: Item[]; itemToString: (item: Item) => string; compareItems: (a: string, b: string, ctx: { locale: string }) => number; locale?: string },
+): Item[] {
+  return [...items].sort((itemA, itemB) => {
+    const hasItemA = selectedItems.includes(itemA);
+    const hasItemB = selectedItems.includes(itemB);
+    if (hasItemA && !hasItemB) return -1;
+    if (hasItemB && !hasItemA) return 1;
+    return compareItems(itemToString(itemA), itemToString(itemB), { locale });
+  });
+}
+
 export default function Insights() {
   const { workspace } = useWorkspaceContext();
   const history = useHistory();
@@ -205,7 +237,7 @@ function Selects(props: SelectsProps) {
     ? Number.parseInt(toDate)
     : defaultToDate;
 
-  function handleSelectWorkflows({ selectedItems }: MultiSelectItems<Workflow>) {
+  function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
     props.updateHistorySearch({
       ...queryString.parse(location.search, queryStringOptions),
@@ -215,7 +247,7 @@ function Selects(props: SelectsProps) {
     return;
   }
 
-  function handleSelectStatuses({ selectedItems }: MultiSelectItems) {
+  function handleSelectStatuses({ selectedItems }: MultiSelectItems<SelectableStatus>) {
     //@ts-ignore next-line
     const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : undefined;
     props.updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), statuses: statuses });
@@ -243,29 +275,33 @@ function Selects(props: SelectsProps) {
 
   return (
     <div className={styles.dataFilters}>
-      <FilterableMultiSelect
+      <FilterableMultiSelect<SelectableWorkflow>
         id="insights-workflows-select"
-        label="Choose workflow(s)"
         placeholder="Choose workflow(s)"
         invalid={false}
         onChange={handleSelectWorkflows}
         items={getWorkflowOptions()}
-        itemToString={(workflow: Workflow) => {
-          return workflow.displayName;
+        itemToString={(workflow) => {
+          return workflow ? workflow.displayName : "";
         }}
+        filterItems={filterItemsByLabel}
+        compareItems={compareItemLabels}
+        sortItems={sortItemsBySelection}
         initialSelectedItems={getWorkflowOptions().filter((workflow: Workflow) =>
           Boolean(selectedWorkflowRefs ? selectedWorkflowRefs.find((ref) => ref === workflow.name) : false),
         )}
         titleText="Filter by Workflow"
       />
-      <FilterableMultiSelect
+      <FilterableMultiSelect<SelectableStatus>
         id="insights-statuses-select"
-        label="Choose status(es)"
         placeholder="Choose status(es)"
         invalid={false}
         onChange={handleSelectStatuses}
         items={statusOptions}
-        itemToString={(item: MultiSelectItem) => (item ? item.label : "")}
+        itemToString={(item) => (item ? item.label : "")}
+        filterItems={filterItemsByLabel}
+        compareItems={compareItemLabels}
+        sortItems={sortItemsBySelection}
         initialSelectedItems={statusOptions.filter((option) =>
           Boolean(selectedStatuses?.find((status: string) => status === option.value)),
         )}

@@ -1,5 +1,5 @@
 import { ScatterChart } from "@carbon/charts-react";
-import { ScaleTypes, ChartTabularData } from "@carbon/charts/interfaces";
+import { ScaleTypes, ChartTabularData } from "@carbon/charts";
 import "@carbon/charts/styles.css";
 
 interface CarbonScatterChartProps {

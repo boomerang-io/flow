@@ -1,5 +1,5 @@
 import { LineChart } from "@carbon/charts-react";
-import { ChartTabularData, ScaleTypes } from "@carbon/charts/interfaces";
+import { ChartTabularData, ScaleTypes } from "@carbon/charts";
 
 interface CarbonLineChartProps {
   data: ChartTabularData;

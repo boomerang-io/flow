@@ -1,5 +1,5 @@
 import { DonutChart } from "@carbon/charts-react";
-import { Alignments, ChartTabularData, LegendPositions } from "@carbon/charts/interfaces";
+import { Alignments, ChartTabularData, LegendPositions } from "@carbon/charts";
 
 interface CarbonDonutChartProps {
   data: ChartTabularData;
