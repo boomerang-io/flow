@@ -69,7 +69,7 @@ const Members: React.FC<MemberProps> = ({ canEdit, workspace, user, workspaceDet
             labelText="member search"
             id="member-search"
             placeholder="Search for a member"
-            onChange={(e: React.FormEvent<HTMLInputElement>) => setSearchQuery(e.currentTarget.value)}
+            onChange={(e: { target: HTMLInputElement; type: "change" }) => setSearchQuery(e.target.value)}
           />
         </div>
         {canEdit && (
@@ -117,7 +117,7 @@ const Members: React.FC<MemberProps> = ({ canEdit, workspace, user, workspaceDet
                     <Link
                       className={styles.viewMemberLink}
                       to={{
-                        pathname: appLink.user({ userId: member.id }),
+                        pathname: appLink.user({ userId: member.id ?? "" }),
                         state: { fromWorkspace: workspace.name },
                       }}
                     >

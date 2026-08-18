@@ -49,7 +49,7 @@ const RemoveMember: React.FC<RemoveMemberProps> = ({ member, workspaceName, user
     <ConfirmModal
       affirmativeAction={handleCreateLeaveWorkspaceRequest}
       affirmativeButtonProps={{ kind: "danger", disabled: leaveWorkspaceMutator.isLoading, "data-testid": "remove-member" }}
-      negativeButtonsProps={{ disabled: leaveWorkspaceMutator.isLoading }}
+      negativeButtonProps={{ disabled: leaveWorkspaceMutator.isLoading }}
       children={`Are you sure you want to remove ${member.name} from ${workspaceName}? The user will lose access to all workspace workflows.`}
       title={`Remove from Workspace`}
       modalTrigger={({ openModal }) => (
