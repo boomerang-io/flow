@@ -21,7 +21,7 @@ import {
 import { Edit, Close, TrashCan, Add, Copy } from "@carbon/react/icons";
 import CopyToClipboard from "react-copy-to-clipboard";
 import sortBy from "lodash/sortBy";
-import { FlowWorkspace } from "Types";
+import { FlowWorkspace, ModalTriggerProps } from "Types";
 import LabelModal from "Components/LabelModal";
 import { appLink } from "Config/appConfig";
 import styles from "./Settings.module.scss";
@@ -176,7 +176,7 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
                     type="button"
                   >
                     <CopyToClipboard text={workspace.name}>
-                      <Copy fill={"#0072C3"} className={styles.actionIcon} alt="Copy" />
+                      <Copy fill={"#0072C3"} className={styles.actionIcon} aria-label="Copy" />
                     </CopyToClipboard>
                   </button>
                 </TooltipHover>
@@ -215,7 +215,7 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
                             isEdit
                             labelsKeys={labelsKeys.filter((labelKey) => labelKey !== label.key)}
                             selectedLabel={label}
-                            modalTrigger={({ openModal }: { openModal: Function }) => (
+                            modalTrigger={({ openModal }: ModalTriggerProps) => (
                               <Button
                                 kind="ghost"
                                 iconDescription="edit label"
@@ -255,7 +255,7 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
               <LabelModal
                 action={handleAddLabel}
                 labelsKeys={labelsKeys}
-                modalTrigger={({ openModal }: { openModal: Function }) => (
+                modalTrigger={({ openModal }: ModalTriggerProps) => (
                   <Button kind="ghost" iconDescription="add a new label" renderIcon={Add} size="md" onClick={openModal} disabled={!canEdit}>
                     Add a new label
                   </Button>
@@ -299,7 +299,14 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
   );
 }
 
-function SettingSection({ children, description, editModal, title }) {
+interface SettingSectionProps {
+  children: React.ReactNode;
+  description?: React.ReactNode;
+  editModal?: React.ReactNode;
+  title: string;
+}
+
+function SettingSection({ children, description, editModal, title }: SettingSectionProps) {
   return (
     <section className={styles.sectionContainer}>
       <div className={styles.sectionHeader}>

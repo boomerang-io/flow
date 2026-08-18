@@ -25,7 +25,12 @@ const MemberBar: React.FC<MemberBarProps> = ({ addUser, id, email, name, removeU
           </div>
         </div>
         {removeUser && (
-          <CloseOutline size={32} className={styles.closeIcon} alt="remove user" data-testid="remove-user-button" />
+          <CloseOutline
+            size={32}
+            className={styles.closeIcon}
+            aria-label="remove user"
+            data-testid="remove-user-button"
+          />
         )}
       </button>
     </li>

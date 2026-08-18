@@ -15,10 +15,13 @@ interface AddMemberProps {
   error: any;
 }
 
-function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberProps) {
-  const [members, setMembers] = useState<Array<Member>>([]);
+/** A member staged for submission - unlike `Member`, email/role are always present once added to the list. */
+type NewMember = { email: string; role: MemberRole };
 
-  const handleAdd = async (values: Member) => {
+function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberProps) {
+  const [members, setMembers] = useState<Array<NewMember>>([]);
+
+  const handleAdd = async (values: NewMember) => {
     const newMembers = [...members, values];
     setMembers(newMembers);
   };
@@ -30,9 +33,9 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
 
   const handleInternalSubmit = async (e: React.SyntheticEvent<HTMLButtonElement>, closeModal: Function) => {
     e.preventDefault();
-    const addMemberRequestData: Array<Member> = members.map((user) => ({
+    const addMemberRequestData: Array<NewMember> = members.map((user) => ({
       email: user.email,
-      role: MemberRole.Editor,
+      role: user.role,
     }));
 
     try {
@@ -104,7 +107,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                           setFieldValue("role", selectedItem);
                         }}
                         items={Object.values(MemberRole)}
-                        value={values.role}
+                        selectedItem={values.role}
                         label="Role"
                         titleText="Role"
                         placeholder="Select role"
@@ -112,7 +115,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                       <Button
                         kind="tertiary"
                         disabled={!isValid}
-                        onClick={handleSubmit}
+                        onClick={() => handleSubmit()}
                         renderIcon={Add}
                         size="md"
                         style={{
@@ -148,7 +151,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
             )}
           </ModalBody>
           <ModalFooter>
-            <Button onClick={closeModal} kind="secondary" type="button">
+            <Button onClick={() => closeModal()} kind="secondary" type="button">
               Cancel
             </Button>
             <Button disabled={members.length === 0 || isSubmitting} type="submit">
