@@ -1,6 +1,5 @@
-import { Workflow, WorkflowEditorState } from "Types";
+import { WorkflowCanvas, WorkflowEditorState } from "Types";
 
-//@ts-nocheck
 export const RevisionActionTypes = {
   UpdateNodes: "UPDATE_NODES",
   UpdateEdges: "UPDATE_EDGES",
@@ -49,6 +48,6 @@ export function revisionReducer(state: WorkflowEditorState, action: { data: any;
   }
 }
 
-export function initRevisionReducerState(workflow: Workflow): WorkflowEditorState {
+export function initRevisionReducerState(workflow: WorkflowCanvas): WorkflowEditorState {
   return { ...workflow, hasUnsavedUpdates: false };
 }
