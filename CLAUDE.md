@@ -119,8 +119,10 @@ behaviour, never "simplify" onto framework defaults.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
 - Agent endpoints (`AgentControllerV1`) are **unauthenticated**; engine is `permitAll()`.
-- Two properties gate security halves: `flow.auth.enabled` AND `flow.authorization.enabled`
-  (to be unified; mode-derived default).
+- ~~Two properties gate security halves~~ **DONE**: unified into a single `flow.security.enabled`,
+  whose default derives from `flow.mode` (`STANDALONE`→on, `ENGINE`→off) unless set explicitly —
+  see `FlowSecurityProperties`. It gates both `AuthenticationFilter` and the interceptor config.
+  (`flow.authorization.basic.password` is unrelated — that's the Basic-auth password.)
 - Agent queue claiming is non-atomic (find-then-update race) until Phase 3 lands — worse,
   the claim *loser still dispatches* (the queue returns the find result, not the claimed
   set), and terminal-phase runs are redelivered to every agent on every poll.
@@ -180,7 +182,8 @@ flow.security.enabled=false
 
 ## Error Response Format
 
-All API errors use `io.boomerang.error.ErrorDetail`:
+All API errors use `io.boomerang.common.error.RestErrorResponse` (lib-common). Note
+`io.boomerang.error.model.ErrorDetail` still exists in `service-agent` only — it is not the API shape:
 
 ```json
 { "timestamp": "...", "code": 1001, "reason": "QUERY_INVALID_FILTERS",
@@ -226,7 +229,7 @@ merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-re
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
-`/Users/tysonlawrie/Workspaces/walkaboutdev/cheer.dev` · Frontend =
+`/Users/tysonlawrie/Workspaces/cheerdev/cheer.dev` · Frontend =
 `/Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web`.
 
 ## What To Work On First
