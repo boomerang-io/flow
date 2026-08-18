@@ -1,6 +1,7 @@
 package io.boomerang.api.model;
 
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.workspace.model.WorkspaceSummary;
 import java.util.List;
 import lombok.Data;
@@ -16,7 +17,7 @@ public class UserProfile extends UserEntity {
 
   List<WorkspaceSummary> teams;
 
-  List<String> permissions;
+  List<ResolvedPermissions> permissions;
 
   public UserProfile() {}
 

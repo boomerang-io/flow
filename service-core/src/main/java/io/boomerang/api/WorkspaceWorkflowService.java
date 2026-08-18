@@ -663,7 +663,7 @@ public class WorkspaceWorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
-    final Workflow response = this.internalGet(team, name, Optional.empty(), true);
+    final Workflow response = this.internalGet(team, name, version, true);
     return convertWorkflowToCanvas(response);
   }
 

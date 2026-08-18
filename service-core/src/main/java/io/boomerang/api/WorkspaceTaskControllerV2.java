@@ -318,7 +318,7 @@ public class WorkspaceTaskControllerV2 {
 
   @DeleteMapping(value = "/{name}")
   @AuthCriteria(
-      action = PermissionAction.READ,
+      action = PermissionAction.DELETE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(summary = "Delete a Workspace Task")

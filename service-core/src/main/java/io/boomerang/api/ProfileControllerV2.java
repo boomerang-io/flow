@@ -3,6 +3,7 @@ package io.boomerang.api;
 import io.boomerang.api.model.UserProfile;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
+import io.boomerang.core.TokenService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.model.UserRequest;
@@ -11,11 +12,12 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workspace.WorkspaceService;
-import io.boomerang.workspace.model.WorkspaceMembershipSummary;
+import io.boomerang.workspace.model.WorkspaceSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +44,8 @@ public class ProfileControllerV2 {
 
   @Autowired private WorkspaceService workspaceService;
 
+  @Autowired private TokenService tokenService;
+
   /*
    * Returns the current users profile
    *
@@ -63,9 +67,9 @@ public class ProfileControllerV2 {
     UserEntity baseEntity = userService.getCurrentProfileEntity();
     UserProfile profile = new UserProfile(baseEntity);
     Map<String, String> teamRefsAndRoles = userService.getTeamRefsAndRolesForUser(profile.getId());
-    WorkspaceMembershipSummary membership = workspaceService.getWorkspaceMembershipSummary(teamRefsAndRoles);
-    profile.setTeams(membership.getTeams());
-    profile.setPermissions(membership.getPermissions());
+    List<WorkspaceSummary> teams = workspaceService.getWorkspaceMembershipSummary(teamRefsAndRoles);
+    profile.setTeams(teams);
+    profile.setPermissions(tokenService.resolvePermissionsForUser(baseEntity));
     return profile;
   }
 

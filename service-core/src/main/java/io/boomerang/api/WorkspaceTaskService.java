@@ -475,6 +475,7 @@ public class WorkspaceTaskService {
             false);
     if (!refs.isEmpty()) {
       taskService.delete(refs.get(0));
+      return;
     }
     // TODO - change error to don't have access
     throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);

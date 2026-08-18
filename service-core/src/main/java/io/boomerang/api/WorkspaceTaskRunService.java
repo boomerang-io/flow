@@ -2,9 +2,13 @@ package io.boomerang.api;
 
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.TaskRun;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.workflow.ParamLayerService;
 import java.util.Objects;
+import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -24,23 +28,32 @@ public class WorkspaceTaskRunService {
   private final RestTemplate restTemplate;
   private final TaskRunService engineTaskRunService;
   private final ParamLayerService paramLayerService;
+  private final RelationshipService relationshipService;
 
   public WorkspaceTaskRunService(
       @Qualifier("internalRestTemplate") RestTemplate restTemplate,
       TaskRunService engineTaskRunService,
-      ParamLayerService paramLayerService) {
+      ParamLayerService paramLayerService,
+      RelationshipService relationshipService) {
     this.restTemplate = restTemplate;
     this.engineTaskRunService = engineTaskRunService;
     this.paramLayerService = paramLayerService;
+    this.relationshipService = relationshipService;
   }
 
   public StreamingResponseBody streamLog(String taskRunId) {
     if (!Objects.isNull(taskRunId) && !taskRunId.isBlank()) {
-      // TODO: check parent has valid relationship
-      //      Optional<RelationshipEntity> rel =
-      // relationshipService.getRelationship(RelationshipRef.TASKRUN, taskRunId,
-      // RelationshipType.BELONGSTO);
-      //      if (!rel.isEmpty()) {
+      // There is no TASKRUN relationship node - a TaskRun's ownership is only reachable via its
+      // parent WorkflowRun (WORKSPACE -has-> WORKFLOWRUN). The route carries no workspace segment,
+      // so resolve the owning WorkflowRun and check that first, rather than faking a route change.
+      TaskRun taskRun = engineTaskRunService.get(taskRunId).getBody();
+      if (!relationshipService.check(
+          RelationshipType.WORKFLOWRUN,
+          taskRun.getWorkflowRunRef(),
+          Optional.empty(),
+          Optional.empty())) {
+        throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+      }
       LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
       return engineTaskRunService.streamLog(taskRunId);
     }
