@@ -55,6 +55,26 @@ const workflowTemplatesUrl = serviceUrl.template.getWorkflowTemplates();
 const browser = detect();
 const supportedBrowsers = ["chrome", "firefox", "safari", "edge"];
 
+// Maps the /features response (settings-value keys, e.g. "workspace.management") onto the
+// FlagsProvider prop names (FeatureFlag, e.g. "WorkspaceManagementEnabled") consumed via
+// useFeature() throughout the app. Exported so a test can assert every flag resolves to a
+// boolean rather than silently going `undefined` when the two key sets drift apart.
+export function buildFeatureFlags(feature: FlowFeatures["features"]) {
+  return {
+    ActivityEnabled: feature["activity"],
+    EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
+    GlobalParametersEnabled: feature["global.parameters"],
+    InsightsEnabled: feature["insights"],
+    WorkspaceManagementEnabled: feature["workspace.management"],
+    WorkspaceParametersEnabled: feature["workspace.parameters"],
+    WorkspaceTasksEnabled: feature["workspace.tasks"],
+    UserManagementEnabled: feature["user.management"],
+    WorkspaceQuotasEnabled: feature["workspace.quotas"],
+    WorkflowTokensEnabled: feature["workflow.tokens"],
+    WorkflowTriggersEnabled: feature["workflow.triggers"],
+  };
+}
+
 export default function App() {
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -164,23 +184,7 @@ export default function App() {
   if (userQuery.data && contextQuery.data && featureQuery.data && navigationQuery.data) {
     const feature = featureQuery.data.features;
     return (
-      <FlagsProvider
-        features={{
-          ActivityEnabled: feature["activity"],
-          EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
-          GlobalParametersEnabled: feature["global.parameters"],
-          InsightsEnabled: feature["insights"],
-          // The feature keys are settings values, still stored and served under their original
-          // names; they change only alongside a settings migration.
-          WorkspaceManagementEnabled: feature["team.management"],
-          WorkspaceParametersEnabled: feature["team.parameters"],
-          WorkspaceTasksEnabled: feature["team.tasks"],
-          UserManagementEnabled: feature["user.management"],
-          WorkspaceQuotasEnabled: feature["team.quotas"],
-          WorkflowTokensEnabled: feature["workflow.tokens"],
-          WorkflowTriggersEnabled: feature["workflow.triggers"],
-        }}
-      >
+      <FlagsProvider features={buildFeatureFlags(feature)}>
         <Navbar
           flowNavigationData={navigationQuery.data}
           handleOnTutorialClick={() => setIsTutorialActive(true)}
