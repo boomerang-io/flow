@@ -2,16 +2,17 @@ import { vi } from "vitest";
 import ActivityTable from "./index";
 
 const props = {
-  activities: [],
-  isUpdating: false,
-  sort: {},
-  tableData: { records: [], pageable: { number: 0, size: 10, sort: "asc", totalElements: 10 } },
+  isLoading: false,
+  sort: "",
+  order: "ASC",
+  tableData: { number: 0, size: 10, sort: "asc", totalElements: 10, content: [] },
   match: {
     params: "testid",
   },
   location: {},
   history: {},
   updateHistorySearch: vi.fn(),
+  workflowNameMap: {},
 };
 
 describe("ActivityTable --- Snapshot", () => {

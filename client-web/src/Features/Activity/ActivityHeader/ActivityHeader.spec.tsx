@@ -7,6 +7,8 @@ const props = {
   succeededActivities: 13,
   inProgressActivities: 0,
   isLoading: false,
+  isError: false,
+  workspace: { displayName: "Test Workspace" },
 };
 
 describe("ActivityHeader --- Snapshot", () => {
