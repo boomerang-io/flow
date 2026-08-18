@@ -23,7 +23,7 @@ import { useEditorContext, useWorkspaceContext } from "Hooks";
 import { WorkspaceConfigType } from "Constants";
 import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
-import { Workflow, ConfigureWorkflowFormValues, FlowWorkspace } from "Types";
+import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace } from "Types";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureEventTrigger from "./ConfigureEventTrigger";
 import ConfigureStorage from "./ConfigureStorage";
@@ -51,7 +51,7 @@ const TRIGGER_YUP_SCHEMA = Yup.object().shape({
 });
 
 interface ConfigureContainerProps {
-  workflow: Workflow;
+  workflow: WorkflowCanvas;
   settingsRef: React.MutableRefObject<FormikProps<any> | null>;
 }
 
@@ -190,7 +190,7 @@ export default ConfigureContainer;
 interface ConfigureProps {
   workflowTriggersEnabled: boolean;
   formikProps: FormikProps<ConfigureWorkflowFormValues>;
-  workflow: Workflow;
+  workflow: WorkflowCanvas;
   githubAppInstallation: any;
   workspace: FlowWorkspace;
 }

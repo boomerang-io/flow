@@ -39,7 +39,6 @@ import {
   ScheduleManagerFormInputs,
   ScheduleUnion,
   Workflow,
-  WorkflowCanvas,
 } from "Types";
 import styles from "./ScheduleManagerForm.module.scss";
 
@@ -51,7 +50,7 @@ interface CreateEditFormProps {
   modalProps: any;
   schedule?: ScheduleUnion;
   type: "create" | "edit";
-  workflow?: WorkflowCanvas;
+  workflow?: Workflow;
   workflowOptions?: Array<Workflow>;
 }
 

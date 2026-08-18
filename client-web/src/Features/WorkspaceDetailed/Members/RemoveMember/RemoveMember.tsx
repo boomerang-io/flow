@@ -3,11 +3,11 @@ import { useMutation, useQueryClient } from "react-query";
 import { ConfirmModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { TrashCan } from "@carbon/react/icons";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowUser, Member } from "Types";
+import { Member } from "Types";
 import styles from "./RemoveMember.module.scss";
 
 interface RemoveMemberProps {
-  member: FlowUser;
+  member: Member;
   workspaceName: string;
   userId: string;
 }

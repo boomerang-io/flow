@@ -1,4 +1,4 @@
-import { Workflow, WorkflowCanvasState } from "Types";
+import { Workflow, WorkflowEditorState } from "Types";
 
 //@ts-nocheck
 export const RevisionActionTypes = {
@@ -14,7 +14,7 @@ export const RevisionActionTypes = {
 
 type RevisionActionType = typeof RevisionActionTypes[keyof typeof RevisionActionTypes];
 
-export function revisionReducer(state: WorkflowCanvasState, action: { data: any; type: RevisionActionType }) {
+export function revisionReducer(state: WorkflowEditorState, action: { data: any; type: RevisionActionType }) {
   console.log({ action });
   switch (action.type) {
     case RevisionActionTypes.UpdateEdges: {
@@ -49,6 +49,6 @@ export function revisionReducer(state: WorkflowCanvasState, action: { data: any;
   }
 }
 
-export function initRevisionReducerState(workflow: Workflow): WorkflowCanvasState {
+export function initRevisionReducerState(workflow: Workflow): WorkflowEditorState {
   return { ...workflow, hasUnsavedUpdates: false };
 }

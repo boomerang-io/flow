@@ -43,11 +43,19 @@ export enum PlatformRole {
   Admin = "admin",
   User = "user",
   Operator = "operator",
+  Sponsor = "sponsor",
+  Auditor = "auditor",
+  Author = "author",
+  Partner = "partner",
+  Advisor = "advisor",
 }
 
 export enum UserStatus {
   Active = "active",
   Inactive = "inactive",
+  PendingDeletion = "pending_deletion",
+  Deleted = "deleted",
+  Archived = "archived",
 }
 
 export interface FlowUser extends User {
@@ -61,12 +69,16 @@ export interface FlowUser extends User {
   status: UserStatus;
   labels?: Record<string, string>;
   settings?: FlowUserSettings;
+  // Only present on the profile response; carries the caller's resolved workspace
+  // memberships and permissions alongside the base user record.
+  teams: Array<FlowWorkspaceSummary>;
+  permissions?: Array<string>;
 }
 
 export interface FlowUserSettings {
   hasConsented: boolean;
   isShowHelp: boolean | null;
-  ifFirstVisit: boolean;
+  isFirstVisit: boolean;
 }
 
 export interface SimpleApprover {
@@ -96,11 +108,8 @@ export interface Action {
   instructions: any;
 }
 
-export interface Approver {
-  name: string;
-  id: string;
-  email: string;
-}
+// An ApproverGroup approver is a workspace member; the two are the same wire shape.
+export type Approver = Member;
 
 export interface ApproverGroup {
   id: string;
@@ -165,14 +174,42 @@ export interface WorkflowWorkspace {
   };
 }
 
+export interface WorkflowTaskDependency {
+  taskRef: string;
+  decisionCondition?: string;
+  executionCondition: EdgeExecutionConditionType;
+}
+
+export interface WorkflowTaskWorkspace {
+  name: string;
+  type: string;
+  optional: boolean;
+  mountPath?: string;
+}
+
+export interface WorkflowTask {
+  name: string;
+  type: string;
+  taskRef?: string;
+  taskVersion?: number;
+  upgradesAvailable?: boolean;
+  timeout?: number;
+  dependencies?: Array<WorkflowTaskDependency>;
+  labels?: Record<string, string>;
+  annotations?: Record<string, object>;
+  params?: Array<Param>;
+  results?: Array<{ name: string; description: string }>;
+  workspaces?: Array<WorkflowTaskWorkspace>;
+}
+
 export interface Workflow {
-  // id: string;
+  id?: string;
   name: string;
   displayName: string;
   creationDate: string;
   status: WorkflowStatus;
-  timeout: number;
-  retries: number;
+  timeout?: number;
+  retries?: number;
   version: number;
   description: string;
   icon: string;
@@ -180,7 +217,7 @@ export interface Workflow {
   annotations?: Record<string, object>;
   markdown?: string;
   params?: Array<DataDrivenInput>;
-  tasks: Array<any>; //TODO: what should this type be
+  tasks: Array<WorkflowTask>;
   changelog: {
     author: string;
     reason: string;
@@ -310,11 +347,12 @@ export interface Task {
   displayName: string;
   description?: string;
   status: string;
-  category: string;
+  category?: string;
   version: number;
   creationDate: string;
   labels?: Record<string, string>;
-  icon: string;
+  annotations?: Record<string, object>;
+  icon?: string;
   type: string;
   changelog: ChangeLog;
   verified: boolean;
@@ -334,7 +372,19 @@ export interface TaskSpec {
 
 export type FlowWorkspaceStatusType = ObjectValues<typeof FlowWorkspaceStatus>;
 
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  displayName: string;
+  status: WorkflowStatus;
+  version: number;
+  creationDate: string;
+  icon?: string;
+  description?: string;
+}
+
 export interface FlowWorkspace {
+  id: string;
   name: string;
   displayName: string;
   description?: string;
@@ -344,7 +394,7 @@ export interface FlowWorkspace {
   labels?: Record<string, string>;
   quotas: FlowWorkspaceQuotas;
   members: Array<Member>;
-  settings?: unknown;
+  workflows?: Array<WorkflowSummary>;
   parameters: Array<DataDrivenInput>;
   approverGroups: Array<ApproverGroup>;
 }
@@ -405,6 +455,7 @@ export interface PaginatedResponse<RecordType> {
 export interface Member {
   id?: string;
   email?: string;
+  name?: string;
   role?: MemberRole;
 }
 
@@ -669,7 +720,7 @@ export type UserRoleType = ObjectValues<typeof UserRole>;
 export type NodeTypeType = ObjectValues<typeof NodeType>;
 
 export interface ConfigureWorkflowFormValues {
-  params: Workflow["params"];
+  config: WorkflowCanvas["config"];
   description: string;
   icon: string;
   labels: Array<{ key: string; value: string }>;
@@ -687,9 +738,9 @@ export interface ConfigureWorkflowFormValues {
       mountPath: string;
     };
   };
-  retries: number;
-  timeout: number;
-  triggers: Workflow["triggers"];
+  retries: number | null;
+  timeout: number | null;
+  triggers: WorkflowCanvas["triggers"];
 }
 
 export interface WorkflowRun {
