@@ -171,6 +171,14 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/cancel`,
       putRetryWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/retry`,
+      putStartWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/start`,
+      putPauseWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/pause`,
+      putResumeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/resume`,
+      putFinalizeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/finalize`,
       getWorkflowRunCount: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/count${query ? "?" + query : ""}`,
       getWorkflowRuns: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
@@ -212,6 +220,11 @@ export const resolver = {
   putRetryWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putRetryWorkflow({ workspace, id })),
   deleteCancelWorkflowRun: ({ workspace, id }) =>
     axios.delete(serviceUrl.workspace.workflowrun.deleteCancelWorkflow({ workspace, id })),
+  putStartWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putStartWorkflow({ workspace, id })),
+  putPauseWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putPauseWorkflow({ workspace, id })),
+  putResumeWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putResumeWorkflow({ workspace, id })),
+  putFinalizeWorkflowRun: ({ workspace, id }) =>
+    axios.put(serviceUrl.workspace.workflowrun.putFinalizeWorkflow({ workspace, id })),
   deleteGlobalParameter: ({ name }) => axios.delete(serviceUrl.getGlobalParameter({ name })),
   deleteWorkspaceMembers: ({ workspace, body }) =>
     axios({ url: serviceUrl.workspace.deleteWorkspaceMembers({ workspace }), data: body, method: HttpMethod.Delete }),

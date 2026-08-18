@@ -765,7 +765,9 @@ export interface WorkflowRun {
   initiatedByRef: string;
   labels: Record<string, string>;
   params: Array<Param>;
-  phase: string;
+  // Populated on the wire (WorkflowRunService#get copies the entity's phase across); the
+  // pause flag itself (pauseRequestedAt) is not exposed on this model.
+  phase: RunPhase;
   results: Array<RunResult>;
   retries: number;
   startTime: string;

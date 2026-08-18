@@ -1,6 +1,6 @@
 import React from "react";
 import { Breadcrumb, BreadcrumbItem, Button, ModalBody, SkeletonPlaceholder, Tag, TextArea } from "@carbon/react";
-import { Catalog, CopyFile, StopOutline, Warning, Redo } from "@carbon/react/icons";
+import { CheckmarkOutline, Catalog, CopyFile, Pause, Play, StopOutline, Warning, Redo } from "@carbon/react/icons";
 import {
   ComposedModal,
   ConfirmModal,
@@ -17,10 +17,11 @@ import { useMutation, useQueryClient } from "react-query";
 import { Link, useHistory, useParams } from "react-router-dom";
 import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem/OutputPropertiesLog";
 import ErrorModal from "Components/ErrorModal";
-import { useWorkspaceContext } from "Hooks";
+import { useAppContext, useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
-import { RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
+import { hasPermission } from "Utils/permissionHelper";
+import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import styles from "./RunHeader.module.scss";
 
 type Props = {
@@ -32,23 +33,53 @@ type Props = {
 
 const cancelStatusTypes = [RunStatus.NotStarted, RunStatus.Waiting, RunStatus.Ready, RunStatus.Running];
 const retryStatusTypes = [RunStatus.Cancelled, RunStatus.Failed, RunStatus.TimedOut, RunStatus.Invalid];
+const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
 
 export default function RunHeader({ workflow, workflowRun, version, executionViewRedirect }: Props) {
   const { workspace } = useWorkspaceContext();
+  const { user } = useAppContext();
   const history = useHistory<{ fromUrl: string; fromText: string }>();
   const state = history.location.state;
   const queryClient = useQueryClient();
 
-  const { initiatedByRef, trigger, creationDate, status, id } = workflowRun;
+  const { initiatedByRef, trigger, creationDate, status, phase, id } = workflowRun;
+  const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status);
+  // Start only admits a run still waiting to begin; Finalize only applies once the DAG has
+  // completed. Pause/resume both only take effect while the run is actively running - the
+  // pause flag itself (pauseRequestedAt) isn't exposed on this model, so which of the two
+  // currently applies can't be told apart from here. Both are shown together and each is a
+  // safe no-op server-side if it doesn't apply.
+  const displayStartButton = startPhaseTypes.includes(phase);
+  const displayPauseResumeButtons = phase === RunPhase.Running;
+  const displayFinalizeButton = phase === RunPhase.Completed;
+
+  const invalidateWorkflowRun = () =>
+    queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id }));
 
   const { mutateAsync: retryWorkflowRunMutation } = useMutation(resolver.putRetryWorkflowRun, {
-    onSuccess: () => queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id })),
+    onSuccess: invalidateWorkflowRun,
   });
 
   const { mutateAsync: cancelWorkflowRunMutation } = useMutation(resolver.deleteCancelWorkflowRun, {
-    onSuccess: () => queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id })),
+    onSuccess: invalidateWorkflowRun,
+  });
+
+  const { mutateAsync: startWorkflowRunMutation } = useMutation(resolver.putStartWorkflowRun, {
+    onSuccess: invalidateWorkflowRun,
+  });
+
+  const { mutateAsync: pauseWorkflowRunMutation } = useMutation(resolver.putPauseWorkflowRun, {
+    onSuccess: invalidateWorkflowRun,
+  });
+
+  const { mutateAsync: resumeWorkflowRunMutation } = useMutation(resolver.putResumeWorkflowRun, {
+    onSuccess: invalidateWorkflowRun,
+  });
+
+  const { mutateAsync: finalizeWorkflowRunMutation } = useMutation(resolver.putFinalizeWorkflowRun, {
+    onSuccess: invalidateWorkflowRun,
   });
 
   const handleRetryWorkflow = async () => {
@@ -67,6 +98,42 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
       notify(<ToastNotification kind="success" title="Cancel run" subtitle="Run successfully cancelled" />);
     } catch {
       notify(<ToastNotification kind="error" title="Something's wrong" subtitle={`Failed to cancel this run`} />);
+    }
+  };
+
+  const handleStartWorkflow = async () => {
+    try {
+      await startWorkflowRunMutation({ id, workspace: workspace.name });
+      notify(<ToastNotification kind="success" title="Start run" subtitle="Run successfully started" />);
+    } catch {
+      notify(<ToastNotification kind="error" title="Something's wrong" subtitle={`Failed to start this run`} />);
+    }
+  };
+
+  const handlePauseWorkflow = async () => {
+    try {
+      await pauseWorkflowRunMutation({ id, workspace: workspace.name });
+      notify(<ToastNotification kind="success" title="Pause run" subtitle="Run successfully paused" />);
+    } catch {
+      notify(<ToastNotification kind="error" title="Something's wrong" subtitle={`Failed to pause this run`} />);
+    }
+  };
+
+  const handleResumeWorkflow = async () => {
+    try {
+      await resumeWorkflowRunMutation({ id, workspace: workspace.name });
+      notify(<ToastNotification kind="success" title="Resume run" subtitle="Run successfully resumed" />);
+    } catch {
+      notify(<ToastNotification kind="error" title="Something's wrong" subtitle={`Failed to resume this run`} />);
+    }
+  };
+
+  const handleFinalizeWorkflow = async () => {
+    try {
+      await finalizeWorkflowRunMutation({ id, workspace: workspace.name });
+      notify(<ToastNotification kind="success" title="Finalize run" subtitle="Run successfully finalized" />);
+    } catch {
+      notify(<ToastNotification kind="error" title="Something's wrong" subtitle={`Failed to finalize this run`} />);
     }
   };
 
@@ -171,7 +238,27 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
             <dd className={styles.dataValue}>{moment(creationDate).format("YYYY-MM-DD hh:mm A")}</dd>
           </dl>
           <dl className={styles.dataButton}>
-            {displayRetryButton && (
+            {canActionWorkflowRun && displayStartButton && (
+              <ConfirmModal
+                affirmativeAction={handleStartWorkflow}
+                children="Are you sure? This will start execution of the queued Workflow run."
+                title="Start run"
+                modalTrigger={({ openModal }) => (
+                  <Button
+                    className={styles.cancelRun}
+                    data-testid="start-run"
+                    kind="primary"
+                    iconDescription="Start run"
+                    onClick={openModal}
+                    renderIcon={Play}
+                    size="sm"
+                  >
+                    Start run
+                  </Button>
+                )}
+              />
+            )}
+            {canActionWorkflowRun && displayRetryButton && (
               <ConfirmModal
                 affirmativeAction={handleRetryWorkflow}
                 children="Are you sure? A new execution of this Workflow will be started with all the same parameters."
@@ -191,7 +278,72 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                 )}
               />
             )}
-            {displayCancelButton && (
+            {canActionWorkflowRun && displayPauseResumeButtons && (
+              <ConfirmModal
+                affirmativeAction={handlePauseWorkflow}
+                children="Are you sure? This blocks new tasks from starting. Tasks already claimed, running, or ready continue to completion and still time out on their own deadline - this does not freeze the run."
+                title="Pause run"
+                modalTrigger={({ openModal }) => (
+                  <TooltipHover
+                    direction="top"
+                    content="Blocks new tasks from starting; work already in flight runs to completion."
+                  >
+                    <Button
+                      className={styles.cancelRun}
+                      data-testid="pause-run"
+                      kind="tertiary"
+                      iconDescription="Pause run"
+                      onClick={openModal}
+                      renderIcon={Pause}
+                      size="sm"
+                    >
+                      Pause run
+                    </Button>
+                  </TooltipHover>
+                )}
+              />
+            )}
+            {canActionWorkflowRun && displayPauseResumeButtons && (
+              <ConfirmModal
+                affirmativeAction={handleResumeWorkflow}
+                children="Are you sure? If this run is paused, resuming will allow new tasks to start again."
+                title="Resume run"
+                modalTrigger={({ openModal }) => (
+                  <Button
+                    className={styles.cancelRun}
+                    data-testid="resume-run"
+                    kind="tertiary"
+                    iconDescription="Resume run"
+                    onClick={openModal}
+                    renderIcon={Play}
+                    size="sm"
+                  >
+                    Resume run
+                  </Button>
+                )}
+              />
+            )}
+            {canActionWorkflowRun && displayFinalizeButton && (
+              <ConfirmModal
+                affirmativeAction={handleFinalizeWorkflow}
+                children="Are you sure? This will mark the completed run as finalized."
+                title="Finalize run"
+                modalTrigger={({ openModal }) => (
+                  <Button
+                    className={styles.cancelRun}
+                    data-testid="finalize-run"
+                    kind="tertiary"
+                    iconDescription="Finalize run"
+                    onClick={openModal}
+                    renderIcon={CheckmarkOutline}
+                    size="sm"
+                  >
+                    Finalize run
+                  </Button>
+                )}
+              />
+            )}
+            {canActionWorkflowRun && displayCancelButton && (
               <ConfirmModal
                 affirmativeAction={handleCancelWorkflow}
                 affirmativeButtonProps={{ kind: "danger" }}
