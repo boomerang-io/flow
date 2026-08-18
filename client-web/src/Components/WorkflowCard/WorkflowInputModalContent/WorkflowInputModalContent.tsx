@@ -53,7 +53,7 @@ const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
         executeWorkflow(closeModal, isRedirectEnabled, values);
       }}
     >
-      {({ inputs, formikProps }: { inputs: JSX.Element; formikProps: any }) => (
+      {({ inputs, formikProps }: { inputs: React.ReactNode[]; formikProps: any }) => (
         <ModalFlowForm className={styles.container}>
           <ModalBody aria-label="inputs">
             {inputs}
