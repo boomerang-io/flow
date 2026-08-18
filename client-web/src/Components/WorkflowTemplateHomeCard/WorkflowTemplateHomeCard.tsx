@@ -8,13 +8,13 @@ import { useMutation, useQueryClient } from "react-query";
 import { Link, useHistory } from "react-router-dom";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowWorkspace, ModalTriggerProps, WorkflowTemplate } from "Types";
+import { FlowWorkspaceSummary, ModalTriggerProps, WorkflowTemplate } from "Types";
 import CreateWorkflowContent from "./CreateWorkflowContent";
 import styles from "./workflowTemplateHomeCard.module.scss";
 
 interface WorkflowTemplateCardProps {
   template: WorkflowTemplate;
-  workspaces: Array<FlowWorkspace>;
+  workspaces: Array<FlowWorkspaceSummary>;
 }
 
 const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, workspaces }) => {

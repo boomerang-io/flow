@@ -1,6 +1,7 @@
 import React from "react";
 import {
   FlowWorkspace,
+  FlowWorkspaceSummary,
   FlowUser,
   PaginatedWorkflowResponse,
   Task,
@@ -26,7 +27,7 @@ type AppContext = {
   communityUrl: string;
   isTutorialActive: boolean;
   setIsTutorialActive: (isActive: boolean) => void;
-  workspaces: FlowWorkspace[] | null; // TODO - check if we need this
+  workspaces: FlowWorkspaceSummary[] | null; // TODO - check if we need this
   user: FlowUser;
   name: string;
   workflowTemplates: Array<WorkflowTemplate>;

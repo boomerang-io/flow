@@ -13,12 +13,12 @@ import { Link } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { matchSorter as ms } from "match-sorter";
 import { appLink } from "Config/appConfig";
-import { FlowUser, FlowWorkspace } from "Types";
+import { FlowUser, FlowWorkspaceSummary } from "Types";
 import styles from "./UserWorkspaces.module.scss";
 
 interface UserWorkspacesProps {
   user: FlowUser;
-  workspaces?: Array<FlowWorkspace>;
+  workspaces?: Array<FlowWorkspaceSummary> | null;
 }
 
 function UserWorkspaces({ user, workspaces }: UserWorkspacesProps) {

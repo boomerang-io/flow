@@ -7,7 +7,7 @@ import classNames from "classnames/bind";
 import { Formik } from "formik";
 import capitalize from "lodash/capitalize";
 import * as Yup from "yup";
-import { FlowWorkspace, Workflow, WorkflowTemplate } from "Types";
+import { FlowWorkspaceSummary, Workflow, WorkflowTemplate } from "Types";
 import styles from "./createWorkflow.module.scss";
 
 let classnames = classNames.bind(styles);
@@ -17,7 +17,7 @@ interface CreateWorkflowContentProps {
   createError: any;
   createWorkflow: (workspace: string, requestBody: { name: string; description: string; icon: string }) => Promise<void>;
   isLoading: boolean;
-  workspaces: Array<FlowWorkspace>;
+  workspaces: Array<FlowWorkspaceSummary>;
 }
 
 const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({

@@ -71,7 +71,7 @@ export interface FlowUser extends User {
   settings?: FlowUserSettings;
   // Only present on the profile response; carries the caller's resolved workspace
   // memberships and permissions alongside the base user record.
-  teams: Array<FlowWorkspaceSummary>;
+  teams?: Array<FlowWorkspaceSummary>;
   permissions?: Array<string>;
 }
 
