@@ -34,9 +34,10 @@ export default function Workflows() {
     queryFn: resolver.query(getWorkflowsUrl),
   });
 
-  // TODO: make this smarter bc we shouldn't get to the route without an active workspace
+  /** Check if there is an active workspace or redirect to home */
   if (!workspace) {
-    return history.push(appLink.home());
+    history.push(appLink.home());
+    return null;
   }
 
   const { query: searchQuery = "" } = queryString.parse(location.search, {
