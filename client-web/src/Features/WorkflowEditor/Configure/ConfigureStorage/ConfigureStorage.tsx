@@ -4,6 +4,7 @@ import * as Yup from "yup";
 import { ModalFlowForm, TextInput } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, ModalBody, ModalFooter } from "@carbon/react";
 import BasicSlider from "Components/Slider";
+import styles from "./ConfigureStorage.module.scss";
 
 type Props = {
   size: number;
@@ -92,7 +93,7 @@ export default function ConfigureStorage({
                 value={values.mountPath}
               />
             </ModalBody>
-            <ModalFooter style={{ bottom: "0", position: "absolute", width: "100%" }}>
+            <ModalFooter className={styles.stickyFooter}>
               <Button kind="secondary" type="button" onClick={closeModal}>
                 Cancel
               </Button>

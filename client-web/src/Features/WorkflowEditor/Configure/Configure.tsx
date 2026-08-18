@@ -12,7 +12,7 @@ import {
 import workflowIcons from "Assets/workflowIcons";
 import cx from "classnames";
 import { useFeature } from "flagged";
-import { Formik, FormikProps, FieldArray } from "formik";
+import { Formik, FormikErrors, FormikProps, FieldArray } from "formik";
 import capitalize from "lodash/capitalize";
 import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
@@ -23,13 +23,26 @@ import { useEditorContext, useWorkspaceContext } from "Hooks";
 import { WorkspaceConfigType } from "Constants";
 import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
-import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace } from "Types";
+import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureEventTrigger from "./ConfigureEventTrigger";
 import ConfigureStorage from "./ConfigureStorage";
 import CustomLabel from "./CustomLabel";
 import NavPanel from "./SideNav";
 import styles from "./configure.module.scss";
+
+// Formik types a FieldArray item's error as `string | FormikErrors<Item>` (the string
+// case covers a validation message on the item as a whole); narrow to the field-level
+// message we actually render.
+function getConditionFieldError<K extends keyof WorkflowTriggerCondition>(
+  error: string | FormikErrors<WorkflowTriggerCondition> | undefined,
+  key: K,
+): string | undefined {
+  if (error && typeof error === "object") {
+    return error[key] as string | undefined;
+  }
+  return undefined;
+}
 
 const TRIGGER_YUP_SCHEMA = Yup.object().shape({
   enabled: Yup.bool(),
@@ -277,7 +290,7 @@ function Configure(props: ConfigureProps) {
                       value={name}
                       type="radio"
                     />
-                    <Icon key={`${name}-${index}`} alt={`${name} icon`} />
+                    <Icon key={`${name}-${index}`} aria-label={`${name} icon`} />
                   </label>
                 </TooltipHover>
               ))}
@@ -478,8 +491,8 @@ function Configure(props: ConfigureProps) {
                                       id={`triggers.event.conditions[${idx}].field`}
                                       name={`triggers.event.conditions[${idx}].field`}
                                       label="Field"
-                                      invalid={Boolean(errors.triggers?.event?.conditions?.[idx]?.field)}
-                                      invalidText={errors.triggers?.event?.conditions?.[idx]?.field}
+                                      invalid={Boolean(getConditionFieldError(errors.triggers?.event?.conditions?.[idx], "field"))}
+                                      invalidText={getConditionFieldError(errors.triggers?.event?.conditions?.[idx], "field")}
                                       placeholder="type"
                                       //helperText="A regular expression."
                                       value={condition.field}
@@ -489,21 +502,19 @@ function Configure(props: ConfigureProps) {
                                     />
                                     <Dropdown
                                       id={`triggers.event.conditions[${idx}].operation`}
-                                      name={`triggers.event.conditions[${idx}].operation`}
                                       type="default"
                                       label="Operation"
                                       light={false}
                                       items={["in", "matches", "equals"]}
-                                      value={condition.operation}
+                                      selectedItem={condition.operation}
                                       onChange={(e) => {
-                                        console.log(e);
                                         props.formikProps.setFieldValue(
                                           `triggers.event.conditions[${idx}].operation`,
                                           e.selectedItem,
                                         );
                                       }}
-                                      invalid={Boolean(errors.triggers?.event?.conditions?.[idx]?.operation)}
-                                      invalidText={errors.triggers?.event?.conditions?.[idx]?.operation}
+                                      invalid={Boolean(getConditionFieldError(errors.triggers?.event?.conditions?.[idx], "operation"))}
+                                      invalidText={getConditionFieldError(errors.triggers?.event?.conditions?.[idx], "operation")}
                                       hideLabel={idx > 0}
                                       titleText="Operation"
                                     />
@@ -511,8 +522,8 @@ function Configure(props: ConfigureProps) {
                                       id={`triggers.event.conditions[${idx}].value`}
                                       name={`triggers.event.conditions[${idx}].value`}
                                       label="Value"
-                                      invalid={Boolean(errors.triggers?.event?.conditions?.[idx]?.value)}
-                                      invalidText={errors.triggers?.event?.conditions?.[idx]?.value}
+                                      invalid={Boolean(getConditionFieldError(errors.triggers?.event?.conditions?.[idx], "value"))}
+                                      invalidText={getConditionFieldError(errors.triggers?.event?.conditions?.[idx], "value")}
                                       placeholder="io.boomerang.[event|phase|status]"
                                       //helperText="A regular expression."
                                       value={condition.value}
@@ -636,9 +647,9 @@ function Configure(props: ConfigureProps) {
                         id="triggers.github.repositories"
                         label="Choose Repositories"
                         invalid={false}
-                        onChange={({ selectedItems }: { selectedItems: Array<{ label: string; value: string }> }) => {
+                        onChange={({ selectedItems }: { selectedItems: string[] | null }) => {
                           const fieldIdx = findConditionIndex("repositories");
-                          const value = { operation: "in", field: "repositories", values: selectedItems };
+                          const value = { operation: "in", field: "repositories", values: selectedItems ?? [] };
                           props.formikProps.setFieldValue(`triggers.github.conditions[${fieldIdx}]`, value);
                         }}
                         items={props.githubAppInstallation?.repositories}
@@ -694,7 +705,7 @@ function Configure(props: ConfigureProps) {
                   id="timeout"
                   label="Timeout"
                   helperText={`In minutes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkflowRunDuration} minutes.`}
-                  value={values.timeout}
+                  value={values.timeout ?? undefined}
                   onBlur={handleBlur}
                   onChange={(e) => props.formikProps.handleChange(e)}
                   invalid={Boolean(errors.timeout && touched.timeout)}
@@ -705,7 +716,7 @@ function Configure(props: ConfigureProps) {
                   id="retries"
                   label="Retries"
                   helperText="The number of times to retry a failed workflow. Defaults to 0."
-                  value={values.retries}
+                  value={values.retries ?? undefined}
                   onBlur={handleBlur}
                   onChange={(e) => props.formikProps.handleChange(e)}
                   invalid={Boolean(errors.retries && touched.retries)}

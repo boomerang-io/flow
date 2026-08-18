@@ -59,7 +59,7 @@ export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
           {EXAMPLE_CLOUD_EVENT}
         </CodeSnippet>
       </ModalBody>
-      <ModalFooter style={{ bottom: "0", position: "absolute", width: "100%" }}>
+      <ModalFooter className={styles.stickyFooter}>
         <Button kind="secondary" type="button" onClick={closeModal}>
           Close
         </Button>

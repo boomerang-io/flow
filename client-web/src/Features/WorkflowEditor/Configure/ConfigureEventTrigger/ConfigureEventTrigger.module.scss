@@ -33,3 +33,9 @@
 .sectionHeader:nth-child(n+2) {
   margin-top: 2.5rem;
 }
+
+.stickyFooter {
+  bottom: 0;
+  position: absolute;
+  width: 100%;
+}
