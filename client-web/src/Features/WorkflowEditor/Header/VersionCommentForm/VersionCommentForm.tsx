@@ -8,8 +8,7 @@ import { QueryStatus } from "Constants";
 interface VersionCommentFormProps {
   closeModal(): void;
   createRevision: (reason: string, callback?: () => any) => void;
-  revisionMutator: UseMutationResult<any>;
-  workspace: string;
+  revisionMutator: UseMutationResult<any, any, any, any>;
 }
 
 class VersionCommentForm extends Component<VersionCommentFormProps> {

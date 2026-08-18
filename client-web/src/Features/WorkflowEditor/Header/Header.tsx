@@ -56,19 +56,6 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
     createRevision(`Set ${currentRevision} to the latest version`);
   };
 
-  const NavigationComponent = () => {
-    return (
-      <Breadcrumb noTrailingSlash>
-        <BreadcrumbItem>
-          <Link to={appLink.home()}>Home</Link>
-        </BreadcrumbItem>
-        <BreadcrumbItem isCurrentPage>
-          <p>{workspace ? workspace.displayName : "---"}</p>
-        </BreadcrumbItem>
-      </Breadcrumb>
-    );
-  };
-
   return (
     <Header
       className={styles.container}
@@ -121,7 +108,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
                     onClick={openModal}
                     renderIcon={DocumentExport}
                     size="md"
-                    style={!isPreviousVersion ? { display: "none" } : null}
+                    style={!isPreviousVersion ? { display: "none" } : undefined}
                   >
                     {performActionButtonText}
                   </Button>
@@ -141,7 +128,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
                     onClick={openModal}
                     renderIcon={Add}
                     size="md"
-                    style={isPreviousVersion ? { display: "none" } : null}
+                    style={isPreviousVersion ? { display: "none" } : undefined}
                   >
                     {performActionButtonText}
                   </Button>

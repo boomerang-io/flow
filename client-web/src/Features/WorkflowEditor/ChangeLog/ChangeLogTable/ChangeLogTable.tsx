@@ -22,7 +22,7 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
   state = {
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE,
-    changeLog: this.props.changeLog ? this.props.changeLog.map((log) => ({ ...log, id: log.version })) : [],
+    changeLog: this.props.changeLog ? this.props.changeLog.map((log) => ({ ...log, id: String(log.version) })) : [],
     sort: {
       key: "version",
       sortDirection: "DESC",
@@ -55,10 +55,10 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
     this.setState({ page: newPage, changeLog });
   };
 
-  handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  handleSearchChange = (e: { target: HTMLInputElement; type: "change" }) => {
     const searchQuery = e.target.value;
     const { changeLog } = this.props;
-    const changeLogList = changeLog.length !== 0 ? changeLog.map((log) => ({ ...log, id: log.version })) : [];
+    const changeLogList = changeLog.length !== 0 ? changeLog.map((log) => ({ ...log, id: String(log.version) })) : [];
 
     const newLogs = searchQuery
       ? matchSorter(changeLogList, searchQuery, { keys: ["version", "userName", "reason"] })
@@ -101,7 +101,6 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
         {totalItems > 0 ? (
           <>
             <DataTable
-              sortable
               rows={changeLog}
               headers={this.headers}
               render={({ rows, headers, getHeaderProps }: { rows: any; headers: any; getHeaderProps: any }) => (
