@@ -28,7 +28,7 @@ const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({
   const { mutateAsync: importWorkflowMutator, isLoading: isPosting } = useMutation(resolver.putApplyWorkflow);
   const handleImportWorkflow = async (data: Workflow, closeModal: () => void) => {
     try {
-      await importWorkflowMutator({ workspace: workspaceName, workflow: workflowRef, body: data });
+      await importWorkflowMutator({ workspace: workspaceName, body: data });
       queryClient.invalidateQueries(getWorkflowsUrl);
       notify(<ToastNotification kind="success" title={`Update ${type}`} subtitle={`${type} successfully updated`} />);
       closeModal();

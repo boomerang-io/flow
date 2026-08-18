@@ -7,7 +7,7 @@ import styles from "./memberCard.module.scss";
 interface MemberCardProps {
   email: string;
   role: MemberRole;
-  handleRemove: Function;
+  handleRemove: () => void;
   isRemoving: boolean;
 }
 

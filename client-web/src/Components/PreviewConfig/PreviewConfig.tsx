@@ -20,12 +20,13 @@ const TextEditorInput: React.FC<any> = (props) => {
 const textAreaProps = ({ input, formikProps }: { input: DataDrivenInput; formikProps: any }) => {
   const { values, setFieldValue } = formikProps;
   const { key, type, ...rest } = input;
+  const inputKey = key ?? input.name;
   //@ts-ignore
   const itemConfig = TEXT_AREA_TYPES[type];
   return {
     autoSuggestions: [],
-    formikSetFieldValue: (value: any) => setFieldValue(key, value),
-    initialValue: values[key],
+    formikSetFieldValue: (value: any) => setFieldValue(inputKey, value),
+    initialValue: values[inputKey],
     item: input,
     ...itemConfig,
     ...rest,

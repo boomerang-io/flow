@@ -35,8 +35,8 @@ const WorkflowsHeader: React.FC<WorkflowsHeaderProps> = ({
   const workflowsCount = workflowList.length;
   const workflowsCountStr = workflowsCount > 0 ? `(${workflowsCount})` : "";
 
-  const handleOnSearchInputChange = (e: React.MouseEvent<HTMLInputElement, MouseEvent>) => {
-    handleUpdateFilter({ query: e.currentTarget?.value ?? "" });
+  const handleOnSearchInputChange = (e: { target: HTMLInputElement; type: "change" }) => {
+    handleUpdateFilter({ query: e.target?.value ?? "" });
   };
 
   const NavigationComponent = () => {
@@ -74,7 +74,7 @@ const WorkflowsHeader: React.FC<WorkflowsHeaderProps> = ({
               labelText={`Search for a ${viewType}`}
               onChange={handleOnSearchInputChange}
               placeholder={`Search for a ${viewType}`}
-              value={searchQuery}
+              value={Array.isArray(searchQuery) ? searchQuery[0] ?? "" : searchQuery ?? ""}
             />
           </Layer>
         </ActionsBar>
