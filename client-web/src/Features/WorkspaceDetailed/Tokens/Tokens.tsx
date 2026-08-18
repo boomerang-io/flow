@@ -25,7 +25,7 @@ import { Box } from "reflexbox";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import EmptyState from "Components/EmptyState";
-import { arrayPagination, sortByProp } from "Utils/arrayHelper";
+import { arrayPagination } from "Utils/arrayHelper";
 import { TokenType } from "Constants";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import type { FlowWorkspace, Token } from "Types";
@@ -98,7 +98,7 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
         className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
         rowCount={DEFAULT_PAGE_SIZE}
         columnCount={HEADERS.length}
-        headers={HEADERS.map((header) => header.header)}
+        headers={HEADERS}
       />
     );
   }
@@ -182,24 +182,15 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
           <>
             <DataTable
               rows={arrayPagination(tokensData?.content, page, pageSize, sortKey, sortDirection)}
-              sortRow={(rows: any) => sortByProp(rows, sortKey, sortDirection.toLowerCase())}
+              // rows above are already sorted/paginated externally; keep Carbon's own comparator a no-op
+              sortRow={() => 0}
               headers={HEADERS}
-              render={({
-                rows,
-                headers,
-                getHeaderProps,
-                getRowProps,
-              }: {
-                rows: any;
-                headers: Array<{ header: string; key: string; sortable: boolean }>;
-                getHeaderProps: any;
-                getRowProps: any;
-              }) => (
+              render={({ rows, headers, getHeaderProps, getRowProps }: any) => (
                 <TableContainer>
                   <Table isSortable>
                     <TableHead>
                       <TableRow className={styles.tableHeadRow}>
-                        <TableExpandHeader />
+                        <TableExpandHeader aria-label="Expand row" />
                         {headers.map((header: { header: string; key: string; sortable: boolean }) => (
                           <TableHeader
                             id={header.key}
@@ -240,11 +231,11 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
                             ))}
                           </TableExpandRow>
                           <TableExpandedRow colSpan={headers.length + 1}>
-                            {tokensData.content.find((t) => t.id === row.id).permissions.length > 0 ? (
+                            {tokensData.content.find((t: Token) => t.id === row.id).permissions.length > 0 ? (
                               <TokenPermissions
                                 permissions={tokensData.content
-                                  .find((t) => t.id === row.id)
-                                  .permissions.map((p, i) => ({ id: `${row.id}-${i}`, ...p }))}
+                                  .find((t: Token) => t.id === row.id)
+                                  .permissions.map((p: Token["permissions"][number], i: number) => ({ id: `${row.id}-${i}`, ...p }))}
                               />
                             ) : (
                               "Permissions detail unavailable"

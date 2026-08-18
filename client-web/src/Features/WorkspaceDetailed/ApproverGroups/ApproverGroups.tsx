@@ -107,7 +107,7 @@ function ApproverGroups({
                 <Button
                   className={styles.deleteButton}
                   onClick={openModal}
-                  kind="danger-ghost"
+                  kind="danger--ghost"
                   renderIcon={TrashCan}
                   size="sm"
                   iconDescription="Delete approver group"
@@ -214,7 +214,7 @@ function ApproverGroups({
               <Table isSortable>
                 <TableHead>
                   <TableRow className={styles.tableHeadRow}>
-                    <TableExpandHeader />
+                    <TableExpandHeader aria-label="Expand row" />
                     {headers.map((header: any, key: any) => (
                       <TableHeader
                         id={header.key}
