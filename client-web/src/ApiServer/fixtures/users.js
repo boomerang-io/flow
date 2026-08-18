@@ -6,6 +6,7 @@ const users = {
       name: "Tim Bula",
       isFirstVisit: true,
       type: "admin",
+      creationDate: "2020-07-21T15:35:25.369+00:00",
       firstLoginDate: "2020-07-21T15:35:25.369+00:00",
       lastLoginDate: "2020-07-21T15:35:25.369+00:00",
       labels:
@@ -70,6 +71,7 @@ const users = {
       name: "Marcus Roy",
       isFirstVisit: true,
       type: "admin",
+      creationDate: "2020-07-21T15:35:25.369+00:00",
       firstLoginDate: "2020-07-21T15:35:25.369+00:00",
       lastLoginDate: "2020-07-21T15:35:25.369+00:00",
       workflows: [
@@ -104,6 +106,7 @@ const users = {
       name: "Test User",
       isFirstVisit: true,
       type: "admin",
+      creationDate: "2020-07-21T15:35:25.369+00:00",
       firstLoginDate: "2020-07-21T15:35:25.369+00:00",
       lastLoginDate: "2020-07-21T15:35:25.369+00:00",
       workflows: [],

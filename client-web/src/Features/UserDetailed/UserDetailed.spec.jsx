@@ -22,7 +22,7 @@ describe("UserDetailed --- Snapshot Test", () => {
       </Route>,
       { route: appLink.user({ userId: "5f170b3df6ab327e302cb0a5" }) }
     );
-    await screen.findByText("These are Tim Bula's workflows");
+    await screen.findByText("These are Tim Bula's workspaces");
     expect(baseElement).toMatchSnapshot();
     await waitFor(() => null);
   });

@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`] = `
 <body
@@ -46,202 +46,234 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
             </nav>
           </div>
           <div
-            class="_infoContainer_b9e313"
+            class="cds--bmrg-feature-header__header"
           >
             <div
-              class="_userContainer_b9e313"
+              class="_infoContainer_b9e313"
             >
-              <img
-                alt="Avatar for undefined"
-                class="_userAvatar_b9e313 --medium"
-                src="/api/users/image/trbula@us.ibm.com"
-                title="Avatar for undefined"
-                user="trbula@us.ibm.com"
-              />
-              <h1
-                class="cds--bmrg-feature-header-title"
-                style="margin: 0px 1rem 0px 0px;"
-                title="Tim Bula"
-              >
-                Tim Bula
-              </h1>
               <div
-                class="_headerSubtitle_b9e313"
-                title="trbula@us.ibm.com"
+                class="_userContainer_b9e313"
               >
-                <div
-                  class="_status_b9e313"
+                <img
+                  alt="Avatar for trbula@us.ibm.com"
+                  class="_userAvatar_b9e313 --medium"
+                  src="/api/users/image/trbula@us.ibm.com"
+                  title="Avatar for trbula@us.ibm.com"
+                />
+                <h1
+                  class="cds--bmrg-feature-header-title"
+                  style="margin: 0px 1rem 0px 1rem;"
+                  title="Tim Bula"
                 >
-                  <svg
-                    aria-hidden="true"
-                    fill="currentColor"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    style="fill: #009d9a;"
-                    viewBox="0 0 32 32"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
-                    />
-                  </svg>
-                  <p
-                    class="_statusText_b9e313"
-                  >
-                    Active
-                  </p>
-                </div>
-                <span
-                  class="_statusDivider_b9e313"
-                >
-                  -
-                </span>
-                trbula@us.ibm.com
+                  Tim Bula
+                </h1>
               </div>
-            </div>
-            <div
-              class="_userDetailsContainer_b9e313"
-            >
-              <section
-                class="_subHeaderContainer_b9e313"
+              <div
+                class="_userDetailsContainer_b9e313"
               >
-                <dl
-                  class="_detailedInfoContainer_b9e313"
+                <section
+                  class="_subHeaderContainer_b9e313"
                 >
-                  <dt
-                    class="_dataTitle_b9e313"
+                  <dl
+                    class="_detailedInfoContainer_b9e313"
                   >
-                    Platform Role
-                  </dt>
-                  <dd
-                    class="_dataValue_b9e313"
+                    <dt
+                      class="_dataTitle_b9e313"
+                    >
+                      Email
+                    </dt>
+                    <dd
+                      class="_dataValueEmail_b9e313"
+                    >
+                      trbula@us.ibm.com
+                    </dd>
+                  </dl>
+                  <dl
+                    class="_detailedInfoContainer_b9e313"
                   >
-                    Admin
-                  </dd>
-                </dl>
-                <dl
-                  class="_detailedInfoContainer_b9e313"
-                >
-                  <dt
-                    class="_dataTitle_b9e313"
+                    <dt
+                      class="_dataTitle_b9e313"
+                    >
+                      Status
+                    </dt>
+                    <dd
+                      class="_dataValue_b9e313"
+                    >
+                      <div
+                        class="_status_b9e313"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          style="fill: #009d9a;"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
+                          />
+                        </svg>
+                        <p
+                          class="_statusText_b9e313"
+                        >
+                          Active
+                        </p>
+                      </div>
+                    </dd>
+                  </dl>
+                  <dl
+                    class="_detailedInfoContainer_b9e313"
                   >
-                    Date Joined
-                  </dt>
-                  <dd
-                    class="_dataValue_b9e313"
+                    <dt
+                      class="_dataTitle_b9e313"
+                    >
+                      Role
+                    </dt>
+                    <dd
+                      class="_dataValue_b9e313"
+                    >
+                      Admin
+                    </dd>
+                  </dl>
+                  <dl
+                    class="_detailedInfoContainer_b9e313"
                   >
-                    2020-07-21 3:35pm
-                  </dd>
-                </dl>
-                <dl
-                  class="_detailedInfoContainer_b9e313"
-                >
-                  <dt
-                    class="_dataTitle_b9e313"
+                    <dt
+                      class="_dataTitle_b9e313"
+                    >
+                      Date Joined
+                    </dt>
+                    <dd
+                      class="_dataValue_b9e313"
+                    >
+                      2020-07-21
+                    </dd>
+                  </dl>
+                  <dl
+                    class="_detailedInfoContainer_b9e313"
                   >
-                    Last Login
-                  </dt>
-                  <dd
-                    class="_dataValue_b9e313"
-                  >
-                    2020-07-21 3:35pm
-                  </dd>
-                </dl>
-              </section>
-              <section
-                class="_actionButtonsContainer_b9e313"
-              >
-                <button
-                  class="cds--btn cds--btn--md cds--btn--ghost"
-                  tabindex="0"
-                  type="button"
-                >
-                  Change role
-                  <svg
-                    aria-hidden="true"
-                    class="cds--btn__icon"
-                    fill="currentColor"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    viewBox="0 0 16 16"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M8 2c1.4 0 2.5 1.1 2.5 2.5S9.4 7 8 7 5.5 5.9 5.5 4.5 6.6 2 8 2M8 1C6.1 1 4.5 2.6 4.5 4.5S6.1 8 8 8s3.5-1.6 3.5-3.5S9.9 1 8 1zM13 15h-1v-2.5c0-1.4-1.1-2.5-2.5-2.5h-3C5.1 10 4 11.1 4 12.5V15H3v-2.5C3 10.6 4.6 9 6.5 9h3c1.9 0 3.5 1.6 3.5 3.5V15z"
-                    />
-                  </svg>
-                </button>
-              </section>
+                    <dt
+                      class="_dataTitle_b9e313"
+                    >
+                      Last Login
+                    </dt>
+                    <dd
+                      class="_dataValue_b9e313"
+                    >
+                      2020-07-21 3:35pm
+                    </dd>
+                  </dl>
+                </section>
+                <section
+                  class="_actionButtonsContainer_b9e313"
+                />
+              </div>
             </div>
           </div>
           <div
             class="cds--bmrg-feature-header__footer"
           >
-            <nav
-              aria-label="User pages"
-              class="cds--tabs"
+            <section
+              class="_headerActions_b9e313"
             >
-              <ul
-                class="cds--tab--list"
+              <nav
+                aria-label="User pages"
+                class="cds--tabs"
               >
-                <a
-                  aria-current="page"
-                  class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
-                  href="/admin/users/5f170b3df6ab327e302cb0a5"
+                <ul
+                  class="cds--tab--list"
                 >
-                  Workflows
-                </a>
-                <a
-                  class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/users/5f170b3df6ab327e302cb0a5/workspaces"
-                >
-                  Workspaces
-                </a>
-                <a
-                  class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/users/5f170b3df6ab327e302cb0a5/labels"
-                >
-                  Labels
-                </a>
-              </ul>
-            </nav>
+                  <a
+                    aria-current="page"
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                    href="/admin/users/5f170b3df6ab327e302cb0a5"
+                  >
+                    Workspaces
+                  </a>
+                  <a
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                    href="/admin/users/5f170b3df6ab327e302cb0a5/labels"
+                  >
+                    Labels
+                  </a>
+                  <a
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                    href="/admin/users/5f170b3df6ab327e302cb0a5/settings"
+                  >
+                    Settings
+                  </a>
+                </ul>
+              </nav>
+            </section>
           </div>
         </section>
+        <div
+          class="_actionButtons_b9e313"
+        >
+          <button
+            class="cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+            style="margin-bottom: 0.5rem;"
+            type="button"
+          >
+            Change role
+            <svg
+              aria-hidden="true"
+              aria-label="Change role"
+              class="cds--btn__icon"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M8 2c1.4 0 2.5 1.1 2.5 2.5S9.4 7 8 7 5.5 5.9 5.5 4.5 6.6 2 8 2M8 1C6.1 1 4.5 2.6 4.5 4.5S6.1 8 8 8s3.5-1.6 3.5-3.5S9.9 1 8 1zM13 15h-1v-2.5c0-1.4-1.1-2.5-2.5-2.5h-3C5.1 10 4 11.1 4 12.5V15H3v-2.5C3 10.6 4.6 9 6.5 9h3c1.9 0 3.5 1.6 3.5 3.5V15z"
+              />
+            </svg>
+          </button>
+        </div>
       </header>
       <section
-        aria-label="Tim Bula Workflows"
-        class="_container_cb85e4"
+        aria-label="Tim Bula Workspaces"
+        class="_container_179016"
       >
         <section
-          class="_actionsContainer_cb85e4"
+          class="_actionsContainer_179016"
         >
           <div
-            class="_leftActions_cb85e4"
+            class="_leftActions_179016"
           >
             <p
-              class="_featureDescription_cb85e4"
+              class="_featureDescription_179016"
             >
-              These are Tim Bula's workflows
+              These are Tim Bula's workspaces
             </p>
             <p
-              class="_workflowCountText_cb85e4"
+              class="_workspaceCountText_179016"
             >
               Showing 
-              2
-               workflow
+              7
+               workspace
               s
             </p>
             <div
-              aria-labelledby="workflow-search-search"
-              class="cds--search cds--search--sm"
+              aria-label="Search for a workspace"
+              class="cds--search cds--search--md"
               role="search"
             >
               <div
+                aria-expanded="false"
+                aria-label="button"
                 class="cds--search-magnifier"
+                role="button"
+                tabindex="-1"
               >
                 <svg
                   aria-hidden="true"
@@ -261,16 +293,16 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               </div>
               <label
                 class="cds--label"
-                for="workflow-search"
-                id="workflow-search-search"
+                for="workspaces-search"
+                id="workspaces-search-search"
               >
-                workflow search
+                workspaces search
               </label>
               <input
                 autocomplete="off"
                 class="cds--search-input"
-                id="workflow-search"
-                placeholder="Search for a workflow"
+                id="workspaces-search"
+                placeholder="Search for a workspace"
                 role="searchbox"
                 type="text"
                 value=""
@@ -292,7 +324,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                    d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                   />
                 </svg>
               </button>
@@ -314,28 +346,14 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
             >
               <span
                 class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               >
                 Name
               </span>
               <span
                 class="cds--structured-list-th"
-                role="columnheader"
-              >
-                Summary
-              </span>
-              <span
-                class="cds--structured-list-th"
-                role="columnheader"
-              >
-                Revision Count
-              </span>
-              <span
-                class="cds--structured-list-th"
-                role="columnheader"
-              />
-              <span
-                class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               />
             </div>
@@ -350,48 +368,21 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
             >
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
-                <div
-                  class="_workflowNameContainer_cb85e4"
-                >
-                  <p>
-                    Personal - Java - Build
-                  </p>
-                </div>
+                admin-flowabl-io Personal Workspace
               </div>
               <div
                 class="cds--structured-list-td"
-                role="cell"
-              >
-                Java - Build
-              </div>
-              <div
-                class="cds--structured-list-td"
-                role="cell"
-              >
-                16
-              </div>
-              <div
-                class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <a
-                  class="_viewWorkflowLink_cb85e4"
-                  href="/editor/5e877d1f4bbc6e0001c51e12/workflow"
+                  class="_viewWorkspaceLink_179016"
+                  href="/admin-flowabl-io-personal-workspace/manage"
                 >
-                  View/edit
-                </a>
-              </div>
-              <div
-                class="cds--structured-list-td"
-                role="cell"
-              >
-                <a
-                  class="_viewWorkflowLink_cb85e4"
-                  href="/activity?page=0&size=10&workflowIds=5e877d1f4bbc6e0001c51e12"
-                >
-                  Activity
+                  View workspace
                 </a>
               </div>
             </div>
@@ -401,48 +392,141 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
             >
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
-                <div
-                  class="_workflowNameContainer_cb85e4"
-                >
-                  <p>
-                    Personal - ML Train – Bot Efficiency
-                  </p>
-                </div>
+                Bob Personal Workspace
               </div>
               <div
                 class="cds--structured-list-td"
-                role="cell"
-              >
-                Train and store ML model for Bot Efficiency.
-              </div>
-              <div
-                class="cds--structured-list-td"
-                role="cell"
-              >
-                2
-              </div>
-              <div
-                class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <a
-                  class="_viewWorkflowLink_cb85e4"
-                  href="/editor/5eb2c4085a92d80001a16d87/workflow"
+                  class="_viewWorkspaceLink_179016"
+                  href="/bob-personal-workspace/manage"
                 >
-                  View/edit
+                  View workspace
                 </a>
               </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
               <div
                 class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Boomerang Joe Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <a
-                  class="_viewWorkflowLink_cb85e4"
-                  href="/activity?page=0&size=10&workflowIds=5eb2c4085a92d80001a16d87"
+                  class="_viewWorkspaceLink_179016"
+                  href="/boomerang-joe-personal-workspace/manage"
                 >
-                  Activity
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                marcus-d-roy-gmail-com Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  href="/marcus-d-roy-gmail-com-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                System and Administration
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  href="/system/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Tyson Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  href="/tyson-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Tyson Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  href="/tyson-workspace/manage"
+                >
+                  View workspace
                 </a>
               </div>
             </div>

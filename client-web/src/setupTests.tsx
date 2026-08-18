@@ -68,7 +68,9 @@ function rtlRouterRender(
 
 const defaultContextValue = {
   user: userFixture,
-  workspaces: workspacesFixture,
+  // AppContext.workspaces is FlowWorkspaceSummary[] (App.tsx: sortBy(userData.teams, "name")) -
+  // the fixture module holds the paginated wire response, so unwrap it to the flat array here.
+  workspaces: workspacesFixture.content,
   userWorkflows: userWorkflowsFixture,
 };
 
