@@ -1,23 +1,26 @@
 import { vi } from "vitest";
-import ImportWorkflow from ".";
-import { screen, fireEvent } from "@testing-library/react";
+import UpdateWorkflow from ".";
+import { screen } from "@testing-library/react";
+import { WorkflowView } from "Constants";
 
 const mockfn = vi.fn();
 
 const props = {
-  fetchWorkspaces: mockfn,
-  handleImportWorkflow: mockfn,
-  workflowId: "test",
+  workspaceName: "tyson-workspace",
+  workflowRef: "test-workflow",
+  getWorkflowsUrl: "/workflow/query",
+  onCloseModal: mockfn,
+  type: WorkflowView.Workflow,
 };
 
 beforeEach(() => {
   document.body.setAttribute("id", "app");
 });
 
-describe("ImportWorkflow --- Snapshot Test", () => {
-  it("Capturing Snapshot of ImportWorkflow", () => {
-    const { baseElement } = rtlContextRouterRender(<ImportWorkflow {...props} />);
-    fireEvent.click(screen.getByText(/Choose a file or drag one here/i));
+describe("UpdateWorkflow --- Snapshot Test", () => {
+  it("Capturing Snapshot of UpdateWorkflow", () => {
+    const { baseElement } = rtlContextRouterRender(<UpdateWorkflow {...props} />);
+    expect(screen.getByRole("button", { name: /Choose a file or drag one here/i })).toBeInTheDocument();
     expect(baseElement).toMatchSnapshot();
   });
 });
