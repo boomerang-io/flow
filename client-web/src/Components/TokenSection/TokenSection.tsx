@@ -72,24 +72,26 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
   const getTokensUrl = serviceUrl.getTokens({
     query: queryString.stringify({ types: type, principals: principal }),
   });
-  const getTokensQuery = useQuery({
+  const getTokensQuery = useQuery<{ content: Token[] }>({
     queryKey: getTokensUrl,
     queryFn: resolver.query(getTokensUrl),
   });
 
   const deleteTokenMutator = useMutation(resolver.deleteToken);
 
-  if (getTokensQuery.isLoading) {
+  if (getTokensQuery.isLoading || !getTokensQuery.data) {
     return (
       <DataTableSkeleton
         data-testid="token-loading-skeleton"
         className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
         rowCount={3}
         columnCount={HEADERS.length}
-        headers={HEADERS.map((header) => header.header)}
+        headers={HEADERS}
       />
     );
   }
+
+  const tokens = getTokensQuery.data.content;
 
   const deleteToken = async (tokenId: string) => {
     try {
@@ -102,11 +104,15 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
   };
 
   const renderCell = (tokenItemId: string, cellIndex: number, value: string) => {
-    const tokenDetails = getTokensQuery.data.content.find((token: Token) => token.id === tokenItemId);
+    const tokenDetails = tokens.find((token: Token) => token.id === tokenItemId);
     const column = HEADERS[cellIndex];
     switch (column.key) {
       case "permissions":
-        return <p className={styles.tableTextarea}>{value ? tokenDetails.permissions.join(", ") : "---"}</p>;
+        return (
+          <p className={styles.tableTextarea}>
+            {value && tokenDetails ? tokenDetails.permissions.join(", ") : "---"}
+          </p>
+        );
       case "valid":
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
       case "creationDate":
@@ -130,47 +136,46 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
   return (
     <div className={styles.dataTable}>
       <CreateToken getTokensUrl={getTokensUrl} principal={principal} type={type} />
-      {getTokensQuery.data.content.length > 0 && (
-        <DataTable
-          rows={getTokensQuery.data.content}
+      {tokens.length > 0 && (
+        <DataTable<Token, any[]>
+          rows={tokens}
           headers={HEADERS}
-          pageSize={getTokensQuery.data.content.length}
+          pageSize={tokens.length}
           render={({ rows, headers, getHeaderProps, getRowProps, getTableProps, getTableContainerProps }) => (
             <TableContainer title="" description="" {...getTableContainerProps()}>
               <Table {...getTableProps()}>
                 <TableHead>
                   <TableRow>
-                    <TableExpandHeader />
+                    <TableExpandHeader aria-label="Expand row" />
                     {headers.map((header) => (
-                      <TableHeader key={header.key} {...getHeaderProps({ header })}>
-                        {header.header}
-                      </TableHeader>
+                      <TableHeader {...getHeaderProps({ header })}>{header.header}</TableHeader>
                     ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {rows.map((row: any) => (
-                    <>
-                      <TableExpandRow key={row.id} {...getRowProps({ row })}>
-                        {row.cells.map((cell: any, cellIndex: number) => (
-                          <TableCell key={cell.id} style={{ padding: "0" }}>
-                            <div className={styles.tableCell}>{renderCell(row.id, cellIndex, cell.value)}</div>
-                          </TableCell>
-                        ))}
-                      </TableExpandRow>
-                      <TableExpandedRow colSpan={headers.length + 1}>
-                        {getTokensQuery.data.content.find((t) => t.id === row.id).permissions.length > 0 ? (
-                          <TokenPermissions
-                            permissions={getTokensQuery.data.content
-                              .find((t) => t.id === row.id)
-                              .permissions.map((p, i) => ({ id: `${row.id}-${i}`, ...p }))}
-                          />
-                        ) : (
-                          "Permissions detail unavailable"
-                        )}
-                      </TableExpandedRow>
-                    </>
-                  ))}
+                  {rows.map((row: any) => {
+                    const tokenPermissions = tokens.find((t) => t.id === row.id)?.permissions ?? [];
+                    return (
+                      <>
+                        <TableExpandRow {...getRowProps({ row })}>
+                          {row.cells.map((cell: any, cellIndex: number) => (
+                            <TableCell key={cell.id} style={{ padding: "0" }}>
+                              <div className={styles.tableCell}>{renderCell(row.id, cellIndex, cell.value)}</div>
+                            </TableCell>
+                          ))}
+                        </TableExpandRow>
+                        <TableExpandedRow colSpan={headers.length + 1}>
+                          {tokenPermissions.length > 0 ? (
+                            <TokenPermissions
+                              permissions={tokenPermissions.map((p, i) => ({ id: `${row.id}-${i}`, ...p }))}
+                            />
+                          ) : (
+                            "Permissions detail unavailable"
+                          )}
+                        </TableExpandedRow>
+                      </>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -182,7 +187,7 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal }) => {
 };
 
 interface TokenPermissionsProps {
-  permissions: [{ scope: string; principal: string; actions: string[] }];
+  permissions: Array<{ scope: string; principal: string; actions: string[] }>;
 }
 
 const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
