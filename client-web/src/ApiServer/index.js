@@ -342,7 +342,7 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return {};
       });
 
-      this.put(serviceUrl.workspace.action.putAction(), () => {
+      this.put(serviceUrl.workspace.action.putAction({ workspace: ":workspace" }), () => {
         return {};
       });
 
