@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`] = `
 <body
@@ -12,100 +12,68 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
         class="cds--bmrg-feature-header__content"
       >
         <div
+          class="cds--bmrg-feature-header__nav"
+        >
+          <nav
+            aria-label="Breadcrumb"
+          >
+            <ol
+              class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+            >
+              <li
+                class="cds--breadcrumb-item"
+              >
+                <a
+                  class="cds--link"
+                  href="/home"
+                >
+                  Home
+                </a>
+              </li>
+              <li
+                class="cds--breadcrumb-item cds--breadcrumb-item--current"
+              >
+                <p
+                  class="cds--link"
+                >
+                  Tyson Workspace
+                </p>
+              </li>
+            </ol>
+          </nav>
+        </div>
+        <div
           class="cds--bmrg-feature-header__header"
         >
-          <p
-            class="cds--bmrg-feature-header-title"
-          >
-            These are your
-          </p>
           <h1
             class="cds--bmrg-feature-header-title"
           >
-            Workflows (undefined)
+            Workflows (3)
           </h1>
-        </div>
-        <div
-          class="cds--bmrg-feature-header__footer"
-        >
-          <nav
-            aria-label="Workflows view"
-            class="cds--tabs"
+          <p
+            class="cds--bmrg-feature-header-title _headerMessage_4d119f"
           >
-            <ul
-              class="cds--tab--list"
-            >
-              <a
-                class="cds--tabs__nav-item cds--tabs__nav-link"
-                href="/workflows/mine"
-              >
-                My Workflows
-              </a>
-              <a
-                class="cds--tabs__nav-item cds--tabs__nav-link"
-                href="/workflows/workspaces"
-              >
-                Workspace Workflows
-              </a>
-            </ul>
-          </nav>
+            Your playground to create, execute, and collaborate on workflows.
+          </p>
         </div>
       </section>
       <div
         class="_filterContainer_4d119f"
       >
-        <button
-          class="cds--btn cds--btn--md cds--btn--ghost"
-          data-testid="workflows-create-workflow-template-button"
-          tabindex="0"
-          type="button"
-        >
-          <svg
-            aria-hidden="true"
-            class="_addIcon_e88a2f"
-            fill="currentColor"
-            focusable="false"
-            height="16"
-            preserveAspectRatio="xMidYMid meet"
-            viewBox="0 0 32 32"
-            width="16"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M26 6v4H6V6H26m0-2H6A2 2 0 004 6v4a2 2 0 002 2H26a2 2 0 002-2V6a2 2 0 00-2-2zM10 16V26H6V16h4m0-2H6a2 2 0 00-2 2V26a2 2 0 002 2h4a2 2 0 002-2V16a2 2 0 00-2-2zM26 16V26H16V16H26m0-2H16a2 2 0 00-2 2V26a2 2 0 002 2H26a2 2 0 002-2V16a2 2 0 00-2-2z"
-            />
-          </svg>
-          <p
-            class="_text_e88a2f"
-          >
-            Templates
-          </p>
-          <svg
-            aria-hidden="true"
-            class="cds--btn__icon"
-            fill="currentColor"
-            focusable="false"
-            height="16"
-            preserveAspectRatio="xMidYMid meet"
-            viewBox="0 0 32 32"
-            width="16"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
-            />
-          </svg>
-        </button>
         <div
           class="cds--layer-two _search_4d119f"
         >
           <div
-            aria-labelledby="search-workspace-workflows-search"
+            aria-label="Search for a workflow"
             class="cds--search cds--search--md"
             role="search"
           >
             <div
+              aria-expanded="false"
+              aria-label="button"
               class="cds--search-magnifier"
+              role="button"
+              tabindex="-1"
             >
               <svg
                 aria-hidden="true"
@@ -157,7 +125,7 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                  d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                 />
               </svg>
             </button>
@@ -166,8 +134,5 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
       </div>
     </header>
   </div>
-  <div
-    class="cds--bmrg-modal-portal"
-  />
 </body>
 `;

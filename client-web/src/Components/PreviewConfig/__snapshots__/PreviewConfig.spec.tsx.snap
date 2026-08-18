@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] = `
 <body
@@ -13,9 +13,8 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
   />
   <div>
     <button
-      class="cds--btn cds--btn--md cds--btn--ghost"
+      class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
       style="width: 7rem;"
-      tabindex="0"
       type="button"
     >
       Preview
@@ -66,28 +65,56 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
           >
             This is a preview of what the user sees when editing this Task. The user can also give this task a custom name for their Workflow, and can adjust its connected tasks. You can type in these fields to test any validation requirements.
           </p>
-          <button
-            aria-label="Close"
-            class="cds--modal-close"
-            title="Close"
-            type="button"
+          <div
+            class="cds--modal-close-button"
           >
-            <svg
-              aria-hidden="true"
-              class="cds--modal-close__icon"
-              fill="currentColor"
-              focusable="false"
-              height="20"
-              preserveAspectRatio="xMidYMid meet"
-              viewBox="0 0 32 32"
-              width="20"
-              xmlns="http://www.w3.org/2000/svg"
+            <span
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
             >
-              <path
-                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
-              />
-            </svg>
-          </button>
+              <div
+                class="cds--tooltip-trigger__wrapper"
+              >
+                <button
+                  aria-label="Close"
+                  aria-labelledby="tooltip-2"
+                  class="cds--btn--icon-only cds--modal-close cds--btn cds--btn--primary"
+                  title="Close"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="cds--modal-close__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="20"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="20"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <span
+                aria-hidden="true"
+                class="cds--popover"
+                id="tooltip-2"
+                role="tooltip"
+              >
+                <span
+                  class="cds--popover-content cds--tooltip-content"
+                >
+                  Close
+                </span>
+                <span
+                  class="cds--popover-caret"
+                />
+              </span>
+            </span>
+          </div>
         </div>
         <div
           class="cds--bmrg-dynamic-formik"
@@ -110,6 +137,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                   >
                     <label
                       class="cds--label"
+                      dir="auto"
                       for="['path']"
                     >
                       <div
@@ -130,13 +158,17 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                     >
                       <input
                         aria-describedby=""
-                        class="cds--text-input cds--text-input--md"
+                        class="cds--text-input"
                         id="['path']"
                         name="['path']"
                         placeholder=""
                         title=""
                         type="text"
                         value=""
+                      />
+                      <span
+                        class="cds--text-input__counter-alert"
+                        role="alert"
                       />
                     </div>
                   </div>
@@ -153,6 +185,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                   >
                     <label
                       class="cds--label"
+                      dir="auto"
                       for="['propertyName']"
                     >
                       <div
@@ -173,13 +206,17 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                     >
                       <input
                         aria-describedby=""
-                        class="cds--text-input cds--text-input--md"
+                        class="cds--text-input"
                         id="['propertyName']"
                         name="['propertyName']"
                         placeholder=""
                         title=""
                         type="text"
                         value=""
+                      />
+                      <span
+                        class="cds--text-input__counter-alert"
+                        role="alert"
                       />
                     </div>
                   </div>
