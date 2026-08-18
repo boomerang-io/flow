@@ -93,8 +93,9 @@ export default function CreateEditForm(props: CreateEditFormProps) {
   /**
    * Namespace parameter values if they exist from saved schedule
    */
-  if (Array.isArray(props.schedule?.params) && props.schedule?.params?.length > 0) {
-    for (const param of props.schedule.params) {
+  const scheduleParams = props.schedule?.params;
+  if (Array.isArray(scheduleParams) && scheduleParams.length > 0) {
+    for (const param of scheduleParams) {
       initFormValues[`$parameter:${param["name"]}`] = param["value"];
     }
   }
@@ -142,12 +143,11 @@ export default function CreateEditForm(props: CreateEditFormProps) {
       initFormValues["days"] = activeDays;
     }
 
-    let scheduleLabels: Array<string> = [];
-    if (props.schedule.labels?.length) {
-      for (let labelObj of props.schedule.labels) {
-        const scheduleLabel = `${labelObj.key}:${labelObj.value}`;
-        scheduleLabels.push(scheduleLabel);
-      }
+    const scheduleLabelsMap = props.schedule.labels;
+    if (scheduleLabelsMap && Object.keys(scheduleLabelsMap).length > 0) {
+      const scheduleLabels: Array<string> = Object.entries(scheduleLabelsMap).map(
+        ([key, value]) => `${key}:${value}`,
+      );
       initFormValues["labels"] = scheduleLabels;
     }
   }
@@ -279,7 +279,7 @@ export default function CreateEditForm(props: CreateEditFormProps) {
                 id="type"
                 labelPosition="right"
                 name="type"
-                onChange={(type: string) => formikProps.setFieldValue("type", type)}
+                onChange={(type: React.ReactNode) => formikProps.setFieldValue("type", type)}
                 orientation="horizontal"
                 valueSelected={formikProps.values["type"]}
               >
