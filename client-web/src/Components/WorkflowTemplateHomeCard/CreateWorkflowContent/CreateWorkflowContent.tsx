@@ -72,7 +72,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
                 light={false}
                 items={workspaceOptions}
                 itemToString={(item) => (item ? item.text : "")}
-                value={values.workspace}
+                selectedItem={workspaceOptions?.find((item) => item.id === values.workspace) ?? null}
                 className={styles.field}
                 invalid={Boolean(errors.workspace && touched.workspace)}
                 onChange={({ selectedItem }: any) => {

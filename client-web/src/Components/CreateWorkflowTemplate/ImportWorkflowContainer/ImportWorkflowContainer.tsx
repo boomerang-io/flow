@@ -8,7 +8,8 @@ import styles from "./importWorkflowContainer.module.scss";
 interface ImportWorkflowContainerProps {
   closeModal: () => void;
   importError: any;
-  importWorkflow: (workflowData: Workflow, closeModal: () => void, workspace: FlowWorkspace) => Promise<void>;
+  importWorkflow: (workflowData: Workflow, closeModal: () => void) => Promise<void>;
+  isLoading: boolean;
   workflows: Array<Workflow>;
 }
 
@@ -16,6 +17,7 @@ const CreateWorkflowContainer: React.FC<ImportWorkflowContainerProps> = ({
   closeModal,
   importError,
   importWorkflow,
+  isLoading,
   workflows,
 }) => {
   const existingWorkflowNames = workflows?.map((workflow) => workflow.name) ?? [];
@@ -27,6 +29,8 @@ const CreateWorkflowContainer: React.FC<ImportWorkflowContainerProps> = ({
         existingWorkflowNames={existingWorkflowNames}
         importError={importError}
         importWorkflow={importWorkflow}
+        isLoading={isLoading}
+        type={WorkflowView.Template}
       />
     </ModalForm>
   );

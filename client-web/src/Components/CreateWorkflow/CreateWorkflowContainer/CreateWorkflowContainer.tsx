@@ -14,8 +14,8 @@ interface CreateWorkflowContainerProps {
   createWorkflow: (workflowData: CreateWorkflowSummary) => Promise<void>;
   isLoading: boolean;
   importError: any;
-  importWorkflow: (workflowData: Workflow, closeModal: () => void, workspace: FlowWorkspace) => Promise<void>;
-  workspace: FlowWorkspace;
+  importWorkflow: (workflowData: Workflow, closeModal: () => void) => Promise<void>;
+  workspace?: FlowWorkspace;
   type: string;
   workflows: Array<Workflow>;
   workspaceQuotasEnabled: boolean;
@@ -76,7 +76,6 @@ const CreateWorkflowContainer: React.FC<CreateWorkflowContainerProps> = ({
           importError={importError}
           importWorkflow={importWorkflow}
           isLoading={isLoading}
-          workspace={workspace}
           type={type}
         />
       )}

@@ -63,6 +63,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
           closeModal={closeModal}
           importError={createTemplateMutator.error}
           importWorkflow={handleImportWorkflow}
+          isLoading={createTemplateMutator.isLoading}
           workflows={workflows}
         />
       )}

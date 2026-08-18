@@ -40,7 +40,6 @@ interface ImportWorkflowContentProps {
   isLoading: boolean;
   importError: any;
   importWorkflow: (workflowExport: Workflow, closeModal: () => void) => Promise<void>;
-  workspace: FlowWorkspace;
   type: string;
 }
 
@@ -57,7 +56,6 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
   isLoading,
   importError,
   importWorkflow,
-  workspace,
   type,
 }) => {
   /**

@@ -1,14 +1,18 @@
 import { vi } from "vitest";
+import { WorkflowView } from "Constants";
 import CreateWorkflowContent from ".";
 
 // import { screen, fireEvent } from "@testing-library/react";
 
 const mockfn = vi.fn();
 const props = {
+  closeModal: () => {},
+  createError: {},
   createWorkflow: mockfn,
-  isCreating: false,
-  names: [],
-  workspaces: [{ value: "test", label: "Test" }],
+  isLoading: false,
+  existingWorkflowNames: [],
+  workspaceQuotasEnabled: false,
+  viewType: WorkflowView.Workflow,
 };
 
 describe("CreateWorkflowContent --- Snapshot Test", () => {
