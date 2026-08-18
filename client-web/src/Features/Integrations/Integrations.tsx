@@ -28,7 +28,8 @@ export default function Integrations() {
 
   // TODO: make this smarter bc we shouldn't get to the route without an active workspace
   if (!workspace) {
-    return history.push(appLink.home());
+    history.push(appLink.home());
+    return null;
   }
 
   if (integrationsQuery.isLoading) {
