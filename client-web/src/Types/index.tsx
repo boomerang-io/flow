@@ -765,9 +765,12 @@ export interface WorkflowRun {
   initiatedByRef: string;
   labels: Record<string, string>;
   params: Array<Param>;
-  // Populated on the wire (WorkflowRunService#get copies the entity's phase across); the
-  // pause flag itself (pauseRequestedAt) is not exposed on this model.
+  // Populated on the wire (WorkflowRunService#get copies the entity's phase across).
   phase: RunPhase;
+  // Derived from the pause admission gate, not a status/phase value - a paused run keeps its
+  // underlying status and phase (the raw pauseRequestedAt timestamp is not exposed). Optional:
+  // older responses may not carry it.
+  paused?: boolean;
   results: Array<RunResult>;
   retries: number;
   startTime: string;

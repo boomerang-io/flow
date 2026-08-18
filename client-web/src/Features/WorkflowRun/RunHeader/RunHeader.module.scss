@@ -24,6 +24,12 @@
   }
 }
 
+.pausedTag {
+  align-items: center;
+  display: flex !important;
+  margin-left: 1rem;
+}
+
 .workflowErrorTrigger {
   align-items: center;
   cursor: pointer;

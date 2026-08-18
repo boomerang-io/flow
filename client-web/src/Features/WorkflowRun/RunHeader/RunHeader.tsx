@@ -42,17 +42,16 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   const state = history.location.state;
   const queryClient = useQueryClient();
 
-  const { initiatedByRef, trigger, creationDate, status, phase, id } = workflowRun;
+  const { initiatedByRef, trigger, creationDate, status, phase, paused, id } = workflowRun;
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status);
   // Start only admits a run still waiting to begin; Finalize only applies once the DAG has
-  // completed. Pause/resume both only take effect while the run is actively running - the
-  // pause flag itself (pauseRequestedAt) isn't exposed on this model, so which of the two
-  // currently applies can't be told apart from here. Both are shown together and each is a
-  // safe no-op server-side if it doesn't apply.
+  // completed. An absent `paused` (older backends) is treated as not paused, so Pause is the
+  // one shown rather than both or neither.
   const displayStartButton = startPhaseTypes.includes(phase);
-  const displayPauseResumeButtons = phase === RunPhase.Running;
+  const displayPauseButton = phase === RunPhase.Running && !paused;
+  const displayResumeButton = Boolean(paused);
   const displayFinalizeButton = phase === RunPhase.Completed;
 
   const invalidateWorkflowRun = () =>
@@ -183,6 +182,12 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
       header={
         <div style={{ display: "flex" }}>
           <HeaderTitle>Activity detail</HeaderTitle>
+          {Boolean(paused) && (
+            <Tag className={styles.pausedTag} type="gray" data-testid="paused-indicator">
+              <Pause style={{ marginRight: "0.5rem" }} />
+              Paused
+            </Tag>
+          )}
           {Boolean(workflowRun.statusMessage) && (
             <ComposedModal
               composedModalProps={{ shouldCloseOnOverlayClick: true }}
@@ -278,7 +283,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                 )}
               />
             )}
-            {canActionWorkflowRun && displayPauseResumeButtons && (
+            {canActionWorkflowRun && displayPauseButton && (
               <ConfirmModal
                 affirmativeAction={handlePauseWorkflow}
                 children="Are you sure? This blocks new tasks from starting. Tasks already claimed, running, or ready continue to completion and still time out on their own deadline - this does not freeze the run."
@@ -303,7 +308,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                 )}
               />
             )}
-            {canActionWorkflowRun && displayPauseResumeButtons && (
+            {canActionWorkflowRun && displayResumeButton && (
               <ConfirmModal
                 affirmativeAction={handleResumeWorkflow}
                 children="Are you sure? If this run is paused, resuming will allow new tasks to start again."
