@@ -172,11 +172,13 @@ export default function App() {
           EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
           GlobalParametersEnabled: feature["global.parameters"],
           InsightsEnabled: feature["insights"],
-          WorkspaceManagementEnabled: feature["workspace.management"],
-          WorkspaceParametersEnabled: feature["workspace.parameters"],
-          WorkspaceTasksEnabled: feature["workspace.tasks"],
+          // The feature keys are settings values, still stored and served under their original
+          // names; they change only alongside a settings migration.
+          WorkspaceManagementEnabled: feature["team.management"],
+          WorkspaceParametersEnabled: feature["team.parameters"],
+          WorkspaceTasksEnabled: feature["team.tasks"],
           UserManagementEnabled: feature["user.management"],
-          WorkspaceQuotasEnabled: feature["workspace.quotas"],
+          WorkspaceQuotasEnabled: feature["team.quotas"],
           WorkflowTokensEnabled: feature["workflow.tokens"],
           WorkflowTriggersEnabled: feature["workflow.triggers"],
         }}
