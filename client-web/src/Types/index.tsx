@@ -641,7 +641,7 @@ export interface Integration {
 }
 
 //Schedule types
-export type ScheduleStatus = "active" | "inactive" | "deleted" | "trigger_disabled" | "error";
+export type ScheduleStatus = "active" | "inactive" | "deleted" | "trigger_disabled" | "error" | "completed";
 export type ScheduleType = "runOnce" | "cron" | "advancedCron";
 
 export interface Schedule {

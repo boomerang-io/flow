@@ -139,6 +139,7 @@ export const scheduleStatusLabelMap: Record<ScheduleStatus, string> = {
   trigger_disabled: "Trigger Disabled",
   deleted: "Deleted",
   error: "Error",
+  completed: "Completed",
 } as const;
 
 export const scheduleTypeLabelMap: Record<ScheduleType, string> = {
