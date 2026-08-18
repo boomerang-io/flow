@@ -103,6 +103,48 @@ missing-field defects elsewhere in this document.
 Jackson configuration, not runtime-verified**. Confirm with a live `GET /schedule/{id}` before
 relying on it.
 
+## 2c. GitHub integration — rebuilt (2026-08-18)
+
+**The redirect mechanism was never the problem.** Flow already round-trips the workspace through
+GitHub's `state` parameter, and CHEER does it with character-for-character the same two lines
+(`btoa(workspaceSlug)` out, `atob(state)` back). Neither asks the user which workspace they meant.
+The complexity worth removing was the *shape* around it, and the defects inside it.
+
+**Five verified defects in the old implementation:**
+- `linkAppInstallation` read `request.getTeam()` twice while the frontend sent `{workspace, ref}` —
+  the rename never reached `GHLinkRequest`, so the workspace ref was null on both the duplicate
+  check and `createEdge`. **Linking was broken outright.**
+- `unlinkAppInstallation` did `findById(request.getRef())` — a Mongo `_id` lookup using a GitHub
+  installation id, so it never matched. **Unlink was a silent no-op.** (`link` correctly used
+  `findByRef`; the two were asymmetric.)
+- `installations.get(0)` in three places — `getInstallation`, `getInstallationForWorkspace`,
+  `linkAppInstallation` all built a client for the requested installation and then used the *first*
+  one. With more than one installation, every one operated on the wrong org.
+- `/github/unlink` carried **no `@AuthCriteria`**, which in this codebase means unauthenticated.
+- `state` was `btoa(workspaceName)` — encoding, not signing, and therefore forgeable.
+
+**Why the last one mattered more than it looked.** The app client is constructed *from* the
+installation id and then lists repositories, so a forged state plus an arbitrary installation id is
+cross-tenant **data access**, not just a mislabelled record. GitHub's documentation is explicit:
+*"Bad actors can hit this URL with a spoofed installation_id. Therefore, you should not rely on the
+validity of the installation_id parameter"* — and recommends verifying via a user access token for
+the installer. **CHEER shares this hole and is worse on the write path** (its upsert takes the
+workspace slug as a trusted path variable with no membership check at all), so it was studied for
+shape, not copied for security.
+
+**Ruled design.** Server-issued signed state (HMAC, workspace + user + TTL) appended to the link at
+the point that already substitutes `{app_name}`, so the frontend never constructs a URL. A single
+backend callback then verifies the state, asserts workspace membership, exchanges the OAuth `code`
+for a user access token and confirms the installation appears in `GET /user/installations`, persists
+against the real installation id, and **302s** to the workspace's integrations page. Both unlink
+paths are kept: fixed self-service, plus GitHub's `installation.deleted` webhook with proper
+`X-Hub-Signature-256` verification.
+
+Net shape: the frontend `Connect` page, the `GitHub.tsx` link mutation, and the separate
+`/github/link` POST all disappear — three moving parts replaced by one redirect. **Deployment is not
+code-only**: the GitHub App needs its Setup URL repointed, "Request user authorization (OAuth)
+during installation" enabled so a `code` is returned, and new client id/secret settings populated.
+
 ## 3. Security findings
 
 - **TaskRun log streaming has no ownership check at any layer. [reported]** The workspace check in
