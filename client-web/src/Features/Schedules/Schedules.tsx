@@ -35,6 +35,38 @@ import type {
 } from "Types";
 import styles from "./Schedules.module.scss";
 
+// FilterableMultiSelect's item type requires an (optional) `disabled` field;
+// carry it alongside our domain types rather than widening them.
+type SelectableWorkflow = Workflow & { disabled?: boolean };
+type SelectableStatus = MultiSelectItem & { disabled?: boolean };
+
+// FilterableMultiSelectProps declares filterItems/compareItems/sortItems as required,
+// even though the component supplies working defaults at runtime. Provide equivalents
+// (mirroring Carbon's own default filter/sort behaviour) to satisfy the contract.
+function filterItemsByLabel<Item>(items: readonly Item[], { itemToString, inputValue }: { itemToString: (item: Item) => string; inputValue: string | null }): Item[] {
+  if (!inputValue) {
+    return items.slice();
+  }
+  return items.filter((item) => itemToString(item).toLowerCase().includes(inputValue.toLowerCase()));
+}
+
+function compareItemLabels(itemA: string, itemB: string, { locale }: { locale: string }): number {
+  return itemA.localeCompare(itemB, locale, { numeric: true });
+}
+
+function sortItemsBySelection<Item>(
+  items: Item[],
+  { selectedItems = [], itemToString, compareItems, locale = "en" }: { selectedItems?: Item[]; itemToString: (item: Item) => string; compareItems: (a: string, b: string, ctx: { locale: string }) => number; locale?: string },
+): Item[] {
+  return [...items].sort((itemA, itemB) => {
+    const hasItemA = selectedItems.includes(itemA);
+    const hasItemB = selectedItems.includes(itemB);
+    if (hasItemA && !hasItemB) return -1;
+    if (hasItemB && !hasItemA) return 1;
+    return compareItems(itemToString(itemA), itemToString(itemB), { locale });
+  });
+}
+
 const defaultStatusArray = scheduleStatusOptions.map((statusObj) => statusObj.value);
 const defaultFromDate = moment().startOf("month").unix();
 const defaultToDate = moment().endOf("month").unix();
@@ -115,7 +147,7 @@ export default function Schedules() {
     return;
   }
 
-  function handleSelectWorkflows({ selectedItems }: MultiSelectItems<Workflow>) {
+  function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
     updateHistorySearch({
       ...queryString.parse(location.search, queryStringOptions),
@@ -124,7 +156,7 @@ export default function Schedules() {
     return;
   }
 
-  function handleSelectStatuses({ selectedItems }: MultiSelectItems) {
+  function handleSelectStatuses({ selectedItems }: MultiSelectItems<SelectableStatus>) {
     //@ts-ignore next-line
     const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : undefined;
     updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), statuses: statuses });
@@ -186,17 +218,19 @@ export default function Schedules() {
           actions={
             <section aria-label="Schedule filters" className={styles.dataFiltersContainer}>
               <Layer className={styles.dataFilter}>
-                <FilterableMultiSelect
+                <FilterableMultiSelect<SelectableWorkflow>
                   light
                   id="schedules-workflows-select"
-                  label="Choose workflow(s)"
                   placeholder="Choose workflow(s)"
                   invalid={false}
                   onChange={handleSelectWorkflows}
                   items={getWorkflowFilter()}
-                  itemToString={(workflow: Workflow) => {
-                    return workflow.displayName;
+                  itemToString={(workflow) => {
+                    return workflow ? workflow.displayName : "";
                   }}
+                  filterItems={filterItemsByLabel}
+                  compareItems={compareItemLabels}
+                  sortItems={sortItemsBySelection}
                   initialSelectedItems={getWorkflowFilter().filter((workflow: Workflow) =>
                     Boolean(selectedWorkflowRefs?.find((ref) => ref === workflow.name)),
                   )}
@@ -204,14 +238,16 @@ export default function Schedules() {
                 />
               </Layer>
               <Layer className={styles.dataFilter}>
-                <FilterableMultiSelect
+                <FilterableMultiSelect<SelectableStatus>
                   id="schedules-statuses-select"
-                  label="Choose status(es)"
                   placeholder="Choose status(es)"
                   invalid={false}
                   onChange={handleSelectStatuses}
                   items={scheduleStatusOptions}
-                  itemToString={(item: MultiSelectItem) => (item ? item.label : "")}
+                  itemToString={(item) => (item ? item.label : "")}
+                  filterItems={filterItemsByLabel}
+                  compareItems={compareItemLabels}
+                  sortItems={sortItemsBySelection}
                   initialSelectedItems={scheduleStatusOptions.filter((option) =>
                     Boolean(selectedStatuses?.find((status) => status === option.value)),
                   )}
