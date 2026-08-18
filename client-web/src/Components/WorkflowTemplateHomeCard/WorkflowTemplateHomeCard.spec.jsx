@@ -1,13 +1,12 @@
 import React from "react";
 import { startApiServer } from "ApiServer";
-import { workspaces, profile } from "ApiServer/fixtures";
+import { workspaces, workflowTemplates, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 import WorkflowCard from "./index";
 
 const props = {
-  workspaceId: workspaces[0].id,
-  quotas: workspaces[0].workflowQuotas,
-  workflow: workspaces[0].workflows,
+  template: workflowTemplates.content[0],
+  workspaces: workspaces.content,
 };
 
 let server;
