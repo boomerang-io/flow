@@ -12,7 +12,7 @@ const props = {
   closeModal: mockfn,
   forceCloseModal: mockfn,
   result: mockResultParam,
-  resultKeys: [test],
+  resultKeys: ["test"],
   isEdit: false,
   templateFields: [mockResultParam],
   setFieldValue: mockfn,
