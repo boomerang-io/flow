@@ -290,8 +290,6 @@ export const TokenActorKind = {
   Workflow: "WORKFLOW",
 } as const;
 
-export const elevatedUserRoles = [PlatformRole.Admin, PlatformRole.Operator];
-
 export const yamlInstructions = `  # Getting started
   Task Templates allow you to define what you want to happen at the execution of the task as well as parameters that are needed and the expected results.
   
