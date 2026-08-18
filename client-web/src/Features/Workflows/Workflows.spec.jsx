@@ -1,26 +1,10 @@
 import { screen } from "@testing-library/react";
-import { vi } from "vitest";
 import { Route } from "react-router-dom";
 import WorkflowsHome from "./index";
 import { startApiServer } from "ApiServer";
-import { workspaces, profile } from "ApiServer/fixtures";
+import { workspaces, workspace as workspaceFixture, profile } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
-import { AppContextProvider } from "State/context";
-
-const props = {
-  workspacesState: {
-    isFetching: false,
-    status: "success",
-    error: "",
-    data: [],
-  },
-  history: {},
-  importWorkflow: {},
-  importWorkflowActions: {},
-  onBoard: {
-    show: false,
-  },
-};
+import { AppContextProvider, WorkspaceContextProvider } from "State/context";
 
 let server;
 
@@ -44,13 +28,18 @@ describe("WorkflowsHome --- Snapshot", () => {
           workspaces,
         }}
       >
-        <Route path={AppPath.WorkflowsWorkspaces}>
-          <WorkflowsHome {...props} />
-        </Route>
+        <WorkspaceContextProvider value={{ workspace: workspaceFixture }}>
+          <Route path={AppPath.Workflows}>
+            <WorkflowsHome />
+          </Route>
+        </WorkspaceContextProvider>
       </AppContextProvider>,
-      { route: appLink.workflowsWorkspaces() }
+      { route: appLink.workflows({ workspace: workspaceFixture.name }) }
     );
-    await screen.findByText("These are your");
+    // Wait for the workflow list to finish loading (the header subtitle renders during the
+    // loading skeleton too, so asserting on it alone would snapshot a non-deterministic state).
+    // The count only appears in the title once the workflows have loaded.
+    await screen.findByText("Workflows (3)");
     expect(baseElement).toMatchSnapshot();
   });
 });

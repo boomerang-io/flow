@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
 <body
@@ -23,24 +23,28 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
           <p
             class="cds--bmrg-feature-header-title"
           >
-            View and manage Flow workspaces
+            View and manage workspaces
           </p>
         </div>
       </section>
     </header>
     <div
-      class="_content_861edb css-1aaedcz"
+      class="_content_a178c7 css-1aaedcz"
     >
       <div
         class="css-2o893x"
       >
         <div
-          aria-labelledby="flow-workspaces-search"
+          aria-label="Search workspaces"
           class="cds--search cds--search--md"
           role="search"
         >
           <div
+            aria-expanded="false"
+            aria-label="button"
             class="cds--search-magnifier"
+            role="button"
+            tabindex="-1"
           >
             <svg
               aria-hidden="true"
@@ -91,15 +95,14 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
               />
             </svg>
           </button>
         </div>
       </div>
       <button
-        class="_createWorkspaceTrigger_861edb cds--btn cds--btn--md cds--btn--primary"
-        tabindex="0"
+        class="_createWorkspaceTrigger_a178c7 cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
         type="button"
       >
         Create Workspace
@@ -111,18 +114,19 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
           class="cds--data-table-content"
         >
           <table
-            class="cds--data-table cds--data-table--sort"
+            class="cds--data-table cds--data-table--lg cds--data-table--sort"
           >
             <thead>
               <tr>
                 <th
                   aria-sort="none"
-                  id="name"
+                  class="cds--table-sort__header"
+                  id="displayName"
                   scope="col"
                 >
                   <div
+                    class="cds--table-sort__description"
                     id="table-sort-4"
-                    style="display: none;"
                   >
                     Click to sort rows by Name header in ascending order
                   </div>
@@ -173,7 +177,65 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                   </button>
                 </th>
                 <th
-                  id="users"
+                  aria-sort="none"
+                  class="cds--table-sort__header"
+                  id="creationDate"
+                  scope="col"
+                >
+                  <div
+                    class="cds--table-sort__description"
+                    id="table-sort-5"
+                  >
+                    Click to sort rows by Date Created header in ascending order
+                  </div>
+                  <button
+                    aria-describedby="table-sort-5"
+                    class="cds--table-sort"
+                    type="button"
+                  >
+                    <span
+                      class="cds--table-sort__flex"
+                    >
+                      <div
+                        class="cds--table-header-label"
+                      >
+                        Date Created
+                      </div>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--table-sort__icon"
+                        fill="currentColor"
+                        focusable="false"
+                        height="20"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="20"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                        />
+                      </svg>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--table-sort__icon-unsorted"
+                        fill="currentColor"
+                        focusable="false"
+                        height="20"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="20"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                        />
+                      </svg>
+                    </span>
+                  </button>
+                </th>
+                <th
+                  id="members"
                   scope="col"
                 >
                   <div
@@ -183,7 +245,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                   </div>
                 </th>
                 <th
-                  id="workflows"
+                  id="quotas"
                   scope="col"
                 >
                   <div
@@ -193,13 +255,13 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                   </div>
                 </th>
                 <th
-                  id="isActive"
+                  id="status"
                   scope="col"
                 >
                   <div
                     class="cds--table-header-label"
                   >
-                    Active
+                    Status
                   </div>
                 </th>
               </tr>
@@ -208,60 +270,26 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               aria-live="polite"
             >
               <tr
-                class="_tableRow_861edb"
-                data-testid="user-list-table-row"
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
                 tabindex="-1"
               >
                 <td>
-                  WDC2 ISE Dev
+                  Tyson Workspace
                 </td>
                 <td>
-                  2
-                </td>
-                <td>
-                  ---
-                </td>
-                <td
-                  id="5e7cccb94bbc6e0001c51773:isActive"
-                >
-                  <svg
-                    aria-label="Active"
-                    fill="green"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    role="img"
-                    viewBox="0 0 16 16"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                    />
-                    <path
-                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                      data-icon-path="inner-path"
-                      opacity="0"
-                    />
-                  </svg>
-                </td>
-              </tr>
-              <tr
-                class="_tableRow_861edb"
-                data-testid="user-list-table-row"
-                tabindex="-1"
-              >
-                <td>
-                  WDC2 ISE QA
+                  <time>
+                    2023-09-19 05:51 AM
+                  </time>
                 </td>
                 <td>
                   1
                 </td>
                 <td>
-                  ---
+                  6
                 </td>
                 <td
-                  id="6e7cccb94bbc6e0001c51773:isActive"
+                  id="tyson-workspace:status"
                 >
                   <svg
                     aria-label="Active"
@@ -286,25 +314,74 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
               </tr>
               <tr
-                class="_tableRow_861edb"
-                data-testid="user-list-table-row"
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
                 tabindex="-1"
               >
                 <td>
-                  IBM Services Engineering
+                  Tyson Personal Workspace
                 </td>
                 <td>
-                  ---
+                  <time>
+                    2023-09-19 05:57 AM
+                  </time>
+                </td>
+                <td>
+                  1
+                </td>
+                <td>
+                  1
+                </td>
+                <td
+                  id="tyson-personal-workspace:status"
+                >
+                  <svg
+                    aria-label="Active"
+                    fill="green"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                    />
+                    <path
+                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      data-icon-path="inner-path"
+                      opacity="0"
+                    />
+                  </svg>
+                </td>
+              </tr>
+              <tr
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
+                tabindex="-1"
+              >
+                <td>
+                  System and Administration
+                </td>
+                <td>
+                  <time>
+                    2023-09-19 05:57 AM
+                  </time>
                 </td>
                 <td>
                   3
                 </td>
+                <td>
+                  1
+                </td>
                 <td
-                  id="5e3a35ad8c222700018ccd39:isActive"
+                  id="system:status"
                 >
                   <svg
-                    aria-label="Inactive"
-                    fill="red"
+                    aria-label="Active"
+                    fill="green"
                     focusable="false"
                     height="16"
                     preserveAspectRatio="xMidYMid meet"
@@ -314,10 +391,10 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M8,1C4.1,1,1,4.1,1,8s3.1,7,7,7s7-3.1,7-7S11.9,1,8,1z M10.7,11.5L8,8.8l-2.7,2.7l-0.8-0.8L7.2,8L4.5,5.3l0.8-0.8L8,7.2 l2.7-2.7l0.8,0.8L8.8,8l2.7,2.7L10.7,11.5z"
+                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
                     />
                     <path
-                      d="M10.7,11.5L8,8.8l-2.7,2.7l-0.8-0.8L7.2,8L4.5,5.3l0.8-0.8L8,7.2l2.7-2.7l0.8,0.8L8.8,8 l2.7,2.7L10.7,11.5z"
+                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
                       data-icon-path="inner-path"
                       opacity="0"
                     />
@@ -325,25 +402,30 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
               </tr>
               <tr
-                class="_tableRow_861edb"
-                data-testid="user-list-table-row"
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
                 tabindex="-1"
               >
                 <td>
-                  IBM Services Essentials
+                  marcus-d-roy-gmail-com Personal Workspace
                 </td>
                 <td>
-                  ---
+                  <time>
+                    2023-09-19 05:57 AM
+                  </time>
                 </td>
                 <td>
                   1
                 </td>
+                <td>
+                  18
+                </td>
                 <td
-                  id="5e3a35ad8c222700018ccd38:isActive"
+                  id="marcus-d-roy-gmail-com-personal-workspace:status"
                 >
                   <svg
-                    aria-label="Inactive"
-                    fill="red"
+                    aria-label="Active"
+                    fill="green"
                     focusable="false"
                     height="16"
                     preserveAspectRatio="xMidYMid meet"
@@ -353,10 +435,142 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M8,1C4.1,1,1,4.1,1,8s3.1,7,7,7s7-3.1,7-7S11.9,1,8,1z M10.7,11.5L8,8.8l-2.7,2.7l-0.8-0.8L7.2,8L4.5,5.3l0.8-0.8L8,7.2 l2.7-2.7l0.8,0.8L8.8,8l2.7,2.7L10.7,11.5z"
+                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
                     />
                     <path
-                      d="M10.7,11.5L8,8.8l-2.7,2.7l-0.8-0.8L7.2,8L4.5,5.3l0.8-0.8L8,7.2l2.7-2.7l0.8,0.8L8.8,8 l2.7,2.7L10.7,11.5z"
+                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      data-icon-path="inner-path"
+                      opacity="0"
+                    />
+                  </svg>
+                </td>
+              </tr>
+              <tr
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
+                tabindex="-1"
+              >
+                <td>
+                  Boomerang Joe Personal Workspace
+                </td>
+                <td>
+                  <time>
+                    2023-09-19 05:56 AM
+                  </time>
+                </td>
+                <td>
+                  1
+                </td>
+                <td>
+                  2
+                </td>
+                <td
+                  id="boomerang-joe-personal-workspace:status"
+                >
+                  <svg
+                    aria-label="Active"
+                    fill="green"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                    />
+                    <path
+                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      data-icon-path="inner-path"
+                      opacity="0"
+                    />
+                  </svg>
+                </td>
+              </tr>
+              <tr
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
+                tabindex="-1"
+              >
+                <td>
+                  Bob Personal Workspace
+                </td>
+                <td>
+                  <time>
+                    2023-09-19 05:57 AM
+                  </time>
+                </td>
+                <td>
+                  1
+                </td>
+                <td>
+                  18
+                </td>
+                <td
+                  id="bob-personal-workspace:status"
+                >
+                  <svg
+                    aria-label="Active"
+                    fill="green"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                    />
+                    <path
+                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      data-icon-path="inner-path"
+                      opacity="0"
+                    />
+                  </svg>
+                </td>
+              </tr>
+              <tr
+                class="_tableRow_a178c7"
+                data-testid="workspace-list-table-row"
+                tabindex="-1"
+              >
+                <td>
+                  admin-flowabl-io Personal Workspace
+                </td>
+                <td>
+                  <time>
+                    2023-09-19 05:54 AM
+                  </time>
+                </td>
+                <td>
+                  1
+                </td>
+                <td>
+                  5
+                </td>
+                <td
+                  id="admin-flowabl-io-personal-workspace:status"
+                >
+                  <svg
+                    aria-label="Active"
+                    fill="green"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                    />
+                    <path
+                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
                       data-icon-path="inner-path"
                       opacity="0"
                     />
@@ -375,8 +589,8 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
         >
           <label
             class="cds--pagination__text"
-            for="cds-pagination-select-id-8"
-            id="cds-pagination-select-id-8-count-label"
+            for="cds-pagination-select-id-9"
+            id="cds-pagination-select-id-9-count-label"
           >
             Items per page:
           </label>
@@ -394,7 +608,8 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-8"
+                    id="cds-pagination-select-id-9"
+                    title=""
                   >
                     <option
                       class="cds--select-option"
@@ -443,7 +658,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
           <span
             class="cds--pagination__text cds--pagination__items-count"
           >
-            1–2 of 2 items
+            1–7 of 7 items
           </span>
         </div>
         <div
@@ -457,7 +672,8 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
             >
               <label
                 class="cds--label cds--visually-hidden"
-                for="cds-pagination-select-id-8-right"
+                dir="auto"
+                for="cds-pagination-select-id-9-right"
               >
                 Page number, of 1 pages
               </label>
@@ -469,7 +685,8 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-8-right"
+                    id="cds-pagination-select-id-9-right"
+                    title=""
                   >
                     <option
                       class="cds--select-option"
@@ -506,34 +723,37 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
             class="cds--pagination__control-buttons"
           >
             <span
-              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip cds--icon-tooltip--disabled"
             >
-              <button
-                aria-labelledby="tooltip-9"
-                class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--md cds--btn--ghost cds--btn--disabled"
-                disabled=""
-                tabindex="0"
-                type="button"
+              <div
+                class="cds--tooltip-trigger__wrapper"
               >
-                <svg
-                  aria-hidden="true"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                <button
+                  aria-labelledby="tooltip-10"
+                  class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
+                  disabled=""
+                  type="button"
                 >
-                  <path
-                    d="M20 24L10 16 20 8z"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 24L10 16 20 8z"
+                    />
+                  </svg>
+                </button>
+              </div>
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-9"
+                id="tooltip-10"
                 role="tooltip"
               >
                 <span
@@ -547,34 +767,37 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               </span>
             </span>
             <span
-              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top-right cds--tooltip cds--icon-tooltip"
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top-end cds--tooltip cds--icon-tooltip cds--icon-tooltip--disabled"
             >
-              <button
-                aria-labelledby="tooltip-11"
-                class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--md cds--btn--ghost cds--btn--disabled"
-                disabled=""
-                tabindex="0"
-                type="button"
+              <div
+                class="cds--tooltip-trigger__wrapper"
               >
-                <svg
-                  aria-hidden="true"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                <button
+                  aria-labelledby="tooltip-12"
+                  class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
+                  disabled=""
+                  type="button"
                 >
-                  <path
-                    d="M12 8L22 16 12 24z"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 8L22 16 12 24z"
+                    />
+                  </svg>
+                </button>
+              </div>
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-11"
+                id="tooltip-12"
                 role="tooltip"
               >
                 <span

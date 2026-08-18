@@ -336,7 +336,7 @@ function WorkspaceListTable(props: WorkspaceListTableProps) {
                           </TableCell>
                         );
                       } else if (cell.info.header === "quotas") {
-                        return <TableCell key={cell.id}>{cell.value.currentWorkflowCount}</TableCell>;
+                        return <TableCell key={cell.id}>{cell.value?.currentWorkflowCount ?? "---"}</TableCell>;
                       }
                       return (
                         <TableCell key={cell.id}>

@@ -102,7 +102,7 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
         return schema.db.workflowTemplates[0];
       });
 
-      this.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: null, query: null }), (schema) => {
+      this.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace", query: null }), (schema) => {
         return schema.db.workflows[0];
       });
 
@@ -377,7 +377,12 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
        */
 
       this.post(serviceUrl.postWorkspaceValidateName(), (schema, request) => {
-        return new Response(422, {}, { errors: ["Name is already taken"] });
+        const { name } = JSON.parse(request.requestBody);
+        const existingNames = schema.workspaces.first().content.map((w) => w.name);
+        if (existingNames.includes(name)) {
+          return new Response(422, {}, { errors: ["Name is already taken"] });
+        }
+        return {};
       });
 
       this.get(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), (schema, request) => {
@@ -386,13 +391,12 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       });
 
       this.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), (schema, request) => {
-        // let { workspaceId } = request.params;
+        // Shared PATCH endpoint: name/displayName updates, quota edits, member/approver-group/parameter
+        // merges all submit a partial body here, so apply it directly onto the workspace record.
         let body = JSON.parse(request.requestBody);
-        // let activeWorkspace = schema.db.myWorkspaces[0].content.find(t => t.id === workspaceId);
         let workspace = schema.db.workspace[0];
-        let activeUsers = workspace.users.filter((user) => body.includes(user.id));
-        workspace.update({ users: activeUsers });
-        return workspace;
+        schema.db.workspace.update(workspace.id, { ...body });
+        return schema.db.workspace[0];
       });
 
       this.put(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), (schema, request) => {
@@ -414,8 +418,16 @@ export function startApiServer({ environment = "test", timing = 0 } = {}) {
       this.post(serviceUrl.getManageWorkspacesCreate(), (schema, request) => {
         let body = JSON.parse(request.requestBody);
         const workspaces = schema.workspaces.first();
-        const updatedRecords = workspaces.records.concat({ id: uuid(), isActive: true, ...body });
-        workspaces.update({ records: updatedRecords });
+        const updatedContent = workspaces.content.concat({
+          id: uuid(),
+          isActive: true,
+          status: "active",
+          creationDate: new Date().toISOString(),
+          members: [],
+          quotas: fixtures.quotas,
+          ...body,
+        });
+        workspaces.update({ content: updatedContent });
         return {};
       });
 

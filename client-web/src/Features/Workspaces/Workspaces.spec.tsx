@@ -24,7 +24,7 @@ describe("Workspaces --- Snapshot Test", () => {
       </Route>,
       { route: appLink.workspaceList() }
     );
-    await screen.findByText("WDC2 ISE QA");
+    await screen.findByText("Tyson Workspace");
     expect(baseElement).toMatchSnapshot();
   });
 });
@@ -40,11 +40,11 @@ describe("Workspaces --- RTL", () => {
     const createWorkspaceButton = await screen.findByText(/^Create Workspace$/i);
     fireEvent.click(createWorkspaceButton);
     expect(screen.getByText(/^Scope your workflows and parameters to a workspace$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Save$/i)).toBeDisabled();
-    const workspaceNameInput = screen.getByLabelText(/^Name$/i);
+    expect(screen.getByText(/^Create$/i)).toBeDisabled();
+    const workspaceNameInput = screen.getByLabelText(/^Display Name$/i);
     userEvent.type(workspaceNameInput, "Test workspace");
-    expect(screen.getByText(/^Save$/i)).toBeEnabled();
-    fireEvent.click(screen.getByText(/^Save$/i));
+    expect(screen.getByText(/^Create$/i)).toBeEnabled();
+    fireEvent.click(screen.getByText(/^Create$/i));
     expect(await screen.findByText(/Test workspace/i)).toBeInTheDocument();
   });
 });

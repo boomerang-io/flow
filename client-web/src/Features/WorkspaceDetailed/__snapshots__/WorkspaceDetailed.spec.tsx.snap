@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDetailed 1`] = `
 <body
@@ -6,10 +6,10 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
 >
   <div>
     <div
-      class="_container_1b3db8"
+      class="_container_27b734"
     >
       <header
-        class="cds--bmrg-feature-header _container_0b651a --bordered"
+        class="cds--bmrg-feature-header _container_e8c763 --bordered"
       >
         <section
           class="cds--bmrg-feature-header__content"
@@ -28,9 +28,9 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 >
                   <a
                     class="cds--link"
-                    href="/admin/workspaces"
+                    href="/home"
                   >
-                    Workspaces
+                    Home
                   </a>
                 </li>
                 <li
@@ -39,7 +39,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                   <p
                     class="cds--link"
                   >
-                    WDC2 ISE Dev
+                    IBM Services Engineering
                   </p>
                 </li>
               </ol>
@@ -48,43 +48,80 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
           <div
             class="cds--bmrg-feature-header__header"
           >
-            <h1
-              class="cds--bmrg-feature-header-title"
-            >
-              WDC2 ISE Dev
-            </h1>
             <div
-              class="_subtitle_0b651a"
+              class="_infoContainer_e8c763"
             >
-              <div
-                class="_status_0b651a"
-              >
-                <svg
-                  aria-hidden="true"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  style="fill: #009d9a;"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+              <div>
+                <h1
+                  class="cds--bmrg-feature-header-title"
                 >
-                  <path
-                    d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
-                  />
-                </svg>
+                  Manage Workspace
+                </h1>
                 <p
-                  class="_statusText_0b651a"
+                  class="cds--bmrg-feature-header-title"
                 >
-                  Active
+                  Workspace Owners & Administrators can manage this workspace.
                 </p>
               </div>
-              <span
-                class="_statusDivider_0b651a"
+              <div
+                class="_infoDetailsContainer_e8c763"
               >
-                -
-              </span>
+                <section
+                  class="_subHeaderContainer_e8c763"
+                >
+                  <dl
+                    class="_detailedInfoContainer_e8c763"
+                  >
+                    <dt
+                      class="_dataTitle_e8c763"
+                    >
+                      Status
+                    </dt>
+                    <dd
+                      class="_dataValue_e8c763"
+                    >
+                      <div
+                        class="_status_e8c763"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          style="fill: #009d9a;"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
+                          />
+                        </svg>
+                        <p
+                          class="_statusText_e8c763"
+                        >
+                          Active
+                        </p>
+                      </div>
+                    </dd>
+                  </dl>
+                  <dl
+                    class="_detailedInfoContainer_e8c763"
+                  >
+                    <dt
+                      class="_dataTitle_e8c763"
+                    >
+                      Date Created
+                    </dt>
+                    <dd
+                      class="_dataValue_e8c763"
+                    >
+                      2023-05-04
+                    </dd>
+                  </dl>
+                </section>
+              </div>
             </div>
           </div>
           <div
@@ -99,26 +136,38 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
               >
                 <a
                   aria-current="page"
-                  class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
-                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                  href="/ibm-services-engineering/manage"
                 >
                   Members
                 </a>
                 <a
-                  class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773/workflows"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/workflows"
                 >
                   Workflows
                 </a>
                 <a
-                  class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773/labels"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/approver-groups"
                 >
-                  Labels
+                  Approver Groups
                 </a>
                 <a
-                  class="cds--tabs__nav-item cds--tabs__nav-link"
-                  href="/admin/workspaces/5e7cccb94bbc6e0001c51773/settings"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/quotas"
+                >
+                  Quotas
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/tokens"
+                >
+                  Tokens
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/settings"
                 >
                   Settings
                 </a>
@@ -126,73 +175,41 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
             </nav>
           </div>
         </section>
-        <section
-          class="_workspaceButtons_0b651a"
-        >
-          <button
-            aria-describedby="danger-description-1"
-            class="cds--btn cds--btn--md cds--btn--danger"
-            data-testid="close-workspace"
-            tabindex="0"
-            type="button"
-          >
-            <span
-              class="cds--visually-hidden"
-              id="danger-description-1"
-            >
-              danger
-            </span>
-            Close Workspace
-            <svg
-              aria-hidden="true"
-              aria-label="Close"
-              class="cds--btn__icon"
-              fill="currentColor"
-              focusable="false"
-              height="16"
-              preserveAspectRatio="xMidYMid meet"
-              role="img"
-              viewBox="0 0 32 32"
-              width="16"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
-              />
-            </svg>
-          </button>
-        </section>
       </header>
       <section
-        aria-label="WDC2 ISE Dev Workspace Members"
-        class="_container_72f9b4"
+        aria-label="IBM Services Engineering Workspace Members"
+        class="_container_5053ab"
       >
         <section
-          class="_actionsContainer_72f9b4"
+          class="_actionsContainer_5053ab"
         >
           <div
-            class="_leftActions_72f9b4"
+            class="_leftActions_5053ab"
           >
             <p
-              class="_featureDescription_72f9b4"
+              class="_featureDescription_5053ab"
             >
-              These are the people who have access to workflows for this Workspace.
+              These are the people who have access to this Workspace.
             </p>
             <p
-              class="_memberCountText_72f9b4"
+              class="_memberCountText_5053ab"
             >
               Showing 
-              2
+              3
                member
               s
             </p>
             <div
-              aria-labelledby="member-search-search"
+              aria-label="Search for a member"
               class="cds--search cds--search--md"
               role="search"
             >
               <div
+                aria-expanded="false"
+                aria-label="button"
                 class="cds--search-magnifier"
+                role="button"
+                tabindex="-1"
               >
                 <svg
                   aria-hidden="true"
@@ -243,19 +260,42 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                    d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                   />
                 </svg>
               </button>
             </div>
           </div>
           <div
-            class="_rightActions_72f9b4"
+            class="_rightActions_5053ab"
           >
             <button
-              class="cds--btn cds--btn--md cds--btn--primary"
+              class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
               data-testid="add-members-button"
-              tabindex="0"
+              type="button"
+            >
+              Add Existing Members
+              <svg
+                aria-hidden="true"
+                aria-label="Add members"
+                class="cds--btn__icon"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
+                />
+              </svg>
+            </button>
+            <button
+              class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+              data-testid="add-members-button"
               type="button"
             >
               Add Members
@@ -294,32 +334,33 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
             >
               <span
                 class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               >
                 Name
               </span>
               <span
                 class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               >
                 Email
               </span>
               <span
                 class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               >
-                Added on
+                Role
               </span>
               <span
                 class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               />
               <span
                 class="cds--structured-list-th"
-                role="columnheader"
-              />
-              <span
-                class="cds--structured-list-th"
+                dir="auto"
                 role="columnheader"
               />
             </div>
@@ -334,34 +375,50 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
             >
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <div
-                  class="_memberNameContainer_72f9b4"
+                  class="_memberNameContainer_5053ab"
                 >
                   <p>
-                    Marcus Roy
+                    Boomerang Joe
                   </p>
                 </div>
               </div>
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
-                mdroy@us.ibm.com
+                boomrng@us.ibm.com
               </div>
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
-                July 21, 2020
+                Owner
               </div>
               <div
                 class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_5053ab"
+                  href="/admin/users/61d5db083aa9034ded32cae7"
+                >
+                  View user
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <button
-                  class="_removeButton_aa92f0"
+                  class="_removeButton_6bd561"
                 >
                   Remove from Workspace
                   <svg
@@ -382,17 +439,6 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                     />
                   </svg>
                 </button>
-              </div>
-              <div
-                class="cds--structured-list-td"
-                role="cell"
-              >
-                <a
-                  class="_viewMemberLink_72f9b4"
-                  href="/admin/users/kg3p380ad09662744c240e47"
-                >
-                  View user
-                </a>
               </div>
             </div>
             <div
@@ -401,34 +447,50 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
             >
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <div
-                  class="_memberNameContainer_72f9b4"
+                  class="_memberNameContainer_5053ab"
                 >
                   <p>
-                    Tim Bula
+                    admin@flowabl.io
                   </p>
                 </div>
               </div>
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
-                trbula@us.ibm.com
+                admin@flowabl.io
               </div>
               <div
                 class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
-                July 21, 2020
+                Editor
               </div>
               <div
                 class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_5053ab"
+                  href="/admin/users/61d38d133aa9034ded32cae6"
+                >
+                  View user
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <button
-                  class="_removeButton_aa92f0"
+                  class="_removeButton_6bd561"
                 >
                   Remove from Workspace
                   <svg
@@ -450,16 +512,77 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                   </svg>
                 </button>
               </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
               <div
                 class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <div
+                  class="_memberNameContainer_5053ab"
+                >
+                  <p>
+                    marcus.d.roy@gmail.com
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                marcus.d.roy@gmail.com
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Owner
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
                 role="cell"
               >
                 <a
-                  class="_viewMemberLink_72f9b4"
-                  href="/admin/users/5f17380ad09662744c240e47"
+                  class="_viewMemberLink_5053ab"
+                  href="/admin/users/61ddfb07c5d30f5de052426b"
                 >
                   View user
                 </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <button
+                  class="_removeButton_6bd561"
+                >
+                  Remove from Workspace
+                  <svg
+                    aria-hidden="true"
+                    fill="#f94d56"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12H14V24H12zM18 12H20V24H18z"
+                    />
+                    <path
+                      d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                    />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -467,6 +590,9 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
       </section>
     </div>
   </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
   <div
     class="cds--bmrg-modal-portal"
   />
