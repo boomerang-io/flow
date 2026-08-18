@@ -5,6 +5,7 @@ import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
 import java.util.Date;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.Update;
@@ -16,6 +17,9 @@ import org.springframework.stereotype.Repository;
 public interface ActionRepository extends MongoRepository<ActionEntity, String> {
 
   ActionEntity findByTaskRunRef(String taskRunRef);
+
+  // Oldest-first page of Actions in a given status - the orphan backstop's stray-action sweep.
+  List<ActionEntity> findByStatusOrderByCreationDateAsc(ActionStatus status, Pageable pageable);
 
   boolean existsByWorkflowRunRefAndStatus(String workflowRunRef, ActionStatus status);
 
@@ -46,4 +50,10 @@ public interface ActionRepository extends MongoRepository<ActionEntity, String> 
   @Query("{'workflowRunRef': ?0 }")
   @Update("{ '$set' : { 'status' : ?1 } }")
   long updateStatusByWorkflowRunRef(String ref, ActionStatus status);
+
+  // Conditional close: only takes effect while the Action is still in the expected (source)
+  // status, so a concurrent user response and the orphan sweep can never both apply.
+  @Query("{ '_id': ?0, 'status': ?1 }")
+  @Update("{ '$set': { 'status': ?2 } }")
+  long updateStatusByIdAndStatus(String id, ActionStatus fromStatus, ActionStatus toStatus);
 }

@@ -341,6 +341,18 @@ public class WorkflowRunService {
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
+  // Return the page of in-flight WorkflowRuns, oldest first - the orphan backstop checks each
+  // one's revision ref resolves; not itself an indexed predicate, so the page stays narrow and
+  // any miss is caught again on the next tick.
+  public List<WorkflowRunEntity> findInFlight(int limit) {
+    Query query =
+        Query.query(Criteria.where("phase").in(RunPhase.pending, RunPhase.queued, RunPhase.running))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, WorkflowRunEntity.class);
+  }
+
   public List<WorkflowRunEntity> findFinalizableWithoutWorkspaces(int limit) {
     Query query =
         Query.query(
