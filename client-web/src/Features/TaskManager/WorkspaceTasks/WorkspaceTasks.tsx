@@ -37,7 +37,8 @@ function TaskTemplatesContainer() {
 
   /** Check if there is an active workspace or redirect to home */
   if (!workspace) {
-    return history.push(appLink.home());
+    history.push(appLink.home());
+    return null;
   }
 
   if (isLoading) {

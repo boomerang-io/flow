@@ -63,14 +63,18 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
         rightPanel={{
           icon: <ArrowsHorizontal size="20" />,
           component: (
-            <Switcher>
+            <Switcher aria-label="Your Workspaces">
               <li className={styles.switcherInfo}>
                 <span>Your Workspaces</span>
               </li>
               <SwitcherDivider />
               {(userData.teams ?? []).map((workspace) => {
                 return (
-                  <SwitcherItem large key={workspace.name} href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}>
+                  <SwitcherItem
+                    aria-label={workspace.displayName}
+                    key={workspace.name}
+                    href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}
+                  >
                     {workspace.displayName}
                   </SwitcherItem>
                 );
@@ -90,10 +94,12 @@ type AppSideNavProps = Parameters<Parameters<typeof UIShell>[0]["leftPanel"]>[0]
 };
 
 type SideNavElemProps =
-  | { to: string; activeClassName: string; element: React.ReactNode; onClick: Function }
+  | { to: string; activeClassName: string; element: React.ElementType; onClick: Function }
   | { href: string };
 
-type SideNavLinkSharedProps = Pick<FlowNavigationItemChild, "large" | "renderIcon"> & { key: string };
+// FlowNavigationItemChild#renderIcon is typed as SVGElement in Types (a DOM node, not
+// a component) - the actual value is always an icon component, so type it correctly here.
+type SideNavLinkSharedProps = Pick<FlowNavigationItemChild, "large"> & { renderIcon: React.ComponentType; key: string };
 
 const ACTIVE_CLASS_NAME = "cds--side-nav__link--current";
 
@@ -105,6 +111,8 @@ function getRelativePath(navUrl: string) {
   return navUrl.substring(navUrl.indexOf(APP_ROOT) + APP_ROOT.length);
 }
 
+// SideNavLink supports rendering as a router NavLink (via the polymorphic `element`
+// prop), so internal links get real client-side navigation.
 function getSideNavElemProps(item: FlowNavigationItem | FlowNavigationItemChild, close: Function): SideNavElemProps {
   if (isInternalLink(item.link)) {
     return {
@@ -116,6 +124,14 @@ function getSideNavElemProps(item: FlowNavigationItem | FlowNavigationItemChild,
   }
 
   return { href: item.link };
+}
+
+// SideNavMenuItem (submenu children) has no polymorphic `element`/`as` prop - it only
+// ever renders a plain anchor, so always give it a real href (previously internal
+// links got `to`/`element`/`activeClassName`, which SideNavMenuItem doesn't understand,
+// leaving the anchor with no href at all).
+function getSideNavMenuItemProps(item: FlowNavigationItemChild, close: () => void): { href: string; onClick: () => void } {
+  return { href: item.link, onClick: close };
 }
 
 function AppSideNav(props: AppSideNavProps) {
@@ -155,7 +171,7 @@ function AppSideNav(props: AppSideNavProps) {
                     );
                   }
 
-                  const elemProps = getSideNavElemProps(childItem, props.close);
+                  const elemProps = getSideNavMenuItemProps(childItem, props.close);
                   return (
                     <SideNavMenuItem key={childItem.name} {...elemProps}>
                       {childItem.name}

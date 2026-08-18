@@ -502,6 +502,39 @@ blast radius is the whole repo. Parallel-agent briefs now ban repo-wide `checkou
 and require committing coherent units immediately rather than holding large uncommitted changes;
 root-cause work that others build on runs to completion and commits BEFORE any fan-out.
 
+### T8-0 — the typecheck net paid for itself in bugs, not types
+
+Driving `tsc` to zero was justified as a safety net for the migrations. It also surfaced **nine
+live defects** in the workspace/user screens alone that no test caught, because the suite was dead
+and the errors were being tolerated. The two that matter:
+
+- **Adding a workspace member always granted `Editor`.** `AddMember.tsx` built its request with a
+  hardcoded `role: MemberRole.Editor`, discarding the role the user picked — and the picker never
+  displayed a selection either, because it used Carbon's non-existent `value` prop instead of
+  `selectedItem`. **This is a permissions defect**, not cosmetics: intending to add a Reader
+  silently produced an Editor. It also lands squarely on the A2 enforcement flip — today the
+  backend soft-fails permission checks, so an over-granted role is invisible; after the flip it is
+  the difference between what a member can and cannot do.
+- **"Create Workspace" was broken on the Workspaces screen.** `WorkspaceCreateContent` was rendered
+  without its `createWorkspace`/`isError`/`isLoading` props, so submitting threw
+  `createWorkspace is not a function`. The same flow works from `Home.tsx`, which is presumably why
+  it went unnoticed.
+
+Also fixed: a Cancel button never disabled during a request (vendor prop misspelled
+`negativeButtonsProps` and therefore silently dropped), a quota input with no visible label (`labelText`
+on a Carbon `NumberInput` whose real prop is `label`), several icons whose accessible name was
+dropped (`alt` on SVG icons → `aria-label`), an `Avatar` with no accessible name, an unguarded
+`user.teams.length` that could throw, and a spec building a route with the wrong param name so the
+route param was silently `undefined`.
+
+**The pattern worth generalising:** almost every one of these is a *silently dropped prop* — a
+misspelled or non-existent prop name that TypeScript was already complaining about and that
+nothing else could catch. This is the concrete argument for the maintainer's "tests AND typecheck"
+ruling over the cheaper "repair tests only" option.
+
+Two pre-existing `@ts-ignore` comments were also removed once the underlying errors were fixed
+properly. Count: **354 → 81** with the components and workflow-feature passes still running.
+
 ### T7 — inherited frontend quality debt (measured at fold-in)
 
 Both figures below are **pre-existing v4 debt**, confirmed against the parent commit, not caused by
