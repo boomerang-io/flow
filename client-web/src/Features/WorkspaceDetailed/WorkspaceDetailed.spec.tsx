@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { startApiServer } from "ApiServer";
 
-let server;
+let server: ReturnType<typeof startApiServer>;
 
 beforeEach(() => {
   server = startApiServer();
@@ -21,7 +21,7 @@ describe("WorkspaceDetailed --- Snapshot Test", () => {
       <Route path={AppPath.ManageWorkspace}>
         <WorkspaceDetailed />
       </Route>,
-      { route: appLink.manageWorkspace({ workspaceId: "5e7cccb94bbc6e0001c51773" }) }
+      { route: appLink.manageWorkspace({ workspace: "5e7cccb94bbc6e0001c51773" }) }
     );
     await screen.findByText("These are the people who have access to workflows for this Workspace.");
     expect(baseElement).toMatchSnapshot();
@@ -34,7 +34,7 @@ describe("WorkspaceDetailed --- RTL", () => {
       <Route path={AppPath.ManageWorkspace}>
         <WorkspaceDetailed />
       </Route>,
-      { route: appLink.manageWorkspace({ workspaceId: "5e7cccb94bbc6e0001c51773" }) }
+      { route: appLink.manageWorkspace({ workspace: "5e7cccb94bbc6e0001c51773" }) }
     );
     //Members tab
     await screen.findByText("These are the people who have access to workflows for this Workspace.");

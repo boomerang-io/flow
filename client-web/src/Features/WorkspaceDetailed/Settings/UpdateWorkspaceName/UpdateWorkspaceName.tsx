@@ -135,15 +135,14 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
               <Button kind="secondary" type="button" onClick={closeModal}>
                 Cancel
               </Button>
-              {/* @ts-ignore */}
               <Button
-                disabled={
+                disabled={Boolean(
                   errors.name ||
-                  updateWorkspaceMutator.isLoading ||
-                  validateWorkspaceNameMutator.error ||
-                  validateWorkspaceNameMutator.isLoading
-                }
-                onClick={handleSubmit}
+                    updateWorkspaceMutator.isLoading ||
+                    validateWorkspaceNameMutator.error ||
+                    validateWorkspaceNameMutator.isLoading,
+                )}
+                onClick={() => handleSubmit()}
                 data-testid="save-workspace-name"
               >
                 {buttonText}

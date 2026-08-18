@@ -47,7 +47,7 @@ function Workflows({ workspace }: { workspace: FlowWorkspace }) {
             labelText="workflow search"
             id="workflow-search"
             placeholder="Search for a workflow"
-            onChange={(e: React.FormEvent<HTMLInputElement>) => setSearchQuery(e.currentTarget.value)}
+            onChange={(e: { target: HTMLInputElement; type: "change" }) => setSearchQuery(e.target.value)}
             size="sm"
           />
         </div>
