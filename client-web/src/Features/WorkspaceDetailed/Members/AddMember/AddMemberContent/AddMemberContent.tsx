@@ -45,8 +45,8 @@ const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberL
     };
   });
 
-  const handleSearchChange = (e: React.SyntheticEvent<HTMLButtonElement>) => {
-    const searchQuery = e.currentTarget?.value;
+  const handleSearchChange = (e: { target: HTMLInputElement; type: "change" }) => {
+    const searchQuery = e.target?.value;
 
     if (searchQuery) {
       const queryStr = queryString.stringify({ page: 0, size: 20, query: searchQuery });
@@ -157,7 +157,7 @@ const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberL
         )}
       </ModalBody>
       <ModalFooter>
-        <Button onClick={closeModal} kind="secondary" type="button">
+        <Button onClick={() => closeModal()} kind="secondary" type="button">
           Cancel
         </Button>
         <Button disabled={selectedUsers.length === 0 || addMemberisLoading} type="submit">

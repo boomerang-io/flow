@@ -66,7 +66,7 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
   const [selectedUsers, setSelectedUsers] = useState<Member[]>([]);
   const [usersListOpen, setUsersListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const usersUrl = serviceUrl.getUsers({ query: null });
+  const usersUrl = serviceUrl.getUsers({ query: "" });
   const userQuery = useQuery<PaginatedUserResponse, string>(usersUrl);
 
   const searchRef = React.useRef<HTMLDivElement | null>();
@@ -84,8 +84,8 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
     };
   });
 
-  const handleSearchChange = (e: React.SyntheticEvent<HTMLButtonElement>) => {
-    const searchQuery = e.currentTarget?.value;
+  const handleSearchChange = (e: { target: HTMLInputElement; type: "change" }) => {
+    const searchQuery = e.target?.value;
 
     if (searchQuery) {
       setUserList(userQuery.data?.content || []);
@@ -99,7 +99,9 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
 
   const addUser = (id: string) => {
     const user = userList.find((user: Member) => user.id === id);
-    setSelectedUsers(selectedUsers.concat(user));
+    if (user) {
+      setSelectedUsers(selectedUsers.concat(user));
+    }
     setUsersListOpen(false);
   };
 
@@ -145,7 +147,13 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
       return (
         <ul className={styles.selectUsers}>
           {usersListRecords.map((user) => (
-            <MemberBar addUser={addUser} id={user.id} name={user.name} email={user.email} removeUser={null} />
+            <MemberBar
+              addUser={addUser}
+              id={user.id ?? ""}
+              name={user.name ?? ""}
+              email={user.email ?? ""}
+              removeUser={null}
+            />
           ))}
         </ul>
       );
@@ -174,7 +182,13 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
         {selectedUsers.length > 0 && (
           <ul className={styles.selectedUsers}>
             {selectedUsers.map((user) => (
-              <MemberBar addUser={null} id={user.id} email={user.email} name={user.name} removeUser={removeUser} />
+              <MemberBar
+                addUser={null}
+                id={user.id ?? ""}
+                email={user.email ?? ""}
+                name={user.name ?? ""}
+                removeUser={removeUser}
+              />
             ))}
           </ul>
         )}
@@ -188,7 +202,7 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
         )}
       </ModalBody>
       <ModalFooter>
-        <Button onClick={closeModal} kind="secondary" type="button">
+        <Button onClick={() => closeModal()} kind="secondary" type="button">
           Cancel
         </Button>
         <Button disabled={selectedUsers.length === 0 || isSubmitting} type="submit">
