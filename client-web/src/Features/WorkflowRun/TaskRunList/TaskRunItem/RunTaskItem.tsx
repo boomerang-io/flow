@@ -131,7 +131,6 @@ function RunTaskItem({ taskRun, workflowRun, executionViewRedirect }: Props) {
             size="sm"
             onClick={() =>
               executionViewRedirect({
-                workflowRef: taskRun.params.find((param) => param.name === "workflowRef")?.value ?? "",
                 workflowRunRef: taskRun.results.find((result) => result.name === "workflowRunRef")?.value ?? "",
               })
             }

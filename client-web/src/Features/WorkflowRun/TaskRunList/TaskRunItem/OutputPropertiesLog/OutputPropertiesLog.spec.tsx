@@ -2,12 +2,8 @@ import React from "react";
 import OutputPropertiesLog from "./index";
 
 const props = {
-  flowTaskName: "Send Slack Message",
-  flowTaskOutputs: {
-    args: {
-      test: "true",
-    },
-  },
+  taskName: "Send Slack Message",
+  results: [{ name: "args", description: "", value: "test" }],
 };
 
 describe("OutputPropertiesLog --- Snapshot", () => {

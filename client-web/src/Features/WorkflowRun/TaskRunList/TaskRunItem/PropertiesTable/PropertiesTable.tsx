@@ -34,9 +34,11 @@ function PropertiesTable({ data: properties, hasJsonValues = false }: Props) {
       return value ?? "---";
     }
   };
+  const hasProperties = Array.isArray(properties) ? properties.length > 0 : Boolean(properties) && Object.keys(properties).length > 0;
+
   return (
     <div className={styles.tableContainer}>
-      {properties && properties.length > 0 ? (
+      {hasProperties ? (
         <StructuredListWrapper selection>
           <StructuredListHead>
             <StructuredListRow head>

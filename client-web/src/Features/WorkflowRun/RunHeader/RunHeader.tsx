@@ -15,7 +15,7 @@ import moment from "moment";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useHistory, useParams } from "react-router-dom";
-import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem";
+import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem/OutputPropertiesLog";
 import ErrorModal from "Components/ErrorModal";
 import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";

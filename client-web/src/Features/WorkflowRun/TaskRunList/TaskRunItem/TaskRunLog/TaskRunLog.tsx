@@ -45,7 +45,7 @@ export default function TaskRunLog({ taskrunId, taskName }: Props) {
                 <Theme theme="g100" className={styles.followToggle}>
                   <Toggle
                     hideLabel
-                    defaultValue={follow}
+                    defaultToggled={follow}
                     disabled={Boolean(error)}
                     id="task-log-toggle"
                     labelText="Follow log"
