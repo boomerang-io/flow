@@ -90,7 +90,7 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
             <section>
               <dt className={styles.detailedTitle}>Maximum Workflow executions </dt>
               <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowExecutionMonthly} per month`}
+                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowRunMonthly} per month`}
               </dt>
             </section>
             <section>
@@ -98,19 +98,19 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
               <dt className={styles.detailedData}>
                 {defaultQuotasQuery.error
                   ? "---"
-                  : `${defaultQuotasQuery.data.maxWorkflowExecutionMonthly}GB per Workflow`}
+                  : `${defaultQuotasQuery.data.maxWorkflowStorage}GB per Workflow`}
               </dt>
             </section>
             <section>
               <dt className={styles.detailedTitle}>Maximum Workflow duration</dt>
               <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowExecutionTime} minutes`}
+                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowRunDuration} minutes`}
               </dt>
             </section>
             <section>
               <dt className={styles.detailedTitle}>Maximum concurrent Workflows</dt>
               <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxConcurrentWorkflows} Workflows`}
+                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxConcurrentRuns} Workflows`}
               </dt>
             </section>
           </div>
