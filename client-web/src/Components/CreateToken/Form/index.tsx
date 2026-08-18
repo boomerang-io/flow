@@ -76,17 +76,14 @@ function CreateServiceTokenForm({
   ];
 
   const createToken = async (values: any) => {
-    let request = {
+    const request = {
       name: values.name,
       type: values.type,
       expirationDate: values.date ? parseInt(moment.utc(values.date).startOf("day").format("x"), 10) : null,
       description: values.description,
       principal: values.principal,
+      ...(type !== TokenType.User ? { permissions: values.permissions } : {}),
     };
-
-    if (type !== TokenType.User) {
-      request = { ...request, permissions: values.permissions };
-    }
 
     console.log("request", request);
     try {
@@ -172,7 +169,6 @@ function CreateServiceTokenForm({
                 />
               ) : null}
               <DatePicker
-                id="token-date-picker"
                 dateFormat="Y/m/d"
                 datePickerType="single"
                 onChange={(value: any) => handleSelectDate(setFieldValue, "expirationDate", value)}
@@ -200,7 +196,6 @@ function CreateServiceTokenForm({
                     </div>
                   }
                   onChange={(value: any) => handleSelectDate(setFieldValue, "expirationDate", value)}
-                  pattern={null}
                   placeholder="2063/04/05"
                 />
               </DatePicker>
