@@ -37,13 +37,24 @@ Q-126.
 > - **§D3 #5 Orphan backstop.** Did not exist in any form; **now being implemented**, because a real
 >   bug sat behind it (below).
 >
-> **The bug the missing backstop hid:** `tryClaim` sets `phase → queued` and the claim fields but
-> **never bakes `timeoutAt`** (only `tryStartExecution` does). Since `findReapable` selects on
-> `timeoutAt <= now`, a task claimed but never started was invisible to every sweep — and
-> `cancelPendingAndRunningTasks` covered only `running`/`pending`, so cancelling the parent run
-> didn't reach it either. A dispatcher dying between claim and execute left a permanently stuck run
-> with no API path out. Fixed by baking a provisional deadline at claim, adding the orphan sweep,
-> and extending the cancel cascade to `queued`.
+> **The bug the missing backstop hid — and it is a DRIFT FROM THIS DESIGN, not a missing feature.**
+> §1.1 already specifies `timeoutAt` as `claimedAt + effectiveTimeout + class grace`, and §1.2
+> already says the claim CAS "sets phase …, claim block, **`timeoutAt`**" — the whole point being to
+> compute the effective timeout **once at claim**, explicitly to fix the `DAGUtility` merge-bug site.
+> The code never did this: `tryClaim` set `phase → queued` and the claim fields but left `timeoutAt`
+> to `tryStartExecution`. Since `findReapable` selects on `timeoutAt <= now`, a task claimed but
+> never started was invisible to every sweep — and `cancelPendingAndRunningTasks` covered only
+> `running`/`pending`, so cancelling the parent run did not reach it either. A dispatcher dying
+> between claim and execute left a permanently stuck run with no API path out.
+>
+> **Interim fix applied:** a *provisional* 10-minute deadline at claim
+> (`EngineConstants.CLAIM_TIMEOUT_MINUTES`), re-baked to the real budget at start, plus the orphan
+> sweep and a cancel cascade extended to `queued`. **This is weaker than the design**: it introduces
+> an arbitrary constant to justify, computes the deadline twice, and leaves a window where a
+> healthy-but-slow dispatcher can be reaped. Bringing `tryClaim` in line with §1.1 — set the real
+> `claimedAt + effectiveTimeout + grace` deadline at claim, from the timeout already on the claim
+> pre-image — removes the constant, the second computation, and the window. **Pending maintainer
+> decision.**
 >
 > **Index authority (F4):** the entity `@Indexed`/`@CompoundIndex` annotations are **inert** —
 > `spring.data.mongodb.auto-index-creation=false` is pinned. The loader
