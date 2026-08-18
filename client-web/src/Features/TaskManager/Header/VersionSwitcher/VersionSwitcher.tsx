@@ -71,10 +71,10 @@ const VersionSwitcher: React.FC<VersionSwitcherProps> = ({ selectedTaskTemplate,
     return (
       <div className={styles.buttonList}>
         <button className={styles.button} disabled={!enabled} onClick={fastBackVersion}>
-          <PageFirst className={cx(styles.icon, { [styles.disabled]: !enabled })} alt="first version" />
+          <PageFirst className={cx(styles.icon, { [styles.disabled]: !enabled })} aria-label="first version" />
         </button>
         <button className={styles.button} disabled={!enabled} onClick={backVersion}>
-          <ChevronLeft className={cx(styles.icon, { [styles.disabled]: !enabled })} alt="back one version" />
+          <ChevronLeft className={cx(styles.icon, { [styles.disabled]: !enabled })} aria-label="back one version" />
         </button>
       </div>
     );
@@ -84,10 +84,10 @@ const VersionSwitcher: React.FC<VersionSwitcherProps> = ({ selectedTaskTemplate,
     return (
       <div className={styles.buttonList}>
         <button className={styles.button} disabled={!enabled} onClick={forwardVersion}>
-          <ChevronRight className={cx(styles.icon, { [styles.disabled]: !enabled })} alt="forward one version" />
+          <ChevronRight className={cx(styles.icon, { [styles.disabled]: !enabled })} aria-label="forward one version" />
         </button>
         <button className={styles.button} disabled={!enabled} onClick={fastForwardVersion}>
-          <PageLast className={cx(styles.icon, { [styles.disabled]: !enabled })} alt="last version" />
+          <PageLast className={cx(styles.icon, { [styles.disabled]: !enabled })} aria-label="last version" />
         </button>
       </div>
     );

@@ -248,11 +248,7 @@ const Header: React.FC<HeaderProps> = ({
           <Button
             size="md"
             hasIconOnly
-            iconDescription={
-              <div className={styles.iconOnlyTooltip}>
-                <p>Download this version as JSON</p>
-              </div>
-            }
+            iconDescription="Download this version as JSON"
             tooltipPosition="bottom"
             kind="ghost"
             renderIcon={Download}
@@ -268,11 +264,7 @@ const Header: React.FC<HeaderProps> = ({
                 <Button
                   size="md"
                   hasIconOnly
-                  iconDescription={
-                    <div className={styles.iconOnlyTooltip}>
-                      <p>Restore the last save of this version</p>
-                    </div>
-                  }
+                  iconDescription="Restore the last save of this version"
                   tooltipPosition="bottom"
                   kind="ghost"
                   renderIcon={Reset}
@@ -291,11 +283,7 @@ const Header: React.FC<HeaderProps> = ({
               modalTrigger={({ openModal }) => (
                 <Button
                   hasIconOnly
-                  iconDescription={
-                    <div className={styles.iconOnlyTooltip}>
-                      <p>Archive</p>
-                    </div>
-                  }
+                  iconDescription="Archive"
                   disabled={!canEdit}
                   tooltipPosition="bottom"
                   renderIcon={Archive}
@@ -378,7 +366,7 @@ const Header: React.FC<HeaderProps> = ({
         {TaskIcon ? (
           <TaskIcon.Icon style={{ minWidth: "1.5rem", minHeight: "1.5rem", marginRight: "0.75rem" }} />
         ) : (
-          <Bee alt={`${selectedTaskTemplate.displayName} icon`} className={styles.icon} />
+          <Bee aria-label={`${selectedTaskTemplate.displayName} icon`} className={styles.icon} />
         )}
         <h1 className={styles.taskName} title={selectedTaskTemplate.displayName}>
           {selectedTaskTemplate.displayName}

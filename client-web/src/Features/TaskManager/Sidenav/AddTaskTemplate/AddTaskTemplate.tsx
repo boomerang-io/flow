@@ -4,7 +4,7 @@ import { Button } from "@carbon/react";
 import { Add } from "@carbon/react/icons";
 import { notify, ToastNotification, ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useMutation, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
+import { useHistory, useParams } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { resolver } from "Config/servicesConfig";
 import AddTaskTemplateForm from "./AddTaskTemplateForm";
@@ -12,7 +12,7 @@ import styles from "./addTaskTemplate.module.scss";
 
 interface AddTaskTemplateProps {
   taskNames: Array<string>;
-  history: History;
+  history: ReturnType<typeof useHistory>;
   getTaskTemplatesUrl: string;
 }
 

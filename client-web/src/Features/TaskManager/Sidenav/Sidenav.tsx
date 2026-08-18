@@ -44,7 +44,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ workspace, isLoading, tasks, getTas
   const [showArchived, setShowArchived] = React.useState(false);
   const [showVerified, setShowVerified] = React.useState(false);
 
-  const handleOnSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOnSearchInputChange = (e: { target: HTMLInputElement; type: "change" }) => {
     const searchQuery = e.target.value;
     setSearchQuery(searchQuery);
   };
@@ -83,6 +83,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ workspace, isLoading, tasks, getTas
   // List of categories
   let categories = tasks
     ?.reduce((acc: string[], task: Task) => {
+      if (!task.category) return acc;
       const newCategory = !acc.find((category) => task.category === category);
       if (newCategory) acc.push(task.category);
       return acc;
@@ -98,7 +99,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ workspace, isLoading, tasks, getTas
 
   const tasksFilteredByType =
     activeFilters.length > 0
-      ? tasksFilteredByStatus?.filter((task) => activeFilters.includes(task.icon))
+      ? tasksFilteredByStatus?.filter((task) => task.icon !== undefined && activeFilters.includes(task.icon))
       : tasksFilteredByStatus;
 
   const filteredTaskTemplates = matchSorter(tasksFilteredByType, searchQuery, { keys: ["category", "displayName"] });
