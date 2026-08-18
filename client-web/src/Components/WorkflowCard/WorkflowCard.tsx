@@ -24,7 +24,7 @@ import { WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { BASE_URL } from "Config/servicesConfig";
-import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowViewType, DataDrivenInput, Parameter } from "Types";
+import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowViewType, DataDrivenInput } from "Types";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
 import WorkflowRunModalContent from "./WorkflowRunModalContent";
@@ -46,7 +46,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
 
   const history = useHistory();
-  const [errorMessage, seterrorMessage] = useState(null);
+  const [errorMessage, seterrorMessage] = useState<{ title: string; message: string } | null>(null);
 
   const { mutateAsync: deleteWorkflowMutator, isLoading: isDeleting } = useMutation(resolver.deleteWorkflow, {});
 
@@ -172,10 +172,15 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         closeModal();
       }
     } catch (err) {
-      if (err.response?.status === 429) {
+      const response = axios.isAxiosError(err) ? err.response : undefined;
+      if (response?.status === 429) {
+        const data = response.data;
         seterrorMessage({
           title: "Quota Exceeded",
-          message: err.response?.data?.message,
+          message:
+            data && typeof data === "object" && "message" in data
+              ? String(data.message)
+              : "Too many requests. Please try again later.",
         });
       } else {
         seterrorMessage(
