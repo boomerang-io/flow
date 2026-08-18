@@ -470,6 +470,38 @@ API base URLs as well: an internal one for server-side loaders, the public one f
   `Member[]` vs `Approver[]`) — these are fixed once, centrally, against the real `service-core`
   models before the long tail is parallelised.
 
+### T8-0 progress
+
+**Test-infra typing fixed: 354 → 307 errors.** The root cause was a genuine `tsconfig.json` bug,
+not a missing dependency: `"types": ["cypress", "@testing-library/cypress"]` restricted automatic
+global-type inclusion to Cypress, which bundles Mocha/Chai's ambient `expect`/`describe`. TypeScript
+was therefore resolving `expect(x)` to **Chai's** `Assertion` — which has no jest-dom matchers —
+rather than Vitest's. Set to `["vitest/globals"]`; safe because `include` is `['src']`, so the
+`cypress/` tree was never covered by this config anyway. Matcher signatures are augmented in
+`src/vitest-matchers.d.ts`, deliberately NOT named `vitest.d.ts`: with `baseUrl: "./src"` a file of
+that name resolves ahead of the real `vitest` package for the bare `"vitest"` specifier and
+silently breaks every other export (`vi`, `expect`). `@testing-library/jest-dom` is v5.16.4, which
+ships no types and has no `/vitest` subpath — that is v6+ — so the v5-era manual augmentation is
+correct here, not a workaround.
+
+Test counts are unchanged (36/37 files failing) and that is the expected result: runtime
+registration was always correct, only the types were wrong. The remaining failures are genuine
+assertion and prop/fixture-shape errors, which is what the repair pass will address.
+
+**A third test suite is sitting unused.** `cypress/` holds 12 E2E specs with `cypress`/`cypress:run`
+scripts, no tsconfig of its own (so never typechecked, before or after this change) and no CI
+wiring. Its `cypress:run` script also uses `$(npm bin)`, removed in npm 9+, so it is broken as
+written. Decide whether E2E is part of the safety net or is deleted — leaving it is the worst of
+both.
+
+**Process incident worth recording.** The two T8-0 agents ran concurrently in one working tree; the
+test-infra agent ran a repo-wide `git checkout --` while cleaning up snapshot noise and silently
+reverted the other agent's large uncommitted edit to `src/Types/index.tsx` — a file it had been told
+not to touch. Unrecoverable (never staged). "Don't touch file X" does not constrain commands whose
+blast radius is the whole repo. Parallel-agent briefs now ban repo-wide `checkout`/`reset`/`clean`
+and require committing coherent units immediately rather than holding large uncommitted changes;
+root-cause work that others build on runs to completion and commits BEFORE any fan-out.
+
 ### T7 — inherited frontend quality debt (measured at fold-in)
 
 Both figures below are **pre-existing v4 debt**, confirmed against the parent commit, not caused by
