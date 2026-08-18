@@ -108,8 +108,6 @@ export const serviceUrl = {
     getWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}`,
     getWorkflowTemplates: () => `${BASE_URL}/workflowtemplate/query`,
     postWorkflowTemplate: () => `${BASE_URL}/workflowtemplate`,
-    // TODO: export route removed from the Workflow Template API; no longer reachable.
-    getExportWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}/export`,
   },
   workspace: {
     deleteWorkspaceMembers: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/members`,

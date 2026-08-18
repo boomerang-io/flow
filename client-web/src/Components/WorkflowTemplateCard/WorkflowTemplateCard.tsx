@@ -4,10 +4,8 @@ import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Bee } from "@carbon/react/icons";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import workflowIcons from "Assets/workflowIcons";
-import axios from "axios";
-import fileDownload from "js-file-download";
 import { useMutation, useQueryClient } from "react-query";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { resolver } from "Config/servicesConfig";
 import { Workflow } from "Types";
 import styles from "./workflowTemplateCard.module.scss";
 
@@ -46,26 +44,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow, g
     }
   };
 
-  //TODO: duplicate Workflow Template
-  const handleExportWorkflow = (workflow: Workflow) => {
-    notify(<ToastNotification kind="info" title={`Export Workflow Template`} subtitle="Export starting soon" />);
-    axios
-      .get(serviceUrl.template.getExportWorkflowTemplate({ name: workflow.name }))
-      .then(({ data }) => {
-        fileDownload(JSON.stringify(data, null, 4), `${workflow.name}.json`);
-      })
-      .catch((error) => {
-        notify(
-          <ToastNotification kind="error" title="Something's Wrong" subtitle={`Export Workflow Template failed`} />,
-        );
-      });
-  };
-
   let menuOptions = [
-    {
-      itemText: "Export",
-      onClick: () => handleExportWorkflow(workflow),
-    },
     {
       hasDivider: true,
       itemText: "Delete",
