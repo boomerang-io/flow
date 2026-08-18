@@ -181,6 +181,53 @@ is a separate, later step.
 data) and the Export menu item pointing at a route commented out since `4dc06234`. Both fixes were
 correct for the code as it stood and cost little.
 
+## 2e. Execution model / Watcher verification (2026-08-18)
+
+Checked before wiring `start`/`pause`/`resume`/`finalize` into the UI. **Verdict: qualified yes** —
+the machinery is genuinely well-built where it counts, with four gaps.
+
+**Confirmed sound:** claiming is a single `findAndModify` re-checking full eligibility at claim time,
+and a losing claimant gets `null` and is skipped — the pre-E4 "loser still dispatches" bug is gone.
+**`claim.seq` fencing is written AND read** (`TaskExecutionService.claimantIsValid`), closing the
+exact failure mode found in the reference codebase where the field was written but never read.
+Pause is exactly one admission gate at `TaskExecutionService.queue`; `pauseRequestedAt` is a `Date`
+flag and `RunStatus` remains a clean 10-value enum with no `PAUSED`/`SUPERSEDED`. In-flight work is
+genuinely not held back — `findReapable`/`findClaimable` carry no pause exclusion, while the
+run-level *advance* sweeps correctly do. Resume clears the flag and re-drives `advance()`,
+idempotently. All four unwired routes are CAS-backed and workspace-scoped: **safe to wire.**
+
+**The one concrete bug — a claimed task can be stuck forever.** `tryClaim` transitions
+`pending → queued` and sets `claim.*` but **never bakes `timeoutAt`**; only `tryStartExecution`
+does. And `leaseExpiresAt` is written **nowhere** — it is `unset` on requeue/start but never set, so
+the sparse `lease_sweep` index is permanently empty. `reapTaskTimeouts` selects on
+`timeoutAt <= now`, so a task with no `timeoutAt` is never selected. **A dispatcher that dies between
+claim and execute leaves a run with no deadline, no lease, and no orphan sweep to catch it** — stuck
+until an operator intervenes. Fix by baking a provisional `timeoutAt` at claim time (or adding the
+missing orphan backstop). This is the thing to fix *before* pause/resume reaches the UI, because
+operators will be watching runs in exactly that state.
+
+**Three design-vs-code divergences, none breaking today:**
+- **The orphan-backstop sweep (§D3 #5) does not exist in any form.** Six of seven watcher methods do
+  real work (the seventh, retention pruning, is an intentionally-disabled empty body), so "6 sweeps"
+  is numerically true but by coincidence — a documented sweep is missing and an undocumented one
+  (workspace-less finalize) was added in its place.
+- **Retry failure classes are not implemented.** Only the generic exponential backoff exists; there
+  is no `retryClass` field, no rate-limit class, no deterministic-terminal classification. "Terminal"
+  in practice means the type isn't requeueable or the 3-retry budget is spent. An agent-reported
+  *failure* is never retried at all.
+- **Per-type concurrency caps do not exist.** `findClaimable` filters by the agent's registered task
+  types only — no cap enforcement anywhere.
+
+*Also worth knowing:* the entity `@CompoundIndex` annotations look thin, but the real claim indexes
+are Flamingock-managed in `_0017__RunIndexes` and **do** match the FIFO spec including
+`creationDate`. A review reading only the annotations would wrongly conclude the index was missing.
+
+**Security note that lands on these routes:** `SecurityInterceptor` still only *shadow-enforces* the
+permission match — only token-**type** mismatch actually 401s. So any token type that can `GET` a run
+can also pause/resume/cancel/finalize it, regardless of its permission set. Not introduced by wiring
+the routes, but wiring destructive controls into the UI is what makes the standing A2 gap
+consequential in practice.
+
 ## 3. Security findings
 
 - **TaskRun log streaming has no ownership check at any layer. [reported]** The workspace check in
