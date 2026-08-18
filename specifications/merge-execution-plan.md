@@ -527,10 +527,41 @@ dropped (`alt` on SVG icons → `aria-label`), an `Avatar` with no accessible na
 `user.teams.length` that could throw, and a spec building a route with the wrong param name so the
 route param was silently `undefined`.
 
-**The pattern worth generalising:** almost every one of these is a *silently dropped prop* — a
-misspelled or non-existent prop name that TypeScript was already complaining about and that
-nothing else could catch. This is the concrete argument for the maintainer's "tests AND typecheck"
-ruling over the cheaper "repair tests only" option.
+The shared-components pass found six more, including two silent data-loss bugs:
+
+- **Search filtering did nothing.** `WorkflowsHeader` and `SchedulePanelList` read `currentTarget`
+  from the search `onChange`, but Carbon's `Search` fires a plain `{target, type}` object with no
+  `currentTarget` — so the handler always read `undefined` and typing in the box filtered nothing.
+- **Schedule labels were dropped on every edit.** `Schedule.labels` is a `Record<string,string>`,
+  but the edit-load path branched on `.length` (always `undefined` on a plain object) and iterated
+  it as an array, so opening an existing schedule silently discarded its labels.
+- **`TaskUpdateModal` read `Task.config`, a field the backend no longer sends** (it moved to
+  `Task.spec.params`) — the modal would throw on render. This is exactly the class of "quietly dead
+  UI" predicted when the domain types were realigned, and the first confirmed instance.
+- A status-filter `MultiSelect` given `selectedItem` (Carbon wants `selectedItems`) and the wrong
+  value shape, so an active filter never showed; and a `setIsRedirectEnabled` call referencing a
+  name declared nowhere — a dormant `ReferenceError`, live only because its render site is
+  commented out.
+
+**The pattern worth generalising:** almost every one of these is a *silently dropped prop or
+silently undefined read* — a misspelled or non-existent prop name, or a shape that doesn't match
+what the vendor actually passes. React does not complain; the value simply vanishes. TypeScript was
+already flagging every one of them. This is the concrete argument for the maintainer's "tests AND
+typecheck" ruling over the cheaper "repair tests only" option: no assertion suite would have caught
+these, and the errors were sitting there being tolerated.
+
+**Open follow-up for the maintainer:** `WorkflowCard/UpdateWorkflow.tsx` passes a `workflow` field
+into the `putApplyWorkflow` call that the URL builder
+(`({ workspace }) => .../workspace/${workspace}/workflow`) never reads. Confirm whether the update
+endpoint needs the workflow ref in the URL — if it does, that path is wrong.
+
+**Left deliberately, and worth knowing they are vendor faults, not ours:** Carbon's own types are
+internally inconsistent — `getHeaderProps`/`getRowProps` return `onClick`/`onExpand` as a raw DOM
+`MouseEvent` while `TableHeader`/`TableExpandRow` declare `MouseEventHandler` (confirmed with an
+isolated repro), and `DatePickerInputProps` extends `HTMLAttributes` rather than
+`InputHTMLAttributes`, so `autoComplete` is untyped despite being spread onto a real `<input>`.
+The `DynamicInput` disagreement (governing-only fields mandatory, `min`/`max` string vs number) is
+the shared-type change reserved to the maintainer.
 
 Two pre-existing `@ts-ignore` comments were also removed once the underlying errors were fixed
 properly. Count: **354 → 81** with the components and workflow-feature passes still running.
