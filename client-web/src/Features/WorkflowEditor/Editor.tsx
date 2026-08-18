@@ -7,7 +7,7 @@ import { useMutation, useQueryClient, UseMutationResult } from "react-query";
 import { Prompt, Route, Switch, useLocation, useParams } from "react-router-dom";
 import type { ReactFlowInstance } from "reactflow";
 import { useImmerReducer } from "use-immer";
-import { useAppContext, useWorkspaceContext, useQuery } from "Hooks";
+import { useWorkspaceContext, useQuery } from "Hooks";
 import { EditorContextProvider } from "State/context";
 import { RevisionActionTypes, revisionReducer, initRevisionReducerState } from "State/reducers/workflowRevision";
 import { WorkflowEngineMode, WorkspaceConfigType } from "Constants";
@@ -183,7 +183,6 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
   workspace,
 }) => {
   const location = useLocation();
-  const { quotas } = useAppContext();
   const queryClient = useQueryClient();
 
   const [revisionState, revisionDispatch] = useImmerReducer(
@@ -367,7 +366,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
               updateNotes={handleUpdateNotes}
               workflow={revisionState}
             />
-            <Configure quotas={quotas} workflow={revisionState} settingsRef={settingsRef} />
+            <Configure workflow={revisionState} settingsRef={settingsRef} />
           </>
         }
       </>
@@ -418,6 +417,8 @@ function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Pa
     ...optionalConfigureValues,
     workspaces,
     labels: labelsKVObject,
+    timeout: configureValues.timeout ?? undefined,
+    retries: configureValues.retries ?? undefined,
   };
 
   return formattedWorkflowConfig;
@@ -430,6 +431,8 @@ function prefixWorkspaceTask(taskList: Array<Task>, workspace: FlowWorkspace) {
       ...task,
       name: `${workspace.name}/${task.name}`,
       displayName: `${workspace.displayName} - ${task.displayName}`,
+      // Distinguishes workspace-scoped tasks from global ones in the designer's task list (Task.tsx).
+      scope: "workspace",
     };
   });
 }

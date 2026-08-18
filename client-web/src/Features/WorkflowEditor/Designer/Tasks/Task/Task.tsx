@@ -7,7 +7,9 @@ import { taskIcons } from "Utils/taskIcons";
 import { Task as TaskType } from "Types";
 import styles from "./task.module.scss";
 
-function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: TaskType }) {
+// `scope` isn't part of the canonical Task shape - it's stamped onto workspace tasks
+// by Editor.tsx's prefixWorkspaceTask to distinguish them from global tasks here.
+function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: TaskType; scope?: string }) {
   const [isDragActive, setIsDragActive] = React.useState(false);
   const isWorkspaceTask = scope === "workspace";
   const TaskIcon = taskIcons.find((currentIcon) => currentIcon.name === icon);
@@ -29,7 +31,7 @@ function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: 
           setIsDragActive(true);
           onDragStart(event, taskData);
         }}
-        tabIndex="0"
+        tabIndex={0}
         title={name}
       >
         <div className={styles.columnContainer}>

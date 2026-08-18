@@ -8,14 +8,17 @@ import styles from "./Parameters.module.scss";
 import WorkflowPropertiesModal from "./PropertiesModal";
 import WorkflowCloseButton from "./WorkflowCloseButton";
 
-function formatDefaultValue({ type, value }: { type?: string; value?: string }) {
+function formatDefaultValue({ type, value }: { type?: string; value?: DataDrivenInput["default"] }) {
   if (!value) {
     return "---";
-  } else if (type === InputType.Password) {
-    return stringToPassword(value);
-  } else {
-    return value;
   }
+  if (typeof value !== "string") {
+    return Array.isArray(value) ? value.map((item) => (typeof item === "string" ? item : `${item.key}=${item.value}`)).join(", ") : JSON.stringify(value);
+  }
+  if (type === InputType.Password) {
+    return stringToPassword(value);
+  }
+  return value;
 }
 
 interface WorkflowPropertyRowProps {
@@ -82,7 +85,10 @@ function Parameters({ workflow, handleUpdateParams }: ParametersProps) {
   };
 
   const { config } = workflow;
-  const paramKeys = config && config.length > 0 ? config.map((input: DataDrivenInput) => input.key) : [];
+  const paramKeys =
+    config && config.length > 0
+      ? config.map((input: DataDrivenInput) => input.key).filter((key): key is string => key !== undefined)
+      : [];
 
   return (
     <div aria-label="Parameters" className={styles.container} role="region">
