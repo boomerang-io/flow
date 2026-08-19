@@ -6,7 +6,7 @@ import { sortByProp } from "@boomerang-io/utils";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useHistory, useLocation, useRouteMatch } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useWorkspaceContext, useQuery } from "Hooks";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions } from "Config/appConfig";
@@ -27,9 +27,8 @@ const DEFAULT_TO_DATE = moment().endOf("day").valueOf();
 
 function WorkflowActivity() {
   const { workspace } = useWorkspaceContext();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
-  const match = useRouteMatch();
 
   const workflowRunCountQuery = queryString.stringify({
     fromDate: moment().startOf("day").valueOf(),
@@ -94,7 +93,7 @@ function WorkflowActivity() {
     ...props
   }) => {
     const queryStr = `?${queryString.stringify({ order, page, limit, sort, ...props }, queryStringOptions)}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
     return;
   };
 
@@ -279,10 +278,9 @@ function WorkflowActivity() {
               </DatePicker>
             </div>
             <ActivityTable
-              history={history}
+              navigate={navigate}
               isLoading={wfRunQuery.isLoading}
               location={location}
-              match={match}
               tableData={wfRunQuery.data}
               sort={sort}
               order={order}

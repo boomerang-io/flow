@@ -1,5 +1,6 @@
 //@ts-nocheck
 import React from "react";
+import cx from "classnames";
 import { NavLink } from "react-router-dom";
 import styles from "./Tab.module.scss";
 
@@ -11,7 +12,7 @@ type Props = {
 
 const Tab = ({ isActive, label, ...rest }: Props) => {
   return (
-    <NavLink className={styles.tab} activeClassName={isActive ? styles.activeTab : undefined} {...rest}>
+    <NavLink className={({ isActive: routeIsActive }) => cx(styles.tab, { [styles.activeTab]: isActive && routeIsActive })} {...rest}>
       {label}
     </NavLink>
   );

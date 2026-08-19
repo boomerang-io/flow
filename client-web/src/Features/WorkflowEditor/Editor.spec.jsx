@@ -21,9 +21,7 @@ afterEach(() => {
 describe("Editor --- Snapshot", () => {
   it("Capturing Snapshot of Editor", async () => {
     const { baseElement } = rtlContextRouterRender(
-      <Route path={AppPath.EditorCanvas}>
-        <Editor />
-      </Route>,
+      <Route path={`${AppPath.Editor}/*`} element={<Editor />} />,
       { route: appLink.editorCanvas({ workflowId: "5eb2c4085a92d80001a16d87" }) }
     );
     await screen.findByText("Editor");

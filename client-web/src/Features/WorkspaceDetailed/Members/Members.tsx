@@ -116,10 +116,8 @@ const Members: React.FC<MemberProps> = ({ canEdit, workspace, user, workspaceDet
                   <StructuredListCell>
                     <Link
                       className={styles.viewMemberLink}
-                      to={{
-                        pathname: appLink.user({ userId: member.id ?? "" }),
-                        state: { fromWorkspace: workspace.name },
-                      }}
+                      to={appLink.user({ userId: member.id ?? "" })}
+                      state={{ fromWorkspace: workspace.name }}
                     >
                       View user
                     </Link>

@@ -6,7 +6,7 @@ import { useFeature } from "flagged";
 import { matchSorter } from "match-sorter";
 import queryString from "query-string";
 import { useQuery } from "react-query";
-import { useHistory, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import CreateWorkflow from "Components/CreateWorkflow";
 import EmptyState from "Components/EmptyState";
 import WorkflowCard from "Components/WorkflowCard";
@@ -22,7 +22,7 @@ import styles from "./workflows.module.scss";
 
 export default function Workflows() {
   const { workspace } = useWorkspaceContext();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({
@@ -36,7 +36,7 @@ export default function Workflows() {
 
   /** Check if there is an active workspace or redirect to home */
   if (!workspace) {
-    history.push(appLink.home());
+    navigate(appLink.home());
     return null;
   }
 
@@ -46,7 +46,7 @@ export default function Workflows() {
 
   const handleUpdateFilter = (args: { query: string }) => {
     const queryStr = `?${queryString.stringify(args, { arrayFormat: "comma", skipEmptyString: true })}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
   };
 
   let safeSearchQuery = "";

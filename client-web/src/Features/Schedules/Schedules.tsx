@@ -11,7 +11,7 @@ import moment from "moment-timezone";
 import queryString from "query-string";
 import type { SlotInfo } from "react-big-calendar";
 import { useQuery } from "react-query";
-import { useHistory, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import Calendar from "Components/ScheduleCalendar";
 import ScheduleCreator from "Components/ScheduleCreator";
 import ScheduleEditor from "Components/ScheduleEditor";
@@ -83,7 +83,7 @@ const defaultFromDate = moment().startOf("month").unix();
 const defaultToDate = moment().endOf("month").unix();
 
 export default function Schedules() {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   const { workspace } = useWorkspaceContext();
   const [activeSchedule, setActiveSchedule] = React.useState<ScheduleUnion | undefined>();
@@ -154,7 +154,7 @@ export default function Schedules() {
 
   function updateHistorySearch({ ...props }) {
     const queryStr = `?${queryString.stringify({ ...props }, queryStringOptions)}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
     return;
   }
 

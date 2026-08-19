@@ -15,7 +15,7 @@ import { FlowWorkspace } from "Types";
 // route param and re-fetches (and re-provides fresh context) whenever navigation changes it -
 // e.g. after a rename that pushes to a new `:workspace` slug.
 function WorkspaceContainer({ children }: { children: React.ReactNode }) {
-  const { workspace }: { workspace: string } = useParams();
+  const { workspace = "" } = useParams<{ workspace: string }>();
   const workspaceQuery = useQuery<FlowWorkspace>(serviceUrl.resourceWorkspace({ workspace }));
 
   if (!workspaceQuery.data) return null;
@@ -36,11 +36,14 @@ afterEach(() => {
 describe("WorkspaceDetailed --- Snapshot Test", () => {
   it("Capturing Snapshot of WorkspaceDetailed", async () => {
     const { baseElement } = rtlContextRouterRender(
-      <Route path={AppPath.ManageWorkspace}>
-        <WorkspaceContainer>
-          <WorkspaceDetailed />
-        </WorkspaceContainer>
-      </Route>,
+      <Route
+        path={`${AppPath.ManageWorkspace}/*`}
+        element={
+          <WorkspaceContainer>
+            <WorkspaceDetailed />
+          </WorkspaceContainer>
+        }
+      />,
       { route: appLink.manageWorkspace({ workspace: workspaceFixture.name }) }
     );
     await screen.findByText("These are the people who have access to this Workspace.");
@@ -51,11 +54,14 @@ describe("WorkspaceDetailed --- Snapshot Test", () => {
 describe("WorkspaceDetailed --- RTL", () => {
   test("Visit Workspace Details tabs", async () => {
     rtlContextRouterRender(
-      <Route path={AppPath.ManageWorkspace}>
-        <WorkspaceContainer>
-          <WorkspaceDetailed />
-        </WorkspaceContainer>
-      </Route>,
+      <Route
+        path={`${AppPath.ManageWorkspace}/*`}
+        element={
+          <WorkspaceContainer>
+            <WorkspaceDetailed />
+          </WorkspaceContainer>
+        }
+      />,
       { route: appLink.manageWorkspace({ workspace: workspaceFixture.name }) }
     );
     //Members tab

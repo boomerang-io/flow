@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronLeft, ChevronRight, PageFirst, PageLast } from "@carbon/react/icons";
 import cx from "classnames";
-import { useHistory, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { Task } from "Types";
 import styles from "./VersionSwitcher.module.scss";
@@ -13,10 +13,11 @@ interface VersionSwitcherProps {
 }
 
 const VersionSwitcher: React.FC<VersionSwitcherProps> = ({ selectedTaskTemplate, versionCount, canEdit }) => {
-  const history = useHistory();
-  const params: { name: string; workspace: string } = useParams();
+  const navigate = useNavigate();
+  const rawParams = useParams<{ name: string; workspace: string }>();
+  const params = { name: rawParams.name ?? "", workspace: rawParams.workspace ?? "" };
   const backVersion = () => {
-    history.push(
+    navigate(
       params.workspace
         ? appLink.manageTasksEdit({
             workspace: params.workspace,
@@ -31,7 +32,7 @@ const VersionSwitcher: React.FC<VersionSwitcherProps> = ({ selectedTaskTemplate,
   };
 
   const fastBackVersion = () => {
-    history.push(
+    navigate(
       params.workspace
         ? appLink.manageTasksEdit({ workspace: params.workspace, name: params.name, version: "1" })
         : appLink.adminTasksDetail({
@@ -42,7 +43,7 @@ const VersionSwitcher: React.FC<VersionSwitcherProps> = ({ selectedTaskTemplate,
   };
 
   const forwardVersion = () => {
-    history.push(
+    navigate(
       params.workspace
         ? appLink.manageTasksEdit({
             workspace: params.workspace,
@@ -57,7 +58,7 @@ const VersionSwitcher: React.FC<VersionSwitcherProps> = ({ selectedTaskTemplate,
   };
 
   const fastForwardVersion = () => {
-    history.push(
+    navigate(
       params.workspace
         ? appLink.manageTasksEdit({ workspace: params.workspace, name: params.name, version: "" + versionCount })
         : appLink.adminTasksDetail({

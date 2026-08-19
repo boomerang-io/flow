@@ -27,7 +27,8 @@ function DesignerContainer(props: DesignerContainerProps) {
   const params = useParams<{ workspace: string; workflow: string }>();
 
   const location = useLocation();
-  const isOnDesignerPath = appLink.editorCanvas({ workspace: params.workspace, workflow: params.workflow }) === location.pathname;
+  const isOnDesignerPath =
+    appLink.editorCanvas({ workspace: params.workspace ?? "", workflow: params.workflow ?? "" }) === location.pathname;
 
   return (
     <div className={cx(styles.container, { [styles.hidden]: !isOnDesignerPath })}>

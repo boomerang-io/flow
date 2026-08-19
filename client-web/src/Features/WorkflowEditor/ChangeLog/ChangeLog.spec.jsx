@@ -25,9 +25,7 @@ const props = {
 describe("ChangeLog --- Snapshot Test", () => {
   it("Capturing Snapshot of ChangeLog", async () => {
     const { baseElement } = rtlContextRouterRender(
-      <Route path={AppPath.EditorChangelog}>
-        <ChangeLog {...props} />
-      </Route>,
+      <Route path={AppPath.EditorChangelog} element={<ChangeLog {...props} />} />,
       { route: appLink.editorChangelog({ workflowId: "5eb2c4085a92d80001a16d87" }) }
     );
     await screen.findByText("hello sir");

@@ -9,7 +9,7 @@ import kebabcase from "lodash/kebabCase";
 import sortBy from "lodash/sortBy";
 import queryString from "query-string";
 import { useMutation, useQueryClient } from "react-query";
-import { useHistory, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import HomeBanner from "Components/HomeBanner";
 import LearnCard from "Components/LearnCard";
 import WorkspaceCard from "Components/WorkspaceCard";
@@ -24,7 +24,7 @@ export default function Home() {
   const { workspaces, name, user, workflowTemplates } = useAppContext();
   const queryClient = useQueryClient();
   const location = useLocation();
-  const history = useHistory();
+  const navigate = useNavigate();
   const { action, workspaceName } = queryString.parse(location.search);
 
   const createWorkspaceMutator = useMutation(resolver.postWorkspace);
@@ -61,7 +61,7 @@ export default function Home() {
     if (action === "create-workspace" && typeof workspaceName === "string" && Boolean(workspaceName)) {
       async function runCreateWorkspace() {
         await createWorkspace({ name: workspaceName as string }, () =>
-          history.replace({ pathname: location.pathname, search: "" }),
+          navigate({ pathname: location.pathname, search: "" }, { replace: true }),
         );
       }
 

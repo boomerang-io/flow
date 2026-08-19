@@ -1,6 +1,6 @@
 import { Loading } from "@carbon/react";
 import queryString from "query-string";
-import { useHistory, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import CreateWorkflowTemplate from "Components/CreateWorkflowTemplate";
 import EmptyState from "Components/EmptyState";
 import ErrorDragon from "Components/ErrorDragon";
@@ -13,7 +13,7 @@ import { Workflow } from "Types";
 import styles from "./TemplateWorkflows.module.scss";
 
 export default function TemplateWorkflows() {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   let { query: searchQuery = "" } = queryString.parse(location.search, {
     arrayFormat: "comma",
@@ -37,7 +37,7 @@ export default function TemplateWorkflows() {
       { arrayFormat: "comma", skipEmptyString: true },
     )}`;
 
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
   };
 
   const filteredWorkflows =

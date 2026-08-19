@@ -16,7 +16,7 @@ import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
 import cloneDeep from "lodash/cloneDeep";
 import { useMutation, useQueryClient } from "react-query";
-import { Link, useHistory } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 // @ts-ignore:next-line
 import { swapValue } from "Utils";
@@ -45,7 +45,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const [errorMessage, seterrorMessage] = useState<{ title: string; message: string } | null>(null);
 
   const { mutateAsync: deleteWorkflowMutator, isLoading: isDeleting } = useMutation(resolver.deleteWorkflow, {});
@@ -163,8 +163,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         />,
       );
       if (redirect) {
-        history.push({
-          pathname: appLink.execution({ workspace: workspaceName, runId: execution.id }),
+        navigate(appLink.execution({ workspace: workspaceName, runId: execution.id }), {
           state: { fromUrl: appLink.workflows({ workspace: workspaceName }), fromText: `${viewType}s` },
         });
       } else {
@@ -196,11 +195,11 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   let menuOptions = [
     {
       itemText: "Edit",
-      onClick: () => history.push(appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name })),
+      onClick: () => navigate(appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name })),
     },
     {
       itemText: "View Activity",
-      onClick: () => history.push(appLink.workflowActivity({ workspace: workspaceName, workflow: workflow.name })),
+      onClick: () => navigate(appLink.workflowActivity({ workspace: workspaceName, workflow: workflow.name })),
     },
     {
       itemText: "Update",

@@ -4,7 +4,7 @@ import { Button } from "@carbon/react";
 import { Add } from "@carbon/react/icons";
 import { notify, ToastNotification, ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useMutation, useQueryClient } from "react-query";
-import { useHistory, useParams } from "react-router-dom";
+import { NavigateFunction, useParams } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { resolver } from "Config/servicesConfig";
 import AddTaskTemplateForm from "./AddTaskTemplateForm";
@@ -12,11 +12,11 @@ import styles from "./addTaskTemplate.module.scss";
 
 interface AddTaskTemplateProps {
   taskNames: Array<string>;
-  history: ReturnType<typeof useHistory>;
+  navigate: NavigateFunction;
   getTaskTemplatesUrl: string;
 }
 
-function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTemplateProps) {
+function AddTaskTemplate({ taskNames, navigate, getTaskTemplatesUrl }: AddTaskTemplateProps) {
   const params = useParams();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isSubmitError, setIsSubmitError] = React.useState(false);
@@ -45,7 +45,7 @@ function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTem
           data-testid="create-task-template-notification"
         />,
       );
-      history.push(
+      navigate(
         params.workspace
           ? appLink.manageTasksEdit({
               workspace: params.workspace,
@@ -95,7 +95,7 @@ function AddTaskTemplate({ taskNames, history, getTaskTemplatesUrl }: AddTaskTem
           data-testid="import-task-template-notification"
         />,
       );
-      history.push(
+      navigate(
         params.workspace
           ? appLink.manageTasksEdit({
               workspace: params.workspace,

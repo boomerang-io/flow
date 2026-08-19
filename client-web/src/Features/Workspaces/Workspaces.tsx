@@ -11,7 +11,7 @@ import { Button, DataTable, DataTableSkeleton, Pagination, Search } from "@carbo
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import React from "react";
 import { Helmet } from "react-helmet";
-import { useHistory, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import debounce from "lodash/debounce";
@@ -67,7 +67,7 @@ const DEFAULT_SORT = "name";
 const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
 
 const WorkspaceList: React.FC = () => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAppContext();
   const queryClient = useQueryClient();
@@ -138,7 +138,7 @@ const WorkspaceList: React.FC = () => {
     ...props
   }) {
     const queryStr = `?${queryString.stringify({ order, page, limit, sort, ...props })}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
     return;
   }
   // eslint-disable-next-line
@@ -155,8 +155,7 @@ const WorkspaceList: React.FC = () => {
   }
 
   function handleNavigateToWorkspace(workspace: string) {
-    history.push({
-      pathname: appLink.manageWorkspace({ workspace }),
+    navigate(appLink.manageWorkspace({ workspace }), {
       state: {
         navList: [
           {

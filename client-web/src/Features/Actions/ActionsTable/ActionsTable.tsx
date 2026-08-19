@@ -17,7 +17,6 @@ import ManualTask from "./ManualTask";
 
 interface ActionsTableProps {
   actionsQueryToRefetch: string;
-  history: any;
   isLoading: boolean;
   location: any;
   tableData: {

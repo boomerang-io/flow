@@ -5,7 +5,7 @@ import { Run, Bee, CircleFill, InformationFilled, Template, Add } from "@carbon/
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import workflowIcons from "Assets/workflowIcons";
 import { useMutation, useQueryClient } from "react-query";
-import { Link, useHistory } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { FlowWorkspaceSummary, ModalTriggerProps, WorkflowTemplate } from "Types";
@@ -18,7 +18,7 @@ interface WorkflowTemplateCardProps {
 }
 
 const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, workspaces }) => {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const {
     mutateAsync: createTemplateWorkflowMutator,
@@ -36,7 +36,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, w
         workspace: workspace,
         body: data,
       });
-      history.push(appLink.editorCanvas({ workspace: workspace, workflow: workflow.name }));
+      navigate(appLink.editorCanvas({ workspace: workspace, workflow: workflow.name }));
       notify(
         <ToastNotification
           kind="success"

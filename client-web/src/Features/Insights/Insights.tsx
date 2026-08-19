@@ -18,7 +18,7 @@ import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
-import { useHistory, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import ErrorDragon from "Components/ErrorDragon";
 import { useWorkspaceContext } from "Hooks";
 import { timeSecondsToTimeUnit } from "Utils/timeSecondsToTimeUnit";
@@ -105,7 +105,7 @@ function sortItemsBySelection<Item>(
 
 export default function Insights() {
   const { workspace } = useWorkspaceContext();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   /**
@@ -136,7 +136,7 @@ export default function Insights() {
 
   function updateHistorySearch({ ...props }) {
     const queryStr = `?${queryString.stringify({ ...props }, queryStringOptions)}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
     return;
   }
 

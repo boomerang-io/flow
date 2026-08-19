@@ -1,5 +1,5 @@
 import React from "react";
-import { useHistory, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "react-query";
 import { Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
@@ -18,7 +18,7 @@ import styles from "./integrations.module.scss";
 
 export default function Integrations() {
   const { workspace } = useWorkspaceContext();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const getIntegrationsUrl = serviceUrl.getIntegrations({ workspace: workspace?.name });
   const integrationsQuery = useQuery<Array<Integration>, string>({
@@ -28,7 +28,7 @@ export default function Integrations() {
 
   // TODO: make this smarter bc we shouldn't get to the route without an active workspace
   if (!workspace) {
-    history.push(appLink.home());
+    navigate(appLink.home());
     return null;
   }
 

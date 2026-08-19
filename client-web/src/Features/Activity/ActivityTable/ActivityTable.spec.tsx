@@ -6,11 +6,8 @@ const props = {
   sort: "",
   order: "ASC",
   tableData: { number: 0, size: 10, sort: "asc", totalElements: 10, content: [] },
-  match: {
-    params: "testid",
-  },
   location: {},
-  history: {},
+  navigate: vi.fn(),
   updateHistorySearch: vi.fn(),
   workflowNameMap: {},
 };

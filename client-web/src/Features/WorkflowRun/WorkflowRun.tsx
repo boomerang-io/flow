@@ -3,7 +3,7 @@ import { ErrorMessage, Loading } from "@boomerang-io/carbon-addons-boomerang-rea
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useQueryClient } from "react-query";
-import { useHistory, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import type { ReactFlowInstance } from "reactflow";
 import { Box } from "reflexbox";
 import ReactFlow from "Features/Reactflow";
@@ -22,8 +22,9 @@ import styles from "./WorkflowRun.module.scss";
 export default function WorkflowRunFeature() {
   const { workspace } = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const history = useHistory();
-  const params = useParams<{ workspace: string; workflow: string; runId: string }>();
+  const navigate = useNavigate();
+  const rawParams = useParams<{ workspace: string; workflow: string; runId: string }>();
+  const params = { workspace: rawParams.workspace ?? "", workflow: rawParams.workflow ?? "", runId: rawParams.runId ?? "" };
   const getTasksUrl = serviceUrl.task.queryTasks({
     query: queryString.stringify({ statuses: "active" }),
   });
@@ -35,7 +36,7 @@ export default function WorkflowRunFeature() {
 
   function executionViewRedirect({ workflowRunRef }: { workflowRunRef: string }) {
     queryClient.invalidateQueries(getExecutionUrl);
-    history.push(
+    navigate(
       appLink.execution({
         workspace: workspace.name,
         runId: workflowRunRef,

@@ -10,7 +10,7 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import sortBy from "lodash/sortBy";
 import { matchSorter } from "match-sorter";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { taskIcons } from "Utils/taskIcons";
 import { TaskTemplateStatus } from "Constants";
 import { appLink } from "Config/appConfig";
@@ -37,7 +37,7 @@ interface SideInfoProps {
 }
 
 const SideInfo: React.FC<SideInfoProps> = ({ workspace, isLoading, tasks, getTaskTemplatesUrl }) => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const [activeFilters, setActiveFilters] = React.useState<Array<string>>([]);
   const [openCategories, setOpenCategories] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -121,7 +121,7 @@ const SideInfo: React.FC<SideInfoProps> = ({ workspace, isLoading, tasks, getTas
             <p className={styles.existingTasks}>{`Existing Tasks (${tasks?.length})`}</p>
             <AddTaskTemplate
               taskNames={distinctTaskNames}
-              history={history}
+              navigate={navigate}
               getTaskTemplatesUrl={getTaskTemplatesUrl}
             />
           </div>

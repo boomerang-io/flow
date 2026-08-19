@@ -14,7 +14,7 @@ import { capitalize } from "lodash";
 import moment from "moment";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { useMutation, useQueryClient } from "react-query";
-import { Link, useHistory, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem/OutputPropertiesLog";
 import ErrorModal from "Components/ErrorModal";
 import { useAppContext, useWorkspaceContext } from "Hooks";
@@ -38,8 +38,8 @@ const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
 export default function RunHeader({ workflow, workflowRun, version, executionViewRedirect }: Props) {
   const { workspace } = useWorkspaceContext();
   const { user } = useAppContext();
-  const history = useHistory<{ fromUrl: string; fromText: string }>();
-  const state = history.location.state;
+  const location = useLocation();
+  const state: { fromUrl: string; fromText: string } | null = location.state;
   const queryClient = useQueryClient();
 
   const { initiatedByRef, trigger, creationDate, status, phase, paused, id } = workflowRun;

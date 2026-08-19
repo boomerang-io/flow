@@ -5,17 +5,16 @@ import { getHumanizedDuration, isAccessibleKeyboardEvent } from "@boomerang-io/u
 import cx from "classnames";
 import moment from "moment";
 import queryString from "query-string";
-import { useParams } from "react-router-dom";
+import { useParams, NavigateFunction } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
 import { appLink } from "Config/appConfig";
 import styles from "./activityTable.module.scss";
 
 interface ActivityTableProps {
-  history: object;
+  navigate: NavigateFunction;
   isLoading: boolean;
   location: object;
-  match: object;
   tableData: {
     number: number;
     size: number;
@@ -91,9 +90,8 @@ function ActivityTable(props: ActivityTableProps) {
 
   function executionViewRedirect(activityId) {
     const activity = props.tableData.content.find((activity) => activity.id === activityId);
-    props.history.push({
-      pathname: appLink.execution({ workspace, runId: activity.id }),
-      state: { fromUrl: `${props.match.url}${props.location.search}`, fromText: "Activity" },
+    props.navigate(appLink.execution({ workspace, runId: activity.id }), {
+      state: { fromUrl: `${props.location.pathname}${props.location.search}`, fromText: "Activity" },
     });
   }
 

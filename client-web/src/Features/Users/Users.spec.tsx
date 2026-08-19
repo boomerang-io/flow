@@ -18,9 +18,7 @@ afterEach(() => {
 describe("Users --- Snapshot Test", () => {
   it("Capturing Snapshot of Users", async () => {
     const { baseElement } = global.rtlContextRouterRender(
-      <Route path={AppPath.UserList}>
-        <Users />
-      </Route>,
+      <Route path={`${AppPath.UserList}/*`} element={<Users />} />,
       { route: appLink.userList() }
     );
     await screen.findByText("Tim Bula");
@@ -31,12 +29,9 @@ describe("Users --- Snapshot Test", () => {
 
 describe("Users --- RTL", () => {
   test("Change user role", async () => {
-    global.rtlContextRouterRender(
-      <Route path={AppPath.UserList}>
-        <Users />
-      </Route>,
-      { route: appLink.userList() }
-    );
+    global.rtlContextRouterRender(<Route path={`${AppPath.UserList}/*`} element={<Users />} />, {
+      route: appLink.userList(),
+    });
     await screen.findByText(/^View and manage users$/i);
     fireEvent.click(await screen.findByText(/^Tim Bula$/i));
     expect(await screen.findByText(/^These are Tim Bula's workspaces/i)).toBeInTheDocument();
@@ -50,12 +45,9 @@ describe("Users --- RTL", () => {
   });
 
   test("View user details", async () => {
-    global.rtlContextRouterRender(
-      <Route path={AppPath.UserList}>
-        <Users />
-      </Route>,
-      { route: appLink.userList() }
-    );
+    global.rtlContextRouterRender(<Route path={`${AppPath.UserList}/*`} element={<Users />} />, {
+      route: appLink.userList(),
+    });
     await screen.findByText(/^View and manage users$/i);
     fireEvent.click(await screen.findByText(/^Tim Bula$/i));
     expect(await screen.findByText(/^These are Tim Bula's workspaces/i)).toBeInTheDocument();

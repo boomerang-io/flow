@@ -4,7 +4,7 @@ import { ComposedModal, notify, ToastNotification, TooltipHover } from "@boomera
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import { useMutation, useQueryClient } from "react-query";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
@@ -22,7 +22,7 @@ interface CreateWorkflowProps {
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {
   const queryClient = useQueryClient();
-  const history = useHistory();
+  const navigate = useNavigate();
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
 
   const createWorkflowMutator = useMutation(resolver.postCreateWorkflow);
@@ -39,7 +39,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
           : await createTemplateMutator.mutateAsync({
               body: workflowSummary,
             });
-      history.push(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
+      navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
       notify(
         <ToastNotification kind="success" title={`Create ${viewType}`} subtitle={`${viewType} successfully created`} />,
       );
@@ -67,7 +67,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
           : await createTemplateMutator.mutateAsync({
               body: workflow,
             });
-      history.push(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
+      navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
       notify(
         <ToastNotification
           kind="success"

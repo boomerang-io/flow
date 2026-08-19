@@ -19,9 +19,7 @@ afterEach(() => {
 describe("Workspaces --- Snapshot Test", () => {
   it("Capturing Snapshot of Workspaces", async () => {
     const { baseElement } = global.rtlContextRouterRender(
-      <Route path={AppPath.WorkspaceList}>
-        <Workspaces />
-      </Route>,
+      <Route path={AppPath.WorkspaceList} element={<Workspaces />} />,
       { route: appLink.workspaceList() }
     );
     await screen.findByText("Tyson Workspace");
@@ -31,12 +29,9 @@ describe("Workspaces --- Snapshot Test", () => {
 
 describe("Workspaces --- RTL", () => {
   test("Create new workspace", async () => {
-    global.rtlContextRouterRender(
-      <Route path={AppPath.WorkspaceList}>
-        <Workspaces />
-      </Route>,
-      { route: appLink.workspaceList() }
-    );
+    global.rtlContextRouterRender(<Route path={AppPath.WorkspaceList} element={<Workspaces />} />, {
+      route: appLink.workspaceList(),
+    });
     const createWorkspaceButton = await screen.findByText(/^Create Workspace$/i);
     fireEvent.click(createWorkspaceButton);
     expect(screen.getByText(/^Scope your workflows and parameters to a workspace$/i)).toBeInTheDocument();

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Helmet } from "react-helmet";
 import { useMutation, useQueryClient } from "react-query";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { InlineNotification, Button } from "@carbon/react";
 import {
   ConfirmModal,
@@ -35,7 +35,7 @@ interface Label {
 export default function Settings({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
   const [copyTokenText, setCopyTokenText] = useState("Copy");
   const queryClient = useQueryClient();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const patchWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace); 
   const deleteWorkspaceMutator = useMutation(resolver.deleteWorkspace); 
@@ -44,7 +44,7 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
     try {
       await deleteWorkspaceMutator.mutateAsync({ workspace: workspace.name });
       queryClient.invalidateQueries(serviceUrl.getUserProfile());
-      history.push(appLink.home());
+      navigate(appLink.home());
       notify(
         <ToastNotification
           title="Delete Workspace"

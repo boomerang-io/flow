@@ -11,7 +11,7 @@ import { formatErrorMessage } from "@boomerang-io/utils";
 import { paramCase } from "change-case";
 import { Helmet } from "react-helmet";
 import { useMutation, useQueryClient } from "react-query";
-import { useHistory, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { resolver, serviceUrl } from "Config/servicesConfig";
@@ -19,7 +19,7 @@ import { DataDrivenInput } from "Types";
 import ParametersTable from "../ParametersTable";
 
 function WorkspaceParameters() {
-  const history = useHistory();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { workspace } = useWorkspaceContext();
 
@@ -96,7 +96,7 @@ function WorkspaceParameters() {
 
   /** Check if there is an active workspace or redirect to home */
   if (!workspace) {
-    history.push(appLink.home());
+    navigate(appLink.home());
     return null;
   }
 

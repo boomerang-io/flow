@@ -87,10 +87,8 @@ function Workflows({ workspace }: { workspace: FlowWorkspace }) {
                   <StructuredListCell>
                     <Link
                       className={styles.viewWorkflowLink}
-                      to={{
-                        pathname: appLink.editorCanvas({ workspace: workspace.name, workflow: workflow.name }),
-                        state: { fromWorkspace: workspace.name },
-                      }}
+                      to={appLink.editorCanvas({ workspace: workspace.name, workflow: workflow.name })}
+                      state={{ fromWorkspace: workspace.name }}
                     >
                       View/edit
                     </Link>
@@ -101,8 +99,8 @@ function Workflows({ workspace }: { workspace: FlowWorkspace }) {
                       to={{
                         pathname: appLink.activity({ workspace: workspace.name }),
                         search: queryString.stringify({ page: 0, size: 10, workflows: workflow.name }),
-                        state: { fromWorkspace: workspace.name },
                       }}
+                      state={{ fromWorkspace: workspace.name }}
                     >
                       Activity
                     </Link>

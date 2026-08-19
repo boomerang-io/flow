@@ -45,7 +45,8 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
   revisionState,
   viewType,
 }) => {
-  const params = useParams<{ workspace: string; workflow: string }>();
+  const rawParams = useParams<{ workspace: string; workflow: string }>();
+  const params = { workspace: rawParams.workspace ?? "", workflow: rawParams.workflow ?? "" };
   const { displayName } = revisionState;
   const { version: currentRevision } = revisionState;
   const isPreviousVersion = currentRevision < revisionCount;

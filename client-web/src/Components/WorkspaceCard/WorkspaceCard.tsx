@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { Link, useHistory } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import { appLink } from "Config/appConfig";
@@ -17,7 +17,7 @@ interface WorkspaceCardProps {
 const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const queryClient = useQueryClient();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const leaveWorkspaceMutator = useMutation(resolver.leaveWorkspace);
   const handleLeaveWorkspace = async () => {
@@ -35,19 +35,19 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
   let menuOptions = [
     {
       itemText: "View Workflows",
-      onClick: () => history.push(appLink.workflows({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.workflows({ workspace: workspace.name })),
     },
     {
       itemText: "View Actions",
-      onClick: () => history.push(appLink.actions({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.actions({ workspace: workspace.name })),
     },
     {
       itemText: "View Activity",
-      onClick: () => history.push(appLink.activity({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.activity({ workspace: workspace.name })),
     },
     {
       itemText: "Manage Workspace",
-      onClick: () => history.push(appLink.manageWorkspace({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.manageWorkspace({ workspace: workspace.name })),
     },
     {
       hasDivider: true,

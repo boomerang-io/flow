@@ -1,7 +1,7 @@
 import React from "react";
 import { useQueryClient, useMutation } from "react-query";
 import { Formik } from "formik";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
 import {
   notify,
@@ -24,7 +24,7 @@ interface UpdateWorkspaceNameProps {
 
 const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, workspace }) => {
   const queryClient = useQueryClient();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const validateWorkspaceNameMutator = useMutation(resolver.postWorkspaceValidateName);
   const updateWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
@@ -39,7 +39,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
         },
       });
       queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: newWorkspaceName }));
-      history.push(appLink.manageWorkspaceSettings({ workspace: newWorkspaceName }));
+      navigate(appLink.manageWorkspaceSettings({ workspace: newWorkspaceName }));
       notify(
         <ToastNotification kind="success" title="Update Workspace Settings" subtitle="Workspace settings successfully updated" />
       );
