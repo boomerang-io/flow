@@ -28,7 +28,7 @@ import { Controlled as CodeMirrorReact } from "react-codemirror2";
 import { Helmet } from "react-helmet";
 import ReactMarkdown from "react-markdown";
 import { useMutation, useQueryClient } from "react-query";
-import { useParams, useHistory, Prompt, matchPath } from "react-router-dom";
+import { useParams, useNavigate, useBlocker, matchPath } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { useQuery } from "Hooks";
 import { TaskTemplateStatus } from "Constants";
@@ -46,6 +46,25 @@ type TaskYamlEditorProps = {
   getTaskTemplatesUrl: string;
 };
 
+// useBlocker must be called from its own component so it keeps a stable hook position
+// regardless of how Formik invokes the surrounding render-prop function.
+function TaskTemplateEditorBlocker({ getBlockMessage }: { getBlockMessage: (pathname: string) => string | null }) {
+  const blocker = useBlocker(({ nextLocation }) => getBlockMessage(nextLocation.pathname) !== null);
+
+  React.useEffect(() => {
+    if (blocker.state === "blocked") {
+      const message = getBlockMessage(blocker.location.pathname) ?? "Are you sure you want to leave? You have unsaved changes.";
+      if (window.confirm(message)) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker, getBlockMessage]);
+
+  return null;
+}
+
 export function TaskTemplateYamlEditor({
   taskTemplates,
   editVerifiedTasksEnabled,
@@ -55,7 +74,7 @@ export function TaskTemplateYamlEditor({
   const queryClient = useQueryClient();
 
   const params = useParams();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const [docOpen, setDocOpen] = useState(true);
 
@@ -163,7 +182,7 @@ export function TaskTemplateYamlEditor({
         />,
       );
       resetForm();
-      history.push(
+      navigate(
         params.workspace
           ? appLink.manageTasksEdit({
               workspace: params.workspace,
@@ -318,26 +337,27 @@ export function TaskTemplateYamlEditor({
       {(formikProps) => {
         const { setFieldValue, values, dirty: isDirty, isSubmitting } = formikProps;
 
+        // Same in-app "leave without saving" guard as before, ported from v5's <Prompt> to
+        // v6/v7's useBlocker (requires the data router set up in Root.tsx). Returns the
+        // confirm-dialog message to show for a given target pathname, or null to navigate
+        // through unprompted.
+        function getBlockMessage(pathname: string) {
+          const templateMatch = matchPath({ path: AppPath.TaskTemplateDetail }, pathname);
+          if (isDirty && !pathname.includes(templateMatch?.params?.id) && !isSubmitting) {
+            return "Are you sure you want to leave? You have unsaved changes.";
+          }
+          if (isDirty && templateMatch?.params?.version !== selectedTaskTemplate.version && !isSubmitting) {
+            return "Are you sure you want to change the version? Your changes will be lost.";
+          }
+          return null;
+        }
+
         return (
           <div className={styles.container}>
             <Helmet>
               <title>{`Task manager - ${selectedTaskTemplate.name}`}</title>
             </Helmet>
-            <Prompt
-              message={(location) => {
-                let prompt = true;
-                const templateMatch = matchPath(location.pathname, {
-                  path: AppPath.TaskTemplateDetail,
-                });
-                if (isDirty && !location.pathname.includes(templateMatch?.params?.id) && !isSubmitting) {
-                  prompt = "Are you sure you want to leave? You have unsaved changes.";
-                }
-                if (isDirty && templateMatch?.params?.version !== selectedTaskTemplate.version && !isSubmitting) {
-                  prompt = "Are you sure you want to change the version? Your changes will be lost.";
-                }
-                return prompt;
-              }}
-            />
+            <TaskTemplateEditorBlocker getBlockMessage={getBlockMessage} />
             {applyTaskTemplateMutation.isLoading && <Loading />}
             <Header
               editVerifiedTasksEnabled={editVerifiedTasksEnabled}

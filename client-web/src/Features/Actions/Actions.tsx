@@ -24,7 +24,7 @@ import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
-import { Switch, Route, Redirect, useHistory, useLocation, Link } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useLocation, Link } from "react-router-dom";
 import HeaderWidget from "Components/HeaderWidget";
 import { useWorkspaceContext } from "Hooks";
 import { ActionType } from "Constants";
@@ -43,7 +43,7 @@ const DEFAULT_TO_DATE = moment(new Date()).unix();
 
 function Actions() {
   const { workspace } = useWorkspaceContext();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const summaryQuery = queryString.stringify({
@@ -168,7 +168,7 @@ function Actions() {
     ...props
   }) => {
     const queryStr = `?${queryString.stringify({ order, page, limit, sort, ...props }, queryStringOptions)}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
     return;
   };
 
@@ -238,19 +238,25 @@ function Actions() {
 
     return (
       <>
-        <Switch>
-          <Route exact path={AppPath.ActionsApprovals}>
-            <Helmet>
-              <title>Approval - Actions</title>
-            </Helmet>
-          </Route>
-          <Route exact path={AppPath.ActionsManual}>
-            <Helmet>
-              <title>Manual - Actions</title>
-            </Helmet>
-          </Route>
-          <Redirect exact from={AppPath.Actions} to={AppPath.ActionsApprovals} />
-        </Switch>
+        <Routes>
+          <Route
+            path="approvals"
+            element={
+              <Helmet>
+                <title>Approval - Actions</title>
+              </Helmet>
+            }
+          />
+          <Route
+            path="manual"
+            element={
+              <Helmet>
+                <title>Manual - Actions</title>
+              </Helmet>
+            }
+          />
+          <Route path="" element={<Navigate to={AppPath.ActionsApprovals} replace />} />
+        </Routes>
         <Header
           className={styles.header}
           includeBorder={false}
@@ -290,7 +296,7 @@ function Actions() {
           footer={
             <Tabs ariaLabel="Action types">
               <Tab
-                exact
+                end
                 label={`Approvals (${approvalsNumber})`}
                 to={{
                   pathname: appLink.actionsApprovals({ workspace: workspace.name }),
@@ -298,7 +304,7 @@ function Actions() {
                 }}
               />
               <Tab
-                exact
+                end
                 label={`Manual Tasks (${manualTasksNumber})`}
                 to={{
                   pathname: appLink.actionsManual({ workspace: workspace.name }),
@@ -375,7 +381,6 @@ function Actions() {
             </div>
             <ActionsTable
               actionsQueryToRefetch={actionsUrl}
-              history={history}
               isLoading={actionsQuery.isLoading}
               location={location}
               tableData={actionsQuery.data}

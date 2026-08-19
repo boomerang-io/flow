@@ -12,13 +12,13 @@ import debounce from "lodash/debounce";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useHistory, useLocation, Route, Switch } from "react-router-dom";
+import { useNavigate, useLocation, Route, Routes } from "react-router-dom";
 import { Box } from "reflexbox";
 import UserDetailed from "Features/UserDetailed";
 import EmptyState from "Components/EmptyState";
 import { useQuery } from "Hooks";
 import { CREATED_DATE_FORMAT } from "Constants";
-import { AppPath, appLink, queryStringOptions } from "Config/appConfig";
+import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { PaginatedUserResponse } from "Types";
 import styles from "./Users.module.scss";
@@ -31,14 +31,10 @@ const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
 
 const UsersContainer: React.FC = () => {
   return (
-    <Switch>
-      <Route path={AppPath.User}>
-        <UserDetailed />
-      </Route>
-      <Route path={AppPath.UserList}>
-        <UserList />
-      </Route>
-    </Switch>
+    <Routes>
+      <Route path=":userId/*" element={<UserDetailed />} />
+      <Route path="" element={<UserList />} />
+    </Routes>
   );
 };
 
@@ -75,7 +71,7 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
 };
 
 const UserList: React.FC = () => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const parsedQuery = queryString.parse(location.search, queryStringOptions);
@@ -100,7 +96,7 @@ const UserList: React.FC = () => {
   } = useQuery<PaginatedUserResponse, string>(usersUrl);
 
   function handleNavigateToUser(userId: string) {
-    history.push(appLink.user({ userId }));
+    navigate(appLink.user({ userId }));
   }
 
   /**
@@ -116,7 +112,7 @@ const UserList: React.FC = () => {
     ...props
   }) {
     const queryStr = `?${queryString.stringify({ order, page, size, sort, ...props })}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
   }
   // eslint-disable-next-line
   const debouncedSearch = React.useCallback(

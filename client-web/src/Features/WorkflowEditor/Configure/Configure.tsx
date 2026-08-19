@@ -16,7 +16,7 @@ import { Formik, FormikErrors, FormikProps, FieldArray } from "formik";
 import capitalize from "lodash/capitalize";
 import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
-import { Switch, Route, Redirect, useLocation, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
 import { useEditorContext, useWorkspaceContext } from "Hooks";
@@ -70,7 +70,8 @@ interface ConfigureContainerProps {
 
 function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) {
   const { workspace } = useWorkspaceContext();
-  const params = useParams<{ workspace: string; workflow: string }>();
+  const rawParams = useParams<{ workspace: string; workflow: string }>();
+  const params = { workspace: rawParams.workspace ?? "", workflow: rawParams.workflow ?? "" };
   const workflowTriggersEnabled = useFeature(FeatureFlag.WorkflowTriggersEnabled);
   const location = useLocation();
   const { workflowsQueryData } = useEditorContext();
@@ -232,8 +233,11 @@ function Configure(props: ConfigureProps) {
 
   return (
     <div aria-label="Configure" className={styles.wrapper} role="region">
-      <Switch>
-        <Route exact path={AppPath.EditorConfigureGeneral}>
+      <Routes>
+        <Route
+          path="configure/general"
+          element={
+            <>
           <Section title="Basic Information" description="The bare necessities - you gotta fill out all these fields">
             <TextInput
               id="name"
@@ -343,8 +347,13 @@ function Configure(props: ConfigureProps) {
               <CustomLabel formikPropsSetFieldValue={setFieldValue} labels={values.labels} />
             </div>
           </Section>
-        </Route>
-        <Route exact path={AppPath.EditorConfigureTriggers}>
+            </>
+          }
+        />
+        <Route
+          path="configure/triggers"
+          element={
+            <>
           {props.workflowTriggersEnabled && (
             <>
               <Section
@@ -681,8 +690,10 @@ function Configure(props: ConfigureProps) {
               </Section>
             </>
           )}
-        </Route>
-        {/* <Route exact path={AppPath.EditorConfigureParams}> */}
+            </>
+          }
+        />
+        {/* <Route path="configure/parameters"> */}
         {/* <Section title="GitHub" description="Auto inject GitHub Parameters." beta>
             <div className={styles.toggleContainer}>
               <Toggle
@@ -696,7 +707,10 @@ function Configure(props: ConfigureProps) {
             </div>
           </Section> */}
         {/* </Route> */}
-        <Route exact path={AppPath.EditorConfigureRun}>
+        <Route
+          path="configure/run"
+          element={
+            <>
           <Section title="Execution" description="Customize how your Workflow behaves.">
             <div>
               <div className={styles.runOptionsSection}>
@@ -724,8 +738,13 @@ function Configure(props: ConfigureProps) {
               </div>
             </div>
           </Section>
-        </Route>
-        <Route exact path={AppPath.EditorConfigureWorkspaces}>
+            </>
+          }
+        />
+        <Route
+          path="configure/workspaces"
+          element={
+            <>
           <Section
             title="Workspaces"
             description="Declare storage options to be used at execution time. This will be
@@ -846,8 +865,13 @@ function Configure(props: ConfigureProps) {
               )}
             </div>
           </Section>
-        </Route>
-        <Route exact path={AppPath.EditorConfigureTokens}>
+            </>
+          }
+        />
+        <Route
+          path="configure/tokens"
+          element={
+            <>
           <Section
             title="Tokens"
             description="
@@ -870,9 +894,11 @@ function Configure(props: ConfigureProps) {
               </dl>
             </div>
           </Section>
-        </Route>
-        <Redirect exact from={AppPath.EditorConfigure} to={AppPath.EditorConfigureGeneral} />
-      </Switch>
+            </>
+          }
+        />
+        <Route path="configure" element={<Navigate to={AppPath.EditorConfigureGeneral} replace />} />
+      </Routes>
     </div>
   );
 }

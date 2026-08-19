@@ -9,10 +9,10 @@ import {
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
-import { Switch, Route } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { Box } from "reflexbox";
 import { useAppContext, useWorkspaceContext } from "Hooks";
-import { AppPath, FeatureFlag } from "Config/appConfig";
+import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import ApproverGroups from "./ApproverGroups";
 import Header from "./Header";
@@ -75,30 +75,31 @@ function WorkspaceDetailedContainer() {
     return (
       <div className={styles.container}>
         <Header workspace={workspaceDetailsQuery.data} />
-        <Switch>
-          <Route exact path={AppPath.ManageWorkspace}>
-            <Members canEdit={canEdit} workspace={workspaceDetailsQuery.data} user={user} workspaceDetailsUrl={workspaceDetailsUrl} />
-          </Route>
-          <Route exact path={AppPath.ManageWorkspaceWorkflows}>
-            <Workflows workspace={workspaceDetailsQuery.data} />
-          </Route>
-          <Route exact path={AppPath.ManageWorkspaceApprovers}>
-            <ApproverGroups workspace={workspaceDetailsQuery.data} canEdit={canEdit} workspaceDetailsUrl={workspaceDetailsUrl} />
-          </Route>
-          <Route exact path={AppPath.ManageWorkspaceQuotas}>
-            <Quotas
-              workspace={workspaceDetailsQuery.data}
-              canEdit={canEdit && user?.type === "admin"}
-              workspaceDetailsUrl={workspaceDetailsUrl}
-            />
-          </Route>
-          <Route exact path={AppPath.ManageWorkspaceTokens}>
-            <Tokens workspace={workspaceDetailsQuery.data} canEdit={canEdit} />
-          </Route>
-          <Route exact path={AppPath.ManageWorkspaceSettings}>
-            <Settings workspace={workspaceDetailsQuery.data} canEdit={canEdit} />
-          </Route>
-        </Switch>
+        <Routes>
+          <Route
+            path=""
+            element={
+              <Members canEdit={canEdit} workspace={workspaceDetailsQuery.data} user={user} workspaceDetailsUrl={workspaceDetailsUrl} />
+            }
+          />
+          <Route path="workflows" element={<Workflows workspace={workspaceDetailsQuery.data} />} />
+          <Route
+            path="approver-groups"
+            element={<ApproverGroups workspace={workspaceDetailsQuery.data} canEdit={canEdit} workspaceDetailsUrl={workspaceDetailsUrl} />}
+          />
+          <Route
+            path="quotas"
+            element={
+              <Quotas
+                workspace={workspaceDetailsQuery.data}
+                canEdit={canEdit && user?.type === "admin"}
+                workspaceDetailsUrl={workspaceDetailsUrl}
+              />
+            }
+          />
+          <Route path="tokens" element={<Tokens workspace={workspaceDetailsQuery.data} canEdit={canEdit} />} />
+          <Route path="settings" element={<Settings workspace={workspaceDetailsQuery.data} canEdit={canEdit} />} />
+        </Routes>
       </div>
     );
   }

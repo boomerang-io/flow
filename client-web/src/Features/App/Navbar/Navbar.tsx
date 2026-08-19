@@ -14,7 +14,7 @@ import {
 import { FlowData, ArrowsHorizontal, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Helmet } from "react-helmet";
-import { NavLink } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import * as navigationIcons from "Utils/navigationIcons";
 import { APP_ROOT } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
@@ -98,15 +98,11 @@ type AppSideNavProps = Parameters<Parameters<typeof UIShell>[0]["leftPanel"]>[0]
   flowNavigationData: Array<FlowNavigationItem>;
 };
 
-type SideNavElemProps =
-  | { to: string; activeClassName: string; element: React.ElementType; onClick: Function }
-  | { href: string };
+type SideNavElemProps = { to: string; element: React.ElementType; onClick: Function } | { href: string };
 
 // FlowNavigationItemChild#renderIcon is typed as SVGElement in Types (a DOM node, not
 // a component) - the actual value is always an icon component, so type it correctly here.
 type SideNavLinkSharedProps = Pick<FlowNavigationItemChild, "large"> & { renderIcon: React.ComponentType; key: string };
-
-const ACTIVE_CLASS_NAME = "cds--side-nav__link--current";
 
 function isInternalLink(navUrl?: string) {
   return navUrl?.includes(APP_ROOT);
@@ -116,14 +112,26 @@ function getRelativePath(navUrl: string) {
   return navUrl.substring(navUrl.indexOf(APP_ROOT) + APP_ROOT.length);
 }
 
-// SideNavLink supports rendering as a router NavLink (via the polymorphic `element`
+// react-router-dom v6+'s NavLink dropped the activeClassName/activeStyle props this used
+// to rely on (className now only takes a plain string or an ({isActive}) => string
+// function). Carbon's SideNavLink already supports a controlled, router-agnostic `isActive`
+// prop that applies its own "current" styling, so drive that directly instead - a plain
+// router Link handles the navigation, current-page state is computed here.
+function isNavLinkActive(pathname: string, navUrl?: string) {
+  if (!isInternalLink(navUrl)) {
+    return false;
+  }
+  const relativePath = getRelativePath(navUrl!);
+  return pathname === relativePath || pathname.startsWith(`${relativePath}/`);
+}
+
+// SideNavLink supports rendering as a router Link (via the polymorphic `element`
 // prop), so internal links get real client-side navigation.
 function getSideNavElemProps(item: FlowNavigationItem | FlowNavigationItemChild, close: Function): SideNavElemProps {
   if (isInternalLink(item.link)) {
     return {
       to: getRelativePath(item.link),
-      activeClassName: ACTIVE_CLASS_NAME,
-      element: NavLink,
+      element: Link,
       onClick: close,
     };
   }
@@ -140,6 +148,7 @@ function getSideNavMenuItemProps(item: FlowNavigationItemChild, close: () => voi
 }
 
 function AppSideNav(props: AppSideNavProps) {
+  const location = useLocation();
   return (
     <SideNav
       aria-label="nav"
@@ -203,7 +212,7 @@ function AppSideNav(props: AppSideNavProps) {
 
             const elemProps = getSideNavElemProps(item, props.close);
             return (
-              <SideNavLink {...sharedProps} {...elemProps}>
+              <SideNavLink {...sharedProps} {...elemProps} isActive={isNavLinkActive(location.pathname, item.link)}>
                 {item.name} {item.beta ? <Tag>beta</Tag> : ""}
               </SideNavLink>
             );

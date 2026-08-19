@@ -3,10 +3,10 @@ import { ErrorMessage, Loading } from "@boomerang-io/carbon-addons-boomerang-rea
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { useQuery } from "react-query";
-import { Switch, Route, useRouteMatch } from "react-router-dom";
+import { Route, Routes, useParams } from "react-router-dom";
 import { Box } from "reflexbox";
 import { useAppContext } from "Hooks";
-import { AppPath, FeatureFlag } from "Config/appConfig";
+import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { FlowUser } from "Types";
 import Header from "./Header";
@@ -37,8 +37,7 @@ const FeatureLayout = ({ children, isLoading, isError }: FeatureLayoutProps) => 
 function WorkspaceDetailedContainer() {
   const userManagementEnabled = useFeature(FeatureFlag.UserManagementEnabled);
   const { workspaces } = useAppContext();
-  const match: { params: { userId: string } } = useRouteMatch();
-  const userId = match?.params?.userId;
+  const { userId } = useParams<{ userId: string }>();
 
   const userDetailsUrl = serviceUrl.getUser({ userId });
 
@@ -68,17 +67,11 @@ function WorkspaceDetailedContainer() {
     return (
       <div className={styles.container}>
         <Header user={userDetailsData} userManagementEnabled={userManagementEnabled} />
-        <Switch>
-          <Route exact path={AppPath.User}>
-            <Workspaces user={userDetailsData} workspaces={workspaces} />
-          </Route>
-          <Route exact path={AppPath.UserLabels}>
-            <Labels user={userDetailsData} userManagementEnabled={userManagementEnabled} />
-          </Route>
-          <Route exact path={AppPath.UserSettings}>
-            <Settings user={userDetailsData} userManagementEnabled={userManagementEnabled} />
-          </Route>
-        </Switch>
+        <Routes>
+          <Route path="" element={<Workspaces user={userDetailsData} workspaces={workspaces} />} />
+          <Route path="labels" element={<Labels user={userDetailsData} userManagementEnabled={userManagementEnabled} />} />
+          <Route path="settings" element={<Settings user={userDetailsData} userManagementEnabled={userManagementEnabled} />} />
+        </Routes>
       </div>
     );
   }

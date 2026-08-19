@@ -1,20 +1,14 @@
 import React, { lazy, useState, Suspense } from "react";
 import { Button } from "@carbon/react";
 import { ArrowRight, ArrowLeft, Close } from "@carbon/react/icons";
-import {
-  DelayedRender,
-  Error404,
-  Loading,
-  NotificationsContainer,
-  ProtectedRoute,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import { DelayedRender, Error403, Error404, Loading, NotificationsContainer } from "@boomerang-io/carbon-addons-boomerang-react";
 import axios from "axios";
 import { detect } from "detect-browser";
 import { FlagsProvider, useFeature } from "flagged";
 import { sortBy } from "lodash";
 import Joyride, { CallBackProps, TooltipRenderProps, STATUS } from "react-joyride";
 import { useQuery, useQueryClient } from "react-query";
-import { Switch, Route, Redirect, useLocation, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
 import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
@@ -73,6 +67,22 @@ export function buildFeatureFlags(feature: FlowFeatures["features"]) {
     WorkflowTokensEnabled: feature["workflow.tokens"],
     WorkflowTriggersEnabled: feature["workflow.triggers"],
   };
+}
+
+// react-router-dom v6+ dropped v5's <Route> children/component render props that the
+// wrapper's ProtectedRoute relied on, so it can no longer be used standalone here. This is
+// a direct, minimal replacement of the same gating: render the guarded element when allowed,
+// otherwise the same Error403 the wrapper rendered.
+function ProtectedRoute({ allowed, children }: { allowed: boolean; children: React.ReactNode }) {
+  if (!allowed) {
+    return (
+      <Error403
+        message="If you think you should be, contact your friendly neighborhood platform admin."
+        title="Sorry mate, you are not allowed here."
+      />
+    );
+  }
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -284,115 +294,159 @@ const AppFeatures = React.memo(function AppFeatures() {
           </DelayedRender>
         }
       >
-        <Switch>
-          <Route path={"/home"}>
-            <Home />
-          </Route>
-          <Route path={"/profile"}>
-            <UserProfile />
-          </Route>
-          <Route path={"/admin"}>
-            <Switch>
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<Settings />}
-                path={AppPath.Settings}
-                userRole={canReadSettings ? "*" : ""}
-              />
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<GlobalParameters />}
-                path={AppPath.Properties}
-                userRole={canReadParameters ? "*" : ""}
-              />
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<TemplateWorkflows />}
-                path={AppPath.TemplateWorkflows}
-                userRole={canReadWorkflowTemplates ? "*" : ""}
-              />
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<AdminTasks />}
-                path={AppPath.Tasks}
-                userRole={canReadTasks ? "*" : ""}
-              />
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<Tokens />}
-                path={AppPath.Tokens}
-                userRole={canReadTokens ? "*" : ""}
-              />
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<Workspaces />}
-                path={AppPath.WorkspaceList}
-                userRole={canReadWorkspaces ? "*" : ""}
-              />
-              <ProtectedRoute
-                allowedUserRoles={["*"]}
-                component={<Users />}
-                path={AppPath.UserList}
-                userRole={canReadUsers ? "*" : ""}
-              />
-              <Redirect exact from="/" to={AppPath.Settings} />
-            </Switch>
-          </Route>
-          <Route path={"/:workspace"}>
-            <WorkspaceContainer>
-              <Switch>
-                <ProtectedRoute
-                  allowedUserRoles={["*"]}
-                  component={<Execution />}
-                  path={AppPath.Run}
-                  userRole={activityEnabled ? "*" : ""}
-                />
-                <ProtectedRoute
-                  allowedUserRoles={["*"]}
-                  component={<Activity />}
-                  path={AppPath.Activity}
-                  userRole={activityEnabled ? "*" : ""}
-                />
-                <ProtectedRoute
-                  allowedUserRoles={["*"]}
-                  component={<Insights />}
-                  path={AppPath.Insights}
-                  userRole={insightsEnabled ? "*" : "none"}
-                />
-                <ProtectedRoute
-                  allowedUserRoles={["*"]}
-                  component={<WorkspaceParameters />}
-                  path={AppPath.ManageWorkspaceParameters}
-                  userRole={workspaceParametersEnabled ? "*" : ""}
-                />
-                <Route path={AppPath.ManageWorkspace}>
-                  <ManageWorkspace />
-                </Route>
-                <Route path={AppPath.Actions}>
-                  <Actions />
-                </Route>
-                <Route path={AppPath.Editor}>
-                  <Editor />
-                </Route>
-                <Route path={AppPath.Schedules}>
-                  <Schedules />
-                </Route>
-                <Route path={AppPath.Workflows}>
-                  <Workflows />
-                </Route>
-                <Route path={AppPath.Integrations}>
-                  <Integrations />
-                </Route>
-                <Route path={AppPath.ManageTasks}>
-                  <WorkspaceTasks />
-                </Route>
-                <Redirect exact from="/" to={AppPath.Workflows} />
-                <Route path="*" component={() => <Error404 theme="boomerang" />} />
-              </Switch>
-            </WorkspaceContainer>
-          </Route>
-          <Redirect to="/home" />
-        </Switch>
+        <Routes>
+          <Route path="/home" element={<Home />} />
+          <Route path="/profile" element={<UserProfile />} />
+          <Route path={AppPath.Settings} element={<ProtectedRoute allowed={canReadSettings}><Settings /></ProtectedRoute>} />
+          <Route
+            path={AppPath.Properties}
+            element={
+              <ProtectedRoute allowed={canReadParameters}>
+                <GlobalParameters />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={AppPath.TemplateWorkflows}
+            element={
+              <ProtectedRoute allowed={canReadWorkflowTemplates}>
+                <TemplateWorkflows />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={`${AppPath.Tasks}/*`}
+            element={
+              <ProtectedRoute allowed={canReadTasks}>
+                <AdminTasks />
+              </ProtectedRoute>
+            }
+          />
+          <Route path={AppPath.Tokens} element={<ProtectedRoute allowed={canReadTokens}><Tokens /></ProtectedRoute>} />
+          <Route
+            path={AppPath.WorkspaceList}
+            element={
+              <ProtectedRoute allowed={canReadWorkspaces}>
+                <Workspaces />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={`${AppPath.UserList}/*`}
+            element={
+              <ProtectedRoute allowed={canReadUsers}>
+                <Users />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={AppPath.Run}
+            element={
+              <WorkspaceContainer>
+                <ProtectedRoute allowed={Boolean(activityEnabled)}>
+                  <Execution />
+                </ProtectedRoute>
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={AppPath.Activity}
+            element={
+              <WorkspaceContainer>
+                <ProtectedRoute allowed={Boolean(activityEnabled)}>
+                  <Activity />
+                </ProtectedRoute>
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={AppPath.Insights}
+            element={
+              <WorkspaceContainer>
+                <ProtectedRoute allowed={Boolean(insightsEnabled)}>
+                  <Insights />
+                </ProtectedRoute>
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={AppPath.ManageWorkspaceParameters}
+            element={
+              <WorkspaceContainer>
+                <ProtectedRoute allowed={Boolean(workspaceParametersEnabled)}>
+                  <WorkspaceParameters />
+                </ProtectedRoute>
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={`${AppPath.ManageWorkspace}/*`}
+            element={
+              <WorkspaceContainer>
+                <ManageWorkspace />
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={`${AppPath.Actions}/*`}
+            element={
+              <WorkspaceContainer>
+                <Actions />
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={`${AppPath.Editor}/*`}
+            element={
+              <WorkspaceContainer>
+                <Editor />
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={AppPath.Schedules}
+            element={
+              <WorkspaceContainer>
+                <Schedules />
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={AppPath.Workflows}
+            element={
+              <WorkspaceContainer>
+                <Workflows />
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={AppPath.Integrations}
+            element={
+              <WorkspaceContainer>
+                <Integrations />
+              </WorkspaceContainer>
+            }
+          />
+          <Route
+            path={`${AppPath.ManageTasks}/*`}
+            element={
+              <WorkspaceContainer>
+                <WorkspaceTasks />
+              </WorkspaceContainer>
+            }
+          />
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          {/* Any other single-segment path is treated as a workspace slug (matching the
+          pre-migration behaviour); deeper unmatched sub-paths 404 inside that workspace. */}
+          <Route
+            path="/:workspace/*"
+            element={
+              <WorkspaceContainer>
+                <Error404 theme="boomerang" />
+              </WorkspaceContainer>
+            }
+          />
+        </Routes>
         <Tutorial />
       </Suspense>
       <NotificationsContainer enableMultiContainer />
@@ -401,7 +455,7 @@ const AppFeatures = React.memo(function AppFeatures() {
 });
 
 function WorkspaceContainer(props: { children: React.ReactNode }) {
-  const { workspace }: { workspace: string } = useParams();
+  const { workspace = "" } = useParams<{ workspace: string }>();
   const getWorkspaceUrl = serviceUrl.resourceWorkspace({ workspace });
 
   const workspaceQuery = useQuery<FlowWorkspace>({

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "react-query";
 import { ReactQueryDevtools } from "react-query/devtools";
 import { QueryClient as TanstackQueryClient, QueryClientProvider as TanstackQueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from "react-router-dom";
 import "codemirror/addon/fold/foldgutter.css";
 import "codemirror/lib/codemirror.css";
 import "codemirror/theme/material.css";
@@ -31,15 +31,21 @@ const tanstackQueryClient = new TanstackQueryClient({
   },
 });
 
+// Data-router API (createBrowserRouter/RouterProvider) in SPA mode - no ssr, no
+// loader/action route data. App owns the entire route tree itself (declarative
+// <Routes>/<Route> underneath), so the router config here is just a single catch-all
+// entry point.
+const router = createBrowserRouter(createRoutesFromElements(<Route path="*" element={<App />} />), {
+  basename: APP_ROOT,
+});
+
 function Root() {
   return (
     <TanstackQueryClientProvider client={tanstackQueryClient}>
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
           {isDevEnv && <ReactQueryDevtools initialIsOpen={false} />}
-          <BrowserRouter basename={APP_ROOT}>
-            <App />
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </ErrorBoundary>
       </QueryClientProvider>
     </TanstackQueryClientProvider>

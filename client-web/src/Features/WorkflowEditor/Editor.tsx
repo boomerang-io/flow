@@ -4,7 +4,7 @@ import { AxiosResponse } from "axios";
 import type { FormikProps } from "formik";
 import queryString from "query-string";
 import { useMutation, useQueryClient, UseMutationResult } from "react-query";
-import { Prompt, Route, Switch, useLocation, useParams } from "react-router-dom";
+import { Route, Routes, useBlocker, useLocation, useParams } from "react-router-dom";
 import type { ReactFlowInstance } from "reactflow";
 import { useImmerReducer } from "use-immer";
 import { useWorkspaceContext, useQuery } from "Hooks";
@@ -12,7 +12,6 @@ import { EditorContextProvider } from "State/context";
 import { RevisionActionTypes, revisionReducer, initRevisionReducerState } from "State/reducers/workflowRevision";
 import { WorkflowEngineMode, WorkspaceConfigType } from "Constants";
 import { WorkflowView } from "Constants";
-import { AppPath } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import {
   ChangeLog as ChangeLogType,
@@ -49,7 +48,8 @@ export default function EditorContainer() {
   // Init revision number state is held here so we can easily refect the data on change via react-query
 
   const [revisionNumber, setRevisionNumber] = useState<string | number>("");
-  const params = useParams<{ workflow: string }>();
+  const rawParams = useParams<{ workflow: string }>();
+  const params = { workflow: rawParams.workflow ?? "" };
 
   const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace.name });
   const getChangelogUrl = serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace: workspace.name, workflow: params.workflow });
@@ -319,19 +319,28 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
     };
   }, [availableParameters, mode, revisionDispatch, revisionState, workflowsQueryData]);
 
+  // Same in-app "leave without saving" guard as before, ported from v5's <Prompt> to v6/v7's
+  // useBlocker (requires the data router set up in Root.tsx). Blocks navigation away from
+  // this workflow while there are unsaved changes; switching tabs within the same workflow
+  // (nextLocation.pathname still includes workflowRef) is allowed through unprompted.
+  const blocker = useBlocker(
+    ({ nextLocation }) => Boolean(revisionState.hasUnsavedUpdates) && !nextLocation.pathname.includes(workflowRef),
+  );
+
+  React.useEffect(() => {
+    if (blocker.state === "blocked") {
+      if (window.confirm("Are you sure? You have unsaved changes to your workflow that will be lost.")) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker]);
+
   return (
     // Must create context to share state w/ nodes that are created by the DAG engine
     <EditorContextProvider value={store}>
       <>
-        <Prompt
-          when={Boolean(revisionState.hasUnsavedUpdates)}
-          message={(location) =>
-            //Return true to navigate if going to the same route we are currently on
-            location.pathname.includes(workflowRef)
-              ? true
-              : "Are you sure? You have unsaved changes to your workflow that will be lost."
-          }
-        />
         <Header
           changeLog={changeLogData}
           changeRevision={handleChangeRevision}
@@ -342,18 +351,12 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
           revisionCount={revisionCount}
           revisionMutator={revisionMutator}
         />
-        <Switch>
-          <Route path={AppPath.EditorCanvas} />
-          <Route path={AppPath.EditorProperties}>
-            <Parameters workflow={revisionState} handleUpdateParams={handleUpdateParams} />
-          </Route>
-          <Route path={AppPath.EditorSchedule}>
-            <Schedule workflow={revisionState} />
-          </Route>
-          <Route path={AppPath.EditorChangelog}>
-            <ChangeLog changeLogData={changeLogData} />
-          </Route>
-        </Switch>
+        <Routes>
+          <Route path="canvas" element={null} />
+          <Route path="parameters" element={<Parameters workflow={revisionState} handleUpdateParams={handleUpdateParams} />} />
+          <Route path="schedule" element={<Schedule workflow={revisionState} />} />
+          <Route path="changelog" element={<ChangeLog changeLogData={changeLogData} />} />
+        </Routes>
         {
           // Always render parent Configure component so state isn't lost when switching tabs
           // It is responsible for rendering its children, but Formik form management is always mounted
