@@ -29,6 +29,7 @@ import { resolver, serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace, MemberRole, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
 
 interface FeatureLayoutProps {
+  children?: React.ReactNode;
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 

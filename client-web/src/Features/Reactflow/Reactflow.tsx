@@ -137,7 +137,7 @@ function FlowDiagram(props: FlowDiagramProps) {
   /**
    * Handle drag action w/ drag and drop
    */
-  const onDragOver = React.useCallback((event) => {
+  const onDragOver = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
@@ -146,7 +146,7 @@ function FlowDiagram(props: FlowDiagramProps) {
    * Handle drop action w/ drag and drop
    */
   const onDrop = React.useCallback(
-    (event) => {
+    (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
       const taskString = event.dataTransfer.getData("application/reactflow") as string;

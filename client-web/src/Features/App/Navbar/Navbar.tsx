@@ -41,7 +41,12 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
     <>
       <Helmet defaultTitle={appTitle} titleTemplate={`%s - ${appTitle}`} />
       <UIShell
-        config={contextData}
+        config={{
+          ...contextData,
+          // The wrapper's shell now requires these two platform-version-banner fields;
+          // our own context payload doesn't carry them yet, so default to "no error".
+          platform: { ...contextData.platform, platformVersion: platform.version ?? "", platformVersionError: false },
+        }}
         leftPanel={(args) => <AppSideNav {...args} flowNavigationData={flowNavigationData} />}
         platformName={platformName}
         productName={appName}

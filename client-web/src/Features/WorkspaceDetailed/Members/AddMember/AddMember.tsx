@@ -93,7 +93,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                       <TextInput
                         id="email"
                         invalid={emailIsInvalid}
-                        invalidText={errors.email}
+                        invalidText={typeof errors.email === "string" ? errors.email : undefined}
                         labelText="Email"
                         onBlur={handleBlur}
                         onChange={handleChange}
@@ -110,7 +110,6 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                         selectedItem={values.role}
                         label="Role"
                         titleText="Role"
-                        placeholder="Select role"
                       />
                       <Button
                         kind="tertiary"

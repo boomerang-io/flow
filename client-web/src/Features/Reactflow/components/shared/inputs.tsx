@@ -1,9 +1,9 @@
 import React from "react";
-import { AutoSuggest, TextInput, TextArea, Creatable } from "@boomerang-io/carbon-addons-boomerang-react";
+import { TextInput, TextArea, Creatable } from "@boomerang-io/carbon-addons-boomerang-react";
 import { json } from "d3";
 import { FormikProps } from "formik";
 import TextEditorModal from "Components/TextEditorModal";
-import { INPUT_TYPES, TEXT_AREA_TYPES, SUPPORTED_AUTOSUGGEST_TYPES } from "Constants/formInputTypes";
+import { INPUT_TYPES, TEXT_AREA_TYPES } from "Constants/formInputTypes";
 import { DataDrivenInput } from "Types";
 import styles from "./inputs.module.scss";
 
@@ -13,36 +13,22 @@ function getTypeConfig<T extends Record<string, unknown>>(configMap: T, type: st
   return Object.prototype.hasOwnProperty.call(configMap, type) ? configMap[type as keyof T] : undefined;
 }
 
+// The design-system wrapper dropped its `AutoSuggest` component (parameter-token
+// autocomplete while typing) in the upgrade to 4.9 - it no longer exists to import.
+// Both inputs fall back to plain controlled fields; typing task parameters still
+// works, only the suggestion dropdown is gone until a replacement is designed.
 export const AutoSuggestInput = (props: any) => {
-  if (!SUPPORTED_AUTOSUGGEST_TYPES.includes(props.type)) {
-    return <TextInput {...props} onChange={(e) => props.onChange(e.target.value)} />;
-  }
-  return (
-    <div key={props.id}>
-      <AutoSuggest
-        {...props}
-        initialValue={props?.initialValue !== "" ? props?.initialValue : props?.inputProps?.defaultValue}
-      >
-        <TextInput tooltipContent={props.tooltipContent} disabled={props?.inputProps?.readOnly} />
-      </AutoSuggest>
-    </div>
-  );
+  return <TextInput {...props} onChange={(e) => props.onChange(e.target.value)} />;
 };
 
 export const TextAreaSuggestInput = (props: any) => {
   return (
-    <div key={props.id}>
-      <AutoSuggest
-        {...props}
-        initialValue={props?.initialValue !== "" ? props?.initialValue : props?.inputProps?.defaultValue}
-      >
-        <TextArea
-          disabled={props?.inputProps?.readOnly}
-          tooltipContent={props.tooltipContent}
-          labelText={props.label}
-        />
-      </AutoSuggest>
-    </div>
+    <TextArea
+      {...props}
+      disabled={props?.inputProps?.readOnly}
+      labelText={props.label}
+      onChange={(e) => props.onChange(e.target.value)}
+    />
   );
 };
 

@@ -142,7 +142,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
                   </TooltipHover>
                 ))}
               </div>
-              {createError && (
+              {Boolean(createError) && (
                 <InlineNotification
                   lowContrast
                   kind="error"

@@ -43,6 +43,7 @@ const UsersContainer: React.FC = () => {
 };
 
 interface FeatureLayoutProps {
+  children?: React.ReactNode;
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 

@@ -32,7 +32,7 @@ function MemberCard({ email, role, handleRemove, isRemoving }: MemberCardProps) 
       ) : (
         <Button
           className={styles.actionButton}
-          ariaLabel="Remove member button"
+          aria-label="Remove member button"
           iconDescription="Remove member icon"
           kind="danger--ghost"
           onClick={handleRemove}

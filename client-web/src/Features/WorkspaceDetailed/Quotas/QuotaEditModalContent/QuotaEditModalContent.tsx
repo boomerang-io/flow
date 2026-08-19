@@ -95,7 +95,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                   />
                   {inputUnits && <span className={styles.inputUnits}>{inputUnits}</span>}
                 </div>
-                {updateWorkspaceMutator.error && (
+                {Boolean(updateWorkspaceMutator.error) && (
                   <InlineNotification
                     lowContrast
                     kind="error"

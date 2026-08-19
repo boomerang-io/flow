@@ -84,6 +84,7 @@ export default function WorkflowQuotaModalContent({
 }
 
 interface QuotaSectionProps {
+  children?: React.ReactNode;
   description: string;
   title: string;
   value: number;

@@ -74,7 +74,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
                   value={values.displayName}
                   onChange={handleChange}
                 />
-                {updateMutator.error && (
+                {Boolean(updateMutator.error) && (
                   <InlineNotification
                     lowContrast
                     kind="error"

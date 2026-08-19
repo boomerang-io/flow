@@ -13,6 +13,7 @@ const ErrorMessage: React.FC<FallbackProps> = (props) => {
 };
 
 interface ErrorBoundaryProps {
+  children?: React.ReactNode;
   FallbackComponent?: React.FunctionComponent<FallbackProps>;
 }
 

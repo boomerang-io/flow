@@ -147,7 +147,7 @@ const AddMemberContent: React.FC<AddMemberContentProps> = ({ closeModal, memberL
             ))}
           </ul>
         )}
-        {addMemberError && (
+        {Boolean(addMemberError) && (
           <InlineNotification
             lowContrast
             kind="error"

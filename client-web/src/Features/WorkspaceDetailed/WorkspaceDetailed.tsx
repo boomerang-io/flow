@@ -23,7 +23,7 @@ import Tokens from "./Tokens";
 import Workflows from "./Workflows";
 import styles from "./workspaceDetailed.module.scss";
 
-const FeatureLayout: React.FC = ({ children }) => {
+const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   return (
     <>
       <Helmet>

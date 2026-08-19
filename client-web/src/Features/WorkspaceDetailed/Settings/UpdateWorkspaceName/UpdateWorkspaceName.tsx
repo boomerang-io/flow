@@ -108,7 +108,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
                       : errors.name
                   }
                 />
-                {updateWorkspaceMutator.error && (
+                {Boolean(updateWorkspaceMutator.error) && (
                   <InlineNotification
                     lowContrast
                     kind="error"

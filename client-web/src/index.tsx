@@ -1,5 +1,5 @@
 //@ts-nocheck
-import { render } from "react-dom";
+import { createRoot } from "react-dom/client";
 import Root from "./Root";
 import { Envs } from "Constants";
 import "Config/axiosGlobalConfig";
@@ -28,7 +28,8 @@ import "Styles/styles.scss";
   }
 
   // Setup hot module reloading to improve dev experience
-  render(<Root />, document.getElementById("app"));
+  const root = createRoot(document.getElementById("app"));
+  root.render(<Root />);
 
   // If you want your app to work offline and load faster, you can change
   // unregister() to register() below. Note this comes with some pitfalls.

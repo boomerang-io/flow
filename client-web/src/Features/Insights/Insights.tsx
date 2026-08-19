@@ -75,20 +75,31 @@ function filterItemsByLabel<Item>(items: readonly Item[], { itemToString, inputV
   return items.filter((item) => itemToString(item).toLowerCase().includes(inputValue.toLowerCase()));
 }
 
-function compareItemLabels(itemA: string, itemB: string, { locale }: { locale: string }): number {
-  return itemA.localeCompare(itemB, locale, { numeric: true });
+function compareItemLabels(labelA: string, labelB: string, { locale }: { locale: string }): number {
+  return labelA.localeCompare(labelB, locale, { numeric: true });
+}
+
+// Carbon types compareItems/sortItems' compareItems against the raw item (not its
+// rendered label), so adapt the label comparator to that item-based contract.
+function makeCompareItems<Item>(itemToString: (item: Item) => string) {
+  return (itemA: Item, itemB: Item, options: { locale: string }): number =>
+    compareItemLabels(itemToString(itemA), itemToString(itemB), options);
 }
 
 function sortItemsBySelection<Item>(
   items: Item[],
-  { selectedItems = [], itemToString, compareItems, locale = "en" }: { selectedItems?: Item[]; itemToString: (item: Item) => string; compareItems: (a: string, b: string, ctx: { locale: string }) => number; locale?: string },
+  {
+    selectedItems = [],
+    compareItems,
+    locale = "en",
+  }: { selectedItems?: Item[]; itemToString?: (item: Item) => string; compareItems: (a: Item, b: Item, ctx: { locale: string }) => number; locale?: string },
 ): Item[] {
   return [...items].sort((itemA, itemB) => {
     const hasItemA = selectedItems.includes(itemA);
     const hasItemB = selectedItems.includes(itemB);
     if (hasItemA && !hasItemB) return -1;
     if (hasItemB && !hasItemA) return 1;
-    return compareItems(itemToString(itemA), itemToString(itemB), { locale });
+    return compareItems(itemA, itemB, { locale });
   });
 }
 
@@ -273,6 +284,9 @@ function Selects(props: SelectsProps) {
     return sortByProp(workflowsList, "name", "ASC");
   }
 
+  const itemToStringWorkflow = (workflow: SelectableWorkflow | null) => (workflow ? workflow.displayName : "");
+  const itemToStringStatus = (item: SelectableStatus | null) => (item ? item.label : "");
+
   return (
     <div className={styles.dataFilters}>
       <FilterableMultiSelect<SelectableWorkflow>
@@ -281,11 +295,9 @@ function Selects(props: SelectsProps) {
         invalid={false}
         onChange={handleSelectWorkflows}
         items={getWorkflowOptions()}
-        itemToString={(workflow) => {
-          return workflow ? workflow.displayName : "";
-        }}
+        itemToString={itemToStringWorkflow}
         filterItems={filterItemsByLabel}
-        compareItems={compareItemLabels}
+        compareItems={makeCompareItems(itemToStringWorkflow)}
         sortItems={sortItemsBySelection}
         initialSelectedItems={getWorkflowOptions().filter((workflow: Workflow) =>
           Boolean(selectedWorkflowRefs ? selectedWorkflowRefs.find((ref) => ref === workflow.name) : false),
@@ -298,9 +310,9 @@ function Selects(props: SelectsProps) {
         invalid={false}
         onChange={handleSelectStatuses}
         items={statusOptions}
-        itemToString={(item) => (item ? item.label : "")}
+        itemToString={itemToStringStatus}
         filterItems={filterItemsByLabel}
-        compareItems={compareItemLabels}
+        compareItems={makeCompareItems(itemToStringStatus)}
         sortItems={sortItemsBySelection}
         initialSelectedItems={statusOptions.filter((option) =>
           Boolean(selectedStatuses?.find((status: string) => status === option.value)),

@@ -47,7 +47,7 @@ const TimeInput = ({
       helperText={input.helperText}
       id="time"
       invalid={Boolean(error) && hasBeenTouched}
-      invalidText={error}
+      invalidText={typeof error === "string" ? error : undefined}
       labelText="Time"
       name="time"
       onChange={handleChange}
@@ -79,7 +79,7 @@ const TimeZoneInput = ({
       //@ts-ignore
       items={timezoneOptions}
       invalid={Boolean(error) && hasBeenTouched}
-      invalidText={error}
+      invalidText={typeof error === "string" ? error : undefined}
       onChange={({ selectedItem }) => {
         formikProps.setFieldValue("timezone", selectedItem);
       }}
@@ -143,7 +143,7 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
         titleText="Workflow"
         placeholder="Select a Workflow"
         invalid={Boolean(error) && Boolean(touch)}
-        invalidText={error}
+        invalidText={typeof error === "string" ? error : undefined}
       />
     );
   };

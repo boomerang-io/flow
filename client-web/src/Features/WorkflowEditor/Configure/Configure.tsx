@@ -328,7 +328,6 @@ function Configure(props: ConfigureProps) {
                               filter
                               onClick={openModal}
                               onClose={() => arrayHelpers.remove(index)}
-                              selectedLabel={label}
                             >
                               {`${label.key}=${label.value}`}
                             </Tag>

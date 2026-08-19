@@ -160,7 +160,7 @@ export default function App() {
   // Check if the app is Activated prior to error checking
   if (showActivatePlatform) {
     return (
-      <Suspense fallback={() => <DelayedRender>{null}</DelayedRender>}>
+      <Suspense fallback={<DelayedRender>{null}</DelayedRender>}>
         <div className={styles.appActivationContainer}>
           <AppActivation setActivationCode={handleSetActivationCode} />
         </div>
@@ -343,25 +343,25 @@ const AppFeatures = React.memo(function AppFeatures() {
               <Switch>
                 <ProtectedRoute
                   allowedUserRoles={["*"]}
-                  component={() => <Execution />}
+                  component={<Execution />}
                   path={AppPath.Run}
                   userRole={activityEnabled ? "*" : ""}
                 />
                 <ProtectedRoute
                   allowedUserRoles={["*"]}
-                  component={() => <Activity />}
+                  component={<Activity />}
                   path={AppPath.Activity}
                   userRole={activityEnabled ? "*" : ""}
                 />
                 <ProtectedRoute
                   allowedUserRoles={["*"]}
-                  component={() => <Insights />}
+                  component={<Insights />}
                   path={AppPath.Insights}
                   userRole={insightsEnabled ? "*" : "none"}
                 />
                 <ProtectedRoute
                   allowedUserRoles={["*"]}
-                  component={() => <WorkspaceParameters />}
+                  component={<WorkspaceParameters />}
                   path={AppPath.ManageWorkspaceParameters}
                   userRole={workspaceParametersEnabled ? "*" : ""}
                 />
@@ -514,7 +514,7 @@ function Tutorial() {
                   Next
                 </Button>
               )}
-              <Button {...closeProps} hasIconOnly renderIcon={Close} label="Close" size="sm">
+              <Button {...closeProps} hasIconOnly renderIcon={Close} iconDescription="Close" size="sm">
                 Close
               </Button>
             </footer>

@@ -73,7 +73,7 @@ const Form: React.FC<PlatformActivationProps> = ({ setActivationCode }) => {
           helperText="Look for it in your shell"
           onChange={(e) => setCode(e.target.value)}
         />
-        {error && (
+        {Boolean(error) && (
           <InlineNotification lowContrast kind="error" title={errorMessage.title} subtitle={errorMessage.message} />
         )}
       </ModalBody>

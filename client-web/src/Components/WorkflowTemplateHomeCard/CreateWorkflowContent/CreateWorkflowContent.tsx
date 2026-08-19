@@ -67,6 +67,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
               <Dropdown
                 id="workspace"
                 type="default"
+                titleText="Workspace"
                 label="Workspace"
                 ariaLabel="Dropdown"
                 light={false}

@@ -1,7 +1,7 @@
 import React from "react";
-import { useHistory } from "react-router-dom";
+import { useHistory, Link } from "react-router-dom";
 import { useQuery } from "react-query";
-import { Breadcrumb, BreadcrumbItem, Link } from "@carbon/react";
+import { Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,

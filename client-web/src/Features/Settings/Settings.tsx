@@ -27,7 +27,7 @@ export type SettingsGroup = {
 
 const platformSettingsUrl = serviceUrl.resourceSettings();
 
-const FeatureLayout: React.FC = ({ children }) => {
+const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   return (
     <>
       <Header

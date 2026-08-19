@@ -115,7 +115,7 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
             </section>
           </div>
         )}
-        {resetQuotasMutator.error && (
+        {Boolean(resetQuotasMutator.error) && (
           <InlineNotification
             lowContrast
             kind="error"

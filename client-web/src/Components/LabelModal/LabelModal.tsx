@@ -3,14 +3,14 @@ import React from "react";
 import * as Yup from "yup";
 import { Formik } from "formik";
 import { Button, ModalBody, ModalFooter } from "@carbon/react";
-import { ComposedModal, ModalForm, TextInput } from "@boomerang-io/carbon-addons-boomerang-react";
+import { ComposedModal, ModalForm, TextInput, ModalTrigger } from "@boomerang-io/carbon-addons-boomerang-react";
 import styles from "./LabelModal.module.scss";
 
 interface LabelModalProps {
   action: Function;
   isEdit?: boolean;
   labelsKeys: string[];
-  modalTrigger: React.ReactNode;
+  modalTrigger: ModalTrigger;
   selectedLabel?: { key: string; value: string };
 }
 

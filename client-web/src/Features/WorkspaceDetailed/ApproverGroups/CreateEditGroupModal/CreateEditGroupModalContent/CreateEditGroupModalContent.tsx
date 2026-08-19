@@ -278,7 +278,7 @@ function CreateEditGroupModalContent({
                   setFieldValue={setFieldValue}
                 />
               )}
-              {approverGroupMutator.error && (
+              {Boolean(approverGroupMutator.error) && (
                 <InlineNotification lowContrast kind="error" subtitle={subtitle} title={title} />
               )}
             </ModalBody>
