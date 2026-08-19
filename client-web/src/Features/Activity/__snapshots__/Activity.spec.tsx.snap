@@ -1,0 +1,52 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WorkflowActivity --- Snapshot > Capturing Snapshot of WorkflowActivity 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <h2>
+      Unexpected Application Error!
+    </h2>
+    <h3
+      style="font-style: italic;"
+    >
+      useContext must be inside a Provider with a value
+    </h3>
+    <pre
+      style="padding: 0.5rem; background-color: rgba(200, 200, 200, 0.5);"
+    >
+      Error: useContext must be inside a Provider with a value
+    at Module.useContext (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/src/State/context/index.tsx:18:30)
+    at WorkflowActivity (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/src/Features/Activity/Activity.tsx:29:25)
+    at renderWithHooks (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at beginWork$1 (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:27465:14)
+    at performUnitOfWork (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+    at renderRootSync (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:26473:7)
+    at recoverFromConcurrentError (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:25889:20)
+    </pre>
+    <p>
+      💿 Hey developer 👋
+    </p>
+    <p>
+      You can provide a way better UX than this when your app throws errors by providing your own 
+      <code
+        style="padding: 2px 4px; background-color: rgba(200, 200, 200, 0.5);"
+      >
+        ErrorBoundary
+      </code>
+       or
+       
+      <code
+        style="padding: 2px 4px; background-color: rgba(200, 200, 200, 0.5);"
+      >
+        errorElement
+      </code>
+       prop on your route.
+    </p>
+  </div>
+</body>
+`;

@@ -25,6 +25,7 @@ exports[`WorkflowsHeader --- Snapshot > Capturing Snapshot of WorkflowsHeader 1`
               >
                 <a
                   class="cds--link"
+                  data-discover="true"
                   href="/home"
                 >
                   Home

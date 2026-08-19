@@ -28,6 +28,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 >
                   <a
                     class="cds--link"
+                    data-discover="true"
                     href="/admin/users"
                   >
                     Users
@@ -190,18 +191,21 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                   <a
                     aria-current="page"
                     class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                    data-discover="true"
                     href="/admin/users/5f170b3df6ab327e302cb0a5"
                   >
                     Workspaces
                   </a>
                   <a
                     class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                    data-discover="true"
                     href="/admin/users/5f170b3df6ab327e302cb0a5/labels"
                   >
                     Labels
                   </a>
                   <a
                     class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                    data-discover="true"
                     href="/admin/users/5f170b3df6ab327e302cb0a5/settings"
                   >
                     Settings
@@ -380,6 +384,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/admin-flowabl-io-personal-workspace/manage"
                 >
                   View workspace
@@ -404,6 +409,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/bob-personal-workspace/manage"
                 >
                   View workspace
@@ -428,6 +434,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/boomerang-joe-personal-workspace/manage"
                 >
                   View workspace
@@ -452,6 +459,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/marcus-d-roy-gmail-com-personal-workspace/manage"
                 >
                   View workspace
@@ -476,6 +484,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/system/manage"
                 >
                   View workspace
@@ -500,6 +509,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/tyson-personal-workspace/manage"
                 >
                   View workspace
@@ -524,6 +534,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               >
                 <a
                   class="_viewWorkspaceLink_179016"
+                  data-discover="true"
                   href="/tyson-workspace/manage"
                 >
                   View workspace

@@ -28,6 +28,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                 >
                   <a
                     class="cds--link"
+                    data-discover="true"
                     href="/home"
                   >
                     Home
@@ -172,6 +173,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
               class="_container_483afa"
             >
               <a
+                data-discover="true"
                 href="/ibm-services-engineering/editor/Personal - ML Train – Bot Efficiency/canvas"
               >
                 <section
@@ -349,6 +351,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
               class="_container_483afa"
             >
               <a
+                data-discover="true"
                 href="/ibm-services-engineering/editor/Personal - Java - Deploy/canvas"
               >
                 <section
@@ -521,6 +524,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
               class="_container_483afa"
             >
               <a
+                data-discover="true"
                 href="/ibm-services-engineering/editor/Personal - Java - Build/canvas"
               >
                 <section

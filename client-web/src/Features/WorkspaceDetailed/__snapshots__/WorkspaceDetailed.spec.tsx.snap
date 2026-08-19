@@ -28,6 +28,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 >
                   <a
                     class="cds--link"
+                    data-discover="true"
                     href="/home"
                   >
                     Home
@@ -137,36 +138,42 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 <a
                   aria-current="page"
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage"
                 >
                   Members
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage/workflows"
                 >
                   Workflows
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage/approver-groups"
                 >
                   Approver Groups
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage/quotas"
                 >
                   Quotas
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage/tokens"
                 >
                   Tokens
                 </a>
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage/settings"
                 >
                   Settings
@@ -404,6 +411,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
               >
                 <a
                   class="_viewMemberLink_5053ab"
+                  data-discover="true"
                   href="/admin/users/61d5db083aa9034ded32cae7"
                 >
                   View user
@@ -482,6 +490,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
               >
                 <a
                   class="_viewMemberLink_5053ab"
+                  data-discover="true"
                   href="/admin/users/61d38d133aa9034ded32cae6"
                 >
                   View user
@@ -560,6 +569,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
               >
                 <a
                   class="_viewMemberLink_5053ab"
+                  data-discover="true"
                   href="/admin/users/61ddfb07c5d30f5de052426b"
                 >
                   View user
