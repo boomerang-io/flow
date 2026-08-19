@@ -37,6 +37,9 @@ fields**, **3 new**, **3 removed**. `Workflow`, `WorkflowRevision`, `WorkflowTem
 byte-for-byte duplicate of `claim.by` — written with the same value on every claim, cleared
 together on every requeue, one reader (`WorkflowWatcher.reapClaimsFromGoneDispatchers`, now
 reads `claim.by`). `_0031` unsets both spellings; `_0015` no longer renames `agentRef`.
+**Maintainer-confirmed 2026-08-19** — the removal was made outside its brief, reviewed after the
+fact, and accepted. DD-06's `agentRef`→`dispatcherRef` rename therefore lands as "the claim owner is
+`claim.by`", with no separate dispatcher field on either run entity.
 
 Enum additions: `WorkflowStatus.deleted` (tombstone delete — ruled "no `tombstonedAt`"),
 `TriggerEnum.retry` (DD-08 lineage via `initiatedByRef`), `PermissionScope{global,workspace}`,
