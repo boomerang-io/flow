@@ -8,7 +8,6 @@ const Activity = lazy(() => import("Features/Activity"));
 const Actions = lazy(() => import("Features/Actions"));
 const Editor = lazy(() => import("Features/WorkflowEditor"));
 const Execution = lazy(() => import("Features/WorkflowRun"));
-const GlobalParameters = lazy(() => import("Features/Parameters/GlobalParameters"));
 const Tokens = lazy(() => import("Features/GlobalTokens/GlobalTokens"));
 const Insights = lazy(() => import("Features/Insights"));
 const Integrations = lazy(() => import("Features/Integrations"));
@@ -20,7 +19,7 @@ const ManageWorkspace = lazy(() => import("Features/WorkspaceDetailed"));
 const WorkspaceParameters = lazy(() => import("Features/Parameters/WorkspaceParameters"));
 const WorkspaceTasks = lazy(() => import("Features/TaskManager/WorkspaceTasks"));
 const AdminTasks = lazy(() => import("Features/TaskManager/AdminTasks"));
-const Users = lazy(() => import("Features/Users"));
+const UserList = lazy(() => import("Features/Users"));
 const UserProfile = lazy(() => import("Features/UserProfile"));
 const Workflows = lazy(() => import("Features/Workflows"));
 const Home = lazy(() => import("Features/Home"));
@@ -72,13 +71,26 @@ export const appRouteChildren = (
         </Protected>
       }
     />
+    {/* Route-module style: loader/action/Component all resolve together from one dynamic
+    import, so this route stays code-split exactly like the plain lazy() routes around it -
+    the only difference is this module also exports `loader`/`action` next to its default
+    export, and AppRoutes.tsx wires them up here via `lazy` instead of a static `element`. */}
     <Route
       path={AppPath.Properties}
-      element={
-        <Protected permission="canReadParameters">
-          <GlobalParameters />
-        </Protected>
-      }
+      lazy={async () => {
+        const { default: GlobalParameters, loader, action } = await import(
+          "Features/Parameters/GlobalParameters/GlobalParameters"
+        );
+        return {
+          loader,
+          action,
+          Component: () => (
+            <Protected permission="canReadParameters">
+              <GlobalParameters />
+            </Protected>
+          ),
+        };
+      }}
     />
     <Route
       path={AppPath.TemplateWorkflows}
@@ -113,12 +125,30 @@ export const appRouteChildren = (
       }
     />
     <Route
-      path={`${AppPath.UserList}/*`}
+      path={AppPath.UserList}
       element={
         <Protected permission="canReadUsers">
-          <Users />
+          <UserList />
         </Protected>
       }
+    />
+    {/* Route-module style, like AppPath.Properties above - the loader reads the :userId path
+    param (see UserDetailed.tsx's loader({ params })). This used to be a nested route matched
+    by Users.tsx's own internal <Routes> for ":userId/*"; it's a standalone top-level route now
+    so it can carry a loader. */}
+    <Route
+      path={`${AppPath.User}/*`}
+      lazy={async () => {
+        const { default: UserDetailed, loader } = await import("Features/UserDetailed/UserDetailed");
+        return {
+          loader,
+          Component: () => (
+            <Protected permission="canReadUsers">
+              <UserDetailed />
+            </Protected>
+          ),
+        };
+      }}
     />
     <Route
       path={AppPath.Run}
