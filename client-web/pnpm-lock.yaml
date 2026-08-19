@@ -27,10 +27,10 @@ importers:
         version: 1.1.0(axios@1.19.0)(lodash@4.17.21)(query-string@6.14.1)(react-dom@18.3.1(react@18.3.1))(react-query@3.39.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)
       '@carbon/charts':
         specifier: ^1.13.6
-        version: 1.13.6(d3@7.4.4)
+        version: 1.13.6(d3-sankey@0.12.3)(d3@7.4.4)
       '@carbon/charts-react':
         specifier: ^1.13.6
-        version: 1.13.6(d3@7.4.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.13.6(d3-sankey@0.12.3)(d3@7.4.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@carbon/pictograms-react':
         specifier: ^11.50.0
         version: 11.50.0(react@18.3.1)
@@ -70,6 +70,9 @@ importers:
       d3:
         specifier: ^7.4.4
         version: 7.4.4
+      d3-sankey:
+        specifier: ^0.12.3
+        version: 0.12.3
       deep-object-diff:
         specifier: ^1.1.7
         version: 1.1.7
@@ -3095,6 +3098,9 @@ packages:
     resolution: {integrity: sha512-U466fIzU5U22eES5lTNiNbZ+d8dfcHcssH4o7QsdWaCcRs/feIPCxKYSWkYBNs5mny7MvEfwpTLWjvbm94hecw==}
     engines: {node: '>= 10'}
 
+  d3-array@2.12.1:
+    resolution: {integrity: sha512-B0ErZK/66mHtEsR1TkPEEkwdy+WDesimkM5gpZr5Dsg54BiTA5RXtYW5qTLIAcekaS9xfZrzBLF/OAkB3Qn1YQ==}
+
   d3-array@3.2.4:
     resolution: {integrity: sha512-tdQAmyA18i4J7wprpYq8ClcxZy3SC31QMeByyCFyRt7BVHdREQZ5lpzoe5mFEYZUWe+oq8HBvk9JjpibyEV4Jg==}
     engines: {node: '>=12'}
@@ -3164,6 +3170,9 @@ packages:
     resolution: {integrity: sha512-3bYs1rOD33uo8aqJfKP3JWPAibgw8Zm2+L9vBKEHJ2Rg+viTR7o5Mmv5mZcieN+FRYaAOWX5SJATX6k1PWz72g==}
     engines: {node: '>=12'}
 
+  d3-path@1.0.9:
+    resolution: {integrity: sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg==}
+
   d3-path@3.1.0:
     resolution: {integrity: sha512-p3KP5HCf/bvjBSSKuXid6Zqijx7wIfNW+J/maPs+iwR35at5JCbLUT0LzF1cnjbCHWhqzQTIN2Jpe8pRebIEFQ==}
     engines: {node: '>=12'}
@@ -3180,6 +3189,9 @@ packages:
     resolution: {integrity: sha512-FXMe9GfxTxqd5D6jFsQ+DJ8BJS4E/fT5mqqdjovykEB2oFbTMDVdg1MGFxfQW+FBOGoB++k8swBrgwSHT1cUXQ==}
     engines: {node: '>=12'}
 
+  d3-sankey@0.12.3:
+    resolution: {integrity: sha512-nQhsBRmM19Ax5xEIPLMY9ZmJ/cDvd1BG3UVvt5h3WRxKg5zGRbvnteTyWAbzeSvlh3tW7ZEmq4VwR5mB3tutmQ==}
+
   d3-scale-chromatic@3.0.0:
     resolution: {integrity: sha512-Lx9thtxAKrO2Pq6OO2Ua474opeziKr279P/TKZsMAhYyNDD3EnCffdbgeSYN5O7m2ByQsxtuP2CSDczNUIZ22g==}
     engines: {node: '>=12'}
@@ -3191,6 +3203,9 @@ packages:
   d3-selection@3.0.0:
     resolution: {integrity: sha512-fmTRWbNMmsmWq6xJV8D19U/gw/bwrHfNXxrIN+HfZgnzqTHp9jOmKMhsTUjXOJnZOdZY9Q28y4yebKzqDKlxlQ==}
     engines: {node: '>=12'}
+
+  d3-shape@1.3.7:
+    resolution: {integrity: sha512-EUkvKjqPFUAZyOlhY5gzCxCeI0Aep04LwIRpsZ/mLFelJiUfnK56jo5JMDSE7yyP2kLSb6LtF+S5chMk7uqPqw==}
 
   d3-shape@3.2.0:
     resolution: {integrity: sha512-SaLBuwGm3MOViRq2ABk3eLoxwZELpH6zhl3FbAoJ7Vm1gofKx6El1Ib5z23NUEhF9AsGl7y+dzLe5Cw2AArGTA==}
@@ -4252,6 +4267,9 @@ packages:
   internal-slot@1.0.5:
     resolution: {integrity: sha512-Y+R5hJrzs52QCG2laLn4udYVnxsfny9CpOhNhUvk/SSSVyF6T27FzRbF0sroPidSu3X8oEAkOn2K804mjpt6UQ==}
     engines: {node: '>= 0.4'}
+
+  internmap@1.0.1:
+    resolution: {integrity: sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw==}
 
   internmap@2.0.3:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
@@ -7898,9 +7916,9 @@ snapshots:
 
   '@bufbuild/protobuf@1.4.0': {}
 
-  '@carbon/charts-react@1.13.6(d3@7.4.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@carbon/charts-react@1.13.6(d3-sankey@0.12.3)(d3@7.4.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@carbon/charts': 1.13.6(d3@7.4.4)
+      '@carbon/charts': 1.13.6(d3-sankey@0.12.3)(d3@7.4.4)
       '@carbon/icons-react': 11.28.0(react@18.3.1)
       '@carbon/telemetry': 0.1.0
       react: 18.3.1
@@ -7910,7 +7928,7 @@ snapshots:
       - d3-cloud
       - d3-sankey
 
-  '@carbon/charts@1.13.6(d3@7.4.4)':
+  '@carbon/charts@1.13.6(d3-sankey@0.12.3)(d3@7.4.4)':
     dependencies:
       '@carbon/colors': 11.19.0
       '@carbon/telemetry': 0.1.0
@@ -7922,6 +7940,8 @@ snapshots:
       lodash-es: 4.17.21
       topojson-client: 3.1.0
       tslib: 2.6.2
+    optionalDependencies:
+      d3-sankey: 0.12.3
 
   '@carbon/colors@11.19.0': {}
 
@@ -10312,6 +10332,10 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
+  d3-array@2.12.1:
+    dependencies:
+      internmap: 1.0.1
+
   d3-array@3.2.4:
     dependencies:
       internmap: 2.0.3
@@ -10377,6 +10401,8 @@ snapshots:
     dependencies:
       d3-color: 3.1.0
 
+  d3-path@1.0.9: {}
+
   d3-path@3.1.0: {}
 
   d3-polygon@3.0.1: {}
@@ -10384,6 +10410,11 @@ snapshots:
   d3-quadtree@3.0.1: {}
 
   d3-random@3.0.1: {}
+
+  d3-sankey@0.12.3:
+    dependencies:
+      d3-array: 2.12.1
+      d3-shape: 1.3.7
 
   d3-scale-chromatic@3.0.0:
     dependencies:
@@ -10399,6 +10430,10 @@ snapshots:
       d3-time-format: 4.1.0
 
   d3-selection@3.0.0: {}
+
+  d3-shape@1.3.7:
+    dependencies:
+      d3-path: 1.0.9
 
   d3-shape@3.2.0:
     dependencies:
@@ -11718,6 +11753,8 @@ snapshots:
       get-intrinsic: 1.2.1
       has: 1.0.3
       side-channel: 1.0.4
+
+  internmap@1.0.1: {}
 
   internmap@2.0.3: {}
 

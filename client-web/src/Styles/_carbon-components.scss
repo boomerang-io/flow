@@ -10,7 +10,7 @@
 @use "@carbon/react/scss/type";
 
 // Themes
-@use "@boomerang-io/carbon-addons-boomerang-react/scss/global/themes/boomerang";
+@use "@boomerang-io/carbon-addons-boomerang-react/scss/src/global/themes/boomerang";
 @use "@carbon/react/scss/compat/themes" as compat;
 @use "@carbon/react/scss/compat/theme" with (
   $theme: map.merge(compat.$white, boomerang.$theme)
@@ -27,7 +27,7 @@
 @use "@carbon/react/scss/components";
 
 // Addons library with boomerang enabled
-@use "@boomerang-io/carbon-addons-boomerang-react/scss/global" with (
+@use "@boomerang-io/carbon-addons-boomerang-react/scss/src/global" with (
   $use-theme-boomerang: true
 );
 
