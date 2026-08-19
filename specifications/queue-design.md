@@ -7,6 +7,61 @@ only — delete `flow.queue.type.<taskType>.cap` from §1.5); pause = single adm
 (no claim filter — see §1.3); scheduling substrate (D2) deferred to implementation time. Finalises Q-129 and
 Q-126.
 
+> ## ⚠️ Implementation status (verified against code 2026-08-18)
+>
+> **This document is the ruled design. Parts of it were never built.** Read this block before
+> trusting any section below — a review that assumed the spec described shipped code nearly drew
+> the wrong conclusion twice.
+>
+> **Built and correct:** atomic claiming (single `findAndModify`, full eligibility re-checked at
+> claim time, losers skipped); `claim.seq` fencing **written AND read** (`claimantIsValid` at
+> start/end); pause as a single admission gate at `TaskExecutionService.queue`; `pauseRequestedAt`
+> as a flag with `RunStatus` still a closed 10-value enum; the `ScheduleWatcher` cron substrate.
+>
+> **NOT built — the spec is aspirational here:**
+> - **§1.6 Retry classes.** Only a single generic exponential backoff exists (`Backoff`, 10s base,
+>   5m ceiling — matching the "generic" row). There is **no `retryClass` field**, no `ratelimit`
+>   class, and no deterministic-terminal classification; `RunRetry` carries only `after`/`count`.
+>   "Terminal" in practice means the type isn't requeueable or the 3-retry budget is spent. An
+>   agent-reported *failure* (as opposed to a timeout) is never retried at all.
+>   **Disposition: correct the doc, don't build it** — nothing has demanded these classes, and
+>   building them now is over-abstraction ahead of proven need.
+> - **§1.5 Caps / kill switch.** No cap enforcement exists anywhere; `findClaimable` filters only by
+>   the requesting agent's registered task types. The kill switch does not exist either.
+>   **Disposition: correct the doc.** Load testing is what should reopen this.
+> - **§1.7 Leases.** `leaseExpiresAt` is declared and indexed (`lease_sweep`) but **written
+>   nowhere** — only ever `unset` — so that index is permanently empty. There is no renew endpoint.
+>   Crash recovery relies entirely on the durable `timeoutAt` deadline. Safe, but slower than the
+>   designed 180s lease + 60s renewal.
+>   **Disposition: keep as-is** unless worker-crash latency proves to matter.
+> - **§D3 #5 Orphan backstop.** Did not exist in any form; **now being implemented**, because a real
+>   bug sat behind it (below).
+>
+> **The bug the missing backstop hid — and it is a DRIFT FROM THIS DESIGN, not a missing feature.**
+> §1.1 already specifies `timeoutAt` as `claimedAt + effectiveTimeout + class grace`, and §1.2
+> already says the claim CAS "sets phase …, claim block, **`timeoutAt`**" — the whole point being to
+> compute the effective timeout **once at claim**, explicitly to fix the `DAGUtility` merge-bug site.
+> The code never did this: `tryClaim` set `phase → queued` and the claim fields but left `timeoutAt`
+> to `tryStartExecution`. Since `findReapable` selects on `timeoutAt <= now`, a task claimed but
+> never started was invisible to every sweep — and `cancelPendingAndRunningTasks` covered only
+> `running`/`pending`, so cancelling the parent run did not reach it either. A dispatcher dying
+> between claim and execute left a permanently stuck run with no API path out.
+>
+> **Interim fix applied:** a *provisional* 10-minute deadline at claim
+> (`EngineConstants.CLAIM_TIMEOUT_MINUTES`), re-baked to the real budget at start, plus the orphan
+> sweep and a cancel cascade extended to `queued`. **This is weaker than the design**: it introduces
+> an arbitrary constant to justify, computes the deadline twice, and leaves a window where a
+> healthy-but-slow dispatcher can be reaped. Bringing `tryClaim` in line with §1.1 — set the real
+> `claimedAt + effectiveTimeout + grace` deadline at claim, from the timeout already on the claim
+> pre-image — removes the constant, the second computation, and the window. **Pending maintainer
+> decision.**
+>
+> **Index authority (F4):** the entity `@Indexed`/`@CompoundIndex` annotations are **inert** —
+> `spring.data.mongodb.auto-index-creation=false` is pinned. The loader
+> (`_0017__RunIndexes`) is the sole authority and **does** provision the full FIFO claim indexes
+> including `creationDate`. The annotations remain in 12 files and have drifted; reading them
+> instead of the migration gives a wrong answer.
+
 ## D1. Claim/Queue Design (Q-225)
 
 ### 1.1 Claim fields (flat, absent-as-eligible)

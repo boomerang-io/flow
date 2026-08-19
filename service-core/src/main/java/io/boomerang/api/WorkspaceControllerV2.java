@@ -100,6 +100,13 @@ public class WorkspaceControllerV2 {
       })
   public Page<Workspace> getWorkspaces(
       @Parameter(
+              name = "search",
+              description =
+                  "Free-text search on Workspace name and displayName (prefix match, case-insensitive).",
+              required = false)
+          @RequestParam(required = false)
+          Optional<String> search,
+      @Parameter(
               name = "labels",
               description =
                   "List of url encoded labels. For example Organization=Boomerang,customKey=test would be encoded as Organization%3DBoomerang,customKey%3Dtest)",
@@ -140,7 +147,7 @@ public class WorkspaceControllerV2 {
               required = false)
           @RequestParam(defaultValue = "name")
           Optional<String> sort) {
-    return workspaceService.query(page, limit, order, sort, labels, statuses, names);
+    return workspaceService.query(page, limit, order, sort, search, labels, statuses, names);
   }
 
   @PostMapping(value = "")

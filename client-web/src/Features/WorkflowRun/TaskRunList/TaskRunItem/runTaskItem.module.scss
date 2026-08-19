@@ -1,0 +1,252 @@
+@import "Styles/mixins";
+
+.taskitem {
+  height: 12.5rem;
+  position: relative;
+  width: 100%;
+
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01), -0.125rem);
+  }
+
+  &.succeeded {
+    border-top: 0.25rem solid var(--cds-support-02);
+  }
+
+  &.waiting, &.ready {
+    // border-top: 0.25rem solid var(--cds-support-03);
+    border-top: 0.25rem solid var(--flow-wait);
+  }
+
+  &.failed, &.cancelled, &.timedout {
+    border-top: 0.25rem solid var(--flow-failure);
+  }
+
+  &.running {
+    border-top: 0.25rem solid #d5d9e0;
+
+    .progressBar {
+      position: absolute;
+      display: block;
+      height: 0.25rem;
+      top: -0.25rem;
+      left: 0;
+      transition: width 0.3s linear;
+      width: 100%;
+      overflow: hidden;
+
+      &:before {
+        content: "";
+        position: absolute;
+        background-color: var(--cds-interactive-01);
+        top: 0;
+        left: 0;
+        bottom: 0;
+        will-change: left, right;
+        animation: indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+      }
+
+      &:after {
+        content: "";
+        position: absolute;
+        background-color: var(--cds-interactive-01);
+        top: 0;
+        left: 0;
+        bottom: 0;
+        will-change: left, right;
+        animation: indeterminate-short 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) infinite;
+        animation-delay: 1.15s;
+      }
+    }
+  }
+
+  &.notstarted,
+  &.invalid,
+  &.skipped {
+    border-top: 0.25rem solid #d5d9e0;
+  }
+
+  &:last-of-type {
+    border-bottom: 0.0625rem solid #d5d9e0;
+  }
+}
+
+.header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 1.25rem 1rem 0.25rem 1rem;
+}
+
+.title {
+  align-items: center;
+  color: var(--cds-text-01);
+  display: flex;
+  font-size: 0.875rem;
+  line-height: 1rem;
+  white-space: nowrap;
+
+  p {
+    max-width: 14rem;
+    @include text-overflow-ellipsis();
+  }
+}
+
+.taskIcon {
+  height: 1rem;
+  margin-right: 0.5rem;
+  width: 1rem;
+}
+
+.status {
+  align-items: center;
+  display: flex;
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1rem;
+  white-space: nowrap;
+
+  &.succeeded {
+    color: var(--cds-support-02);
+    svg {
+      fill: var(--cds-support-02);
+    }
+  }
+
+  &.waiting, &.ready {
+    // color: var(--cds-support-03);
+    color: var(--flow-wait);
+
+    svg {
+      // fill: var(--cds-support-03);
+      fill: var(--flow-wait);
+    }
+  }
+
+  &.failed, &.cancelled {
+    color: var(--flow-failure);
+    svg {
+      fill: var(--flow-failure);
+    }
+  }
+
+  &.running,
+  &.notstarted,
+  &.invalid,
+  &.skipped {
+    color: #6f7878;
+    svg {
+      fill: #6f7878;
+    }
+  }
+}
+
+.statusIcon {
+  height: 1rem;
+  margin-right: 0.5rem;
+  width: 1rem;
+}
+
+.data {
+  margin-left: 2.5rem;
+  margin-top: 2rem;
+  white-space: nowrap;
+}
+
+.modalTrigger {
+  margin-left: -0.75rem;
+}
+
+.subtitle {
+  color: var(--cds-text-01);
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  margin-bottom: 1.5rem;
+}
+
+.time {
+  display: flex;
+  margin-bottom: 1rem;
+
+  &:last-of-type {
+    margin-bottom: 1.5rem;
+  }
+}
+
+.timeTitle {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  font-weight: 300;
+  line-height: 1.125rem;
+  width: 4.8125rem;
+}
+
+.timeValue {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+}
+
+.approvalResultsModalContainer {
+  max-height: 40rem;
+  max-width: 75ch;
+}
+
+.actionManualTaskModalContainer {
+  max-height: 40rem;
+  max-width: 75ch;
+}
+
+.detailedSection {
+  margin-bottom: 1.5rem;
+}
+
+.sectionHeader {
+  color: #4d5358;
+  font-size: 0.75rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9375rem;
+  margin-bottom: 0.5rem;
+}
+
+.sectionDetail {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+}
+
+.viewActivityLink {
+  color: var(--cds-interactive-01);
+  font-size: 0.8rem;
+}
+
+@keyframes indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}
+
+@keyframes indeterminate-short {
+  0% {
+    left: -200%;
+    right: 100%;
+  }
+  60% {
+    left: 107%;
+    right: -8%;
+  }
+  100% {
+    left: 107%;
+    right: -8%;
+  }
+}

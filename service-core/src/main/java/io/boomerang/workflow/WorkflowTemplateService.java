@@ -217,7 +217,7 @@ public class WorkflowTemplateService {
       }
     }
 
-    return new WorkflowTemplate(wfTemplateEntity);
+    return new WorkflowTemplate(wfTemplateRepository.save(wfTemplateEntity));
   }
 
   /*

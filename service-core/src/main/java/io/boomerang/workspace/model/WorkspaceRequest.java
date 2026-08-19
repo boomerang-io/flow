@@ -1,6 +1,5 @@
 package io.boomerang.workspace.model;
 
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +19,10 @@ public class WorkspaceRequest {
   private WorkspaceStatus status;
   private WorkspaceType type;
   private String externalRef;
-  private Map<String, String> labels = new HashMap<>();
+  // Absent (null) means "don't touch" on patch; present (even as {}) is a full replace of the
+  // stored map - see WorkspaceService.patch(). Must NOT default to an empty map, or "field
+  // omitted from the request" becomes indistinguishable from "clear every label".
+  private Map<String, String> labels;
   private List<AbstractParam> parameters = new LinkedList<>();
   private Quotas quotas;
   private List<WorkspaceMember> members;

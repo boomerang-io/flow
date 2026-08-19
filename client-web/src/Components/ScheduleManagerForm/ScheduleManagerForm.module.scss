@@ -1,0 +1,74 @@
+.container > * + * {
+  margin-top: 1rem;
+}
+
+.cronMessage {
+  font-size: 0.75rem;
+  margin-top: 0.125rem;
+}
+
+.configureText {
+  color: var(--cds-text-primary);
+  font-size: 1rem;
+  line-height: 1.125rem;
+}
+
+.timezone {
+  position: relative;
+  width: 23.5rem;
+}
+
+.cronContainer {
+  position: relative;
+}
+.inputContainer {
+  align-items: flex-start;
+  display: flex;
+  :global .cds--bmrg-text-input {
+    width: 23.625rem;
+  }
+  :global .cds--inline-loading {
+    margin-left: 1rem;
+    margin-top: 1.75rem;
+    width: auto;
+  }
+}
+.validityStatusComponent {
+  font-size: 0.75rem;
+  height: 2rem;
+  margin-left: 1rem;
+  margin-top: 1.65rem;
+}
+.timeContainer {
+  align-items: flex-end;
+  display: flex;
+
+  :global .cds--bmrg-text-input {
+    margin-right: 1rem;
+  }
+}
+.advancedCronToggle {
+  margin-bottom: 1rem;
+  width: 12rem;
+  :global .cds--label {
+    font-size: 14px;
+    line-height: 18px;
+    color: var(--cds-text-primary);
+  }
+}
+
+.cronAdvancedLabel {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.32px;
+  line-height: 1rem;
+}
+
+:global .cds--bmrg-creatable__colon {
+  margin-top: 2.215rem !important;
+  padding-right: initial !important;
+}
+
+.cds--accordion__content {
+  padding-inline-end: 5% !important;
+}

@@ -129,6 +129,7 @@ public class WorkflowRunService {
   }
 
   public WorkflowRunEntity tryClaimForProvision(String id, String claimedBy) {
+    Date now = new Date();
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -143,8 +144,7 @@ public class WorkflowRunService {
         new Update()
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
-            .set("claim.at", new Date())
-            .set("dispatcherRef", claimedBy)
+            .set("claim.at", now)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
@@ -153,12 +153,13 @@ public class WorkflowRunService {
       // Return the pre-image with the claim transition applied - the caller ships this to the
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
-      preImage.setDispatcherRef(claimedBy);
+      preImage.setClaim(TaskRunService.claimApplied(preImage.getClaim(), claimedBy, now));
     }
     return preImage;
   }
 
   public WorkflowRunEntity tryClaimForTeardown(String id, String claimedBy) {
+    Date now = new Date();
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -172,16 +173,15 @@ public class WorkflowRunService {
     Update update =
         new Update()
             .set("claim.by", claimedBy)
-            .set("claim.at", new Date())
-            .set("dispatcherRef", claimedBy)
+            .set("claim.at", now)
             .inc("claim.seq", 1);
     WorkflowRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, preImage.getStatus(), preImage.getPhase());
       // Return the pre-image with the claim owner applied - teardown leaves the phase (completed)
-      // unchanged, so only dispatcherRef needs patching for the caller's agent payload.
-      preImage.setDispatcherRef(claimedBy);
+      // unchanged, so only the claim block needs patching for the caller's agent payload.
+      preImage.setClaim(TaskRunService.claimApplied(preImage.getClaim(), claimedBy, now));
     }
     return preImage;
   }
@@ -336,6 +336,18 @@ public class WorkflowRunService {
                     .and("pauseRequestedAt")
                     .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "startTime"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, WorkflowRunEntity.class);
+  }
+
+  // Return the page of in-flight WorkflowRuns, oldest first - the orphan backstop checks each
+  // one's revision ref resolves; not itself an indexed predicate, so the page stays narrow and
+  // any miss is caught again on the next tick.
+  public List<WorkflowRunEntity> findInFlight(int limit) {
+    Query query =
+        Query.query(Criteria.where("phase").in(RunPhase.pending, RunPhase.queued, RunPhase.running))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);
     return mongoTemplate.find(query, WorkflowRunEntity.class);
@@ -840,6 +852,13 @@ public class WorkflowRunService {
       wfRunEntity.setDuration(0);
       wfRunEntity.setStartTime(null);
       wfRunEntity.setRetryCount(retryCount);
+      // The clone is a fresh execution: it must not inherit the source run's claim ownership,
+      // baked deadline, approval gate, status override or produced results.
+      wfRunEntity.setClaim(null);
+      wfRunEntity.setTimeoutAt(null);
+      wfRunEntity.setAwaitingApproval(false);
+      wfRunEntity.setStatusOverride(null);
+      wfRunEntity.setResults(new LinkedList<>());
       // Lineage on typed fields: initiatedByRef points at the first origin (preserved across
       // chained retries), trigger marks this run as a retry.
       if (!TriggerEnum.retry.getTrigger().equals(wfRunEntity.getTrigger())) {

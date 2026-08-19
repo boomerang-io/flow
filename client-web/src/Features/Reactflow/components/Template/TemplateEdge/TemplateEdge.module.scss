@@ -1,0 +1,38 @@
+.editorEdge {
+  stroke: var(--cds-interactive-01);
+  &.locked {
+    stroke: #50565b;
+  }
+}
+
+.runEdge {
+  stroke: #50565b;
+
+  &.notstarted,
+  &.skipped {
+    opacity: 0.5;
+  }
+}
+
+.edgeLabel {
+  display: flex;
+  gap: 0.5rem;
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 700;
+  pointer-events: all;
+}
+
+/*
+  We use the WorkflowEngineMode.Edit value
+  to select the task marker
+  There isn't an easier way to do this imo bc
+  the mark is a reused symbol and we only want it to
+  have color in the edit mode
+*/
+:global [data-mode="edit"] #task-marker {
+  polyline {
+    fill: var(--cds-interactive-01);
+    stroke: var(--cds-interactive-01);
+  }
+}

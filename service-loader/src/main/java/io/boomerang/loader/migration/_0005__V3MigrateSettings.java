@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Verified against a real v3 dump: the {@code integration} (v3 {@code extensions}) document
  * carries one config key with no v5 counterpart — {@code slack.installURL}, an operator-set value
- * from a legacy "Manage Distribution" flow the v5 seed shape does not model. Left in place
+ * from a legacy "Manage Distribution" flow the current seed shape does not model. Left in place
  * (harmless extra entry; {@code SettingConfig} readers key off known entries and ignore the rest)
  * rather than destroyed, since it may still carry a live operator-configured value.
  *

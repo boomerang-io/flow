@@ -3,11 +3,13 @@ package io.boomerang.api;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.model.TokenCreateResponse;
+import io.boomerang.core.model.TokenPermissionCatalog;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -107,6 +109,30 @@ public class TokenControllerV2 {
       to = Optional.of(new Date(toDate.get()));
     }
     return tokenService.query(from, to, limit, page, order, sort, types, principals);
+  }
+
+  @GetMapping("/token/catalog")
+  @AuthCriteria(
+      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
+      resource = PermissionResource.TOKEN,
+      action = PermissionAction.READ)
+  @Operation(
+      summary = "Retrieve the permission catalog for building a Token",
+      description =
+          "Returns the resources, actions, and role presets the requesting caller could actually"
+              + " grant for the given scope/principal - sourced from the same catalog the"
+              + " enforcement path reads.")
+  public TokenPermissionCatalog getPermissionCatalog(
+      @Parameter(name = "scope", description = "global or workspace", required = true)
+          @RequestParam
+          PermissionScope scope,
+      @Parameter(
+              name = "principal",
+              description = "Workspace ref. Required when scope=workspace.",
+              required = false)
+          @RequestParam(required = false)
+          String principal) {
+    return tokenService.getPermissionCatalog(scope, principal);
   }
 
   @DeleteMapping("/token/{id}")

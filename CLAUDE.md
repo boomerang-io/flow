@@ -5,14 +5,16 @@
 Boomerang Flow is an open-source, cloud-native, low-code/no-code workflow automation platform.
 Workflows execute as Directed Acyclic Graphs (DAGs). Apache-2.0 licensed.
 
-This is a **Java 21 / Spring Boot 3 monorepo**. Current code state (pre-merge):
+This is a **Java 25 / Spring Boot 4 monorepo** (plus one pnpm/Vite frontend). Current code state
+(post-merge — `service-flow` + `service-engine` were merged into `service-core` at E8, per DD-02):
 
 | Module           | Role                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------- |
-| `service-flow`   | v2 RESTful API layer. CRUD for Workflows, Teams, Users, Tokens, Schedules. Auth/authz.   |
-| `service-engine` | DAG execution backbone. WorkflowRun orchestration, TaskRun lifecycle, CloudEvents.       |
-| `service-agent`  | Pluggable execution worker. Default implementation: Tekton on Kubernetes.                |
+| `service-core`   | The merged deployable: v2 REST API, auth/authz, workspaces, workflows, AND the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Nine flat feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations,api}`. |
+| `service-agent`  | Pluggable execution worker (→ `dispatcher` per DD-06). Default implementation: Tekton on Kubernetes. |
+| `service-loader`  | Flamingock migrations + bootstrap seeding, run as a pre-deploy Job (DD-07).              |
 | `lib-common`     | Shared domain model, entities, enums, error handling. (Being dissolved per Q-202.)       |
+| `client-web`     | The React 17 + Carbon v11 webapp (DD-04), folded in from `flow.client.web` with full history at the v4 line. Its own image; served only in `standalone` mode. |
 
 ## You Are Working On: v5
 
@@ -26,7 +28,7 @@ separate deployables. **v5 reverses that split — see the confirmed decisions b
 | DD-01 | **Rename Team → Workspace** at the v5 major (API paths aliased for deprecation; module named `workspace`; loader migration for RelationshipType/AuthScope values).                  |
 | DD-02 | **MERGE `service-flow` + `service-engine`** into ONE deployable with **`flow.mode = standalone \| engine`** (AM-7, 2026-08-15: FULL collapsed into STANDALONE — "standalone" = the complete self-contained product and the default; "engine" = embedded headless; the laptop case = the product with security off). Agent stays separate. Falsifiability F1–F5 stays live. **AM-1 (2026-08-14): no Spring Modulith, no ArchUnit — boundaries by convention (ARCHIE flat-feature-package style). See `specifications/merge-execution-plan.md`.** |
 | DD-03 | **Unified product versioning** — one tag builds the compatible image set; no independent engine version line (`engine@` alias tags during the embedder deprecation window).         |
-| DD-04 | **Frontend (`flow.client.web`) joins this monorepo** — after the merged image ships; v5 re-baselines its 3.12.x history; webapp served only in `full`/`standalone` modes.           |
+| DD-04 | **Frontend (`flow.client.web`) joins this monorepo** — after the merged image ships; continues from the **v4 line** (`main`, at tag `4.0.0`+3; the `3.12.0` in package.json is a stale field — releases are tag-driven, as on the backend), joining the DD-03 unified product version at 5.x; webapp served only in `standalone` mode (AM-7).           |
 | DD-05 | **Merged deployable module = `service-core`** (executed at E8; ARCHIE/CHEER convention; "engine" stays an internal module + mode name only).                                        |
 | DD-06 | **Worker tier renamed `agent` → `dispatcher` at E7/E8** (`DispatcherProtocol`, `dispatcherRef`, `dispatcher-tekton`/`dispatcher-docker`; v1 wire keeps `/agent/` until retirement). "Agent" is reserved for the AI task types. |
 | DD-07 | **Migrations = `service-loader` module in this monorepo on Flamingock**, run as a pre-deploy Job (one execution per deploy); baseline changeunit covers live instances; E3's schema ships as its first changeunits. In-app-at-boot re-decided after the merge. |
@@ -48,16 +50,22 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
 
 ## v5 Execution-Model Direction (verified against ARCHIE/CHEER shipped code)
 
-- **Atomic claiming via `findAndModify`** — no distributed locks. Claims carry ownership
-  metadata: `claimedBy`/`claimedAt`/`leaseExpiresAt`/`claimEpoch` (fencing validated on
-  result writes). ARCHIE writes `claimedBy` but never reads it — Flow adds the semantics.
+- **Atomic claiming via `findAndModify`** — no distributed locks. Claims carry `claim.by`/
+  `claim.at`/`claim.seq`, and **fencing is genuinely validated on result writes**
+  (`claimantIsValid` at start/end) — ARCHIE writes `claimedBy` but never reads it, and Flow does
+  add the semantics. `leaseExpiresAt` is declared and indexed but **written nowhere** (only ever
+  unset), so leases are inert vocabulary: crash recovery is pure deadline-based reaping off
+  `timeoutAt`. Do not describe leases as a working guard.
 - **Contended transitions use status-CAS `findAndModify`** (`tryTransition(expected→target)`)
   — NOT `@Version` retries. The watcher/sweep re-drives after swallowed conflicts.
 - **Timeouts & crash recovery = WorkflowWatcher recovery sweep** — instance-agnostic reaping
   (any survivor reaps a crashed claimant's runs; lease/fencing makes it safe). No per-run
   timers. Run timeout must be ≥ the transport timeout of the guarded work.
-- **Three retry failure classes**: generic backoff, rate-limit (own base + higher cap),
-  deterministic-terminal (no retry). Backoff stored as `retryAfter` = claim-eligibility.
+- **Retry: ONE generic backoff class is built** (`Backoff`, 10s base → 5m ceiling, stored as
+  `retryAfter` = claim-eligibility). The designed rate-limit and deterministic-terminal classes
+  were **never implemented** — there is no `retryClass` field, and an agent-reported *failure*
+  (vs a timeout) is not retried at all. Ruled 2026-08-18: correct the spec rather than build them
+  ahead of proven need.
 - **Pause is a committed v5 feature** (`pauseRequestedAt: Instant` flag — NEVER a RunStatus
   value) enforced at a **single admission gate**: a paused run admits no new TaskRuns (the
   DAG advance/queue chokepoint at `TaskExecutionService.queue`), while work already in flight
@@ -65,8 +73,10 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
   deadline regardless of pause. Resume = clear flag + reconcile. (The earlier three-chokepoint
   design — claim-query exclusion + transition gate + sweep-skip — collapsed to the admission
   gate once claim-query exclusion proved redundant and needlessly held back in-flight work.)
-- **Starvation-safe typed queues**: FIFO on a compound index; backoff exclusion IN the query;
-  per-type concurrency caps; kill switch.
+- **Starvation-safe typed queues**: FIFO on a compound index (loader-managed — the entity index
+  annotations are inert, `auto-index-creation=false`); backoff exclusion IN the query.
+  **Per-type concurrency caps and the kill switch do not exist** — `findClaimable` filters only by
+  the agent's registered task types. Load testing reopens this, not speculation.
 - **Relationship layer**: keep the existing `rel_nodes`/`rel_edges` schema, adopt CHEER's
   direct-query anchored walk; the in-memory JGraphT singleton is **rejected** (per-replica
   staleness = authz bug). `$graphLookup` is the escalation path for deeper walks. Hot
@@ -109,8 +119,10 @@ behaviour, never "simplify" onto framework defaults.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
 - Agent endpoints (`AgentControllerV1`) are **unauthenticated**; engine is `permitAll()`.
-- Two properties gate security halves: `flow.auth.enabled` AND `flow.authorization.enabled`
-  (to be unified; mode-derived default).
+- ~~Two properties gate security halves~~ **DONE**: unified into a single `flow.security.enabled`,
+  whose default derives from `flow.mode` (`STANDALONE`→on, `ENGINE`→off) unless set explicitly —
+  see `FlowSecurityProperties`. It gates both `AuthenticationFilter` and the interceptor config.
+  (`flow.authorization.basic.password` is unrelated — that's the Basic-auth password.)
 - Agent queue claiming is non-atomic (find-then-update race) until Phase 3 lands — worse,
   the claim *loser still dispatches* (the queue returns the find result, not the claimed
   set), and terminal-phase runs are redelivered to every agent on every poll.
@@ -156,6 +168,12 @@ mvn clean install
 mvn spring-boot:run -pl service-core
 ```
 
+The webapp runs separately against it (`standalone` mode only):
+
+```bash
+cd client-web && pnpm install && pnpm start   # Vite dev server; BASE_URL ← PRODUCT_SERVICE_ENV_URL
+```
+
 Security can be disabled for local development (one property; default derives from `flow.mode`):
 
 ```properties
@@ -164,7 +182,8 @@ flow.security.enabled=false
 
 ## Error Response Format
 
-All API errors use `io.boomerang.error.ErrorDetail`:
+All API errors use `io.boomerang.common.error.RestErrorResponse` (lib-common). Note
+`io.boomerang.error.model.ErrorDetail` still exists in `service-agent` only — it is not the API shape:
 
 ```json
 { "timestamp": "...", "code": 1001, "reason": "QUERY_INVALID_FILTERS",
@@ -205,11 +224,14 @@ merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-re
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
 | `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
 | `specifications/merge-execution-plan.md`  | 🔵 **ACTIVE (2026-08-14)**   | T4 execution sequence for the DD-02 merge: E8–E11 slices, gate pre-fills, and the 5 amendments (AM-1 no-Modulith/no-ArchUnit boundaries-by-convention, AM-2 H3 moot, AM-3 leases deferred, AM-4 E9 G2 lineage via `initiatedByRef`, AM-5 dispatcher token reuse). |
+| `specifications/authentication.md`         | 🔵 Proposed (2026-08-18)     | Unified token exchange for IDPZero + OAuth2-proxy: one convergence point, session token thereafter, ARCHIE's httpOnly-cookie model (sequences after the SSR migration). Mode selection ruled to a config flag — revisit per issue #314. |
+| `specifications/entity-diff-v4-v5.md`      | ✅ Reviewed + actioned (2026-08-18) | Field-level v4→v5 entity diff (why each element was added, migration-written residue, anomaly dispositions); the open G2 item is the outbox `transitionSeq` key. |
+| `specifications/api-contract-trace.md`     | 🔵 **ACTIVE (2026-08-18)**   | End-to-end webapp↔service-core contract trace (call site → route → service → serialised fields). Live defects, blocked capability, the permissions/auth findings that gate the frontend work, and the maintainer decisions outstanding. |
 | `specifications/repo-insights-engagement-inputs.md` | 🟡 Inputs — proposed (2026-08-09) | Client-engagement requirements for a future v5 phase: pull-based **executor SPI** (zone queues, payload cap), **evidence/custody ledger** in the task-result contract, **executor portfolio** (K8s Jobs default, VM/MicroVM, CoCo flag), workspace non-retention guarantee, thin LLM task type + **propose/dispose** governed agency, **Embabel** spike. Not ruled — proposed→confirmed when the phase is worked. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
-`/Users/tysonlawrie/Workspaces/walkaboutdev/cheer.dev` · Frontend =
+`/Users/tysonlawrie/Workspaces/cheerdev/cheer.dev` · Frontend =
 `/Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web`.
 
 ## What To Work On First

@@ -1,0 +1,138 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  flex-flow: row wrap;
+  padding: 2rem;
+}
+
+.property {
+  background-color: var(--cds-ui-01);
+  display: inline-table;
+  height: 22.625rem;
+  margin: 0 2.5rem 2.5rem 0;
+  padding: 1rem;
+  position: relative;
+  width: 17.625rem;
+  @include border-radius();
+}
+
+.name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.0625rem;
+  line-height: 1.5rem;
+  margin: 0;
+  margin-bottom: 1rem;
+  @include text-overflow-ellipsis();
+}
+
+.headerContainer {
+  display: flex;
+  flex-direction: column;
+  font-size: 1rem;
+  margin-top: 0.5rem;
+  width: 13.265rem;
+  @include text-overflow-ellipsis();
+}
+
+.fieldContainer {
+  display: flex;
+  flex-direction: column;
+  font-size: 1rem;
+  margin-top: 1rem;
+  width: 13.265rem;
+  @include text-overflow-ellipsis();
+}
+
+.fieldKey {
+  color: #868d95;
+  font-size: 0.75rem;
+  font-weight: 300;
+  line-height: 0.9375rem;
+  @include text-overflow-ellipsis();
+}
+
+.fieldValue {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  @include text-overflow-ellipsis();
+}
+
+.deleteIcon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.readOnlyText {
+  color: var(--cds-text-01);
+  font-size: 0.75rem;
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+}
+
+.label {
+  color: var(--cds-text-01);
+  font-size: 1rem;
+  line-height: 1.1rem;
+  @include text-overflow-ellipsis();
+}
+
+.propertyKey {
+  color: var(--cds-text-01);
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  margin-top: 0.25rem;
+  @include text-overflow-ellipsis();
+}
+
+.description {
+  color: var(--cds-text-01);
+  display: block;
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  height: 1.875rem;
+  position: relative;
+  white-space: normal;
+}
+
+.description::before {
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), var(--cds-ui-01) 80%);
+  bottom: 0;
+  content: "\200C";
+  display: block;
+  height: 0.75rem;
+  position: absolute;
+  right: 0;
+  text-align: center;
+  width: 20%;
+}
+
+.required {
+  color: var(--cds-support-02);
+  bottom: 1rem;
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  position: absolute;
+  right: 1rem;
+}
+
+.notRequired {
+  color: var(--cds-text-03);
+  bottom: 1rem;
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  position: absolute;
+  right: 1rem;
+}
+
+.deleteProperty {
+  position: absolute;
+  right: -0.75rem;
+  top: -0.75rem;
+  width: 1.5rem;
+}

@@ -28,7 +28,7 @@ import org.springframework.http.ResponseEntity;
 /**
  * Agent task-queue claim semantics: each ready TaskRun is claimed via a per-document
  * Compare-And-Set, so exactly one agent receives it and the claim records ownership (claim block,
- * incremented claim seq, dispatcherRef alias). Terminal runs are not eligible and are never
+ * incremented claim seq). Terminal runs are not eligible and are never
  * redelivered.
  */
 class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
@@ -125,7 +125,6 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
       assertEquals(RunPhase.queued, claimed.getPhase());
       assertNotNull(claimed.getClaim(), "the winner's claim block must be recorded");
       assertEquals((aGotIt ? agentA : agentB), claimed.getClaim().getBy());
-      assertEquals((aGotIt ? agentA : agentB), claimed.getDispatcherRef());
       assertEquals(1L, claimed.getClaim().getSeq());
     } finally {
       pool.shutdownNow();
@@ -145,8 +144,8 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
             .orElseThrow();
 
     // The wire payload the agent receives must reflect the post-claim transition, not the stale
-    // pre-claim pending phase the findAndModify pre-image originally held. (dispatcherRef is an internal
-    // field and is intentionally not exposed on the public TaskRun model.)
+    // pre-claim pending phase the findAndModify pre-image originally held. (The claim block is an
+    // internal field and is intentionally not exposed on the public TaskRun model.)
     assertEquals(RunPhase.queued, claimed.getPhase());
   }
 }

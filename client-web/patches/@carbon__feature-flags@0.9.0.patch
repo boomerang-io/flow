@@ -1,0 +1,65 @@
+diff --git a/es/index.js b/es/index.js
+index 1da57a212fc0646f42c7a27abe337075fb34cde8..488a22e3c42238480f306b5b91f11f3d2bc1007d 100644
+--- a/es/index.js
++++ b/es/index.js
+@@ -5,54 +5,12 @@
+  * LICENSE file in the root directory of this source tree.
+  */
+ 
+-var enabled$1 = {};
+-
+-try {
+-  if (process.env.CARBON_ENABLE_CSS_CUSTOM_PROPERTIES) {
+-    if (process.env.CARBON_ENABLE_CSS_CUSTOM_PROPERTIES === 'true') {
+-      enabled$1.enableCssCustomProperties = true;
+-    } else {
+-      enabled$1.enableCssCustomProperties = false;
+-    }
+-  } else {
+-    enabled$1.enableCssCustomProperties = false;
+-  }
+-
+-  if (process.env.CARBON_ENABLE_USE_CONTROLLED_STATE_WITH_VALUE) {
+-    if (process.env.CARBON_ENABLE_USE_CONTROLLED_STATE_WITH_VALUE === 'true') {
+-      enabled$1.enableUseControlledStateWithValue = true;
+-    } else {
+-      enabled$1.enableUseControlledStateWithValue = false;
+-    }
+-  } else {
+-    enabled$1.enableUseControlledStateWithValue = false;
+-  }
+-
+-  if (process.env.CARBON_ENABLE_CSS_GRID) {
+-    if (process.env.CARBON_ENABLE_CSS_GRID === 'true') {
+-      enabled$1.enableCssGrid = true;
+-    } else {
+-      enabled$1.enableCssGrid = false;
+-    }
+-  } else {
+-    enabled$1.enableCssGrid = false;
+-  }
+-
+-  if (process.env.CARBON_ENABLE_V11_RELEASE) {
+-    if (process.env.CARBON_ENABLE_V11_RELEASE === 'true') {
+-      enabled$1.enableV11Release = true;
+-    } else {
+-      enabled$1.enableV11Release = false;
+-    }
+-  } else {
+-    enabled$1.enableV11Release = false;
+-  }
+-} catch (error) {
+-  enabled$1.enableCssCustomProperties = false;
+-  enabled$1.enableUseControlledStateWithValue = false;
+-  enabled$1.enableCssGrid = false;
+-  enabled$1.enableV11Release = false;
+-}
++ var enabled$1 = {
++  enableCssCustomProperties: true,
++  enableCssGrid: true,
++  enableV11Release: true,
++  enableUseControlledStateWithValue: false
++};
+ 
+ var featureFlagInfo = [{
+   name: "enable-css-custom-properties",

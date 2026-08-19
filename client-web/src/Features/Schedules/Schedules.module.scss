@@ -1,0 +1,88 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.header {
+  padding: 1rem 2rem 0;
+}
+
+.headerTitle {
+  margin: 0;
+}
+
+.headerSummary {
+  align-items: flex-end;
+  display: flex;
+  flex-flow: row wrap;
+  margin: 0.5rem 0;
+}
+
+.headerSummaryText {
+  color: var(--cds-text-01);
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.5625rem;
+}
+
+.headerSummarySkeleton {
+  width: 25rem;
+  height: 4rem;
+}
+
+.content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dataFiltersContainer {
+  margin-left: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 1rem;
+  margin-left: auto;
+  flex > * + * {
+    margin-left: 1.4rem;
+  }
+}
+
+.dataFilter {
+  width: 15.875rem;
+}
+
+.contentContainer {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.listContainer {
+  background: var(--cds-layer);
+  width: 30rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  ul {
+    overflow-y: auto;
+  }
+}
+
+.calendarContainer {
+  flex-grow: 1;
+  padding: 1.5rem;
+  overflow: auto;
+  z-index: 0;
+  &[data-is-loading="true"] {
+    opacity: 0.5;
+  }
+}
+
+.panelContainer {
+  margin-top: 10.875rem;
+  height: calc(100vh - 10.875rem);
+}

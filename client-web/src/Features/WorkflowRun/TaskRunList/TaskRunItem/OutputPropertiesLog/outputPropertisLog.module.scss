@@ -1,0 +1,9 @@
+@import "Styles/mixins";
+
+.container {
+  max-width: 50rem;
+
+  :global .cds--modal-content {
+    padding-right: 1rem;
+  }
+}

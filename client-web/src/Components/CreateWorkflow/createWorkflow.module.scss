@@ -1,0 +1,62 @@
+@import "Styles/mixins";
+
+.disabledCreate {
+  align-items: center;
+  border: 0.0625rem solid #a2a9b0;
+  box-sizing: border-box;
+  @include border-radius();
+  display: flex;
+  font-family: "IBM Plex Sans";
+  height: 10.325rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0.125rem;
+  position: relative;
+  width: 19.375rem;
+  z-index: 1;
+
+  svg {
+    fill: #a2a9b0;
+  }
+  p {
+    color: #a2a9b0;
+  }
+}
+
+.container {
+  align-items: center;
+  border: 0.0625rem solid #373d42;
+  box-sizing: border-box;
+  @include border-radius();
+  cursor: pointer;
+  display: flex;
+  font-family: "IBM Plex Sans";
+  height: 10.325rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0.125rem;
+  position: relative;
+  width: 19.375rem;
+  z-index: 1;
+
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.modalContainer {
+  height: 46rem;
+  max-height: 84vh;
+}
+
+.addIcon {
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+.text {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.0625rem;
+  margin-left: 0.5rem;
+}

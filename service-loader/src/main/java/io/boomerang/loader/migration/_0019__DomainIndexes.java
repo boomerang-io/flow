@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>Collection-name correction (the reason this merge is NOT purely mechanical):</b> the
  * former {@code _0006__AgentRegistrationUniqueness} targeted the {@code agents} collection because
- * it used to run BEFORE {@code _0011__DispatcherRename} (DD-06's persisted rename, {@code agents}
+ * it used to run BEFORE the dispatcher rename unit (DD-06's persisted rename, {@code agents}
  * -> {@code dispatchers}) in the old numbering. In the new chain, Phase 3's {@code
  * _0015__DispatcherRename} runs BEFORE this unit (Phase 4), so the dedupe + unique-index logic
  * below targets {@code dispatchers} directly — asserted in {@code LoaderMigrationTest} under the
@@ -187,21 +187,25 @@ public class _0019__DomainIndexes {
    *   <li><b>{@code workflows.creationDate}</b> — {@code WorkflowEntity} indexes only {@code
    *       name}. {@code WorkflowService.query} both sorts and range-filters on {@code
    *       creationDate}. GENUINELY MISSING: created here.
-   *   <li><b>{@code workflow_revisions.(workflowRef, version)}</b> — ALREADY COVERED:
-   *       {@code WorkflowRevisionEntity} declares {@code workflow_ref_version_idx} on exactly this
-   *       pair. Skipped.
+   *   <li><b>{@code workflow_revisions.(workflowRef, version)}</b> — {@code
+   *       WorkflowRevisionEntity} declares {@code workflow_ref_version_idx} on exactly this pair,
+   *       but that annotation is inert (see above) and was never built on a fresh install; created
+   *       by {@code _0033__DefinitionIndexes} as {@code workflow_ref_version}. Skipped here.
    *   <li><b>{@code workflow_revisions.version}</b> (standalone) — the compound index above has
    *       {@code version} as its SECOND key, so it cannot serve a version-only query (no current
    *       call site issues one, but the pair is not a substitute for the standalone case).
    *       GENUINELY MISSING: created here.
-   *   <li><b>{@code tasks.name}</b> — ALREADY COVERED: {@code TaskEntity.name} is {@code
-   *       @Indexed}, and {@code TaskService.query} filters on it directly. Skipped.
+   *   <li><b>{@code tasks.name}</b> — {@code TaskEntity.name} is {@code @Indexed}, but that
+   *       annotation is inert and was never built on a fresh install; created by {@code
+   *       _0033__DefinitionIndexes} as {@code name_lookup}. Skipped here.
    *   <li><b>{@code tasks.creationDate}</b> — not indexed anywhere; {@code TaskService.query}'s
    *       default sort is {@code creationDate}. GENUINELY MISSING: created here.
-   *   <li><b>{@code task_runs}/{@code workflow_runs}: {@code status}/{@code phase}</b> — ALREADY
-   *       COVERED on both collections ({@code @Indexed} on the entity fields, plus {@code
-   *       status_phase_type_idx}/{@code status_phase_idx} compounds and {@code
-   *       _0017__RunIndexes}'s {@code claim_page} compounds). Skipped.
+   *   <li><b>{@code task_runs}/{@code workflow_runs}: {@code status}/{@code phase}</b> — COVERED
+   *       by {@code _0017__RunIndexes}'s {@code claim_page} compounds ({@code workflow_runs}:
+   *       {@code {status, phase, creationDate}} is a prefix match; {@code task_runs}: {@code
+   *       {type, status, phase, creationDate}} - every {@code task_runs} query filters on {@code
+   *       type} or {@code workflowRunRef} ahead of {@code status}/{@code phase}, so the entity's
+   *       inert {@code status_phase_type_idx} has no query left to serve). Skipped.
    *   <li><b>{@code task_runs.workflowRunRef}</b> — ALREADY COVERED: {@code @Indexed} on the
    *       entity plus {@code _0017__RunIndexes}'s {@code run_tasks} compound ({@code
    *       workflowRunRef, status, name}). {@code workflow_runs} has no {@code workflowRunRef}

@@ -24,11 +24,11 @@ import org.slf4j.LoggerFactory;
  * findByScopeAndParent}/{@code findFirstByScopeAndSelfRef}), which a v3 install has never had since
  * the {@code audit} collection is a v5-only concept.
  *
- * <p><b>H14-c note:</b> this unit still writes the pre-DD-01 {@code scope="TEAM"} value (matching
- * the pre-rename {@code AuditScope} enum-name convention, unchanged here to keep this
- * already-dump-verified unit minimal) — {@link _0016__WorkspaceRename}, which runs UNGATED later
- * in this same chain, rewrites every {@code scope="TEAM"} record to {@code "WORKSPACE"} before any
- * v4-repair or application code ever reads it.
+ * <p><b>H14-c note:</b> this unit writes the DD-01 {@code scope="WORKSPACE"} value directly (the
+ * enum name {@code AuditScope} deserialises), so the database is loadable by the application at
+ * every point in the chain. An earlier revision wrote the pre-rename {@code "TEAM"} value and
+ * relied on {@link _0016__WorkspaceRename} to rewrite it; {@code _0016} still performs that
+ * rewrite for databases seeded by that revision.
  *
  * <p><b>Legacy 4038 is the nominal reference, but its workflow half never actually worked</b>
  * (verified against the live {@code AuditInterceptor}/relationship-graph code, matching the batch
@@ -107,7 +107,7 @@ public class _0013__V3SeedAudit {
   }
 
   // =====================================================================================
-  // TEAM scope — one per workspace
+  // WORKSPACE scope — one per workspace
   // =====================================================================================
 
   private Map<String, String> seedWorkspaceAudits(MongoDatabase db, CollectionNames names) {
@@ -119,7 +119,11 @@ public class _0013__V3SeedAudit {
       String workspaceId = workspace.get("_id").toString();
       String name = workspace.getString("name");
 
-      Document existing = audit.find(Filters.and(Filters.eq("scope", "TEAM"), Filters.eq("selfRef", workspaceId))).first();
+      Document existing =
+          audit.find(
+                  Filters.and(
+                      Filters.in("scope", "WORKSPACE", "TEAM"), Filters.eq("selfRef", workspaceId)))
+              .first();
       if (existing != null) {
         auditIdByWorkspaceId.put(workspaceId, existing.get("_id").toString());
         continue;
@@ -128,7 +132,7 @@ public class _0013__V3SeedAudit {
       ObjectId auditId = new ObjectId();
       Document record =
           new Document("_id", auditId)
-              .append("scope", "TEAM")
+              .append("scope", "WORKSPACE")
               .append("selfRef", workspaceId)
               .append("selfName", name)
               .append("creationDate", new Date())

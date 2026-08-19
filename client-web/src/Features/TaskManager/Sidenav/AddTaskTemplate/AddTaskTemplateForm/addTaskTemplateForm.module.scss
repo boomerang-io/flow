@@ -1,0 +1,115 @@
+@import "Styles/mixins";
+.container {
+  :global .cds--file-browse-btn {
+    margin-bottom: 1rem;
+  }
+  :global .cds--file__selected-file {
+    background: var(--cds-ui-background);
+  }
+}
+.fileUploaderLabel {
+  font-size: 0.75rem;
+}
+.fileUploaderHelper {
+  color: var(--cds-active-secondary);
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.fileUploaderNotification {
+  position: static !important;
+}
+.iconTitle {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+}
+.iconSubtitle {
+  color: var(--cds-text-05);
+  font-size: 0.75rem;
+}
+
+.iconsWrapper {
+  display: flex;
+  flex-flow: wrap;
+  margin: 1.25rem 0;
+  :global .cds--assistive-text {
+    text-transform: capitalize;
+  }
+}
+.iconLabel {
+  align-items: center;
+  border: 0.125rem solid transparent;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  display: flex;
+  height: 2.7rem;
+  justify-content: center;
+  margin: 0.25rem !important;
+  transition: all 0.15s ease;
+  width: 2.7rem;
+  :global .cds--assistive-text {
+    left: -1.5rem !important;
+  }
+
+  [type="radio"] {
+    height: 0;
+    opacity: 0;
+    position: absolute;
+    width: 0;
+  }
+
+  [type="radio"] + img {
+    cursor: pointer;
+  }
+
+  &.active {
+    background: #3ddbd9;
+    svg {
+      fill: var(--cds-ui-05);
+    }
+
+    &:hover {
+      background: #08bdba;
+      svg {
+        fill: var(--cds-ui-05);
+      }
+    }
+  }
+
+  img {
+    height: 1rem;
+    padding: 0.25rem 0.425rem;
+    width: 1rem;
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:hover {
+    background: #08bdba;
+  }
+
+  &:first-child {
+    margin: 0;
+  }
+}
+
+.icon {
+  height: 2rem;
+  padding: 0.25rem 0.425rem;
+  width: 2rem;
+  outline: none !important;
+}
+
+.description {
+  position: relative;
+}
+
+.descriptionLength {
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 1rem;
+  position: absolute;
+  top: 0;
+  right: 0;
+}

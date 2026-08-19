@@ -1,0 +1,70 @@
+@import "Styles/mixins";
+
+.node {
+  background: #002b50;
+  border: 0.125rem solid #002b50;
+  color: white;
+  width: 9rem;
+  height: 5rem;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  @include border-radius();
+
+  &.locked {
+    background: #697077;
+    border: 0.1875rem solid #697077;
+    .port {
+      background-color: #50565b;
+      border: 0.0625rem solid #50565b;
+    }
+
+    &.running {
+      .port {
+        opacity: 0.5;
+      }
+    }
+  }
+}
+
+.port {
+  position: absolute;
+  height: 2.25rem;
+  width: 2rem;
+  background-color: var(--cds-interactive-01);
+  border: 0.0625rem solid var(--cds-interactive-01);
+  right: -2.125rem;
+  top: 2.5rem;
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  border-bottom-right-radius: 50%;
+  border-top-right-radius: 50%;
+  background-image: url("../../../../Assets/icons/chevron_white.svg");
+  background-position: center;
+  background-repeat: no-repeat;
+  &:hover {
+    filter: brightness(110%);
+  }
+
+  &.locked:hover {
+    filter: brightness(100%);
+  }
+}
+
+.edge {
+  stroke: var(--cds-interactive-01);
+
+  &.locked {
+    stroke: #697077;
+  }
+}
+
+.edgeLabel {
+  display: flex;
+  gap: 0.5rem;
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 700;
+  pointer-events: all;
+}

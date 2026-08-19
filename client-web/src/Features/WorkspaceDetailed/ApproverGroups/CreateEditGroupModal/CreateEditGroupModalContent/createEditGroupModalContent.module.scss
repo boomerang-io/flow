@@ -1,0 +1,106 @@
+@import "Styles/variables";
+
+.divider {
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  margin: 1rem 0;
+  width: 100%;
+}
+
+.selectedUsers {
+  font-size: 0.75rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9375rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.selectAllMembers, .listTitle {
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01rem;
+  line-height: 0.9375rem;
+  padding-bottom: 0.55rem;
+  width: 100%;
+}
+
+.membersContainer {
+  margin-top: 1.75rem !important;
+}
+
+.userListCheckItem {
+  align-items: baseline;
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  display: flex;
+  :global .cds--form-item {
+    flex: initial;
+  }
+}
+
+.userList {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.userListItem {
+  align-items: center;
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  display: flex;
+  height: 2.125rem;
+  justify-content: space-between;
+  width: calc(100% - 2rem);
+
+  &:last-of-type {
+    border-bottom: 0.0625rem solid var(--cds-active-ui);
+    padding: 0 1rem;
+    width: 100%;
+  }
+
+}
+
+.memberInfo {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.userName {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 0.9375rem;
+}
+
+.userEmail {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9375rem;
+  margin-left: 1rem;
+}
+
+.noMembers {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  margin-top: 1rem;
+}
+
+.noMembersTitle {
+  color: var(--cds-text-03);
+  letter-spacing: 0.02rem;
+  line-height: 1.125rem;
+  font-size: 1rem;
+}
+
+.noMembersMessage {
+  color: var(--cds-text-03);
+  letter-spacing: 0.01rem;
+  line-height: 0.9375rem;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.actionIcon {
+  cursor: pointer;
+}

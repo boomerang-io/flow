@@ -1,0 +1,9 @@
+.button {
+  display: flex;
+  justify-content: center;
+  width: 2rem;
+
+  :global .cds--btn__icon {
+    margin-left: 0;
+  }
+}

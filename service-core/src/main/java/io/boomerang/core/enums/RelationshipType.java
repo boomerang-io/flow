@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 // DD-01 (Team -> Workspace rename): TEAM's label became "workspace"; the stored rel_nodes/
-// rel_edges "type" values are migrated by loader changeunit _0012__WorkspaceRename. "team"
+// rel_edges "type" values are migrated by loader changeunit _0016__WorkspaceRename. "team"
 // stays accepted as an input alias (BY_LABEL below) so any not-yet-migrated/legacy caller still
 // resolves, but the label emitted (getLabel(), and therefore any *new* write) is "workspace".
 // TEAMTASK ("teamtask") is left as-is - it is not itself a Team/Workspace node type, it is the

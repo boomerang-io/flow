@@ -68,9 +68,9 @@
           "readOnly": false
         },
         {
-          "description": "Enforce Team level quotas",
-          "key": "teamQuotas",
-          "label": "Team Quotas",
+          "description": "Enforce Workspace level quotas",
+          "key": "workspaceQuotas",
+          "label": "Workspace Quotas",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -92,9 +92,9 @@
           "readOnly": false
         },
         {
-          "description": "Enable users to access and create Team Parameters",
-          "key": "teamParameters",
-          "label": "Team Parameters",
+          "description": "Enable users to access and create Workspace Parameters",
+          "key": "workspaceParameters",
+          "label": "Workspace Parameters",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -108,9 +108,9 @@
           "readOnly": false
         },
         {
-          "description": "Allow management and editing of Teams. The Teams screen will always be visible but if disabled will be in view only mode",
-          "key": "teamManagement",
-          "label": "Team Management",
+          "description": "Allow management and editing of Workspaces. The Workspaces screen will always be visible but if disabled will be in view only mode",
+          "key": "workspaceManagement",
+          "label": "Workspace Management",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -124,9 +124,9 @@
           "readOnly": false
         },
         {
-          "description": "Allow users to access and create Team Tasks",
-          "key": "teamTasks",
-          "label": "Team Tasks",
+          "description": "Allow users to access and create Workspace Tasks",
+          "key": "workspaceTasks",
+          "label": "Workspace Tasks",
           "type": "boolean",
           "value": "true",
           "readOnly": false
@@ -194,7 +194,7 @@
           "readOnly": false
         },
         {
-          "key": "github.pem",
+          "key": "github.jwt",
           "description": "Private key used to sign access token requests",
           "label": "GitHub Private Key",
           "type": "secured",
@@ -207,6 +207,30 @@
           "label": "GitHub App Name",
           "type": "text",
           "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client ID from your GitHub App credentials.",
+          "key": "github.clientId",
+          "label": "GitHub Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client Secret from your GitHub App credentials.",
+          "key": "github.clientSecret",
+          "label": "GitHub Client Secret",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.webhookSecret",
+          "label": "GitHub Webhook Secret",
+          "value": "",
+          "description": "The Webhook Secret configured on your GitHub App, used to verify the X-Hub-Signature-256 header on incoming webhook payloads.",
+          "type": "secured",
           "readOnly": false
         }
       ],
@@ -341,12 +365,12 @@
           "readOnly": false
         }
       ],
-      "description": "Define default team quotas which are referenced unless overridden on the Team.",
-      "key": "teams",
+      "description": "Define default workspace quotas which are referenced unless overridden on the Workspace.",
+      "key": "workspaces",
       "lastModiifed": {
         "$date": "2021-08-23T21:57:01.577Z"
       },
-      "name": "Team Quotas",
+      "name": "Workspace Quotas",
       "type": "ValuesList"
     },
     {

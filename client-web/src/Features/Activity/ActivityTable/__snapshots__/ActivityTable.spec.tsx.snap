@@ -1,0 +1,453 @@
+// Vitest Snapshot v1
+
+exports[`ActivityTable --- Snapshot > Capturing Snapshot of ActivityTable 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <section>
+      <div
+        class="_tableContainer_8eafaf"
+      >
+        <div
+          class="cds--data-table-container"
+        >
+          <div
+            class="cds--data-table-content"
+          >
+            <table
+              class="cds--data-table cds--data-table--sort"
+            >
+              <thead>
+                <tr>
+                  <th
+                    aria-sort="none"
+                    class="_tableHeadHeader_8eafaf _workspaceName_8eafaf"
+                    id="workspaceName"
+                    scope="col"
+                  >
+                    <div
+                      id="table-sort-1"
+                      style="display: none;"
+                    >
+                      Click to sort rows by Workspace header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-1"
+                      class="_tableHeadHeader_8eafaf _workspaceName_8eafaf cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Workspace
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    class="_tableHeadHeader_8eafaf _scope_8eafaf"
+                    id="scope"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Scope
+                    </div>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    class="_tableHeadHeader_8eafaf _workflowName_8eafaf"
+                    id="workflowName"
+                    scope="col"
+                  >
+                    <div
+                      id="table-sort-3"
+                      style="display: none;"
+                    >
+                      Click to sort rows by Workflow header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-3"
+                      class="_tableHeadHeader_8eafaf _workflowName_8eafaf cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Workflow
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    class="_tableHeadHeader_8eafaf _trigger_8eafaf"
+                    id="trigger"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Trigger
+                    </div>
+                  </th>
+                  <th
+                    class="_tableHeadHeader_8eafaf _initiatedByUserName_8eafaf"
+                    id="initiatedByUserName"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Initiated By
+                    </div>
+                  </th>
+                  <th
+                    class="_tableHeadHeader_8eafaf _creationDate_8eafaf"
+                    id="creationDate"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Start Time
+                    </div>
+                  </th>
+                  <th
+                    class="_tableHeadHeader_8eafaf _duration_8eafaf"
+                    id="duration"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Duration
+                    </div>
+                  </th>
+                  <th
+                    class="_tableHeadHeader_8eafaf _status_8eafaf"
+                    id="status"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Status
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                aria-live="polite"
+                class="_tableBody_8eafaf"
+              />
+            </table>
+          </div>
+        </div>
+        <div
+          class="cds--pagination cds--pagination--md"
+        >
+          <div
+            class="cds--pagination__left"
+          >
+            <label
+              class="cds--pagination__text"
+              for="cds-pagination-select-id-14"
+              id="cds-pagination-select-id-14-count-label"
+            >
+              Items per page:
+            </label>
+            <div
+              class="cds--form-item cds--select__item-count"
+            >
+              <div
+                class="cds--select cds--select--inline"
+              >
+                <div
+                  class="cds--select-input--inline__wrapper"
+                >
+                  <div
+                    class="cds--select-input__wrapper"
+                  >
+                    <select
+                      class="cds--select-input"
+                      id="cds-pagination-select-id-14"
+                    >
+                      <option
+                        class="cds--select-option"
+                        value="5"
+                      >
+                        5
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="10"
+                      >
+                        10
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="20"
+                      >
+                        20
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="25"
+                      >
+                        25
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="50"
+                      >
+                        50
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="100"
+                      >
+                        100
+                      </option>
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      class="cds--select__arrow"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span
+              class="cds--pagination__text cds--pagination__items-count"
+            >
+              1–10 of 10 items
+            </span>
+          </div>
+          <div
+            class="cds--pagination__right"
+          >
+            <div
+              class="cds--form-item cds--select__page-number"
+            >
+              <div
+                class="cds--select cds--select--inline"
+              >
+                <label
+                  class="cds--label cds--visually-hidden"
+                  for="cds-pagination-select-id-14-right"
+                >
+                  Page number, of 1 pages
+                </label>
+                <div
+                  class="cds--select-input--inline__wrapper"
+                >
+                  <div
+                    class="cds--select-input__wrapper"
+                  >
+                    <select
+                      class="cds--select-input"
+                      id="cds-pagination-select-id-14-right"
+                    >
+                      <option
+                        class="cds--select-option"
+                        value="1"
+                      >
+                        1
+                      </option>
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      class="cds--select__arrow"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span
+              class="cds--pagination__text"
+            >
+              of 1 page
+            </span>
+            <div
+              class="cds--pagination__control-buttons"
+            >
+              <span
+                class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+              >
+                <button
+                  aria-labelledby="tooltip-11"
+                  class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--md cds--btn--ghost cds--btn--disabled"
+                  disabled=""
+                  tabindex="0"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 24L10 16 20 8z"
+                    />
+                  </svg>
+                </button>
+                <span
+                  aria-hidden="true"
+                  class="cds--popover"
+                  id="tooltip-11"
+                  role="tooltip"
+                >
+                  <span
+                    class="cds--popover-content cds--tooltip-content"
+                  >
+                    Previous page
+                  </span>
+                  <span
+                    class="cds--popover-caret"
+                  />
+                </span>
+              </span>
+              <span
+                class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top-right cds--tooltip cds--icon-tooltip"
+              >
+                <button
+                  aria-labelledby="tooltip-13"
+                  class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--md cds--btn--ghost cds--btn--disabled"
+                  disabled=""
+                  tabindex="0"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 8L22 16 12 24z"
+                    />
+                  </svg>
+                </button>
+                <span
+                  aria-hidden="true"
+                  class="cds--popover"
+                  id="tooltip-13"
+                  role="tooltip"
+                >
+                  <span
+                    class="cds--popover-content cds--tooltip-content"
+                  >
+                    Next page
+                  </span>
+                  <span
+                    class="cds--popover-caret"
+                  />
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+`;

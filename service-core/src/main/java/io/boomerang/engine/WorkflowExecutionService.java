@@ -265,18 +265,23 @@ public class WorkflowExecutionService {
   }
 
   private void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
-    // Cancel Running Tasks
+    // Cancel Running & Queued Tasks
     Optional<WorkflowRevisionEntity> wfRevisionEntity =
         workflowRevisionRepository.findById(wfRunEntity.getWorkflowRevisionRef());
     List<TaskRunEntity> tasks = dagUtility.createTaskList(wfRevisionEntity.get(), wfRunEntity);
 
-    // If running tasks are found, the TaskRun execution loop will automatically cancel in
-    // flight tasks when you end them based on workflow status and skip all queued
-    List<TaskRunEntity> runningTasks =
-        tasks.stream().filter(t -> RunPhase.running.equals(t.getPhase())).toList();
-    LOGGER.info("Timeout - # of Running Tasks: " + runningTasks.size());
-    if (runningTasks.size() > 0) {
-      runningTasks.forEach(
+    // Running and queued (claimed but not yet started) tasks get the same treatment: end() ends
+    // up completing them as cancelled through the completion Compare-And-Set, which is
+    // unfenced by claim identity so it wins outright regardless of who holds the claim. A
+    // dispatcher's eventual start/end for a queued task then arrives at an already-completed
+    // TaskRun and is rejected by the ordinary phase checks - no claim.seq bookkeeping needed.
+    List<TaskRunEntity> inFlightTasks =
+        tasks.stream()
+            .filter(t -> RunPhase.running.equals(t.getPhase()) || RunPhase.queued.equals(t.getPhase()))
+            .toList();
+    LOGGER.info("Timeout - # of Running/Queued Tasks: " + inFlightTasks.size());
+    if (inFlightTasks.size() > 0) {
+      inFlightTasks.forEach(
           t -> {
             taskExecutionService.end(t.getId());
           });

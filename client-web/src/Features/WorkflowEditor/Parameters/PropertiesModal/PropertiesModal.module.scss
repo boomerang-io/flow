@@ -1,0 +1,46 @@
+@import "Styles/mixins";
+
+.editContainer {
+  position: absolute;
+  right: 1.75rem;
+  top: -0.75rem;
+  width: 1.5rem;
+}
+
+.editIcon {
+  height: 1.125rem;
+  width: 1.125rem;
+}
+
+.createPropertyCard {
+  align-items: center;
+  border: 0.0625rem solid #373d42;
+  color: var(--cds-brand-02);
+  cursor: pointer;
+  display: flex;
+  // height: 22.625rem;
+  height: 22.625rem;
+  justify-content: center;
+  width: 17.625rem;
+  @include border-radius();
+}
+
+.createContainer {
+  align-items: center;
+  display: flex;
+}
+
+.createText {
+  color: var(--cds-brand-02);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
+  margin-left: 0.5rem;
+}
+
+.createIcon {
+  cursor: pointer;
+  height: 1.5rem;
+  fill: var(--cds-brand-02);
+  width: 1.5rem;
+}

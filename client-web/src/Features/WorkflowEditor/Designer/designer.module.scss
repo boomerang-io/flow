@@ -1,0 +1,55 @@
+.container {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+
+  .workflowContainer {
+    flex-grow: 1;
+    padding: 1rem;
+    padding-right: 3rem;
+    &.loading {
+      justify-content: space-around;
+      margin-top: 20vh;
+      padding: 0 4rem;
+    }
+  }
+
+  &.hidden {
+    display: none !important;
+  }
+
+  .loadingContainer {
+    align-items: center;
+    display: flex;
+    height: 10rem;
+    width: 100%;
+  }
+
+  .loadingStartNode {
+    min-width: 9rem;
+    min-height: 5rem;
+  }
+
+  .loadingEdge {
+    height: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .loadingTaskNode {
+    min-width: 14rem;
+    min-height: 5rem;
+  }
+
+  .diagram {
+    background-color: var(--cds-ui-background) !important;
+  }
+
+  :global .srd-diagram {
+    overflow: hidden;
+  }
+
+  svg:not(:root) {
+    overflow: visible !important;
+  }
+}

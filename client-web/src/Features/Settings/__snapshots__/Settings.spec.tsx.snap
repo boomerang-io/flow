@@ -1,0 +1,55 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Settings --- Snapshot > Capturing Snapshot of Settings 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <header
+      class="cds--bmrg-feature-header _header_10f51f"
+    >
+      <section
+        class="cds--bmrg-feature-header__content"
+      >
+        <div
+          class="cds--bmrg-feature-header__header"
+        >
+          <h1
+            class="cds--bmrg-feature-header-title _headerTitle_10f51f"
+          >
+            Settings
+          </h1>
+          <p
+            class="cds--bmrg-feature-header-title"
+          >
+            Adjust Flow settings
+          </p>
+        </div>
+      </section>
+    </header>
+    <div
+      class="_container_10f51f css-xtq108"
+    >
+      <div
+        class="_skeletonPlacholderContainer_10f51f css-vurnku"
+      >
+        <div
+          class="cds--skeleton__placeholder"
+        />
+        <div
+          class="cds--skeleton__placeholder"
+        />
+        <div
+          class="cds--skeleton__placeholder"
+        />
+        <div
+          class="cds--skeleton__placeholder"
+        />
+        <div
+          class="cds--skeleton__placeholder"
+        />
+      </div>
+    </div>
+  </div>
+</body>
+`;

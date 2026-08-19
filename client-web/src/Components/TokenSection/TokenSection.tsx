@@ -1,0 +1,237 @@
+import React from "react";
+import {
+  DataTable,
+  DataTableSkeleton,
+  Table,
+  TableHead,
+  TableRow,
+  TableHeader,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableExpandHeader,
+  TableExpandRow,
+  TableExpandedRow,
+  StructuredListWrapper,
+  StructuredListHead,
+  StructuredListBody,
+  StructuredListRow,
+  StructuredListCell,
+} from "@carbon/react";
+import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
+import cx from "classnames";
+import moment from "moment";
+import queryString from "query-string";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import CreateToken from "Components/CreateToken";
+import DeleteToken from "Components/DeleteToken";
+import { TokenActorKind } from "Constants";
+import { resolver, serviceUrl } from "Config/servicesConfig";
+import type { Token, TokenScopeType } from "Types";
+import styles from "./TokenSection.module.scss";
+
+type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
+
+const HEADERS = [
+  {
+    header: "Name",
+    key: "name",
+    sortable: true,
+  },
+  {
+    header: "Status",
+    key: "valid",
+    sortable: true,
+  },
+  {
+    header: "Description",
+    key: "description",
+    sortable: true,
+  },
+  {
+    header: "Actor",
+    key: "actorKind",
+    sortable: true,
+  },
+  {
+    header: "Created By",
+    key: "createdBy",
+    sortable: true,
+  },
+  {
+    header: "Creation Date",
+    key: "creationDate",
+    sortable: true,
+  },
+  {
+    header: "Expiration Date",
+    key: "expirationDate",
+    sortable: true,
+  },
+  {
+    header: "Last Used",
+    key: "lastUsedAt",
+    sortable: true,
+  },
+  {
+    header: "",
+    key: "delete",
+    sortable: false,
+  },
+];
+
+interface TokenProps {
+  type: TokenScopeType;
+  principal?: string;
+  actorKind?: TokenActorKindType;
+}
+
+const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
+  const queryClient = useQueryClient();
+  const getTokensUrl = serviceUrl.getTokens({
+    query: queryString.stringify({ types: type, principals: principal }),
+  });
+  const getTokensQuery = useQuery<{ content: Token[] }>({
+    queryKey: getTokensUrl,
+    queryFn: resolver.query(getTokensUrl),
+  });
+
+  const deleteTokenMutator = useMutation(resolver.deleteToken);
+
+  if (getTokensQuery.isLoading || !getTokensQuery.data) {
+    return (
+      <DataTableSkeleton
+        data-testid="token-loading-skeleton"
+        className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
+        rowCount={3}
+        columnCount={HEADERS.length}
+        headers={HEADERS}
+      />
+    );
+  }
+
+  const tokens = getTokensQuery.data.content;
+
+  const deleteToken = async (tokenId: string) => {
+    try {
+      await deleteTokenMutator.mutateAsync({ tokenId });
+      queryClient.invalidateQueries([getTokensUrl]);
+      notify(<ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />);
+    } catch (error) {
+      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);
+    }
+  };
+
+  const renderCell = (tokenItemId: string, cellIndex: number, value: string) => {
+    const tokenDetails = tokens.find((token: Token) => token.id === tokenItemId);
+    const column = HEADERS[cellIndex];
+    switch (column.key) {
+      case "valid":
+        return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
+      case "creationDate":
+      case "expirationDate":
+        return (
+          <p className={styles.tableTextarea}>
+            {value ? moment(value).utc().startOf("day").format("MMMM DD, YYYY") : "---"}
+          </p>
+        );
+      case "lastUsedAt":
+        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format("MMMM DD, YYYY") : "Never"}</p>;
+      case "delete":
+        return tokenDetails && tokenDetails.id ? (
+          <DeleteToken tokenItem={tokenDetails} deleteToken={deleteToken} />
+        ) : (
+          ""
+        );
+      default:
+        return <p className={styles.tableTextarea}>{value || "---"}</p>;
+    }
+  };
+
+  return (
+    <div className={styles.dataTable}>
+      <CreateToken getTokensUrl={getTokensUrl} principal={principal} type={type} actorKind={actorKind} />
+      {tokens.length > 0 && (
+        <DataTable<Token, any[]>
+          rows={tokens}
+          headers={HEADERS}
+          pageSize={tokens.length}
+          render={({ rows, headers, getHeaderProps, getRowProps, getTableProps, getTableContainerProps }) => (
+            <TableContainer title="" description="" {...getTableContainerProps()}>
+              <Table {...getTableProps()}>
+                <TableHead>
+                  <TableRow>
+                    <TableExpandHeader aria-label="Expand row" />
+                    {headers.map((header) => (
+                      <TableHeader {...getHeaderProps({ header })}>{header.header}</TableHeader>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {rows.map((row: any) => {
+                    const tokenPermissions = tokens.find((t) => t.id === row.id)?.permissions ?? [];
+                    return (
+                      <>
+                        <TableExpandRow {...getRowProps({ row })}>
+                          {row.cells.map((cell: any, cellIndex: number) => (
+                            <TableCell key={cell.id} style={{ padding: "0" }}>
+                              <div className={styles.tableCell}>{renderCell(row.id, cellIndex, cell.value)}</div>
+                            </TableCell>
+                          ))}
+                        </TableExpandRow>
+                        <TableExpandedRow colSpan={headers.length + 1}>
+                          {tokenPermissions.length > 0 ? (
+                            <TokenPermissions
+                              permissions={tokenPermissions.map((p, i) => ({ id: `${row.id}-${i}`, ...p }))}
+                            />
+                          ) : (
+                            "Permissions detail unavailable"
+                          )}
+                        </TableExpandedRow>
+                      </>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        />
+      )}
+    </div>
+  );
+};
+
+interface TokenPermissionsProps {
+  permissions: Array<{ scope: string; principal: string; actions: string[] }>;
+}
+
+const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
+  return (
+    <StructuredListWrapper className={styles.structuredListWrapper} ariaLabel="Token list" isCondensed={true}>
+      <StructuredListHead>
+        <StructuredListRow head>
+          <StructuredListCell head>Scope</StructuredListCell>
+          <StructuredListCell head>Resource</StructuredListCell>
+          <StructuredListCell head>Allowed Actions</StructuredListCell>
+        </StructuredListRow>
+      </StructuredListHead>
+      <StructuredListBody>
+        {permissions.map(({ scope, principal, actions }) => (
+          <StructuredListRow>
+            <StructuredListCell>{scope}</StructuredListCell>
+            <StructuredListCell>{principal}</StructuredListCell>
+            <StructuredListCell>
+              <ul>
+                {actions.map((action) => (
+                  <li>{action}</li>
+                ))}
+              </ul>
+            </StructuredListCell>
+          </StructuredListRow>
+        ))}
+      </StructuredListBody>
+    </StructuredListWrapper>
+  );
+};
+
+export default TokenSection;

@@ -1,0 +1,86 @@
+.versionsContainer {
+  display: flex;
+  padding-right: 1rem;
+}
+
+.versionSection {
+  width: 100%;
+  margin-top: 0 !important;
+}
+
+.versionHeader {
+  background: #dde1e6;
+  width: 100%;
+  height: 4.375rem;
+  padding: 1rem;
+  &.latest {
+    background: #3ddbd9;
+  }
+}
+
+.versionTitle {
+  height: 1.125rem;
+  color: var(--cds-text-primary);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  margin: 0;
+}
+
+.versionSubtitle {
+  height: 0.9375rem;
+  color: var(--cds-text-primary);
+  font-size: 0.75rem;
+  letter-spacing: 0.01rem;
+  line-height: 0.9375rem;
+  margin: 0;
+}
+
+.versionMetadata {
+  margin-bottom: 1.5rem;
+}
+
+.versionName {
+  height: 1.625rem;
+  color: var(--cds-text-primary);
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.625rem;
+  margin: 0;
+}
+
+.versionDescription {
+  height: 1.125rem;
+  color: var(--cds-text-primary);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+}
+
+.versionInputsContainer {
+  padding: 0.5rem 0;
+  > * + * {
+    margin-top: 0.5rem;
+  }
+}
+
+.stateHighlighter {
+  border: 0.125rem solid transparent;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  &.add {
+    border-color: var(--cds-support-03);
+  }
+
+  &.remove {
+    border-color: var(--cds-support-01);
+  }
+}
+
+.stateHighlighterText {
+  align-items: center;
+  display: flex;
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+  gap: 0.125rem;
+}

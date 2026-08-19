@@ -599,9 +599,8 @@ public class TaskExecutionService {
     long duration = Long.parseLong(value);
     // Durable wait: park as waiting and let the watcher complete it when waitUntil elapses. No
     // held thread survives a crash - the sweep resumes it.
-    taskExecution.setStatus(RunStatus.waiting);
-    taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + duration));
-    taskRunRepository.save(taskExecution);
+    taskRunService.tryPark(
+        taskExecution.getId(), new Date(System.currentTimeMillis() + duration));
   }
 
   private void processDecision(TaskRunEntity taskExecution, String activityId) {
@@ -643,9 +642,8 @@ public class TaskExecutionService {
     }
     // Held by another task: park as waiting and re-attempt after the backoff.
     LOGGER.debug("[{}] Lock held for key: {}. Waiting to retry.", taskExecution.getId(), scopedKey);
-    taskExecution.setStatus(RunStatus.waiting);
-    taskExecution.setWaitUntil(new Date(System.currentTimeMillis() + LOCK_RETRY_BACKOFF_MILLIS));
-    taskRunRepository.save(taskExecution);
+    taskRunService.tryPark(
+        taskExecution.getId(), new Date(System.currentTimeMillis() + LOCK_RETRY_BACKOFF_MILLIS));
     return false;
   }
 

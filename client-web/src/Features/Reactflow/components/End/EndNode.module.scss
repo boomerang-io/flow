@@ -1,0 +1,57 @@
+@import "Styles/mixins";
+
+.node {
+  background: #002b50;
+  border: 0.125rem solid #002b50;
+  color: white;
+  width: 9rem;
+  height: 5rem;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  @include border-radius();
+
+  &.locked {
+    background: #697077;
+    border: 0.1875rem solid #697077;
+    .port {
+      background-color: #d5d9e0;
+      border: 0.0625rem solid #50565b;
+    }
+
+    &.executionInProgress {
+      .port {
+        &.left {
+          opacity: 0.5;
+        }
+      }
+    }
+  }
+}
+
+.port {
+  position: absolute;
+  height: 2.25rem;
+  width: 2rem;
+  background-color: #b3e6ff;
+  border: 0.0625rem solid var(--cds-interactive-01);
+  border-right: none;
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 50%;
+  border-top-left-radius: 50%;
+  left: -2.125rem;
+  top: 2.5rem;
+  background-image: url("../../../../Assets/icons/chevron.svg");
+  background-position: center;
+  background-repeat: no-repeat;
+
+  &:hover {
+    filter: brightness(110%);
+  }
+
+  &.--locked:hover {
+    filter: brightness(100%);
+  }
+}

@@ -6,5 +6,5 @@ import lombok.Data;
 public class GHLinkRequest {
 
   private String ref;
-  private String team;
+  private String workspace;
 }

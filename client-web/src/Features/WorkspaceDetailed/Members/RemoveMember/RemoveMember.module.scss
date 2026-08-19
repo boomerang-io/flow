@@ -1,0 +1,22 @@
+@import "Styles/mixins";
+
+.removeButton {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  color: var(--cds-inverse-support-01);
+  height: 0.9375rem;
+  font-size: 0.75rem;
+  justify-content: space-between;
+  line-height: 0.9375rem;
+  width: 8.0625rem;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &:focus {
+    @include focus-outline(var(--cds-inverse-support-01));
+  }
+}

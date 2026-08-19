@@ -29,7 +29,6 @@ import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.Workspace;
 import io.boomerang.workspace.model.WorkspaceMember;
-import io.boomerang.workspace.model.WorkspaceMembershipSummary;
 import io.boomerang.workspace.model.WorkspaceNameCheckRequest;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import io.boomerang.workspace.model.WorkspaceStatus;
@@ -49,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TimeZone;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
@@ -76,7 +76,7 @@ public class WorkspaceService {
 
   public static final List<String> RESERVED_WORKSPACE_NAMES =
       List.of("home", "admin", "system", "profile", "connect");
-  public static final String TEAMS_SETTINGS_KEY = "teams";
+  public static final String WORKSPACES_SETTINGS_KEY = "workspaces";
   public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
   public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
   public static final String QUOTA_MAX_WORKFLOWRUN_CONCURRENT = "max.workflowrun.concurrent";
@@ -176,7 +176,21 @@ public class WorkspaceService {
        */
       WorkspaceEntity workspaceEntity = new WorkspaceEntity();
       BeanUtils.copyProperties(
-          request, workspaceEntity, "id", "status", "members", "quotas", "parameters", "approverGroups");
+          request,
+          workspaceEntity,
+          "id",
+          "status",
+          "members",
+          "quotas",
+          "parameters",
+          "approverGroups",
+          "labels");
+      // labels is excluded above because WorkspaceRequest.labels defaults to null (so patch can
+      // tell "omitted" from "clear all") - copyProperties would otherwise null out the entity's
+      // default empty map on create.
+      if (request.getLabels() != null) {
+        workspaceEntity.setLabels(request.getLabels());
+      }
 
       // Set custom quotas
       // Don't set default quotas as they can change over time and should be dynamic
@@ -249,8 +263,10 @@ public class WorkspaceService {
       if (request.getExternalRef() != null && !request.getExternalRef().isBlank()) {
         workspaceEntity.setExternalRef(request.getExternalRef());
       }
-      if (request.getLabels() != null && !request.getLabels().isEmpty()) {
-        workspaceEntity.getLabels().putAll(request.getLabels());
+      // Whole-map replace, not merge: the caller sends the complete desired label set, so a
+      // present (even empty) map fully replaces what's stored; only an absent map is a no-op.
+      if (request.getLabels() != null) {
+        workspaceEntity.setLabels(request.getLabels());
       }
 
       // Set custom quotas
@@ -317,15 +333,16 @@ public class WorkspaceService {
     // Delete all Tokens
     tokenService.deleteAllForPrincipal(team);
 
-    // Delete all Workspace Tasks
-    List<String> templateRefs =
+    // Delete all Workspace Tasks. TEAMTASK is the relationship type that anchors a task under
+    // a workspace - TASK anchors the global catalogue under root and would never match here.
+    List<String> templateNames =
         relationshipService.filter(
-            RelationshipType.TASK,
+            RelationshipType.TEAMTASK,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)));
-    if (templateRefs.size() > 0) {
-      templateRefs.forEach(ref -> workspaceTaskService.delete(ref, team));
+    if (templateNames.size() > 0) {
+      templateNames.forEach(name -> workspaceTaskService.delete(team, name));
     }
 
     // TODO - Delete Workspace Integration Installations
@@ -347,6 +364,7 @@ public class WorkspaceService {
       Optional<Integer> queryLimit,
       Optional<Direction> queryOrder,
       Optional<String> querySort,
+      Optional<String> querySearch,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryTeams) {
@@ -357,7 +375,7 @@ public class WorkspaceService {
     LOGGER.debug("TeamRefs: " + teamRefs.toString());
 
     return findByCriteria(
-        queryPage, queryLimit, queryOrder, querySort, queryLabels, queryStatus, teamRefs);
+        queryPage, queryLimit, queryOrder, querySort, querySearch, queryLabels, queryStatus, teamRefs);
   }
 
   private Page<Workspace> findByCriteria(
@@ -365,6 +383,7 @@ public class WorkspaceService {
       Optional<Integer> queryLimit,
       Optional<Direction> queryOrder,
       Optional<String> querySort,
+      Optional<String> querySearch,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       List<String> teamRefs) {
@@ -376,6 +395,18 @@ public class WorkspaceService {
     }
 
     List<Criteria> criteriaList = new ArrayList<>();
+    if (querySearch.isPresent() && !querySearch.get().isBlank()) {
+      // Anchored prefix match (not an unanchored `.*term.*` scan) so a future index on name /
+      // displayName can actually serve this - no such index exists yet on the workspaces
+      // collection today, so this still executes as a collection scan until one is added.
+      String escapedSearch = Pattern.quote(querySearch.get().trim());
+      Criteria searchCriteria =
+          new Criteria()
+              .orOperator(
+                  Criteria.where("name").regex("^" + escapedSearch, "i"),
+                  Criteria.where("displayName").regex("^" + escapedSearch, "i"));
+      criteriaList.add(searchCriteria);
+    }
     if (queryLabels.isPresent()) {
       queryLabels.get().stream()
           .forEach(
@@ -495,6 +526,22 @@ public class WorkspaceService {
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
       LOGGER.debug("Starting Parameters: " + parameters.toString());
+      // A secured parameter's value is never returned to the caller, so a request that only
+      // edits another field arrives with a blank value - carry the stored secret forward
+      // instead of letting the wholesale replacement below wipe it out.
+      Map<String, AbstractParam> existingByName =
+          parameters.stream()
+              .collect(Collectors.toMap(AbstractParam::getName, p -> p, (a, b) -> a));
+      request.forEach(
+          p -> {
+            AbstractParam existing = existingByName.get(p.getName());
+            if (existing != null
+                && FieldType.PASSWORD.value().equals(existing.getType())
+                && isBlankValue(p.getValue())) {
+              p.setValue(existing.getValue());
+            }
+          });
+
       List<String> names = request.stream().map(AbstractParam::getName).toList();
       // Check if parameter exists and remove
       parameters =
@@ -507,6 +554,12 @@ public class WorkspaceService {
     }
     LOGGER.debug("Ending Parameters: " + parameters.toString());
     return parameters;
+  }
+
+  // Blank covers both a null value (a filtered secured value is never serialised) and an empty
+  // string (a client that round-trips a form field literally).
+  private static boolean isBlankValue(Object value) {
+    return value == null || (value instanceof String s && s.isBlank());
   }
 
   /*
@@ -720,16 +773,17 @@ public class WorkspaceService {
   //
 
   /*
-   * Builds the WorkspaceSummary (with Insights) list and resolved Permissions for the given
-   * team-ref -> role map, skipping any ref that no longer resolves to an existing Workspace (stale
-   * relationship entries).
+   * Builds the WorkspaceSummary (with Insights) list for the given team-ref -> role map,
+   * skipping any ref that no longer resolves to an existing Workspace (stale relationship
+   * entries).
    *
    * Used to compose the User Profile response (api layer) - the rollup needs both User
-   * (core) and Workspace (workspace) data, so it can't live in core.UserService.
+   * (core) and Workspace (workspace) data, so it can't live in core.UserService. Resolved
+   * permissions for the profile come from TokenService.resolvePermissionsForUser - the same
+   * source createSessionToken uses - not from here.
    */
-  public WorkspaceMembershipSummary getWorkspaceMembershipSummary(Map<String, String> teamRefsAndRoles) {
+  public List<WorkspaceSummary> getWorkspaceMembershipSummary(Map<String, String> teamRefsAndRoles) {
     List<WorkspaceSummary> teamSummaries = new LinkedList<>();
-    List<String> permissions = new LinkedList<>();
     teamRefsAndRoles.forEach(
         (k, v) -> {
           Optional<WorkspaceEntity> workspaceEntity = workspaceRepository.findById(k);
@@ -748,13 +802,9 @@ public class WorkspaceService {
             tsi.setWorkflows(Long.valueOf(workflowRefs.size()));
             ts.setInsights(tsi);
             teamSummaries.add(ts);
-
-            // Generate Permissions
-            roleRepository.findByTypeAndName("workspace", v).getPermissions().stream()
-                .forEach(p -> permissions.add(p.replace("{principal}", k)));
           }
         });
-    return new WorkspaceMembershipSummary(teamSummaries, permissions);
+    return teamSummaries;
   }
 
   /*
@@ -830,34 +880,34 @@ public class WorkspaceService {
     quotas.setMaxWorkflowCount(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
                 .getValue()));
     quotas.setMaxWorkflowRunMonthly(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
                 .getValue()));
     quotas.setMaxWorkflowStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunDuration(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue()));
     quotas.setMaxConcurrentRuns(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
                 .getValue()));
     return quotas;
   }
@@ -895,7 +945,7 @@ public class WorkspaceService {
     Integer d =
         Integer.valueOf(
             settingsService
-                .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue());
 
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);

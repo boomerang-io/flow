@@ -3,16 +3,23 @@ package io.boomerang.engine;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
+import io.boomerang.dispatcher.entity.DispatcherEntity;
+import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +27,8 @@ import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -50,11 +59,18 @@ public class WorkflowWatcher {
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
+  // A dispatcher is treated as gone once it has not connected for this long - many multiples of
+  // its long-poll cycle, so only a genuinely dead dispatcher trips it.
+  private static final long DISPATCHER_STALE_MILLIS = 300000;
+
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRepository workflowRepository;
+  private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskExecutionService taskExecutionService;
   private final WorkflowRunService workflowRunService;
+  private final ActionRepository actionRepository;
+  private final DispatcherRepository dispatcherRepository;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
@@ -67,13 +83,19 @@ public class WorkflowWatcher {
       TaskRunService taskRunService,
       WorkflowRunRepository workflowRunRepository,
       WorkflowRepository workflowRepository,
+      WorkflowRevisionRepository workflowRevisionRepository,
       TaskExecutionService taskExecutionService,
-      WorkflowRunService workflowRunService) {
+      WorkflowRunService workflowRunService,
+      ActionRepository actionRepository,
+      DispatcherRepository dispatcherRepository) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
+    this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskExecutionService = taskExecutionService;
     this.workflowRunService = workflowRunService;
+    this.actionRepository = actionRepository;
+    this.dispatcherRepository = dispatcherRepository;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -100,6 +122,9 @@ public class WorkflowWatcher {
     resumeDueWaitingTasks();
     cancelDeletedWorkflowRuns();
     pruneDeletedWorkflows();
+    reapRunsWithMissingRevision();
+    reapClaimsFromGoneDispatchers();
+    closeStrayActions();
   }
 
   /**
@@ -233,4 +258,128 @@ public class WorkflowWatcher {
     // Intentionally a no-op until the retention policy is ruled and this sweep is implemented.
   }
 
+  /**
+   * Fail outright an in-flight WorkflowRun whose revision no longer resolves. The revision is
+   * required to walk the DAG for tasks not yet materialised, so those are simply never created;
+   * any TaskRuns already materialised are fetched directly by ref (bypassing the revision walk)
+   * and cancelled the same way the normal cancel path treats them.
+   */
+  public void reapRunsWithMissingRevision() {
+    SweepRunner.forEachIsolated(
+        workflowRunService.findInFlight(PAGE_SIZE),
+        wfRun -> {
+          if (workflowRevisionRepository.existsById(wfRun.getWorkflowRevisionRef())) {
+            return;
+          }
+          long duration =
+              wfRun.getStartTime() != null
+                  ? new Date().getTime() - wfRun.getStartTime().getTime()
+                  : 0;
+          if (workflowRunService.tryComplete(
+                  wfRun.getId(),
+                  IN_FLIGHT_PHASES,
+                  RunStatus.invalid,
+                  "The WorkflowRun's revision no longer resolves.",
+                  duration)
+              != null) {
+            LOGGER.error(
+                "[{}] WorkflowRun revision {} no longer resolves. Failed outright.",
+                wfRun.getId(),
+                wfRun.getWorkflowRevisionRef());
+            taskRunService
+                .findNonTerminalByWorkflowRunRef(wfRun.getId())
+                .forEach(
+                    t -> {
+                      if (RunPhase.pending.equals(t.getPhase())) {
+                        taskExecutionService.queue(t.getId());
+                      } else {
+                        taskExecutionService.end(t.getId());
+                      }
+                    });
+          }
+        },
+        (wfRun, ex) ->
+            LOGGER.error("[{}] Missing-revision reap failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * Reap TaskRuns claimed by a dispatcher that has gone quiet - deregistered, or simply never
+   * connected again - ahead of (or without) the task's own deadline. Same crash-recovery
+   * treatment as a deadline reap: a requeueable task with retry budget left is requeued;
+   * otherwise it is abandoned and driven through the normal end path.
+   */
+  public void reapClaimsFromGoneDispatchers() {
+    SweepRunner.forEachIsolated(
+        taskRunService.findClaimed(PAGE_SIZE),
+        taskRun -> {
+          String dispatcherRef = (taskRun.getClaim() != null) ? taskRun.getClaim().getBy() : null;
+          if (dispatcherRef == null || isDispatcherLive(dispatcherRef)) {
+            return;
+          }
+          Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
+          int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
+          if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
+            if (taskRunService.tryRequeue(
+                    taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+                != null) {
+              LOGGER.info(
+                  "[{}] Claimant {} is gone. Requeued as attempt {}.",
+                  taskRun.getId(),
+                  dispatcherRef,
+                  attempts + 1);
+            }
+          } else if (taskRunService.tryAbandon(
+                  taskRun.getId(),
+                  observedSeq,
+                  MessageFormatter.format(
+                          "The claimant {} is no longer registered.", dispatcherRef)
+                      .getMessage())
+              != null) {
+            LOGGER.info(
+                "[{}] Claimant {} is gone. Retry budget exhausted.", taskRun.getId(), dispatcherRef);
+            taskExecutionService.end(taskRun.getId());
+          }
+        },
+        (taskRun, ex) ->
+            LOGGER.error(
+                "[{}] Stale-dispatcher reap failed: {}", taskRun.getId(), ex.getMessage()));
+  }
+
+  private boolean isDispatcherLive(String dispatcherRef) {
+    Optional<DispatcherEntity> dispatcher = dispatcherRepository.findById(dispatcherRef);
+    if (dispatcher.isEmpty() || dispatcher.get().getLastConnectedDate() == null) {
+      return false;
+    }
+    return dispatcher.get().getLastConnectedDate().getTime()
+        > System.currentTimeMillis() - DISPATCHER_STALE_MILLIS;
+  }
+
+  /**
+   * Close Actions left open (submitted) by a WorkflowRun that has already gone terminal. The
+   * normal execution loop only ever resolves an Action by ending its TaskRun, which cannot
+   * happen once the run is terminal - a submitted Action found here can only be one orphaned by
+   * a cancel or timeout that raced ahead of the user's response.
+   */
+  public void closeStrayActions() {
+    SweepRunner.forEachIsolated(
+        actionRepository.findByStatusOrderByCreationDateAsc(
+            ActionStatus.submitted, PageRequest.of(0, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "creationDate"))),
+        action -> {
+          WorkflowRunEntity wfRun =
+              workflowRunRepository.findById(action.getWorkflowRunRef()).orElse(null);
+          if (wfRun != null && IN_FLIGHT_PHASES.contains(wfRun.getPhase())) {
+            return;
+          }
+          if (actionRepository.updateStatusByIdAndStatus(
+                  action.getId(), ActionStatus.submitted, ActionStatus.cancelled)
+              > 0) {
+            LOGGER.info(
+                "[{}] Closed stray Action left open by terminal WorkflowRun {}.",
+                action.getId(),
+                action.getWorkflowRunRef());
+          }
+        },
+        (action, ex) ->
+            LOGGER.error("[{}] Stray-action close failed: {}", action.getId(), ex.getMessage()));
+  }
 }

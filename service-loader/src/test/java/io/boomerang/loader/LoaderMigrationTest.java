@@ -9,6 +9,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Updates;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
@@ -56,6 +57,12 @@ class LoaderMigrationTest {
   private static ObjectId roleWithTeamType;
   private static ObjectId adminUser;
   private static ObjectId regularUser;
+  /** {@code seed/settings.json}'s _id for the workspace-quota defaults document. */
+  private static final ObjectId LEGACY_TEAM_QUOTAS_SETTINGS_ID =
+      new ObjectId("61393f5966c5eea103dfe134");
+  /** {@code seed/settings.json}'s _id for the feature-flag toggles document. */
+  private static final ObjectId LEGACY_FEATURES_SETTINGS_ID =
+      new ObjectId("612904d60b07a54cdc4dc6a9");
 
   @BeforeAll
   static void seedExistingInstallation() {
@@ -94,6 +101,88 @@ class LoaderMigrationTest {
     workflowRunWithAgentRef = insertWorkflowRunWithAgentRef("agent-1", EARLIER);
 
     seedV4ResidualCollections();
+    seedOrphanedFieldResidue();
+    seedLegacyTeamQuotaSettings();
+    seedLegacyFeatureFlagSettings();
+  }
+
+  /**
+   * Residue for {@code _0031__DropOrphanedFieldsAndCollections}: the v3-migration hand-off fields
+   * ({@code workflows}/{@code workflow_runs} {@code scope}/{@code ownerRef}, {@code
+   * users.flowTeamRefs}, {@code approver_groups.workspaceRef}) that no v5 entity declares, plus the
+   * v4 engine's {@code event_queue} collection whose entity was deleted.
+   */
+  private static void seedOrphanedFieldResidue() {
+    collection("workflows")
+        .updateOne(Filters.eq("name", "wf"), Updates.combine(Updates.set("scope", "team"), Updates.set("ownerRef", "t1")));
+    collection("workflow_runs")
+        .updateOne(
+            Filters.eq("_id", workflowRunWithAgentRef),
+            Updates.combine(Updates.set("scope", "team"), Updates.set("ownerRef", "t1")));
+    collection("users")
+        .updateOne(Filters.eq("_id", regularUser), Updates.set("flowTeamRefs", List.of("t1")));
+    collection("approver_groups")
+        .insertOne(
+            new Document("name", "approvers")
+                .append("creationDate", EARLIER)
+                .append("approvers", List.of())
+                .append("workspaceRef", "t1"));
+    collection("event_queue")
+        .insertOne(new Document("url", "http://sink").append("creationDate", EARLIER));
+  }
+
+  /**
+   * A pre-DD-01 quota settings document under the seed's own {@code _id} but the legacy {@code
+   * key="teams"}: {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
+   * _0032__WorkspaceQuotaSettingsKey} must rename it in place.
+   */
+  private static void seedLegacyTeamQuotaSettings() {
+    collection("settings")
+        .insertOne(
+            new Document("_id", LEGACY_TEAM_QUOTAS_SETTINGS_ID)
+                .append("key", "teams")
+                .append("name", "Team Quotas")
+                .append("description", "Define default team quotas which are referenced unless overridden on the Team.")
+                .append("type", "ValuesList")
+                .append(
+                    "config",
+                    List.of(
+                        new Document("key", "max.workflow.count").append("value", "10"),
+                        new Document("key", "max.workflow.storage").append("value", "5Gi"),
+                        new Document("key", "max.workflowrun.concurrent").append("value", "4"),
+                        new Document("key", "max.workflowrun.monthly").append("value", "100"),
+                        new Document("key", "max.workflowrun.duration").append("value", "30"),
+                        new Document("key", "max.workflowrun.storage").append("value", "2Gi"))));
+  }
+
+  /**
+   * A pre-DD-01 {@code features} document under the seed's own {@code _id} but still carrying the
+   * legacy {@code teamQuotas}/{@code teamParameters}/{@code teamManagement}/{@code teamTasks}
+   * config keys: {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
+   * _0034__WorkspaceFeatureFlagSettingsKeys} must rename each in place.
+   */
+  private static void seedLegacyFeatureFlagSettings() {
+    collection("settings")
+        .insertOne(
+            new Document("_id", LEGACY_FEATURES_SETTINGS_ID)
+                .append("key", "features")
+                .append("name", "Features")
+                .append(
+                    "config",
+                    List.of(
+                        new Document("key", "activity").append("value", "true"),
+                        new Document("key", "teamQuotas")
+                            .append("label", "Team Quotas")
+                            .append("value", "true"),
+                        new Document("key", "teamParameters")
+                            .append("label", "Team Parameters")
+                            .append("value", "true"),
+                        new Document("key", "teamManagement")
+                            .append("label", "Team Management")
+                            .append("value", "true"),
+                        new Document("key", "teamTasks")
+                            .append("label", "Team Tasks")
+                            .append("value", "true"))));
   }
 
   /**
@@ -132,11 +221,16 @@ class LoaderMigrationTest {
     assertUniqueIndex("dispatchers", "registration", List.of("name", "host"));
     assertEventCollectionIndexes();
     assertLockAndWorkflowIndexes();
+    assertWorkspaceSearchIndexes();
     assertTaskRunDedupe();
     assertActionDedupe();
     assertAgentDedupe();
     assertAgentsCollectionRenamed();
-    assertDispatcherRefRenamed();
+    assertClaimOwnerResidueRemoved();
+    assertOrphanedFieldResidueRemoved();
+    assertWorkspaceQuotaSettingsKeyRenamed();
+    assertWorkspaceFeatureFlagSettingsKeysRenamed();
+    assertDefinitionIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
     assertRootNodeSeeded();
@@ -299,10 +393,10 @@ class LoaderMigrationTest {
         collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(keys)
         .containsExactlyInAnyOrder(
-            "customizations", "features", "integration", "task", "teams", "workflow", "workflowrun");
+            "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
 
     // The quota defaults WorkspaceService.setDefaultQuotas resolves at read time.
-    Document quotas = collection("settings").find(Filters.eq("key", "teams")).first();
+    Document quotas = collection("settings").find(Filters.eq("key", "workspaces")).first();
     assertThat(
             quotas.getList("config", Document.class).stream()
                 .map(config -> config.getString("key"))
@@ -910,8 +1004,22 @@ class LoaderMigrationTest {
         .containsExactly("status");
   }
 
+  private void assertWorkspaceSearchIndexes() {
+    Map<String, Document> workspaces = indexesByName("workspaces");
+    assertThat(workspaces.get("name_lookup").get("key", Document.class).keySet())
+        .containsExactly("name");
+    assertThat(workspaces.get("display_name_lookup").get("key", Document.class).keySet())
+        .containsExactly("displayName");
+  }
+
   private static long ttlSeconds(Document index) {
     return ((Number) index.get("expireAfterSeconds")).longValue();
+  }
+
+  private void assertIndex(String collection, String indexName, List<String> keys) {
+    Document index = indexesByName(collection).get(indexName);
+    assertThat(index).as("index %s on %s", indexName, collection).isNotNull();
+    assertThat(index.get("key", Document.class).keySet()).containsExactlyElementsOf(keys);
   }
 
   private void assertUniqueIndex(String collection, String indexName, List<String> keys) {
@@ -965,17 +1073,78 @@ class LoaderMigrationTest {
     assertThat(names).contains(PREFIX + "_dispatchers");
   }
 
-  private void assertDispatcherRefRenamed() {
+  /**
+   * The claim owner lives on {@code claim.by} only: {@code _0031} removes both the pre-DD-06
+   * {@code agentRef} spelling and the {@code dispatcherRef} duplicate from every run.
+   */
+  private void assertClaimOwnerResidueRemoved() {
     Document taskRun = collection("task_runs").find(Filters.eq("_id", taskRunWithAgentRef)).first();
     assertThat(taskRun).isNotNull();
-    assertThat(taskRun.getString("dispatcherRef")).isEqualTo("agent-1");
     assertThat(taskRun.containsKey("agentRef")).isFalse();
+    assertThat(taskRun.containsKey("dispatcherRef")).isFalse();
 
     Document workflowRun =
         collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
     assertThat(workflowRun).isNotNull();
-    assertThat(workflowRun.getString("dispatcherRef")).isEqualTo("agent-1");
     assertThat(workflowRun.containsKey("agentRef")).isFalse();
+    assertThat(workflowRun.containsKey("dispatcherRef")).isFalse();
+  }
+
+  /** {@code _0031}: the {@link #seedOrphanedFieldResidue} hand-off fields and collection are gone. */
+  private void assertOrphanedFieldResidueRemoved() {
+    Document workflow = collection("workflows").find(Filters.eq("name", "wf")).first();
+    assertThat(workflow.containsKey("scope")).isFalse();
+    assertThat(workflow.containsKey("ownerRef")).isFalse();
+    Document workflowRun =
+        collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
+    assertThat(workflowRun.containsKey("scope")).isFalse();
+    assertThat(workflowRun.containsKey("ownerRef")).isFalse();
+    Document user = collection("users").find(Filters.eq("_id", regularUser)).first();
+    assertThat(user.containsKey("flowTeamRefs")).isFalse();
+    Document approverGroup = collection("approver_groups").find(Filters.eq("name", "approvers")).first();
+    assertThat(approverGroup).isNotNull();
+    assertThat(approverGroup.containsKey("workspaceRef")).isFalse();
+    assertThat(db.listCollectionNames().into(new ArrayList<>()))
+        .doesNotContain(PREFIX + "_event_queue");
+  }
+
+  /** {@code _0032}: the legacy {@code key="teams"} quota document is renamed in place. */
+  private void assertWorkspaceQuotaSettingsKeyRenamed() {
+    assertThat(collection("settings").countDocuments(Filters.eq("key", "teams"))).isZero();
+    Document quotas =
+        collection("settings").find(Filters.eq("_id", LEGACY_TEAM_QUOTAS_SETTINGS_ID)).first();
+    assertThat(quotas).isNotNull();
+    assertThat(quotas.getString("key")).isEqualTo("workspaces");
+    assertThat(quotas.getString("name")).isEqualTo("Workspace Quotas");
+    assertThat(collection("settings").countDocuments(Filters.eq("key", "workspaces"))).isEqualTo(1);
+  }
+
+  /** {@code _0034}: the "features" document's legacy team.* config keys are renamed in place. */
+  private void assertWorkspaceFeatureFlagSettingsKeysRenamed() {
+    Document features =
+        collection("settings").find(Filters.eq("_id", LEGACY_FEATURES_SETTINGS_ID)).first();
+    assertThat(features).isNotNull();
+    List<Document> config = features.getList("config", Document.class);
+    List<String> keys = config.stream().map(c -> c.getString("key")).toList();
+    assertThat(keys)
+        .contains("workspaceQuotas", "workspaceParameters", "workspaceManagement", "workspaceTasks");
+    assertThat(keys)
+        .doesNotContain("teamQuotas", "teamParameters", "teamManagement", "teamTasks");
+
+    Document workspaceManagement =
+        config.stream().filter(c -> "workspaceManagement".equals(c.getString("key"))).findFirst().get();
+    assertThat(workspaceManagement.getString("label")).isEqualTo("Workspace Management");
+  }
+
+  /** {@code _0033}: the definition-side lookup indexes the inert entity annotations described. */
+  private void assertDefinitionIndexes() {
+    assertIndex("workflows", "name_lookup", List.of("name"));
+    assertIndex("workflow_revisions", "workflow_ref_version", List.of("workflowRef", "version"));
+    assertIndex("workflow_templates", "name_version", List.of("name", "version"));
+    assertIndex("tasks", "name_lookup", List.of("name"));
+    assertIndex("task_revisions", "parent_ref_version", List.of("parentRef", "version"));
+    assertIndex("workflow_schedules", "fire_sweep", List.of("status", "nextFireAt"));
+    assertIndex("workflow_schedules", "workflow_lookup", List.of("workflowRef"));
   }
 
   private void assertWorkspaceRenameApplied() {

@@ -1,0 +1,32 @@
+.container {
+  h1 {
+    margin: 0;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 300;
+  }
+}
+
+.content {
+  align-items: center;
+  display: flex;
+  margin: 0.5rem 2.125rem 1.5625rem 0;
+}
+
+.text {
+  color: var(--cds-text-01);
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.5625rem;
+}
+
+.summarySkeleton {
+  width: 25rem;
+  height: 4rem;
+}
+
+.headerMessage {
+  margin-top: 0.5rem;
+}

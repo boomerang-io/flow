@@ -43,10 +43,13 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code rel_edges}: {@code from}/{@code to} - any value with the {@code team:} prefix
  *       (the composite key produced by the {@code rel_nodes} re-keying above) becomes {@code
  *       workspace:}, keeping every edge pointed at the node's new id.
- *   <li>{@code tokens.type} and {@code roles.type}: "team" -> "workspace" (AuthScope's stored
- *       enum name - both entities carry an AuthScope-typed {@code type} field written with the
- *       default enum-name Mongo converter, and {@code RoleRepository}/{@code TokenRepository}
- *       are queried with the literal scope string).
+ *   <li>{@code roles.type}: "team" -> "workspace" ({@code PermissionScope}'s stored enum name;
+ *       {@code RoleRepository} is queried with the literal scope string). {@code tokens.type} is
+ *       deliberately NOT rewritten: the v5 token classes ({@code AuthScope}) are {@code
+ *       session/user/key/global} - "workspace" is not one of them - and the retired {@code team}
+ *       (and {@code workflow}) class tokens are deleted outright by {@code
+ *       _0028__TokenClassRestructure}, which accepts either spelling. Rewriting the value here
+ *       would only create an intermediate state no enum can load.
  *   <li>{@code roles.permissions[]}: any element with a {@code team/} prefix (a stored {@code
  *       PermissionResource} label, e.g. {@code "team/read"}) becomes {@code workspace/}. Array
  *       elements, so this is a fetch-rewrite-replace per document, not a single {@code $rename}.
@@ -97,7 +100,6 @@ public class _0016__WorkspaceRename {
     long nodesRekeyed = rekeyTeamNodes(db, names.resolve("rel_nodes"));
     long edgesFromFixed = rewritePrefix(db, names.resolve("rel_edges"), "from");
     long edgesToFixed = rewritePrefix(db, names.resolve("rel_edges"), "to");
-    long tokensRenamed = renameFieldValue(db, names.resolve("tokens"), "type");
     long rolesRenamed = renameFieldValue(db, names.resolve("roles"), "type");
     long rolePermissionsRewritten = rewriteRolePermissions(db, names.resolve("roles"));
     long tokenActionsRewritten = rewriteTokenPermissionActions(db, names.resolve("tokens"));
@@ -109,14 +111,13 @@ public class _0016__WorkspaceRename {
     boolean collectionRenamed = renameTeamsCollection(db, names);
     LOG.info(
         "Workspace rename — rel_nodes re-keyed: {}, rel_edges.from fixed: {}, rel_edges.to"
-            + " fixed: {}, tokens.type renamed: {}, roles.type renamed: {}, role permissions"
+            + " fixed: {}, roles.type renamed: {}, role permissions"
             + " rewritten: {}, token action permissions rewritten: {}, audit scopes renamed: {},"
             + " task_runs annotations renamed: {}, workflow_runs annotations renamed: {}, teams"
             + " collection renamed to workspaces: {}",
         nodesRekeyed,
         edgesFromFixed,
         edgesToFixed,
-        tokensRenamed,
         rolesRenamed,
         rolePermissionsRewritten,
         tokenActionsRewritten,

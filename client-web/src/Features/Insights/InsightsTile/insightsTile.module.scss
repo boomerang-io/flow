@@ -1,0 +1,48 @@
+@import "Styles/mixins";
+
+.container {
+  align-items: flex-start;
+  background-color: var(--cds-ui-01);
+  display: flex;
+  flex-direction: column;
+  height: 24rem;
+  padding: 1.25rem;
+  width: 18rem;
+  @include border-radius();
+}
+
+.title {
+  font-size: 0.875rem;
+  font-weight: 300;
+}
+.totalCountContainer {
+  align-items: flex-end;
+  display: flex;
+}
+.totalCount {
+  color: var(--cds-text-02);
+  font-size: 3rem;
+  margin-right: 0.5rem;
+}
+.type {
+  color: var(--cds-text-02);
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+.itemLabel {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+}
+.itemValue {
+  font-size: 0.875rem;
+  margin-right: 0.75rem;
+}

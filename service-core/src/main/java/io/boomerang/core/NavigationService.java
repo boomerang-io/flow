@@ -122,7 +122,7 @@ public class NavigationService {
 
       response.add(divider);
 
-      if (((Boolean) features.getFeatures().get("team.tasks"))) {
+      if (((Boolean) features.getFeatures().get("workspace.tasks"))) {
         Navigation teamTasks = new Navigation();
         teamTasks.setName("Task Manager");
         teamTasks.setType(NavigationType.link);
@@ -132,7 +132,7 @@ public class NavigationService {
         response.add(teamTasks);
       }
 
-      if (((Boolean) features.getFeatures().get("team.parameters"))) {
+      if (((Boolean) features.getFeatures().get("workspace.parameters"))) {
         Navigation teamParameters = new Navigation();
         teamParameters.setName("Parameters");
         teamParameters.setType(NavigationType.link);
@@ -157,7 +157,7 @@ public class NavigationService {
         admin.setIcon("Settings");
         admin.setChildLinks(new ArrayList<>());
 
-        if (((Boolean) features.getFeatures().get("team.management"))) {
+        if (((Boolean) features.getFeatures().get("workspace.management"))) {
           Navigation teams = new Navigation();
           teams.setName("Teams");
           teams.setLink(flowAppsUrl + "/admin/teams");

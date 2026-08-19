@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="30px" height="30px" viewBox="0 0 30 30" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 45.1 (43504) - http://www.bohemiancoding.com/sketch -->
+    <title>icons / install</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="icons-/-install">
+            <g id="icons-/-arrow" transform="translate(15.000000, 15.000000) rotate(-180.000000) translate(-15.000000, -15.000000) ">
+                <rect id="Rectangle-5" x="0" y="0" width="30" height="30"></rect>
+                <path d="M15.9801136,10.2606061 L19.924053,14.2045455 L23.6363636,14.2045455 L14.8863636,5.45454545 L6.13636364,14.2045455 L9.84867424,14.2045455 L13.7926136,10.2606061 L13.7926136,28.4375 L15.9801136,28.4375 L15.9801136,10.2606061 Z M5.45454545,1.36363636 L24.5454545,1.36363636 L24.5454545,3.40909091 L5.45454545,3.40909091 L5.45454545,1.36363636 Z" id="Combined-Shape" fill="#40D5BB"></path>
+            </g>
+        </g>
+    </g>
+</svg>

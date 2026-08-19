@@ -130,7 +130,7 @@ public class UserControllerV2 {
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.USER,
-      assignableScopes = {AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Update a Boomerang Flow Users details")
   @ApiResponses(
       value = {
@@ -151,7 +151,7 @@ public class UserControllerV2 {
   @AuthCriteria(
       action = PermissionAction.DELETE,
       resource = PermissionResource.USER,
-      assignableScopes = {AuthScope.global})
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Delete a Boomerang Flow user")
   @ApiResponses(
       value = {

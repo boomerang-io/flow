@@ -1,0 +1,62 @@
+
+.header {
+  padding: 1rem 2rem 0;
+}
+
+.headerMessage {
+  margin-top: 0.5rem;
+}
+
+.headerTitle {
+  margin: 0;
+}
+
+.headerSummary {
+  align-items: center;
+  display: flex;
+  margin: 0.5rem 2.125rem 1.5625rem 0;
+}
+
+.headerSummaryText {
+  color: var(--cds-text-01);
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.5625rem;
+}
+
+.headerSummarySkeleton {
+  width: 25rem;
+  height: 4rem;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  padding: 1.875rem 1.5rem 1.5rem;
+  overflow: auto;
+  width: 100%;
+}
+
+.filtersContainer {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  flex-flow: row wrap;
+  width: 100%;
+
+  :global .cds--form-item {
+    flex-grow: 0;
+  }
+}
+
+.dataFilters {
+  margin-bottom: 1rem;
+  display: flex;
+  > * + * {
+    margin-left: 1.4rem;
+  }
+}
+
+.dataFilter {
+  width: 15.875rem;
+}

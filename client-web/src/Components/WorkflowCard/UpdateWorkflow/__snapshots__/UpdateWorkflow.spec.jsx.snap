@@ -1,0 +1,153 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`UpdateWorkflow --- Snapshot Test > Capturing Snapshot of UpdateWorkflow 1`] = `
+<body
+  class="cds--bmrg-body-modal-is-open"
+  id="app"
+>
+  <div
+    data-react-modal-body-trap=""
+    style="position: absolute; opacity: 0;"
+    tabindex="0"
+  />
+  <div />
+  <div
+    data-react-modal-body-trap=""
+    style="position: absolute; opacity: 0;"
+    tabindex="0"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  >
+    <div
+      class="cds--bmrg-modal-overlay"
+    >
+      <div
+        aria-modal="true"
+        class="cds--bmrg-modal-container cds--bmrg-modal-flow-container cds--modal-container modal-container-fix-width _container_fe4e61"
+        role="dialog"
+        tabindex="-1"
+      >
+        <div
+          class="cds--modal-header"
+        >
+          <h3
+            class="cds--modal-header__heading cds--type-beta"
+          >
+            Update workflow
+          </h3>
+          <div
+            class="cds--modal-close-button"
+          >
+            <span
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
+            >
+              <div
+                class="cds--tooltip-trigger__wrapper"
+              >
+                <button
+                  aria-label="Close"
+                  aria-labelledby="tooltip-2"
+                  class="cds--btn--icon-only cds--modal-close cds--btn cds--btn--primary"
+                  title="Close"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="cds--modal-close__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="20"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="20"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <span
+                aria-hidden="true"
+                class="cds--popover"
+                id="tooltip-2"
+                role="tooltip"
+              >
+                <span
+                  class="cds--popover-content cds--tooltip-content"
+                >
+                  Close
+                </span>
+                <span
+                  class="cds--popover-caret"
+                />
+              </span>
+            </span>
+          </div>
+        </div>
+        <form
+          class="cds--bmrg-modal-flow-form"
+        >
+          <p
+            class="cds--bmrg-modal-flow-form__title"
+          >
+            Select the workflow JSON file you want to update the current workflow with. The workflow name (slug) must match.
+          </p>
+          <div
+            class="cds--modal-content"
+            style="height: 21rem; width: 100%;"
+          >
+            <div
+              class="cds--file"
+            >
+              <button
+                class="cds--file__drop-container cds--file-browse-btn"
+                type="button"
+              >
+                Choose a file or drag one here
+              </button>
+              <label
+                class="cds--visually-hidden"
+                for="id1"
+              >
+                Choose a file or drag one here
+              </label>
+              <input
+                accept=".json"
+                class="cds--file-input"
+                id="id1"
+                name="Workflow"
+                tabindex="-1"
+                type="file"
+              />
+            </div>
+          </div>
+          <div
+            aria-busy="false"
+            class="cds--modal-footer cds--btn-set"
+          >
+            <button
+              class="cds--btn cds--btn--secondary"
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              class="cds--btn cds--btn--primary cds--btn--disabled"
+              disabled=""
+              type="submit"
+            >
+              Update
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

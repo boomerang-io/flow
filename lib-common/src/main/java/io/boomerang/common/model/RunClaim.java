@@ -6,8 +6,9 @@ import java.util.Date;
 import lombok.Data;
 
 /**
- * Ownership block written by a Compare-And-Set claim. {@code by} absent on a run means unclaimed
- * and eligible. A requeue clears {@code by}/{@code at}/{@code leaseExpiresAt} only; {@code seq}
+ * Ownership block written by a Compare-And-Set claim. {@code by} is the registered dispatcher id
+ * that holds the claim (the only record of which worker owns the run); absent means unclaimed and
+ * eligible. A requeue clears {@code by}/{@code at}/{@code leaseExpiresAt} only; {@code seq}
  * increments on every claim and is never cleared, so it fences out superseded claimants.
  */
 @Data

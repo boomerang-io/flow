@@ -1,0 +1,27 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 70rem;
+  overflow-x: auto;
+  padding-top: 3rem;
+  position: relative;
+}
+
+:global .cds--side-nav__link {
+  justify-content: flex-start;
+}
+
+:global .cds--side-nav__item--large {
+  :global .cds--side-nav__submenu {
+    height: 3rem !important;
+  }
+}
+
+.appActivationContainer {
+  height: 100vh;
+  width: 100%;
+  background: url(../../Assets/svg/mono_skyline.svg);
+  background-repeat: no-repeat;
+  background-position: bottom;
+}

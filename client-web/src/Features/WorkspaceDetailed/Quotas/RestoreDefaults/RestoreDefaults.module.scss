@@ -1,0 +1,43 @@
+@import "Styles/mixins";
+
+.featureHeader {
+  padding: 1.5rem;
+  h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: normal;
+  }
+}
+
+.resetButton {
+  align-self: center;
+}
+
+.modalContainer {
+  height: 25.625rem;
+  width: 32rem;
+}
+
+.detailedTitle {
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+  margin-bottom: 0.5rem;
+}
+
+.detailedData {
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+}
+
+.gridContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 11.875rem);
+  column-gap: 1.5rem;
+  row-gap: 3.75rem;
+}
+
+.modalBodyContainer {
+  padding-top: 0rem;
+}

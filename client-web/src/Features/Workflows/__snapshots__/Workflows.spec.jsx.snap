@@ -1,0 +1,774 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_2c44c5"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_4d119f"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <nav
+              aria-label="Breadcrumb"
+            >
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+              >
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    href="/home"
+                  >
+                    Home
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    IBM Services Engineering
+                  </p>
+                </li>
+              </ol>
+            </nav>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <h1
+              class="cds--bmrg-feature-header-title"
+            >
+              Workflows (3)
+            </h1>
+            <p
+              class="cds--bmrg-feature-header-title _headerMessage_4d119f"
+            >
+              Your playground to create, execute, and collaborate on workflows. Work smarter with automation.
+            </p>
+          </div>
+        </section>
+        <div
+          class="_filterContainer_4d119f"
+        >
+          <div
+            class="cds--layer-two _search_4d119f"
+          >
+            <div
+              aria-label="Search for a workflow"
+              class="cds--search cds--search--md"
+              role="search"
+            >
+              <div
+                aria-expanded="false"
+                aria-label="button"
+                class="cds--search-magnifier"
+                role="button"
+                tabindex="-1"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--search-magnifier-icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </div>
+              <label
+                class="cds--label"
+                for="search-workspace-workflows"
+                id="search-workspace-workflows-search"
+              >
+                Search for a workflow
+              </label>
+              <input
+                autocomplete="off"
+                class="cds--search-input"
+                data-testid="workflows-workspace-search"
+                id="search-workspace-workflows"
+                placeholder="Search for a workflow"
+                role="searchbox"
+                type="text"
+                value=""
+              />
+              <button
+                aria-label="Clear search input"
+                class="cds--search-close cds--search-close--hidden"
+                title="Clear search input"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div
+        aria-label="My Workflows"
+        class="_content_2c44c5"
+        id="my-workflows"
+        role="region"
+      >
+        <section
+          class="_sectionContainer_2c44c5"
+        >
+          <hgroup
+            class="_header_2c44c5"
+          >
+            <div
+              class="_workspaceQuotaContainer_2c44c5"
+            >
+              <div
+                class="_quotaDescriptionContainer_2c44c5"
+              >
+                <p
+                  class="_workspaceQuotaText_2c44c5"
+                >
+                  Workflow quota - 3 of 10 used
+                </p>
+              </div>
+              <button
+                class="cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                type="button"
+              >
+                View more quotas
+              </button>
+            </div>
+          </hgroup>
+          <div
+            class="_workflows_2c44c5"
+          >
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/ibm-services-engineering/editor/Personal - ML Train – Bot Efficiency/canvas"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      aria-label="bot"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M18 10H20V12H18zM12 10H14V12H12z"
+                      />
+                      <path
+                        d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="Personal - ML Train – Bot Efficiency"
+                    >
+                      Personal - ML Train – Bot Efficiency
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title="Train and store ML model for Bot Efficiency."
+                    >
+                      Train and store ML model for Bot Efficiency.
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <div
+                class="_status_483afa"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="_warningIcon_483afa"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  style="fill: #009d9a;"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                  />
+                </svg>
+              </div>
+              <div
+                style="position: absolute; right: 0px;"
+              >
+                <span
+                  class="cds--overflow-menu__wrapper"
+                >
+                  <span
+                    class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+                  >
+                    <div
+                      class="cds--tooltip-trigger__wrapper"
+                    >
+                      <button
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                        aria-labelledby="tooltip-4"
+                        class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--primary"
+                        type="button"
+                      >
+                        <svg
+                          aria-label="Overflow menu icon"
+                          class="cds--overflow-menu__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          role="img"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle
+                            cx="16"
+                            cy="8"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="16"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="24"
+                            r="2"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      class="cds--popover"
+                      id="tooltip-4"
+                      role="tooltip"
+                    >
+                      <span
+                        class="cds--popover-content cds--tooltip-content"
+                      >
+                        Overflow menu icon
+                      </span>
+                      <span
+                        class="cds--popover-caret"
+                      />
+                    </span>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/ibm-services-engineering/editor/Personal - Java - Deploy/canvas"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      aria-label="cloud upload"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M11 18L12.41 19.41 15 16.83 15 29 17 29 17 16.83 19.59 19.41 21 18 16 13 11 18z"
+                      />
+                      <path
+                        d="M23.5,22H23V20h.5a4.5,4.5,0,0,0,.36-9L23,11l-.1-.82a7,7,0,0,0-13.88,0L9,11,8.14,11a4.5,4.5,0,0,0,.36,9H9v2H8.5A6.5,6.5,0,0,1,7.2,9.14a9,9,0,0,1,17.6,0A6.5,6.5,0,0,1,23.5,22Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="Personal - Java - Deploy"
+                    >
+                      Personal - Java - Deploy
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title=""
+                    />
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <div
+                class="_status_483afa"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="_warningIcon_483afa"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  style="fill: #009d9a;"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                  />
+                </svg>
+              </div>
+              <div
+                style="position: absolute; right: 0px;"
+              >
+                <span
+                  class="cds--overflow-menu__wrapper"
+                >
+                  <span
+                    class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+                  >
+                    <div
+                      class="cds--tooltip-trigger__wrapper"
+                    >
+                      <button
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                        aria-labelledby="tooltip-7"
+                        class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--primary"
+                        type="button"
+                      >
+                        <svg
+                          aria-label="Overflow menu icon"
+                          class="cds--overflow-menu__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          role="img"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle
+                            cx="16"
+                            cy="8"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="16"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="24"
+                            r="2"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      class="cds--popover"
+                      id="tooltip-7"
+                      role="tooltip"
+                    >
+                      <span
+                        class="cds--popover-content cds--tooltip-content"
+                      >
+                        Overflow menu icon
+                      </span>
+                      <span
+                        class="cds--popover-caret"
+                      />
+                    </span>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="_container_483afa"
+            >
+              <a
+                href="/ibm-services-engineering/editor/Personal - Java - Build/canvas"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      aria-label="delivery"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M29.92,16.61l-3-7A1,1,0,0,0,26,9H23V7a1,1,0,0,0-1-1H3A1,1,0,0,0,2,7V24a1,1,0,0,0,1,1H5.14a4,4,0,0,0,7.72,0h6.28a4,4,0,0,0,7.72,0H29a1,1,0,0,0,1-1V17A1,1,0,0,0,29.92,16.61ZM23,11h2.34l2.14,5H23ZM9,26a2,2,0,1,1,2-2A2,2,0,0,1,9,26Zm10.14-3H12.86a4,4,0,0,0-7.72,0H4V8H21V20.56A4,4,0,0,0,19.14,23ZM23,26a2,2,0,1,1,2-2A2,2,0,0,1,23,26Zm5-3H26.86A4,4,0,0,0,23,20V18h5Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <h1
+                      class="_name_483afa"
+                      data-testid="workflow-card-title"
+                      title="Personal - Java - Build"
+                    >
+                      Personal - Java - Build
+                    </h1>
+                    <p
+                      class="_description_483afa"
+                      title="Java - Build"
+                    >
+                      Java - Build
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19L19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <div
+                class="_templatesWarningIcon_483afa"
+              >
+                <div>
+                  <svg
+                    alt="Workflow warning button"
+                    class="_button_f89d84"
+                    height="26"
+                    role="button"
+                    style="will-change: auto;"
+                    tabindex="0"
+                    viewBox="0 0 26 26"
+                    width="26"
+                  >
+                    <title>
+                      x
+                    </title>
+                    <g
+                      fill="none"
+                      fill-rule="evenodd"
+                      transform="translate(1 1)"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        fill="#F9C100"
+                        r="12"
+                        stroke="#0072C3"
+                      />
+                      <path
+                        d="M18.5 18h-13c-.2 0-.3-.1-.4-.2-.1-.2-.1-.3 0-.5l6.5-12c.1-.3.4-.4.6-.2.1 0 .2.1.2.2l6.5 12c.1.2.1.3 0 .5 0 .1-.2.2-.4.2zM6.3 17h11.3L12 6.5 6.3 17zm5.2-7h1v3.5h-1V10zm.5 4.8c-.4 0-.8.3-.8.8s.3.8.8.8c.4 0 .8-.3.8-.8s-.4-.8-.8-.8z"
+                        fill="#000"
+                      />
+                    </g>
+                  </svg>
+                </div>
+              </div>
+              <div
+                class="_status_483afa"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="_warningIcon_483afa"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  style="fill: #da1e28;"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                  />
+                </svg>
+              </div>
+              <div
+                style="position: absolute; right: 0px;"
+              >
+                <span
+                  class="cds--overflow-menu__wrapper"
+                >
+                  <span
+                    class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+                  >
+                    <div
+                      class="cds--tooltip-trigger__wrapper"
+                    >
+                      <button
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                        aria-labelledby="tooltip-10"
+                        class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--primary"
+                        type="button"
+                      >
+                        <svg
+                          aria-label="Overflow menu icon"
+                          class="cds--overflow-menu__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          role="img"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle
+                            cx="16"
+                            cy="8"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="16"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="24"
+                            r="2"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      class="cds--popover"
+                      id="tooltip-10"
+                      role="tooltip"
+                    >
+                      <span
+                        class="cds--popover-content cds--tooltip-content"
+                      >
+                        Overflow menu icon
+                      </span>
+                      <span
+                        class="cds--popover-caret"
+                      />
+                    </span>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <button
+              class="_container_7b50b0"
+              data-testid="workflows-create-workflow-button"
+            >
+              <svg
+                aria-hidden="true"
+                class="_addIcon_7b50b0"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+              <p
+                class="_text_7b50b0"
+              >
+                Create a new workflow
+              </p>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

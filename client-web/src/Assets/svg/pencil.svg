@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="17px" viewBox="0 0 16 17" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 43.2 (39069) - http://www.bohemiancoding.com/sketch -->
+    <title>edit</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="13-Report-a-bug" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="13.70-wip_bug-confirm" transform="translate(-937.000000, -518.000000)">
+            <g id="change" transform="translate(465.000000, 467.000000)">
+                <g id="edit" transform="translate(470.000000, 49.000000)">
+                    <rect id="Rectangle-4" opacity="0.170346467" x="0" y="0" width="20" height="20"></rect>
+                    <path d="M6.66666667,16.4050735 L6.66666667,4.53965554 L11.5552764,4.53965554 L11.5552764,16.4050735 L6.66666667,16.4050735 Z M6.66666667,3.77624715 L6.66666667,1.11111111 L11.5552764,1.11111111 L11.5552764,3.77624715 L6.66666667,3.77624715 Z M6.88233889,17.1684425 L11.3395254,17.1684425 L9.11093214,21.1111111 L6.88233889,17.1684425 Z" id="Combined-Shape" fill="#000000" transform="translate(9.110972, 11.111111) rotate(45.000000) translate(-9.110972, -11.111111) "></path>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

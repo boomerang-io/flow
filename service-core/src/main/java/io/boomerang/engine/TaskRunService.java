@@ -4,6 +4,7 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
@@ -38,8 +39,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Service
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
-
-  // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -85,9 +84,17 @@ public class TaskRunService {
   }
 
   // Claim Compare-And-Set: re-checks full eligibility between page and claim; racing claimants
-  // cannot both win. Returns the pre-image, or null when another claimant won.
+  // cannot both win. Bakes the task's real deadline (claimedAt + effectiveTimeout + grace) in the
+  // same write, computed once here from the pre-claim document - the same RunTimeouts helper
+  // tryStartExecution uses, so the two cannot drift. A dispatcher that dies before reporting the
+  // start is still caught by the same timeout sweep that reaps a stalled execution.
+  // Returns the pre-image, or null when another claimant won.
   public TaskRunEntity tryClaim(String id, String claimedBy) {
     Date now = new Date();
+    TaskRunEntity current = taskRunRepository.findById(id).orElse(null);
+    if (current == null) {
+      return null;
+    }
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -101,14 +108,17 @@ public class TaskRunService {
                 .orOperator(
                     Criteria.where("retry.after").exists(false),
                     Criteria.where("retry.after").lte(now)));
+    Date timeoutAt = RunTimeouts.deadline(now, current.getTimeout());
     Update update =
         new Update()
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
             .set("claim.at", now)
-            .set("dispatcherRef", claimedBy)
             .inc("claim.seq", 1)
             .unset("retry.after");
+    if (timeoutAt != null) {
+      update.set("timeoutAt", timeoutAt);
+    }
     TaskRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {
@@ -116,7 +126,8 @@ public class TaskRunService {
       // Return the pre-image with the claim transition applied - the caller ships this to the
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
-      preImage.setDispatcherRef(claimedBy);
+      preImage.setClaim(claimApplied(preImage.getClaim(), claimedBy, now));
+      preImage.setTimeoutAt(timeoutAt);
     }
     return preImage;
   }
@@ -222,6 +233,30 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
+  // Return the page of currently-claimed TaskRuns, oldest claim first - the orphan backstop
+  // checks each against dispatcher liveness directly, since a claimant that has disappeared is
+  // invisible to the deadline-driven timeout reap until (or unless) its deadline arrives.
+  public List<TaskRunEntity> findClaimed(int limit) {
+    Criteria criteria =
+        Criteria.where("phase").in(RunPhase.queued, RunPhase.running).and("claim.by").exists(true);
+    Query query =
+        Query.query(criteria)
+            .with(Sort.by(Sort.Direction.ASC, "claim.at"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // A WorkflowRun's still-open TaskRuns fetched directly by ref, bypassing the DAG revision walk
+  // - used only when the revision itself cannot be resolved.
+  public List<TaskRunEntity> findNonTerminalByWorkflowRunRef(String workflowRunRef) {
+    Query query =
+        Query.query(
+                Criteria.where("workflowRunRef").is(workflowRunRef).and("phase").ne(RunPhase.completed))
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
   // Timeout Compare-And-Set: a queued/running TaskRun past its deadline gets status timedout and
   // the message in the same atomic write, fenced on the observed claim seq. Returns the
   // pre-image, or null when fenced out or already transitioned.
@@ -233,6 +268,27 @@ public class TaskRunService {
             .in(RunPhase.queued, RunPhase.running)
             .and("timeoutAt")
             .lte(new Date());
+    fence(criteria, observedClaimSeq);
+    Update update =
+        new Update()
+            .set("status", RunStatus.timedout)
+            .set("statusMessage", statusMessage)
+            .unset("timeoutAt");
+    TaskRunEntity preImage =
+        findAndModifyPreImage(Query.query(criteria), update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.timedout, preImage.getPhase());
+    }
+    return preImage;
+  }
+
+  // Abandon Compare-And-Set: a queued/running TaskRun gets the same terminal treatment as a
+  // deadline reap (status timedout, deadline cleared) without requiring timeoutAt to have
+  // elapsed - for a claimant confirmed gone ahead of (or absent) its own deadline. Fenced on the
+  // observed claim seq. Returns the pre-image, or null when fenced out or already transitioned.
+  public TaskRunEntity tryAbandon(String id, Long observedClaimSeq, String statusMessage) {
+    Criteria criteria =
+        Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
     fence(criteria, observedClaimSeq);
     Update update =
         new Update()
@@ -263,7 +319,6 @@ public class TaskRunService {
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt")
-            .unset("dispatcherRef")
             .unset("timeoutAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
@@ -298,6 +353,17 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
+  // Park a running TaskRun as a durable wait (sleep, or an acquirelock backoff): status ->
+  // waiting and the wake time, as a targeted update so the sweep-control fields written by other
+  // Compare-And-Set paths (claim, timeoutAt, retry) are never overwritten by a stale entity save.
+  // Fenced on the run still being in the running phase. Returns whether the park was applied.
+  public boolean tryPark(String id, Date waitUntil) {
+    Query query =
+        Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", RunStatus.waiting).set("waitUntil", waitUntil);
+    return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
+  }
+
   // Claim a due waiting TaskRun for resume: clears waitUntil so a second instance's sweep skips
   // it. Returns whether this caller won (the winner resumes).
   public boolean tryStartWaitingResume(String id) {
@@ -308,6 +374,16 @@ public class TaskRunService {
             .updateFirst(query, new Update().unset("waitUntil"), TaskRunEntity.class)
             .getModifiedCount()
         > 0;
+  }
+
+  // The in-memory view of the claim block after a winning claim Compare-And-Set (by/at set, seq
+  // incremented from the pre-image), so the returned entity mirrors the stored post-claim state.
+  static RunClaim claimApplied(RunClaim preClaim, String claimedBy, Date at) {
+    RunClaim claim = new RunClaim();
+    claim.setBy(claimedBy);
+    claim.setAt(at);
+    claim.setSeq((preClaim == null || preClaim.getSeq() == null) ? 1L : preClaim.getSeq() + 1);
+    return claim;
   }
 
   // A null observed seq fences on the run being unclaimed - a claim arriving between page and

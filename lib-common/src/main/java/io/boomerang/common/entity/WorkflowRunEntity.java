@@ -46,11 +46,10 @@ public class WorkflowRunEntity {
   private String workflowRef;
   private Integer workflowVersion;
   private String workflowRevisionRef;
-  private String dispatcherRef;
 
-  // Claim ownership for the workflow-level claimables (provision and teardown). claim.by
-  // absent = unclaimed and eligible; written only by the claim Compare-And-Set. claim.seq
-  // increments on every claim and is never cleared.
+  // Claim ownership for the workflow-level claimables (provision and teardown). claim.by is the
+  // registered dispatcher id holding the claim; absent = unclaimed and eligible; written only by
+  // the claim Compare-And-Set. claim.seq increments on every claim and is never cleared.
   @JsonIgnore private RunClaim claim;
 
   // Denormalised absolute deadline written at the start Compare-And-Set; absent = unguarded.
@@ -64,12 +63,18 @@ public class WorkflowRunEntity {
   @Indexed(sparse = true)
   private Date pauseRequestedAt;
 
+  // Derived from pauseRequestedAt - orthogonal to status/phase. A paused run keeps its
+  // underlying status and phase; only in-flight admission is gated.
+  public boolean isPaused() {
+    return pauseRequestedAt != null;
+  }
+
   private String trigger;
   private String initiatedByRef;
 
   // Auto-retry attempt count (absent/null = 0). initiatedByRef + trigger=retry carry the retry
   // lineage - all typed, never boomerang.io/* annotations.
-  private Long retryCount;
+  @JsonIgnore private Long retryCount;
 
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();

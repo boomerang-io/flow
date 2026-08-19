@@ -95,9 +95,8 @@ public class WorkspaceWorkflowService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String TASK_REF_SEPERATOR = "/";
-  public static final String TEAMS_SETTINGS_KEY = "teams";
   public static final String FEATURES_SETTINGS_KEY = "features";
-  public static final String FEATURES_TEAM_QUOTA = "teamQuotas";
+  public static final String FEATURES_WORKSPACE_QUOTA = "workspaceQuotas";
   public static final String QUOTA_MAX_WORKFLOW_DURATION = "max.workflow.duration";
   public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
   public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
@@ -268,11 +267,14 @@ public class WorkspaceWorkflowService {
     LOGGER.debug("Workflow DisplayName: {}", request.getDisplayName());
 
     // Ensure Workflow name is unique within Workspace
-    if (relationshipService.check(
-        RelationshipType.WORKFLOW,
-        request.getName(),
-        Optional.of(RelationshipType.WORKSPACE),
-        Optional.of(List.of(team)))) {
+    List<String> existingWorkflowRefs =
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(request.getName())),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!existingWorkflowRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
@@ -327,7 +329,7 @@ public class WorkspaceWorkflowService {
   private void setUpWorkspaceDefaults(Workflow request) {
     boolean quotasEnabled =
         settingsService
-            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
+            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
             .getBooleanValue();
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       // Workflow Storage
@@ -335,7 +337,7 @@ public class WorkspaceWorkflowService {
         if (ws.getType().equals("workflow")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                   .getValue()
                   .replace("Gi", "");
           ws.setName("workflow");
@@ -360,7 +362,7 @@ public class WorkspaceWorkflowService {
         } else if (ws.getType().equals("workflowrun")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(TEAMS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                   .getValue()
                   .replace("Gi", "");
           ws.setName("workflowrun");
@@ -663,7 +665,7 @@ public class WorkspaceWorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
-    final Workflow response = this.internalGet(team, name, Optional.empty(), true);
+    final Workflow response = this.internalGet(team, name, version, true);
     return convertWorkflowToCanvas(response);
   }
 
@@ -765,7 +767,7 @@ public class WorkspaceWorkflowService {
    */
   private void canCreateWithQuotas(String team) {
     if (settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
+        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
         .getBooleanValue()) {
       CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
@@ -784,7 +786,7 @@ public class WorkspaceWorkflowService {
    */
   private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
     if (settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_TEAM_QUOTA)
+        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
         .getBooleanValue()) {
       CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());

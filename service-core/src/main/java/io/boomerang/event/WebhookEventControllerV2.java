@@ -1,6 +1,7 @@
 package io.boomerang.event;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -81,8 +82,9 @@ public class WebhookEventControllerV2 {
       @RequestHeader(value = "X-GitHub-Event", required = false) Optional<String> githubEvent,
       @RequestHeader(value = "X-GitHub-Hook-Installation-Target-ID", required = false)
           Optional<String> githubInstallationId,
+      @RequestHeader(value = "X-Hub-Signature-256", required = false) Optional<String> githubSignature,
       @RequestHeader(value = "x-slack-signature", required = false) Optional<String> slackSignature,
-      @RequestBody JsonNode payload,
+      @RequestBody String rawBody,
       HttpServletRequest request) {
     request
         .getHeaderNames()
@@ -91,6 +93,7 @@ public class WebhookEventControllerV2 {
             headerName ->
                 LOGGER.debug(
                     "Webhook Header::" + headerName + ": " + request.getHeader(headerName)));
+    JsonNode payload = rawBody == null || rawBody.isBlank() ? null : new ObjectMapper().readTree(rawBody);
     if (slackSignature.isPresent()) {
       if (payload != null) {
         final String slackType = payload.get("type").asText();
@@ -113,7 +116,7 @@ public class WebhookEventControllerV2 {
         return ResponseEntity.badRequest().build();
       }
     } else if (githubEvent.isPresent()) {
-      webhookEventService.processGitHubWebhook(githubEvent.get(), payload);
+      webhookEventService.processGitHubWebhook(githubEvent.get(), githubSignature, rawBody, payload);
     } else if (ref.isPresent()) {
       webhookEventService.processWebhook(ref.get(), payload);
     } else {

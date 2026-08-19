@@ -1,0 +1,84 @@
+@import "Styles/mixins";
+
+.webhookurlContainer {
+  display: flex;
+  margin-top: 1rem;
+
+  :global .cds--snippet--multi {
+    max-width: 95%;
+  }
+
+  :global .cds--copy-btn {
+    background-color: #f2f4f8 !important;
+  }
+
+  :global .cds--copy-btn:hover {
+    background-color: white !important;
+  }
+
+  .actionButton {
+    margin-left: 1rem;
+    height: 1rem;
+  }
+
+  .actionIcon {
+    cursor: pointer;
+    height: 1rem;
+
+    &:focus {
+      @include focus-outline();
+    }
+    path,
+    rect {
+      fill: var(--cds-interactive-01);
+    }
+  }
+}
+
+.codeSnippet{
+  background: var(--cds-background, #f2f4f8);
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-block-end: none !important;
+  min-height: 48px;
+
+  button{
+    border-radius: 0 !important;
+    background: var(--cds-background, #f2f4f8);
+  }
+}
+
+.codeSnippetInline{
+  background: var(--cds-background, #f2f4f8);
+}
+
+.webhookURL {
+  width: 25rem;
+  overflow-x: auto;
+  color: var(--cds-icon-02);
+  font-size: 0.75rem;
+}
+
+.container {
+  :global .cds--dropdown__wrapper {
+    width: 16rem;
+    margin-bottom: 1rem;
+  }
+}
+
+.sectionContainer {
+  margin-bottom: 1.5rem;
+}
+
+.sectionHeader {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9rem;
+}
+
+.sectionHeader:nth-child(n+2) {
+  margin-top: 2.5rem;
+}

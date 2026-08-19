@@ -1,0 +1,29 @@
+@import "Styles/mixins";
+
+.container {
+  background-color: var(--cds-ui-01);
+  max-width: 86rem;
+  height: 27rem;
+  padding: 1rem 1.25rem 1.75rem;
+  @include border-radius();
+}
+.title {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.totalCountContainer {
+  align-items: flex-end;
+  display: flex;
+}
+.totalCount {
+  color: var(--cds-text-02);
+  font-size: 3.75rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+.type {
+  color: var(--cds-text-02);
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}

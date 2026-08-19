@@ -1,0 +1,187 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WorkflowCard --- Snapshot > Capturing Snapshot of WorkflowCard 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_483afa"
+    >
+      <a
+        href="/tyson-workspace/editor/Personal - ML Train – Bot Efficiency/canvas"
+      >
+        <section
+          class="_details_483afa"
+        >
+          <div
+            class="_iconContainer_483afa"
+          >
+            <svg
+              aria-label="bot"
+              class="_icon_483afa"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              viewBox="0 0 32 32"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M18 10H20V12H18zM12 10H14V12H12z"
+              />
+              <path
+                d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+              />
+            </svg>
+          </div>
+          <div
+            class="_descriptionContainer_483afa"
+          >
+            <h1
+              class="_name_483afa"
+              data-testid="workflow-card-title"
+              title="Personal - ML Train – Bot Efficiency"
+            >
+              Personal - ML Train – Bot Efficiency
+            </h1>
+            <p
+              class="_description_483afa"
+              title="Train and store ML model for Bot Efficiency."
+            >
+              Train and store ML model for Bot Efficiency.
+            </p>
+          </div>
+        </section>
+      </a>
+      <section
+        class="_launch_483afa"
+      >
+        <button
+          class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+          type="button"
+        >
+          Run it
+          <svg
+            aria-hidden="true"
+            aria-label="Run workflow"
+            class="cds--btn__icon"
+            fill="currentColor"
+            focusable="false"
+            height="16"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            viewBox="0 0 32 32"
+            width="16"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+            />
+            <path
+              d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+            />
+            <path
+              d="M19 19L19 25 24 22 19 19z"
+            />
+          </svg>
+        </button>
+      </section>
+      <div
+        class="_status_483afa"
+      >
+        <svg
+          aria-hidden="true"
+          class="_warningIcon_483afa"
+          fill="currentColor"
+          focusable="false"
+          height="16"
+          preserveAspectRatio="xMidYMid meet"
+          style="fill: #009d9a;"
+          viewBox="0 0 16 16"
+          width="16"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle
+            cx="8"
+            cy="8"
+            r="6"
+          />
+        </svg>
+      </div>
+      <div
+        style="position: absolute; right: 0px;"
+      >
+        <span
+          class="cds--overflow-menu__wrapper"
+        >
+          <span
+            class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+          >
+            <div
+              class="cds--tooltip-trigger__wrapper"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="true"
+                aria-labelledby="tooltip-3"
+                class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--primary"
+                type="button"
+              >
+                <svg
+                  aria-label="Overflow menu icon"
+                  class="cds--overflow-menu__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="16"
+                    cy="8"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="2"
+                  />
+                  <circle
+                    cx="16"
+                    cy="24"
+                    r="2"
+                  />
+                </svg>
+              </button>
+            </div>
+            <span
+              aria-hidden="true"
+              class="cds--popover"
+              id="tooltip-3"
+              role="tooltip"
+            >
+              <span
+                class="cds--popover-content cds--tooltip-content"
+              >
+                Overflow menu icon
+              </span>
+              <span
+                class="cds--popover-caret"
+              />
+            </span>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

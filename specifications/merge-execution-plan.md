@@ -63,7 +63,7 @@ of boundaries landing, else Q-211 re-opens).
   `InternalController` deleted — **gap A4 closed**); H6 mode gates applied per the matrix +
   engine/standalone boot tests. Relationship seam: **ungated-interim** (a single-anchor no-op
   would silently corrupt access control — revisit with J1's `/:team → default` remapping at
-  E10). **E7-5** ✅ — `DispatcherEntity`/`dispatchers`/`dispatcherRef` + `_0011__DispatcherRename`
+  E10). **E7-5** ✅ — `DispatcherEntity`/`dispatchers`/`dispatcherRef` + `_0011__DispatcherRename` (2026-08-18: `dispatcherRef` folded into `claim.by` — it was a duplicate; see `entity-diff-v4-v5.md` §2)
   changeunit (collection rename, `$rename` on run docs), exercised by `LoaderMigrationTest`.
   Deliberately deferred to E10: J1 engine-mode default-team remapping; the api `Team*` shim
   dissolution (H7).
@@ -357,6 +357,344 @@ carries no `tokens`/`roles` collections at all — legacy v3 tokens are a differ
 by `_0004`, and `roles` is v5-only — so this unit's behaviour is proven against
 `LoaderMigrationTest`'s synthetic fixture, re-verified idempotent and narrow via a surviving
 `global`-typed token fixture, not the real dump.)
+
+## Track 7 — DD-04 frontend fold-in (2026-08-18)
+
+**T7-1 — Folded in at `client-web/` via `git subtree`, full history preserved.** Source is the
+**v4 line** (`flow.client.web` `main`, tag `4.0.0` + 3 commits), NOT 3.12.x — DD-04's original
+wording was stale. The `3.12.0` in `package.json` is a dead field; releases here are tag-driven
+(`4.0.0`, `4.0.0-beta.290`), exactly as on the backend whose poms still read `4.0.0`/`1.0.0`. The
+webapp joins the DD-03 unified product version at **5.x**. 873 files, 2,003 commits imported
+(monorepo now 3,377); `.git` grew ~8 MB, so preserving history cost almost nothing.
+
+**T7-2 — Packaging: separate image, built from the monorepo.** Keeps today's model (its own Node
+container, `boomerang-webapp-server serve`, runtime `rewriteAssetPaths`, `BASE_URL` from
+`PRODUCT_SERVICE_ENV_URL`); becomes the **4th image** on the product tag alongside core, agent and
+loader. Mode gating lives in the chart — engine mode simply does not deploy it (AM-7: the webapp
+is standalone-only). **Deferred for later discussion: bundling the Vite output into
+`service-core`'s static resources** for a single deployable — that would drop the node server and
+the runtime asset-path rewriting, so it is a behavioural change, not just packaging.
+
+**T7-3 — Full Workspace rename in the frontend, not just URL repointing.** H14 retired
+`/api/v2/team/**`, so the app cannot talk to `feat-v5` at all: 45 `/team/` URL sites in
+`servicesConfig.ts`, consumed by 75+ files. Beyond repointing to `/workspace/`, the frontend's own
+`Team*` types, components, variables and user-facing copy are renamed, completing DD-01 in the UI
+so backend and frontend do not carry split vocabulary.
+*Verified compatible:* the frontend reads `TaskRun.phase` at 2 sites — kept at E7-2. It declares
+`WorkflowRun.phase` but never reads it, so E7-2's removal there is harmless.
+
+### T7 API repoint — capability gaps the rename exposed (ACTION NEEDED)
+
+The API layer was repointed by verifying all ~48 team-scoped URLs against the live controllers in
+`io.boomerang.api.**`, not by string-replacing `/team/`. Beyond the rename, four endpoints had
+genuinely **drifted** and were repointed onto real v5 routes (each verified to exist):
+`/tokens/global-tokens` → `GET /token/query?types=global` (token restructure);
+`PATCH /parameters/{name}` → `PUT /parameters` (bulk upsert; only `DELETE` keeps `/{name}`);
+`DELETE .../approvers/{groupId}` → `DELETE /workspace/{workspace}/approvers` with a body;
+`/manage/teams` → `/workspace` (the old path was never served at all). Two long-standing v4 bugs
+were fixed in passing: `postCreateTeam` passed `body` instead of `data` to axios, so **the create
+payload was never sent**, and `resourceTrigger()` carried a phantom `/trigger` segment.
+
+**The gap that matters: seven frontend operations now have no backend route.** These are marked
+`// TODO:` in `servicesConfig.ts` and are a *product* decision, not a porting detail — the
+capability was folded into `PATCH /workspace/{workspace}` (labels, workspace parameters, approver
+group create/update) or dropped outright (`POST .../quotas/reset`, workflow-level `validate-name`).
+Either the frontend screens are rewritten to compose the coarse workspace PATCH, or the backend
+re-exposes fine-grained routes. **Nothing should ship on 5.x with these left as TODOs.**
+
+*Not a regression, despite appearances:* `WorkflowTemplateControllerV2`'s export / compose /
+duplicate / available-parameters endpoints are commented out server-side, so Workflow Templates
+lack what per-workspace Workflows still have. Traced to commit `4dc06234` ("use latest
+relationship approach") and confirmed already commented in the pre-merge `service-flow` — this is
+inherited v4 debt, NOT something the merge broke. Feeds the parked "WorkflowTemplates sunset"
+question: the feature is already half-dismantled.
+
+## Track 8 — frontend refactor (2026-08-18)
+
+**T8-D1 — Full SSR, decided.** React Router v7 framework mode with `ssr: true`. This **replaces
+`@boomerang-io/webapp-spa-server`** and reworks the runtime `PRODUCT_SERVICE_ENV_URL` asset-path
+rewriting (server rendering can read env at request time, so the `rewriteAssetPaths` hack goes
+away — a net simplification). It also **closes T7-2's deferred "bundle the webapp into
+`service-core`" option**: SSR means a permanent Node runtime, so single-deployable standalone is
+off the table. Recorded as the resolution of that deferral, not an open question.
+
+**T8-D2 — Drop TanStack Query from app code; use loaders/actions.** The 289 `useQuery`/`useMutation`
+call sites across 66 files move straight to route loaders and actions — they are NOT migrated
+react-query v3 → TanStack v5 first, which would be doing the same 289 sites twice. *Caveat:* the
+design system's `UIShell` and `Header` use react-query internally and the app uses both, so a query
+provider stays mounted for the shell until those components are replaced. "Remove TanStack" means
+from our data layer, not from the tree.
+
+**T8-D3 — The design system does NOT gate Router v7** (correcting the initial read of its peer
+ranges). `@boomerang-io/carbon-addons-boomerang-react` declares `react-router-dom ^5.3.4` even at
+latest, but touches it in only three components: `FeatureSideNavLink` and `FeatureNavTab` use
+`NavLink` (unchanged in v6/v7), and `ProtectedRoute` uses `Route`. Only `ProtectedRoute` breaks; the
+app uses it at 12 sites and replaces it in-app (in a loaders world it becomes a loader-based
+redirect). `.npmrc` already sets `strict-peer-dependencies=false`, so the declared range does not
+block installation. **Verify declared peers against actual imports before treating a pin as a
+blocker.**
+
+**T8-D4 — React 18 is the ceiling.** The wrapper's latest (`4.9.0-beta.15`) peers `react ^18.3.1`.
+React 19 is not available without dropping the design system, which 143 files import.
+
+### T8 sequence
+
+| Step | Work |
+| ---- | ---- |
+| T8-0 | **Safety net first** (maintainer ruling: tests AND typecheck, both blocking). Mirrors the ruled E0-before-E4 discipline — no migration starts without verification. |
+| T8-1 | React 18 + Carbon 1.75 + wrapper 4.9 + axios 1.x. |
+| T8-2 | Router v5 → v7: replace `ProtectedRoute`, convert 93 `Switch` / 52 `useHistory` / 48 `Redirect` / 8 `useRouteMatch`. |
+| T8-3 | Data layer → loaders/actions (the 289 sites), with API-call separation landing here. |
+| T8-4 | Resolved per-workspace permissions + UI gating. |
+
+**Sequencing note — permissions before the A2 flip.** The backend still soft-fails permission
+checks, so frontend gating mistakes are invisible today and become user-visible 403s the moment A2
+flips to enforcement. Do T8-4 while mistakes are still cheap.
+
+**Sequencing risk SSR introduces — auth moves earlier.** With `ssr: true`, loaders run
+**server-side** and must carry the user's session to reach the API, but T7-F1 established the app
+has no login flow and relies on a cookie set by an upstream proxy. SSR therefore forces the
+credential-forwarding and session story to be solved during T8-3, not deferred to T8-4. Expect two
+API base URLs as well: an internal one for server-side loaders, the public one for the browser.
+
+### T8-0 baseline (measured 2026-08-18)
+
+354 `tsc` errors — **277 in app code, 77 in specs** — plus 36 of 37 test files failing.
+- ~46 spec errors are a single config gap: jest-dom matchers are registered at **runtime** but not
+  **typed** (`toBeInTheDocument`, `toMatchSnapshot`, `toBe` "does not exist on type 'Assertion'").
+  One fix.
+- The 166 `TS2322`s are a genuine long tail, 166 of them in app code and only 1 in a spec: Carbon
+  component prop mismatches, event-handler signatures (`FormEvent` vs `MouseEventHandler`),
+  `string | undefined` vs `string`. No single systematic fix.
+- Several trace to domain types drifting from the backend (`Task.config`, `Member.name`,
+  `Member[]` vs `Approver[]`) — these are fixed once, centrally, against the real `service-core`
+  models before the long tail is parallelised.
+
+### T8-0 progress
+
+**Test-infra typing fixed: 354 → 307 errors.** The root cause was a genuine `tsconfig.json` bug,
+not a missing dependency: `"types": ["cypress", "@testing-library/cypress"]` restricted automatic
+global-type inclusion to Cypress, which bundles Mocha/Chai's ambient `expect`/`describe`. TypeScript
+was therefore resolving `expect(x)` to **Chai's** `Assertion` — which has no jest-dom matchers —
+rather than Vitest's. Set to `["vitest/globals"]`; safe because `include` is `['src']`, so the
+`cypress/` tree was never covered by this config anyway. Matcher signatures are augmented in
+`src/vitest-matchers.d.ts`, deliberately NOT named `vitest.d.ts`: with `baseUrl: "./src"` a file of
+that name resolves ahead of the real `vitest` package for the bare `"vitest"` specifier and
+silently breaks every other export (`vi`, `expect`). `@testing-library/jest-dom` is v5.16.4, which
+ships no types and has no `/vitest` subpath — that is v6+ — so the v5-era manual augmentation is
+correct here, not a workaround.
+
+Test counts are unchanged (36/37 files failing) and that is the expected result: runtime
+registration was always correct, only the types were wrong. The remaining failures are genuine
+assertion and prop/fixture-shape errors, which is what the repair pass will address.
+
+**A third test suite is sitting unused.** `cypress/` holds 12 E2E specs with `cypress`/`cypress:run`
+scripts, no tsconfig of its own (so never typechecked, before or after this change) and no CI
+wiring. Its `cypress:run` script also uses `$(npm bin)`, removed in npm 9+, so it is broken as
+written. Decide whether E2E is part of the safety net or is deleted — leaving it is the worst of
+both.
+
+**Process incident worth recording.** The two T8-0 agents ran concurrently in one working tree; the
+test-infra agent ran a repo-wide `git checkout --` while cleaning up snapshot noise and silently
+reverted the other agent's large uncommitted edit to `src/Types/index.tsx` — a file it had been told
+not to touch. Unrecoverable (never staged). "Don't touch file X" does not constrain commands whose
+blast radius is the whole repo. Parallel-agent briefs now ban repo-wide `checkout`/`reset`/`clean`
+and require committing coherent units immediately rather than holding large uncommitted changes;
+root-cause work that others build on runs to completion and commits BEFORE any fan-out.
+
+### T8-0 — the test suite was failing partly because the mock server lied
+
+Repairing the suite (35 failing files → 22 passing, in progress) surfaced a cause nobody had
+suspected: **`ApiServer/index.js`, the Mirage mock server, was itself broken in five places**, so
+many specs were failing against a fake backend that did not behave like the real one.
+
+- `putAction` was registered without its required `workspace` argument, crashing mock-server
+  construction for nearly every spec that started it.
+- `getWorkflows` was registered with a literal `workspace: null` instead of `:workspace`, so it
+  never matched a request and the Workflows page hung on its skeleton forever.
+- The workspace PATCH handler called `.update()` on a plain `schema.db` record, so every
+  name/label/member/quota edit 500'd.
+- `validate-name` returned 422 "already taken" unconditionally, blocking every create and rename
+  flow behind a failed async validation.
+- Workspace create never seeded `quotas`/`status`/`members`, crashing the list table on creation.
+
+**Fixtures were lying too**, in the same way and with the same consequence — a test that passes
+against a shape the API never sends is worse than no test. The shared app-context fixture supplied
+the **paginated response object** where the real app supplies a flat array (`App.tsx` does
+`sortBy(userData.teams, "name")`), so every default-context spec saw a user with zero workspaces and
+wrongly rendered empty states. The `users`/`profile` fixtures carried legacy
+`firstLoginDate`/`lastLoginDate` but not `creationDate`, and because `moment(undefined)` silently
+returns *now*, "First Login" and "Date Joined" always displayed today's date — in the app, not just
+in tests. Both corrected to the real shape rather than bending components toward the fixture.
+
+**Process lesson recorded:** one agent ran a bare `vitest run -u` instead of the project's
+`TZ=UTC`-pinned script and baked the machine's local UTC+10 offset into date-bearing snapshots. It
+caught and redid them, but snapshot updates must always go through the project script. Blind `-u`
+across a stale suite is banned outright — it enshrines whatever bug currently exists as the expected
+output, which is strictly worse than a red test.
+
+### T8-0 — the typecheck net paid for itself in bugs, not types
+
+Driving `tsc` to zero was justified as a safety net for the migrations. It also surfaced **nine
+live defects** in the workspace/user screens alone that no test caught, because the suite was dead
+and the errors were being tolerated. The two that matter:
+
+- **Adding a workspace member always granted `Editor`.** `AddMember.tsx` built its request with a
+  hardcoded `role: MemberRole.Editor`, discarding the role the user picked — and the picker never
+  displayed a selection either, because it used Carbon's non-existent `value` prop instead of
+  `selectedItem`. **This is a permissions defect**, not cosmetics: intending to add a Reader
+  silently produced an Editor. It also lands squarely on the A2 enforcement flip — today the
+  backend soft-fails permission checks, so an over-granted role is invisible; after the flip it is
+  the difference between what a member can and cannot do.
+- **"Create Workspace" was broken on the Workspaces screen.** `WorkspaceCreateContent` was rendered
+  without its `createWorkspace`/`isError`/`isLoading` props, so submitting threw
+  `createWorkspace is not a function`. The same flow works from `Home.tsx`, which is presumably why
+  it went unnoticed.
+
+Also fixed: a Cancel button never disabled during a request (vendor prop misspelled
+`negativeButtonsProps` and therefore silently dropped), a quota input with no visible label (`labelText`
+on a Carbon `NumberInput` whose real prop is `label`), several icons whose accessible name was
+dropped (`alt` on SVG icons → `aria-label`), an `Avatar` with no accessible name, an unguarded
+`user.teams.length` that could throw, and a spec building a route with the wrong param name so the
+route param was silently `undefined`.
+
+The shared-components pass found six more, including two silent data-loss bugs:
+
+- **Search filtering did nothing.** `WorkflowsHeader` and `SchedulePanelList` read `currentTarget`
+  from the search `onChange`, but Carbon's `Search` fires a plain `{target, type}` object with no
+  `currentTarget` — so the handler always read `undefined` and typing in the box filtered nothing.
+- **Schedule labels were dropped on every edit.** `Schedule.labels` is a `Record<string,string>`,
+  but the edit-load path branched on `.length` (always `undefined` on a plain object) and iterated
+  it as an array, so opening an existing schedule silently discarded its labels.
+- **`TaskUpdateModal` read `Task.config`, a field the backend no longer sends** (it moved to
+  `Task.spec.params`) — the modal would throw on render. This is exactly the class of "quietly dead
+  UI" predicted when the domain types were realigned, and the first confirmed instance.
+- A status-filter `MultiSelect` given `selectedItem` (Carbon wants `selectedItems`) and the wrong
+  value shape, so an active filter never showed; and a `setIsRedirectEnabled` call referencing a
+  name declared nowhere — a dormant `ReferenceError`, live only because its render site is
+  commented out.
+
+**The pattern worth generalising:** almost every one of these is a *silently dropped prop or
+silently undefined read* — a misspelled or non-existent prop name, or a shape that doesn't match
+what the vendor actually passes. React does not complain; the value simply vanishes. TypeScript was
+already flagging every one of them. This is the concrete argument for the maintainer's "tests AND
+typecheck" ruling over the cheaper "repair tests only" option: no assertion suite would have caught
+these, and the errors were sitting there being tolerated.
+
+**Open follow-up for the maintainer:** `WorkflowCard/UpdateWorkflow.tsx` passes a `workflow` field
+into the `putApplyWorkflow` call that the URL builder
+(`({ workspace }) => .../workspace/${workspace}/workflow`) never reads. Confirm whether the update
+endpoint needs the workflow ref in the URL — if it does, that path is wrong.
+
+**Left deliberately, and worth knowing they are vendor faults, not ours:** Carbon's own types are
+internally inconsistent — `getHeaderProps`/`getRowProps` return `onClick`/`onExpand` as a raw DOM
+`MouseEvent` while `TableHeader`/`TableExpandRow` declare `MouseEventHandler` (confirmed with an
+isolated repro), and `DatePickerInputProps` extends `HTMLAttributes` rather than
+`InputHTMLAttributes`, so `autoComplete` is untyped despite being spread onto a real `<input>`.
+The `DynamicInput` disagreement (governing-only fields mandatory, `min`/`max` string vs number) is
+the shared-type change reserved to the maintainer.
+
+Two pre-existing `@ts-ignore` comments were also removed once the underlying errors were fixed
+properly. Count: **354 → 81** with the components and workflow-feature passes still running.
+
+### T7 — inherited frontend quality debt (measured at fold-in)
+
+Both figures below are **pre-existing v4 debt**, confirmed against the parent commit, not caused by
+the rename — but they are now this repo's problem and they bound what the webapp CI can enforce.
+
+- **The test suite is effectively dead: 36 of 37 files and 52 of 53 tests fail.** Not a
+  configuration fault — `toBeInTheDocument` and friends register correctly; these are genuine
+  stale assertions and snapshots against components that moved on (e.g. a toggle-visibility
+  assertion in `PropertiesModalContent`, snapshots in `TaskApprovalModal`/`OutputPropertiesLog` —
+  all files with no workspace vocabulary in them at all). Consequence: `ci-web.yml`'s `test` job is
+  `continue-on-error` so it reports without gating merges — a permanently-red required check just
+  trains people to ignore CI. **Make it blocking again once repaired.**
+- **`tsc --noEmit` reports 354 errors.** The Vite build does not typecheck, which is why
+  `pnpm build` succeeds (verified: exit 0, `server/build/index.html` produced), so this blocks
+  nothing today — but there is no type safety net under the app, which is precisely why the
+  rename's one real bug (below) could not be caught by compilation.
+
+*The rename's one genuine bug, caught and fixed:* blanket-renaming turned three reads of the
+vendor `User.teams` field into `.workspaces`. That field belongs to
+`@boomerang-io/carbon-addons-boomerang-react`, which still ships `teams: any[]`, so the reads would
+have silently returned `undefined` — an empty workspace switcher and a broken count on account
+settings, with no error. Reverted to `.teams` at those three sites plus the mock fixture, while all
+local vocabulary keeps the new naming. Slack's own `SLACK_TEAM_ID` / `slack://channel?team=`
+protocol vocabulary was likewise deliberately left alone.
+
+### T7 integration findings (fold-in scouting, not yet actioned)
+
+**T7-F1 — The webapp has no login flow of its own.** `axiosGlobalConfig.ts` is three lines
+(`axios.defaults.withCredentials = true`); identity is bootstrapped from `GET /profile` on the
+session cookie, and there is no sign-in route, no OIDC client and no 401 handling anywhere in
+`src/`. The app therefore assumes an **authenticating reverse proxy in front of it** — true on the
+IBM-era deployments it grew up on, NOT true for a fresh install. This is the concrete shape of the
+already-recorded "standalone uses IDPZero locally, which requires frontend changes" item: the
+frontend needs a real sign-in path plus 401→re-auth handling, and the session it obtains must
+mint the `bfs` session token the restructured token model expects. **Blocks a usable standalone
+install; does not block engine mode** (no webapp there).
+
+**T7-F2 — A dangling second backend.** `servicesConfig.ts` declares `CORE_SERVICE_ENV_URL`
+(legacy Boomerang "core services" platform) alongside `PRODUCT_SERVICE_ENV_URL`, but the entire
+v5-irrelevant dependency is used for exactly **one** call: `getUserProfileImage` →
+`${CORE_SERVICE_ENV_URL}/users/image/{email}`. v5 ships no such service. Drop the base URL and
+render avatars locally (initials/Gravatar) — a one-endpoint change that removes a whole external
+platform dependency.
+
+**T7-F3 — Client-side route vocabulary is Team-shaped too.** `appConfig.ts` carries the *browser*
+routes (`/:team/manage/tokens`, `/:team/editor/:workflow/...`) independently of the API URLs in
+`servicesConfig.ts`. The Workspace rename must cover both, and changing `appConfig.ts` changes
+**user-visible URLs** — existing bookmarks and deep links break. Decide explicitly whether v5 ships
+redirects from the `/:team/*` shapes or accepts the break at the major.
+
+**T7-F4 — The token UI is broken beyond renaming; it needs rework.** `Constants/index.ts` declares
+`TokenType = {User:"user", Workflow:"workflow", Team:"team", Global:"global"}`. The restructured
+model is `AuthScope = {session, user, key, global}` with an **orthogonal** `TokenActorKind =
+{SERVICE, AGENT, WORKFLOW}`. So the token screens (`/admin/tokens`, `/:team/manage/tokens`) offer
+two classes the backend **deletes on migration** (`workflow`, `team`/`workspace`) and omit `key`
+entirely — now the principal creatable class. This is not a rename: the UI needs a class selector
+plus an actor-kind selector, because actor kind is what `workflow` used to encode. Highest-value
+frontend follow-up after the API repoint.
+
+**T7-F6 — The image has no build stage; asset packaging is implicit and fails silently.**
+`Dockerfile` only does `COPY server .` + `npm install --production`. The app assets reach the
+image as a *side effect* of the root build: `pnpm build` = Vite → `build/`, then `ncp build
+server/build`. If a release job runs `docker build` without `pnpm install && pnpm build`
+immediately before it in the same workspace, **the image builds successfully and ships empty** —
+it starts, serves nothing, and only fails at runtime. Deliberately two package managers: pnpm for
+the app, npm inside `server/`. Worth making explicit (a real build stage) rather than leaving it
+load-bearing on job ordering.
+
+**T7-F8 — The webapp still builds and ships on Node 18, EOL since April 2025.** Kept deliberately
+at fold-in (it is what the lockfile and imported CI were built against; `setup-node@v4` still
+installs it, so nothing breaks today). Two distinct decisions, and the second is the sharper one:
+the CI build Node, and the **`node:18-alpine` runtime base in the `Dockerfile`** — the latter means
+the product container ships an EOL runtime, which the SBOM/CVE pipeline will flag. Bumping the
+base risks `@boomerang-io/webapp-spa-server@1.2.1` compatibility, so it needs a test, not a
+one-line edit. Decide before the first 5.x release.
+
+**T7-F9 — Husky would have hijacked the whole monorepo's git hooks.** The imported
+`client-web/package.json` had `"prepare": "husky install"`; husky v8 sets `core.hooksPath`
+relative to the **git root**, which is now the monorepo — so one `pnpm install` inside
+`client-web/` would have repointed commit hooks repo-wide to `client-web/.husky` and applied the
+frontend's commitlint rules to backend commits. Removed the hooks and the `prepare` script
+(`commitlint.config.js` and the devDependency left in place, inert, to avoid churning the
+lockfile). A genuine hazard of subtree-importing a repo that assumed it was the git root — worth
+checking for on any future fold-in.
+
+**T7-F7 — Dead internal-registry config.** `.npmrc` scoped `@boomerang:registry` to
+`tools.boomerangplatform.net/artifactory` (IBM-era, unreachable from CI). **Zero** dependencies use
+that scope — everything is `@boomerang-io/*`, resolving from public npm (0 lockfile references to
+the host). So the line was inert and no registry credentials are needed; removed as part of the
+imported-config cleanup.
+
+**T7-F5 — `RunPhase` was missing `queued`** (frontend had pending/running/completed/finalized;
+backend leads with `queued`). Benign at the only two read sites — both test `=== Completed`, so an
+unmatched value simply hides an approval/manual action button — but the enum was wrong and any
+exhaustive handling added later would have silently mis-branched. **Fixed** in this track (one
+line). Cross-checked at the same time: **`RunStatus` matches the backend exactly**, all ten values
+and spellings — the "never add `PAUSED`/`SUPERSEDED` to `RunStatus`" invariant has held, and pause
+correctly remains invisible to the frontend enum.
 
 ## Latent bugs found while testing (unfixed, out of scope when found)
 

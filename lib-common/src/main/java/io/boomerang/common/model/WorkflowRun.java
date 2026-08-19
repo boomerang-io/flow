@@ -19,6 +19,7 @@ import org.springframework.data.annotation.Id;
   "creationDate",
   "status",
   "phase",
+  "paused",
   "startTime",
   "duration",
   "statusMessage",
@@ -47,6 +48,11 @@ public class WorkflowRun {
   private Boolean debug;
   private RunStatus status = RunStatus.notstarted;
   private RunPhase phase = RunPhase.pending;
+
+  // Derived from the entity's pauseRequestedAt - never the timestamp itself on the wire.
+  // Orthogonal to status/phase: a paused run keeps its underlying status and phase.
+  private boolean paused;
+
   private String statusMessage;
   private boolean isAwaitingApproval;
   private String workflowRef;
@@ -81,6 +87,8 @@ public class WorkflowRun {
         + status
         + ", phase="
         + phase
+        + ", paused="
+        + paused
         + ", statusMessage="
         + statusMessage
         + ", isAwaitingApproval="

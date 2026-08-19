@@ -1,0 +1,317 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.container {
+  width: 100%;
+  height: calc(100vh - 3rem);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow-y: hidden;
+  padding: 1.5rem;
+}
+
+.archiveContainer {
+  height: 25rem !important;
+  width: 30rem !important;
+}
+
+.confirmModalText {
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  width: 20rem;
+}
+
+.notificationsContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  :global .cds--inline-notification {
+    max-width: 100%;
+  }
+}
+
+.archive {
+  color: var(--cds-support-01);
+  width: 6.5rem;
+  &:hover,
+  &:focus,
+  &:active {
+    box-shadow: inset 0 0 0 2px var(--cds-danger), inset 0 0 0 3px #f2f4f8;
+    color: var(--cds-support-01);
+    svg,
+    path {
+      fill: var(--cds-support-01) !important;
+    }
+  }
+  svg,
+  path {
+    fill: var(--cds-support-01);
+  }
+  &:disabled {
+    svg {
+      fill: var(--cds-disabled-02);
+    }
+  }
+  &:focus {
+    border-color: var(--cds-support-01);
+  }
+}
+
+.basicIcon {
+  align-items: center;
+  display: flex;
+  margin-top: 0.25rem;
+}
+
+.editTitle {
+  align-items: center;
+  display: flex;
+  flex-flow: wrap;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  width: 100%;
+  :global .cds--btn__icon {
+    margin-left: 0 !important;
+  }
+
+  > h1 {
+    font-size: 1rem;
+    margin: 0;
+  }
+}
+
+.detailCardsContainer {
+  --gap: 1.5rem;
+  display: flex;
+  flex-grow: 1;
+  flex-flow: row wrap;
+  margin: calc(-1 * var(--gap)) 0 0 calc(-1 * var(--gap));
+  width: calc(100% + var(--gap));
+  > * {
+    margin: var(--gap) 0 0 var(--gap);
+  }
+}
+
+.editDetailsCard {
+  display: flex;
+  background-color: var(--cds-ui-01);
+  border-radius: 0.25rem;
+  flex: 1 1 30%;
+  flex-direction: column;
+  min-width: 20rem;
+  padding: 1rem 0.75rem 1.5rem 1.5rem;
+}
+
+.editFieldsCard {
+  display: flex;
+  background-color: var(--cds-ui-01);
+  border-radius: 0.25rem;
+  flex: 1 1 60%;
+  flex-direction: column;
+  padding-bottom: 1.5rem;
+  min-width: 28rem;
+  :global .cds--btn__icon {
+    margin-left: 0 !important;
+  }
+}
+
+.fieldsTitle {
+  display: flex;
+  flex-direction: column;
+
+  padding: 1rem 0.75rem 1rem 1.5rem;
+
+  > h1 {
+    font-size: 1rem;
+    margin: 0;
+  }
+}
+
+.fieldActions {
+  display: flex;
+  align-items: center;
+  :global .cds--assistive-text {
+    left: -5.75rem !important;
+  }
+}
+
+.description {
+  font-size: 0.875rem;
+}
+
+.fieldDesc {
+  font-size: 0.75rem;
+  margin: 0.25rem 0;
+}
+
+.detailsDataList {
+  > * + * {
+    margin-top: 1.5rem;
+  }
+}
+
+.label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.value {
+  font-size: 0.875rem;
+  @include multiline-text-overflow-ellipsis();
+  margin-right: 0.5rem;
+}
+
+.noValue {
+  color: var(--cds-text-03);
+  font-size: 0.875rem;
+  font-style: italic;
+  word-break: break-all;
+}
+
+.fieldsContainer {
+  border-top: 0.0625rem solid var(--cds-active-ui);
+  width: 100%;
+}
+
+.fieldSection {
+  align-items: center;
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  display: flex;
+  height: 3rem;
+  width: 100%;
+}
+
+.noFieldsContainer {
+  align-items: center;
+  color: var(--cds-text-03);
+  display: flex;
+  flex-direction: column;
+}
+
+.noFieldsTitle {
+  font-size: 1.5rem;
+  margin: 3rem 0;
+}
+
+.noFieldsText {
+  font-size: 1rem;
+  margin: 0 4rem 1.5rem 4rem;
+}
+
+.iconContainer {
+  align-items: center;
+  color: var(--cds-text-01);
+  display: flex;
+  height: 100%;
+}
+
+.dragabble {
+  min-height: 1rem;
+  min-width: 1rem;
+  margin: 0 1.875rem;
+  &:disabled {
+    path,
+    rect {
+      fill: var(--cds-disabled-02);
+    }
+  }
+}
+
+.actions {
+  display: flex;
+  margin-left: auto;
+  margin-right: 0.5rem;
+  & div:nth-child(2) {
+    :global .cds--assistive-text {
+      left: -4.75rem !important;
+    }
+  }
+}
+
+.delete {
+  :global svg,
+  :global path {
+    fill: var(--cds-support-01) !important;
+  }
+  &:disabled {
+    :global svg,
+    :global path {
+      fill: var(--cds-disabled-02) !important;
+    }
+  }
+}
+
+.tooltipContainer {
+  width: 12.875rem;
+}
+
+.yamlContainer {
+  display: flex;
+  align-items: flex-start;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+.codeMirrorContainer {
+  height: 100%;
+  // width: 150rem;
+  margin-right: 2rem;
+  min-width: 60%;
+  &.yamlCollapsed {
+    min-width: 90%;
+  }
+}
+
+.markdownContainer {
+  background-color: var(--cds-ui-01);
+  height: 100%;
+  padding: 1rem;
+  overflow-y: auto;
+
+  transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
+
+  width: 80rem;
+
+  &.collapsed {
+    transform: translate3d(1rem, 0, 0);
+
+    overflow-x: hidden;
+    width: 10rem;
+    .collapseButton {
+      transform: scale(-1, 1);
+      cursor: pointer;
+    }
+  }
+
+  .collapseButton {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    line-height: 0;
+    position: static;
+
+    &:focus {
+      @include focus-outline();
+    }
+  }
+
+  .collapseButtonImg {
+    height: 1rem;
+    width: 1rem;
+
+    path {
+      fill: var(--cds-brand-01);
+    }
+  }
+}

@@ -1,6 +1,7 @@
 package io.boomerang.core;
 
 import io.boomerang.common.entity.ActionEntity;
+import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -15,6 +16,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
@@ -24,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -210,6 +213,132 @@ public class TokenService {
     tokenResponse.setExpirationDate(request.getExpirationDate());
     tokenResponse.setActorKind(request.getActorKind());
     return tokenResponse;
+  }
+
+  /**
+   * The permission building blocks (resources, actions, role presets) the CURRENT caller could
+   * actually grant for {@code scope}/{@code principal} - backs the token permission picker.
+   * {@code resources} is sourced from {@link PermissionResource}, {@code actions} from {@link
+   * PermissionAction}, and {@code rolePresets} from the {@code roles} collection via {@link
+   * RoleRepository} - the same source the enforcement path itself reads ({@link #create}, {@code
+   * RelationshipService.check()}), so the picker can never offer a grant that isn't enforceable.
+   *
+   * <p>Mirrors {@link #assertKeyTokenCeiling}'s explicit-assertion habit rather than relying on
+   * "only admins reach this endpoint": the caller must actually hold authority over the
+   * requested scope/principal (a matching grant, or a global grant) or this throws - and
+   * whatever is returned is capped to that caller's own ceiling, never the full catalog, unless
+   * the caller's grant is itself unrestricted ({@code **}/{@code **}).
+   */
+  public TokenPermissionCatalog getPermissionCatalog(PermissionScope scope, String principal) {
+    if (scope == null) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
+    }
+    String resolvedPrincipal =
+        PermissionScope.global.equals(scope) ? "**" : principal;
+    if (PermissionScope.workspace.equals(scope)
+        && (resolvedPrincipal == null || resolvedPrincipal.isBlank())) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
+    }
+
+    Set<String> ceiling = resolveGrantCeiling(identityService.getCurrentIdentity(), scope, resolvedPrincipal);
+    if (ceiling.isEmpty()) {
+      throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
+    }
+    boolean unrestricted = ceiling.contains("**/**");
+
+    TokenPermissionCatalog catalog = new TokenPermissionCatalog();
+    catalog.setResources(
+        Arrays.stream(PermissionResource.values())
+            .filter(r -> !PermissionResource.ANY.equals(r))
+            .filter(r -> unrestricted || ceilingCoversResource(ceiling, r))
+            .map(PermissionResource::getLabel)
+            .collect(Collectors.toList()));
+    catalog.setActions(
+        Arrays.stream(PermissionAction.values())
+            .filter(a -> unrestricted || ceilingCoversAction(ceiling, a))
+            .map(PermissionAction::getLabel)
+            .collect(Collectors.toList()));
+
+    Map<String, List<String>> rolePresets = new LinkedHashMap<>();
+    for (RoleEntity role : roleRepository.findByType(scope.getLabel())) {
+      if (unrestricted || ceiling.containsAll(expandActionPatterns(role.getPermissions()))) {
+        rolePresets.put(role.getName(), role.getPermissions());
+      }
+    }
+    catalog.setRolePresets(rolePresets);
+    return catalog;
+  }
+
+  /**
+   * The set of concrete {@code resource/action} strings {@code identity} could grant for
+   * {@code scope}/{@code principal} - the union of any {@code global} grant it holds (applies to
+   * every scope/principal) and any grant matching {@code scope} whose principal is {@code
+   * principal} or the token wildcard {@code **}. Wildcard action patterns (e.g. {@code
+   * workflow/**}, {@code **}/{@code **}) are expanded to concrete pairs.
+   */
+  private Set<String> resolveGrantCeiling(Token identity, PermissionScope scope, String principal) {
+    if (identity == null) {
+      // No principal on the SecurityContext (e.g. security disabled) - mirrors
+      // RelationshipService.check()'s unscoped-allow for the same case.
+      return Set.of("**/**");
+    }
+    Set<String> ceiling = new HashSet<>();
+    if (identity.getPermissions() != null) {
+      for (ResolvedPermissions grant : identity.getPermissions()) {
+        boolean applies =
+            PermissionScope.global.equals(grant.getScope())
+                || (scope.equals(grant.getScope())
+                    && (principal.equals(grant.getPrincipal())
+                        || "**".equals(grant.getPrincipal())));
+        if (applies) {
+          ceiling.addAll(expandActionPatterns(grant.getActions()));
+        }
+      }
+    }
+    return ceiling;
+  }
+
+  private static Set<String> expandActionPatterns(List<String> patterns) {
+    Set<String> expanded = new HashSet<>();
+    if (patterns == null) {
+      return expanded;
+    }
+    for (String pattern : patterns) {
+      if ("**/**".equals(pattern)) {
+        expanded.add("**/**");
+        continue;
+      }
+      String[] split = pattern.split("/");
+      if (split.length != 2) {
+        continue;
+      }
+      if ("**".equals(split[1])) {
+        for (PermissionAction a : PermissionAction.values()) {
+          expanded.add(split[0] + "/" + a.getLabel());
+        }
+      } else {
+        expanded.add(pattern);
+      }
+    }
+    return expanded;
+  }
+
+  private static boolean ceilingCoversResource(Set<String> ceiling, PermissionResource resource) {
+    for (PermissionAction a : PermissionAction.values()) {
+      if (ceiling.contains(resource.getLabel() + "/" + a.getLabel())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ceilingCoversAction(Set<String> ceiling, PermissionAction action) {
+    for (PermissionResource r : PermissionResource.values()) {
+      if (ceiling.contains(r.getLabel() + "/" + action.getLabel())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -470,31 +599,7 @@ public class TokenService {
     tokenEntity.setType(AuthScope.session);
     tokenEntity.setExpirationDate(expiryDate);
     tokenEntity.setPrincipal(user.get().getId());
-    List<String> permissions = new LinkedList<>();
-    if (UserType.admin.equals(user.get().getType())
-        || UserType.operator.equals(user.get().getType())) {
-      tokenEntity
-          .getPermissions()
-          .add(
-              new ResolvedPermissions(
-                  PermissionScope.global,
-                  "**",
-                  roleRepository
-                      .findByTypeAndName("global", user.get().getType().toString())
-                      .getPermissions()));
-    } else {
-      // Collect all team permissions the user has
-      Map<String, String> teamsAndRoles = relationshipService.roles(user.get().getId());
-      for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
-        tokenEntity
-            .getPermissions()
-            .add(
-                new ResolvedPermissions(
-                    PermissionScope.workspace,
-                    entry.getKey(),
-                    roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
-      }
-    }
+    tokenEntity.getPermissions().addAll(resolvePermissionsForUser(user.get()));
     String prefix = TokenTypePrefix.session.prefix;
     String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
 
@@ -503,6 +608,35 @@ public class TokenService {
     tokenEntity = tokenRepository.save(tokenEntity);
 
     return new Token(tokenEntity);
+  }
+
+  /**
+   * Resolves the full permission grant set for a user: a global platform grant for admin/operator
+   * users, or one workspace-scoped grant per workspace they are a member of. The single source of
+   * truth for a user's permissions - both {@link #createSessionToken} and the user profile
+   * composition (api layer) call this, so a platform-role grant can never be applied on one path
+   * and missed on the other.
+   */
+  public List<ResolvedPermissions> resolvePermissionsForUser(UserEntity user) {
+    List<ResolvedPermissions> permissions = new LinkedList<>();
+    if (UserType.admin.equals(user.getType()) || UserType.operator.equals(user.getType())) {
+      permissions.add(
+          new ResolvedPermissions(
+              PermissionScope.global,
+              "**",
+              roleRepository.findByTypeAndName("global", user.getType().toString()).getPermissions()));
+    } else {
+      // Collect all workspace permissions the user has
+      Map<String, String> teamsAndRoles = relationshipService.roles(user.getId());
+      for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
+        permissions.add(
+            new ResolvedPermissions(
+                PermissionScope.workspace,
+                entry.getKey(),
+                roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
+      }
+    }
+    return permissions;
   }
 
   private Date getExpirationDate() {

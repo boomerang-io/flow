@@ -1,0 +1,58 @@
+@import "Styles/mixins";
+
+.container {
+  align-items: center;
+  border-bottom: 0.0625rem solid var(--cds-active-ui);
+  cursor: pointer;
+  display: flex;
+  height: 3.56rem;
+  justify-content: space-between;
+  padding: 0.5rem 1rem 0.5rem 1rem;
+  width: 100%;
+
+  &:hover {
+    background-color: var(--cds-active-ui);
+  }
+
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.userRow {
+  align-items: center;
+  display: flex;
+
+  :global .cds--bmrg-avatar {
+    path {
+      fill: var(--cds-text-01);
+    }
+  }
+}
+
+.textContainer {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  margin-left: 1rem;
+}
+
+.name {
+  color: var(--cds-text-01);
+  font-size: 0.87rem;
+  line-height: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.email {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  line-height: 0.93rem;
+}
+
+.closeIcon {
+  fill: var(--cds-inverse-support-01);
+  height: 1.25rem;
+  width: 1.25rem;
+}

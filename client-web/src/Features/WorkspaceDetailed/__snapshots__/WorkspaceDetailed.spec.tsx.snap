@@ -1,0 +1,609 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDetailed 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_27b734"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_e8c763 --bordered"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <nav
+              aria-label="Breadcrumb"
+            >
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+              >
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    href="/home"
+                  >
+                    Home
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    IBM Services Engineering
+                  </p>
+                </li>
+              </ol>
+            </nav>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <div
+              class="_infoContainer_e8c763"
+            >
+              <div>
+                <h1
+                  class="cds--bmrg-feature-header-title"
+                >
+                  Manage Workspace
+                </h1>
+                <p
+                  class="cds--bmrg-feature-header-title"
+                >
+                  Workspace Owners & Administrators can manage this workspace.
+                </p>
+              </div>
+              <div
+                class="_infoDetailsContainer_e8c763"
+              >
+                <section
+                  class="_subHeaderContainer_e8c763"
+                >
+                  <dl
+                    class="_detailedInfoContainer_e8c763"
+                  >
+                    <dt
+                      class="_dataTitle_e8c763"
+                    >
+                      Status
+                    </dt>
+                    <dd
+                      class="_dataValue_e8c763"
+                    >
+                      <div
+                        class="_status_e8c763"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          style="fill: #009d9a;"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M13 24L4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
+                          />
+                        </svg>
+                        <p
+                          class="_statusText_e8c763"
+                        >
+                          Active
+                        </p>
+                      </div>
+                    </dd>
+                  </dl>
+                  <dl
+                    class="_detailedInfoContainer_e8c763"
+                  >
+                    <dt
+                      class="_dataTitle_e8c763"
+                    >
+                      Date Created
+                    </dt>
+                    <dd
+                      class="_dataValue_e8c763"
+                    >
+                      2023-05-04
+                    </dd>
+                  </dl>
+                </section>
+              </div>
+            </div>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__footer"
+          >
+            <nav
+              aria-label="Workspace pages"
+              class="cds--tabs"
+            >
+              <ul
+                class="cds--tab--list"
+              >
+                <a
+                  aria-current="page"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                  href="/ibm-services-engineering/manage"
+                >
+                  Members
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/workflows"
+                >
+                  Workflows
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/approver-groups"
+                >
+                  Approver Groups
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/quotas"
+                >
+                  Quotas
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/tokens"
+                >
+                  Tokens
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  href="/ibm-services-engineering/manage/settings"
+                >
+                  Settings
+                </a>
+              </ul>
+            </nav>
+          </div>
+        </section>
+      </header>
+      <section
+        aria-label="IBM Services Engineering Workspace Members"
+        class="_container_5053ab"
+      >
+        <section
+          class="_actionsContainer_5053ab"
+        >
+          <div
+            class="_leftActions_5053ab"
+          >
+            <p
+              class="_featureDescription_5053ab"
+            >
+              These are the people who have access to this Workspace.
+            </p>
+            <p
+              class="_memberCountText_5053ab"
+            >
+              Showing 
+              3
+               member
+              s
+            </p>
+            <div
+              aria-label="Search for a member"
+              class="cds--search cds--search--md"
+              role="search"
+            >
+              <div
+                aria-expanded="false"
+                aria-label="button"
+                class="cds--search-magnifier"
+                role="button"
+                tabindex="-1"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--search-magnifier-icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </div>
+              <label
+                class="cds--label"
+                for="member-search"
+                id="member-search-search"
+              >
+                member search
+              </label>
+              <input
+                autocomplete="off"
+                class="cds--search-input"
+                id="member-search"
+                placeholder="Search for a member"
+                role="searchbox"
+                type="text"
+                value=""
+              />
+              <button
+                aria-label="Clear search input"
+                class="cds--search-close cds--search-close--hidden"
+                title="Clear search input"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="_rightActions_5053ab"
+          >
+            <button
+              class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
+              data-testid="add-members-button"
+              type="button"
+            >
+              Add Existing Members
+              <svg
+                aria-hidden="true"
+                aria-label="Add members"
+                class="cds--btn__icon"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
+                />
+              </svg>
+            </button>
+            <button
+              class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+              data-testid="add-members-button"
+              type="button"
+            >
+              Add Members
+              <svg
+                aria-hidden="true"
+                aria-label="Add members"
+                class="cds--btn__icon"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+            </button>
+          </div>
+        </section>
+        <div
+          aria-label="Structured list section"
+          class="cds--structured-list"
+          role="table"
+        >
+          <div
+            class="cds--structured-list-thead"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row cds--structured-list-row--header-row"
+              role="row"
+            >
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Name
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Email
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Role
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              />
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              />
+            </div>
+          </div>
+          <div
+            class="cds--structured-list-tbody"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <div
+                  class="_memberNameContainer_5053ab"
+                >
+                  <p>
+                    Boomerang Joe
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                boomrng@us.ibm.com
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Owner
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_5053ab"
+                  href="/admin/users/61d5db083aa9034ded32cae7"
+                >
+                  View user
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <button
+                  class="_removeButton_6bd561"
+                >
+                  Remove from Workspace
+                  <svg
+                    aria-hidden="true"
+                    fill="#f94d56"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12H14V24H12zM18 12H20V24H18z"
+                    />
+                    <path
+                      d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <div
+                  class="_memberNameContainer_5053ab"
+                >
+                  <p>
+                    admin@flowabl.io
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                admin@flowabl.io
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Editor
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_5053ab"
+                  href="/admin/users/61d38d133aa9034ded32cae6"
+                >
+                  View user
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <button
+                  class="_removeButton_6bd561"
+                >
+                  Remove from Workspace
+                  <svg
+                    aria-hidden="true"
+                    fill="#f94d56"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12H14V24H12zM18 12H20V24H18z"
+                    />
+                    <path
+                      d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <div
+                  class="_memberNameContainer_5053ab"
+                >
+                  <p>
+                    marcus.d.roy@gmail.com
+                  </p>
+                </div>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                marcus.d.roy@gmail.com
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Owner
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewMemberLink_5053ab"
+                  href="/admin/users/61ddfb07c5d30f5de052426b"
+                >
+                  View user
+                </a>
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <button
+                  class="_removeButton_6bd561"
+                >
+                  Remove from Workspace
+                  <svg
+                    aria-hidden="true"
+                    fill="#f94d56"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12H14V24H12zM18 12H20V24H18z"
+                    />
+                    <path
+                      d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

@@ -1,0 +1,213 @@
+.container {
+  padding: 1.5rem 2rem;
+}
+
+@import "@boomerang-io/styles/lib/colors";
+@import "Styles/variables";
+@import "Styles/mixins";
+
+// .tableContainer {
+//   margin: 2.5rem 2.5rem 4.5rem 2.5rem;
+// }
+
+// .header {
+//   padding: 1rem 2rem 0;
+// }
+
+.title {
+  font-size: 1.125rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.4375rem;
+}
+
+.description {
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  margin-top: 1rem;
+}
+
+.headerTitle {
+  margin: 0;
+}
+
+.tableHeader {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  // margin: 1.5rem 0 1.75rem;
+}
+
+.dropdown {
+  width: 20rem;
+}
+
+.tableHeadHeader {
+  font-size: inherit;
+  font-family: inherit;
+  height: 3rem;
+  :global .cds--table-header-label {
+    color: var(--cds-text-01);
+  }
+  button {
+    width: 100% !important;
+  }
+
+  &.groupName {
+    width: 70%;
+  }
+
+  &.approvers {
+    width: 20%;
+  }
+
+  &.actions {
+    width: 10%;
+  }
+}
+
+.tableBody {
+  font-weight: 300;
+}
+
+.tableCell {
+  align-items: center;
+  display: flex;
+  height: 3.625rem;
+  line-height: 1.2;
+  overflow-y: auto;
+  padding: 0 0.75rem;
+  width: 100%;
+
+  .tableSecured {
+    height: 1.25rem;
+    width: 1.25rem;
+  }
+
+  .secured {
+    path {
+      fill: var(--cds-support-02);
+    }
+  }
+
+  .unsecured {
+    path {
+      fill: var(--cds-support-01);
+    }
+  }
+}
+
+.tableSkeleton {
+  thead {
+    th:nth-of-type(1) {
+      width: 70% !important;
+    }
+
+    th:nth-of-type(2) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(3) {
+      width: 10% !important;
+    }
+  }
+} 
+
+.text {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  @include text-overflow-ellipsis();
+}
+
+.tableActions {
+  align-items: center;
+  display: flex;
+}
+
+.editButton {
+  padding: 0.5rem !important;
+  svg {
+    margin: 0 !important;
+  }
+}
+
+.deleteButton {
+  margin-left: 1rem;
+  padding: 0.5rem !important;
+  width: 2rem;
+  svg {
+    fill: var(--cds-support-error) !important;
+  }
+}
+
+.expanded {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  padding: 1rem 0;
+}
+
+.expandedSection {
+  display: flex;
+  +.expandedSection {
+    margin-top: 0.5rem;
+  }
+}
+
+.expandedUsername{
+  color: var(--cds-text-01);
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+}
+
+.expandedEmail {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+  margin-left: 1rem;
+}
+
+.actionsContainer {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  width: 100%;
+
+  :global .cds--search {
+    max-width: 24rem;
+  }
+}
+
+.leftActions {
+  min-width: 24rem;
+}
+
+.memberCountText {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.featureDescription {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 1.375rem;
+}
+
+.notificationsContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  :global .cds--inline-notification {
+    max-width: 100%;
+  }
+}

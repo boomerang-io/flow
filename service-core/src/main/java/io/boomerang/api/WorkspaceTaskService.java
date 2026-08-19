@@ -210,11 +210,14 @@ public class WorkspaceTaskService {
     }
 
     // Check Slugs for Tasks in team
-    if (relationshipService.check(
-        RelationshipType.TEAMTASK,
-        request.getName(),
-        Optional.of(RelationshipType.WORKSPACE),
-        Optional.of(List.of(team)))) {
+    List<String> existingTeamTaskRefs =
+        relationshipService.filter(
+            RelationshipType.TEAMTASK,
+            Optional.of(List.of(request.getName())),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!existingTeamTaskRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
     }
 
@@ -244,8 +247,14 @@ public class WorkspaceTaskService {
     }
 
     // Check Slugs for GlobalTasks
-    if (relationshipService.check(
-        RelationshipType.TASK, request.getName(), Optional.empty(), Optional.empty())) {
+    List<String> existingTaskRefs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(request.getName())),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!existingTaskRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
     }
 
@@ -475,6 +484,7 @@ public class WorkspaceTaskService {
             false);
     if (!refs.isEmpty()) {
       taskService.delete(refs.get(0));
+      return;
     }
     // TODO - change error to don't have access
     throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);

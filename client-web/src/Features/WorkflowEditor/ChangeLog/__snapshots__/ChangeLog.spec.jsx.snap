@@ -1,0 +1,643 @@
+// Vitest Snapshot v1
+
+exports[`ChangeLog --- Snapshot Test > Capturing Snapshot of ChangeLog 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_b75634"
+    >
+      <div
+        class="_tableContainer_468963"
+      >
+        <div
+          aria-labelledby="change-log-table-search-search"
+          class="cds--search cds--search--md _search_468963"
+          role="search"
+        >
+          <div
+            class="cds--search-magnifier"
+          >
+            <svg
+              aria-hidden="true"
+              class="cds--search-magnifier-icon"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+              />
+            </svg>
+          </div>
+          <label
+            class="cds--label"
+            for="change-log-table-search"
+            id="change-log-table-search-search"
+          >
+            Search
+          </label>
+          <input
+            autocomplete="off"
+            class="cds--search-input"
+            data-testid="change-log-search"
+            id="change-log-table-search"
+            placeholder="Search"
+            role="searchbox"
+            type="text"
+            value=""
+          />
+          <button
+            aria-label="Clear search input"
+            class="cds--search-close cds--search-close--hidden"
+            title="Clear search input"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 32 32"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div
+          class="cds--data-table-container"
+        >
+          <div
+            class="cds--data-table-content"
+          >
+            <table
+              class="cds--data-table cds--data-table--sort"
+            >
+              <thead>
+                <tr>
+                  <th
+                    aria-sort="none"
+                    id="version"
+                    scope="col"
+                  >
+                    <div
+                      id="table-sort-2"
+                      style="display: none;"
+                    >
+                      Click to sort rows by Version header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-2"
+                      class="cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Version
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    id="userName"
+                    scope="col"
+                  >
+                    <div
+                      id="table-sort-3"
+                      style="display: none;"
+                    >
+                      Click to sort rows by User header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-3"
+                      class="cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          User
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    id="reason"
+                    scope="col"
+                  >
+                    <div
+                      id="table-sort-4"
+                      style="display: none;"
+                    >
+                      Click to sort rows by Reason header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-4"
+                      class="cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Reason
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    id="date"
+                    scope="col"
+                  >
+                    <div
+                      id="table-sort-5"
+                      style="display: none;"
+                    >
+                      Click to sort rows by Date header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-5"
+                      class="cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Date
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                aria-live="polite"
+                class="_tableBody_468963"
+              >
+                <tr
+                  data-testid="change-log-table-row"
+                >
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        2
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        Boomerang/chicago/ibm Boomerang/chicago/ibm
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        Sorry. Removing changes.
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        2020-05-28 07:32 PM
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+                <tr
+                  data-testid="change-log-table-row"
+                >
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        1
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        Boomerang/chicago/ibm Boomerang/chicago/ibm
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        hello sir
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      class="_tableCell_468963"
+                    >
+                      <p
+                        class="_tableText_468963"
+                      >
+                        2020-05-28 05:42 PM
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div
+          class="cds--pagination cds--pagination--md"
+        >
+          <div
+            class="cds--pagination__left"
+          >
+            <label
+              class="cds--pagination__text"
+              for="cds-pagination-select-id-11"
+              id="cds-pagination-select-id-11-count-label"
+            >
+              Items per page:
+            </label>
+            <div
+              class="cds--form-item cds--select__item-count"
+            >
+              <div
+                class="cds--select cds--select--inline"
+              >
+                <div
+                  class="cds--select-input--inline__wrapper"
+                >
+                  <div
+                    class="cds--select-input__wrapper"
+                  >
+                    <select
+                      class="cds--select-input"
+                      id="cds-pagination-select-id-11"
+                    >
+                      <option
+                        class="cds--select-option"
+                        value="10"
+                      >
+                        10
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="25"
+                      >
+                        25
+                      </option>
+                      <option
+                        class="cds--select-option"
+                        value="50"
+                      >
+                        50
+                      </option>
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      class="cds--select__arrow"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span
+              class="cds--pagination__text cds--pagination__items-count"
+            >
+              1–2 of 2 items
+            </span>
+          </div>
+          <div
+            class="cds--pagination__right"
+          >
+            <div
+              class="cds--form-item cds--select__page-number"
+            >
+              <div
+                class="cds--select cds--select--inline"
+              >
+                <label
+                  class="cds--label cds--visually-hidden"
+                  for="cds-pagination-select-id-11-right"
+                >
+                  Page number, of 1 pages
+                </label>
+                <div
+                  class="cds--select-input--inline__wrapper"
+                >
+                  <div
+                    class="cds--select-input__wrapper"
+                  >
+                    <select
+                      class="cds--select-input"
+                      id="cds-pagination-select-id-11-right"
+                    >
+                      <option
+                        class="cds--select-option"
+                        value="1"
+                      >
+                        1
+                      </option>
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      class="cds--select__arrow"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span
+              class="cds--pagination__text"
+            >
+              of 1 page
+            </span>
+            <div
+              class="cds--pagination__control-buttons"
+            >
+              <span
+                class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+              >
+                <button
+                  aria-labelledby="tooltip-8"
+                  class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--md cds--btn--ghost cds--btn--disabled"
+                  disabled=""
+                  tabindex="0"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 24L10 16 20 8z"
+                    />
+                  </svg>
+                </button>
+                <span
+                  aria-hidden="true"
+                  class="cds--popover"
+                  id="tooltip-8"
+                  role="tooltip"
+                >
+                  <span
+                    class="cds--popover-content cds--tooltip-content"
+                  >
+                    Previous page
+                  </span>
+                  <span
+                    class="cds--popover-caret"
+                  />
+                </span>
+              </span>
+              <span
+                class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top-right cds--tooltip cds--icon-tooltip"
+              >
+                <button
+                  aria-labelledby="tooltip-10"
+                  class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--md cds--btn--ghost cds--btn--disabled"
+                  disabled=""
+                  tabindex="0"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 8L22 16 12 24z"
+                    />
+                  </svg>
+                </button>
+                <span
+                  aria-hidden="true"
+                  class="cds--popover"
+                  id="tooltip-10"
+                  role="tooltip"
+                >
+                  <span
+                    class="cds--popover-content cds--tooltip-content"
+                  >
+                    Next page
+                  </span>
+                  <span
+                    class="cds--popover-caret"
+                  />
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+`;
