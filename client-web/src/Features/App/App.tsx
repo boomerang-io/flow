@@ -1,46 +1,27 @@
 import React, { lazy, useState, Suspense } from "react";
 import { Button } from "@carbon/react";
 import { ArrowRight, ArrowLeft, Close } from "@carbon/react/icons";
-import { DelayedRender, Error403, Error404, Loading, NotificationsContainer } from "@boomerang-io/carbon-addons-boomerang-react";
+import { DelayedRender, Error403, Loading, NotificationsContainer } from "@boomerang-io/carbon-addons-boomerang-react";
 import axios from "axios";
 import { detect } from "detect-browser";
 import { FlagsProvider, useFeature } from "flagged";
 import { sortBy } from "lodash";
 import Joyride, { CallBackProps, TooltipRenderProps, STATUS } from "react-joyride";
 import { useQuery, useQueryClient } from "react-query";
-import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { Outlet, useLocation, useParams } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
 import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
-import { AppPath, FeatureFlag } from "Config/appConfig";
+import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import { FlowFeatures, FlowNavigationItem, FlowWorkspace, FlowUser, ContextConfig, WorkflowTemplate } from "Types";
 import { hasPermission } from "Utils/permissionHelper";
+import type { RoutePermissions } from "./AppRoutes";
 import Navbar from "./Navbar";
 import UnsupportedBrowserPrompt from "./UnsupportedBrowserPrompt";
 import styles from "./app.module.scss";
 
 const AppActivation = lazy(() => import("./AppActivation"));
-const Activity = lazy(() => import("Features/Activity"));
-const Actions = lazy(() => import("Features/Actions"));
-const Editor = lazy(() => import("Features/WorkflowEditor"));
-const Execution = lazy(() => import("Features/WorkflowRun"));
-const GlobalParameters = lazy(() => import("Features/Parameters/GlobalParameters"));
-const Tokens = lazy(() => import("Features/GlobalTokens/GlobalTokens"));
-const Insights = lazy(() => import("Features/Insights"));
-const Integrations = lazy(() => import("Features/Integrations"));
-const Schedules = lazy(() => import("Features/Schedules"));
-const Settings = lazy(() => import("Features/Settings"));
-const TemplateWorkflows = lazy(() => import("Features/TemplateWorkflows"));
-const Workspaces = lazy(() => import("Features/Workspaces"));
-const ManageWorkspace = lazy(() => import("Features/WorkspaceDetailed"));
-const WorkspaceParameters = lazy(() => import("Features/Parameters/WorkspaceParameters"));
-const WorkspaceTasks = lazy(() => import("Features/TaskManager/WorkspaceTasks"));
-const AdminTasks = lazy(() => import("Features/TaskManager/AdminTasks"));
-const Users = lazy(() => import("Features/Users"));
-const UserProfile = lazy(() => import("Features/UserProfile"));
-const Workflows = lazy(() => import("Features/Workflows"));
-const Home = lazy(() => import("Features/Home"));
 
 const getUserUrl = serviceUrl.getUserProfile();
 const getContextUrl = serviceUrl.getContext();
@@ -285,6 +266,24 @@ const AppFeatures = React.memo(function AppFeatures() {
   const canReadWorkspaces = hasPermission(user, "workspace", "read");
   const canReadUsers = hasPermission(user, "user", "read");
 
+  // The route tree itself now lives in the router config (AppRoutes.tsx / Root.tsx) so that
+  // loaders/actions can attach to it. These permission/feature-flag gates depend on hooks
+  // (useAppContext, useFeature) that only resolve inside this layout, so they're computed
+  // once here and handed down through the outlet context; route elements read the specific
+  // flag they need back out via useRoutePermissions().
+  const routePermissions: RoutePermissions = {
+    canReadSettings,
+    canReadParameters,
+    canReadWorkflowTemplates,
+    canReadTasks,
+    canReadTokens,
+    canReadWorkspaces,
+    canReadUsers,
+    activityEnabled: Boolean(activityEnabled),
+    insightsEnabled: Boolean(insightsEnabled),
+    workspaceParametersEnabled: Boolean(workspaceParametersEnabled),
+  };
+
   return (
     <main id="content" className={styles.container}>
       <Suspense
@@ -294,159 +293,7 @@ const AppFeatures = React.memo(function AppFeatures() {
           </DelayedRender>
         }
       >
-        <Routes>
-          <Route path="/home" element={<Home />} />
-          <Route path="/profile" element={<UserProfile />} />
-          <Route path={AppPath.Settings} element={<ProtectedRoute allowed={canReadSettings}><Settings /></ProtectedRoute>} />
-          <Route
-            path={AppPath.Properties}
-            element={
-              <ProtectedRoute allowed={canReadParameters}>
-                <GlobalParameters />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={AppPath.TemplateWorkflows}
-            element={
-              <ProtectedRoute allowed={canReadWorkflowTemplates}>
-                <TemplateWorkflows />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={`${AppPath.Tasks}/*`}
-            element={
-              <ProtectedRoute allowed={canReadTasks}>
-                <AdminTasks />
-              </ProtectedRoute>
-            }
-          />
-          <Route path={AppPath.Tokens} element={<ProtectedRoute allowed={canReadTokens}><Tokens /></ProtectedRoute>} />
-          <Route
-            path={AppPath.WorkspaceList}
-            element={
-              <ProtectedRoute allowed={canReadWorkspaces}>
-                <Workspaces />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={`${AppPath.UserList}/*`}
-            element={
-              <ProtectedRoute allowed={canReadUsers}>
-                <Users />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path={AppPath.Run}
-            element={
-              <WorkspaceContainer>
-                <ProtectedRoute allowed={Boolean(activityEnabled)}>
-                  <Execution />
-                </ProtectedRoute>
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={AppPath.Activity}
-            element={
-              <WorkspaceContainer>
-                <ProtectedRoute allowed={Boolean(activityEnabled)}>
-                  <Activity />
-                </ProtectedRoute>
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={AppPath.Insights}
-            element={
-              <WorkspaceContainer>
-                <ProtectedRoute allowed={Boolean(insightsEnabled)}>
-                  <Insights />
-                </ProtectedRoute>
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={AppPath.ManageWorkspaceParameters}
-            element={
-              <WorkspaceContainer>
-                <ProtectedRoute allowed={Boolean(workspaceParametersEnabled)}>
-                  <WorkspaceParameters />
-                </ProtectedRoute>
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={`${AppPath.ManageWorkspace}/*`}
-            element={
-              <WorkspaceContainer>
-                <ManageWorkspace />
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={`${AppPath.Actions}/*`}
-            element={
-              <WorkspaceContainer>
-                <Actions />
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={`${AppPath.Editor}/*`}
-            element={
-              <WorkspaceContainer>
-                <Editor />
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={AppPath.Schedules}
-            element={
-              <WorkspaceContainer>
-                <Schedules />
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={AppPath.Workflows}
-            element={
-              <WorkspaceContainer>
-                <Workflows />
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={AppPath.Integrations}
-            element={
-              <WorkspaceContainer>
-                <Integrations />
-              </WorkspaceContainer>
-            }
-          />
-          <Route
-            path={`${AppPath.ManageTasks}/*`}
-            element={
-              <WorkspaceContainer>
-                <WorkspaceTasks />
-              </WorkspaceContainer>
-            }
-          />
-          <Route path="/" element={<Navigate to="/home" replace />} />
-          {/* Any other single-segment path is treated as a workspace slug (matching the
-          pre-migration behaviour); deeper unmatched sub-paths 404 inside that workspace. */}
-          <Route
-            path="/:workspace/*"
-            element={
-              <WorkspaceContainer>
-                <Error404 theme="boomerang" />
-              </WorkspaceContainer>
-            }
-          />
-        </Routes>
+        <Outlet context={routePermissions} />
         <Tutorial />
       </Suspense>
       <NotificationsContainer enableMultiContainer />
@@ -454,7 +301,10 @@ const AppFeatures = React.memo(function AppFeatures() {
   );
 });
 
-function WorkspaceContainer(props: { children: React.ReactNode }) {
+// Used both directly by App's own layout gating above and by route elements defined in
+// AppRoutes.tsx (imported from there) to resolve the active workspace from the `:workspace`
+// path param before rendering a workspace-scoped feature.
+export function WorkspaceContainer(props: { children: React.ReactNode }) {
   const { workspace = "" } = useParams<{ workspace: string }>();
   const getWorkspaceUrl = serviceUrl.resourceWorkspace({ workspace });
 

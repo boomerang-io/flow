@@ -6,6 +6,7 @@ import "codemirror/addon/fold/foldgutter.css";
 import "codemirror/lib/codemirror.css";
 import "codemirror/theme/material.css";
 import App from "Features/App";
+import { appRouteChildren } from "Features/App/AppRoutes";
 import ErrorBoundary from "Components/ErrorBoundary";
 import { APP_ROOT, isDevEnv, isTestEnv } from "Config/appConfig";
 
@@ -31,13 +32,19 @@ const tanstackQueryClient = new TanstackQueryClient({
   },
 });
 
-// Data-router API (createBrowserRouter/RouterProvider) in SPA mode - no ssr, no
-// loader/action route data. App owns the entire route tree itself (declarative
-// <Routes>/<Route> underneath), so the router config here is just a single catch-all
-// entry point.
-const router = createBrowserRouter(createRoutesFromElements(<Route path="*" element={<App />} />), {
-  basename: APP_ROOT,
-});
+// Data-router API (createBrowserRouter/RouterProvider). App is the layout route (chrome:
+// navbar, providers, activation/loading/error gates) and renders an <Outlet /> for whichever
+// child route matches - the child route tree itself lives in AppRoutes.tsx so that individual
+// routes can carry a `loader`/`action`, which only works for routes declared in the router
+// config (not for routes matched by a nested <Routes> rendered from inside a component).
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route path="/" element={<App />}>
+      {appRouteChildren}
+    </Route>,
+  ),
+  { basename: APP_ROOT },
+);
 
 function Root() {
   return (
