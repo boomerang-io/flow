@@ -12,9 +12,8 @@ import debounce from "lodash/debounce";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useNavigate, useLocation, Route, Routes } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Box } from "reflexbox";
-import UserDetailed from "Features/UserDetailed";
 import EmptyState from "Components/EmptyState";
 import { useQuery } from "Hooks";
 import { CREATED_DATE_FORMAT } from "Constants";
@@ -23,20 +22,16 @@ import { serviceUrl } from "Config/servicesConfig";
 import { PaginatedUserResponse } from "Types";
 import styles from "./Users.module.scss";
 
+// This used to also route ":userId/*" to UserDetailed via its own internal <Routes> - the list
+// and the detail view are now separate top-level routes (AppPath.UserList / AppPath.User in
+// AppRoutes.tsx) so UserDetailed's read can be a loader (loaders only attach to routes declared
+// in the router config, not to routes matched by a <Routes> rendered from inside a component).
+
 const DEFAULT_ORDER = "DESC";
 const DEFAULT_PAGE = 0;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "name";
 const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
-
-const UsersContainer: React.FC = () => {
-  return (
-    <Routes>
-      <Route path=":userId/*" element={<UserDetailed />} />
-      <Route path="" element={<UserList />} />
-    </Routes>
-  );
-};
 
 interface FeatureLayoutProps {
   children?: React.ReactNode;
@@ -70,7 +65,7 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
   );
 };
 
-const UserList: React.FC = () => {
+function UserList() {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -154,7 +149,7 @@ const UserList: React.FC = () => {
       />
     </FeatureLayout>
   );
-};
+}
 
 const TableHeaderKey = {
   Name: "name",
@@ -319,4 +314,4 @@ function UsersTable(props: UsersTableProps) {
   );
 }
 
-export default UsersContainer;
+export default UserList;

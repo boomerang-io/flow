@@ -14,11 +14,14 @@ import {
 } from "ApiServer/fixtures";
 import "@testing-library/jest-dom/extend-expect";
 
-// Specs render `ui` either as a bare component/tree, or (when a param/nested route needs to be
-// matched) as an explicit <Route path=... element={...} /> - build a route tree that works for
-// both: wrap non-Route ui in a catch-all Route, otherwise hand it straight to the router as-is.
+// Specs render `ui` as a bare component/tree, as an explicit <Route path=... element={...} />
+// (when a param/nested route needs to be matched), or as a <>...</> of several sibling <Route>s
+// (when a test needs to navigate between two real routes - e.g. a list route to a loader-backed
+// detail route, mirroring how they're actually nested in AppRoutes.tsx) - build a route tree
+// that works for all three: wrap anything else in a catch-all Route, otherwise hand it straight
+// to the router as-is.
 function buildRoutes(ui) {
-  const isRouteElement = React.isValidElement(ui) && ui.type === Route;
+  const isRouteElement = React.isValidElement(ui) && (ui.type === Route || ui.type === React.Fragment);
   return createRoutesFromElements(isRouteElement ? ui : <Route path="*" element={ui} />);
 }
 

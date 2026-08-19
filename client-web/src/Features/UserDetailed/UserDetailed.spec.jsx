@@ -1,4 +1,4 @@
-import UserDetailed from ".";
+import UserDetailed, { loader } from "./UserDetailed";
 import { Route } from "react-router-dom";
 import { waitFor, screen } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
@@ -17,7 +17,7 @@ afterEach(() => {
 describe("UserDetailed --- Snapshot Test", () => {
   it("Capturing Snapshot of UserDetailed", async () => {
     const { baseElement } = global.rtlContextRouterRender(
-      <Route path={`${AppPath.User}/*`} element={<UserDetailed />} />,
+      <Route path={`${AppPath.User}/*`} loader={loader} element={<UserDetailed />} />,
       { route: appLink.user({ userId: "5f170b3df6ab327e302cb0a5" }) }
     );
     await screen.findByText("These are Tim Bula's workspaces");

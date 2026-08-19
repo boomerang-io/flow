@@ -1,10 +1,11 @@
 // @ts-nocheck
 import React, { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, RadioButton, RadioButtonGroup, InlineNotification } from "@carbon/react";
 import { Loading, ModalFlowForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { UserType, UserTypeCopy } from "Constants";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { resolver } from "Config/servicesConfig";
 import { FlowUser } from "Types";
 import styles from "./ChangeRole.module.scss";
 
@@ -22,7 +23,10 @@ const rolesList = [
 ];
 
 const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
-  const queryClient = useQueryClient();
+  // The page's own user-detail read is now a loader (see UserDetailed.tsx), not a react-query
+  // cache entry, so there's nothing left to invalidate by query key - revalidate() re-runs the
+  // current route's loader(s) instead, which is the loader-era equivalent of invalidateQueries.
+  const revalidator = useRevalidator();
   const role = user?.type;
   const [selectedRole, setSelectedRole] = useState(null);
   const [error, setError] = useState();
@@ -46,7 +50,7 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
 
     try {
       await changeUserMutator.mutateAsync({ body: request, userId: user.id });
-      queryClient.invalidateQueries(serviceUrl.getUser({ userId: user.id }));
+      revalidator.revalidate();
       closeModal();
       notify(
         <ToastNotification
