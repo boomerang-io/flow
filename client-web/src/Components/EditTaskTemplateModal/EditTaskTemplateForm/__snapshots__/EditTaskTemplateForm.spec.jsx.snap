@@ -10,7 +10,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
     >
       <div
         aria-label="inputs"
-        class="cds--modal-content"
+        class="cds--layer-two cds--modal-content"
       >
         <div
           class="cds--bmrg-text-input"
@@ -52,6 +52,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   value="Test name"
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />
@@ -104,6 +106,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   value=""
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />
@@ -150,6 +154,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   value=""
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />
@@ -174,7 +180,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--label"
               dir="auto"
               for="select-icon"
-              id="downshift-0-label"
+              id="downshift-:r2:-label"
             >
               <div
                 style="display: flex;"
@@ -193,28 +199,27 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 <input
                   aria-activedescendant=""
                   aria-autocomplete="list"
-                  aria-controls="downshift-0-menu"
-                  aria-describedby="combobox-helper-text-3"
+                  aria-controls="downshift-:r2:-menu"
+                  aria-describedby="combobox-helper-text-id-:r1:"
                   aria-expanded="false"
                   aria-haspopup="listbox"
-                  aria-labelledby="downshift-0-label"
-                  aria-owns="downshift-0-menu"
+                  aria-labelledby="downshift-:r2:-label"
                   autocomplete="off"
                   class="cds--text-input cds--text-input--empty"
                   id="select-icon"
                   placeholder="Choose an icon"
                   role="combobox"
                   tabindex="0"
+                  title=""
                   type="text"
                   value=""
                 />
-                
                 <button
-                  aria-controls="downshift-0-menu"
+                  aria-controls="downshift-:r2:-menu"
                   aria-expanded="false"
                   aria-label="Open"
                   class="cds--list-box__menu-icon"
-                  id="downshift-0-toggle-button"
+                  id="downshift-:r2:-toggle-button"
                   tabindex="-1"
                   title="Open"
                   type="button"
@@ -230,22 +235,22 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
                     />
                   </svg>
                 </button>
               </div>
               <ul
-                aria-label="Choose an item"
+                aria-labelledby="downshift-:r2:-label"
                 class="cds--list-box__menu"
-                id="downshift-0-menu"
+                id="downshift-:r2:-menu"
                 role="listbox"
               />
             </div>
             <div
               class="cds--form__helper-text"
               dir="auto"
-              id="combobox-helper-text-3"
+              id="combobox-helper-text-id-:r1:"
             >
               Choose the icon that best fits this task
             </div>
@@ -288,6 +293,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               >
                 <textarea
                   aria-invalid="false"
+                  aria-readonly="false"
                   class="cds--text-area"
                   id="description"
                   placeholder=""
@@ -297,6 +303,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   Test description
                 </textarea>
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-area__counter-alert"
                   role="alert"
                 />
@@ -342,6 +350,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   value=""
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />
@@ -383,8 +393,9 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
-                aria-describedby="text-area-helper-text-2"
+                aria-describedby="text-area-helper-text-id-:r4:"
                 aria-invalid="false"
+                aria-readonly="false"
                 class="cds--text-area"
                 id="command"
                 name="command"
@@ -393,6 +404,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 style="width: 100%;"
               />
               <span
+                aria-atomic="true"
+                aria-live="assertive"
                 class="cds--text-area__counter-alert"
                 role="alert"
               />
@@ -400,7 +413,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             <div
               class="cds--form__helper-text"
               dir="auto"
-              id="text-area-helper-text-2"
+              id="text-area-helper-text-id-:r4:"
             >
               Override the entry point of the container
             </div>
@@ -433,8 +446,9 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
-                aria-describedby="text-area-helper-text-3"
+                aria-describedby="text-area-helper-text-id-:r5:"
                 aria-invalid="false"
+                aria-readonly="false"
                 class="cds--text-area"
                 id="arguments"
                 name="arguments"
@@ -445,6 +459,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 slack
               </textarea>
               <span
+                aria-atomic="true"
+                aria-live="assertive"
                 class="cds--text-area__counter-alert"
                 role="alert"
               />
@@ -452,7 +468,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             <div
               class="cds--form__helper-text"
               dir="auto"
-              id="text-area-helper-text-3"
+              id="text-area-helper-text-id-:r5:"
             >
               Enter arguments delimited by a new line
             </div>
@@ -486,6 +502,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             >
               <textarea
                 aria-invalid="false"
+                aria-readonly="false"
                 class="cds--text-area"
                 id="script"
                 placeholder=""
@@ -493,6 +510,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 style="width: 100%;"
               />
               <span
+                aria-atomic="true"
+                aria-live="assertive"
                 class="cds--text-area__counter-alert"
                 role="alert"
               />
@@ -535,6 +554,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   value=""
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />
@@ -581,6 +602,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                         value=""
                       />
                       <span
+                        aria-atomic="true"
+                        aria-live="assertive"
                         class="cds--text-input__counter-alert"
                         role="alert"
                       />
@@ -616,6 +639,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                         value=""
                       />
                       <span
+                        aria-atomic="true"
+                        aria-live="assertive"
                         class="cds--text-input__counter-alert"
                         role="alert"
                       />
@@ -644,7 +669,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  d="M17 15L17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                  d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
                 />
               </svg>
             </button>
@@ -654,9 +679,8 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
           >
             <div
               class="cds--tag cds--tag--filter cds--tag--teal"
-              id="tag-1"
+              id="tag-id-:r8:"
             >
-              
               <span
                 class="cds--tag__label"
                 dir="auto"
@@ -681,7 +705,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                    d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                   />
                 </svg>
               </button>

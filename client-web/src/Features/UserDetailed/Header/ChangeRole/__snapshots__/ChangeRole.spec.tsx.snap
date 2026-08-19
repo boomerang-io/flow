@@ -9,7 +9,7 @@ exports[`ChangeRole --- Snapshot Test > Capturing Snapshot of ChangeRole 1`] = `
       class="cds--bmrg-modal-flow-form"
     >
       <div
-        class="cds--modal-content"
+        class="cds--layer-two cds--modal-content"
       >
         <div
           class="_gridContainer_7666e5"

@@ -55,11 +55,11 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
         <div
           class="cds--modal-header"
         >
-          <h3
+          <h2
             class="cds--modal-header__heading cds--type-beta"
           >
             [Preview] Test template
-          </h3>
+          </h2>
           <p
             class="cds--bmrg-modal-composed-subtitle"
           >
@@ -76,9 +76,8 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
               >
                 <button
                   aria-label="Close"
-                  aria-labelledby="tooltip-2"
+                  aria-labelledby="tooltip-:r1:"
                   class="cds--btn--icon-only cds--modal-close cds--btn cds--btn--primary"
-                  title="Close"
                   type="button"
                 >
                   <svg
@@ -93,7 +92,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                      d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                     />
                   </svg>
                 </button>
@@ -101,7 +100,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-2"
+                id="tooltip-:r1:"
                 role="tooltip"
               >
                 <span
@@ -124,7 +123,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
             novalidate=""
           >
             <div
-              class="cds--modal-content"
+              class="cds--layer-two cds--modal-content"
             >
               <div
                 class="cds--bmrg-text-input"
@@ -146,7 +145,6 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                         <div>
                           File Path
                         </div>
-                        
                       </div>
                     </label>
                   </div>
@@ -167,6 +165,8 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                         value=""
                       />
                       <span
+                        aria-atomic="true"
+                        aria-live="assertive"
                         class="cds--text-input__counter-alert"
                         role="alert"
                       />
@@ -194,7 +194,6 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                         <div>
                           Property Name
                         </div>
-                        
                       </div>
                     </label>
                   </div>
@@ -215,6 +214,8 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
                         value=""
                       />
                       <span
+                        aria-atomic="true"
+                        aria-live="assertive"
                         class="cds--text-input__counter-alert"
                         role="alert"
                       />

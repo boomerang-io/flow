@@ -40,10 +40,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
           role="search"
         >
           <div
-            aria-expanded="false"
-            aria-label="button"
             class="cds--search-magnifier"
-            role="button"
             tabindex="-1"
           >
             <svg
@@ -95,7 +92,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M17.4141 16L24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
               />
             </svg>
           </button>
@@ -120,12 +117,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-3"
+                    id="table-sort-:r2:"
                   >
                     Click to unsort rows by Name header
                   </div>
                   <button
-                    aria-describedby="table-sort-3"
+                    aria-describedby="table-sort-:r2:"
                     class="cds--table-sort cds--table-sort--active cds--table-sort--descending"
                     type="button"
                   >
@@ -149,7 +146,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
                         />
                       </svg>
                       <svg
@@ -164,9 +161,15 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
                         />
                       </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
                     </span>
                   </button>
                 </th>
@@ -178,6 +181,9 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     class="cds--table-header-label"
                   >
                     Preferred Display Name
+                    <div
+                      class="cds--table-header-label--decorator-inner"
+                    />
                   </div>
                 </th>
                 <th
@@ -188,12 +194,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-5"
+                    id="table-sort-:r4:"
                   >
                     Click to sort rows by Email header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-5"
+                    aria-describedby="table-sort-:r4:"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -217,7 +223,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
                         />
                       </svg>
                       <svg
@@ -232,9 +238,15 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
                         />
                       </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
                     </span>
                   </button>
                 </th>
@@ -246,12 +258,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-6"
+                    id="table-sort-:r5:"
                   >
                     Click to sort rows by Type header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-6"
+                    aria-describedby="table-sort-:r5:"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -275,7 +287,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
                         />
                       </svg>
                       <svg
@@ -290,9 +302,15 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
                         />
                       </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
                     </span>
                   </button>
                 </th>
@@ -304,12 +322,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-7"
+                    id="table-sort-:r6:"
                   >
                     Click to sort rows by First Login header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-7"
+                    aria-describedby="table-sort-:r6:"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -333,7 +351,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
                         />
                       </svg>
                       <svg
@@ -348,9 +366,15 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
                         />
                       </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
                     </span>
                   </button>
                 </th>
@@ -362,12 +386,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-8"
+                    id="table-sort-:r7:"
                   >
                     Click to sort rows by Last Login header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-8"
+                    aria-describedby="table-sort-:r7:"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -391,7 +415,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
                         />
                       </svg>
                       <svg
@@ -406,9 +430,15 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
                         />
                       </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
                     </span>
                   </button>
                 </th>
@@ -420,12 +450,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-9"
+                    id="table-sort-:r8:"
                   >
                     Click to sort rows by Status header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-9"
+                    aria-describedby="table-sort-:r8:"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -449,7 +479,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M16 4L6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
                         />
                       </svg>
                       <svg
@@ -464,9 +494,15 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M27.6 20.6L24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22zM9 4L3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
                         />
                       </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
                     </span>
                   </button>
                 </th>
@@ -492,10 +528,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   admin
                 </td>
                 <td>
-                  July 21, 2020
+                  July 22, 2020
                 </td>
                 <td>
-                  July 21, 2020
+                  July 22, 2020
                 </td>
                 <td
                   id="5f170b3df6ab327e302cb0a5:status"
@@ -539,10 +575,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   admin
                 </td>
                 <td>
-                  July 21, 2020
+                  July 22, 2020
                 </td>
                 <td>
-                  July 21, 2020
+                  July 22, 2020
                 </td>
                 <td
                   id="kg3p380ad09662744c240e47:status"
@@ -586,10 +622,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   admin
                 </td>
                 <td>
-                  July 21, 2020
+                  July 22, 2020
                 </td>
                 <td>
-                  July 21, 2020
+                  July 22, 2020
                 </td>
                 <td
                   id="kg3p380ad09662744c240e12347:status"
@@ -628,8 +664,8 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
         >
           <label
             class="cds--pagination__text"
-            for="cds-pagination-select-id-10"
-            id="cds-pagination-select-id-10-count-label"
+            for="cds-pagination-select-id-:r9:"
+            id="cds-pagination-select-id-:r9:-count-label"
           >
             Items per page:
           </label>
@@ -647,7 +683,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-10"
+                    id="cds-pagination-select-id-:r9:"
                     title=""
                   >
                     <option
@@ -687,7 +723,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
                     />
                   </svg>
                 </div>
@@ -712,9 +748,9 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               <label
                 class="cds--label cds--visually-hidden"
                 dir="auto"
-                for="cds-pagination-select-id-10-right"
+                for="cds-pagination-select-id-:r9:-right"
               >
-                Page number, of 1 pages
+                Page of 1 pages
               </label>
               <div
                 class="cds--select-input--inline__wrapper"
@@ -724,7 +760,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-10-right"
+                    id="cds-pagination-select-id-:r9:-right"
                     title=""
                   >
                     <option
@@ -746,7 +782,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
                     />
                   </svg>
                 </div>
@@ -768,7 +804,8 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 class="cds--tooltip-trigger__wrapper"
               >
                 <button
-                  aria-labelledby="tooltip-11"
+                  aria-label="Previous page"
+                  aria-labelledby="tooltip-:rc:"
                   class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
                   disabled=""
                   type="button"
@@ -784,7 +821,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M20 24L10 16 20 8z"
+                      d="M20 24 10 16 20 8z"
                     />
                   </svg>
                 </button>
@@ -792,7 +829,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-11"
+                id="tooltip-:rc:"
                 role="tooltip"
               >
                 <span
@@ -812,7 +849,8 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 class="cds--tooltip-trigger__wrapper"
               >
                 <button
-                  aria-labelledby="tooltip-13"
+                  aria-label="Next page"
+                  aria-labelledby="tooltip-:rf:"
                   class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
                   disabled=""
                   type="button"
@@ -828,7 +866,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M12 8L22 16 12 24z"
+                      d="M12 8 22 16 12 24z"
                     />
                   </svg>
                 </button>
@@ -836,7 +874,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-13"
+                id="tooltip-:rf:"
                 role="tooltip"
               >
                 <span
