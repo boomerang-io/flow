@@ -7,7 +7,7 @@ export default defineConfig({
     viewportWidth: 1920,
     viewportHeight: 1080,
     setupNodeEvents(on) {
-      on("file:preprocessor", vitePreprocessor(path.resolve(__dirname, "./vite.config.ts")));
+      on("file:preprocessor", vitePreprocessor(path.resolve(__dirname, "./vite.config.mts")));
     },
   },
 });
