@@ -73,7 +73,7 @@ export function buildFeatureFlags(feature: FlowFeatures["features"]) {
 // wrapper's ProtectedRoute relied on, so it can no longer be used standalone here. This is
 // a direct, minimal replacement of the same gating: render the guarded element when allowed,
 // otherwise the same Error403 the wrapper rendered.
-function ProtectedRoute({ allowed, children }: { allowed: boolean; children: React.ReactNode }) {
+export function ProtectedRoute({ allowed, children }: { allowed: boolean; children: React.ReactNode }) {
   if (!allowed) {
     return (
       <Error403
