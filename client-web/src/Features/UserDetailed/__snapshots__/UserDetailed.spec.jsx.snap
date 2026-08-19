@@ -150,7 +150,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                     <dd
                       class="_dataValue_b9e313"
                     >
-                      2020-07-22
+                      2020-07-21
                     </dd>
                   </dl>
                   <dl
@@ -164,7 +164,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                     <dd
                       class="_dataValue_b9e313"
                     >
-                      2020-07-22 1:35am
+                      2020-07-21 3:35pm
                     </dd>
                   </dl>
                 </section>

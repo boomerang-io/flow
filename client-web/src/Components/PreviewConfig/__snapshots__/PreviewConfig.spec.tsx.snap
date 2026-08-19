@@ -76,7 +76,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
               >
                 <button
                   aria-label="Close"
-                  aria-labelledby="tooltip-:r1:"
+                  aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--modal-close cds--btn cds--btn--primary"
                   type="button"
                 >
@@ -100,7 +100,7 @@ exports[`PreviewConfig --- Snapshot > Capturing Snapshot of Task Templates 1`] =
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-:r1:"
+                id="tooltip-[generated-id]"
                 role="tooltip"
               >
                 <span

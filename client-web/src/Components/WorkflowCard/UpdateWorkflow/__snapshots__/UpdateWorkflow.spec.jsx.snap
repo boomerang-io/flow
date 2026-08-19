@@ -47,7 +47,7 @@ exports[`UpdateWorkflow --- Snapshot Test > Capturing Snapshot of UpdateWorkflow
               >
                 <button
                   aria-label="Close"
-                  aria-labelledby="tooltip-:r0:"
+                  aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--modal-close cds--btn cds--btn--primary"
                   type="button"
                 >
@@ -71,7 +71,7 @@ exports[`UpdateWorkflow --- Snapshot Test > Capturing Snapshot of UpdateWorkflow
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-:r0:"
+                id="tooltip-[generated-id]"
                 role="tooltip"
               >
                 <span

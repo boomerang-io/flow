@@ -123,12 +123,12 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r3:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by Name header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r3:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -187,12 +187,12 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r4:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by Date Created header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r4:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -297,7 +297,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:51 AM
+                    2023-09-18 07:51 PM
                   </time>
                 </td>
                 <td>
@@ -341,7 +341,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:57 AM
+                    2023-09-18 07:57 PM
                   </time>
                 </td>
                 <td>
@@ -385,7 +385,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:57 AM
+                    2023-09-18 07:57 PM
                   </time>
                 </td>
                 <td>
@@ -429,7 +429,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:57 AM
+                    2023-09-18 07:57 PM
                   </time>
                 </td>
                 <td>
@@ -473,7 +473,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:56 AM
+                    2023-09-18 07:56 PM
                   </time>
                 </td>
                 <td>
@@ -517,7 +517,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:57 AM
+                    2023-09-18 07:57 PM
                   </time>
                 </td>
                 <td>
@@ -561,7 +561,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 </td>
                 <td>
                   <time>
-                    2023-09-19 05:54 AM
+                    2023-09-18 07:54 PM
                   </time>
                 </td>
                 <td>
@@ -607,8 +607,8 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
         >
           <label
             class="cds--pagination__text"
-            for="cds-pagination-select-id-:r8:"
-            id="cds-pagination-select-id-:r8:-count-label"
+            for="cds-pagination-select-id-[generated-id]"
+            id="cds-pagination-select-id-[generated-id]-count-label"
           >
             Items per page:
           </label>
@@ -626,7 +626,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-:r8:"
+                    id="cds-pagination-select-id-[generated-id]"
                     title=""
                   >
                     <option
@@ -691,7 +691,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               <label
                 class="cds--label cds--visually-hidden"
                 dir="auto"
-                for="cds-pagination-select-id-:r8:-right"
+                for="cds-pagination-select-id-[generated-id]-right"
               >
                 Page of 1 pages
               </label>
@@ -703,7 +703,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-:r8:-right"
+                    id="cds-pagination-select-id-[generated-id]-right"
                     title=""
                   >
                     <option
@@ -748,7 +748,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               >
                 <button
                   aria-label="Previous page"
-                  aria-labelledby="tooltip-:rb:"
+                  aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
                   disabled=""
                   type="button"
@@ -772,7 +772,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-:rb:"
+                id="tooltip-[generated-id]"
                 role="tooltip"
               >
                 <span
@@ -793,7 +793,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               >
                 <button
                   aria-label="Next page"
-                  aria-labelledby="tooltip-:re:"
+                  aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
                   disabled=""
                   type="button"
@@ -817,7 +817,7 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-:re:"
+                id="tooltip-[generated-id]"
                 role="tooltip"
               >
                 <span

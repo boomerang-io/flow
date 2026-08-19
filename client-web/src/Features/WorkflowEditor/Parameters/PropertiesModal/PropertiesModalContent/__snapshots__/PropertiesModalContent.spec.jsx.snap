@@ -1,4 +1,4 @@
-// Vitest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
 <body
@@ -10,7 +10,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
     >
       <div
         aria-label="inputs"
-        class="cds--modal-content _container_4e189b"
+        class="cds--layer-two cds--modal-content _container_862e8c"
       >
         <div
           class="cds--bmrg-text-input"
@@ -23,13 +23,14 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
             >
               <label
                 class="cds--label"
-                for="key"
+                dir="auto"
+                for="name"
               >
                 <div
                   class="cds--bmrg-text-input__label"
                 >
                   <div>
-                    Key (read-only)
+                    Name (read-only)
                   </div>
                 </div>
               </label>
@@ -41,19 +42,26 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 class="cds--text-input__field-wrapper"
               >
                 <input
-                  aria-describedby="key-helper-text"
-                  class="cds--text-input cds--text-input--md"
-                  id="key"
+                  aria-describedby="name-helper-text"
+                  class="cds--text-input"
+                  id="name"
                   placeholder=".e.g. token"
                   readonly=""
                   title=".e.g. token"
                   type="text"
-                  value="tim-property"
+                  value=""
+                />
+                <span
+                  aria-atomic="true"
+                  aria-live="assertive"
+                  class="cds--text-input__counter-alert"
+                  role="alert"
                 />
               </div>
               <div
                 class="cds--form__helper-text"
-                id="key-helper-text"
+                dir="auto"
+                id="name-helper-text"
               >
                 Reference value for parameter in workflow. It can't be changed after parameter creation.
               </div>
@@ -70,7 +78,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
               class="cds--label"
               dir="auto"
               for="type"
-              id="downshift-0-label"
+              id="downshift-[generated-id]-label"
             >
               <div
                 style="display: flex;"
@@ -87,9 +95,12 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 class="cds--list-box__field"
               >
                 <input
+                  aria-activedescendant=""
                   aria-autocomplete="list"
+                  aria-controls="downshift-[generated-id]-menu"
                   aria-expanded="false"
                   aria-haspopup="listbox"
+                  aria-labelledby="downshift-[generated-id]-label"
                   autocomplete="off"
                   class="cds--text-input"
                   id="type"
@@ -103,7 +114,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 <button
                   aria-label="Clear selected item"
                   class="cds--list-box__selection"
-                  tabindex="0"
+                  tabindex="-1"
                   title="Clear selected item"
                   type="button"
                 >
@@ -118,16 +129,16 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4z"
+                      d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
                     />
                   </svg>
                 </button>
                 <button
-                  aria-haspopup="true"
+                  aria-controls="downshift-[generated-id]-menu"
+                  aria-expanded="false"
                   aria-label="Open"
                   class="cds--list-box__menu-icon"
-                  data-toggle="true"
-                  role="button"
+                  id="downshift-[generated-id]-toggle-button"
                   tabindex="-1"
                   title="Open"
                   type="button"
@@ -143,15 +154,15 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                      d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
                     />
                   </svg>
                 </button>
               </div>
-              <div
-                aria-label="Choose an item"
+              <ul
+                aria-labelledby="downshift-[generated-id]-label"
                 class="cds--list-box__menu"
-                id="downshift-0-menu"
+                id="downshift-[generated-id]-menu"
                 role="listbox"
               />
             </div>
@@ -168,6 +179,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="label"
               >
                 <div
@@ -186,12 +198,18 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 class="cds--text-input__field-wrapper"
               >
                 <input
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="label"
                   placeholder="e.g. Token"
                   title="e.g. Token"
                   type="text"
                   value="Tim Property"
+                />
+                <span
+                  aria-atomic="true"
+                  aria-live="assertive"
+                  class="cds--text-input__counter-alert"
+                  role="alert"
                 />
               </div>
             </div>
@@ -208,6 +226,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
             >
               <label
                 class="cds--label"
+                dir="auto"
                 for="description"
               >
                 <div
@@ -226,58 +245,17 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 class="cds--text-input__field-wrapper"
               >
                 <input
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   id="description"
                   type="text"
                   value="Tim property"
                 />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          class="cds--bmrg-text-input"
-        >
-          <div
-            class="cds--form-item cds--text-input-wrapper"
-          >
-            <div
-              class="cds--text-input__label-wrapper"
-            >
-              <label
-                class="cds--label"
-                for="jsonPath"
-              >
-                <div
-                  class="cds--bmrg-text-input__label"
-                >
-                  <div>
-                    Event Payload JsonPath (optional)
-                  </div>
-                </div>
-              </label>
-            </div>
-            <div
-              class="cds--text-input__field-outer-wrapper"
-            >
-              <div
-                class="cds--text-input__field-wrapper"
-              >
-                <input
-                  aria-describedby="jsonPath-helper-text"
-                  class="cds--text-input cds--text-input--md"
-                  id="jsonPath"
-                  placeholder="e.g. $.repository.image[2]"
-                  title="e.g. $.repository.image[2]"
-                  type="text"
-                  value=""
+                <span
+                  aria-atomic="true"
+                  aria-live="assertive"
+                  class="cds--text-input__counter-alert"
+                  role="alert"
                 />
-              </div>
-              <div
-                class="cds--form__helper-text"
-                id="jsonPath-helper-text"
-              >
-                Retrieves value matching dot notation path in the event payload
               </div>
             </div>
           </div>
@@ -312,13 +290,10 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 role="switch"
                 type="button"
               />
-              <label
+              <div
                 class="cds--toggle__label"
-                for="required"
+                id="required_label"
               >
-                <span
-                  class="cds--toggle__label-text"
-                />
                 <div
                   class="cds--toggle__appearance"
                 >
@@ -328,9 +303,10 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                   <span
                     aria-hidden="true"
                     class="cds--toggle__text"
+                    dir="auto"
                   />
                 </div>
-              </label>
+              </div>
             </div>
           </div>
         </div>
@@ -345,7 +321,8 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
             >
               <label
                 class="cds--label"
-                for="defaultValue"
+                dir="auto"
+                for="default"
               >
                 <div
                   class="cds--bmrg-text-input__label"
@@ -363,13 +340,19 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 class="cds--text-input__field-wrapper"
               >
                 <input
-                  class="cds--text-input cds--text-input--md"
+                  class="cds--text-input"
                   data-testid="text-input"
-                  id="defaultValue"
+                  id="default"
                   placeholder="Default Value"
                   title="Default Value"
                   type="text"
-                  value="dogs"
+                  value=""
+                />
+                <span
+                  aria-atomic="true"
+                  aria-live="assertive"
+                  class="cds--text-input__counter-alert"
+                  role="alert"
                 />
               </div>
             </div>
@@ -377,11 +360,11 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
         </div>
       </div>
       <div
+        aria-busy="false"
         class="cds--modal-footer cds--btn-set"
       >
         <button
           class="cds--btn cds--btn--secondary"
-          tabindex="0"
           type="button"
         >
           Cancel
@@ -390,10 +373,9 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
           class="cds--btn cds--btn--primary cds--btn--disabled"
           data-testid="parameter-modal-confirm-button"
           disabled=""
-          tabindex="0"
           type="submit"
         >
-          Save
+          Update
         </button>
       </div>
     </form>

@@ -117,12 +117,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r2:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to unsort rows by Name header
                   </div>
                   <button
-                    aria-describedby="table-sort-:r2:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort cds--table-sort--active cds--table-sort--descending"
                     type="button"
                   >
@@ -194,12 +194,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r4:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by Email header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r4:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -258,12 +258,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r5:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by Type header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r5:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -322,12 +322,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r6:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by First Login header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r6:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -386,12 +386,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r7:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by Last Login header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r7:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -450,12 +450,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <div
                     class="cds--table-sort__description"
-                    id="table-sort-:r8:"
+                    id="table-sort-[generated-id]"
                   >
                     Click to sort rows by Status header in ascending order
                   </div>
                   <button
-                    aria-describedby="table-sort-:r8:"
+                    aria-describedby="table-sort-[generated-id]"
                     class="cds--table-sort"
                     type="button"
                   >
@@ -528,10 +528,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   admin
                 </td>
                 <td>
-                  July 22, 2020
+                  July 21, 2020
                 </td>
                 <td>
-                  July 22, 2020
+                  July 21, 2020
                 </td>
                 <td
                   id="5f170b3df6ab327e302cb0a5:status"
@@ -575,10 +575,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   admin
                 </td>
                 <td>
-                  July 22, 2020
+                  July 21, 2020
                 </td>
                 <td>
-                  July 22, 2020
+                  July 21, 2020
                 </td>
                 <td
                   id="kg3p380ad09662744c240e47:status"
@@ -622,10 +622,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   admin
                 </td>
                 <td>
-                  July 22, 2020
+                  July 21, 2020
                 </td>
                 <td>
-                  July 22, 2020
+                  July 21, 2020
                 </td>
                 <td
                   id="kg3p380ad09662744c240e12347:status"
@@ -664,8 +664,8 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
         >
           <label
             class="cds--pagination__text"
-            for="cds-pagination-select-id-:r9:"
-            id="cds-pagination-select-id-:r9:-count-label"
+            for="cds-pagination-select-id-[generated-id]"
+            id="cds-pagination-select-id-[generated-id]-count-label"
           >
             Items per page:
           </label>
@@ -683,7 +683,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-:r9:"
+                    id="cds-pagination-select-id-[generated-id]"
                     title=""
                   >
                     <option
@@ -748,7 +748,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               <label
                 class="cds--label cds--visually-hidden"
                 dir="auto"
-                for="cds-pagination-select-id-:r9:-right"
+                for="cds-pagination-select-id-[generated-id]-right"
               >
                 Page of 1 pages
               </label>
@@ -760,7 +760,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 >
                   <select
                     class="cds--select-input"
-                    id="cds-pagination-select-id-:r9:-right"
+                    id="cds-pagination-select-id-[generated-id]-right"
                     title=""
                   >
                     <option
@@ -805,7 +805,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               >
                 <button
                   aria-label="Previous page"
-                  aria-labelledby="tooltip-:rc:"
+                  aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--pagination__button cds--pagination__button--backward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
                   disabled=""
                   type="button"
@@ -829,7 +829,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-:rc:"
+                id="tooltip-[generated-id]"
                 role="tooltip"
               >
                 <span
@@ -850,7 +850,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               >
                 <button
                   aria-label="Next page"
-                  aria-labelledby="tooltip-:rf:"
+                  aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--pagination__button cds--pagination__button--forward cds--pagination__button--no-index cds--btn cds--btn--ghost cds--btn--disabled"
                   disabled=""
                   type="button"
@@ -874,7 +874,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
               <span
                 aria-hidden="true"
                 class="cds--popover"
-                id="tooltip-:rf:"
+                id="tooltip-[generated-id]"
                 role="tooltip"
               >
                 <span

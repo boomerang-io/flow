@@ -123,6 +123,18 @@ function rtlContextRouterRender(
   };
 }
 
+// React's useId() counter is per-worker, so a component's generated ids depend on how many other
+// trees mounted before it in the same run. Normalise them so snapshots compare on structure.
+// The placeholder deliberately contains no colon, so a normalised value cannot match again and
+// re-enter this serializer. The test pattern is non-global - a /g regex carries lastIndex between
+// calls and would match every other time.
+const REACT_GENERATED_ID = /:r[0-9a-z]+:/;
+expect.addSnapshotSerializer({
+  test: (value) => typeof value === "string" && REACT_GENERATED_ID.test(value),
+  serialize: (value, config, indentation, depth, refs, printer) =>
+    printer(String(value).replace(/:r[0-9a-z]+:/g, "[generated-id]"), config, indentation, depth, refs),
+});
+
 // Fix "react-modal: No elements were found for selector #app." error
 beforeEach(() => {
   document.body.setAttribute("id", "app");

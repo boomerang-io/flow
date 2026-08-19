@@ -1,15 +1,15 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`OutputPropertiesLog --- Snapshot > Capturing Snapshot of OutputPropertiesLog 1`] = `
+exports[`TaskExecutionLog --- Snapshot > Capturing Snapshot of TaskExecutionLog 1`] = `
 <body
   id="app"
 >
   <div>
     <button
-      class="cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+      class="_trigger_0cae46 cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
       type="button"
     >
-      View Parameters
+      View Log
     </button>
   </div>
   <div

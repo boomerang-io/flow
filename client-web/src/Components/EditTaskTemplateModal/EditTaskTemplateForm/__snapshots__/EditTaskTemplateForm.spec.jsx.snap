@@ -180,7 +180,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--label"
               dir="auto"
               for="select-icon"
-              id="downshift-:r2:-label"
+              id="downshift-[generated-id]-label"
             >
               <div
                 style="display: flex;"
@@ -199,11 +199,11 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 <input
                   aria-activedescendant=""
                   aria-autocomplete="list"
-                  aria-controls="downshift-:r2:-menu"
-                  aria-describedby="combobox-helper-text-id-:r1:"
+                  aria-controls="downshift-[generated-id]-menu"
+                  aria-describedby="combobox-helper-text-id-[generated-id]"
                   aria-expanded="false"
                   aria-haspopup="listbox"
-                  aria-labelledby="downshift-:r2:-label"
+                  aria-labelledby="downshift-[generated-id]-label"
                   autocomplete="off"
                   class="cds--text-input cds--text-input--empty"
                   id="select-icon"
@@ -215,11 +215,11 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                   value=""
                 />
                 <button
-                  aria-controls="downshift-:r2:-menu"
+                  aria-controls="downshift-[generated-id]-menu"
                   aria-expanded="false"
                   aria-label="Open"
                   class="cds--list-box__menu-icon"
-                  id="downshift-:r2:-toggle-button"
+                  id="downshift-[generated-id]-toggle-button"
                   tabindex="-1"
                   title="Open"
                   type="button"
@@ -241,16 +241,16 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
                 </button>
               </div>
               <ul
-                aria-labelledby="downshift-:r2:-label"
+                aria-labelledby="downshift-[generated-id]-label"
                 class="cds--list-box__menu"
-                id="downshift-:r2:-menu"
+                id="downshift-[generated-id]-menu"
                 role="listbox"
               />
             </div>
             <div
               class="cds--form__helper-text"
               dir="auto"
-              id="combobox-helper-text-id-:r1:"
+              id="combobox-helper-text-id-[generated-id]"
             >
               Choose the icon that best fits this task
             </div>
@@ -393,7 +393,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
-                aria-describedby="text-area-helper-text-id-:r4:"
+                aria-describedby="text-area-helper-text-id-[generated-id]"
                 aria-invalid="false"
                 aria-readonly="false"
                 class="cds--text-area"
@@ -413,7 +413,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             <div
               class="cds--form__helper-text"
               dir="auto"
-              id="text-area-helper-text-id-:r4:"
+              id="text-area-helper-text-id-[generated-id]"
             >
               Override the entry point of the container
             </div>
@@ -446,7 +446,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
               class="cds--text-area__wrapper"
             >
               <textarea
-                aria-describedby="text-area-helper-text-id-:r5:"
+                aria-describedby="text-area-helper-text-id-[generated-id]"
                 aria-invalid="false"
                 aria-readonly="false"
                 class="cds--text-area"
@@ -468,7 +468,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
             <div
               class="cds--form__helper-text"
               dir="auto"
-              id="text-area-helper-text-id-:r5:"
+              id="text-area-helper-text-id-[generated-id]"
             >
               Enter arguments delimited by a new line
             </div>
@@ -679,7 +679,7 @@ exports[`EditTaskTemplateForm --- Snapshot > Capturing Snapshot of Task Template
           >
             <div
               class="cds--tag cds--tag--filter cds--tag--teal"
-              id="tag-id-:r8:"
+              id="tag-id-[generated-id]"
             >
               <span
                 class="cds--tag__label"
