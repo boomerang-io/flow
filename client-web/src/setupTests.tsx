@@ -1,7 +1,7 @@
 //@ts-nocheck
-import { Router } from "react-router-dom";
+import React from "react";
+import { createMemoryRouter, createRoutesFromElements, Route, RouterProvider } from "react-router-dom";
 import { FlagsProvider } from "flagged";
-import { createMemoryHistory } from "history";
 import { render as rtlRender } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, setLogger } from "react-query";
 import { vi } from "vitest";
@@ -13,6 +13,25 @@ import {
   userWorkflows as userWorkflowsFixture,
 } from "ApiServer/fixtures";
 import "@testing-library/jest-dom/extend-expect";
+
+// Specs render `ui` either as a bare component/tree, or (when a param/nested route needs to be
+// matched) as an explicit <Route path=... element={...} /> - build a route tree that works for
+// both: wrap non-Route ui in a catch-all Route, otherwise hand it straight to the router as-is.
+function buildRoutes(ui) {
+  const isRouteElement = React.isValidElement(ui) && ui.type === Route;
+  return createRoutesFromElements(isRouteElement ? ui : <Route path="*" element={ui} />);
+}
+
+// v7's data router owns its history internally (no more passing a `history` instance to
+// <Router>), so expose a `history`-shaped object for the handful of specs that read
+// `history.location` back out after a navigation.
+function routerHistory(router) {
+  return {
+    get location() {
+      return router.state.location;
+    },
+  };
+}
 
 setLogger({
   log: () => {},
@@ -56,13 +75,11 @@ function rtlQueryRender(ui, { queryConfig = {} } = {}) {
   };
 }
 
-function rtlRouterRender(
-  ui,
-  { route = "/", history = createMemoryHistory({ initialEntries: [route] }), ...options } = {}
-) {
+function rtlRouterRender(ui, { route = "/", ...options } = {}) {
+  const router = createMemoryRouter(buildRoutes(ui), { initialEntries: [route] });
   return {
-    ...rtlRender(<Router history={history}>{ui}</Router>, options),
-    history,
+    ...rtlRender(<RouterProvider router={router} />, options),
+    history: routerHistory(router),
   };
 }
 
@@ -92,14 +109,7 @@ const defaultFeatures = {
 
 function rtlContextRouterRender(
   ui,
-  {
-    contextValue = {},
-    initialState = {},
-    route = "/",
-    queryConfig = {},
-    history = createMemoryHistory({ initialEntries: [route] }),
-    ...options
-  } = {}
+  { contextValue = {}, initialState = {}, route = "/", queryConfig = {}, ...options } = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -108,18 +118,19 @@ function rtlContextRouterRender(
       ...queryConfig,
     },
   });
+  const router = createMemoryRouter(buildRoutes(ui), { initialEntries: [route] });
   return {
     ...rtlRender(
       <FlagsProvider features={defaultFeatures}>
         <AppContextProvider value={{ ...defaultContextValue, ...contextValue }}>
           <QueryClientProvider client={queryClient}>
-            <Router history={history}>{ui}</Router>
+            <RouterProvider router={router} />
           </QueryClientProvider>
         </AppContextProvider>
       </FlagsProvider>,
       options
     ),
-    history,
+    history: routerHistory(router),
   };
 }
 
