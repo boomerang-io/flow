@@ -1,4 +1,4 @@
-import UserList from ".";
+import UserList, { loader as userListLoader } from "Features/Users/Users";
 import UserDetailed, { loader as userDetailedLoader } from "Features/UserDetailed/UserDetailed";
 import { Route } from "react-router-dom";
 import { waitFor, screen, fireEvent } from "@testing-library/react";
@@ -17,11 +17,14 @@ afterEach(() => {
 
 // The list (AppPath.UserList) and the detail view (AppPath.User, loader-backed) are separate
 // top-level routes in AppRoutes.tsx - rendering both here, the same way, lets "click a user ->
-// see their detail page" exercise real navigation into a loader route instead of a mock.
+// see their detail page" exercise real navigation into a loader route instead of a mock. Both
+// routes carry their real `loader` (see GlobalParameters.spec.tsx for the route-module test
+// pattern), so rtlContextRouterRender actually exercises them instead of leaving
+// useLoaderData() undefined.
 function renderUsers(route: string) {
   return global.rtlContextRouterRender(
     <>
-      <Route path={AppPath.UserList} element={<UserList />} />
+      <Route path={AppPath.UserList} loader={userListLoader} element={<UserList />} />
       <Route path={`${AppPath.User}/*`} loader={userDetailedLoader} element={<UserDetailed />} />
     </>,
     { route },

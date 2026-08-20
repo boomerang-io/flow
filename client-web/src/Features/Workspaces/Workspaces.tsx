@@ -7,26 +7,30 @@ import {
   notify,
   ToastNotification,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { Button, DataTable, DataTableSkeleton, Pagination, Search } from "@carbon/react";
+import { Button, DataTable, Pagination, Search } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Helmet } from "react-helmet";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useFetcher, useLoaderData, useNavigate, useLocation, useRevalidator } from "react-router-dom";
 import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import debounce from "lodash/debounce";
 import kebabcase from "lodash/kebabCase";
 import moment from "moment";
 import queryString from "query-string";
-import { useMutation, useQueryClient } from "react-query";
 import { Box } from "reflexbox";
 import EmptyState from "Components/EmptyState";
 import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
-import { useAppContext, useQuery } from "Hooks";
+import { useAppContext } from "Hooks";
 import styles from "./Workspaces.module.scss";
 import { appLink, queryStringOptions, FeatureFlag } from "Config/appConfig";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace, MemberRole, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
+
+// Route module: this file's `loader`/`action` are re-exported from app/routes/workspaceList.tsx,
+// the same split GlobalParameters.tsx and UserDetailed.tsx use (see those files for the fuller
+// rationale comments on serverFetch/errorLoading/ssr:true).
 
 interface FeatureLayoutProps {
   children?: React.ReactNode;
@@ -66,38 +70,109 @@ const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "name";
 const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
 
+type LoaderData = {
+  workspaces: PaginatedWorkspaceResponse | null;
+  errorLoading: boolean;
+};
+
+// Server loader (ssr:true - see GlobalParameters.tsx/CLAUDE.md for the fuller rationale). Reads
+// the same order/page/limit/sort search params the component below parses off `location.search`
+// - kept as parallel, not shared, logic: the loader only has `request.url` to work with, and the
+// component still needs order/sort for its own display concerns (sort-header state, pagination
+// controls) independent of the fetch. Note `query` (the search box's debounced param) is parsed
+// into the URL but was never actually forwarded to the API by the pre-loader code either - that
+// existing behaviour (search box updates the URL but doesn't filter server-side) is preserved
+// as-is rather than "fixed" as part of this conversion.
+export async function loader({ request }: { request: Request }): Promise<LoaderData> {
+  const url = new URL(request.url);
+  const parsedQuery = queryString.parse(url.search, queryStringOptions);
+  const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
+  const page = parsedQuery.page ?? DEFAULT_PAGE;
+  const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
+  const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
+
+  const workspacesUrlQuery = queryString.stringify({ order, page, limit, sort });
+
+  try {
+    const response = await serverFetch(request).get(serviceUrl.getWorkspaces({ query: workspacesUrlQuery }));
+    return { workspaces: response.data, errorLoading: false };
+  } catch (error) {
+    return { workspaces: null, errorLoading: true };
+  }
+}
+
+type ActionResult = {
+  ok: boolean;
+  errorMessage?: { title: string; message: string };
+};
+
+// Only one intent today (create) - kept intent-keyed anyway to match the established
+// GlobalParameters.tsx action shape/signature for any writes this route grows later.
+export async function action({ request }: { request: Request }): Promise<ActionResult> {
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
+
+  if (intent === "create") {
+    const body = JSON.parse(String(formData.get("body")));
+    try {
+      await serverFetch(request).post(serviceUrl.postWorkspace(), body);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, errorMessage: formatErrorMessage({ error }) };
+    }
+  }
+
+  return { ok: false };
+}
+
 const WorkspaceList: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAppContext();
-  const queryClient = useQueryClient();
+  const revalidator = useRevalidator();
   // TODO - make this read only
   const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
+  const { workspaces: workspacesData, errorLoading } = useLoaderData() as LoaderData;
+  const fetcher = useFetcher<ActionResult>();
+  // handleSubmit/Formik hand this component a `closeModal` at submit time (see
+  // WorkspaceCreateContent); the fetcher settles asynchronously (fetcher.state -> "idle"), so the
+  // callback is stashed here and invoked from the effect below only on success - the same
+  // "stay open with a spinner, close only on success" behaviour the old mutateAsync/then chain
+  // had (see GlobalParameters.tsx for the identical pattern).
+  const closeModalRef = useRef<(() => void) | null>(null);
 
   /**
    * Prepare queries and get some data
    */
   const parsedQuery = queryString.parse(location.search, queryStringOptions);
   const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
-  const page = parsedQuery.page ?? DEFAULT_PAGE;
-  const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
 
-  const workspacesUrlQuery = queryString.stringify({
-    order,
-    page,
-    limit,
-    sort,
-  });
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    const { ok, errorMessage } = fetcher.data;
+    if (ok) {
+      // Refresh the loader-driven list rather than react-query's queryClient.invalidateQueries -
+      // once the read is loader-driven, invalidateQueries is an inert no-op (see CLAUDE.md).
+      revalidator.revalidate();
+      notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
+      closeModalRef.current?.();
+      closeModalRef.current = null;
+    } else {
+      notify(
+        <ToastNotification kind="error" title="Something went wrong" subtitle={errorMessage?.message} />,
+      );
+    }
+  }, [fetcher.state, fetcher.data]);
 
-  const workspacesUrl = serviceUrl.getWorkspaces({ query: workspacesUrlQuery });
-
-  const createWorkspaceMutator = useMutation(resolver.postWorkspace);
-
-  const createWorkspace = async (values: { name: string | undefined }, success_fn?: (...args: any) => any) => {
-    try {
-      await createWorkspaceMutator.mutateAsync({
-        body: {
+  const createWorkspace = (values: { name: string | undefined }, success_fn?: (...args: any) => any) => {
+    closeModalRef.current = typeof success_fn === "function" ? success_fn : null;
+    fetcher.submit(
+      {
+        intent: "create",
+        body: JSON.stringify({
           name: kebabcase(values.name?.replace(`'`, "-")),
           displayName: values.name,
           members: [
@@ -106,24 +181,14 @@ const WorkspaceList: React.FC = () => {
               role: MemberRole.Owner,
             },
           ],
-        },
-      });
-      queryClient.invalidateQueries(workspacesUrl);
-      notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
-      if (typeof success_fn === "function") {
-        success_fn();
-      }
-    } catch (error) {
-      const errorMessages = formatErrorMessage({ error });
-      notify(<ToastNotification kind="error" title="Something went wrong" subtitle={errorMessages.message} />);
-    }
+        }),
+      },
+      { method: "post" },
+    );
   };
 
-  const {
-    data: workspacesData,
-    error: workspacesIsError,
-    isLoading: workspacesIsLoading,
-  } = useQuery<PaginatedWorkspaceResponse, string>(workspacesUrl);
+  const isCreatingWorkspace = fetcher.state !== "idle";
+  const isCreateWorkspaceError = Boolean(fetcher.data && !fetcher.data.ok);
 
   /**
    * Function that updates url search history to persist state
@@ -167,15 +232,7 @@ const WorkspaceList: React.FC = () => {
     });
   }
 
-  if (workspacesIsLoading) {
-    return (
-      <FeatureLayout handleSearchChange={handleSearchChange}>
-        <DataTableSkeleton />
-      </FeatureLayout>
-    );
-  }
-
-  if (workspacesIsError || !workspacesData) {
+  if (errorLoading || !workspacesData) {
     return (
       <FeatureLayout handleSearchChange={handleSearchChange}>
         <ErrorMessage />
@@ -184,7 +241,7 @@ const WorkspaceList: React.FC = () => {
   }
   return (
     <FeatureLayout handleSearchChange={handleSearchChange}>
-      {workspacesData && workspaceManagementEnabled && (
+      {workspaceManagementEnabled && (
         <ComposedModal
           composedModalProps={{ shouldCloseOnOverlayClick: true }}
           modalHeaderProps={{
@@ -196,7 +253,6 @@ const WorkspaceList: React.FC = () => {
               iconDescription="Create new version"
               onClick={openModal}
               size="md"
-              disabled={Boolean(workspacesIsError) || workspacesIsLoading}
               className={styles.createWorkspaceTrigger}
             >
               Create Workspace
@@ -208,8 +264,8 @@ const WorkspaceList: React.FC = () => {
               <WorkspaceCreateContent
                 closeModal={closeModal}
                 createWorkspace={createWorkspace}
-                isError={createWorkspaceMutator.isError}
-                isLoading={createWorkspaceMutator.isLoading}
+                isError={isCreateWorkspaceError}
+                isLoading={isCreatingWorkspace}
               />
             );
           }}

@@ -1,5 +1,5 @@
 import React from "react";
-import Workspaces from ".";
+import Workspaces, { action, loader } from "Features/Workspaces/Workspaces";
 import { Route } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,12 +16,19 @@ afterEach(() => {
   server.shutdown();
 });
 
+// Route-module test pattern (see GlobalParameters.spec.tsx): attach loader/action to the <Route>
+// the same way AppRoutes.tsx does via app/routes/workspaceList.tsx, so rtlContextRouterRender
+// actually exercises them instead of leaving useLoaderData() undefined.
+function renderWorkspaces() {
+  return global.rtlContextRouterRender(
+    <Route path={AppPath.WorkspaceList} loader={loader} action={action} element={<Workspaces />} />,
+    { route: appLink.workspaceList() },
+  );
+}
+
 describe("Workspaces --- Snapshot Test", () => {
   it("Capturing Snapshot of Workspaces", async () => {
-    const { baseElement } = global.rtlContextRouterRender(
-      <Route path={AppPath.WorkspaceList} element={<Workspaces />} />,
-      { route: appLink.workspaceList() }
-    );
+    const { baseElement } = renderWorkspaces();
     await screen.findByText("Tyson Workspace");
     expect(baseElement).toMatchSnapshot();
   });
@@ -29,9 +36,7 @@ describe("Workspaces --- Snapshot Test", () => {
 
 describe("Workspaces --- RTL", () => {
   test("Create new workspace", async () => {
-    global.rtlContextRouterRender(<Route path={AppPath.WorkspaceList} element={<Workspaces />} />, {
-      route: appLink.workspaceList(),
-    });
+    renderWorkspaces();
     const createWorkspaceButton = await screen.findByText(/^Create Workspace$/i);
     fireEvent.click(createWorkspaceButton);
     expect(screen.getByText(/^Scope your workflows and parameters to a workspace$/i)).toBeInTheDocument();
