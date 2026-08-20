@@ -8,15 +8,15 @@
     "analyze": "source-map-explorer build/client/assets/*.js",
     "build": "run-s build:vite build:move",
     "build:vite": "react-router build",
-    "build:move": "ncp build/client server/build",
+    "build:move": "node -e \"if(!require('fs').existsSync('build/server/index.js')){console.error('build/server/index.js missing - run build:vite first (react-router build), it emits build/client + build/server directly, nothing left to move');process.exit(1)}\"",
     "docker": "run-s build docker:build docker:run",
     "docker:build": "docker build -t webapp .",
-    "docker:run": "docker run -i -t -p 3000:3000 -e APP_ROOT=/app -e BASE_SERVICE_ENV_URL=http://localhost:8000 webapp",
+    "docker:run": "docker run -i -t -p 3000:3000 -e PORT=3000 -e APP_ROOT= -e PRODUCT_SERVICE_ENV_URL=http://localhost:8000/api -e CORE_SERVICE_ENV_URL=http://localhost:8000/api -e CORE_SERVICE_INTERNAL_ORIGIN= webapp",
     "lint": "eslint -f json -o lint-report.json ./src",
     "lint:staged": "eslint ./src",
     "prod": "run-s build prod:rewriteAssetPaths prod:server",
-    "prod:rewriteAssetPaths": "cross-env APP_ROOT=/local node server/scripts/rewriteAssetPaths.js",
-    "prod:server": "cd server && pnpm dev",
+    "prod:rewriteAssetPaths": "node -e \"console.log('rewriteAssetPaths removed - it substituted a /BMRG_APP_ROOT_CONTEXT token that appears nowhere in the SSR build output; window._SERVER_DATA injection in server/index.js is its replacement')\"",
+    "prod:server": "cd server && pnpm start",
     "start": "vite",
     "start:pf": "vite --mode portforward",
     "test": "cross-env TZ=UTC vitest",
@@ -118,6 +118,7 @@
     "jsdom": "^22.1.0",
     "lint-staged": "10.1.1",
     "miragejs": "^0.1.47",
+    "msw": "^2.15.0",
     "ncp": "^2.0.0",
     "npm-run-all": "4.1.5",
     "prettier": "3.0.3",
@@ -158,5 +159,10 @@
       "@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15": "patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch",
       "@boomerang-io/utils@1.1.0": "patches/@boomerang-io__utils@1.1.0.patch"
     }
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

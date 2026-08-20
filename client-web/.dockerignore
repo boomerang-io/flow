@@ -1,1 +1,15 @@
-node_modules
+# The Dockerfile only ever COPYs `server/` (minus its own node_modules - reinstalled in the
+# image) and `build/` (the frontend build output, expected to already exist before `docker
+# build` runs - see package.json's build script / CI's build-webapp job). Everything else here
+# just bloats the build context sent to the daemon.
+**/node_modules
+src
+app
+cypress
+public
+patches
+*.md
+.git
+.vscode
+coverage
+lint-report.json

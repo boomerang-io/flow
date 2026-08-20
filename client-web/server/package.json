@@ -1,19 +1,19 @@
 {
   "name": "boomerang-flow-server",
-  "version": "0.0.1",
-  "description": "Boomerang Flow Express Server",
+  "version": "1.0.0",
+  "description": "Boomerang Flow SSR server - wraps the react-router build (build/server) with Express and serves the browser assets (build/client). Replaces the old static-file @boomerang-io/webapp-spa-server, which has nothing to serve now that SSR is on (react-router.config.ts: ssr: true) and the frontend build no longer emits an index.html.",
+  "type": "module",
+  "private": true,
   "scripts": {
-    "start": "boomerang-webapp-server serve",
-    "dev": "boomerang-webapp-server serve -p \"config/.env.local\""
+    "start": "node index.js",
+    "dev": "NODE_ENV=development node --env-file=config/.env.local index.js"
   },
-  "contributors": [
-    {
-      "name": "Tim Bula",
-      "email": "trbula@us.ibm.com"
-    }
-  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
-    "@boomerang-io/webapp-spa-server": "1.2.1",
-    "replace-in-file": "^6.3.2"
+    "@react-router/node": "7.18.2",
+    "express": "^5.2.1",
+    "react-router": "7.18.2"
   }
 }

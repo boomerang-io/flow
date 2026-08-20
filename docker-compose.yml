@@ -21,8 +21,11 @@
 # Maven output path `service-core/target/service-core.jar` / `service-loader/target/service-loader.jar`
 # to already exist - this compose file does not invoke Maven itself.
 #
-# client-web is built from its own `pnpm install && pnpm run build` (see .github/workflows/ci-web.yml)
-# producing client-web/server/build before `docker compose build client-web` - see client-web/Dockerfile.
+# client-web is built from its own `pnpm install && pnpm run build` (see .github/workflows/ci-web.yml),
+# which emits client-web/build/client (browser assets) + client-web/build/server (the SSR request
+# handler - SSR is on, react-router.config.ts: ssr:true) directly - both must exist before
+# `docker compose build client-web` runs; see client-web/Dockerfile, which copies that build/
+# directory in alongside client-web/server (the Express server wrapping the SSR handler).
 #
 # Security posture: FLOW_SECURITY_ENABLED=false below is deliberate and TEMPORARY. There is no
 # login flow yet (specifications/authentication.md - the token-exchange endpoint is being built
@@ -94,6 +97,21 @@ services:
       # the gateway's single origin, so this stays same-origin (see docker/gateway/nginx.conf).
       PRODUCT_SERVICE_ENV_URL: /api/v2
       CORE_SERVICE_ENV_URL: /api/v2
+      # Server-side only (route loaders read it directly via process.env - Config/serverFetch.ts
+      # - it never reaches the browser). Direct container-to-container address on this compose
+      # network, bypassing the gateway, since the SSR Node process isn't behind it. NOTE: the
+      # loaders currently build request paths assuming a "/api/v2"-style prefix that only the
+      # browser's PRODUCT_SERVICE_ENV_URL carries (SSR falls back to a bare "/api" default - see
+      # Config/servicesConfig.ts) - that mismatch is a known, already-flagged gap upstream of this
+      # file (App.tsx's loader degrades to errorLoading rather than failing render), not something
+      # this compose file can paper over.
+      CORE_SERVICE_INTERNAL_ORIGIN: http://service-core:7700
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     depends_on:
       service-core:
         condition: service_healthy
@@ -108,7 +126,7 @@ services:
       - ./docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       client-web:
-        condition: service_started
+        condition: service_healthy
       service-core:
         condition: service_healthy
     networks: [flow]

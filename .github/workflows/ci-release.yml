@@ -242,7 +242,10 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          # 18 is EOL and can't even build this anymore - react-router/@react-router/dev/vite
+          # all declare engines.node >=20 (see client-web/Dockerfile for the runtime-side version
+          # of this same note). 22 matches the image base so build-time and run-time agree.
+          node-version: 22
           cache: 'pnpm'
           cache-dependency-path: client-web/pnpm-lock.yaml
       - name: Install dependencies
@@ -255,7 +258,11 @@ jobs:
         if: ${{ success() }}
         with:
           name: client-web-build
-          path: client-web/server/build
+          # SSR (react-router.config.ts: ssr:true) emits build/client (browser assets) AND
+          # build/server (the SSR handler module) - both are the real artifact now, not just
+          # build/client's old static index.html + assets. client-web/Dockerfile copies this
+          # whole directory in as a sibling of server/ (see its comments for why).
+          path: client-web/build
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
@@ -274,7 +281,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: client-web-build
-          path: ${{ github.workspace }}/client-web/server/build
+          path: ${{ github.workspace }}/client-web/build
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
