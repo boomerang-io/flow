@@ -308,8 +308,16 @@ public class AuditInterceptor {
     if (teamNameToAuditId.containsKey(name)) {
       return teamNameToAuditId.get(name);
     }
-    Optional<AuditEntity> optAuditEntity =
-        auditRepository.findFirstByScopeAndSelfName(AuditScope.WORKSPACE, name);
+    // Unlike createLog/updateLog, this runs while EVALUATING their arguments, so it sits outside
+    // their try/catch. Auditing must never fail the business call it is observing, so swallow
+    // here too - matching the rest of this class.
+    Optional<AuditEntity> optAuditEntity;
+    try {
+      optAuditEntity = auditRepository.findFirstByScopeAndSelfName(AuditScope.WORKSPACE, name);
+    } catch (Exception ex) {
+      LOGGER.error("Unable to look up Audit record for '{}' with exception: {}.", name, ex.toString());
+      return "";
+    }
     if (optAuditEntity.isPresent()) {
       teamNameToAuditId.put(name, optAuditEntity.get().getId());
       return optAuditEntity.get().getId();
