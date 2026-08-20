@@ -10,8 +10,7 @@ import isArray from "lodash/isArray";
 import moment from "moment-timezone";
 import queryString from "query-string";
 import type { SlotInfo } from "react-big-calendar";
-import { useQuery } from "react-query";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
 import Calendar from "Components/ScheduleCalendar";
 import ScheduleCreator from "Components/ScheduleCreator";
 import ScheduleEditor from "Components/ScheduleEditor";
@@ -20,7 +19,8 @@ import SchedulePanelList from "Components/SchedulePanelList";
 import { useWorkspaceContext } from "Hooks";
 import { scheduleStatusOptions } from "Constants";
 import { queryStringOptions, appLink } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 import type {
   CalendarDateRange,
   CalendarEntry,
@@ -34,6 +34,15 @@ import type {
   PaginatedSchedulesResponse,
 } from "Types";
 import styles from "./Schedules.module.scss";
+
+// Route module: this file's `loader` is attached to the route in app/routes/schedules.tsx (path
+// "/:workspace/schedules") rather than being defined inline there, following the
+// GlobalParameters.tsx reference conversion (see that file for the fuller rationale comment).
+// Only reads move here - the three writes (create/update/delete/toggle-status) live in
+// ScheduleCreator/ScheduleEditor/SchedulePanelList, which stay on their existing react-query
+// mutations (see the comment on each) because those components are also rendered by
+// WorkflowEditor/Schedule/Schedule.tsx, a second, not-yet-converted consumer this batch must not
+// break.
 
 // FilterableMultiSelect's item type requires an (optional) `disabled` field;
 // carry it alongside our domain types rather than widening them.
@@ -82,10 +91,81 @@ const defaultStatusArray = scheduleStatusOptions.map((statusObj) => statusObj.va
 const defaultFromDate = moment().startOf("month").unix();
 const defaultToDate = moment().endOf("month").unix();
 
+type LoaderData = {
+  workflowsData?: PaginatedWorkflowResponse;
+  schedulesData?: PaginatedSchedulesResponse;
+  calendarEntries: Array<CalendarEntry>;
+  errorLoadingWorkflows: boolean;
+  errorLoadingSchedules: boolean;
+  errorLoadingCalendar: boolean;
+};
+
+// Server loader (see CLAUDE.md client-web SSR direction) - runs in Node via serverFetch(request),
+// never the browser resolver/axios instance (see GlobalParameters.tsx for the fuller rationale).
+//
+// Sequencing: the calendar fetch is genuinely dependent on the schedules fetch (it needs the
+// resolved schedule ids), so it's an explicit `await` after `schedules` resolves rather than
+// fired in a `Promise.all` alongside it and gated after the fact - the previous client-side
+// version achieved the same thing with react-query's `enabled: hasScheduleData`. Workflows and
+// schedules are independent of each other, so those two do run without waiting on one another.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  const workspace = String(params.workspace);
+  const url = new URL(request.url);
+  const { statuses = defaultStatusArray, workflows: workflowsFilter } = queryString.parse(url.search, queryStringOptions);
+  const { fromDate = defaultFromDate, toDate = defaultToDate } = queryString.parse(url.search, queryStringOptions);
+
+  let workflowsData: PaginatedWorkflowResponse | undefined;
+  let errorLoadingWorkflows = false;
+  try {
+    const response = await serverFetch(request).get(
+      serviceUrl.workspace.workflow.getWorkflows({ workspace, query: `statuses=active,inactive` }),
+    );
+    workflowsData = response.data;
+  } catch (error) {
+    errorLoadingWorkflows = true;
+  }
+
+  let schedulesData: PaginatedSchedulesResponse | undefined;
+  let errorLoadingSchedules = false;
+  try {
+    const schedulesUrlQuery = queryString.stringify({ statuses, workflows: workflowsFilter }, queryStringOptions);
+    const response = await serverFetch(request).get(
+      serviceUrl.workspace.schedule.getSchedules({ workspace, query: schedulesUrlQuery }),
+    );
+    schedulesData = response.data;
+  } catch (error) {
+    errorLoadingSchedules = true;
+  }
+
+  let calendarEntries: Array<CalendarEntry> = [];
+  let errorLoadingCalendar = false;
+  const scheduleIds = (schedulesData?.content ?? []).map((schedule) => schedule.id);
+  if (scheduleIds.length > 0) {
+    try {
+      const calendarUrlQuery = queryString.stringify({ schedules: scheduleIds, fromDate, toDate }, queryStringOptions);
+      const response = await serverFetch(request).get(
+        serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace, query: calendarUrlQuery }),
+      );
+      calendarEntries = response.data ?? [];
+    } catch (error) {
+      errorLoadingCalendar = true;
+    }
+  }
+
+  return { workflowsData, schedulesData, calendarEntries, errorLoadingWorkflows, errorLoadingSchedules, errorLoadingCalendar };
+}
+
 export default function Schedules() {
   const navigate = useNavigate();
   const location = useLocation();
   const { workspace } = useWorkspaceContext();
+  const { workflowsData, schedulesData, calendarEntries, errorLoadingCalendar } = useLoaderData() as LoaderData;
   const [activeSchedule, setActiveSchedule] = React.useState<ScheduleUnion | undefined>();
   const [newSchedule, setNewSchedule] = React.useState<Pick<ScheduleDate, "dateSchedule" | "type"> | undefined>();
   const [isPanelOpen, setIsPanelOpen] = React.useState(false);
@@ -93,19 +173,15 @@ export default function Schedules() {
   const [isCreatorOpen, setIsCreatorOpen] = React.useState(false);
 
   /**
-   * Get schedule and calendar data
+   * URLs for the shared Schedule* components below - still computed client-side from the current
+   * filters (same as before conversion). They're no longer used to key a react-query read on this
+   * page (the loader above owns that), but ScheduleCreator/ScheduleEditor/SchedulePanelList still
+   * take them as props: those components are shared with WorkflowEditor/Schedule/Schedule.tsx
+   * (unconverted) and still call `queryClient.invalidateQueries(getSchedulesUrl/getCalendarUrl)`
+   * for that consumer's benefit - a no-op here, since this page has no react-query cache entry at
+   * that key, which is fine (see GlobalTokens.tsx for the same pattern).
    */
   const { statuses = defaultStatusArray, workflows } = queryString.parse(location.search, queryStringOptions);
-
-  /** Retrieve Workflows */
-  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({
-    workspace: workspace?.name,
-    query: `statuses=active,inactive`,
-  });
-  const workflowsQuery = useQuery<PaginatedWorkflowResponse, string>({
-    queryKey: getWorkflowsUrl,
-    queryFn: resolver.query(getWorkflowsUrl),
-  });
 
   const schedulesUrlQuery = queryString.stringify(
     {
@@ -116,20 +192,9 @@ export default function Schedules() {
   );
   const getSchedulesUrl = serviceUrl.workspace.schedule.getSchedules({ workspace: workspace?.name, query: schedulesUrlQuery });
 
-  const schedulesQuery = useQuery<PaginatedSchedulesResponse, string>({
-    queryKey: getSchedulesUrl,
-    queryFn: resolver.query(getSchedulesUrl),
-  });
-
   const { fromDate = defaultFromDate, toDate = defaultToDate } = queryString.parse(location.search, queryStringOptions);
 
-  let userScheduleIds = [];
-  if (schedulesQuery.data?.content) {
-    for (const schedule of schedulesQuery.data?.content) {
-      userScheduleIds.push(schedule.id);
-    }
-  }
-  const hasScheduleData = Boolean(userScheduleIds.length > 0);
+  const userScheduleIds = (schedulesData?.content ?? []).map((schedule) => schedule.id);
 
   const calendarUrlQuery = queryString.stringify(
     {
@@ -179,8 +244,8 @@ export default function Schedules() {
       return workflow.name === schedule.workflowRef;
     };
     let workflow: Workflow | undefined;
-    if (workflowsQuery.data && !workflow) {
-      const foundWorkflow = workflowsQuery.data?.content.find(workflowFindPredicate);
+    if (workflowsData && !workflow) {
+      const foundWorkflow = workflowsData.content.find(workflowFindPredicate);
       if (foundWorkflow) {
         workflow = foundWorkflow;
       }
@@ -191,13 +256,13 @@ export default function Schedules() {
 
   function getWorkflowFilter() {
     let workflowsList: Array<Workflow> = [];
-    if (workflowsQuery.data?.content) {
-      workflowsList = workflowsQuery.data.content;
+    if (workflowsData?.content) {
+      workflowsList = workflowsData.content;
     }
     return sortByProp(workflowsList, "name", "ASC");
   }
 
-  if (workspace && workflowsQuery.data) {
+  if (workspace && workflowsData) {
     const { workflows = "", statuses = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
     const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
@@ -275,17 +340,17 @@ export default function Schedules() {
               getCalendarUrl={getCalendarUrl}
               getSchedulesUrl={getSchedulesUrl}
               includeStatusFilter={false}
-              schedulesIsLoading={schedulesQuery.isLoading}
-              schedulesData={schedulesQuery.data}
+              schedulesIsLoading={false}
+              schedulesData={schedulesData}
               setActiveSchedule={handleSetActiveSchedule}
               setIsCreatorOpen={setIsCreatorOpen}
               setIsEditorOpen={setIsEditorOpen}
             />
             <CalendarView
               handleDateRangeChange={handleDateRangeChange}
-              hasScheduleData={hasScheduleData}
-              getCalendarUrl={getCalendarUrl}
-              schedules={schedulesQuery.data?.content}
+              calendarEntries={calendarEntries}
+              errorLoadingCalendar={errorLoadingCalendar}
+              schedules={schedulesData?.content}
               setActiveSchedule={handleSetActiveSchedule}
               setIsCreatorOpen={setIsCreatorOpen}
               setIsEditorOpen={setIsEditorOpen}
@@ -328,9 +393,9 @@ export default function Schedules() {
 }
 
 interface CalendarViewProps {
-  getCalendarUrl: string;
+  calendarEntries: Array<CalendarEntry>;
+  errorLoadingCalendar: boolean;
   handleDateRangeChange: (dateInfo: CalendarDateRange) => void;
-  hasScheduleData: boolean;
   schedules?: Array<ScheduleUnion>;
   setActiveSchedule: (schedule: ScheduleUnion) => void;
   setIsCreatorOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -340,16 +405,14 @@ interface CalendarViewProps {
   updateHistorySearch: (props: any) => void;
 }
 
+// calendarEntries now arrives already resolved from the route loader (see the loader's sequencing
+// comment above) instead of this component's own `useQuery({ enabled: hasScheduleData })` -
+// dropped along with the `isLoading` state that gated it (there's no client-side loading window
+// left to show once the loader has resolved before this renders).
 function CalendarView(props: CalendarViewProps) {
-  const calendarQuery = useQuery<Array<CalendarEntry>, string>({
-    queryKey: props.getCalendarUrl,
-    queryFn: resolver.query(props.getCalendarUrl),
-    enabled: props.hasScheduleData,
-  });
-
   const calendarEvents: Array<CalendarEvent> = [];
-  if (calendarQuery.data && props.schedules) {
-    for (let calendarEntry of calendarQuery.data) {
+  if (props.schedules) {
+    for (let calendarEntry of props.calendarEntries) {
       const matchingSchedule: ScheduleUnion | undefined = props.schedules.find(
         (schedule: ScheduleUnion) => schedule.id === calendarEntry.scheduleId,
       );
@@ -368,7 +431,7 @@ function CalendarView(props: CalendarViewProps) {
   }
 
   return (
-    <section className={styles.calendarContainer} data-is-loading={calendarQuery.isLoading}>
+    <section className={styles.calendarContainer} data-is-loading={props.errorLoadingCalendar}>
       <Calendar
         heightOffset={220}
         //@ts-ignore

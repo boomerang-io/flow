@@ -16,6 +16,7 @@ import cronstrue from "cronstrue";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { useWorkspaceContext } from "Hooks";
 import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { scheduleStatusOptions, scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
@@ -153,6 +154,10 @@ interface ScheduledListItemProps {
 function ScheduledListItem(props: ScheduledListItemProps) {
   const { workspace } = useWorkspaceContext();
   const queryClient = useQueryClient();
+  // SchedulePanelList is shared with WorkflowEditor/Schedule/Schedule.tsx (unconverted) - see the
+  // rationale comment in ScheduleCreator.tsx. Keeps `useMutation` + `invalidateQueries` for that
+  // consumer, adds `revalidator.revalidate()` for the loader-driven Schedules page.
+  const revalidator = useRevalidator();
   const [isToggleStatusModalOpen, setIsToggleStatusModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
 
@@ -193,6 +198,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
       );
       queryClient.invalidateQueries(props.getSchedulesUrl);
       queryClient.invalidateQueries(props.getCalendarUrl);
+      revalidator.revalidate();
     } catch (e) {
       notify(
         <ToastNotification
@@ -223,6 +229,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
       );
       queryClient.invalidateQueries(props.getSchedulesUrl);
       queryClient.invalidateQueries(props.getCalendarUrl);
+      revalidator.revalidate();
     } catch (e) {
       notify(
         <ToastNotification

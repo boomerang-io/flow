@@ -2,6 +2,7 @@ import React from "react";
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { useWorkspaceContext } from "Hooks";
 import { cronDayNumberMap } from "Utils/cronHelper";
@@ -23,6 +24,10 @@ interface ScheduleEditorProps {
 function ScheduleEditor(props: ScheduleEditorProps) {
   const queryClient = useQueryClient();
   const { workspace } = useWorkspaceContext();
+  // See the equivalent comment in ScheduleCreator.tsx: shared with WorkflowEditor/Schedule/
+  // Schedule.tsx (unconverted), so this stays on `useMutation` + `invalidateQueries` for that
+  // consumer, with `revalidator.revalidate()` added alongside for this (loader-driven) page.
+  const revalidator = useRevalidator();
   /**
    * Update schedule
    */
@@ -41,6 +46,7 @@ function ScheduleEditor(props: ScheduleEditorProps) {
       );
       queryClient.invalidateQueries(props.getCalendarUrl);
       queryClient.invalidateQueries(props.getSchedulesUrl);
+      revalidator.revalidate();
       return;
     }
   };
