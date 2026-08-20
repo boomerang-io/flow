@@ -21,14 +21,22 @@ import styles from "./form.module.scss";
 type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
 
 interface CreateServiceTokenFormProps {
-  closeModal: () => void;
-  goToStep: (args: any) => void;
-  saveValues: (args: any) => void;
+  // Injected by ModalFlow's cloneElement at runtime (see CreateToken.tsx, which renders this
+  // component as a ModalFlow child without passing these directly) - optional here only to
+  // reflect that the JSX call site doesn't supply them explicitly, not because the form works
+  // without them.
+  closeModal?: () => void;
+  goToStep?: (args: any) => void;
+  saveValues?: (args: any) => void;
   setIsTokenCreated: () => any;
   type: TokenScopeType;
-  principal: string | null;
+  // Optional/nullable to match CreateServiceTokenButtonProps.principal (CreateToken.tsx) - some
+  // callers (e.g. a User-type token) have no principal at all.
+  principal?: string | null;
   actorKind?: TokenActorKindType;
   getTokensUrl: string;
+  // See CreateToken.tsx's CreateServiceTokenButtonProps.onSuccess for why this exists.
+  onSuccess?: () => void;
 }
 
 function CreateServiceTokenForm({
@@ -40,7 +48,8 @@ function CreateServiceTokenForm({
   principal,
   actorKind,
   getTokensUrl,
-}: CreateServiceTokenFormProps | any) {
+  onSuccess,
+}: CreateServiceTokenFormProps) {
   const queryClient = useQueryClient();
   const tokenRequestMutation = useMutation(resolver.postToken);
 
@@ -59,9 +68,10 @@ function CreateServiceTokenForm({
     try {
       const response = await tokenRequestMutation.mutateAsync({ body: request });
       queryClient.invalidateQueries(getTokensUrl);
-      saveValues(response.data);
+      onSuccess?.();
+      saveValues?.(response.data);
       setIsTokenCreated();
-      goToStep(1);
+      goToStep?.(1);
     } catch (error) {
       //noop
     }

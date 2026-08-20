@@ -17,6 +17,12 @@ interface CreateServiceTokenButtonProps {
   // Orthogonal to `type` - badges a `key` token minted for a Workflow's own use (see
   // TokenActorKind). Undefined for a normal human-driven token.
   actorKind?: TokenActorKindType;
+  // Fires after a successful create, in addition to the Form's own
+  // queryClient.invalidateQueries(getTokensUrl). Needed by loader-driven callers (the admin
+  // tokens route) whose list has no react-query cache entry for invalidateQueries to hit -
+  // see Form/index.tsx. Callers still on react-query reads (workspace tokens tab, the
+  // workflow editor's Configure tab via TokenSection) can omit it.
+  onSuccess?: () => void;
   [key: string]: any; // This allows for any additional optional props
 }
 
@@ -25,6 +31,7 @@ function CreateServiceTokenButton({
   principal,
   getTokensUrl,
   actorKind,
+  onSuccess,
   ...otherProps
 }: CreateServiceTokenButtonProps) {
   const [isTokenCreated, setIsTokenCreated] = React.useState(false);
@@ -62,6 +69,7 @@ function CreateServiceTokenButton({
         principal={principal}
         actorKind={actorKind}
         getTokensUrl={getTokensUrl}
+        onSuccess={onSuccess}
       />
       <CreateServiceTokenResult />
     </ModalFlow>
