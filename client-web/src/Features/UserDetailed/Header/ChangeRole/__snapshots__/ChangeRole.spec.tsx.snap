@@ -24,6 +24,7 @@ exports[`ChangeRole --- Snapshot Test > Capturing Snapshot of ChangeRole 1`] = `
                 class="cds--radio-button-wrapper"
               >
                 <input
+                  checked=""
                   class="cds--radio-button"
                   id="platform-role-admin"
                   name="platform-role"
