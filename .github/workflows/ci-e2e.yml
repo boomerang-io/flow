@@ -1,0 +1,123 @@
+name: CI E2E
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Triggers the workflow on push (branch) or pull request events
+  push:
+    branches:
+      - main
+    paths:
+      - 'service-core/**'
+      - 'service-loader/**'
+      - 'lib-common/**'
+      - 'client-web/**'
+      - 'e2e/**'
+      - 'docker-compose.yml'
+      - 'docker/**'
+      - '.github/workflows/ci-e2e.yml'
+  pull_request:
+    paths:
+      - 'service-core/**'
+      - 'service-loader/**'
+      - 'lib-common/**'
+      - 'client-web/**'
+      - 'e2e/**'
+      - 'docker-compose.yml'
+      - 'docker/**'
+      - '.github/workflows/ci-e2e.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Java and Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+          server-id: github
+          settings-path: ${{ github.workspace }}
+
+      # Produces service-core/target/service-core.jar and service-loader/target/service-loader.jar
+      # in place - the compose file's build context for each is its own module directory, so no
+      # copying is needed (see docker-compose.yml's header comment for the jar contract).
+      - name: Build service-core and service-loader jars
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mvn clean package --projects service-core,service-loader --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Install Node.js for client-web build
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'pnpm'
+          cache-dependency-path: client-web/pnpm-lock.yaml
+
+      - name: Build client-web
+        working-directory: client-web
+        run: |
+          pnpm install
+          pnpm run build
+
+      - name: Build stack images
+        run: docker compose build service-loader service-core client-web
+
+      - name: Start stack
+        run: docker compose up -d --wait --wait-timeout 180
+
+      - name: Install Node.js for Playwright
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Stack logs on failure
+        if: ${{ failure() }}
+        run: docker compose logs --no-color
+
+      - name: Tear down stack
+        if: ${{ always() }}
+        run: docker compose down -v
+
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

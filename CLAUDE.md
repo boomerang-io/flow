@@ -16,6 +16,29 @@ This is a **Java 25 / Spring Boot 4 monorepo** (plus one pnpm/Vite frontend). Cu
 | `lib-common`     | Shared domain model, entities, enums, error handling. (Being dissolved per Q-202.)       |
 | `client-web`     | The React 17 + Carbon v11 webapp (DD-04), folded in from `flow.client.web` with full history at the v4 line. Its own image; served only in `standalone` mode. |
 
+## Response Style (BLUF, not caveman)
+
+Applies to every answer, review, and report in this repo. Borrowed from BLUF (US Army AR 25-50),
+Smart Brevity, MADR "considered options", RFC 2119, and Google's technical-writing guidance;
+CAVEMAN's "drop articles / fragments OK" half is explicitly rejected — grammar carries nuance.
+
+1. First sentence = the answer or decision. Never restate the question.
+2. Add one "why it matters" line when the consequence or risk isn't obvious.
+3. Two or more options → a table: `Option | Fits when | Cost/risk | Recommend`. One-sentence
+   intro, cells ≤ 2 sentences, end with the pick.
+4. Every complex item MUST carry one concrete example: a code snippet, a command, or a real
+   file / field / route name.
+5. Rules use RFC 2119 words (MUST / SHOULD / MAY); everything else is plain sentences.
+6. Use the repo's own terms. MUST NOT coin labels or shorthand ("phase on the wire") — say the
+   literal thing ("`phase` is serialised in `/api/v1/dispatcher` responses, not in the public
+   API"). If a new term is unavoidable, define it once where it first appears.
+7. No preamble, pleasantries, or hedging — but keep articles and full sentences; fragments
+   are banned.
+8. Numbers over adjectives ("3 of 6 handlers", not "several"); quote errors and paths verbatim;
+   cite `file:line` or a commit hash for any claim about the code.
+9. Length follows the question: one line for a fact; ≤ ~150 words plus one table for a design
+   choice; tables over prose for anything with more than two dimensions.
+
 ## You Are Working On: v5
 
 v3 is legacy (IBM maintain a fork — do not regress to v3 patterns). v4 split flow/engine as
@@ -119,6 +142,25 @@ behaviour, never "simplify" onto framework defaults.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
 - Agent endpoints (`AgentControllerV1`) are **unauthenticated**; engine is `permitAll()`.
+- **`flow.security.enabled=false` (the documented local-dev/E2E posture, see "Running Locally")
+  breaks identity-dependent endpoints**, found building the E2E stack (2026-08-20, code-read,
+  not yet runtime-confirmed — Maven wasn't available in that session):
+  `IdentityService.getCurrentPrincipal()`/`getCurrentScope()` call `token.getPrincipal()` on
+  whatever `getCurrentIdentity()` returns without a null check, and `getCurrentIdentity()`
+  returns `null` whenever `SecurityContextHolder`'s `Authentication.getDetails()` isn't a
+  `Token` — exactly the case with security disabled, since `AuthenticationFilter` (the only
+  thing that ever sets it) is `@ConditionalOnProperty(flow.security.enabled=true)`. `GET
+  /api/v2/profile` and `/api/v2/context` (`UserService.getCurrentUser`/`isCurrentUserAdmin`)
+  NPE as a result — and even a null-safe `IdentityService` alone doesn't fix it, because
+  `getUserByID(null)` hits `userRepository.findById(null)`, which Spring Data throws on too.
+  Both endpoints back `client-web`'s app-level bootstrap (`useAppContext()`, called from a
+  layout loader on every route), so **the webapp cannot render any page** under this
+  configuration until fixed — reproducing exactly the "blank page forever" failure mode
+  `specifications/authentication.md` already documents for the unauthenticated case, just via
+  a different code path. Direct API calls that don't resolve identity (workspace/workflow
+  CRUD, run submission) are unaffected. Needs a deliberate decision (anonymous/default
+  identity when security is off?), not a drive-by null-check — same propose→confirm treatment
+  as the rest of `specifications/authentication.md`.
 - ~~Two properties gate security halves~~ **DONE**: unified into a single `flow.security.enabled`,
   whose default derives from `flow.mode` (`STANDALONE`→on, `ENGINE`→off) unless set explicitly —
   see `FlowSecurityProperties`. It gates both `AuthenticationFilter` and the interceptor config.
@@ -155,30 +197,44 @@ behaviour, never "simplify" onto framework defaults.
 
 ## Running Locally
 
-```bash
-docker run --name local-mongo -d mongo:latest
-
-# Seed data and indexes
-docker run -e JAVA_OPTS="-Dspring.data.mongodb.uri=mongodb://localhost:27017/boomerang \
-  -Dflow.mongo.collection.prefix=flow \
-  -Dspring.profiles.active=flow" \
-  --network host --platform linux/amd64 boomerangio/flow-loader:latest
-
-mvn clean install
-mvn spring-boot:run -pl service-core
-```
-
-The webapp runs separately against it (`standalone` mode only):
+A `docker-compose.yml` at the repo root brings up the full product: Mongo, the one-shot
+`service-loader` migration/seed Job (gated with `service_completed_successfully` so
+`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
+an `nginx` gateway that puts client-web and service-core behind one origin (service-core has
+no CORS support — see `docker/gateway/nginx.conf`). `service-agent` is intentionally not part
+of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
+comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
+API — build locally instead:
 
 ```bash
-cd client-web && pnpm install && pnpm start   # Vite dev server; BASE_URL ← PRODUCT_SERVICE_ENV_URL
+# service-core and service-loader are Java services — Maven builds the jars, compose does not.
+mvn -pl service-core,service-loader -am clean package -DskipTests
+
+# client-web is built from its own tooling (see .github/workflows/ci-web.yml):
+cd client-web && pnpm install && pnpm run build && cd ..
+
+docker compose up --build
 ```
 
-Security can be disabled for local development (one property; default derives from `flow.mode`):
+`service-core` is on `http://localhost:7700` directly, `client-web` on `http://localhost:3000`
+directly, and the unified browser-facing origin (what E2E and manual UI testing should use) is
+`http://localhost:8080`.
+
+Security is off for this stack (`FLOW_SECURITY_ENABLED=false` in `docker-compose.yml`). This
+is **deliberate and temporary**, not the target state: there is no login flow yet
+(`specifications/authentication.md`), so a secured stack would just show a blank page. The
+property still derives from `flow.mode` and defaults on for `standalone`, so it must be set
+explicitly to disable it:
 
 ```properties
 flow.security.enabled=false
 ```
+
+**E2E**: `e2e/` (repo root, not under `client-web/` — it drives the real UI against a real
+backend together, not the webapp in isolation) is a small Playwright suite. `cd e2e && npm ci
+&& npx playwright test` once the compose stack above is up. `.github/workflows/ci-e2e.yml`
+runs the same thing in CI. The retired Cypress suite under `client-web/cypress` ran against
+the webapp's own mocked API (miragejs), was never wired into CI, and is not a substitute.
 
 ## Error Response Format
 

@@ -1,0 +1,117 @@
+# Local/E2E stack for the merged product: Mongo, the one-shot migration/seed Job, the
+# service-core deployable, and client-web, fronted by a small nginx gateway that gives the
+# browser a single origin (service-core has no CORS support - see docker/gateway/nginx.conf).
+#
+# service-agent is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
+# cluster (see CLAUDE.md's Technology Stack table) - there is no docker-based dispatcher yet
+# (that's Phase 4 / T7 territory). Without a cluster to talk to, an agent container here would
+# just crash-loop for zero E2E value: every journey this stack can prove (create a workspace,
+# create a workflow, submit a run and see it reach a real `ready`/`invalid` status, exercise an
+# admin screen) resolves entirely inside service-core. Only reaching `running`/`succeeded` on a
+# run needs a connected agent - out of scope until Phase 4 ships a local runtime.
+#
+# service-core and service-loader are Java services built by Maven, NOT by this compose file.
+# Build the jars first, then build/run the stack:
+#
+#   mvn -pl service-core,service-loader -am clean package -DskipTests
+#   docker compose up --build service-loader service-core
+#
+# Contract: each Dockerfile does `ADD ./target/<module>.jar service.jar` with its own module
+# directory as the build context (e.g. `context: ./service-core`), so it expects the ordinary
+# Maven output path `service-core/target/service-core.jar` / `service-loader/target/service-loader.jar`
+# to already exist - this compose file does not invoke Maven itself.
+#
+# client-web is built from its own `pnpm install && pnpm run build` (see .github/workflows/ci-web.yml)
+# producing client-web/server/build before `docker compose build client-web` - see client-web/Dockerfile.
+#
+# Security posture: FLOW_SECURITY_ENABLED=false below is deliberate and TEMPORARY. There is no
+# login flow yet (specifications/authentication.md - the token-exchange endpoint is being built
+# in parallel), so a secured stack would just show a permanently blank page. Once that lands,
+# this must flip to a real authenticated flow - do not read "security off" as the target state.
+name: flow
+
+services:
+  mongo:
+    image: mongo:7.0
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [flow]
+
+  # Run-once migration + seed Job (DD-07). Must complete successfully before service-core
+  # starts, or the app boots against an unmigrated database - enforced below via
+  # `service_completed_successfully` rather than a fixed sleep/wait.
+  service-loader:
+    build:
+      context: ./service-loader
+      dockerfile: Dockerfile
+    environment:
+      FLOW_MONGO_URI: mongodb://mongo:27017/boomerang
+      FLOW_MONGO_COLLECTION_PREFIX: flow
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks: [flow]
+    restart: "no"
+
+  service-core:
+    build:
+      context: ./service-core
+      dockerfile: Dockerfile
+    ports:
+      - "7700:7700"
+    environment:
+      SPRING_MONGODB_URI: mongodb://mongo:27017/boomerang
+      FLOW_MONGO_COLLECTION_PREFIX: flow
+      FLOW_MODE: standalone
+      # Temporary - see the security posture note above.
+      FLOW_SECURITY_ENABLED: "false"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      service-loader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: [flow]
+
+  client-web:
+    build:
+      context: ./client-web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      APP_ROOT: ""
+      PORT: "3000"
+      # Relative, not absolute - the browser reaches both client-web and service-core through
+      # the gateway's single origin, so this stays same-origin (see docker/gateway/nginx.conf).
+      PRODUCT_SERVICE_ENV_URL: /api/v2
+      CORE_SERVICE_ENV_URL: /api/v2
+    depends_on:
+      service-core:
+        condition: service_healthy
+    networks: [flow]
+
+  # Single browser-facing origin for the compose stack (see docker/gateway/nginx.conf for why).
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      client-web:
+        condition: service_started
+      service-core:
+        condition: service_healthy
+    networks: [flow]
+
+networks:
+  flow:
