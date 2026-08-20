@@ -5,7 +5,7 @@ import { FlagsProvider } from "flagged";
 import { render as rtlRender } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, setLogger } from "react-query";
 import { vi } from "vitest";
-import { AppContextProvider } from "State/context";
+import { AppContextProvider, WorkspaceContextProvider } from "State/context";
 import {
   featureFlags as featureFlagsFixture,
   workspaces as workspacesFixture,
@@ -94,6 +94,10 @@ const defaultContextValue = {
   userWorkflows: userWorkflowsFixture,
 };
 
+// Production always reaches workspace-scoped screens through WorkspaceContainer, which supplies
+// this once its workspace query resolves - specs render those components directly, so supply it here.
+const defaultWorkspaceValue = { workspace: workspacesFixture.content[0] };
+
 const feature = featureFlagsFixture.features;
 
 const defaultFeatures = {
@@ -112,7 +116,7 @@ const defaultFeatures = {
 
 function rtlContextRouterRender(
   ui,
-  { contextValue = {}, initialState = {}, route = "/", queryConfig = {}, ...options } = {}
+  { contextValue = {}, workspaceValue = {}, initialState = {}, route = "/", queryConfig = {}, ...options } = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -126,9 +130,11 @@ function rtlContextRouterRender(
     ...rtlRender(
       <FlagsProvider features={defaultFeatures}>
         <AppContextProvider value={{ ...defaultContextValue, ...contextValue }}>
-          <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
-          </QueryClientProvider>
+          <WorkspaceContextProvider value={{ ...defaultWorkspaceValue, ...workspaceValue }}>
+            <QueryClientProvider client={queryClient}>
+              <RouterProvider router={router} />
+            </QueryClientProvider>
+          </WorkspaceContextProvider>
         </AppContextProvider>
       </FlagsProvider>,
       options

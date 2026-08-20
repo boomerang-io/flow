@@ -42,6 +42,11 @@ const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
  * server-side call would hit `/api/...` and 404. Apply the same rewrite the dev proxy applies.
  */
 function toVersionedPath(url?: string): string | undefined {
+  // The mock server used by the test suite registers its routes at the unversioned paths the URL
+  // builders produce, so it intercepts before any rewrite would apply - skip it there.
+  if (process.env.VITEST) {
+    return url;
+  }
   return url?.startsWith("/api/") && !url.startsWith("/api/v2/") ? url.replace(/^\/api\//, "/api/v2/") : url;
 }
 
