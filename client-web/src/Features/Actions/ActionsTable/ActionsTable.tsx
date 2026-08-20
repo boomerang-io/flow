@@ -16,7 +16,6 @@ import ApproveRejectActions from "./ApproveRejectActions";
 import ManualTask from "./ManualTask";
 
 interface ActionsTableProps {
-  actionsQueryToRefetch: string;
   isLoading: boolean;
   location: any;
   tableData: {
@@ -269,7 +268,6 @@ function ActionsTable(props: ActionsTableProps) {
                             </Button>
                           )}
                           onSuccessfulApprovalRejection={onSuccessfulApprovalRejection}
-                          queryToRefetch={props.actionsQueryToRefetch}
                           type="reject"
                         />
                         <ApproveRejectActions
@@ -288,7 +286,6 @@ function ActionsTable(props: ActionsTableProps) {
                             </Button>
                           )}
                           onSuccessfulApprovalRejection={onSuccessfulApprovalRejection}
-                          queryToRefetch={props.actionsQueryToRefetch}
                           type="approve"
                         />
                       </div>
@@ -369,7 +366,6 @@ function ActionsTable(props: ActionsTableProps) {
                                   ))}
                                 </TableRow>
                               )}
-                              queryToRefetch={props.actionsQueryToRefetch}
                             />
                           ) : (
                             <ApproveRejectActions
@@ -407,7 +403,6 @@ function ActionsTable(props: ActionsTableProps) {
                                 </TableRow>
                               )}
                               onSuccessfulApprovalRejection={onSuccessfulApprovalRejection}
-                              queryToRefetch={props.actionsQueryToRefetch}
                               type="single"
                               isAlreadyApproved={isAlreadyApproved}
                             />

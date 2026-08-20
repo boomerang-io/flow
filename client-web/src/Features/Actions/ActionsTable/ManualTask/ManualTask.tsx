@@ -6,24 +6,22 @@ import {
   ToastNotification,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { useQueryClient, useMutation } from "react-query";
-import { useWorkspaceContext } from "Hooks";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import "Styles/markdown.css";
 import EmptyGraphic from "Components/EmptyState/EmptyGraphic";
 import styles from "./ManualTask.module.scss";
-import { resolver } from "Config/servicesConfig";
+import type { ActionResult } from "Features/Actions/Actions";
 import { Action, ApprovalStatus, ModalTriggerProps } from "Types";
 
 type ManualTaskProps = {
   action: Action;
   handleCloseModal?: () => void;
   modalTrigger: (args: ModalTriggerProps) => React.ReactNode;
-  queryToRefetch: string;
 };
 
-function ManualTask({ action, handleCloseModal, modalTrigger, queryToRefetch }: ManualTaskProps) {
+function ManualTask({ action, handleCloseModal, modalTrigger }: ManualTaskProps) {
   return (
     <ComposedModal
       modalTrigger={modalTrigger}
@@ -36,7 +34,7 @@ function ManualTask({ action, handleCloseModal, modalTrigger, queryToRefetch }: 
         handleCloseModal && handleCloseModal();
       }}
     >
-      {(props) => <Form action={action} queryToRefetch={queryToRefetch} {...props} />}
+      {(props) => <Form action={action} {...props} />}
     </ComposedModal>
   );
 }
@@ -44,34 +42,25 @@ function ManualTask({ action, handleCloseModal, modalTrigger, queryToRefetch }: 
 type FormProps = {
   action: Action;
   closeModal: () => void;
-  queryToRefetch: string;
 };
 
-function Form({ action, closeModal, queryToRefetch }: FormProps) {
-  const queryClient = useQueryClient();
-  const { workspace } = useWorkspaceContext();
+function Form({ action, closeModal }: FormProps) {
+  const revalidator = useRevalidator();
+  const fetcher = useFetcher<ActionResult>();
   const { id, instructions, status } = action ?? {};
+  // The fetcher settles asynchronously; the closeModal callback is invoked from the effect below
+  // only on success, matching the previous mutateAsync/then-based behaviour (modal stays open with
+  // the inline error banner on failure). Refresh via useRevalidator().revalidate() rather than
+  // react-query's queryClient.invalidateQueries - once the read is loader-driven, invalidateQueries
+  // is an inert no-op (see CLAUDE.md).
+  const closeModalRef = useRef<(() => void) | null>(null);
 
-  const {
-    mutateAsync: approvalMutator,
-    isLoading: approvalsIsLoading,
-    error: approvalsError,
-  } = useMutation(resolver.putAction, {
-    onSuccess: () => {
-      queryClient.invalidateQueries(queryToRefetch);
-    },
-  });
-
-  const handleSubmit = async (isApproved: boolean) => {
-    const body = [
-      {
-        id,
-        approved: isApproved,
-        comments: "",
-      },
-    ];
-    try {
-      await approvalMutator({ workspace: workspace?.name, body });
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (fetcher.data.ok) {
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
@@ -79,10 +68,26 @@ function Form({ action, closeModal, queryToRefetch }: FormProps) {
           subtitle="Successfully submitted manual task completion request"
         />,
       );
-      closeModal();
-    } catch (err) {
-      // noop
+      closeModalRef.current?.();
+      closeModalRef.current = null;
     }
+    // failures leave the modal open - the InlineNotification below (driven off
+    // approvalsError/fetcher.data) surfaces the error inline, matching the previous behaviour.
+  }, [fetcher.state, fetcher.data]);
+
+  const approvalsIsLoading = fetcher.state !== "idle";
+  const approvalsError = Boolean(fetcher.data && !fetcher.data.ok);
+
+  const handleSubmit = (isApproved: boolean) => {
+    const body = [
+      {
+        id,
+        approved: isApproved,
+        comments: "",
+      },
+    ];
+    closeModalRef.current = closeModal;
+    fetcher.submit({ intent: "putAction", body: JSON.stringify(body) }, { method: "post" });
   };
 
   if (status !== ApprovalStatus.Submitted) {

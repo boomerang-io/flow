@@ -1,8 +1,8 @@
-import React from "react";
-import { useQueryClient, useMutation } from "react-query";
+import React, { useEffect, useRef } from "react";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import { useAppContext, useWorkspaceContext } from "Hooks";
+import { useAppContext } from "Hooks";
 import {
   ComposedModal,
   Loading,
@@ -22,7 +22,7 @@ import {
   StructuredListRow,
   StructuredListCell,
 } from "@carbon/react";
-import { resolver } from "Config/servicesConfig";
+import type { ActionResult } from "Features/Actions/Actions";
 import { Action, ApprovalStatus } from "Types";
 import dateHelper from "Utils/dateHelper";
 import styles from "./ApproveRejectActions.module.scss";
@@ -39,7 +39,6 @@ type ApproveRejectActionsProps = {
   handleCloseModal?: (args?: any) => any;
   modalTrigger: (args: any) => any;
   onSuccessfulApprovalRejection: () => any;
-  queryToRefetch: string;
   type: "single" | "approve" | "reject";
 };
 
@@ -48,7 +47,6 @@ function ApproveRejectActions({
   isAlreadyApproved = false,
   handleCloseModal,
   modalTrigger,
-  queryToRefetch,
   onSuccessfulApprovalRejection,
   type,
 }: ApproveRejectActionsProps) {
@@ -81,7 +79,6 @@ function ApproveRejectActions({
           actions={actions}
           isAlreadyApproved={isAlreadyApproved}
           onSuccessfulApprovalRejection={onSuccessfulApprovalRejection}
-          queryToRefetch={queryToRefetch}
           type={type}
           {...props}
         />
@@ -95,34 +92,53 @@ type FormProps = {
   closeModal: (args?: any) => void;
   isAlreadyApproved: boolean;
   onSuccessfulApprovalRejection: () => any;
-  queryToRefetch: string;
   type: string;
 };
 
-function Form({
-  actions,
-  closeModal,
-  isAlreadyApproved,
-  onSuccessfulApprovalRejection,
-  queryToRefetch,
-  type,
-}: FormProps) {
+function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalRejection, type }: FormProps) {
   const { user } = useAppContext();
-  const { workspace } = useWorkspaceContext();
-  const queryClient = useQueryClient();
+  const revalidator = useRevalidator();
+  const fetcher = useFetcher<ActionResult>();
   const [approveLoading, setApproveLoading] = React.useState(false);
   const [rejectLoading, setRejectLoading] = React.useState(false);
+  // handleActions hands this a { notificationTitle, notificationSubtitle } pair at submit time;
+  // the fetcher settles asynchronously, so it's stashed here and consumed from the effect below
+  // once the PUT actually resolves - see GlobalParameters.tsx for the identical pattern. Refresh
+  // via useRevalidator().revalidate() rather than react-query's queryClient.invalidateQueries -
+  // once the read is loader-driven, invalidateQueries is an inert no-op (see CLAUDE.md).
+  const pendingNotificationRef = useRef<{ title: string; subtitle: string } | null>(null);
 
-  /** Update actions */
-  const {
-    mutateAsync: actionsMutation,
-    isLoading: actionsIsLoading,
-    isError: actionsPutError,
-  } = useMutation(resolver.putAction);
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    setApproveLoading(false);
+    setRejectLoading(false);
+    if (fetcher.data.ok) {
+      onSuccessfulApprovalRejection();
+      revalidator.revalidate();
+      if (pendingNotificationRef.current) {
+        notify(
+          <ToastNotification
+            kind="success"
+            subtitle={pendingNotificationRef.current.subtitle}
+            title={pendingNotificationRef.current.title}
+          />,
+        );
+      }
+      pendingNotificationRef.current = null;
+      closeModal();
+    }
+    // failures leave the modal open - the InlineNotification below (driven off
+    // actionsPutError/fetcher.data) surfaces the error inline, matching the previous behaviour.
+  }, [fetcher.state, fetcher.data]);
+
+  const actionsIsLoading = fetcher.state !== "idle";
+  const actionsPutError = Boolean(fetcher.data && !fetcher.data.ok);
 
   const handleActions =
     ({ approved, notificationSubtitle, notificationTitle, setLoading, values }: any) =>
-    async () => {
+    () => {
       typeof setLoading === "function" && setLoading(true);
       let request: any = [];
 
@@ -130,17 +146,8 @@ function Form({
         request.push({ ...values[actionId], id: actionId, approved });
       });
 
-      try {
-        await actionsMutation({ workspace: workspace?.name, body: request });
-        typeof setLoading === "function" && setLoading(false);
-        onSuccessfulApprovalRejection();
-        queryClient.invalidateQueries(queryToRefetch);
-        notify(<ToastNotification kind="success" subtitle={notificationSubtitle} title={notificationTitle} />);
-        closeModal();
-      } catch (err) {
-        typeof setLoading === "function" && setLoading(false);
-        // noop
-      }
+      pendingNotificationRef.current = { title: notificationTitle, subtitle: notificationSubtitle };
+      fetcher.submit({ intent: "putAction", body: JSON.stringify(request) }, { method: "post" });
     };
 
   let initialValues: any = {};

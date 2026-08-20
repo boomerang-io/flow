@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { InlineLoading } from "@carbon/react";
 import { CircleFill, CircleStroke, Popup } from "@carbon/react/icons";
 import { ComposedModal, ToastNotification, notify, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { useMutation, useQueryClient } from "react-query";
-import { Link } from "react-router-dom";
-import { resolver } from "Config/servicesConfig";
+import { Link, useFetcher, useRevalidator } from "react-router-dom";
+import type { ActionResult } from "Features/Integrations/Integrations";
 import { ModalTriggerProps } from "Types";
 import ModalContent from "./ModalContent";
 import styles from "./integrationCard.module.scss";
@@ -13,45 +12,51 @@ import styles from "./integrationCard.module.scss";
 interface IntegrationCardProps {
   workspaceName: string;
   data: any;
-  url: string;
 }
 
-// Each integration type unlinks through its own endpoint; keyed by the integration's display name.
-const unlinkResolverByIntegrationName: Record<string, typeof resolver.postGitHubAppUnlink> = {
-  GitHub: resolver.postGitHubAppUnlink,
-};
-
-const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, url }) => {
-  const queryClient = useQueryClient();
+const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }) => {
+  const revalidator = useRevalidator();
+  const fetcher = useFetcher<ActionResult>();
   const [errorMessage, seterrorMessage] = useState(null);
+  // The fetcher settles asynchronously (fetcher.state -> "idle"), so the closeModal callback
+  // handed to us at submit time is stashed here and invoked from the effect below only on
+  // success - the modal stays open (with the inline error banner below) on failure so the user
+  // can retry, matching the previous mutateAsync/then-based behaviour. See GlobalParameters.tsx
+  // for the identical pattern.
+  const closeModalRef = useRef<(() => void) | null>(null);
 
-  const unlinkIntegrationMutator = useMutation(unlinkResolverByIntegrationName[data.name]);
-
-  const handleDisable = async (closeModal: () => void) => {
-    const requestBody = {
-      workspace: workspaceName,
-      ref: data.ref,
-    };
-    try {
-      await unlinkIntegrationMutator.mutateAsync({ body: requestBody });
+  // Refresh the loader-driven integrations list rather than react-query's
+  // queryClient.invalidateQueries - once the read is loader-driven, invalidateQueries is an
+  // inert no-op (see CLAUDE.md).
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (fetcher.data.ok) {
       notify(
         <ToastNotification
           kind="success"
           title={`Disable Integration`}
-          subtitle={`${data.name} successfully disabled`}
+          subtitle={`${fetcher.data.name} successfully disabled`}
         />,
       );
-      queryClient.invalidateQueries(url);
-      closeModal();
-    } catch {
+      revalidator.revalidate();
+      closeModalRef.current?.();
+      closeModalRef.current = null;
+    } else {
       notify(
         <ToastNotification
           kind="error"
           title="Something's Wrong"
-          subtitle={`Request to disable ${data.name.toLowerCase()} failed`}
+          subtitle={`Request to disable ${fetcher.data.name.toLowerCase()} failed`}
         />,
       );
     }
+  }, [fetcher.state, fetcher.data]);
+
+  const handleDisable = (closeModal: () => void) => {
+    closeModalRef.current = closeModal;
+    fetcher.submit({ intent: "disconnect", name: data.name, workspace: workspaceName, ref: data.ref }, { method: "post" });
   };
 
   const handleEnable = async (closeModal: () => void) => {
@@ -68,6 +73,10 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, 
       //no-op
     }
   };
+
+  const isDisabling = fetcher.state !== "idle";
+  const disableError = Boolean(fetcher.data && !fetcher.data.ok);
+  const disableErrorMessage = fetcher.data && !fetcher.data.ok ? fetcher.data.errorMessage : null;
 
   return (
     <ComposedModal
@@ -100,7 +109,7 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, 
             </section>
             <Popup size={24} className={styles.cardIcon} />
             <section className={styles.launch}></section>
-            {unlinkIntegrationMutator.isLoading ? (
+            {isDisabling ? (
               <InlineLoading
                 description="Loading.."
                 style={{ position: "absolute", left: "0.5rem", top: "0", width: "fit-content" }}
@@ -125,10 +134,10 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data, 
       {({ closeModal }) => (
         <ModalContent
           closeModal={closeModal}
-          error={unlinkIntegrationMutator.error}
+          error={disableError}
           handleEnable={handleEnable}
           handleDisable={handleDisable}
-          errorMessage={errorMessage}
+          errorMessage={errorMessage ?? disableErrorMessage}
           data={data}
         />
       )}
