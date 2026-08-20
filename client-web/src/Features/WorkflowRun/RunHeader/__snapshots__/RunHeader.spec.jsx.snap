@@ -11,14 +11,13 @@ exports[`ExecutionHeader --- Snapshot > Capturing Snapshot of ExecutionHeader 1`
     <h3
       style="font-style: italic;"
     >
-      useContext must be inside a Provider with a value
+      Cannot destructure property 'initiatedByRef' of 'workflowRun' as it is undefined.
     </h3>
     <pre
       style="padding: 0.5rem; background-color: rgba(200, 200, 200, 0.5);"
     >
-      Error: useContext must be inside a Provider with a value
-    at Module.useContext (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/src/State/context/index.tsx:18:30)
-    at RunHeader (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/src/Features/WorkflowRun/RunHeader/RunHeader.tsx:39:25)
+      TypeError: Cannot destructure property 'initiatedByRef' of 'workflowRun' as it is undefined.
+    at RunHeader (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/src/Features/WorkflowRun/RunHeader/RunHeader.tsx:45:11)
     at renderWithHooks (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
     at mountIndeterminateComponent (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
     at beginWork (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
@@ -27,6 +26,7 @@ exports[`ExecutionHeader --- Snapshot > Capturing Snapshot of ExecutionHeader 1`
     at workLoopSync (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
     at renderRootSync (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:26473:7)
     at recoverFromConcurrentError (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:25889:20)
+    at performConcurrentWorkOnRoot (/Users/tysonlawrie/Workspaces/boomerang-io/flow.service.workflow/client-web/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:25789:22)
     </pre>
     <p>
       💿 Hey developer 👋
