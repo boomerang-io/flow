@@ -10,12 +10,11 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { Helmet } from "react-helmet";
-import { useMutation } from "react-query";
+import { useFetcher } from "react-router-dom";
 import TokenSection from "Components/TokenSection";
 import { TokenType } from "Constants";
-import { formatErrorMessage } from "@boomerang-io/utils";
-import { resolver } from "Config/servicesConfig";
 import type { FlowUser } from "Types";
+import type { UserProfileActionResult } from "../UserProfile";
 import styles from "./Settings.module.scss";
 import UpdateBasicDetails from "./UpdateBasicDetails";
 
@@ -28,26 +27,35 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
   const [copyTokenText, setCopyTokenText] = useState("Copy ID");
   const canEdit = userManagementEnabled;
 
-  const removeUserMutator = useMutation(resolver.deleteUser);
+  // Bare useFetcher() -> the nearest matched route's action (Features/UserProfile/UserProfile.tsx
+  // via app/routes/profile.tsx). The account being closed is resolved there from the session, not
+  // from `user.id` in this component - see that action's SECURITY comment.
+  const fetcher = useFetcher<UserProfileActionResult>();
+  const result = fetcher.data;
 
   const workspaceCount = user.teams?.length ?? 0;
 
-  const removeWorkspace = async () => {
-    try {
-      await removeUserMutator.mutateAsync({ userId: user.id });
-      notify(
-        <ToastNotification title="Close Account" subtitle="Request to close your account successful" kind="success" />,
-      );
-    } catch (error) {
-      const errorMessages = formatErrorMessage({ error, defaultMessage: "Unable to close the account." });
-      notify(
+  // Replaces the mutateAsync try/catch: the fetcher settles asynchronously, so the notify() calls
+  // fire off the settled result instead.
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !result || result.intent !== "deleteAccount") {
+      return;
+    }
+    notify(
+      result.ok ? (
+        <ToastNotification title="Close Account" subtitle="Request to close your account successful" kind="success" />
+      ) : (
         <ToastNotification
           title="Close Account"
-          subtitle={`${errorMessages.message}. Please contact support.`}
+          subtitle={`${result.errorMessage?.message}. Please contact support.`}
           kind="error"
-        />,
-      );
-    }
+        />
+      ),
+    );
+  }, [fetcher.state, result]);
+
+  const removeWorkspace = () => {
+    fetcher.submit({ intent: "deleteAccount" }, { method: "post" });
   };
 
   return (

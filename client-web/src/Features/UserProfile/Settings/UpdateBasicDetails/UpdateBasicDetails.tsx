@@ -1,6 +1,5 @@
 import React from "react";
-import { useMutation } from "react-query";
-import { useRevalidator } from "react-router-dom";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import { Formik } from "formik";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
 import {
@@ -10,8 +9,8 @@ import {
   TextInput,
   Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { resolver } from "Config/servicesConfig";
 import * as Yup from "yup";
+import type { UserProfileActionResult } from "../../UserProfile";
 import styles from "./UpdateBasicDetails.module.scss";
 import { FlowUser } from "Types";
 
@@ -21,33 +20,46 @@ interface UpdateBasicDetailsProps {
 }
 
 const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, user }) => {
-  // The profile is now root-loader-driven (Features/App/App.tsx), not a react-query cache entry -
+  // The profile is root-loader-driven (Features/App/App.tsx), not a react-query cache entry -
   // revalidate() re-runs that loader; queryClient.invalidateQueries(getUserProfile()) would be a
   // silent no-op.
   const revalidator = useRevalidator();
-  const updateMutator = useMutation(resolver.patchProfile);
-  const handleUpdate = async (values: { displayName: string }) => {
-    console.log("Values", values);
-    const request = {
-      displayName: values.displayName,
-    };
+  // Bare useFetcher() -> the nearest matched route's action, i.e. Features/UserProfile/UserProfile.tsx
+  // via app/routes/profile.tsx. That action issues the PATCH with serverFetch(request), which
+  // forwards the caller's session cookie; the previous useMutation(resolver.patchProfile) call is
+  // gone. See UserProfile.tsx's action for why the target stays `PATCH /profile` (session-scoped)
+  // rather than a user-id-bearing route.
+  const fetcher = useFetcher<UserProfileActionResult>();
+  const isSubmitting = fetcher.state !== "idle";
+  const result = fetcher.data;
+  const isError = Boolean(result && !result.ok);
 
-    try {
-      await updateMutator.mutateAsync({ body: request });
+  // The fetcher settles asynchronously, so the success/failure handling that used to sit in
+  // handleUpdate's try/catch runs here off the settled result instead.
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !result) {
+      return;
+    }
+    if (result.ok) {
       revalidator.revalidate();
-      notify(
-        <ToastNotification kind="success" title="Update Profile" subtitle="Profile successfully updated" />
-      );
+      notify(<ToastNotification kind="success" title="Update Profile" subtitle="Profile successfully updated" />);
       closeModal();
-    } catch (error) {
+    } else {
       notify(<ToastNotification kind="error" subtitle="Failed to update profile" title="Something's Wrong" />);
     }
+    // closeModal/revalidator identities are not stable across renders; keying the effect on the
+    // settled fetcher result is what makes it fire once per submission.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, result]);
+
+  const handleUpdate = (values: { displayName: string }) => {
+    fetcher.submit({ intent: "updateProfile", displayName: values.displayName }, { method: "post" });
   };
 
   let buttonText = "Save";
-  if (updateMutator.isLoading) {
+  if (isSubmitting) {
     buttonText = "Saving...";
-  } else if (updateMutator.isError) {
+  } else if (isError) {
     buttonText = "Try again";
   }
 
@@ -64,12 +76,12 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
       })}
     >
       {(formikProps) => {
-        const { values, setFieldValue, handleSubmit, errors, touched, handleChange } = formikProps;
+        const { values, handleSubmit, errors, handleChange } = formikProps;
         return (
           <ModalFlowForm>
             <ModalBody>
               <div className={styles.modalInputContainer}>
-                {updateMutator.isLoading && <Loading />}
+                {isSubmitting && <Loading />}
                 <TextInput
                   id="displayName"
                   data-testid="text-input-profile-displayname"
@@ -78,7 +90,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
                   value={values.displayName}
                   onChange={handleChange}
                 />
-                {Boolean(updateMutator.error) && (
+                {isError && (
                   <InlineNotification
                     lowContrast
                     kind="error"
@@ -93,9 +105,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
                 Cancel
               </Button>
               <Button
-                disabled={Boolean(
-                  errors.displayName || updateMutator.isLoading || updateMutator.error || updateMutator.isLoading,
-                )}
+                disabled={Boolean(errors.displayName) || isSubmitting}
                 onClick={() => handleSubmit()}
                 data-testid="save-profile-displayname"
               >
