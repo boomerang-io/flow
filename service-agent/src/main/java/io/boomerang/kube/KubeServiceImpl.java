@@ -1,6 +1,7 @@
 package io.boomerang.kube;
 
 import io.boomerang.common.model.RunParam;
+import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.ConfigMapList;
@@ -15,6 +16,7 @@ import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -108,35 +110,38 @@ public class KubeServiceImpl implements KubeService {
   }
 
   protected String getPVCName(Map<String, String> labels) {
-    try {
-      PersistentVolumeClaimList pvcList = client.persistentVolumeClaims().withLabels(labels).list();
+    PersistentVolumeClaimList pvcList = client.persistentVolumeClaims().withLabels(labels).list();
 
-      LOGGER.info("PVC List: " + pvcList.toString());
+    LOGGER.debug("PVC List: " + pvcList);
 
-      if (!pvcList.getItems().isEmpty()) {
-        LOGGER.info(
-            " PVCs() - Found "
-                + pvcList.getItems().size()
-                + " persistentvolumeclaims: "
-                + pvcList.getItems().stream()
-                    .reduce(
-                        "",
-                        (pvcNames, pvc) ->
-                            pvcNames +=
-                                pvc.getMetadata().getName()
-                                    + "("
-                                    + pvc.getMetadata().getCreationTimestamp()
-                                    + ")",
-                        String::concat));
-        if (pvcList.getItems().get(0).getMetadata().getName() != null) {
-          LOGGER.info(" Chosen PVC Name: " + pvcList.getItems().get(0).getMetadata().getName());
-          return pvcList.getItems().get(0).getMetadata().getName();
-        }
-      }
-    } catch (Exception e) {
-      LOGGER.error(e);
+    List<PersistentVolumeClaim> pvcs = pvcList.getItems();
+    if (pvcs.isEmpty()) {
+      throw new KubeRuntimeException(
+          "No PersistentVolumeClaim found matching label selector: " + labels);
     }
-    return "";
+    if (pvcs.size() > 1) {
+      LOGGER.warn(
+          "Found "
+              + pvcs.size()
+              + " PersistentVolumeClaims matching label selector "
+              + labels
+              + ", using the first: "
+              + pvcs.stream()
+                  .map(
+                      pvc ->
+                          pvc.getMetadata().getName()
+                              + "("
+                              + pvc.getMetadata().getCreationTimestamp()
+                              + ")")
+                  .collect(Collectors.joining(", ")));
+    }
+    String name = pvcs.get(0).getMetadata().getName();
+    if (name == null) {
+      throw new KubeRuntimeException(
+          "PersistentVolumeClaim matching label selector " + labels + " has no name.");
+    }
+    LOGGER.debug(" Chosen PVC Name: " + name);
+    return name;
   }
 
   @Override
@@ -396,36 +401,37 @@ public class KubeServiceImpl implements KubeService {
   }
 
   protected String getConfigMapName(Map<String, String> labels) {
-    try {
-      ConfigMapList configMapList = client.configMaps().withLabels(labels).list();
+    ConfigMapList configMapList = client.configMaps().withLabels(labels).list();
 
-      LOGGER.info("ConfigMap List: " + configMapList.toString());
+    LOGGER.debug("ConfigMap List: " + configMapList);
 
-      if (!configMapList.getItems().isEmpty()) {
-        LOGGER.info(
-            " ConfigMaps() - Found "
-                + configMapList.getItems().size()
-                + " persistentvolumeclaims: "
-                + configMapList.getItems().stream()
-                    .reduce(
-                        "",
-                        (cmNames, cm) ->
-                            cmNames +=
-                                cm.getMetadata().getName()
-                                    + "("
-                                    + cm.getMetadata().getCreationTimestamp()
-                                    + ")",
-                        String::concat));
-        if (configMapList.getItems().get(0).getMetadata().getName() != null) {
-          LOGGER.info(
-              " Chosen ConfigMap Name: " + configMapList.getItems().get(0).getMetadata().getName());
-          return configMapList.getItems().get(0).getMetadata().getName();
-        }
-      }
-    } catch (Exception e) {
-      LOGGER.error(e);
+    List<ConfigMap> configMaps = configMapList.getItems();
+    if (configMaps.isEmpty()) {
+      throw new KubeRuntimeException(
+          "No ConfigMap found matching label selector: " + labels);
     }
-    return "";
+    if (configMaps.size() > 1) {
+      LOGGER.warn(
+          "Found "
+              + configMaps.size()
+              + " ConfigMaps matching label selector "
+              + labels
+              + ", using the first: "
+              + configMaps.stream()
+                  .map(
+                      cm ->
+                          cm.getMetadata().getName()
+                              + "("
+                              + cm.getMetadata().getCreationTimestamp()
+                              + ")")
+                  .collect(Collectors.joining(", ")));
+    }
+    String name = configMaps.get(0).getMetadata().getName();
+    if (name == null) {
+      throw new KubeRuntimeException("ConfigMap matching label selector " + labels + " has no name.");
+    }
+    LOGGER.debug(" Chosen ConfigMap Name: " + name);
+    return name;
   }
 
   protected Boolean isTaskRunResultTooLarge(Map<String, String> labels) {

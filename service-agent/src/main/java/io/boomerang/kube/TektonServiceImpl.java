@@ -3,6 +3,7 @@ package io.boomerang.kube;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.boomerang.agent.WorkspaceService;
+import io.boomerang.common.enums.WorkspaceType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskEnvVar;
@@ -39,6 +40,7 @@ import java.lang.reflect.Type;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -190,8 +192,7 @@ public class TektonServiceImpl implements TektonService {
             //        boolean pvcExists =
             //            kubeService.checkWorkspacePVCExists(workspaceRef, ws.getType(), false);
             //        if (pvcExists) {
-            if ("workflow".equalsIgnoreCase(ws.getType())
-                || "workflowrun".equalsIgnoreCase(ws.getType())) {
+            if (WorkspaceType.fromLabel(ws.getType()).isPresent()) {
               WorkspaceDeclaration wsWorkspaceDeclaration = new WorkspaceDeclaration();
               wsWorkspaceDeclaration.setName(
                   helperKubeService.getPrefixVol() + "-ws-" + ws.getType());
@@ -201,7 +202,7 @@ public class TektonServiceImpl implements TektonService {
                       : "/workspace/" + ws.getType();
               wsWorkspaceDeclaration.setMountPath(mountPath);
               String description =
-                  "workflow".equals(ws.getType())
+                  (WorkspaceType.fromLabel(ws.getType()).orElse(null) == WorkspaceType.workflow)
                       ? "Storage for a workflow across execution"
                       : "Storage for the specific workflow execution";
               wsWorkspaceDeclaration.setDescription(description);
@@ -333,30 +334,38 @@ public class TektonServiceImpl implements TektonService {
     imagePullSecrets.add(imagePullSecret);
 
     /*
-     * Define environment variables made up of
+     * Define environment variables made up of, in increasing precedence (later entries win
+     * on a name collision):
      * - Proxy (if enabled)
-     * - Boomerang Flow
      * - Debug and CI
-     * - Task defined
+     * - One PARAM_<NAME> per Task Param
+     * - Task defined envVars
      */
-    List<EnvVar> tknEnvVars = new ArrayList<>();
-    tknEnvVars.addAll(helperKubeService.createProxyEnvVars());
-    //    @deprecated - no need to create default params. Can be provided if needed.
-    //    tknEnvVars.addAll(helperKubeService.createEnvVars(workflowId, workflowActivityId,
-    // taskName, taskActivityId));
-    tknEnvVars.add(helperKubeService.createEnvVar("DEBUG", debug.toString()));
-    tknEnvVars.add(helperKubeService.createEnvVar("CI", "true"));
+    Map<String, EnvVar> tknEnvVarsByName = new LinkedHashMap<>();
+    helperKubeService
+        .createProxyEnvVars()
+        .forEach(var -> tknEnvVarsByName.put(var.getName(), var));
+    tknEnvVarsByName.put("DEBUG", helperKubeService.createEnvVar("DEBUG", debug.toString()));
+    tknEnvVarsByName.put("CI", helperKubeService.createEnvVar("CI", "true"));
+    params.forEach(
+        p -> {
+          String paramEnvName =
+              "PARAM_" + p.getName().toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
+          tknEnvVarsByName.put(
+              paramEnvName,
+              helperKubeService.createEnvVar(
+                  paramEnvName, helperKubeService.paramValueAsString(p.getValue())));
+        });
     if (envVars != null) {
       envVars.forEach(
-          var -> {
-            tknEnvVars.add(helperKubeService.createEnvVar(var.getName(), var.getValue()));
-          });
+          var ->
+              tknEnvVarsByName.put(
+                  var.getName(), helperKubeService.createEnvVar(var.getName(), var.getValue())));
     }
+    List<EnvVar> tknEnvVars = new ArrayList<>(tknEnvVarsByName.values());
 
     /*
      * Define Task Params and Task Spec Params
-     * Additionally default an environment variable for the Task Param prefixed with PARAM_
-     * TODO: change this to handle objects and Params easier.
      */
     List<ParamSpec> taskSpecParams = new ArrayList<>();
     List<Param> taskParams = new ArrayList<>();
@@ -368,10 +377,8 @@ public class TektonServiceImpl implements TektonService {
           taskSpecParams.add(taskSpecParam);
           Param taskParam = new Param();
           taskParam.setName(p.getName());
-          taskParam.setValue(new ParamValue((String) p.getValue()));
+          taskParam.setValue(new ParamValue(helperKubeService.paramValueAsString(p.getValue())));
           taskParams.add(taskParam);
-          //      TODO Determine if we need this.
-          //      envVars.add(helperKubeService.createEnvVar("PARAM_" + key.toUpperCase(), value));
         });
 
     /*

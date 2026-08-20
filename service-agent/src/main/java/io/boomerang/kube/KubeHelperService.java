@@ -1,6 +1,7 @@
 package io.boomerang.kube;
 
 import io.boomerang.common.model.RunParam;
+import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.LabelSelector;
@@ -24,6 +25,8 @@ import org.springframework.stereotype.Component;
 public class KubeHelperService {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeHelperService.class);
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Value("${proxy.enable}")
   protected Boolean proxyEnabled;
@@ -127,14 +130,25 @@ public class KubeHelperService {
     LOGGER.info("Building ConfigMap Data");
     Map<String, String> data = new HashMap<>();
     if (params != null && !params.isEmpty()) {
-      params.stream()
-          .forEach(
-              p -> {
-                data.put(p.getName(), p.getValue().toString());
-              });
+      params.stream().forEach(p -> data.put(p.getName(), paramValueAsString(p.getValue())));
     }
 
     return data;
+  }
+
+  /**
+   * Return a param value as a String: a String value is returned unchanged, a null value
+   * becomes an empty String, and anything else (object, array, number, boolean) is
+   * JSON-serialised.
+   */
+  protected String paramValueAsString(Object value) {
+    if (value == null) {
+      return "";
+    }
+    if (value instanceof String stringValue) {
+      return stringValue;
+    }
+    return OBJECT_MAPPER.writeValueAsString(value);
   }
 
   protected String createConfigMapProp(Map<String, String> properties) {

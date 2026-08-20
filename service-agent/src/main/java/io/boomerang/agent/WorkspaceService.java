@@ -3,6 +3,7 @@ package io.boomerang.agent;
 import tools.jackson.databind.ObjectMapper;
 import io.boomerang.agent.model.Response;
 import io.boomerang.agent.model.WorkspaceRequest;
+import io.boomerang.common.enums.WorkspaceType;
 import io.boomerang.common.model.WorkflowWorkspaceSpec;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
@@ -47,8 +48,7 @@ public class WorkspaceService {
     Response response =
         new Response("0", "Workspace (" + workspace.getName() + ") has been created successfully.");
     LOGGER.info("CreateWorkspace Request: " + workspace.toString());
-    if (workspace != null
-        && ("workflow".equals(workspace.getType()) || "workfowRun".equals(workspace.getType()))) {
+    if (workspace != null && WorkspaceType.fromLabel(workspace.getType()).isPresent()) {
       ObjectMapper mapper = new ObjectMapper();
       try {
         // Based on the Workspace Type we set the workspaceRef to be the WorkflowRef or the
@@ -103,7 +103,9 @@ public class WorkspaceService {
   }
 
   public String getWorkspaceRef(String workspaceType, String workflowRef, String workflowRunRef) {
-    return "workflow".equals(workspaceType) ? workflowRef : workflowRunRef;
+    return (WorkspaceType.fromLabel(workspaceType).orElse(null) == WorkspaceType.workflow)
+        ? workflowRef
+        : workflowRunRef;
   }
 
   /*
@@ -118,7 +120,7 @@ public class WorkspaceService {
       // Based on the Workspace Type we set the workspaceRef to be the WorkflowRef or the
       // WorkflowRunRef
       String workspaceRef =
-          "workflow".equals(workspace.getType())
+          (WorkspaceType.fromLabel(workspace.getType()).orElse(null) == WorkspaceType.workflow)
               ? workspace.getWorkflowRef()
               : workspace.getWorkflowRunRef();
       kubeService.deleteWorkspacePVC(workspaceRef, workspace.getType());

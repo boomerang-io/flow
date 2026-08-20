@@ -66,37 +66,42 @@ public class TaskWatcher implements Watcher<TaskRun> {
             condition.setMessage("The TaskRun was cancelled successfully.");
             latch.countDown();
           }
+          break;
         case "MODIFIED":
-          if (resource.getStatus().getConditions() != null
-              && !resource.getStatus().getConditions().get(0).getMessage().isEmpty()
-              && resource.getStatus().getConditions().get(0).getMessage().contains("rpc error")) {
+          String modifiedMessage = resource.getStatus().getConditions().get(0).getMessage();
+          if (modifiedMessage != null
+              && !modifiedMessage.isEmpty()
+              && modifiedMessage.contains("rpc error")) {
             LOGGER.info(" Task Failed due to RPC error");
             condition = resource.getStatus().getConditions().get(0);
             condition.setStatus("False");
             condition.setReason("TaskRunFailed");
-            condition.setMessage(resource.getStatus().getConditions().get(0).getMessage());
+            condition.setMessage(modifiedMessage);
             latch.countDown();
             //             TODO need to have the task cancelled.
           }
+          break;
+        default:
+          break;
       }
       switch (taskStatus) {
         case "False":
           condition = resource.getStatus().getConditions().get(0);
-          if (!resource.getStatus().getConditions().get(0).getMessage().isEmpty()
-              && resource
-                  .getStatus()
-                  .getConditions()
-                  .get(0)
-                  .getMessage()
-                  .contains("exited with code 1")) {
-            LOGGER.info(
-                " Task Failed. " + resource.getStatus().getConditions().get(0).getMessage());
+          String falseMessage = condition.getMessage();
+          if (falseMessage != null
+              && !falseMessage.isEmpty()
+              && falseMessage.contains("exited with code 1")) {
+            LOGGER.info(" Task Failed. " + falseMessage);
             condition.setMessage("Task exited with error. View logs to learn more.");
           }
           latch.countDown();
+          break;
         case "True":
           condition = resource.getStatus().getConditions().get(0);
           latch.countDown();
+          break;
+        default:
+          break;
       }
     }
   }
