@@ -1,0 +1,676 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContainer 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_179192"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_268f38 --bordered"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <div
+              class="_headerNav_268f38"
+            >
+              <nav
+                aria-label="Breadcrumb"
+              >
+                <ol
+                  class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+                >
+                  <li
+                    class="cds--breadcrumb-item"
+                  >
+                    <a
+                      class="cds--link"
+                      data-discover="true"
+                      href="/home"
+                    >
+                      Home
+                    </a>
+                  </li>
+                  <li
+                    class="cds--breadcrumb-item"
+                  >
+                    <a
+                      class="cds--link"
+                      data-discover="true"
+                      href="/tyson-workspace/activity"
+                    >
+                      Activity
+                    </a>
+                  </li>
+                  <li
+                    class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                  >
+                    <p
+                      class="cds--link"
+                    >
+                      test-workflow
+                    </p>
+                  </li>
+                </ol>
+              </nav>
+              <button
+                class="_workflowAdvancedDetailTrigger_268f38"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M26,2H8A2,2,0,0,0,6,4V8H4v2H6v5H4v2H6v5H4v2H6v4a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V4A2,2,0,0,0,26,2Zm0,26H8V24h2V22H8V17h2V15H8V10h2V8H8V4H26Z"
+                  />
+                  <path
+                    d="M14 8H22V10H14z"
+                  />
+                  <path
+                    d="M14 15H22V17H14z"
+                  />
+                  <path
+                    d="M14 22H22V24H14z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <div
+              style="display: flex;"
+            >
+              <h1
+                class="cds--bmrg-feature-header-title"
+              >
+                Activity detail
+              </h1>
+            </div>
+          </div>
+        </section>
+        <div
+          class="_content_268f38"
+        >
+          <dl
+            class="_data_268f38"
+          >
+            <dt
+              class="_dataTitle_268f38"
+            >
+              Workspace
+            </dt>
+            <dd
+              class="_dataValue_268f38"
+            >
+              Tyson Workspace
+            </dd>
+          </dl>
+          <dl
+            class="_data_268f38"
+          >
+            <dt
+              class="_dataTitle_268f38"
+            >
+              Version
+            </dt>
+            <dd
+              class="_dataValue_268f38"
+            >
+              1
+            </dd>
+          </dl>
+          <dl
+            class="_data_268f38"
+          >
+            <dt
+              class="_dataTitle_268f38"
+            >
+              Initiated by
+            </dt>
+            <dd
+              aria-hidden="false"
+              aria-label="robot"
+              role="img"
+            >
+              🤖
+            </dd>
+          </dl>
+          <dl
+            class="_data_268f38"
+          >
+            <dt
+              class="_dataTitle_268f38"
+            >
+              Trigger
+            </dt>
+            <dd
+              class="_dataValue_268f38"
+            >
+              manual
+            </dd>
+          </dl>
+          <dl
+            class="_data_268f38"
+          >
+            <dt
+              class="_dataTitle_268f38"
+            >
+              Start time
+            </dt>
+            <dd
+              class="_dataValue_268f38"
+            >
+              2019-09-03 03:00 PM
+            </dd>
+          </dl>
+          <dl
+            class="_dataButton_268f38"
+          />
+        </div>
+      </header>
+      <section
+        aria-label="Executions"
+        class="_executionResultContainer_179192"
+      >
+        <aside
+          class="_container_ea4d0d "
+        >
+          <section
+            class="_statusBlock_ea4d0d _succeeded_ea4d0d"
+          >
+            <div
+              class="_duration_ea4d0d"
+            >
+              <p
+                class="_title_ea4d0d"
+              >
+                Duration
+              </p>
+              <time
+                class="_value_ea4d0d"
+              >
+                5min
+              </time>
+            </div>
+            <div
+              class="_status_ea4d0d"
+            >
+              <p
+                class="_title_ea4d0d"
+              >
+                Status
+              </p>
+              <div
+                class="_statusData_ea4d0d"
+              >
+                <svg
+                  aria-label="succeeded"
+                  class="_statusIcon_ea4d0d"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                  />
+                  <path
+                    d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                  />
+                </svg>
+                <p
+                  class="_value_ea4d0d"
+                >
+                  Succeeded
+                </p>
+              </div>
+            </div>
+            <button
+              class="_collapseButton_ea4d0d"
+            >
+              <svg
+                aria-hidden="true"
+                class="_chevron_ea4d0d"
+                fill="currentColor"
+                focusable="false"
+                height="32"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="32"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10 16 20 6 21.4 7.4 12.8 16 21.4 24.6 20 26z"
+                />
+              </svg>
+            </button>
+          </section>
+          <section
+            class="_taskbar_ea4d0d"
+          >
+            <p
+              class="_taskbarTitle_ea4d0d"
+            >
+              Task log
+            </p>
+            <span
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+            >
+              <div
+                class="cds--tooltip-trigger__wrapper"
+              >
+                <button
+                  aria-labelledby="tooltip-[generated-id]"
+                  class="cds--btn--icon-only cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                  data-testid="taskbar-button"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                    />
+                    <path
+                      d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <span
+                aria-hidden="true"
+                class="cds--popover"
+                id="tooltip-[generated-id]"
+                role="tooltip"
+              >
+                <span
+                  class="cds--popover-content cds--tooltip-content"
+                >
+                  Change sort direction (by start time)
+                </span>
+                <span
+                  class="cds--popover-caret"
+                />
+              </span>
+            </span>
+          </section>
+          <ul
+            class="_tasklog_ea4d0d"
+          >
+            <li
+              class="_taskitem_fe6a3c _succeeded_fe6a3c"
+              id="task-Execute Shell 1"
+            >
+              <div
+                class="_progressBar_fe6a3c"
+              />
+              <section
+                class="_header_fe6a3c"
+              >
+                <div
+                  class="_title_fe6a3c"
+                >
+                  <svg
+                    aria-label="succeeded"
+                    class="_taskIcon_fe6a3c"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p
+                    data-testid="taskitem-name"
+                    title="Execute Shell 1"
+                  >
+                    Execute Shell 1
+                  </p>
+                </div>
+                <div
+                  class="_status_fe6a3c _succeeded_fe6a3c"
+                >
+                  <svg
+                    aria-label="succeeded"
+                    class="_statusIcon_fe6a3c"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                  <p>
+                    Succeeded
+                  </p>
+                </div>
+              </section>
+              <section
+                class="_data_fe6a3c"
+              >
+                <div
+                  class="_time_fe6a3c"
+                >
+                  <p
+                    class="_timeTitle_fe6a3c"
+                  >
+                    Start time
+                  </p>
+                  <time
+                    class="_timeValue_fe6a3c"
+                  >
+                    03:00:00 PM
+                  </time>
+                </div>
+                <div
+                  class="_time_fe6a3c"
+                >
+                  <p
+                    class="_timeTitle_fe6a3c"
+                  >
+                    Duration
+                  </p>
+                  <time
+                    class="_timeValue_fe6a3c"
+                  >
+                    5 mins
+                  </time>
+                </div>
+              </section>
+              <section
+                class="_data_fe6a3c"
+              >
+                <button
+                  class="_modalTrigger_fe6a3c cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                  type="button"
+                >
+                  View Details
+                </button>
+                <button
+                  class="_trigger_0cae46 cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                  type="button"
+                >
+                  View Log
+                </button>
+              </section>
+            </li>
+          </ul>
+        </aside>
+        <div
+          class="_executionDesignerContainer_179192"
+        >
+          <div
+            class="_executionWorkflowActions_179192"
+          >
+            <div
+              class="_container_ce3521"
+            >
+              <p
+                class="_messageText_ce3521"
+              >
+                Read-only
+              </p>
+              <button
+                class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
+                type="button"
+              >
+                Edit Workflow
+                <svg
+                  aria-hidden="true"
+                  class="cds--btn__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M2 26H30V28H2z"
+                  />
+                  <path
+                    d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="reactflow-container"
+          >
+            <div
+              class="reactflow-wrapper"
+              data-mode="run"
+            >
+              <div
+                class="react-flow light"
+                data-testid="rf__wrapper"
+                role="application"
+                style="width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 0;"
+              >
+                <div
+                  class="react-flow__renderer"
+                  style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                >
+                  <div
+                    class="react-flow__pane draggable"
+                    style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                  >
+                    <div
+                      class="react-flow__viewport xyflow__viewport react-flow__container"
+                      style="transform: translate(0px,0px) scale(1);"
+                    >
+                      <div
+                        class="react-flow__edges"
+                      />
+                      <div
+                        class="react-flow__edgelabel-renderer"
+                      />
+                      <div
+                        class="react-flow__nodes"
+                        style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                      />
+                      <div
+                        class="react-flow__viewport-portal"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <svg>
+                  <defs>
+                    <marker
+                      id="decision-marker"
+                      markerHeight="16"
+                      markerUnits="strokeWidth"
+                      markerWidth="16"
+                      orient="auto-start-reverse"
+                      refX="0"
+                      refY="0"
+                      viewBox="-10 -10 20 20"
+                    >
+                      <polyline
+                        points="-5,-4 0,0 -5,4 -5,-4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1"
+                      />
+                    </marker>
+                    <marker
+                      id="task-marker"
+                      markerHeight="16"
+                      markerUnits="strokeWidth"
+                      markerWidth="16"
+                      orient="auto-start-reverse"
+                      refX="0"
+                      refY="0"
+                      viewBox="-10 -10 20 20"
+                    >
+                      <polyline
+                        points="-5,-4 0,0 -5,4 -5,-4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1"
+                      />
+                    </marker>
+                  </defs>
+                </svg>
+                <svg
+                  class="react-flow__background"
+                  data-testid="rf__background"
+                  style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                >
+                  <pattern
+                    height="20"
+                    id="pattern-1"
+                    patternTransform="translate(-10,-10)"
+                    patternUnits="userSpaceOnUse"
+                    width="20"
+                    x="0"
+                    y="0"
+                  >
+                    <circle
+                      class="react-flow__background-pattern dots"
+                      cx="0.5"
+                      cy="0.5"
+                      r="0.5"
+                    />
+                  </pattern>
+                  <rect
+                    fill="url(#pattern-1)"
+                    height="100%"
+                    width="100%"
+                    x="0"
+                    y="0"
+                  />
+                </svg>
+                <div
+                  aria-label="Control Panel"
+                  class="react-flow__panel react-flow__controls vertical bottom left"
+                  data-testid="rf__controls"
+                >
+                  <button
+                    aria-label="Zoom In"
+                    class="react-flow__controls-button react-flow__controls-zoomin"
+                    title="Zoom In"
+                    type="button"
+                  >
+                    <svg
+                      viewBox="0 0 32 32"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M32 18.133H18.133V32h-4.266V18.133H0v-4.266h13.867V0h4.266v13.867H32z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    aria-label="Zoom Out"
+                    class="react-flow__controls-button react-flow__controls-zoomout"
+                    title="Zoom Out"
+                    type="button"
+                  >
+                    <svg
+                      viewBox="0 0 32 5"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M0 0h32v4.2H0z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    aria-label="Fit View"
+                    class="react-flow__controls-button react-flow__controls-fitview"
+                    title="Fit View"
+                    type="button"
+                  >
+                    <svg
+                      viewBox="0 0 32 30"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3.692 4.63c0-.53.4-.938.939-.938h5.215V0H4.708C2.13 0 0 2.054 0 4.63v5.216h3.692V4.631zM27.354 0h-5.2v3.692h5.17c.53 0 .984.4.984.939v5.215H32V4.631A4.624 4.624 0 0027.354 0zm.954 24.83c0 .532-.4.94-.939.94h-5.215v3.768h5.215c2.577 0 4.631-2.13 4.631-4.707v-5.139h-3.692v5.139zm-23.677.94c-.531 0-.939-.4-.939-.94v-5.138H0v5.139c0 2.577 2.13 4.707 4.708 4.707h5.138V25.77H4.631z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div
+                  id="react-flow__node-desc-1"
+                  style="display: none;"
+                >
+                  Press enter or space to select a node. You can then use the arrow keys to move the node around. Press delete to remove it and escape to cancel.
+                </div>
+                <div
+                  id="react-flow__edge-desc-1"
+                  style="display: none;"
+                >
+                  Press enter or space to select an edge. You can then press delete to remove it or escape to cancel.
+                </div>
+                <div
+                  aria-atomic="true"
+                  aria-live="assertive"
+                  id="react-flow__aria-live-1"
+                  style="position: absolute; width: 1px; height: 1px; margin: -1px; border: 0px; padding: 0px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px); clip-path: inset(100%);"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

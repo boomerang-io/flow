@@ -93,7 +93,7 @@ function TaskRunLog({ workflowRun, executionViewRedirect }: Props) {
         )}
       </section>
       <ul className={styles.tasklog}>
-        {tasks.map((taskRun) =>
+        {orderBy(tasks, ["startTime"], [tasksSort]).map((taskRun) =>
           taskRun.type !== NodeType.Start && taskRun.type !== NodeType.End ? (
             <TaskRunItem
               key={taskRun.id}

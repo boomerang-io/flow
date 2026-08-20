@@ -49,7 +49,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                   readonly=""
                   title=".e.g. token"
                   type="text"
-                  value=""
+                  value="tim-property"
                 />
                 <span
                   aria-atomic="true"
@@ -346,7 +346,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                   placeholder="Default Value"
                   title="Default Value"
                   type="text"
-                  value=""
+                  value="dogs"
                 />
                 <span
                   aria-atomic="true"
