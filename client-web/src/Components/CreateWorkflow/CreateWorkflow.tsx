@@ -31,7 +31,8 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
   const fetcher = useFetcher<ActionResult>();
   const revalidator = useRevalidator();
   const navigate = useNavigate();
-  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
+  // useFeature returns boolean | FeatureGroup; every consumer here treats it as a plain flag.
+  const workspaceQuotasEnabled = Boolean(useFeature(FeatureFlag.WorkspaceQuotasEnabled));
   // handleImportWorkflow hands this component a `closeModal` at submit time; the fetcher settles
   // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked from the
   // effect below only once the import actually succeeds - the modal stays open (with the inline
@@ -80,13 +81,10 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
   };
 
   const isLoading = fetcher.state !== "idle";
-  // See UpdateWorkflow.tsx's request-shape note: CreateWorkflowContainer expects a prop literally
-  // named `importError` - the previous code passed the create mutation's error under the prop name
-  // `importWorkflowMutator` instead (which CreateWorkflowContainer doesn't read), so `importError`
-  // was always undefined and the inline "Request to import ... failed" notification never rendered.
-  // Preserved as-is here rather than silently fixed - see the conversion report.
+  // Each content pane renders its own inline failure notification, so the two failures are kept
+  // apart by intent - an import failure must not surface as a create failure, or vice versa.
   const createError = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "create");
-  const importWorkflowMutatorError = createError;
+  const importError = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "import");
 
   return (
     <ComposedModal
@@ -125,13 +123,12 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
           closeModal={closeModal}
           createError={createError}
           createWorkflow={handleCreateWorkflow}
-          importWorkflowMutator={importWorkflowMutatorError}
+          importError={importError}
           importWorkflow={handleImportWorkflow}
           isLoading={isLoading}
           workspace={workspace}
           type={viewType}
           workflows={workflows}
-          //@ts-ignore
           workspaceQuotasEnabled={workspaceQuotasEnabled}
         />
       )}
