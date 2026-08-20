@@ -16,7 +16,13 @@ const runId = "651e4789ab1cb56bc8976ae4";
 const workflowName = "test-workflow";
 
 const workflowRun: WorkflowRun = {
-  annotations: {},
+  annotations: {
+    "boomerang.io/task-deletion": "Never",
+    "boomerang.io/task-default-image": "",
+    "boomerang.io/workspace-name": "Workspace",
+    "boomerang.io/kind": "WorkflowRun",
+    "boomerang.io/generation": "1",
+  },
   awaitingApproval: false,
   creationDate: "2019-09-03T15:00:00.230+0000",
   duration: 300190,
