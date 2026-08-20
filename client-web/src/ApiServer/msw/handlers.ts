@@ -337,6 +337,20 @@ export const handlers: HttpHandler[] = [
     Object.assign(workspace, await jsonBody(request));
     return HttpResponse.json(workspace);
   }),
+  /*
+   * DELETE /workspace/:workspace/members - the Manage Workspace Members tab's remove action
+   * (Features/WorkspaceDetailed/Members/Members.tsx). Neither Mirage nor MSW ever mocked this
+   * one; it takes a body of `[{ id }]` (a DELETE with a request body, matching the real route).
+   */
+  http.delete(serviceUrl.workspace.deleteWorkspaceMembers({ workspace: ":workspace" }), async ({ params, request }) => {
+    const workspace = findWorkspace(pathParam(params.workspace));
+    if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
+    const removed = ((await jsonBody(request)) ?? []) as unknown as Array<{ id?: string }>;
+    const removedIds = removed.map((member) => member.id);
+    const members = (workspace.members ?? []) as unknown as Array<{ id?: string }>;
+    workspace.members = members.filter((member) => !removedIds.includes(member.id));
+    return HttpResponse.json(workspace);
+  }),
   http.patch(serviceUrl.getManageWorkspaceLabels({ workspace: ":workspace" }), async ({ params, request }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
