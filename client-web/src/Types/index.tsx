@@ -1,5 +1,5 @@
 import { User } from "@boomerang-io/carbon-addons-boomerang-react";
-import { Edge, EdgeProps, Node, NodeProps } from "reactflow";
+import { Edge, EdgeProps, Node, NodeProps, ReactFlowInstance } from "@xyflow/react";
 import {
   EdgeExecutionCondition,
   FlowWorkspaceStatus,
@@ -311,15 +311,27 @@ export type WorkflowNodeData = {
   params: Array<{ name: string; value: string }>;
   results: Array<{ name: string; description: string }>;
 };
-export type WorkflowNode = Node<WorkflowNodeData>;
-export type WorkflowNodeProps = NodeProps<WorkflowNodeData>;
+// xyflow's `Node<Data>`/`Edge<Data>` require `Data extends Record<string, unknown>`. The
+// intersection is applied here (at the xyflow boundary) rather than on `WorkflowNodeData`/
+// `WorkflowEdgeData` themselves, because adding a `[key: string]: unknown` index signature
+// directly to those types would widen every property to `unknown` wherever they're used with
+// `Omit`/mapped types elsewhere in the codebase.
+export type WorkflowNode = Node<WorkflowNodeData & Record<string, unknown>>;
+// `NodeProps` takes the full node type (not just its data) as of v12.
+export type WorkflowNodeProps = NodeProps<WorkflowNode>;
 
 export type WorkflowEdgeData = {
   decisionCondition: string;
   executionCondition: EdgeExecutionConditionType;
 };
-export type WorkflowEdge = Edge<WorkflowEdgeData>;
-export type WorkflowEdgeProps = EdgeProps<WorkflowEdgeData>;
+export type WorkflowEdge = Edge<WorkflowEdgeData & Record<string, unknown>>;
+export type WorkflowEdgeProps = EdgeProps<WorkflowEdge>;
+
+// The instance handed to `onInit`/held in state by the canvas's consumers (Designer, Editor,
+// WorkflowRun) needs to carry the same `WorkflowNode`/`WorkflowEdge` type parameters as the
+// `<ReactFlow>` element itself - `getNodes()`/`setNodes()` etc. are otherwise typed against
+// xyflow's bare `Node`/`Edge` defaults, which don't carry `WorkflowNodeData`/`WorkflowEdgeData`.
+export type WorkflowReactFlowInstance = ReactFlowInstance<WorkflowNode, WorkflowEdge>;
 
 export interface WorkflowParameter {
   defaultValue: string;
@@ -332,7 +344,7 @@ export interface WorkflowParameter {
 
 export interface WorkflowCanvas extends Workflow {
   edges: Array<WorkflowEdge>;
-  nodes: Array<Node<WorkflowNodeData>>;
+  nodes: Array<WorkflowNode>;
   config?: Array<DataDrivenInput>;
 }
 

@@ -5,7 +5,6 @@ import type { FormikProps } from "formik";
 import queryString from "query-string";
 import { useMutation, useQueryClient, UseMutationResult } from "react-query";
 import { Route, Routes, useBlocker, useLocation, useParams } from "react-router-dom";
-import type { ReactFlowInstance } from "reactflow";
 import { useImmerReducer } from "use-immer";
 import { useWorkspaceContext, useQuery } from "Hooks";
 import { EditorContextProvider } from "State/context";
@@ -23,6 +22,7 @@ import {
   Workflow,
   WorkflowCanvas,
   FlowWorkspace,
+  WorkflowReactFlowInstance,
 } from "Types";
 import ChangeLog from "./ChangeLog";
 import Configure from "./Configure";
@@ -190,7 +190,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
     initRevisionReducerState(workflowQueryData),
   );
 
-  const [reactFlowInstance, setReactFlowInstance] = React.useState<ReactFlowInstance | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = React.useState<WorkflowReactFlowInstance | null>(null);
   const [availableParameters, setAvailableParameters] = React.useState(availableParametersQueryData);
   const settingsRef = useRef<FormikProps<any> | null>(null);
 

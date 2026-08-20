@@ -1,33 +1,31 @@
 import React from "react";
 import dagre from "@dagrejs/dagre";
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   Connection,
   ControlButton,
   Controls,
   Edge,
-  EdgeProps,
-  Node,
-  NodeProps,
+  EdgeTypes,
+  NodeTypes,
   Position,
-  ReactFlowInstance,
   ReactFlowProvider,
   XYPosition,
   addEdge,
   useEdgesState,
   useNodesState,
-} from "reactflow";
-import "reactflow/dist/style.css";
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import { WorkflowProvider } from "State/context";
 import { EdgeExecutionCondition, NodeType, WorkflowEngineMode } from "Constants";
 import {
   NodeTypeType,
   Task,
   WorkflowEdge,
-  WorkflowEdgeData,
   WorkflowEngineModeType,
   WorkflowNode,
-  WorkflowNodeData,
+  WorkflowReactFlowInstance,
 } from "Types";
 import * as GraphComps from "./components";
 import "./styles.scss";
@@ -52,7 +50,14 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
   sleep: "task-marker",
 };
 
-const edgeTypes: { [K in NodeTypeType]: React.FC<EdgeProps> } = {
+// The value type is taken from xyflow's own `EdgeTypes`/`NodeTypes` aliases (via indexed
+// access) rather than the bare `EdgeProps`/`NodeProps` used by each component. xyflow types
+// `EdgeTypes`/`NodeTypes` as `ComponentType<EdgeProps & { data: any; type: any }>` precisely so
+// that components typed narrowly against a specific `Edge`/`Node` subtype (like
+// `WorkflowEdgeProps`/`WorkflowNodeProps`) can be registered here - the intersection widens
+// `data`/`type` back out at this one boundary. Reusing the library's own alias keeps that
+// widening scoped to where xyflow itself put it, instead of us re-deriving it locally.
+const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   acquirelock: GraphComps.TemplateEdge,
   approval: GraphComps.TemplateEdge,
   custom: GraphComps.TemplateEdge,
@@ -72,7 +77,7 @@ const edgeTypes: { [K in NodeTypeType]: React.FC<EdgeProps> } = {
   sleep: GraphComps.TemplateEdge,
 };
 
-const nodeTypes: { [K in NodeTypeType]: React.FC<NodeProps> } = {
+const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   acquirelock: GraphComps.TemplateNode,
   approval: GraphComps.ApprovalNode,
   custom: GraphComps.CustomTaskNode,
@@ -95,9 +100,9 @@ const nodeTypes: { [K in NodeTypeType]: React.FC<NodeProps> } = {
 interface FlowDiagramProps {
   mode: WorkflowEngineModeType;
   nodes?: WorkflowNode[];
-  edges?: Edge[];
-  reactFlowInstance: ReactFlowInstance | null;
-  setReactFlowInstance?: React.Dispatch<React.SetStateAction<ReactFlowInstance | null>>;
+  edges?: WorkflowEdge[];
+  reactFlowInstance: WorkflowReactFlowInstance | null;
+  setReactFlowInstance?: React.Dispatch<React.SetStateAction<WorkflowReactFlowInstance | null>>;
   tasks: Record<string, Array<Task>>;
 }
 
@@ -107,8 +112,8 @@ function FlowDiagram(props: FlowDiagramProps) {
    */
   const reactFlowWrapper = React.useRef<HTMLDivElement>(null);
   const { nodes: initNodes, edges: initEdges } = initElements(props.nodes, props.edges);
-  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNodeData>(initNodes ?? []);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdgeData>(initEdges ?? []);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(initNodes ?? []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdge>(initEdges ?? []);
   const shouldFitGraph = React.useRef(false);
 
   React.useEffect(() => {
@@ -148,7 +153,6 @@ function FlowDiagram(props: FlowDiagramProps) {
   const onDrop = React.useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
-      const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
       const taskString = event.dataTransfer.getData("application/reactflow") as string;
       const task = JSON.parse(taskString) as Task;
 
@@ -157,9 +161,14 @@ function FlowDiagram(props: FlowDiagramProps) {
         return;
       }
 
-      const position = props.reactFlowInstance?.project({
-        x: event.clientX - reactFlowBounds?.left - 75,
-        y: event.clientY - reactFlowBounds?.top - 25,
+      // v12 replaces `project()` with `screenToFlowPosition()`, which takes raw
+      // client/screen coordinates directly and does the pane-bounds subtraction
+      // internally - the manual `getBoundingClientRect()` offset this used to need is gone.
+      // The -75/-25 offset is unrelated to that: it centers the dropped node under the
+      // cursor (half the default node width/height) and is kept as-is.
+      const position = props.reactFlowInstance?.screenToFlowPosition({
+        x: event.clientX - 75,
+        y: event.clientY - 25,
       }) as XYPosition;
 
       // TODO: clean this up - determines how to give the task template a unique name
@@ -172,7 +181,7 @@ function FlowDiagram(props: FlowDiagramProps) {
 
       const taskName = numTaskRefInstances ? `${task.displayName} ${numTaskRefInstances + 1}` : task.displayName;
 
-      const newNode: Node = {
+      const newNode: WorkflowNode = {
         id: taskName,
         type: task.type,
         position,
@@ -182,6 +191,10 @@ function FlowDiagram(props: FlowDiagramProps) {
           taskVersion: task.version,
           upgradesAvailable: false,
           params: [],
+          // Not set on drop (no results yet); v11's untyped `data: any` let this be omitted,
+          // v12's stricter `Node<Data>` typing requires it since `WorkflowNodeData.results`
+          // is a required field.
+          results: [],
         },
       };
 
@@ -197,7 +210,15 @@ function FlowDiagram(props: FlowDiagramProps) {
       <WorkflowProvider value={{ mode: props.mode, tasks: props.tasks }}>
         <ReactFlowProvider>
           <div className="reactflow-wrapper" data-mode={props.mode} ref={reactFlowWrapper}>
-            <ReactFlow
+            {/*
+              Explicit generic arguments here (rather than letting them get inferred from
+              `nodes`/`edges`) because `onNodesChange`/`onEdgesChange` use `NodeType`/`EdgeType`
+              contravariantly and `nodeTypes`/`edgeTypes` aren't generic at all (see the comment
+              above their declarations) - left to infer on its own, the type checker falls back
+              to the component's bare `Node`/`Edge` defaults and then rejects the
+              `WorkflowNode`/`WorkflowEdge`-typed change handlers as a mismatch.
+            */}
+            <ReactFlow<WorkflowNode, WorkflowEdge>
               edges={edges}
               edgeTypes={edgeTypes}
               elementsSelectable={isEnabled}

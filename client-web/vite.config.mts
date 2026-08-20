@@ -46,10 +46,10 @@ export default defineConfig(({ mode }) => {
     // tail of dependencies this app didn't choose with Node ESM in mind: @carbon/charts'
     // dist/index.mjs statically imports "d3-cloud" (its optional WordCloud chart dependency,
     // never installed here, since this app doesn't use word-cloud charts) as if it were
-    // required; reactflow, @carbon/icons-react, react-lazylog, and lodash are CJS packages
-    // whose exports are assembled dynamically (mixin/re-export patterns) rather than with
-    // statically analyzable `exports.foo = foo` assignments, which Node's cjs-module-lexer
-    // can't detect named exports from; react-lazylog's own "fetch-readablestream" ->
+    // required; @carbon/icons-react, react-lazylog, and lodash are CJS packages whose exports
+    // are assembled dynamically (mixin/re-export patterns) rather than with statically
+    // analyzable `exports.foo = foo` assignments, which Node's cjs-module-lexer can't detect
+    // named exports from; react-lazylog's own "fetch-readablestream" ->
     // "@mattiasbuelens/web-streams-polyfill" chain points at a bare directory import that
     // predates Node's "exports" map convention. Each of those was confirmed individually by
     // working through the resulting runtime errors one at a time - the fix in every case was
@@ -59,6 +59,10 @@ export default defineConfig(({ mode }) => {
     // trades a one-time cost for an ongoing one - every future dependency with the same
     // CJS-interop shape would silently break the server build again. The trade-off is a
     // larger, slower-to-produce server bundle, which is acceptable for a build-time cost.
+    // (`reactflow` used to be on this list - it's why the DAG canvas needed `noExternal` at all.
+    // Its v12 successor `@xyflow/react` ships real ESM with a statically analyzable `exports`
+    // map, so it no longer needs bundling on its own account - but the blanket `true` still
+    // covers the other packages above, so it stays.)
     //
     // Scoped to the real SSR build only (`!process.env.VITEST`, the same signal the `plugins`
     // array below already keys off of): vitest's node-environment test runs go through this

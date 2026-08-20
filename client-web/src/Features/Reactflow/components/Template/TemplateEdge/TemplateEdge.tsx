@@ -1,6 +1,6 @@
 import React from "react";
 import cx from "classnames";
-import { getBezierPath, useReactFlow, EdgeLabelRenderer } from "reactflow";
+import { getBezierPath, useReactFlow, EdgeLabelRenderer } from "@xyflow/react";
 import { markerTypes } from "Features/Reactflow/Reactflow";
 import TaskLinkExecutionConditionSwitcher from "Components/TaskLinkExecutionConditionSwitcher";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
@@ -8,7 +8,7 @@ import { useWorkflowContext } from "Hooks";
 import { useRunContext } from "Hooks";
 import { EXECUTION_CONDITIONS } from "Utils/taskLinkIcons";
 import { WorkflowEngineMode } from "Constants";
-import { WorkflowEdge, WorkflowEdgeProps } from "Types";
+import { WorkflowEdge, WorkflowEdgeProps, WorkflowNode } from "Types";
 import styles from "./TemplateEdge.module.scss";
 
 export default function TaskTemplateEdge(props: WorkflowEdgeProps) {
@@ -23,7 +23,7 @@ export default function TaskTemplateEdge(props: WorkflowEdgeProps) {
 
 export function TemplateEdgeEditor(props: WorkflowEdgeProps) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, data } = props;
-  const reactFlowInstance = useReactFlow();
+  const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
   const { mode } = useWorkflowContext();
   const isEditor = mode === WorkflowEngineMode.Edit;
 
@@ -33,17 +33,20 @@ export function TemplateEdgeEditor(props: WorkflowEdgeProps) {
   const condition = executionConditionIndex >= 0 ? executionConditionIndex : 0;
 
   const handleChangeCondition = (newCondition: number) => {
-    const edges = reactFlowInstance.getEdges() as Array<WorkflowEdge>;
-    const newEdges = edges.map((edge) => {
-      if (edge.id === props.id) {
-        return {
-          ...edge,
-          data: { ...edge.data, executionCondition: EXECUTION_CONDITIONS[newCondition].name },
-        };
-      } else {
+    const edges = reactFlowInstance.getEdges();
+    // `Edge.data` is optional at the type level (unlike `Node.data`, which is required), so the
+    // early return also covers the (practically unreachable, since every edge here is created
+    // with `data` set - see `getEdgeType` in Reactflow.tsx) case of a matching edge with no data,
+    // rather than spreading `undefined` and silently dropping the required `decisionCondition`.
+    const newEdges = edges.map((edge): WorkflowEdge => {
+      if (edge.id !== props.id || !edge.data) {
         return edge;
       }
-    }) as Array<WorkflowEdge>;
+      return {
+        ...edge,
+        data: { ...edge.data, executionCondition: EXECUTION_CONDITIONS[newCondition].name },
+      };
+    });
 
     reactFlowInstance.setEdges(newEdges);
   };

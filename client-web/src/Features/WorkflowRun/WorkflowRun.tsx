@@ -4,7 +4,6 @@ import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import type { ReactFlowInstance } from "reactflow";
 import { Box } from "reflexbox";
 import ReactFlow from "Features/Reactflow";
 import { useQuery } from "Hooks";
@@ -13,7 +12,15 @@ import { groupTasksByName } from "Utils";
 import { WorkflowEngineMode } from "Constants";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { FlowWorkspace, PaginatedTaskResponse, RunStatus, Task, WorkflowCanvas, WorkflowRun } from "Types";
+import {
+  FlowWorkspace,
+  PaginatedTaskResponse,
+  RunStatus,
+  Task,
+  WorkflowCanvas,
+  WorkflowReactFlowInstance,
+  WorkflowRun,
+} from "Types";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
 import WorkflowActions from "./WorkflowActions";
@@ -164,7 +171,7 @@ type MainProps = {
 
 function Main(props: MainProps) {
   const { workflow, workflowRun, version, executionViewRedirect } = props;
-  const [reactFlowInstance, setReactFlowInstance] = React.useState<ReactFlowInstance | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = React.useState<WorkflowReactFlowInstance | null>(null);
   let hasFinished = false;
   let hasStarted = false;
 
