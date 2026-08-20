@@ -1,7 +1,6 @@
 import { vi } from "vitest";
 import { screen } from "@testing-library/react";
 import WorkflowInsights from "./index";
-import { startApiServer } from "ApiServer";
 
 vi.mock("@carbon/charts-react", () => ({
   DonutChart: () => <div>DonutChart</div>,
@@ -14,16 +13,6 @@ vi.mock("@carbon/charts/interfaces", () => ({
   LegendPositions: {},
   ScaleTypes: {},
 }));
-
-let server;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("WorkflowInsights --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowInsights", async () => {

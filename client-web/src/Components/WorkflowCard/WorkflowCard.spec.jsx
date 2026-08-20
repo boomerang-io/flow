@@ -1,5 +1,4 @@
 import React from "react";
-import { startApiServer } from "ApiServer";
 import { workspaces, workflows, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 import { WorkflowView } from "Constants";
@@ -16,16 +15,6 @@ const props = {
   viewType: WorkflowView.Workflow,
   getWorkflowsUrl: serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace.name }),
 };
-
-let server;
-
-beforeEach(() => {
-  server = startApiServer({ environment: "test" });
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("WorkflowCard --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowCard", () => {

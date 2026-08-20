@@ -1,7 +1,7 @@
 import React from "react";
-import { Response } from "miragejs";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { startApiServer } from "ApiServer";
+import { server } from "ApiServer/msw/node";
 import { workspaces, workflowTemplates, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 import { serviceUrl } from "Config/servicesConfig";
@@ -38,16 +38,6 @@ function renderWorkflowCard() {
   );
 }
 
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer({ environment: "test" });
-});
-
-afterEach(() => {
-  server.shutdown();
-});
-
 describe("WorkflowCard --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowCard", () => {
     const { baseElement } = renderWorkflowCard();
@@ -58,7 +48,11 @@ describe("WorkflowCard --- Snapshot", () => {
 describe("WorkflowCard --- action", () => {
   test("creates a workflow from a template through the mocked API", async () => {
     const workspace = workspaces.content[0].name;
-    server.post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), () => ({ name: "new-workflow" }));
+    server.use(
+      http.post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), () =>
+        HttpResponse.json({ name: "new-workflow" }),
+      ),
+    );
 
     const request = new Request("http://localhost/home", {
       method: "post",
@@ -81,7 +75,11 @@ describe("WorkflowCard --- action", () => {
 
   test("surfaces a failed create without throwing", async () => {
     const workspace = workspaces.content[0].name;
-    server.post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), () => new Response(500, {}, {}));
+    server.use(
+      http.post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
 
     const request = new Request("http://localhost/home", {
       method: "post",

@@ -2,17 +2,6 @@ import UserDetailed, { loader } from "./UserDetailed";
 import { Route } from "react-router-dom";
 import { waitFor, screen } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
-import { startApiServer } from "ApiServer";
-
-let server;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("UserDetailed --- Snapshot Test", () => {
   it("Capturing Snapshot of UserDetailed", async () => {

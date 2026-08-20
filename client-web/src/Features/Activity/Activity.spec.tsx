@@ -2,19 +2,8 @@ import queryString, { StringifyOptions } from "query-string";
 import { waitFor, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import WorkflowActivity from "./index";
-import { startApiServer } from "ApiServer";
 
 const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skipEmptyString: true };
-
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("WorkflowActivity --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowActivity", () => {

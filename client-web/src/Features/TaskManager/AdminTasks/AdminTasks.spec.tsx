@@ -1,8 +1,8 @@
-import { Response } from "miragejs";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
-import { startApiServer } from "ApiServer";
-import { BASE_URL, serviceUrl } from "Config/servicesConfig";
+import { server } from "ApiServer/msw/node";
+import { serviceUrl } from "Config/servicesConfig";
 import AdminTasks, { action, loader } from "./AdminTasks";
 
 // Route-module test pattern - see GlobalParameters.spec.tsx. The real route ("/admin/task-manager/*"
@@ -15,27 +15,6 @@ function renderAdminTasks(route: string = "/admin/task-manager") {
     { route },
   );
 }
-
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer();
-  // The default mock server only has a working PUT for /task/query (a leftover mismatch, not
-  // this route's PUT target) - register the real per-task PUT route this action actually calls.
-  // Registering after startApiServer() takes precedence for this test's server instance (same
-  // technique GlobalParameters.spec.tsx uses for its failure-path override).
-  server.put(`${BASE_URL}/task/:name`, (schema: any, request: any) => {
-    const contentType = request.requestHeaders["content-type"] ?? request.requestHeaders["Content-Type"];
-    if (contentType && contentType.includes("yaml")) {
-      return { name: request.params.name, displayName: "YAML Task", version: 9 };
-    }
-    return JSON.parse(request.requestBody);
-  });
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("AdminTasks --- loader", () => {
   test("renders the task list in the sidenav", async () => {
@@ -92,7 +71,7 @@ describe("AdminTasks --- action", () => {
   });
 
   test("surfaces a failed apply without throwing", async () => {
-    server.put(`${BASE_URL}/task/:name`, () => new Response(500, {}, {}));
+    server.use(http.put(serviceUrl.task.putTask({ name: ":name", replace: false }).split("?")[0], () => HttpResponse.json({}, { status: 500 })));
     const request = new Request("http://localhost/admin/task-manager", {
       method: "post",
       body: new URLSearchParams({
@@ -121,7 +100,7 @@ describe("AdminTasks --- action", () => {
   });
 
   test("surfaces a failed validation without throwing", async () => {
-    server.post(serviceUrl.task.postValidateYaml(), () => new Response(500, {}, {}));
+    server.use(http.post(serviceUrl.task.postValidateYaml(), () => HttpResponse.json({}, { status: 500 })));
     const request = new Request("http://localhost/admin/task-manager", {
       method: "post",
       body: new URLSearchParams({ intent: "validateYaml", body: "not: valid: yaml: at all" }),

@@ -3,17 +3,6 @@ import UserDetailed, { loader as userDetailedLoader } from "Features/UserDetaile
 import { Route } from "react-router-dom";
 import { waitFor, screen, fireEvent } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
-import { startApiServer } from "ApiServer";
-
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 // The list (AppPath.UserList) and the detail view (AppPath.User, loader-backed) are separate
 // top-level routes in AppRoutes.tsx - rendering both here, the same way, lets "click a user ->

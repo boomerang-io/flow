@@ -1,13 +1,14 @@
-import { Response } from "miragejs";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
-import { startApiServer } from "ApiServer";
+import { server } from "ApiServer/msw/node";
+import { db } from "ApiServer/msw/db";
+import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
-import { BASE_URL, serviceUrl } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
 import WorkspaceTasks, { action, loader } from "./WorkspaceTasks";
 
-const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js, which
-// resourceWorkspace always returns regardless of the :workspace param.
+const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
 
 // Route-module test pattern - see GlobalParameters.spec.tsx/AdminTasks.spec.tsx. Wraps the same
 // WorkspaceContainer app/routes/manageTasks.tsx does, since WorkspaceTasks reads the active
@@ -28,34 +29,15 @@ function renderWorkspaceTasks(route: string = `/${WORKSPACE}/task-manager`) {
   );
 }
 
-let server: any;
-
+// WorkspaceContainer resolves the active workspace via `resourceWorkspace`, which now does a
+// real lookup by name (see handlers.ts's `findWorkspace`) instead of Mirage's old
+// always-return-the-canned-fixture behaviour - seed the fixture the WORKSPACE constant above
+// names so that lookup actually finds something (same reasoning as WorkspaceDetailed.spec.tsx).
+// `serviceUrl.workspace.task.*` itself now has a default handler in handlers.ts (it had none at
+// all under Mirage - this spec used to register every one of these routes on its own server
+// instance every test), so nothing else needs registering here.
 beforeEach(() => {
-  server = startApiServer();
-  // Unlike the admin task routes, none of serviceUrl.workspace.task.* has a mock registered in
-  // ApiServer/index.js at all - register the ones this route's loader/action actually call.
-  // "/task/query" is registered before the "/task/:name" wildcard so the literal "query" segment
-  // doesn't get swallowed as a task name.
-  server.get(`${BASE_URL}/workspace/:workspace/task/query`, () => server.schema.db.task[0]);
-  server.get(`${BASE_URL}/workspace/:workspace/task/:name/changelog`, () => [
-    { author: "Bob", reason: "Add new task", date: "2023-08-16T22:34:05.234+00:00", version: 1 },
-    { author: "Jenny", reason: "Update task", date: "2023-08-17T22:34:05.234+00:00", version: 2 },
-  ]);
-  server.get(`${BASE_URL}/workspace/:workspace/task/:name`, (schema: any, request: any) =>
-    schema.db.task[0].content.find((t: any) => t.name === request.params.name),
-  );
-  server.put(`${BASE_URL}/workspace/:workspace/task/:name`, (schema: any, request: any) => {
-    const contentType = request.requestHeaders["content-type"] ?? request.requestHeaders["Content-Type"];
-    if (contentType && contentType.includes("yaml")) {
-      return { name: request.params.name, displayName: "YAML Task", version: 9 };
-    }
-    return JSON.parse(request.requestBody);
-  });
-  server.post(`${BASE_URL}/workspace/:workspace/task/validate`, () => new Response(200, {}, {}));
-});
-
-afterEach(() => {
-  server.shutdown();
+  db.workspaces.push(structuredClone(workspaceFixture));
 });
 
 describe("WorkspaceTasks --- loader", () => {
@@ -117,7 +99,12 @@ describe("WorkspaceTasks --- action", () => {
   });
 
   test("surfaces a failed apply without throwing", async () => {
-    server.put(`${BASE_URL}/workspace/:workspace/task/:name`, () => new Response(500, {}, {}));
+    server.use(
+      http.put(
+        serviceUrl.workspace.task.putTask({ workspace: ":workspace", name: ":name", replace: false }).split("?")[0],
+        () => HttpResponse.json({}, { status: 500 }),
+      ),
+    );
 
     const result = await submit({
       intent: "apply",
@@ -137,7 +124,11 @@ describe("WorkspaceTasks --- action", () => {
   });
 
   test("surfaces a failed validation without throwing", async () => {
-    server.post(serviceUrl.workspace.task.postValidateYaml({ workspace: WORKSPACE }), () => new Response(500, {}, {}));
+    server.use(
+      http.post(serviceUrl.workspace.task.postValidateYaml({ workspace: WORKSPACE }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
 
     const result = await submit({ intent: "validateYaml", body: "not: valid: yaml: at all" });
 

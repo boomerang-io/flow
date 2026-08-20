@@ -1,20 +1,9 @@
 import { screen } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import WorkflowsHome from "./index";
-import { startApiServer } from "ApiServer";
 import { workspaces, workspace as workspaceFixture, profile } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
 import { WorkspaceContextProvider } from "State/context";
-
-let server;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("WorkflowsHome --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowsHome", async () => {

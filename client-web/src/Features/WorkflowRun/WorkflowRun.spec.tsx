@@ -1,7 +1,8 @@
 import React from "react";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
-import { startApiServer } from "ApiServer";
+import { server } from "ApiServer/msw/node";
 import { profile, workspaces } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -47,14 +48,13 @@ const taskRun: TaskRun = {
   workspaces: [],
 };
 
-// The mock server used by this suite (src/ApiServer, still Mirage-based) never got a fixture
-// update when WorkflowRun moved to its current shape - `ApiServer/fixtures/workflowExecution.js`
-// still holds a v3-era record (`steps`/`flowTaskStatus`, no `tasks`/`phase`), and two routes this
-// page depends on (workspace-scoped task query, `getWorkflowComposeRun`) aren't registered at all
-// (`getWorkflowCompose`'s handler is even registered under the wrong param name - `name` instead
-// of `workflow` - so it can never match). None of that is this spec's file to fix (ApiServer is
-// mid-migration to MSW elsewhere), so register the routes this render actually needs directly on
-// this test's server instance, the same technique AdminTasks.spec.tsx uses for its PUT override.
+// The shared fixture (`ApiServer/fixtures/workflowExecution.js`) still holds a v3-era record
+// (`steps`/`flowTaskStatus`, no `tasks`/`phase`), which is not this spec's file to fix (the
+// fixtures stay shared across every consumer) - so override the default handlers.ts responses
+// with the current-shape objects this render actually needs, the same technique
+// AdminTasks.spec.tsx uses for its PUT override. `getWorkflowComposeRun` needs no route of its
+// own - MSW matches on pathname only, and it shares one with `getWorkflowCompose` (see
+// handlers.ts), which the override below replaces for this test.
 const workflowRun: WorkflowRunType = {
   annotations: {
     "boomerang.io/task-deletion": "Never",
@@ -125,21 +125,20 @@ class ResizeObserverStub implements ResizeObserver {
   disconnect() {}
 }
 
-let server: any;
-
 beforeEach(() => {
   global.ResizeObserver = ResizeObserverStub;
-  server = startApiServer();
-  server.get(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }), () => workflowRun);
-  server.get(serviceUrl.workspace.task.queryTasks({ workspace: ":workspace" }), () => ({ content: [] }));
-  server.get(
-    serviceUrl.workspace.workflow.getWorkflowComposeRun({ workspace: ":workspace", workflow: ":workflow" }),
-    () => workflow,
+  server.use(
+    http.get(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }), () =>
+      HttpResponse.json(workflowRun),
+    ),
+    http.get(serviceUrl.workspace.task.queryTasks({ workspace: ":workspace", query: "" }), () =>
+      HttpResponse.json({ content: [] }),
+    ),
+    http.get(
+      serviceUrl.workspace.workflow.getWorkflowComposeRun({ workspace: ":workspace", workflow: ":workflow" }),
+      () => HttpResponse.json(workflow),
+    ),
   );
-});
-
-afterEach(() => {
-  server.shutdown();
 });
 
 describe("Execution --- Snapshot", () => {

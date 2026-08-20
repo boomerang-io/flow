@@ -3,7 +3,6 @@ import { screen } from "@testing-library/react";
 import Configure from "./index";
 import { workspaces, profile, summaries } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
-import { startApiServer } from "ApiServer";
 import { appLink } from "Config/appConfig";
 import { FlagsProvider } from "flagged";
 
@@ -16,15 +15,6 @@ const props = {
   workspaces,
   updateSummary: mockfn,
 };
-let server;
-
-beforeEach(() => {
-  server = startApiServer({ environment: "test" });
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("Inputs --- RTL", () => {
   it("Main Sections Render", async () => {

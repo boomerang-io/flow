@@ -4,8 +4,8 @@ import { Route, useParams } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
-import { startApiServer } from "ApiServer";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
+import { db } from "ApiServer/msw/db";
 import { WorkspaceContextProvider } from "State/context";
 import { useQuery } from "Hooks";
 import { serviceUrl } from "Config/servicesConfig";
@@ -23,14 +23,15 @@ function WorkspaceContainer({ children }: { children: React.ReactNode }) {
   return <WorkspaceContextProvider value={{ workspace: workspaceQuery.data }}>{children}</WorkspaceContextProvider>;
 }
 
-let server: ReturnType<typeof startApiServer>;
-
+// `workspace.js` is a standalone fixture, not one of the records in `workspaces.js`'s list (the
+// one `ApiServer/msw/db`'s `workspaces` collection seeds from) - Mirage's `resourceWorkspace` GET
+// handler ignored its `:workspace` param and always served this fixture regardless of what was
+// asked for, which is what let this spec navigate to a workspace nothing actually seeded. MSW's
+// handler does a real lookup by name/id (see handlers.ts's `findWorkspace`), so seed this
+// fixture into the store directly - the same real lookup then finds it for every call this spec
+// makes (GET, and the PATCH the rename flow below depends on actually persisting).
 beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
+  db.workspaces.push(structuredClone(workspaceFixture));
 });
 
 describe("WorkspaceDetailed --- Snapshot Test", () => {

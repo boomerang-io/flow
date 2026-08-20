@@ -1,8 +1,8 @@
 /* eslint-disable */
-import { Response } from "miragejs";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { startApiServer } from "ApiServer";
+import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import Settings, { action, loader } from "./Settings";
 
@@ -12,16 +12,6 @@ import Settings, { action, loader } from "./Settings";
 function renderSettings() {
   return global.rtlContextRouterRender(<Route path="*" loader={loader} action={action} element={<Settings />} />);
 }
-
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("Settings --- Snapshot", () => {
   test("Capturing Snapshot of Settings", async () => {
@@ -43,9 +33,7 @@ describe("Settings --- RTL", () => {
 
 describe("Settings --- RTL", () => {
   beforeEach(() => {
-    server.get(serviceUrl.resourceSettings(), () => {
-      return new Response(500, {}, {});
-    });
+    server.use(http.get(serviceUrl.resourceSettings(), () => HttpResponse.json({}, { status: 500 })));
   });
   test("Shows error message on request failure", async () => {
     renderSettings();
@@ -70,7 +58,7 @@ describe("Settings --- action", () => {
   });
 
   test("surfaces a failed update without throwing", async () => {
-    server.put(serviceUrl.resourceSettings(), () => new Response(500, {}, {}));
+    server.use(http.put(serviceUrl.resourceSettings(), () => HttpResponse.json({}, { status: 500 })));
     const request = new Request("http://localhost/admin/settings", {
       method: "post",
       body: new URLSearchParams({ intent: "update", settingsGroup: JSON.stringify(settingsGroup) }),

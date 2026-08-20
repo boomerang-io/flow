@@ -1,5 +1,4 @@
 import React from "react";
-import { startApiServer } from "ApiServer";
 import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import { profile } from "ApiServer/fixtures";
@@ -7,20 +6,10 @@ import { TokenType } from "Constants";
 import { serviceUrl } from "Config/servicesConfig";
 import CreateServiceTokenButton from "./CreateToken";
 
-let server: any;
 const getTokensUrl = serviceUrl.getTokens({ query: "" });
 // The app populates AppContext.workspaces from the flat user.teams array
 // (see Features/App/App.tsx) -- not the paginated workspaces query response.
 const contextValue = { workspaces: profile.teams };
-
-beforeEach(() => {
-  document.body.setAttribute("id", "app");
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("CreateServiceTokenButton --- Snapshot", () => {
   it("Capturing Snapshot of CreateServiceTokenButton", async () => {

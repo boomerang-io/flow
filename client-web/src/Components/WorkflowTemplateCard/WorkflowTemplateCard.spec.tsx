@@ -1,7 +1,7 @@
 import React from "react";
-import { Response } from "miragejs";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { startApiServer } from "ApiServer";
+import { server } from "ApiServer/msw/node";
 import { workflowTemplates } from "ApiServer/fixtures";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/TemplateWorkflows/TemplateWorkflows";
@@ -51,16 +51,6 @@ function renderWorkflowTemplateCard() {
   return global.rtlContextRouterRender(<Route path="*" action={action} element={<WorkflowTemplateCard {...props} />} />);
 }
 
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer({ environment: "test" });
-});
-
-afterEach(() => {
-  server.shutdown();
-});
-
 describe("WorkflowCard --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowCard", () => {
     const { baseElement } = renderWorkflowTemplateCard();
@@ -70,7 +60,7 @@ describe("WorkflowCard --- Snapshot", () => {
 
 describe("WorkflowCard --- action", () => {
   test("deletes a workflow template through the mocked API", async () => {
-    server.delete(serviceUrl.template.getWorkflowTemplate({ name: props.workflow.name }), () => ({}));
+    server.use(http.delete(serviceUrl.template.getWorkflowTemplate({ name: props.workflow.name }), () => HttpResponse.json({})));
 
     const request = new Request("http://localhost/admin/template-workflows", {
       method: "post",
@@ -83,7 +73,11 @@ describe("WorkflowCard --- action", () => {
   });
 
   test("surfaces a failed delete without throwing", async () => {
-    server.delete(serviceUrl.template.getWorkflowTemplate({ name: props.workflow.name }), () => new Response(500, {}, {}));
+    server.use(
+      http.delete(serviceUrl.template.getWorkflowTemplate({ name: props.workflow.name }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
 
     const request = new Request("http://localhost/admin/template-workflows", {
       method: "post",

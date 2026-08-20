@@ -1,7 +1,7 @@
-import { Response } from "miragejs";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
-import { startApiServer } from "ApiServer";
+import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import GlobalParameters, { action, loader } from "./GlobalParameters";
 
@@ -12,16 +12,6 @@ import GlobalParameters, { action, loader } from "./GlobalParameters";
 function renderGlobalParameters() {
   return global.rtlContextRouterRender(<Route path="*" loader={loader} action={action} element={<GlobalParameters />} />);
 }
-
-let server: any;
-
-beforeEach(() => {
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
 
 describe("GlobalParameters --- loader", () => {
   test("renders parameters resolved by the loader", async () => {
@@ -56,7 +46,7 @@ describe("GlobalParameters --- action", () => {
         parameter: JSON.stringify({ name: "", label: "Missing name" }),
       }),
     });
-    server.post(serviceUrl.getGlobalParameters(), () => new Response(500, {}, {}));
+    server.use(http.post(serviceUrl.getGlobalParameters(), () => HttpResponse.json({}, { status: 500 })));
 
     const result = await action({ request });
 
