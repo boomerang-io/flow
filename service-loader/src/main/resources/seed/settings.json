@@ -2,6 +2,36 @@
   "documents": [
     {
       "_id": {
+        "$oid": "5eed00000000000000000300"
+      },
+      "config": [
+        {
+          "description": "The issuer URL of the single trusted OIDC provider (e.g. local IDPZero) accepted for the direct id_token login path of POST /api/v2/auth/exchange. Empty disables that path entirely.",
+          "key": "oidc.issuer",
+          "label": "OIDC Issuer",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The OAuth2 client id (public client, no secret) the id_token's aud claim must match.",
+          "key": "oidc.clientId",
+          "label": "OIDC Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        }
+      ],
+      "description": "Configure the single trusted OIDC issuer accepted for direct browser login via the unified token exchange (specifications/authentication.md).",
+      "key": "auth",
+      "lastModiifed": {
+        "$date": "2026-08-20T00:00:00.000Z"
+      },
+      "name": "Authentication Configuration",
+      "type": "ValuesList"
+    },
+    {
+      "_id": {
         "$oid": "62b0f1f5a6166d30af05fa5d"
       },
       "config": [

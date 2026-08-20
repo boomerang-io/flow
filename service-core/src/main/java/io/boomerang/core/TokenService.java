@@ -550,9 +550,29 @@ public class TokenService {
    * TODO: add scopes that a user session token would have (needs to based on User ... eventually
    * dynamic)
    *
-   * TODO: is this method declaration ever call besides the wrapper - should they be combined.
+   * Discards the raw bfs_ value - historically nothing needed it, since no browser-visible
+   * credential existed before the unified token exchange. Kept, byte-identical, for the existing
+   * AuthenticationFilter call sites; new callers that need the raw value (the exchange endpoint,
+   * to set the session cookie) use {@link #createSessionTokenWithRaw} below.
    */
   public Token createSessionToken(
+      String email,
+      String firstName,
+      String lastName,
+      boolean allowActivation,
+      boolean allowUserCreation) {
+    return createSessionTokenWithRaw(email, firstName, lastName, allowActivation, allowUserCreation)
+        .token();
+  }
+
+  /**
+   * Same resolve-or-create-user + mint flow as {@link #createSessionToken}, but also returns the
+   * raw {@code bfs_<uuid>} value - needed by {@code POST /api/v2/auth/exchange} to set the
+   * httpOnly session cookie (specifications/authentication.md §1). The entity only ever persists
+   * the SHA-256 hash (see {@link #mintSessionToken}), so the raw value only ever exists on the
+   * stack of the request that minted it.
+   */
+  public SessionToken createSessionTokenWithRaw(
       String email,
       String firstName,
       String lastName,
@@ -591,6 +611,21 @@ public class TokenService {
     if (!user.isPresent()) {
       throw new HttpClientErrorException(HttpStatus.FORBIDDEN);
     }
+    return mintSessionToken(user.get());
+  }
+
+  /**
+   * Mints a session token for an ALREADY resolved user, skipping the get-or-register round trip -
+   * used by the proxy path of {@code POST /api/v2/auth/exchange}, where {@code
+   * AuthenticationFilter} has already resolved (and, for a first-time caller, registered) the
+   * user for this very request; re-deriving email/name from headers here would duplicate the
+   * filter's own logic.
+   */
+  public SessionToken createSessionTokenForUser(UserEntity user) {
+    return mintSessionToken(user);
+  }
+
+  private SessionToken mintSessionToken(UserEntity user) {
     Date expiryDate = getExpirationDate();
 
     TokenEntity tokenEntity = new TokenEntity();
@@ -598,8 +633,8 @@ public class TokenService {
     tokenEntity.setDescription("Generated User Session Token");
     tokenEntity.setType(AuthScope.session);
     tokenEntity.setExpirationDate(expiryDate);
-    tokenEntity.setPrincipal(user.get().getId());
-    tokenEntity.getPermissions().addAll(resolvePermissionsForUser(user.get()));
+    tokenEntity.setPrincipal(user.getId());
+    tokenEntity.getPermissions().addAll(resolvePermissionsForUser(user));
     String prefix = TokenTypePrefix.session.prefix;
     String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
 
@@ -607,8 +642,11 @@ public class TokenService {
     tokenEntity.setToken(hashToken);
     tokenEntity = tokenRepository.save(tokenEntity);
 
-    return new Token(tokenEntity);
+    return new SessionToken(new Token(tokenEntity), uniqueToken);
   }
+
+  /** A minted session's public {@link Token} identity alongside the raw {@code bfs_<uuid>} value that only ever exists for the duration of the minting request. */
+  public record SessionToken(Token token, String rawToken) {}
 
   /**
    * Resolves the full permission grant set for a user: a global platform grant for admin/operator

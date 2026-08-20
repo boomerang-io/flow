@@ -34,6 +34,13 @@ public class SecurityConfiguration {
   // AuthenticationFilter below, since that filter runs ahead of this authorization decision.
   static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
 
+  // The unified token exchange's direct OIDC login path (specifications/authentication.md §1) is
+  // reached by the browser with no prior credential - AuthenticationFilter still RUNS for this
+  // path (so proxy-forwarded identity is picked up when present), it just no longer 401s when it
+  // resolves nothing; permitAll here is what lets that unauthenticated request continue to the
+  // controller, which verifies the id_token itself.
+  static final String AUTH_EXCHANGE = AuthenticationFilter.PATH_AUTH_EXCHANGE;
+
   @Autowired
   private TokenService tokenService;
 
@@ -54,12 +61,13 @@ public class SecurityConfiguration {
     @Order(2)
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
-          new AuthenticationFilter(tokenService, settingsService, basicPassword);
+          new AuthenticationFilter(tokenService, settingsService, basicPassword, authEntryPoint);
       http.csrf(csrf -> csrf.disable())
           .authorizeHttpRequests(
               authorize ->
                   authorize
-                      .requestMatchers(HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL, GITHUB_CALLBACK)
+                      .requestMatchers(
+                          HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL, GITHUB_CALLBACK, AUTH_EXCHANGE)
                       .permitAll()
                       .anyRequest()
                       .authenticated())
