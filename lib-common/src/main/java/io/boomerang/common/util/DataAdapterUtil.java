@@ -50,7 +50,10 @@ public class DataAdapterUtil {
 
   public static AbstractParam filterAbstractParam(
       AbstractParam param, boolean isDefaultValue, String fieldType) {
-    if (param != null || fieldType != null || fieldType.equals(param.getType())) {
+    // Redact only when the param actually carries the sensitive type. With `||` here, any non-null
+    // param short-circuited true and every param was redacted regardless of type - and a null param
+    // with a non-null fieldType entered the block and threw.
+    if (param != null && fieldType != null && fieldType.equals(param.getType())) {
       if (isDefaultValue) {
         param.setDefaultValue(null);
       } else {

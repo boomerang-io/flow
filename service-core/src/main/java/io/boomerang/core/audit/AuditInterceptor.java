@@ -161,7 +161,11 @@ public class AuditInterceptor {
             Optional.of(entityName),
             Optional.empty(),
             Optional.of(Map.of("name", entityName)));
-    teamNameToAuditId.put(entityName, log.getId());
+    // createLog returns null when it swallowed a failure. Auditing must never fail the call it is
+    // observing, so skip caching rather than dereferencing.
+    if (log != null) {
+      teamNameToAuditId.put(entityName, log.getId());
+    }
   }
 
   @AfterReturning(
@@ -178,7 +182,10 @@ public class AuditInterceptor {
             Optional.of(entityName),
             Optional.empty(),
             Optional.of(Map.of("name", entityName)));
-    teamNameToAuditId.put(entityName, log.getId());
+    // updateLog returns null when it swallowed a failure - see createTeam.
+    if (log != null) {
+      teamNameToAuditId.put(entityName, log.getId());
+    }
   }
 
   @AfterReturning("execution(* io.boomerang.workspace.WorkspaceService.delete(..))" + " && args(id)")
