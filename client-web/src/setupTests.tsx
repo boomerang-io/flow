@@ -4,7 +4,7 @@ import { createMemoryRouter, createRoutesFromElements, Route, RouterProvider } f
 import { FlagsProvider } from "flagged";
 import { render as rtlRender } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, setLogger } from "react-query";
-import { vi } from "vitest";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { AppContextProvider, WorkspaceContextProvider } from "State/context";
 import {
   featureFlags as featureFlagsFixture,
@@ -12,7 +12,22 @@ import {
   profile as userFixture,
   userWorkflows as userWorkflowsFixture,
 } from "ApiServer/fixtures";
+import { server } from "ApiServer/msw/node";
+import { resetDb } from "ApiServer/msw/db";
 import "@testing-library/jest-dom/extend-expect";
+
+// Centralised MSW lifecycle - every spec used to call src/ApiServer's `startApiServer()`/
+// `server.shutdown()` itself (Mirage); MSW's Node server is process-wide (it patches the global
+// fetch/http modules once), so it's started/stopped once for the whole run here instead, with
+// `resetHandlers()` clearing any per-test `server.use()` override and `resetDb()` reseeding the
+// in-memory store from the fixtures between tests so mutations in one test can't leak into the
+// next - the same isolation guarantee `startApiServer()`'s per-test instance used to give.
+beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
+afterEach(() => {
+  server.resetHandlers();
+  resetDb();
+});
+afterAll(() => server.close());
 
 // Specs render `ui` as a bare component/tree, as an explicit <Route path=... element={...} />
 // (when a param/nested route needs to be matched), or as a <>...</> of several sibling <Route>s
@@ -155,9 +170,13 @@ expect.addSnapshotSerializer({
     printer(String(value).replace(/:r[0-9a-z]+:/g, "[generated-id]"), config, indentation, depth, refs),
 });
 
-// Fix "react-modal: No elements were found for selector #app." error
+// Fix "react-modal: No elements were found for selector #app." error. Guarded: this setupFile
+// now also runs for `@vitest-environment node` spec files (the SSR-loader-in-Node harness - see
+// its module doc), which have no `document` at all.
 beforeEach(() => {
-  document.body.setAttribute("id", "app");
+  if (typeof document !== "undefined") {
+    document.body.setAttribute("id", "app");
+  }
 });
 
 const originalConsoleError = console.error;

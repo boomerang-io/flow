@@ -42,8 +42,22 @@ const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
  * server-side call would hit `/api/...` and 404. Apply the same rewrite the dev proxy applies.
  */
 function toVersionedPath(url?: string): string | undefined {
-  // The mock server used by the test suite registers its routes at the unversioned paths the URL
-  // builders produce, so it intercepts before any rewrite would apply - skip it there.
+  // Checked at the MSW switchover (ApiServer/msw/handlers.ts): the mock layer builds every route
+  // pattern by calling the app's own `serviceUrl` functions (see that file's module doc), which
+  // always emit the unversioned `/api/...` shape `BASE_URL` produces outside a real production
+  // browser (see servicesConfig.ts - `BASE_URL` only becomes a versioned origin when
+  // `window._SERVER_DATA` is present, which is a prod-browser-only condition). So MSW's handlers
+  // register unversioned, exactly like Mirage's did before it - the premise for dropping this
+  // guard ("if the mock layer registers at versioned paths...") doesn't hold, switchover or not.
+  //
+  // The same `handlers` array/MSW server also now intercepts this file's own Node-side calls (see
+  // the SSR-loader-in-Node harness, e.g. Settings.loader.node.spec.ts), in the same test process
+  // as every component spec that calls `resolver`/`axios` directly off `serviceUrl` (never
+  // rewritten - there's no runtime interceptor on that path, in tests or in a real browser
+  // outside the dev proxy). Keeping this rewrite skipped under VITEST is what keeps both
+  // consumers on the one path shape the shared handlers list actually matches; rewriting only
+  // this file's calls would desync it from every other spec instead of the two path shapes
+  // agreeing, which is the actual goal here (see CLAUDE.md's switchover task notes).
   if (process.env.VITEST) {
     return url;
   }

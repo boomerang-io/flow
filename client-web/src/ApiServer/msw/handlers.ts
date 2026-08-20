@@ -47,6 +47,29 @@ function pathParam(value: string | readonly string[] | undefined): string {
   return value;
 }
 
+// Shared by both putTask routes (admin and workspace-scoped) - the real endpoint
+// (TaskControllerV2#apply, service-core/src/main/java/io/boomerang/api/TaskControllerV2.java)
+// accepts either a JSON body (the canvas-editor "apply" flow) or a raw YAML document (the
+// "import YAML" flow, sent with a `content-type: application/x-yaml` header per
+// AdminTasks.tsx/WorkspaceTasks.tsx's `action`) - branch on content-type first, since
+// `request.json()` would throw parsing a non-JSON body. The endpoint's own doc says "update,
+// replace, or create new" - the submitted body is the full Task the caller wants persisted, not
+// a partial patch to merge onto whatever version happens to already be in the store, so store
+// and echo it back as-is (plus `name`, since a PUT's path segment is the source of truth for
+// that field) rather than spreading it over the pre-existing record.
+async function putTaskResponse(name: string, request: Request) {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("yaml")) {
+    return HttpResponse.json({ name, displayName: "YAML Task", version: 9 });
+  }
+  const body = await jsonBody(request);
+  const updated = { ...body, name };
+  const index = db.tasks.findIndex((task) => task.name === name);
+  if (index === -1) db.tasks.push(updated);
+  else db.tasks[index] = updated;
+  return HttpResponse.json(updated);
+}
+
 export const handlers: HttpHandler[] = [
   /**
    * Simple GET of static data
@@ -151,15 +174,39 @@ export const handlers: HttpHandler[] = [
   // putTask always appends "?replace=..." unconditionally (see servicesConfig.ts), so the raw
   // builder output isn't a clean path pattern; drop the query MSW would otherwise warn about
   // matching against literally, since path matching should ignore it anyway.
-  http.put(serviceUrl.task.putTask({ name: ":name", replace: false }).split("?")[0], async ({ params, request }) => {
-    const name = pathParam(params.name);
-    const body = await jsonBody(request);
-    const index = db.tasks.findIndex((task) => task.name === name);
-    const updated = { ...(index === -1 ? {} : db.tasks[index]), ...body, name };
-    if (index === -1) db.tasks.push(updated);
-    else db.tasks[index] = updated;
-    return HttpResponse.json(updated);
+  http.put(serviceUrl.task.putTask({ name: ":name", replace: false }).split("?")[0], ({ params, request }) =>
+    putTaskResponse(pathParam(params.name), request),
+  ),
+
+  /**
+   * Workspace-scoped Tasks
+   *
+   * Same collection/behaviour as the admin task routes above (the fixture task list isn't
+   * actually partitioned by workspace, matching Mirage's `schema.db.task[0]` reuse) - just
+   * registered under `serviceUrl.workspace.task.*`'s separate paths. This namespace had no
+   * handler at all in the original Mirage server (see WorkspaceTasks.spec.tsx, which had to
+   * register these routes itself on every test's server instance) - added here so it's covered
+   * by default like every other route in this file. Same ordering hazard as task.queryTasks
+   * above: the literal /task/query route must precede the /task/:name param route.
+   */
+  http.get(serviceUrl.workspace.task.queryTasks({ workspace: ":workspace", query: "" }), () =>
+    HttpResponse.json({ content: db.tasks }),
+  ),
+  http.get(serviceUrl.workspace.task.getTask({ workspace: ":workspace", name: ":name" }), ({ params, request }) => {
+    if (request.headers.get("Accept") === "application/x-yaml") {
+      return new HttpResponse(fixtures.taskYaml[0].yaml, { headers: { "content-type": "application/x-yaml" } });
+    }
+    const task = db.tasks.find((t) => t.name === params.name);
+    return task ? HttpResponse.json(task) : HttpResponse.json({ errors: ["Task not found"] }, { status: 404 });
   }),
+  http.get(serviceUrl.workspace.task.getTaskChangelog({ workspace: ":workspace", name: ":name" }), () =>
+    HttpResponse.json(fixtures.changelogs),
+  ),
+  http.post(serviceUrl.workspace.task.postValidateYaml({ workspace: ":workspace" }), () => HttpResponse.json({})),
+  http.put(
+    serviceUrl.workspace.task.putTask({ workspace: ":workspace", name: ":name", replace: false }).split("?")[0],
+    ({ params, request }) => putTaskResponse(pathParam(params.name), request),
+  ),
 
   /**
    * Workflows
@@ -277,8 +324,9 @@ export const handlers: HttpHandler[] = [
   }),
   // getWorkspaces (the literal /workspace/query list route) must be registered before
   // resourceWorkspace's GET (the parameterized /workspace/:workspace below) - see the ordering
-  // note on task.queryTasks above.
-  http.get(serviceUrl.getWorkspaces({ query: "" }), () => HttpResponse.json({ content: db.workspaces })),
+  // note on task.queryTasks above. Workspaces.tsx's table reads `number`/`size`/`totalElements`
+  // off this response, not just `content` (same reasoning as getUsers below).
+  http.get(serviceUrl.getWorkspaces({ query: "" }), () => HttpResponse.json(paginatedResponse(db.workspaces))),
   http.get(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), ({ params }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     return workspace ? HttpResponse.json(workspace) : HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
@@ -332,12 +380,17 @@ export const handlers: HttpHandler[] = [
   /**
    * Manage Users
    */
+  // Users.tsx's table reads `number`/`size`/`totalElements` off this response (see its
+  // `Pagination` usage), not just `content` - `db.users` only carries the fixture's `.content`
+  // array (see db.ts), so rebuild a single-page envelope around it via `paginatedResponse` rather
+  // than returning a bare `{content}` that leaves those fields `undefined` (Carbon's `Pagination`
+  // free-falls into an infinite re-render loop once `totalItems` is `NaN`/`undefined`).
   http.get(serviceUrl.getUsers({ query: "" }), ({ request }) => {
     const query = new URL(request.url).searchParams.get("query");
     const content = query
       ? db.users.filter((user) => user.name?.includes(query) || user.email?.includes(query))
       : db.users;
-    return HttpResponse.json({ content });
+    return HttpResponse.json(paginatedResponse(content));
   }),
   http.get(serviceUrl.getUser({ userId: ":userId" }), ({ params }) => {
     const user = db.users.find((u) => u.id === params.userId);
@@ -363,15 +416,19 @@ export const handlers: HttpHandler[] = [
   /**
    * Tokens
    *
-   * getTokens and getGlobalTokens share the same pathname (/token/query) - the real distinction
-   * is the `types=global` query param, not the path - so one handler serves both, matching the
-   * flavor the query string asks for instead of registering two routes MSW would resolve to the
-   * same pattern anyway.
+   * getTokens and getGlobalTokens share the same pathname (/token/query) - `types` (which
+   * `getGlobalTokens` fixes to "global") is just a filter param on the real endpoint
+   * (TokenControllerV2#query returns `Page<Token>` unconditionally - see
+   * service-core/src/main/java/io/boomerang/api/TokenControllerV2.java), not a flag that
+   * changes the response shape, so one handler serves both with the same paginated
+   * `{content: [...]}` envelope regardless of `types`. An earlier version of this handler
+   * branched on `types=global` to return a bare array instead - GlobalTokens.tsx's loader
+   * (`response.data.content ?? []`) only ever worked against that by accident, because Mirage's
+   * two same-path routes shadowed each other (first registration wins, regardless of query) and
+   * always served the paginated shape no matter what `types` asked for; the bare-array branch
+   * was unreachable dead code that never matched what the real endpoint sends.
    */
-  http.get(serviceUrl.getTokens({ query: "" }), ({ request }) => {
-    const isGlobal = new URL(request.url).searchParams.get("types") === "global";
-    return isGlobal ? HttpResponse.json(db.tokens) : HttpResponse.json({ content: db.tokens });
-  }),
+  http.get(serviceUrl.getTokens({ query: "" }), () => HttpResponse.json({ content: db.tokens })),
   http.get(serviceUrl.getTokenCatalog({ query: "" }), () => HttpResponse.json(fixtures.tokenCatalog)),
   http.delete(serviceUrl.deleteToken({ tokenId: ":tokenId" }), ({ params }) => {
     db.tokens = db.tokens.filter((token) => token.id !== params.tokenId);
@@ -400,6 +457,26 @@ export const handlers: HttpHandler[] = [
   http.get(serviceUrl.getIntegrations({ workspace: "" }), () => HttpResponse.json(fixtures.integrations)),
   http.get(serviceUrl.getGitHubAppInstallation({ id: "" }), () => HttpResponse.json(fixtures.installations)),
 ];
+
+// The shared fixtures for list endpoints (e.g. `fixtures.users`, `fixtures.workspaces`) are
+// themselves a full Spring `Page<T>` envelope - db.ts's collections seed from just their
+// `.content` array (see its module doc), which is what lets handlers mutate/filter them as plain
+// arrays, but that means a handler returning `{content}` alone drops the rest of that envelope.
+// Rebuild a well-formed single-page envelope around whatever `content` a handler computed
+// (post-filter/mutation) for the routes whose consumers read paging fields beyond `content`.
+function paginatedResponse<T>(content: T[]) {
+  return {
+    content,
+    number: 0,
+    size: content.length,
+    totalElements: content.length,
+    totalPages: 1,
+    first: true,
+    last: true,
+    numberOfElements: content.length,
+    empty: content.length === 0,
+  };
+}
 
 function findWorkspace(identifier: string) {
   return db.workspaces.find((workspace) => workspace.name === identifier || workspace.id === identifier);

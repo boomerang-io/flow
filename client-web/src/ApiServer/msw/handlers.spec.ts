@@ -1,16 +1,18 @@
-// Self-contained proof that the MSW handler layer works - uses MSW directly (via ./node's
-// `server`) rather than any Mirage/RTL test helper, and does not import or rely on
-// src/setupTests.tsx. Covers a representative slice of the surface, including the three cases
-// that directly demonstrate the bugs this layer deliberately does not carry over from Mirage
-// (see the module doc in ./handlers.ts and the commit/PR description for the full divergence
-// list):
+// Proof that the MSW handler layer works, driven with plain `fetch()` calls rather than any RTL
+// helper. The server lifecycle (listen/resetHandlers+resetDb/close) is centralised in
+// src/setupTests.tsx (every spec file goes through it as vitest's global setupFile) - this file
+// used to run its own listen()/close() independently, back when it was authored alongside Mirage
+// as proof the layer worked in isolation before anything was wired in; now that the switchover is
+// done, a second listen() on the same process-wide server throws ("cannot configure an already
+// enabled network"), so this relies on the shared lifecycle like every other spec. Covers a
+// representative slice of the surface, including the three cases that directly demonstrate the
+// bugs this layer deliberately does not carry over from Mirage (see the module doc in
+// ./handlers.ts for the full divergence list):
 //   - the workspace-list route (a literal path) resolving ahead of the single-workspace route
 //     (a :workspace param) at the same depth, rather than being shadowed by it
 //   - PATCH .../labels actually persisting instead of throwing on a plain (non-ORM) record
 //   - validate-name rejecting only a real collision, not every request
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { server } from "./node";
-import { resetDb } from "./db";
+import { describe, expect, it } from "vitest";
 import * as fixtures from "ApiServer/fixtures";
 
 // MSW resolves a relative handler pattern like "/api/profile" against the current document's
@@ -20,13 +22,6 @@ import * as fixtures from "ApiServer/fixtures";
 function apiUrl(path: string): string {
   return new URL(path, window.location.href).toString();
 }
-
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => {
-  server.resetHandlers();
-  resetDb();
-});
-afterAll(() => server.close());
 
 describe("MSW handlers", () => {
   it("serves static fixtures directly, e.g. the profile", async () => {
