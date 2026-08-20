@@ -216,6 +216,29 @@
   line-height: 1.125rem;
 }
 
+.actionerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.actioner {
+  border-left: 0.125rem solid #d5d9e0;
+  margin-top: 0.75rem;
+  padding-left: 0.75rem;
+
+  &:first-of-type {
+    margin-top: 0.25rem;
+  }
+}
+
+.actionerMeta {
+  color: #4d5358;
+  font-size: 0.75rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9375rem;
+}
+
 .viewActivityLink {
   color: var(--cds-interactive-01);
   font-size: 0.8rem;

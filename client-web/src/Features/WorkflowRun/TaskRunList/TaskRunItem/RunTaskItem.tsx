@@ -1,12 +1,11 @@
 import { Button, ModalBody } from "@carbon/react";
 import { ArrowRight } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
-import { task } from "ApiServer/fixtures";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
 import dateHelper from "Utils/dateHelper";
 import { ExecutionStatusCopy, NodeType, executionStatusIcon } from "Constants";
-import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import { Action, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
 import ManualTaskModal from "./ManualTaskModal";
 import PropertiesTable from "./PropertiesTable";
 import ResultsTable from "./ResultsTable";
@@ -20,10 +19,16 @@ const logStatusTypes = [RunStatus.Succeeded, RunStatus.Failed, RunStatus.Running
 type Props = {
   taskRun: TaskRun;
   workflowRun: WorkflowRun;
+  // The Action record behind an `approval`/`manual` task, when this task has one. Approver
+  // names, comments, verdicts and dates live only on the Action (see the backend's
+  // ActionEntity/Actioner) - the TaskRun itself carries nothing but an `actionRef` result
+  // pointing at it, so the run route's loader resolves it and hands it down here rather than
+  // every list item fetching its own.
+  action?: Action;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
 };
 
-function RunTaskItem({ taskRun, workflowRun, executionViewRedirect }: Props) {
+function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Props) {
   const Icon = executionStatusIcon[taskRun.status];
   const statusClassName = styles[taskRun.status];
 
@@ -154,7 +159,7 @@ function RunTaskItem({ taskRun, workflowRun, executionViewRedirect }: Props) {
               </Button>
             )}
           >
-            {() => <ApprovalResult taskRun={taskRun} />}
+            {() => <ApprovalResult taskRun={taskRun} action={action} />}
           </ComposedModal>
         )}
         {taskRun.type === NodeType.Manual && taskRun.phase === RunPhase.Completed && (
@@ -172,7 +177,7 @@ function RunTaskItem({ taskRun, workflowRun, executionViewRedirect }: Props) {
               </Button>
             )}
           >
-            {() => <ManualResult taskRun={taskRun} />}
+            {() => <ManualResult taskRun={taskRun} action={action} />}
           </ComposedModal>
         )}
       </section>
@@ -182,28 +187,62 @@ function RunTaskItem({ taskRun, workflowRun, executionViewRedirect }: Props) {
 
 export default RunTaskItem;
 
-interface ApprovalResultProps {
-  taskRun: TaskRun;
+// An Action is actioned by potentially MANY approvers (`numberOfApprovers` on the backend
+// entity), each recording their own verdict, comment and timestamp - so every actioner is
+// rendered with its own status rather than one shared verdict for the whole Action.
+// `approverName`/`approverEmail` are resolved server-side from `approverId` and are absent
+// whenever that lookup fails (or no principal was recorded, e.g. `flow.security.enabled=false`),
+// so neither is assumed present.
+function approverLabel({ approverName, approverEmail }: SimpleApprover) {
+  if (approverName && approverEmail) {
+    return `${approverName} (${approverEmail})`;
+  }
+  return approverName || approverEmail || "Unknown approver";
 }
 
-function ApprovalResult({ taskRun }: ApprovalResultProps) {
+function ActionersList({ actioners, showVerdict }: { actioners: SimpleApprover[]; showVerdict: boolean }) {
+  return (
+    <ul className={styles.actionerList}>
+      {actioners.map((actioner, index) => (
+        <li className={styles.actioner} key={`${actioner.approverId ?? "unknown"}-${index}`}>
+          <p className={styles.sectionDetail}>{approverLabel(actioner)}</p>
+          <p className={styles.actionerMeta}>
+            {showVerdict ? `${actioner.approved ? "Approved" : "Rejected"} · ` : ""}
+            {actioner.date ? moment(actioner.date).format("YYYY-MM-DD hh:mm A") : "---"}
+          </p>
+          {actioner.comments && <p className={styles.sectionDetail}>{actioner.comments}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface ApprovalResultProps {
+  taskRun: TaskRun;
+  action?: Action;
+}
+
+function ApprovalResult({ taskRun, action }: ApprovalResultProps) {
+  const actioners = action?.actioners ?? [];
   return (
     <ModalBody>
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Approval Status</span>
         <p className={styles.sectionDetail}>{taskRun.status}</p>
       </section>
+      {action && (
+        <section className={styles.detailedSection}>
+          <span className={styles.sectionHeader}>Approvals</span>
+          <p className={styles.sectionDetail}>{`${action.numberOfApprovals} of ${action.approvalsRequired}`}</p>
+        </section>
+      )}
       <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>Approver</span>
-        <p className={styles.sectionDetail}>{`${approval.audit.approverName} (${approval.audit.approverEmail})`}</p>
-      </section>
-      <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>Approval submitted</span>
-        <p className={styles.sectionDetail}>{moment(approval.audit.actionDate).format("YYYY-MM-DD hh:mm A")}</p>
-      </section>
-      <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>Approval comments</span>
-        <p className={styles.sectionDetail}>{approval.audit.comments}</p>
+        <span className={styles.sectionHeader}>Approvers</span>
+        {actioners.length > 0 ? (
+          <ActionersList actioners={actioners} showVerdict />
+        ) : (
+          <p className={styles.sectionDetail}>No approvals have been recorded.</p>
+        )}
       </section>
     </ModalBody>
   );
@@ -211,8 +250,15 @@ function ApprovalResult({ taskRun }: ApprovalResultProps) {
 
 interface ManualResultProps {
   taskRun: TaskRun;
+  action?: Action;
 }
-function ManualResult({ taskRun }: ManualResultProps) {
+
+function ManualResult({ taskRun, action }: ManualResultProps) {
+  const actioners = action?.actioners ?? [];
+  // A manual task's instructions are stored on the Action, but they originate as a task param -
+  // fall back to that so the instructions still render if the Action can't be resolved.
+  const instructions =
+    action?.instructions ?? taskRun.params.find((param) => param.name === "instructions")?.value ?? "";
   return (
     <ModalBody>
       <section className={styles.detailedSection}>
@@ -222,16 +268,16 @@ function ManualResult({ taskRun }: ManualResultProps) {
         }`}</p>
       </section>
       <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>Approver</span>
-        <p className={styles.sectionDetail}>{`${approval.audit.approverName} (${approval.audit.approverEmail})`}</p>
-      </section>
-      <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>Submitted</span>
-        <p className={styles.sectionDetail}>{moment(approval.audit.actionDate).format("YYYY-MM-DD hh:mm A")}</p>
+        <span className={styles.sectionHeader}>Submitted by</span>
+        {actioners.length > 0 ? (
+          <ActionersList actioners={actioners} showVerdict={false} />
+        ) : (
+          <p className={styles.sectionDetail}>No submission has been recorded.</p>
+        )}
       </section>
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Instructions</span>
-        <ReactMarkdown className="markdown-body" children={approval?.instructions} />
+        <ReactMarkdown className="markdown-body" children={String(instructions)} />
       </section>
     </ModalBody>
   );

@@ -7,16 +7,20 @@ import { UseQueryResult } from "react-query";
 import { getSimplifiedDuration } from "Utils/timeHelper";
 import { ExecutionStatusCopy, executionStatusIcon, NodeType } from "Constants";
 import { QueryStatus } from "Constants";
-import { RunStatus, WorkflowRun } from "Types";
+import { Action, RunStatus, WorkflowRun } from "Types";
 import TaskRunItem from "./TaskRunItem";
 import styles from "./TaskRunList.module.scss";
 
 type Props = {
   workflowRun: WorkflowRun;
+  // Actions for this run's `approval`/`manual` tasks, keyed by the TaskRun id they belong to
+  // (`Action.taskRunRef`). Resolved once by the route loader - see WorkflowRun.tsx - because a
+  // TaskRun only carries an `actionRef`, never the approver detail itself.
+  actions?: Record<string, Action>;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
 };
 
-function TaskRunLog({ workflowRun, executionViewRedirect }: Props) {
+function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [tasksSort, setTasksSort] = useState<"desc" | "asc">("desc");
 
@@ -99,6 +103,7 @@ function TaskRunLog({ workflowRun, executionViewRedirect }: Props) {
               key={taskRun.id}
               taskRun={taskRun}
               workflowRun={workflowRun}
+              action={actions?.[taskRun.id]}
               executionViewRedirect={executionViewRedirect}
             />
           ) : null,
