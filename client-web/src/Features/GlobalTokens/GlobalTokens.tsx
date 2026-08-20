@@ -19,70 +19,29 @@ import {
   FeatureHeaderSubtitle as HeaderSubtitle,
   ErrorMessage,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { formatErrorMessage } from "@boomerang-io/utils";
 import moment from "moment";
-import queryString from "query-string";
-import { useFetcher, useLoaderData, useRevalidator } from "react-router-dom";
+import { useFetcher, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import EmptyState from "Components/EmptyState";
+import { globalTokensLoader, tokenAction, type TokenActionResult } from "Components/TokenSection/tokenRoute";
+import type { TokenSectionRouteData } from "Components/TokenSection/tokenRouteData";
 import { arrayPagination } from "Utils/arrayHelper";
 import { TokenType } from "Constants";
-import { serviceUrl } from "Config/servicesConfig";
-import { serverFetch } from "Config/serverFetch";
 import { Token } from "Types";
 import styles from "./GlobalTokens.module.scss";
 
 // Route module: loader/action attached at app/routes/tokens.tsx (path=/admin/tokens), following
 // the GlobalParameters.tsx reference conversion (see that file for the fuller rationale comment).
-
-const GLOBAL_TOKENS_QUERY = queryString.stringify({ types: "global" });
-
-type LoaderData = {
-  tokens: Token[];
-  errorLoading: boolean;
-};
-
-// Server loader - runs in Node via serverFetch(request), never the browser resolver/axios
-// instance. Mirrors the previous tokensQuery.isError behaviour: a failed fetch resolves with an
-// error flag instead of throwing, so route chrome still renders (see GlobalParameters.tsx).
-export async function loader({ request }: { request: Request }): Promise<LoaderData> {
-  try {
-    const response = await serverFetch(request).get(serviceUrl.getTokens({ query: GLOBAL_TOKENS_QUERY }));
-    return { tokens: response.data.content ?? [], errorLoading: false };
-  } catch (error) {
-    return { tokens: [], errorLoading: true };
-  }
-}
-
-type ActionResult = {
-  ok: boolean;
-  intent: "delete";
-  errorMessage?: { title: string; message: string };
-};
-
-// Only "delete" runs through this route's action - token creation is owned by the shared
-// CreateToken/Form component (Components/CreateToken/Form/index.tsx), which stays on its
-// existing useMutation because it's rendered by three surfaces (this route, the workspace
-// Tokens tab, and the workflow editor's Configure tab) and only this one has a loader/action
-// home to convert into. Form calls the `onSuccess` callback below (in addition to its existing
-// queryClient.invalidateQueries) so this route's list - which is loader-driven and therefore has
-// no react-query cache entry to invalidate - still refreshes after a create.
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
-  const formData = await request.formData();
-  const tokenId = String(formData.get("tokenId"));
-  try {
-    await serverFetch(request).delete(serviceUrl.deleteToken({ tokenId }));
-    return { ok: true, intent: "delete" };
-  } catch (error) {
-    return {
-      ok: false,
-      intent: "delete",
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Token Failed" }),
-    };
-  }
-}
+//
+// Both are now the shared pair in Components/TokenSection/tokenRoute.ts rather than local copies:
+// this route's <CreateToken> renders the same PermissionSelector as the other two token surfaces,
+// which reads its server-driven catalog off `tokenSection.catalog`, and submits the same "create"
+// intent. That also retires the `onSuccess` callback this file used to pass CreateToken - the
+// Form revalidates the route itself now.
+export const loader = globalTokensLoader;
+export const action = tokenAction;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [DEFAULT_PAGE_SIZE, 20, 50, 100];
@@ -157,21 +116,23 @@ const FeatureLayout = ({ children }: FeatureLayoutProps) => {
 };
 
 function Tokens() {
-  const { tokens, errorLoading } = useLoaderData() as LoaderData;
-  const fetcher = useFetcher<ActionResult>();
-  const revalidator = useRevalidator();
+  const { tokenSection } = useLoaderData() as TokenSectionRouteData;
+  const { tokens, errorLoading } = tokenSection;
+  const fetcher = useFetcher<TokenActionResult>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortKey, setSortKey] = useState("creationDate");
   const [sortDirection, setSortDirection] = useState("DESC");
 
-  const getTokensUrl = serviceUrl.getTokens({ query: GLOBAL_TOKENS_QUERY });
-
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    const { ok, errorMessage } = fetcher.data;
+    if (fetcher.data.intent !== "delete") {
+      return;
+    }
+    const ok = fetcher.data.ok;
+    const errorMessage = fetcher.data.ok ? undefined : fetcher.data.errorMessage;
     notify(
       ok ? (
         <ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />
@@ -239,12 +200,7 @@ function Tokens() {
   return (
     <FeatureLayout>
       <div className={styles.buttonContainer}>
-        <CreateToken
-          type={TokenType.Global}
-          getTokensUrl={getTokensUrl}
-          principal="**"
-          onSuccess={() => revalidator.revalidate()}
-        />
+        <CreateToken type={TokenType.Global} principal="**" />
       </div>
       {tokens.length > 0 ? (
         <>
