@@ -100,3 +100,34 @@ runs.
    index-covered claim/sweep queries (count-don't-load stays true).
 10. UI contract: "render the full run graph from TaskRuns" recorded as a consumer-facing
     invariant of materialise-all.
+
+---
+
+## Implementation status (2026-08-21) — what shipped vs. what this document ruled
+
+> **Built**: materialise-all. `TaskExecutionService.queue` creates the TaskRun set; the DAG advance
+> is **level-triggered** and re-drives from persisted state, which is the reconcile property this
+> document wanted. `WorkflowWatcher` runs ten sweeps (this document and `queue-design.md` specified
+> six) that converge state after a crash: `reapTaskTimeouts`, `reapWorkflowTimeouts`,
+> `recoverStalledRuns`, `finalizeWorkspacelessRuns`, `resumeDueWaitingTasks`,
+> `cancelDeletedWorkflowRuns`, `pruneDeletedWorkflows`, `reapRunsWithMissingRevision`,
+> `reapClaimsFromGoneDispatchers`, `closeStrayActions`.
+
+> **NOT built — supersede generations (Q-115) and the on-demand half of option C.** There is no
+> `attempt`, `supersededAt` or `supersededBy` field on `TaskRunEntity`, no `supersedeFrom(nodeRef)`,
+> and no live-generation discriminator or partial unique index. `SUPERSEDED` appears in the engine
+> only in comments about claim-seq fencing. **This is deliberate, not an oversight**: the capability
+> those fields exist to serve — re-driving part of an existing run in place — was never shipped.
+> `WorkflowRunService.retry()` creates a **new** WorkflowRun (the two-pointer pattern), so there is
+> no second live generation of a node within one run for a discriminator to disambiguate.
+
+> **NOT built — a separate reconciler component.** "Reconcile" is a property of the DAG advance, not
+> a class. There is no `reconcile()` entry point; `reconcile` appears in `service-core` only in
+> comments (`TaskExecutionService:134`, `WorkflowRunService:796`) describing the level-triggered
+> resume-after-pause behaviour.
+
+> **Ruling (2026-08-21)**: correct this document rather than build to it — the same call already made
+> for the designed-but-unbuilt retry classes (rate-limit / deterministic-terminal, ruled 2026-08-18)
+> and for leases (AM-3). §3's supersede model stays as the design to build **if and when** in-place
+> partial re-run becomes a product requirement; until then it describes a capability the product does
+> not have. The industry study in this document is unaffected and remains the reference.
