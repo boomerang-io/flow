@@ -11,7 +11,7 @@ import fileDownload from "js-file-download";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { Helmet } from "react-helmet";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useBlocker, matchPath, useParams } from "react-router-dom";
+import { useNavigate, useBlocker, matchPath, useParams, useRevalidator } from "react-router-dom";
 import { Box } from "reflexbox";
 import EditTaskTemplateModal from "Components/EditTaskTemplateModal";
 import EmptyState from "Components/EmptyState";
@@ -236,6 +236,10 @@ export function TaskTemplateOverview({
 }: TaskOverviewProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const queryClient = useQueryClient();
+  // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
+  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) below would be a silent
+  // no-op, so those three call sites revalidate() instead.
+  const revalidator = useRevalidator();
   const params = useParams();
   const navigate = useNavigate();
 
@@ -348,7 +352,7 @@ export function TaskTemplateOverview({
       }
       await queryClient.invalidateQueries(getTaskTemplateUrl);
       await queryClient.invalidateQueries(getChangelogUrl);
-      await queryClient.invalidateQueries(serviceUrl.getFeatureFlags());
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
@@ -411,7 +415,7 @@ export function TaskTemplateOverview({
       }
       await queryClient.invalidateQueries(getTaskTemplateUrl);
       await queryClient.invalidateQueries(getChangelogUrl);
-      await queryClient.invalidateQueries(serviceUrl.getFeatureFlags());
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
@@ -447,7 +451,7 @@ export function TaskTemplateOverview({
       }
       await queryClient.invalidateQueries(getTaskTemplateUrl);
       await queryClient.invalidateQueries(getChangelogUrl);
-      await queryClient.invalidateQueries(serviceUrl.getFeatureFlags());
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"

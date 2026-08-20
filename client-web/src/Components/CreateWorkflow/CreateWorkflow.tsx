@@ -4,7 +4,7 @@ import { ComposedModal, notify, ToastNotification, TooltipHover } from "@boomera
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useRevalidator } from "react-router-dom";
 import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
@@ -22,6 +22,10 @@ interface CreateWorkflowProps {
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {
   const queryClient = useQueryClient();
+  // Workflow templates are now read via TemplateWorkflows.tsx's own route loader, not a
+  // react-query cache entry - queryClient.invalidateQueries(template.getWorkflowTemplates())
+  // would be a silent no-op for that read, so the Template branches below revalidate() instead.
+  const revalidator = useRevalidator();
   const navigate = useNavigate();
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
 
@@ -44,7 +48,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
         <ToastNotification kind="success" title={`Create ${viewType}`} subtitle={`${viewType} successfully created`} />,
       );
       if (viewType === WorkflowView.Template) {
-        queryClient.invalidateQueries(serviceUrl.template.getWorkflowTemplates());
+        revalidator.revalidate();
       } else if (workspace?.name) {
         queryClient.invalidateQueries(serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace.name }));
       }
@@ -76,7 +80,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
         />,
       );
       if (viewType === WorkflowView.Template) {
-        queryClient.invalidateQueries(serviceUrl.template.getWorkflowTemplates());
+        revalidator.revalidate();
       } else {
         queryClient.invalidateQueries(serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name! }));
       }

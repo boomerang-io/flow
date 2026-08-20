@@ -14,6 +14,15 @@ import "Styles/styles.scss";
 import ErrorBoundary from "Components/ErrorBoundary";
 import { isDevEnv, isTestEnv } from "Config/appConfig";
 
+// The bootstrap loader (profile/context/feature-flags/navigation/workflow-templates - see
+// Features/App/App.tsx for the full rationale) is implemented next to the component that
+// consumes it, same as every other route module in this app (e.g. app/routes/globalParameters.tsx
+// re-exports its loader from Features/Parameters/GlobalParameters/GlobalParameters.tsx). It's
+// re-exported from here because this file - the framework-mode root route, id "root" - is what
+// every route in app/routes.ts is nested under, so its loader is the one guaranteed to run before
+// any of them render.
+export { loader, shouldRevalidate } from "Features/App/App";
+
 // react-query v3 - all existing app data fetching (useQuery/useMutation call sites).
 const queryClient = new QueryClient({
   defaultOptions: {

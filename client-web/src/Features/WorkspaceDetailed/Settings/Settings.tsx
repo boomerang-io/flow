@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Helmet } from "react-helmet";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useRevalidator } from "react-router-dom";
 import { InlineNotification, Button } from "@carbon/react";
 import {
   ConfirmModal,
@@ -35,15 +35,19 @@ interface Label {
 export default function Settings({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
   const [copyTokenText, setCopyTokenText] = useState("Copy");
   const queryClient = useQueryClient();
+  // The user profile (workspace membership list) is now root-loader-driven (Features/App/App.tsx)
+  // rather than a react-query cache entry, so deleting a workspace here has to re-run that loader
+  // via revalidate() - queryClient.invalidateQueries(getUserProfile()) would be a silent no-op.
+  const revalidator = useRevalidator();
   const navigate = useNavigate();
 
-  const patchWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace); 
-  const deleteWorkspaceMutator = useMutation(resolver.deleteWorkspace); 
+  const patchWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
+  const deleteWorkspaceMutator = useMutation(resolver.deleteWorkspace);
 
   const handleDeleteWorkspace = async () => {
     try {
       await deleteWorkspaceMutator.mutateAsync({ workspace: workspace.name });
-      queryClient.invalidateQueries(serviceUrl.getUserProfile());
+      revalidator.revalidate();
       navigate(appLink.home());
       notify(
         <ToastNotification

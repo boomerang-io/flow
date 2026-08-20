@@ -1,5 +1,6 @@
 import React from "react";
-import { useQueryClient, useMutation } from "react-query";
+import { useMutation } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { Formik } from "formik";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
 import {
@@ -9,7 +10,7 @@ import {
   TextInput,
   Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { resolver } from "Config/servicesConfig";
 import * as Yup from "yup";
 import styles from "./UpdateBasicDetails.module.scss";
 import { FlowUser } from "Types";
@@ -20,7 +21,10 @@ interface UpdateBasicDetailsProps {
 }
 
 const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, user }) => {
-  const queryClient = useQueryClient();
+  // The profile is now root-loader-driven (Features/App/App.tsx), not a react-query cache entry -
+  // revalidate() re-runs that loader; queryClient.invalidateQueries(getUserProfile()) would be a
+  // silent no-op.
+  const revalidator = useRevalidator();
   const updateMutator = useMutation(resolver.patchProfile);
   const handleUpdate = async (values: { displayName: string }) => {
     console.log("Values", values);
@@ -30,7 +34,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
 
     try {
       await updateMutator.mutateAsync({ body: request });
-      queryClient.invalidateQueries(serviceUrl.getUserProfile());
+      revalidator.revalidate();
       notify(
         <ToastNotification kind="success" title="Update Profile" subtitle="Profile successfully updated" />
       );

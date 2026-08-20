@@ -3,7 +3,8 @@ import axios, { type AxiosInstance } from "axios";
 /*
  * Server-side counterpart to Config/servicesConfig.ts's browser `resolver`/`axios` calls. Only
  * ever imported from a route's `loader`/`action` export (see app/routes/globalParameters.tsx,
- * app/routes/userDetailed.tsx, Features/App/index.tsx's layout loader) - react-router's
+ * app/routes/userDetailed.tsx, app/root.tsx's root loader - implemented in
+ * Features/App/App.tsx) - react-router's
  * route-module splitting (v8_splitRouteModules, see react-router.config.ts) strips
  * loader/action-only code out of the client bundle, so this file's Node-only assumptions
  * (process.env, no browser cookie jar) never ship to the browser.

@@ -16,7 +16,7 @@ import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
 import cloneDeep from "lodash/cloneDeep";
 import { useMutation, useQueryClient } from "react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useRevalidator } from "react-router-dom";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 // @ts-ignore:next-line
 import { swapValue } from "Utils";
@@ -40,6 +40,10 @@ interface WorkflowCardProps {
 
 const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType, getWorkflowsUrl }) => {
   const queryClient = useQueryClient();
+  // Workflow templates are now read via TemplateWorkflows.tsx's own route loader, not a
+  // react-query cache entry - queryClient.invalidateQueries(template.getWorkflowTemplates())
+  // would be a silent no-op for that read, so the Template branch below revalidate()s instead.
+  const revalidator = useRevalidator();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
@@ -102,7 +106,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         />,
       );
       if (viewType === WorkflowView.Template) {
-        queryClient.invalidateQueries(serviceUrl.template.getWorkflowTemplates());
+        revalidator.revalidate();
       } else {
         queryClient.invalidateQueries(getWorkflowsUrl);
       }

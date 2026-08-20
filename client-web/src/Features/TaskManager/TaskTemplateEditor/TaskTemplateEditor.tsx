@@ -28,7 +28,7 @@ import { Controlled as CodeMirrorReact } from "react-codemirror2";
 import { Helmet } from "react-helmet";
 import ReactMarkdown from "react-markdown";
 import { useMutation, useQueryClient } from "react-query";
-import { useParams, useNavigate, useBlocker, matchPath } from "react-router-dom";
+import { useParams, useNavigate, useBlocker, matchPath, useRevalidator } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { useQuery } from "Hooks";
 import { TaskTemplateStatus } from "Constants";
@@ -72,6 +72,10 @@ export function TaskTemplateYamlEditor({
 }: TaskYamlEditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const queryClient = useQueryClient();
+  // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
+  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) below would be a silent
+  // no-op, so those call sites revalidate() instead.
+  const revalidator = useRevalidator();
 
   const params = useParams();
   const navigate = useNavigate();
@@ -172,7 +176,7 @@ export function TaskTemplateYamlEditor({
         queryClient.invalidateQueries([getTaskTemplateUrl, "yaml"]);
       }
       queryClient.invalidateQueries(getTaskTemplatesUrl);
-      queryClient.invalidateQueries(serviceUrl.getFeatureFlags());
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
@@ -235,7 +239,7 @@ export function TaskTemplateYamlEditor({
       }
       await queryClient.invalidateQueries(getTaskTemplateUrl);
       await queryClient.invalidateQueries(getChangelogUrl);
-      await queryClient.invalidateQueries(serviceUrl.getFeatureFlags());
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
@@ -271,7 +275,7 @@ export function TaskTemplateYamlEditor({
       }
       await queryClient.invalidateQueries(getTaskTemplateUrl);
       await queryClient.invalidateQueries(getChangelogUrl);
-      await queryClient.invalidateQueries(serviceUrl.getFeatureFlags());
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
