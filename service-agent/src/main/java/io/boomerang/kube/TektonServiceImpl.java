@@ -10,6 +10,7 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.executor.TaskExecutor;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.ConfigMapProjection;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
@@ -50,10 +51,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TektonServiceImpl implements TektonService {
+@ConditionalOnProperty(name = "agent.executor", havingValue = "tekton", matchIfMissing = true)
+public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   private static final Logger LOGGER = LogManager.getLogger(TektonServiceImpl.class);
 
@@ -64,6 +67,53 @@ public class TektonServiceImpl implements TektonService {
   @Autowired private WorkspaceService workspaceService;
 
   protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
+
+  @Value("${kube.timeout.waitUntil}")
+  protected long waitUntilTimeout;
+
+  @Override
+  public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
+      throws InterruptedException, ParseException {
+    createTaskRun(
+        task.getWorkflowRef(),
+        task.getWorkflowRunRef(),
+        task.getId(),
+        task.getName(),
+        task.getLabels(),
+        task.getSpec().getImage(),
+        task.getSpec().getCommand(),
+        task.getSpec().getScript(),
+        task.getSpec().getArguments(),
+        task.getParams(),
+        task.getSpec().getEnvs(),
+        task.getResults(),
+        task.getSpec().getWorkingDir(),
+        task.getWorkspaces(),
+        waitUntilTimeout,
+        timeoutMinutes,
+        task.getSpec().getDebug());
+  }
+
+  @Override
+  public List<RunResult> watch(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
+      throws InterruptedException {
+    return watchTaskRun(
+        task.getWorkflowRef(),
+        task.getWorkflowRunRef(),
+        task.getId(),
+        task.getLabels(),
+        timeoutMinutes);
+  }
+
+  @Override
+  public void cancel(io.boomerang.common.model.TaskRun task) {
+    cancelTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+  }
+
+  @Override
+  public void delete(io.boomerang.common.model.TaskRun task) {
+    deleteTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+  }
 
   @Value("${kube.image.pullPolicy}")
   protected String kubeImagePullPolicy;

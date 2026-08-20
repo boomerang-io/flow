@@ -1,13 +1,23 @@
-# Boomerang Agent Service for Tekton
+# Boomerang Agent Service (Kubernetes)
 
 This service acts as a mechanism to execute tasks in a secure and highly performant way and connects to the Engine
 service to register and request a queue using a long poll mechanism.
 
-This specific agent is the Tekton agents, executing template, script, and custom tasks in a Kubernetes cluster using
-the [Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client) to interact with Kubernetes
-along with the Tekton extension to interact with the Tekton TaskRuns. When writing new integrations, it is
-recommended to look through the Kubernetes Client Docs to find the exact Client method to use and then look at the API
-code to see how it works for advance configurations such as the Watcher API.
+It executes template, script, and custom tasks in a Kubernetes cluster using the
+[Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client). The per-task runtime sits behind
+the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `agent.executor`:
+
+| `agent.executor` | Implementation | Runtime object | Notes |
+| ---------------- | -------------- | -------------- | ----- |
+| `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
+| `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. `agent.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every task. |
+
+Both executors build the same volumes: `/params` (projected ConfigMap, one file per param), `/data` (emptyDir), and
+the `workflow` / `workflowrun` workspace PVCs at `/workspace/<type>` (or the declared mount path). Every param is also
+exposed as a `PARAM_<NAME>` environment variable; explicitly declared task env vars win on name collision.
+
+When writing new integrations, it is recommended to look through the Kubernetes Client Docs to find the exact Client
+method to use and then look at the API code to see how it works for advance configurations such as the Watcher API.
 
 ## Development
 
