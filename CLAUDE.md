@@ -117,10 +117,17 @@ behaviour, never "simplify" onto framework defaults.
 
 ## Architecture Invariants — Do Not Violate
 
-- **Status is the only external-facing field.** Phase is internal orchestration state and is
-  never exposed in public API responses. (Currently violated — `phase` serialises in
-  `WorkflowRun`/`TaskRun` models and the agent protocol depends on it; fixed via the
-  model-entity flattening + `AgentProtocol` v2 split. Phase stays on the agent wire only.)
+- **Status is the target external-facing field; `phase` is deliberately exposed alongside it for
+  now** (maintainer-ruled, 2026-08-18). The aspiration is that phase stays internal orchestration
+  state, but **one model serves both wires**: `DispatcherControllerV1` and the public
+  `/api/v2` controllers both return `io.boomerang.common.model.TaskRun`/`WorkflowRun`, and the
+  dispatcher dispatches on `phase` (`TaskRun.java:23`). So `phase` serialises publicly today —
+  verified, and pinned by a tripwire in `PublicRunModelSerialisationTest` that must be inverted
+  when this is closed. Splitting it needs a dispatcher-specific wire model or a `@JsonView`/mixin;
+  **re-open explicitly rather than re-attempting** — the earlier `WorkflowRunClaim` split was built
+  and then deliberately collapsed back. **The rest of the invariant HOLDS and is enforced by test**:
+  no execution-state field (`claim`, `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`,
+  `agentRef`) appears in any public model.
 - **WorkflowRun is the execution record. Domain entities are domain artefacts.** No
   execution state on domain entities; two-pointer pattern for re-runs.
 - **Transition handlers must be idempotent** — re-read state, check the transition hasn't
@@ -148,6 +155,22 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   the relationship layer (`layer=relationship` tag) — watch these before the A2 flip.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
+- **LIVE — `RelationshipService.check()` drops tenant containment when there is no principal**
+  (found 2026-08-21). `check()` returns `true` immediately on a null identity, while `filter()`
+  anchors at `ROOT` and still walks — so `check()` admits a run belonging to another workspace that
+  `filter()` correctly excludes. **7 call sites use `check()` for containment and existence, not
+  just authz** (`WorkspaceWorkflowRunService` :58,174,195,214,235,254,273); six of them mutate.
+  `retry` (:273) is the worst: on success it writes a new
+  `WORKSPACE:team -HAS_WORKFLOWRUN-> WORKFLOWRUN` edge, **grafting another workspace's run into the
+  caller's graph**. Reachable whenever there is no principal — i.e. `flow.security.enabled=false`
+  (the documented local-dev/E2E posture) and `flow.mode=engine`. Proven by
+  `RelationshipServiceTest.noPrincipalCheckDropsContainmentButFilterKeepsIt`.
+  **Proposed fix, NOT applied** (changes security posture in the security-off path — same
+  propose→confirm treatment as the rest of `specifications/authentication.md`): make `check()`'s
+  null branch mirror `filter()`'s — anchor at root, then `hasNodes(ROOT, "root", type, toList,
+  intermediateType, intermediateList)`, honouring the intermediate while still denying nothing in
+  engine mode. Rule together with `WorkspaceActionService:119-124`, where `userEntity == null` ⇒
+  `partOfGroup = true` bypasses approver-group membership on the same path.
 - ~~Agent endpoints (`AgentControllerV1`) are unauthenticated~~ **FIXED (E7-4)**: `/api/v1/agent`
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
