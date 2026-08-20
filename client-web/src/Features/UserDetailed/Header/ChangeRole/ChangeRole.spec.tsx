@@ -10,7 +10,9 @@ import ChangeRole from ".";
 
 // Starts as Admin so that picking "User" is an actual change (the Submit button is disabled while
 // the selection still equals the user's current role).
-const user: FlowUser = { ...(userFixture as FlowUser), name: "Test User", type: PlatformRole.Admin };
+// The shared fixture is the raw wire payload (its `type` is a plain string), so it needs the
+// two-step cast to land on FlowUser - the same shape the loader hands the component at runtime.
+const user = { ...(userFixture as unknown as FlowUser), name: "Test User", type: PlatformRole.Admin };
 
 /**
  * Renders ChangeRole under a real data router whose action is a spy, so what the component
