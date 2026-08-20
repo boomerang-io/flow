@@ -171,9 +171,9 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
 
     for (String attempt : bypassAttempts) {
       int status = mockMvc.perform(get(attempt)).andReturn().getResponse().getStatus();
-      assertThat(status)
-          .as("unauthenticated request to %s must not succeed", attempt)
-          .isNotBetween(200, 299);
+      assertThat(status / 100)
+          .as("unauthenticated request to %s must not succeed (was %d)", attempt, status)
+          .isNotEqualTo(2);
     }
   }
 
