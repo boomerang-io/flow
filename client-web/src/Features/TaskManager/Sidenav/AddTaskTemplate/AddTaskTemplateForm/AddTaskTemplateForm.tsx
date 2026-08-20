@@ -16,15 +16,13 @@ import {
   TextArea,
   RadioGroup,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { sentenceCase } from "change-case";
 import { Formik } from "formik";
 import orderBy from "lodash/orderBy";
-import { useMutation } from "react-query";
+import { useFetcher } from "react-router-dom";
 import YAML from "yaml";
 import * as Yup from "yup";
 import SelectIcon from "Components/SelectIcon";
 import { taskIcons } from "Utils/taskIcons";
-import { resolver } from "Config/servicesConfig";
 import { Task } from "Types";
 import styles from "./addTaskTemplateForm.module.scss";
 
@@ -70,6 +68,7 @@ function AddTaskTemplateForm({
   createError,
   taskNames,
   handleAddTaskTemplate,
+  handleImportTaskTemplate,
 }: AddTaskTemplateFormProps) {
   const OPTION_CREATE = "Start from scratch";
   const OPTION_IMPORT = "Import a template";
@@ -88,12 +87,79 @@ function AddTaskTemplateForm({
   ];
   const orderedIcons = orderBy(taskIcons, ["name"]);
 
-  const {
-    mutateAsync: validateYamlMuatator,
-    error: validateYamlError,
-    isLoading: validateYamlIsLoading,
-    reset: resetValidateYaml,
-  } = useMutation(resolver.postValidateYaml);
+  // The pre-import file validation hits the same route action as everything else in this
+  // cluster (`intent: "validateYaml"` - see AdminTasks.tsx/WorkspaceTasks.tsx) via its own
+  // fetcher instance (independent from AddTaskTemplate.tsx's create/import fetcher - both target
+  // the same route action, which is fine, fetchers don't need to be shared). Field population
+  // still happens by parsing the uploaded file's own text client-side (as before) - the validate
+  // call is only used to gate whether that parse is trusted; the ref stashes what to parse once
+  // the fetcher settles.
+  const validateFetcher = useFetcher<
+    { ok: true; intent: "validateYaml" } | { ok: false; intent: "validateYaml"; error: { title: string; message: string } }
+  >();
+  const [validateYamlError, setValidateYamlError] = React.useState(false);
+  const pendingFileRef = React.useRef<{
+    file: File;
+    text: string;
+    setFieldValue: (field: string, value: unknown) => void;
+    setFieldTouched: (field: string, touched: boolean) => void;
+  } | null>(null);
+
+  React.useEffect(() => {
+    if (validateFetcher.state !== "idle" || !validateFetcher.data || validateFetcher.data.intent !== "validateYaml") {
+      return;
+    }
+    const pending = pendingFileRef.current;
+    pendingFileRef.current = null;
+    if (!pending) {
+      return;
+    }
+    if (!validateFetcher.data.ok) {
+      setValidateYamlError(true);
+      return;
+    }
+    setValidateYamlError(false);
+
+    const { file, text, setFieldValue, setFieldTouched } = pending;
+    try {
+      if (file.type === "application/json") {
+        const jsonData = JSON.parse(text);
+        setFieldValue("name", jsonData.name);
+        setFieldTouched("name", true);
+        setFieldValue("displayName", jsonData.displayName);
+        setFieldTouched("displayName", true);
+        setFieldValue("description", jsonData.description);
+        setFieldTouched("description", true);
+        setFieldValue("category", jsonData.category);
+        setFieldTouched("category", true);
+        const selectedIcon = orderedIcons.find((icon) => icon.name === jsonData?.icon);
+        selectedIcon &&
+          setFieldValue("icon", { value: selectedIcon.name, label: selectedIcon.name, icon: selectedIcon.Icon });
+        setFieldValue("fileData", jsonData);
+      } else {
+        const yamlData = YAML.parse(text);
+        setFieldValue("name", yamlData.metadata.name);
+        setFieldTouched("name", true);
+        setFieldValue("displayName", yamlData.metadata.annotations["boomerang.io/displayName"]);
+        setFieldTouched("displayName", true);
+        setFieldValue("description", yamlData.spec.description);
+        setFieldTouched("description", true);
+        setFieldValue("category", yamlData.metadata.annotations["boomerang.io/category"]);
+        setFieldTouched("category", true);
+        const selectedIcon = orderedIcons.find(
+          (icon) => icon.name === yamlData.metadata.annotations["boomerang.io/icon"],
+        );
+        selectedIcon &&
+          setFieldValue("icon", { value: selectedIcon.name, label: selectedIcon.name, icon: selectedIcon.Icon });
+        setFieldValue("fileData", yamlData);
+      }
+    } catch (e) {
+      // noop
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [validateFetcher.state, validateFetcher.data]);
+
+  const resetValidateYaml = () => setValidateYamlError(false);
 
   const handleCreate = async (values) => {
     const hasFile = values.file;
@@ -147,45 +213,15 @@ function AddTaskTemplateForm({
       body.metadata.annotations["boomerang.io/icon"] = values.icon.value;
       // body.changelog = { reason: "Import new task" };
     }
-    await handleImportTaskTemplate({ type: values.file.type, name: values.name, replace: "false", body, closeModal });
+    await handleImportTaskTemplate({ type: values.file.type, name: values.name, replace: "false", body: values.fileData, closeModal });
   };
 
   const getTemplateData = async ({ file, setFieldValue, setFieldTouched }) => {
     try {
       const yamlFile = await readFile(file);
       setFieldValue("file", file);
-      await validateYamlMuatator({ body: yamlFile });
-      if (file.type === "application/json") {
-        const jsonData = JSON.parse(yamlFile);
-        setFieldValue("name", jsonData.name);
-        setFieldTouched("name", true);
-        setFieldValue("displayName", jsonData.displayName);
-        setFieldTouched("displayName", true);
-        setFieldValue("description", jsonData.description);
-        setFieldTouched("description", true);
-        setFieldValue("category", jsonData.category);
-        setFieldTouched("category", true);
-        const selectedIcon = orderedIcons.find((icon) => icon.name === jsonData?.icon);
-        selectedIcon &&
-          setFieldValue("icon", { value: selectedIcon.name, label: selectedIcon.name, icon: selectedIcon.Icon });
-        setFieldValue("fileData", jsonData);
-      } else {
-        const yamlData = YAML.parse(yamlFile);
-        setFieldValue("name", yamlData.metadata.name);
-        setFieldTouched("name", true);
-        setFieldValue("displayName", yamlData.metadata.annotations["boomerang.io/displayName"]);
-        setFieldTouched("displayName", true);
-        setFieldValue("description", yamlData.spec.description);
-        setFieldTouched("description", true);
-        setFieldValue("category", yamlData.metadata.annotations["boomerang.io/category"]);
-        setFieldTouched("category", true);
-        const selectedIcon = orderedIcons.find(
-          (icon) => icon.name === yamlData.metadata.annotations["boomerang.io/icon"],
-        );
-        selectedIcon &&
-          setFieldValue("icon", { value: selectedIcon.name, label: selectedIcon.name, icon: selectedIcon.Icon });
-        setFieldValue("fileData", yamlData);
-      }
+      pendingFileRef.current = { file, text: yamlFile, setFieldValue, setFieldTouched };
+      validateFetcher.submit({ intent: "validateYaml", body: yamlFile }, { method: "post" });
     } catch (e) {
       // noop
     }
@@ -234,20 +270,6 @@ function AddTaskTemplateForm({
           // If it's bigger than 1MiB will display the error (1048576 bytes = 1 mebibyte)
           (file) => (file?.size ? file.size < 1048576 : true),
         ),
-        // .test("validFile", "File is invalid", async (file) => {
-        //   let isValid = true;
-        //   if (file) {
-        //     try {
-        //       let contents = await readFile(file);
-        //       isValid = checkIsValidTask(contents);
-        //     } catch (e) {
-        //       console.error(e);
-        //       isValid = false;
-        //     }
-        //   }
-        //   // Need to return promise for yup to do async validation
-        //   return Promise.resolve(isValid);
-        // }),
       })}
       onSubmit={selectedOption === OPTION_CREATE ? handleCreate : handleImport}
       initialErrors={[{ name: "Name required" }]}
@@ -294,7 +316,7 @@ function AddTaskTemplateForm({
                   {values.file && (
                     <FileUploaderItem
                       name={values.file.name}
-                      status={validateYamlIsLoading ? "uploading" : "edit"}
+                      status={validateFetcher.state !== "idle" ? "uploading" : "edit"}
                       onDelete={() => {
                         setFieldValue("file", undefined);
                         if (validateYamlError) {
@@ -318,7 +340,7 @@ function AddTaskTemplateForm({
                 </div>
               )}
               {Boolean(
-                (values.file && !errors.file && !validateYamlError && !validateYamlIsLoading) ||
+                (values.file && !errors.file && !validateYamlError && validateFetcher.state === "idle") ||
                   selectedOption === OPTION_CREATE,
               ) && (
                 <>

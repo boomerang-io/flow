@@ -3,28 +3,22 @@ import React from "react";
 import { Button, InlineNotification, Tag, Tile } from "@carbon/react";
 import { Draggable as DraggableIcon, TrashCan, Bee } from "@carbon/react/icons";
 import { Loading, notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
-import { formatErrorMessage } from "@boomerang-io/utils";
 import { sentenceCase } from "change-case";
-import { log } from "console";
 import { Formik } from "formik";
 import fileDownload from "js-file-download";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { Helmet } from "react-helmet";
-import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useBlocker, matchPath, useParams, useRevalidator } from "react-router-dom";
+import { useFetcher, useNavigate, useBlocker, matchPath, useParams, useRevalidator } from "react-router-dom";
 import { Box } from "reflexbox";
 import EditTaskTemplateModal from "Components/EditTaskTemplateModal";
 import EmptyState from "Components/EmptyState";
 import PreviewConfig from "Components/PreviewConfig";
 import TemplateConfigModal from "Components/TemplateConfigModal";
 import TemplateParametersModal from "Components/TemplateParametersModal";
-import WombatMessage from "Components/WombatMessage";
-import { useQuery } from "Hooks";
 import { taskIcons } from "Utils/taskIcons";
 import { TaskTemplateStatus } from "Constants";
 import { appLink, AppPath } from "Config/appConfig";
-import { resolver, serviceUrl } from "Config/servicesConfig";
-import { DataDrivenInput, Task } from "Types";
+import { DataDrivenInput, Task, ChangeLog } from "Types";
 import Header from "../Header";
 import { TemplateRequestType, FieldTypes } from "../constants";
 import styles from "./TaskTemplateOverview.module.scss";
@@ -206,8 +200,10 @@ const Result: React.FC<ResultProps> = ({
 
 type TaskOverviewProps = {
   taskTemplates: Array<Task>;
-  getTaskTemplatesUrl: string;
   editVerifiedTasksEnabled: any;
+  selectedTaskTemplate: Task | null;
+  changelog: ChangeLog | null;
+  errorLoading: boolean;
 };
 
 // useBlocker must be called from its own component so it keeps a stable hook position
@@ -229,63 +225,147 @@ function TaskTemplateOverviewBlocker({ getBlockMessage }: { getBlockMessage: (pa
   return null;
 }
 
+// Discriminates what a pending "apply" fetcher submission should do once it settles - the
+// three write paths this component drives (save/update, archive, restore) all PUT through the
+// same `intent: "apply"` action (see AdminTasks.tsx/WorkspaceTasks.tsx), so the client side needs
+// its own record of which one is in flight and what to do with the result.
+type PendingApply =
+  | {
+      kind: "save";
+      requestType: string;
+      resetForm: () => void;
+      setRequestError: (error: { title: string; subtitle: string } | null) => void;
+      closeModal: () => void;
+    }
+  | { kind: "archive" }
+  | { kind: "restore" };
+
 export function TaskTemplateOverview({
   taskTemplates,
-  getTaskTemplatesUrl,
   editVerifiedTasksEnabled,
+  selectedTaskTemplate,
+  changelog,
+  errorLoading,
 }: TaskOverviewProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const queryClient = useQueryClient();
   // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
   // cache entry - queryClient.invalidateQueries(getFeatureFlags()) below would be a silent
-  // no-op, so those three call sites revalidate() instead.
+  // no-op, so those three call sites revalidate() instead. Data reads (the selected task
+  // template, its changelog) come from the parent route's loader as props now, rather than
+  // useQuery, so a successful write revalidates the loader instead of a query cache.
   const revalidator = useRevalidator();
+  const fetcher = useFetcher<
+    | { ok: true; intent: "apply" | "applyYaml"; task: Task }
+    | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
+  >();
+  const pendingApplyRef = React.useRef<PendingApply | null>(null);
   const params = useParams();
   const navigate = useNavigate();
 
-  let getTaskTemplateUrl = serviceUrl.task.getTask({
-    name: params.name,
-    version: params.version,
-  });
-  let getChangelogUrl = serviceUrl.task.getTaskChangelog({
-    name: params.name,
-  });
-  if (params.workspace) {
-    getTaskTemplateUrl = serviceUrl.workspace.task.getTask({
-      workspace: params.workspace,
-      name: params.name,
-      version: params.version,
-    });
-    getChangelogUrl = serviceUrl.workspace.task.getTaskChangelog({
-      workspace: params.workspace,
-      name: params.name,
-    });
-  }
-  const getTaskTemplateQuery = useQuery(getTaskTemplateUrl);
-  const getChangelogQuery = useQuery<ChangeLog>(getChangelogUrl);
-  const applyTaskTemplateMutation = useMutation(resolver.putApplyTaskTemplate);
-  const applyWorkspaceTaskTemplateMutation = useMutation(resolver.putApplyWorkspaceTaskTemplate);
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "apply") {
+      return;
+    }
+    const pending = pendingApplyRef.current;
+    pendingApplyRef.current = null;
+    if (!pending) {
+      return;
+    }
+    const result = fetcher.data;
 
-  if (getTaskTemplateQuery.isLoading || getChangelogQuery.isLoading) {
-    return (
-      <div className={styles.container}>
-        <Box maxWidth="24rem" margin="0 auto">
-          <WombatMessage className={styles.wombat} title="Retrieving Tasks..." />
-        </Box>
-      </div>
-    );
-  }
+    if (pending.kind === "archive") {
+      revalidator.revalidate();
+      notify(
+        result.ok ? (
+          <ToastNotification
+            kind="success"
+            title={"Successfully Archived Task Template"}
+            subtitle={`Request to archive ${params.name} succeeded`}
+            data-testid="archive-task-template-notification"
+          />
+        ) : (
+          <ToastNotification
+            kind="error"
+            title={"Archive Task Template Failed"}
+            subtitle={result.error.message}
+            data-testid="archive-task-template-notification"
+          />
+        ),
+      );
+      return;
+    }
 
-  if (getTaskTemplateQuery.error || getChangelogQuery.error) {
+    if (pending.kind === "restore") {
+      revalidator.revalidate();
+      notify(
+        result.ok ? (
+          <ToastNotification
+            kind="success"
+            title={"Successfully Restored Task Template"}
+            subtitle={`Request to restore ${params.name} succeeded`}
+            data-testid="restore-task-template-notification"
+          />
+        ) : (
+          <ToastNotification
+            kind="error"
+            title={"Restore Task Template Failed"}
+            subtitle={result.error.message}
+            data-testid="restore-task-template-notification"
+          />
+        ),
+      );
+      return;
+    }
+
+    // pending.kind === "save"
+    setIsSaving(false);
+    if (result.ok) {
+      revalidator.revalidate();
+      notify(
+        <ToastNotification
+          kind="success"
+          title={"Task Template Updated"}
+          subtitle={`Request to update ${result.task.displayName} succeeded`}
+          data-testid="create-update-task-template-notification"
+        />,
+      );
+      pending.resetForm();
+      navigate(
+        params.workspace
+          ? appLink.manageTasksEdit({ workspace: params.workspace, name: result.task.name, version: String(result.task.version) })
+          : appLink.adminTasksDetail({ name: result.task.name, version: String(result.task.version) }),
+      );
+      if (pending.requestType !== TemplateRequestType.Copy) {
+        pending.setRequestError(null);
+        pending.closeModal();
+      }
+    } else {
+      if (pending.requestType !== TemplateRequestType.Copy) {
+        pending.setRequestError({ title: result.error.title, subtitle: result.error.message });
+      } else {
+        notify(
+          <ToastNotification
+            kind="error"
+            title={"Update Task Template Failed"}
+            subtitle={"Something's Wrong"}
+            data-testid="update-task-template-notification"
+          />,
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  if (errorLoading || !selectedTaskTemplate || !changelog) {
     return (
       <EmptyState title="Task Template not found" message="Crikey. We can't find the template you are looking for." />
     );
   }
-  const selectedTaskTemplate = getTaskTemplateQuery.data;
+
   const canEdit = !selectedTaskTemplate?.verified || (editVerifiedTasksEnabled && selectedTaskTemplate?.verified);
   const isActive = selectedTaskTemplate.status === TaskTemplateStatus.Active;
-  // params.version is a string, getChangelogQuery.data.length is a number
-  const isOldVersion = Boolean(params.version < getChangelogQuery.data.length);
+  // params.version is a string, changelog.length is a number
+  const isOldVersion = Boolean(params.version < changelog.length);
   const fieldKeys = selectedTaskTemplate.spec.params?.map((input: DataDrivenInput) => input.name) ?? [];
   const resultKeys = selectedTaskTemplate.spec.results?.map((input: DataDrivenInput) => input.name) ?? [];
 
@@ -296,11 +376,9 @@ export function TaskTemplateOverview({
     return result;
   };
 
-  const handleSaveTaskTemplate = async (values, resetForm, requestType, setRequestError, closeModal) => {
+  const handleSaveTaskTemplate = (values, resetForm, requestType, setRequestError, closeModal) => {
     setIsSaving(true);
-    console.log("Request Type:", requestType);
-    let newVersion =
-      requestType === TemplateRequestType.Overwrite ? selectedTaskTemplate.version : getChangelogQuery.data.length + 1;
+    let newVersion = requestType === TemplateRequestType.Overwrite ? selectedTaskTemplate.version : changelog.length + 1;
     let changeReason =
       requestType === TemplateRequestType.Copy
         ? `Version copied from ${values.currentConfig.version}`
@@ -336,140 +414,38 @@ export function TaskTemplateOverview({
       spec: spec,
     };
 
-    try {
-      let replace = requestType === TemplateRequestType.Overwrite ? "true" : "false";
-      let response;
-      console.log("Name:", params.name);
-      if (params.workspace) {
-        response = await applyWorkspaceTaskTemplateMutation.mutateAsync({
-          name: params.name,
-          workspace: params.workspace,
-          replace,
-          body,
-        });
-      } else {
-        response = await applyTaskTemplateMutation.mutateAsync({ name: params.name, replace, body });
-      }
-      await queryClient.invalidateQueries(getTaskTemplateUrl);
-      await queryClient.invalidateQueries(getChangelogUrl);
-      revalidator.revalidate();
-      notify(
-        <ToastNotification
-          kind="success"
-          title={"Task Template Updated"}
-          subtitle={`Request to update ${body.displayName} succeeded`}
-          data-testid="create-update-task-template-notification"
-        />,
-      );
-      resetForm();
-      navigate(
-        params.workspace
-          ? appLink.manageTasksEdit({
-              workspace: params.workspace,
-              name: response.data.name,
-              version: response.data.version,
-            })
-          : appLink.adminTasksDetail({
-              name: response.data.name,
-              version: response.data.version,
-            }),
-      );
-      if (requestType !== TemplateRequestType.Copy) {
-        typeof setRequestError === "function" && setRequestError(null);
-        typeof closeModal === "function" && closeModal();
-      }
-    } catch (err) {
-      if (requestType !== TemplateRequestType.Copy) {
-        const { title, message: subtitle } = formatErrorMessage({
-          error: err,
-          defaultMessage: "Request to save task template failed.",
-        });
-        setRequestError({ title, subtitle });
-      } else {
-        notify(
-          <ToastNotification
-            kind="error"
-            title={"Update Task Template Failed"}
-            subtitle={"Something's Wrong"}
-            data-testid="update-task-template-notification"
-          />,
-        );
-      }
-    } finally {
-      setIsSaving(false);
-    }
+    const replace = requestType === TemplateRequestType.Overwrite;
+    pendingApplyRef.current = { kind: "save", requestType, resetForm, setRequestError, closeModal };
+    fetcher.submit(
+      { intent: "apply", name: selectedTaskTemplate.name, replace: String(replace), body: JSON.stringify(body) },
+      { method: "post" },
+    );
   };
 
-  const handleArchiveTaskTemplate = async () => {
-    try {
-      selectedTaskTemplate.status = "inactive";
-      if (params.workspace) {
-        await applyWorkspaceTaskTemplateMutation.mutateAsync({
-          replace: "true",
-          workspace: params.workspace,
-          name: params.name,
-          body: selectedTaskTemplate,
-        });
-      } else {
-        await applyTaskTemplateMutation.mutateAsync({ replace: "true", name: params.name, body: selectedTaskTemplate });
-      }
-      await queryClient.invalidateQueries(getTaskTemplateUrl);
-      await queryClient.invalidateQueries(getChangelogUrl);
-      revalidator.revalidate();
-      notify(
-        <ToastNotification
-          kind="success"
-          title={"Successfully Archived Task Template"}
-          subtitle={`Request to archive ${params.name} succeeded`}
-          data-testid="archive-task-template-notification"
-        />,
-      );
-    } catch (err) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title={"Archive Task Template Failed"}
-          subtitle={`Unable to archive the task. ${sentenceCase(err.message)}. Please contact support.`}
-          data-testid="archive-task-template-notification"
-        />,
-      );
-    }
+  const handleArchiveTaskTemplate = () => {
+    pendingApplyRef.current = { kind: "archive" };
+    fetcher.submit(
+      {
+        intent: "apply",
+        name: selectedTaskTemplate.name,
+        replace: "true",
+        body: JSON.stringify({ ...selectedTaskTemplate, status: "inactive" }),
+      },
+      { method: "post" },
+    );
   };
 
-  const handleRestoreTaskTemplate = async () => {
-    try {
-      selectedTaskTemplate.status = "active";
-      if (params.workspace) {
-        await applyWorkspaceTaskTemplateMutation.mutateAsync({
-          replace: "true",
-          workspace: params.workspace,
-          name: params.name,
-          body: selectedTaskTemplate,
-        });
-      } else {
-        await applyTaskTemplateMutation.mutateAsync({ replace: "true", name: params.name, body: selectedTaskTemplate });
-      }
-      await queryClient.invalidateQueries(getTaskTemplateUrl);
-      await queryClient.invalidateQueries(getChangelogUrl);
-      revalidator.revalidate();
-      notify(
-        <ToastNotification
-          kind="success"
-          title={"Successfully Restored Task Template"}
-          subtitle={`Request to restore ${selectedTaskTemplate.name} succeeded`}
-          data-testid="restore-task-template-notification"
-        />,
-      );
-    } catch (err) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title={"Restore Task Template Failed"}
-          subtitle={`Unable to restore the task. ${sentenceCase(err.message)}. Please contact support.`}
-          data-testid="restore-task-template-notification"
-        />,
-      );
-    }
+  const handleRestoreTaskTemplate = () => {
+    pendingApplyRef.current = { kind: "restore" };
+    fetcher.submit(
+      {
+        intent: "apply",
+        name: selectedTaskTemplate.name,
+        replace: "true",
+        body: JSON.stringify({ ...selectedTaskTemplate, status: "active" }),
+      },
+      { method: "post" },
+    );
   };
 
   //TODO should this handle JSON and YAML?
@@ -485,7 +461,6 @@ export function TaskTemplateOverview({
         />,
       );
     } catch (err) {
-      console.log("err", err);
       notify(
         <ToastNotification
           kind="error"
@@ -562,11 +537,11 @@ export function TaskTemplateOverview({
               <title>{`Task manager - ${selectedTaskTemplate.displayName}`}</title>
             </Helmet>
             <TaskTemplateOverviewBlocker getBlockMessage={getBlockMessage} />
-            {applyTaskTemplateMutation.isLoading && <Loading />}
+            {(fetcher.state !== "idle" || isSaving) && <Loading />}
             <Header
               editVerifiedTasksEnabled={editVerifiedTasksEnabled}
               selectedTaskTemplate={selectedTaskTemplate}
-              changelog={getChangelogQuery.data}
+              changelog={changelog}
               formikProps={formikProps}
               handleRestoreTaskTemplate={handleRestoreTaskTemplate}
               handleArchiveTaskTemplate={handleArchiveTaskTemplate}

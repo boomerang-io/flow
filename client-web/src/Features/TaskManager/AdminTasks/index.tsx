@@ -1,1 +1,1 @@
-export { default } from "./AdminTasks";
+export { default, loader, action } from "./AdminTasks";

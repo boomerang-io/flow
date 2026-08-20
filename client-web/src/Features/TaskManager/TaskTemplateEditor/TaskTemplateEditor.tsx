@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import { InlineNotification } from "@carbon/react";
 import { ChevronRight } from "@carbon/react/icons";
 import { Loading, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import { formatErrorMessage } from "@boomerang-io/utils";
 import "Styles/markdown.css";
 import axios from "axios";
 import { sentenceCase } from "change-case";
@@ -27,23 +26,23 @@ import fileDownload from "js-file-download";
 import { Controlled as CodeMirrorReact } from "react-codemirror2";
 import { Helmet } from "react-helmet";
 import ReactMarkdown from "react-markdown";
-import { useMutation, useQueryClient } from "react-query";
-import { useParams, useNavigate, useBlocker, matchPath, useRevalidator } from "react-router-dom";
+import { useFetcher, useParams, useNavigate, useBlocker, matchPath, useRevalidator } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
-import { useQuery } from "Hooks";
 import { TaskTemplateStatus } from "Constants";
 import { yamlInstructions } from "Constants";
 import { appLink, AppPath } from "Config/appConfig";
-import { resolver, serviceUrl } from "Config/servicesConfig";
-import { Task } from "Types";
+import { serviceUrl } from "Config/servicesConfig";
+import { ChangeLog, Task } from "Types";
 import Header from "../Header";
 import { TemplateRequestType } from "../constants";
 import styles from "./TaskTemplateEditor.module.scss";
 
 type TaskYamlEditorProps = {
-  taskTemplates: Array<Task>;
   editVerifiedTasksEnabled: any;
-  getTaskTemplatesUrl: string;
+  selectedTaskTemplate: Task | null;
+  changelog: ChangeLog | null;
+  yaml: string | null;
+  errorLoading: boolean;
 };
 
 // useBlocker must be called from its own component so it keeps a stable hook position
@@ -65,117 +64,102 @@ function TaskTemplateEditorBlocker({ getBlockMessage }: { getBlockMessage: (path
   return null;
 }
 
+// Discriminates what a pending fetcher submission should do once it settles - mirrors
+// TaskTemplateOverview.tsx's PendingApply. "save" covers both the JSON `apply` (Copy) and the
+// text `applyYaml` (Overwrite/New version) writes, since both settle the same modal flow.
+type PendingWrite =
+  | {
+      kind: "save";
+      requestType: string;
+      resetForm: () => void;
+      setRequestError: (error: { title: string; subtitle: string } | null) => void;
+      closeModal: () => void;
+    }
+  | { kind: "archive" }
+  | { kind: "restore" };
+
 export function TaskTemplateYamlEditor({
-  taskTemplates,
   editVerifiedTasksEnabled,
-  getTaskTemplatesUrl,
+  selectedTaskTemplate,
+  changelog,
+  yaml,
+  errorLoading,
 }: TaskYamlEditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const queryClient = useQueryClient();
   // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
   // cache entry - queryClient.invalidateQueries(getFeatureFlags()) below would be a silent
-  // no-op, so those call sites revalidate() instead.
+  // no-op, so those call sites revalidate() instead. The yaml text, task template and changelog
+  // all come from the parent route's loader as props now (see AdminTasks.tsx/WorkspaceTasks.tsx).
   const revalidator = useRevalidator();
+  const fetcher = useFetcher<
+    | { ok: true; intent: "apply" | "applyYaml"; task: Task }
+    | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
+  >();
+  const pendingWriteRef = React.useRef<PendingWrite | null>(null);
 
   const params = useParams();
   const navigate = useNavigate();
 
   const [docOpen, setDocOpen] = useState(true);
 
-  let getTaskTemplateUrl = serviceUrl.task.getTask({ name: params.name, version: params.version });
-  let getChangelogUrl = serviceUrl.task.getTaskChangelog({
-    name: params.name,
-  });
-  if (params.workspace) {
-    getTaskTemplateUrl = serviceUrl.workspace.task.getTask({
-      workspace: params.workspace,
-      name: params.name,
-      version: params.version,
-    });
-    getChangelogUrl = serviceUrl.workspace.task.getTaskChangelog({
-      workspace: params.workspace,
-      name: params.name,
-    });
-  }
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || (fetcher.data.intent !== "apply" && fetcher.data.intent !== "applyYaml")) {
+      return;
+    }
+    const pending = pendingWriteRef.current;
+    pendingWriteRef.current = null;
+    if (!pending) {
+      return;
+    }
+    const result = fetcher.data;
 
-  const getTaskTemplateYamlQuery = useQuery({
-    queryKey: [getTaskTemplateUrl, "yaml"],
-    queryFn: resolver.queryYaml(getTaskTemplateUrl),
-  });
-  const getChangelogQuery = useQuery<ChangeLog>(getChangelogUrl);
-  const applyTaskTemplateMutation = useMutation(resolver.putApplyTaskTemplate);
-  const applyTaskTemplateYamlMutation = useMutation(resolver.putApplyTaskTemplateYaml);
-  const applyWorkspaceTaskTemplateMutation = useMutation(resolver.putApplyWorkspaceTaskTemplate);
-  const applyWorkspaceTaskTemplateYamlMutation = useMutation(resolver.putApplyWorkspaceTaskTemplateYaml);
+    if (pending.kind === "archive") {
+      revalidator.revalidate();
+      notify(
+        result.ok ? (
+          <ToastNotification
+            kind="success"
+            title={"Successfully Archived Task Template"}
+            subtitle={`Request to archive ${params.name} succeeded`}
+            data-testid="archive-task-template-notification"
+          />
+        ) : (
+          <ToastNotification
+            kind="error"
+            title={"Archive Task Template Failed"}
+            subtitle={result.error.message}
+            data-testid="archive-task-template-notification"
+          />
+        ),
+      );
+      return;
+    }
 
-  if (
-    getTaskTemplateYamlQuery.isLoading ||
-    getChangelogQuery.isLoading ||
-    applyTaskTemplateYamlMutation.isLoading ||
-    applyWorkspaceTaskTemplateYamlMutation.isLoading
-  ) {
-    return <Loading />;
-  }
+    if (pending.kind === "restore") {
+      revalidator.revalidate();
+      notify(
+        result.ok ? (
+          <ToastNotification
+            kind="success"
+            title={"Successfully Restored Task Template"}
+            subtitle={`Request to restore ${selectedTaskTemplate?.name} succeeded`}
+            data-testid="restore-task-template-notification"
+          />
+        ) : (
+          <ToastNotification
+            kind="error"
+            title={"Restore Task Template Failed"}
+            subtitle={result.error.message}
+            data-testid="restore-task-template-notification"
+          />
+        ),
+      );
+      return;
+    }
 
-  if (getTaskTemplateYamlQuery.error || getChangelogQuery.error) {
-    return (
-      <EmptyState title="Task Template not found" message="Crikey. We can't find the template you are looking for." />
-    );
-  }
-
-  const selectedTaskTemplate = taskTemplates.filter((t) => t.name === params.name)[0];
-  const canEdit = !selectedTaskTemplate?.verified || (editVerifiedTasksEnabled && selectedTaskTemplate?.verified);
-  const isActive = selectedTaskTemplate.status === TaskTemplateStatus.Active;
-  // params.version is a string, getChangelogQuery.data.length is a number
-  const isOldVersion = params.version < getChangelogQuery.data.length;
-
-  const handleSaveTaskTemplate = async (values, resetForm, requestType, setRequestError, closeModal) => {
-    setIsSaving(true);
-    try {
-      let response;
-      if (requestType === TemplateRequestType.Copy) {
-        let body = {
-          ...selectedTaskTemplate,
-          version: getChangelogQuery.data.length + 1,
-          // eslint-disable-next-line no-template-curly-in-string
-          changelog: { reason: "Version copied from ${values.currentConfig.version}" },
-        };
-        if (params.workspace) {
-          response = await applyWorkspaceTaskTemplateMutation.mutateAsync({
-            workspace: params.workspace,
-            name: params.name,
-            replace: false,
-            body,
-          });
-        } else {
-          response = await applyTaskTemplateMutation.mutateAsync({
-            replace: false,
-            name: params.name,
-            body,
-          });
-        }
-      } else {
-        let replace: boolean = false;
-        if (requestType === TemplateRequestType.Overwrite) {
-          replace = true;
-        }
-        if (params.workspace) {
-          response = await applyWorkspaceTaskTemplateYamlMutation.mutateAsync({
-            replace: replace,
-            workspace: params.workspace,
-            name: params.name,
-            body: values.yaml,
-          });
-        } else {
-          response = await applyTaskTemplateYamlMutation.mutateAsync({
-            replace: replace,
-            name: params.name,
-            body: values.yaml,
-          });
-        }
-        queryClient.invalidateQueries([getTaskTemplateUrl, "yaml"]);
-      }
-      queryClient.invalidateQueries(getTaskTemplatesUrl);
+    // pending.kind === "save"
+    setIsSaving(false);
+    if (result.ok) {
       revalidator.revalidate();
       notify(
         <ToastNotification
@@ -185,30 +169,19 @@ export function TaskTemplateYamlEditor({
           data-testid="create-update-task-template-notification"
         />,
       );
-      resetForm();
+      pending.resetForm();
       navigate(
         params.workspace
-          ? appLink.manageTasksEdit({
-              workspace: params.workspace,
-              name: response.data.name,
-              version: response.data.version,
-            })
-          : appLink.taskTemplateEdit({
-              name: response.data.name,
-              version: response.data.version,
-            }),
+          ? appLink.manageTasksEdit({ workspace: params.workspace, name: result.task.name, version: String(result.task.version) })
+          : appLink.adminTasksDetail({ name: result.task.name, version: String(result.task.version) }),
       );
-      if (requestType !== TemplateRequestType.Copy) {
-        typeof setRequestError === "function" && setRequestError(null);
-        typeof closeModal === "function" && closeModal();
+      if (pending.requestType !== TemplateRequestType.Copy) {
+        pending.setRequestError(null);
+        pending.closeModal();
       }
-    } catch (err) {
-      if (requestType !== TemplateRequestType.Copy) {
-        const { title, message: subtitle } = formatErrorMessage({
-          error: err,
-          defaultMessage: "Request to save task template failed.",
-        });
-        setRequestError({ title, subtitle });
+    } else {
+      if (pending.requestType !== TemplateRequestType.Copy) {
+        pending.setRequestError({ title: result.error.title, subtitle: result.error.message });
       } else {
         notify(
           <ToastNotification
@@ -219,81 +192,69 @@ export function TaskTemplateYamlEditor({
           />,
         );
       }
-    } finally {
-      setIsSaving(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  if (errorLoading || !selectedTaskTemplate || !changelog || yaml === null) {
+    return (
+      <EmptyState title="Task Template not found" message="Crikey. We can't find the template you are looking for." />
+    );
+  }
+
+  const canEdit = !selectedTaskTemplate?.verified || (editVerifiedTasksEnabled && selectedTaskTemplate?.verified);
+  const isActive = selectedTaskTemplate.status === TaskTemplateStatus.Active;
+  // params.version is a string, changelog.length is a number
+  const isOldVersion = params.version < changelog.length;
+
+  const handleSaveTaskTemplate = (values, resetForm, requestType, setRequestError, closeModal) => {
+    setIsSaving(true);
+    pendingWriteRef.current = { kind: "save", requestType, resetForm, setRequestError, closeModal };
+
+    if (requestType === TemplateRequestType.Copy) {
+      const body = {
+        ...selectedTaskTemplate,
+        version: changelog.length + 1,
+        // eslint-disable-next-line no-template-curly-in-string
+        changelog: { reason: "Version copied from ${values.currentConfig.version}" },
+      };
+      fetcher.submit(
+        { intent: "apply", name: selectedTaskTemplate.name, replace: "false", body: JSON.stringify(body) },
+        { method: "post" },
+      );
+    } else {
+      const replace = requestType === TemplateRequestType.Overwrite;
+      fetcher.submit(
+        { intent: "applyYaml", name: selectedTaskTemplate.name, replace: String(replace), body: values.yaml },
+        { method: "post" },
+      );
     }
   };
 
-  const handleArchiveTaskTemplate = async () => {
-    try {
-      selectedTaskTemplate.status = "inactive";
-      if (params.workspace) {
-        await applyWorkspaceTaskTemplateMutation.mutateAsync({
-          replace: "true",
-          workspace: params.workspace,
-          name: selectedTaskTemplate.name, 
-          body: selectedTaskTemplate,
-        });
-      } else {
-        await applyTaskTemplateMutation.mutateAsync({ replace: "true", name: selectedTaskTemplate.name, body: selectedTaskTemplate });
-      }
-      await queryClient.invalidateQueries(getTaskTemplateUrl);
-      await queryClient.invalidateQueries(getChangelogUrl);
-      revalidator.revalidate();
-      notify(
-        <ToastNotification
-          kind="success"
-          title={"Successfully Archived Task Template"}
-          subtitle={`Request to archive ${selectedTaskTemplate.name} succeeded`}
-          data-testid="archive-task-template-notification"
-        />,
-      );
-    } catch (err) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title={"Archive Task Template Failed"}
-          subtitle={`Unable to archive the task. ${sentenceCase(err.message)}. Please contact support.`}
-          data-testid="archive-task-template-notification"
-        />,
-      );
-    }
+  const handleArchiveTaskTemplate = () => {
+    pendingWriteRef.current = { kind: "archive" };
+    fetcher.submit(
+      {
+        intent: "apply",
+        name: selectedTaskTemplate.name,
+        replace: "true",
+        body: JSON.stringify({ ...selectedTaskTemplate, status: "inactive" }),
+      },
+      { method: "post" },
+    );
   };
 
-  const handleRestoreTaskTemplate = async () => {
-    try {
-      selectedTaskTemplate.status = "active";
-      if (params.workspace) {
-        await applyWorkspaceTaskTemplateMutation.mutateAsync({
-          replace: "true",
-          workspace: params.workspace,
-          name: selectedTaskTemplate.name, 
-          body: selectedTaskTemplate,
-        });
-      } else {
-        await applyTaskTemplateMutation.mutateAsync({ name: selectedTaskTemplate.name, replace: "true", body: selectedTaskTemplate });
-      }
-      await queryClient.invalidateQueries(getTaskTemplateUrl);
-      await queryClient.invalidateQueries(getChangelogUrl);
-      revalidator.revalidate();
-      notify(
-        <ToastNotification
-          kind="success"
-          title={"Successfully Restored Task Template"}
-          subtitle={`Request to restore ${selectedTaskTemplate.name} succeeded`}
-          data-testid="restore-task-template-notification"
-        />,
-      );
-    } catch (err) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title={"Restore Task Template Failed"}
-          subtitle={`Unable to restore the task. ${sentenceCase(err.message)}. Please contact support.`}
-          data-testid="restore-task-template-notification"
-        />,
-      );
-    }
+  const handleRestoreTaskTemplate = () => {
+    pendingWriteRef.current = { kind: "restore" };
+    fetcher.submit(
+      {
+        intent: "apply",
+        name: selectedTaskTemplate.name,
+        replace: "true",
+        body: JSON.stringify({ ...selectedTaskTemplate, status: "active" }),
+      },
+      { method: "post" },
+    );
   };
 
   const handleDownloadTaskTemplate = async () => {
@@ -319,7 +280,6 @@ export function TaskTemplateYamlEditor({
         />,
       );
     } catch (err) {
-      console.log("err", err);
       notify(
         <ToastNotification
           kind="error"
@@ -334,7 +294,7 @@ export function TaskTemplateYamlEditor({
   return (
     <Formik
       initialValues={{
-        yaml: getTaskTemplateYamlQuery.data ?? "",
+        yaml: yaml ?? "",
       }}
       enableReinitialize={true}
     >
@@ -362,11 +322,11 @@ export function TaskTemplateYamlEditor({
               <title>{`Task manager - ${selectedTaskTemplate.name}`}</title>
             </Helmet>
             <TaskTemplateEditorBlocker getBlockMessage={getBlockMessage} />
-            {applyTaskTemplateMutation.isLoading && <Loading />}
+            {(fetcher.state !== "idle" || isSaving) && <Loading />}
             <Header
               editVerifiedTasksEnabled={editVerifiedTasksEnabled}
               selectedTaskTemplate={selectedTaskTemplate}
-              changelog={getChangelogQuery.data}
+              changelog={changelog}
               formikProps={formikProps}
               handleRestoreTaskTemplate={handleRestoreTaskTemplate}
               handleArchiveTaskTemplate={handleArchiveTaskTemplate}
@@ -391,41 +351,18 @@ export function TaskTemplateYamlEditor({
               <section className={styles.yamlContainer}>
                 <CodeMirrorReact
                   className={cx(styles.codeMirrorContainer, { [styles.yamlCollapsed]: !docOpen })}
-                  //   editorDidMount={(cmeditor) => {
-                  //     editor.current = cmeditor;
-                  //     setDoc(cmeditor.getDoc());
-                  //   }}
                   value={values.yaml}
                   options={{
                     mode: "yaml",
-                    // readOnly: props.readOnly,
                     theme: "material",
-                    // extraKeys: {
-                    //   "Ctrl-Space": "autocomplete",
-                    //   "Ctrl-Q": foldCode,
-                    //   "Cmd-/": toggleComment,
-                    //   "Shift-Alt-A": blockComment,
-                    //   "Shift-Opt-A": blockComment,
-                    // },
                     lineWrapping: true,
                     foldGutter: true,
                     lineNumbers: true,
                     gutters: ["CodeMirrorReact-linenumbers", "CodeMirror-foldgutter"],
-                    // ...languageParams,
                   }}
                   onBeforeChange={(editor, data, value) => {
                     setFieldValue("yaml", value);
                   }}
-                  //TB: trying to get autocomplete to work
-                  //   onKeyUp={(cm, event) => {
-                  //     if (
-                  //       !cm.state.completionActive /*Enables keyboard navigation in autocomplete list*/ &&
-                  //       event.keyCode !== 13
-                  //     ) {
-                  //       /*Enter - do not open autocomplete list just after item has been selected in it*/
-                  //       autoComplete(cm);
-                  //     }
-                  //   }}
                 />
                 <div className={cx(styles.markdownContainer, { [styles.collapsed]: !docOpen })}>
                   <button className={styles.collapseButton} onClick={() => setDocOpen(!docOpen)}>
