@@ -52,6 +52,30 @@ export async function loader({
   }
 }
 
+/*
+ * A fetcher submission revalidates every matched loader by default, which is what keeps the tabs
+ * in sync after a write. Two of the Settings tab's intents are the exception: a rename changes
+ * the `:workspace` slug and a delete removes the record outright, so re-running THIS loader
+ * against the URL still in the address bar fetches a workspace that no longer exists there. It
+ * 404s, this route swaps its <Outlet> for <ErrorMessage>, and that unmounts the very component
+ * whose effect was about to navigate to the right place - leaving the user on an error page with
+ * no toast. Skipping revalidation lets that navigation happen; the destination loads fresh data
+ * on arrival, and the root loader (the user's workspace list) still revalidates either way.
+ */
+export function shouldRevalidate({
+  formData,
+  defaultShouldRevalidate,
+}: {
+  formData?: FormData;
+  defaultShouldRevalidate: boolean;
+}): boolean {
+  const intent = formData?.get("intent");
+  if (intent === "rename" || intent === "delete") {
+    return false;
+  }
+  return defaultShouldRevalidate;
+}
+
 /**
  * Handed to every tab through <Outlet context>. `canEdit` and `user` are client-only derivations
  * (a feature flag and AppContext), so they're computed here once rather than in each tab.

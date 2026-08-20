@@ -344,6 +344,16 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(workspace);
   }),
   /*
+   * DELETE /workspace/:workspace - the Settings tab's "Delete Workspace" action
+   * (Features/WorkspaceDetailed/Settings/Settings.tsx). Never mocked before, because the
+   * mutation only ran from a confirm modal no spec ever opened.
+   */
+  http.delete(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), ({ params }) => {
+    const name = pathParam(params.workspace);
+    db.workspaces = db.workspaces.filter((workspace) => workspace.name !== name && workspace.id !== name);
+    return HttpResponse.json({});
+  }),
+  /*
    * DELETE /workspace/:workspace/members - the Manage Workspace Members tab's remove action
    * (Features/WorkspaceDetailed/Members/Members.tsx). Neither Mirage nor MSW ever mocked this
    * one; it takes a body of `[{ id }]` (a DELETE with a request body, matching the real route).

@@ -11,11 +11,11 @@ import { WorkspaceContextProvider } from "State/context";
 import { useQuery } from "Hooks";
 import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace } from "Types";
-import WorkspaceDetailed, { loader } from "./WorkspaceDetailed";
+import WorkspaceDetailed, { loader, shouldRevalidate } from "./WorkspaceDetailed";
 import ApproverGroups, { action as approverGroupsAction } from "./ApproverGroups/ApproverGroups";
 import Members, { action as membersAction } from "./Members/Members";
 import Quotas, { action as quotasAction, loader as quotasLoader } from "./Quotas/Quotas";
-import Settings from "./Settings";
+import Settings, { action as settingsAction } from "./Settings/Settings";
 import Tokens from "./Tokens";
 // The Tokens tab is driven by the shared token loader/action pair (Components/TokenSection/
 // tokenRoute.ts), the same ones app/routes/manageWorkspaceTokens.tsx wires - it is not this
@@ -54,6 +54,7 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
     <Route
       path={AppPath.ManageWorkspace}
       loader={loader}
+      shouldRevalidate={shouldRevalidate}
       element={
         <WorkspaceContainer>
           <WorkspaceDetailed />
@@ -65,7 +66,7 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
       <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
       <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
       <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
-      <Route path="settings" element={<Settings />} />
+      <Route path="settings" action={settingsAction} element={<Settings />} />
     </Route>,
     { route },
   );
@@ -154,6 +155,35 @@ describe("WorkspaceDetailed --- RTL", () => {
 // Actions are called directly (rather than driven through the UI) for the same reason
 // WorkspaceTasks.spec.tsx does: they are plain functions of { params, request }, so there is no
 // need to fabricate a full navigation to exercise the request/response contract.
+describe("WorkspaceDetailed --- settings action", () => {
+  const WORKSPACE = workspaceFixture.name;
+
+  function submit(body: Record<string, string>) {
+    return settingsAction({
+      params: { workspace: WORKSPACE },
+      request: new Request(`http://localhost/${WORKSPACE}/manage/settings`, {
+        method: "post",
+        body: new URLSearchParams(body),
+      }),
+    });
+  }
+
+  test("updates labels", async () => {
+    const result = await submit({ intent: "labels", operation: "add", labels: JSON.stringify({ a: "b" }) });
+    expect(result).toEqual({ ok: true, intent: "labels", detail: "add" });
+  });
+
+  test("renames the workspace and returns the new slug", async () => {
+    const result = await submit({ intent: "rename", name: "renamed-workspace", displayName: "Renamed Workspace" });
+    expect(result).toEqual({ ok: true, intent: "rename", detail: "renamed-workspace" });
+  });
+
+  test("deletes the workspace", async () => {
+    const result = await submit({ intent: "delete" });
+    expect(result).toEqual({ ok: true, intent: "delete" });
+  });
+});
+
 describe("WorkspaceDetailed --- quotas loader/action", () => {
   const WORKSPACE = workspaceFixture.name;
 
