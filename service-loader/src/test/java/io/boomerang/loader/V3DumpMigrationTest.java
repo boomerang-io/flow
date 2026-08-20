@@ -406,11 +406,12 @@ class V3DumpMigrationTest {
   // =====================================================================================
 
   private void assertGenerationAwareSeedsSkipped() {
-    // _0021__SeedSettings runs unconditionally, but every one of its 7 seed documents already
-    // exists (under the SAME _id, migrated in place by _0005__V3MigrateSettings) by the time this
-    // unit runs - its OR-guard matches on _id, so nothing new is inserted and no fresh-shape
-    // duplicate is created alongside the migrated ones.
-    assertThat(collection("settings").countDocuments()).isEqualTo(7);
+    // _0021__SeedSettings runs unconditionally, but 7 of its 8 seed documents already exist
+    // (under the SAME _id, migrated in place by _0005__V3MigrateSettings) by the time this unit
+    // runs - its OR-guard matches those 7 on _id, so nothing new is inserted for them and no
+    // fresh-shape duplicate is created alongside the migrated ones. The 8th, "auth"
+    // (specifications/authentication.md §1), has no v3 predecessor, so _0021 inserts it fresh.
+    assertThat(collection("settings").countDocuments()).isEqualTo(8);
 
     // _0022__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
     // populated by this point (by _0006__V3MigrateTaskCatalogue), so its name-matching insert-if-
@@ -449,14 +450,16 @@ class V3DumpMigrationTest {
         .as("User Defaults settings document must be deleted")
         .isNull();
 
-    // Exactly 7 documents remain (8 v3 minus the deleted "users" one), under the v5 seed's keys -
-    // proves the v3 documents were migrated in place rather than left under their v3 keys or
-    // duplicated alongside a fresh seed insert.
-    assertThat(collection("settings").countDocuments()).isEqualTo(7);
+    // 7 documents remain from the v3 dump (8 v3 minus the deleted "users" one), under the v5
+    // seed's keys - proves the v3 documents were migrated in place rather than left under their
+    // v3 keys or duplicated alongside a fresh seed insert. Plus "auth"
+    // (specifications/authentication.md §1), which has no v3 predecessor to migrate from, so
+    // _0021__SeedSettings inserts it fresh - 8 total.
+    assertThat(collection("settings").countDocuments()).isEqualTo(8);
     List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(settingsKeys)
         .containsExactlyInAnyOrder(
-            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations");
+            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations", "auth");
 
     // None of the 7 surviving documents carry the stale v3 _class discriminator any more -
     // MappingMongoConverter would fail to resolve io.boomerang.mongo.entity.FlowSettingsEntity

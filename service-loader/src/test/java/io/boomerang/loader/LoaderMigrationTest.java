@@ -388,12 +388,25 @@ class LoaderMigrationTest {
   }
 
   private void assertSettingsSeeded() {
-    assertThat(collection("settings").countDocuments()).isEqualTo(7);
+    assertThat(collection("settings").countDocuments()).isEqualTo(8);
     List<String> keys =
         collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(keys)
         .containsExactlyInAnyOrder(
-            "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
+            "auth", "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
+
+    // The trusted OIDC issuer configuration (specifications/authentication.md §1) - seeded empty.
+    Document auth = collection("settings").find(Filters.eq("key", "auth")).first();
+    assertThat(
+            auth.getList("config", Document.class).stream()
+                .map(config -> config.getString("key"))
+                .toList())
+        .containsExactlyInAnyOrder("oidc.issuer", "oidc.clientId");
+    assertThat(
+            auth.getList("config", Document.class).stream()
+                .map(config -> config.getString("value"))
+                .toList())
+        .allMatch(String::isEmpty);
 
     // The quota defaults WorkspaceService.setDefaultQuotas resolves at read time.
     Document quotas = collection("settings").find(Filters.eq("key", "workspaces")).first();
@@ -498,7 +511,7 @@ class LoaderMigrationTest {
         .isZero();
 
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(8);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
     assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
@@ -513,7 +526,7 @@ class LoaderMigrationTest {
     fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(8);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
     assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
@@ -610,12 +623,13 @@ class LoaderMigrationTest {
 
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
 
-    // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 documents in place - same count, but
-    // the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5, ungated)
-    // then inserts nothing new: its OR-guard matches every one of the 7 already-migrated
-    // documents by _id.
+    // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 v3-era documents in place - same
+    // count, but the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5,
+    // ungated) then inserts nothing new for those 7: its OR-guard matches every one of them by
+    // _id. The "auth" document (specifications/authentication.md) has no v3 predecessor to match,
+    // so _0021 inserts it fresh - bringing the total to 8.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
-    assertThat(settings.countDocuments()).isEqualTo(7);
+    assertThat(settings.countDocuments()).isEqualTo(8);
     assertThat(
             settings
                 .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
@@ -708,7 +722,7 @@ class LoaderMigrationTest {
     // reconciled on the first run already exists).
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(settings.countDocuments()).isEqualTo(7);
+    assertThat(settings.countDocuments()).isEqualTo(8);
     assertThat(tasks.countDocuments()).isEqualTo(89);
     assertThat(taskRevisions.countDocuments()).isEqualTo(131);
     Document taskRunAfterSecondRun =
