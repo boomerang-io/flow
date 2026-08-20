@@ -115,16 +115,23 @@ public class WorkflowWatcher {
     if (!enabled) {
       return;
     }
-    reapTaskTimeouts();
-    reapWorkflowTimeouts();
-    recoverStalledRuns();
-    finalizeWorkspacelessRuns();
-    resumeDueWaitingTasks();
-    cancelDeletedWorkflowRuns();
-    pruneDeletedWorkflows();
-    reapRunsWithMissingRevision();
-    reapClaimsFromGoneDispatchers();
-    closeStrayActions();
+    // Each sweep is isolated: the paged queries carry a server-side time limit that throws rather
+    // than returning a short page, so an unisolated failure in an early sweep would stop every
+    // sweep after it - silently ending timeout reaping and stale-claim recovery.
+    SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("finalizeWorkspacelessRuns", this::finalizeWorkspacelessRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
+  }
+
+  private static void logSweepFailure(String sweep, Exception ex) {
+    LOGGER.error("Sweep {} failed; the remaining sweeps in this cycle still ran.", sweep, ex);
   }
 
   /**

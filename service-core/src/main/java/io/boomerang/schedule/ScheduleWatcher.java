@@ -70,8 +70,14 @@ public class ScheduleWatcher {
       initialDelayString = "#{T(java.util.concurrent.ThreadLocalRandom).current().nextLong(30000)}",
       fixedDelayString = "${flow.schedule.watcher.interval-ms:30000}")
   public void sweep() {
-    initializeSchedules();
-    fireDueSchedules();
+    // Isolated for the same reason as the engine watcher: an unisolated failure in
+    // initializeSchedules would stop fireDueSchedules, silently ending all cron firing.
+    SweepRunner.runIsolated("initializeSchedules", this::initializeSchedules, ScheduleWatcher::logSweepFailure);
+    SweepRunner.runIsolated("fireDueSchedules", this::fireDueSchedules, ScheduleWatcher::logSweepFailure);
+  }
+
+  private static void logSweepFailure(String sweep, Exception ex) {
+    LOGGER.error("Sweep {} failed; the remaining sweeps in this cycle still ran.", sweep, ex);
   }
 
   /**
