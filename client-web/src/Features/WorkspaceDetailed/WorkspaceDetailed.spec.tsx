@@ -21,7 +21,7 @@ import Tokens from "./Tokens";
 // tokenRoute.ts), the same ones app/routes/manageWorkspaceTokens.tsx wires - it is not this
 // feature's own route module.
 import { workspaceTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
-import Workflows from "./Workflows";
+import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
 
 // Mirrors App.tsx's WorkspaceContainer: resolves the active workspace from the `:workspace`
 // route param and re-fetches (and re-provides fresh context) whenever navigation changes it -
@@ -62,7 +62,7 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
       }
     >
       <Route index action={membersAction} element={<Members />} />
-      <Route path="workflows" element={<Workflows />} />
+      <Route path="workflows" loader={workflowsLoader} element={<Workflows />} />
       <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
       <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
       <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
@@ -114,6 +114,13 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     fireEvent.click(screen.getAllByText(/Remove from Workspace/)[0]);
     fireEvent.click(await screen.findByTestId("remove-member"));
     expect(await screen.findByText("Showing 2 members")).toBeInTheDocument();
+  });
+
+  test("deep-links into the workflows tab and lists loader-supplied workflows", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceWorkflows({ workspace: workspaceFixture.name }));
+    expect(await screen.findByText("These are the workflows for this Workspace.")).toBeInTheDocument();
+    // Seeded by ApiServer/msw/db - proves the list came from the loader, not an empty fallback.
+    expect(screen.queryByText("Showing 0 workflows")).not.toBeInTheDocument();
   });
 
   test("deep-links into the tokens tab", async () => {
