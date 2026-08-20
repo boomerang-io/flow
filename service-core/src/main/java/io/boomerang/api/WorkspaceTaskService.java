@@ -369,8 +369,11 @@ public class WorkspaceTaskService {
       changelog = new ChangeLog();
     }
     changelog.setDate(new Date());
-    if (identityService.getCurrentIdentity().getPrincipal() != null) {
-      changelog.setAuthor(identityService.getCurrentIdentity().getPrincipal());
+    // No principal (e.g. security disabled) leaves the author unset - same as a resolved
+    // identity with no principal string, which this already tolerated.
+    String principal = identityService.getCurrentPrincipal();
+    if (principal != null) {
+      changelog.setAuthor(principal);
     }
   }
 

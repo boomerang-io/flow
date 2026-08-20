@@ -2,10 +2,13 @@ package io.boomerang.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.config.MongoConfiguration;
 import io.boomerang.core.entity.RelationshipEdgeEntity;
 import io.boomerang.core.entity.RelationshipNodeEntity;
@@ -308,5 +311,29 @@ class RelationshipServiceTest {
     assertEquals("acme", service.getSlugByRefForType(RelationshipType.WORKSPACE, "t1"));
     service.updateNodeByRefOrSlug(RelationshipType.WORKSPACE, "t1", "renamed");
     assertEquals("renamed", service.getSlugByRefForType(RelationshipType.WORKSPACE, "t1"));
+  }
+
+  @Test
+  @DisplayName(
+      "With no principal, the \"for the current principal\" mutation overloads fail clearly"
+          + " (AUTH_REQUIRED) instead of NPE-ing - unlike check()/filter(), there is no \"me\" to"
+          + " create/update/remove an edge for")
+  void noPrincipalMutationOverloadsFailClearlyNotNpe() {
+    when(identityService.getCurrentIdentity()).thenReturn(null);
+
+    assertThrows(
+        BoomerangException.class,
+        () -> service.createEdge(RelationshipType.WORKSPACE, "t1", Optional.empty()));
+    assertThrows(
+        BoomerangException.class,
+        () -> service.updateEdgeData(RelationshipType.WORKSPACE, "t1", Map.of("role", "owner")));
+    assertThrows(
+        BoomerangException.class, () -> service.removeEdge(RelationshipType.WORKSPACE, "t1"));
+
+    try {
+      service.removeEdge(RelationshipType.WORKSPACE, "t1");
+    } catch (BoomerangException ex) {
+      assertEquals(BoomerangError.AUTH_REQUIRED.getReason(), ex.getReason());
+    }
   }
 }

@@ -203,8 +203,20 @@ public class UserService {
     return Optional.empty();
   }
 
+  /*
+   * Retrieves the current user, or null if no principal is resolvable (e.g.
+   * flow.security.enabled=false - IdentityService returns no principal, since no
+   * AuthenticationFilter ever ran to attach one). No synthetic/placeholder user is fabricated -
+   * callers that can gracefully render "no current user" (ContextService.getHeaderNavigation)
+   * already null-check; callers that fundamentally need a real user
+   * (updateCurrentProfile/isCurrentUserAdmin) check for the missing principal themselves.
+   */
   public UserEntity getCurrentUser() {
-    return getUserByID(identityService.getCurrentPrincipal()).get();
+    String principal = identityService.getCurrentPrincipal();
+    if (principal == null) {
+      return null;
+    }
+    return getUserByID(principal).get();
   }
 
   /*
@@ -214,17 +226,27 @@ public class UserService {
    * so core cannot compose them here - the api layer's Profile composition
    * (ProfileControllerV2) calls this for the base entity, then WorkspaceService and
    * RelationshipService for the Workspace membership rollup.
+   *
+   * With no resolvable principal (e.g. security disabled), this returns the same default/empty
+   * UserEntity the method already initialises "profile" to below - an anonymous, unpersisted
+   * placeholder profile rather than a lookup failure, so the webapp's profile bootstrap call
+   * still renders instead of erroring.
    */
   public UserEntity getCurrentProfileEntity() {
     UserEntity profile = new UserEntity();
     if (externalUserUrl.isBlank()) {
-      profile = getCurrentUser();
+      UserEntity currentUser = getCurrentUser();
+      if (currentUser != null) {
+        profile = currentUser;
+      }
     } else {
-      ExternalUserProfile extUserProfile =
-          extUserService.getUserProfileById(identityService.getCurrentPrincipal());
-      if (extUserProfile != null) {
-        BeanUtils.copyProperties(extUserProfile, profile);
-        convertExternalUserType(extUserProfile, profile);
+      String principal = identityService.getCurrentPrincipal();
+      if (principal != null) {
+        ExternalUserProfile extUserProfile = extUserService.getUserProfileById(principal);
+        if (extUserProfile != null) {
+          BeanUtils.copyProperties(extUserProfile, profile);
+          convertExternalUserType(extUserProfile, profile);
+        }
       }
     }
     return profile;
@@ -240,6 +262,12 @@ public class UserService {
 
   public void updateCurrentProfile(UserRequest request) {
     String userId = identityService.getCurrentPrincipal();
+    if (userId == null) {
+      // No principal to update "my" profile for (e.g. security disabled). Fail clearly rather
+      // than letting apply() fall through to its email-lookup branch, which would let an
+      // unauthenticated caller update an arbitrary user by email in the request body.
+      throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
+    }
     request.setId(userId);
     this.apply(request);
   }
@@ -418,8 +446,14 @@ public class UserService {
   }
 
   public boolean isCurrentUserAdmin() {
+    String principal = identityService.getCurrentPrincipal();
+    if (principal == null) {
+      // No principal (e.g. security disabled) - there is no authenticated user to elevate, so
+      // the nav/UI admin gate defaults to non-admin rather than asserting privilege for nobody.
+      return false;
+    }
     boolean isUserAdmin = false;
-    final UserEntity userEntity = getUserByID(identityService.getCurrentPrincipal()).get();
+    final UserEntity userEntity = getUserByID(principal).get();
     if (userEntity != null
         && (userEntity.getType() == UserType.admin
             || userEntity.getType() == UserType.operator

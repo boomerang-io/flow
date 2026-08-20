@@ -116,8 +116,12 @@ public class WorkspaceActionService {
           if (approverGroupEntity.isEmpty()) {
             throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
           }
+          // No current user (e.g. security disabled) - mirrors RelationshipService.check()'s
+          // no-principal branch above (already allowed this request through unscoped): there is
+          // no principal-based narrowing possible, so group membership can't be denied on it.
           boolean partOfGroup =
-              approverGroupEntity.get().getApprovers().contains(userEntity.getId());
+              userEntity == null
+                  || approverGroupEntity.get().getApprovers().contains(userEntity.getId());
           if (partOfGroup) {
             canBeActioned = true;
           }
@@ -129,7 +133,9 @@ public class WorkspaceActionService {
       if (canBeActioned) {
         Actioner actioner = new Actioner();
         actioner.setDate(new Date());
-        actioner.setApproverId(userEntity.getId());
+        // No current user (e.g. security disabled) leaves approverId unset rather than NPE-ing -
+        // there is no principal to record as the approver.
+        actioner.setApproverId(userEntity == null ? null : userEntity.getId());
         actioner.setComments(request.getComments());
         actioner.setApproved(request.isApproved());
         actionEntity.getActioners().add(actioner);

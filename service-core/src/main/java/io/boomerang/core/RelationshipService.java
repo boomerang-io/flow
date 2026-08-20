@@ -1,5 +1,7 @@
 package io.boomerang.core;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.entity.RelationshipEdgeEntity;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -176,7 +178,7 @@ public class RelationshipService {
    * Creates the Relationship Edge for the current principal
    */
   public void createEdge(RelationshipType toType, String to, Optional<Map<String, String>> data) {
-    Token identity = identityService.getCurrentIdentity();
+    Token identity = requireCurrentIdentity();
     LOGGER.debug("Creating edge for: {}", identity.getPrincipal());
     this.createEdge(
         identityRelationshipType(identity),
@@ -249,7 +251,7 @@ public class RelationshipService {
    * Update the Relationship Edge's data for current principal
    */
   public void updateEdgeData(RelationshipType toType, String to, Map<String, String> data) {
-    Token identity = identityService.getCurrentIdentity();
+    Token identity = requireCurrentIdentity();
     this.updateEdgeData(
         identityRelationshipType(identity), identity.getPrincipal(), toType, to, data);
   }
@@ -268,8 +270,27 @@ public class RelationshipService {
    * Removes the Relationship Edge for current Principal
    */
   public void removeEdge(RelationshipType toType, String to) {
-    Token identity = identityService.getCurrentIdentity();
+    Token identity = requireCurrentIdentity();
     this.removeEdge(identityRelationshipType(identity), identity.getPrincipal(), toType, to);
+  }
+
+  /**
+   * Resolves the current principal for the "for the current principal" convenience overloads
+   * ({@link #createEdge(RelationshipType, String, Optional)}, {@link #updateEdgeData(RelationshipType,
+   * String, Map)}, {@link #removeEdge(RelationshipType, String)}).
+   *
+   * <p>Unlike {@link #check}/{@link #filter} - where "no principal on the SecurityContext" (e.g.
+   * {@code flow.security.enabled=false}) is a data-scoping question with a meaningful unscoped
+   * answer ("allow everything, there is nothing to narrow by") - these overloads mutate an edge
+   * FOR an identity. There is no "me" to create/update/remove a relationship for when no principal
+   * resolved, so this fails clearly instead of NPE-ing on {@code identity.getPrincipal()}.
+   */
+  private Token requireCurrentIdentity() {
+    Token identity = identityService.getCurrentIdentity();
+    if (identity == null) {
+      throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
+    }
+    return identity;
   }
 
   /*
