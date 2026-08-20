@@ -10,9 +10,10 @@ import type { TokenCatalog, TokenSectionData, TokenSectionRouteData } from "./to
  * Server half of the token route contract - loader/action bodies shared by the three surfaces
  * that read or write tokens:
  *
- *   /admin/tokens                     Features/GlobalTokens        globalTokensLoader
- *   /profile                          Features/UserProfile         userTokensLoader
- *   /:workspace/editor/:workflow/*    Features/WorkflowEditor      workflowTokensLoader
+ *   /admin/tokens                     Features/GlobalTokens             globalTokensLoader
+ *   /profile                          Features/UserProfile              userTokensLoader
+ *   /:workspace/editor/:workflow/*    Features/WorkflowEditor           workflowTokensLoader
+ *   /:workspace/manage/tokens         Features/WorkspaceDetailed        workspaceTokensLoader
  *
  * All three share one `tokenAction` (create + delete), so CreateToken/Form and TokenSection can
  * submit the same intents from any of them with a plain useFetcher() and no explicit action
@@ -111,6 +112,28 @@ export async function workflowTokensLoader({
       types: TokenType.Key,
       principals: workflow,
       catalog: { scope: "workspace", principal: workflow },
+    }),
+  };
+}
+
+/*
+ * /:workspace/manage/tokens - the `key` tokens issued for a workspace itself, principal'd by
+ * workspace name exactly as the tab's own useQuery used to be
+ * (`{ types: TokenType.Key, principals: workspace?.name }`).
+ */
+export async function workspaceTokensLoader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<TokenSectionRouteData> {
+  const workspace = String(params.workspace ?? "");
+  return {
+    tokenSection: await loadTokenSection(request, {
+      types: TokenType.Key,
+      principals: workspace,
+      catalog: { scope: "workspace", principal: workspace },
     }),
   };
 }
