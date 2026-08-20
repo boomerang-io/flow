@@ -14,10 +14,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
-import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +35,7 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunService workflowRunService;
 
   @MockitoSpyBean private DAGUtility dagUtility;
-  @MockitoSpyBean private WorkflowRunRepository spiedWorkflowRunRepository;
+  @MockitoSpyBean private TaskRunService spiedTaskRunService;
 
   /**
    * Q-127 #6/#11 — the admission Compare-And-Set was supposed to make a join queued by both
@@ -111,19 +109,18 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
     task.setParams(List.of(new RunParam("status", "failed", ParamType.string)));
     taskRunRepository.save(task);
 
-    // A parallel branch's setwfproperty pushes a result just after execute() read the run.
+    // A parallel branch's setwfproperty pushes a result during the execution-entry Compare-And-Set
+    // - i.e. after execute() read the WorkflowRun at :257 and before it saves it back at :593.
     AtomicBoolean injected = new AtomicBoolean();
     doAnswer(
             invocation -> {
-              Optional<WorkflowRunEntity> read =
-                  (Optional<WorkflowRunEntity>) invocation.callRealMethod();
-              if (wfRunId.equals(invocation.getArgument(0)) && injected.compareAndSet(false, true)) {
+              if (injected.compareAndSet(false, true)) {
                 workflowRunService.appendResult(wfRunId, new RunResult("artifact", "build-42"));
               }
-              return read;
+              return invocation.callRealMethod();
             })
-        .when(spiedWorkflowRunRepository)
-        .findById(any());
+        .when(spiedTaskRunService)
+        .tryStartExecution(any(), any(), any());
 
     taskExecutionService.execute(task.getId());
 
