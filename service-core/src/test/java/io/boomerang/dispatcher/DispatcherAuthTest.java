@@ -3,6 +3,7 @@ package io.boomerang.dispatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.boomerang.core.TokenService;
@@ -22,6 +23,8 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
@@ -106,6 +109,34 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
     mockMvc
         .perform(get(DISPATCHER_PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
         .andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * The agent lifecycle callbacks are part of the SAME worker protocol as the queue polls and are
+   * called with the same bearer-attaching {@code internalRestTemplate}, so they must be gated by
+   * the same filter. They previously fell outside its path prefix and were fully unauthenticated —
+   * anyone with network reach could write terminal status and results onto any run.
+   */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "/api/v1/taskrun/any-run-id/start",
+        "/api/v1/taskrun/any-run-id/end",
+        "/api/v1/workflowrun/any-run-id/start",
+        "/api/v1/workflowrun/any-run-id/finalize"
+      })
+  void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
+    mockMvc.perform(put(path)).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void lifecycleCallbackAcceptsAValidDispatcherToken() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            put("/api/v1/taskrun/any-run-id/end").header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().is(not(401)));
   }
 
   @Test

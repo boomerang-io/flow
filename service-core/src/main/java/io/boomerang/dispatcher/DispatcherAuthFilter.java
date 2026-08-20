@@ -14,7 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Guards the worker-facing dispatcher endpoints ({@code /api/v1/dispatcher/**}) with a real Flow
+ * Guards the worker-facing v1 endpoints ({@code /api/v1/dispatcher/**}, {@code /api/v1/taskrun/**}
+ * and {@code /api/v1/workflowrun/**}) with a real Flow
  * token (T6-1) — a global-scope token carrying a machine {@code actorKind} (see {@link
  * io.boomerang.core.security.enums.TokenActorKind}), minted through the existing token API. No
  * new {@code AuthScope} value or token prefix was added: the dispatcher token is deliberately an
@@ -35,10 +36,26 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * minted token instead of an arbitrary shared string.
  *
  * <p>Every other path is untouched and stays {@code permitAll} exactly as before.
+ *
+ * <p><b>Scope correction (E1/E2 audit):</b> the filter originally matched {@code
+ * /api/v1/dispatcher/} only, which left the agent lifecycle callbacks unauthenticated — see {@link
+ * #WORKER_PATH_PREFIXES}.
  */
 public class DispatcherAuthFilter extends OncePerRequestFilter {
 
-  private static final String DISPATCHER_PATH_PREFIX = "/api/v1/dispatcher/";
+  /**
+   * The worker-facing v1 surface. All three prefixes are called by {@code service-agent}'s {@code
+   * EngineClient} using the SAME {@code internalRestTemplate}, whose interceptor already attaches
+   * the dispatcher bearer token to every one of them — so guarding the queue/register paths alone
+   * left the lifecycle callbacks ({@code PUT /api/v1/taskrun/{id}/end}, {@code PUT
+   * /api/v1/workflowrun/{id}/finalize}) fully unauthenticated even though the client was already
+   * presenting a credential the server never read. Those callbacks write terminal run status and
+   * task results, so they are at least as sensitive as the queue polls.
+   */
+  private static final String[] WORKER_PATH_PREFIXES = {
+    "/api/v1/dispatcher/", "/api/v1/taskrun/", "/api/v1/workflowrun/"
+  };
+
   private static final String BEARER_PREFIX = "Bearer ";
 
   private final TokenService tokenService;
@@ -51,8 +68,14 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
-    // Only guard the dispatcher endpoints; everything else stays permitAll.
-    return !request.getRequestURI().startsWith(DISPATCHER_PATH_PREFIX);
+    // Only guard the worker-facing endpoints; everything else stays permitAll.
+    String uri = request.getRequestURI();
+    for (String prefix : WORKER_PATH_PREFIXES) {
+      if (uri.startsWith(prefix)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override

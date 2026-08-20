@@ -184,6 +184,15 @@ public class WorkspaceControllerV2 {
   }
 
   @DeleteMapping(value = "/{workspace}")
+  // E1/E2 audit: this was the only mapping in this controller with no @AuthCriteria, so
+  // SecurityInterceptor treated the most destructive route in the API as public and skipped
+  // authorization entirely (it did not even emit flow.security.would.deny, hiding the route
+  // from the pre-flip shadow telemetry). WorkspaceService.delete()'s relationshipService.check()
+  // only proves membership, not permission. Scopes match the sibling workspace deletes.
+  @AuthCriteria(
+      action = PermissionAction.DELETE,
+      resource = PermissionResource.WORKSPACE,
+      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
   @Operation(summary = "Delete Workspace")
   @ApiResponses(
       value = {
