@@ -35,11 +35,23 @@ const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
  * *outbound* API call instead. Do not invent a different auth mechanism here - this is the one
  * the maintainer directed loaders to use.
  */
+/*
+ * The URL builders in servicesConfig.ts prefix every path with `/api`, which reaches the real
+ * `/api/v2` routes two different ways in the browser: the dev proxy rewrites it, and the
+ * production server injects the versioned value into window._SERVER_DATA. Node has neither, so a
+ * server-side call would hit `/api/...` and 404. Apply the same rewrite the dev proxy applies.
+ */
+function toVersionedPath(url?: string): string | undefined {
+  return url?.startsWith("/api/") && !url.startsWith("/api/v2/") ? url.replace(/^\/api\//, "/api/v2/") : url;
+}
+
 export function serverFetch(request: Request): AxiosInstance {
   const cookie = request.headers.get("cookie");
-  return axios.create({
+  const instance = axios.create({
     baseURL: INTERNAL_API_ORIGIN,
     timeout: 5000,
     headers: cookie ? { Cookie: cookie } : undefined,
   });
+  instance.interceptors.request.use((config) => ({ ...config, url: toVersionedPath(config.url) }));
+  return instance;
 }
