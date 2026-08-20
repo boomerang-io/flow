@@ -1,9 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Add } from "@carbon/react/icons";
 import { ComposedModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import { formatErrorMessage } from "@boomerang-io/utils";
-import { useMutation, useQueryClient } from "react-query";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import { ModalTriggerProps, Workflow } from "Types";
 import ImportWorkflowContainer from "./ImportWorkflowContainer";
 import styles from "./createWorkflowTemplate.module.scss";
@@ -12,33 +10,54 @@ interface CreateWorkflowProps {
   workflows: Array<Workflow>;
 }
 
+// Matches only the fields this component reads off TemplateWorkflows.tsx's action result for a
+// "create" intent - see that file for the actual action, and GlobalParameters.tsx for the
+// closeModalRef-style pattern this modal's submit-then-close-on-success flow follows.
+type CreateResult = {
+  ok: boolean;
+  intent: "create" | "delete";
+  errorMessage?: { title: string; message: string };
+};
+
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
-  const queryClient = useQueryClient();
+  const fetcher = useFetcher<CreateResult>();
+  const revalidator = useRevalidator();
+  // handleImportWorkflow hands this component a `closeModal` at submit time; the fetcher settles
+  // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked from
+  // the effect below only on success - the modal stays open (with the inline importError) on
+  // failure, matching the previous mutateAsync/try-catch behaviour.
+  const closeModalRef = useRef<(() => void) | null>(null);
 
-  const createTemplateMutator = useMutation(resolver.postCreateTemplate);
-
-  const handleImportWorkflow = async (workflow: Workflow, closeModal: () => void) => {
-    try {
-      await createTemplateMutator.mutateAsync({
-        body: workflow,
-      });
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "create") {
+      return;
+    }
+    if (fetcher.data.ok) {
+      notify(
+        <ToastNotification kind="success" title={`Import Workflow Template`} subtitle={`Template successfully imported`} />,
+      );
+      revalidator.revalidate();
+      closeModalRef.current?.();
+      closeModalRef.current = null;
+    } else {
+      const errorMessage = fetcher.data.errorMessage;
       notify(
         <ToastNotification
-          kind="success"
-          title={`Import Workflow Template`}
-          subtitle={`Template successfully imported`}
+          kind="error"
+          title={errorMessage?.title ?? "Something's Wrong"}
+          subtitle={errorMessage?.message}
         />,
       );
-      queryClient.invalidateQueries(serviceUrl.template.getWorkflowTemplates());
-      closeModal();
-    } catch (err) {
-      const errorMessages = formatErrorMessage({
-        error: err,
-        defaultMessage: `Import Template Failed`,
-      });
-      notify(<ToastNotification kind="error" title={errorMessages.title} subtitle={errorMessages.message} />);
     }
+  }, [fetcher.state, fetcher.data]);
+
+  const handleImportWorkflow = async (workflow: Workflow, closeModal: () => void) => {
+    closeModalRef.current = closeModal;
+    fetcher.submit({ intent: "create", workflow: JSON.stringify(workflow) }, { method: "post" });
   };
+
+  const isLoading = fetcher.state !== "idle";
+  const importError = Boolean(fetcher.data && fetcher.data.intent === "create" && !fetcher.data.ok);
 
   return (
     <ComposedModal
@@ -61,9 +80,9 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
       {({ closeModal }) => (
         <ImportWorkflowContainer
           closeModal={closeModal}
-          importError={createTemplateMutator.error}
+          importError={importError}
           importWorkflow={handleImportWorkflow}
-          isLoading={createTemplateMutator.isLoading}
+          isLoading={isLoading}
           workflows={workflows}
         />
       )}

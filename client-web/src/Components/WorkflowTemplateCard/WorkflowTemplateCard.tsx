@@ -1,30 +1,37 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 //@ts-ignore
 import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Bee } from "@carbon/react/icons";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import workflowIcons from "Assets/workflowIcons";
-import { useMutation, useQueryClient } from "react-query";
-import { resolver } from "Config/servicesConfig";
 import { Workflow } from "Types";
 import styles from "./workflowTemplateCard.module.scss";
 
 interface WorkflowTemplateCardProps {
   workflow: Workflow;
-  getWorkflowsUrl: string;
 }
 
-const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow, getWorkflowsUrl }) => {
-  const queryClient = useQueryClient();
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const { mutateAsync: deleteWorkflowTemplateMutator, isLoading: isDeleting } = useMutation(
-    resolver.deleteWorkflowTemplate,
-    {},
-  );
+// Matches only the fields this component reads off TemplateWorkflows.tsx's action result for a
+// "delete" intent - see that file for the actual action, and GlobalParameters.tsx for the
+// closeModalRef-style pattern this card's revalidate-on-success effect follows.
+type DeleteResult = {
+  ok: boolean;
+  intent: "delete" | "create";
+  errorMessage?: { title: string; message: string };
+};
 
-  const handleDeleteWorkflow = async () => {
-    try {
-      await deleteWorkflowTemplateMutator({ name: workflow.name });
+const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow }) => {
+  const fetcher = useFetcher<DeleteResult>();
+  const revalidator = useRevalidator();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const isDeleting = fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "delete") {
+      return;
+    }
+    if (fetcher.data.ok) {
       notify(
         <ToastNotification
           kind="success"
@@ -32,8 +39,8 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow, g
           subtitle={`Workflow Template successfully deleted`}
         />,
       );
-      queryClient.invalidateQueries(getWorkflowsUrl);
-    } catch {
+      revalidator.revalidate();
+    } else {
       notify(
         <ToastNotification
           kind="error"
@@ -42,6 +49,10 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow, g
         />,
       );
     }
+  }, [fetcher.state, fetcher.data]);
+
+  const handleDeleteWorkflow = () => {
+    fetcher.submit({ intent: "delete", name: workflow.name }, { method: "post" });
   };
 
   let menuOptions = [
