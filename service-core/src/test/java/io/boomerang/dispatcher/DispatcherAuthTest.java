@@ -148,6 +148,35 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   }
 
   /** Pure unit coverage of the pre-DB gate {@link DispatcherAuthFilter} relies on. */
+  /**
+   * {@link DispatcherAuthFilter#shouldNotFilter} decides using the RAW {@code getRequestURI()}
+   * prefix {@code "/api/v1/dispatcher/"}, while Spring routes using a PARSED, normalised path.
+   * Wherever those two disagree a request could reach the controller with the filter skipped, so
+   * each known divergence class is probed here: path parameters ({@code ;k=v}) in an earlier
+   * segment, a traversal segment, a duplicated leading slash, and case variation.
+   *
+   * <p>None of these may produce a success status. Rejection may legitimately come from the filter
+   * (401) or from the dispatcher servlet's own normalisation (400/404) — what must never happen is
+   * a 2xx, which would mean the handler ran unauthenticated.
+   */
+  @Test
+  void pathVariantsCannotBypassTheFilter() throws Exception {
+    List<String> bypassAttempts =
+        List.of(
+            "/api;x=1/v1/dispatcher/any-agent-id/tasks",
+            "/api/v1;x=1/dispatcher/any-agent-id/tasks",
+            "/api/v1/dispatcher/../dispatcher/any-agent-id/tasks",
+            "//api/v1/dispatcher/any-agent-id/tasks",
+            "/API/V1/DISPATCHER/any-agent-id/tasks");
+
+    for (String attempt : bypassAttempts) {
+      int status = mockMvc.perform(get(attempt)).andReturn().getResponse().getStatus();
+      assertThat(status)
+          .as("unauthenticated request to %s must not succeed", attempt)
+          .isNotBetween(200, 299);
+    }
+  }
+
   @Test
   void tokenPrefixGateRejectsNonFlowShapesBeforeAnyLookupWouldOccur() {
     assertThat(TokenTypePrefix.isFlowToken("not-a-flow-token")).isFalse();
