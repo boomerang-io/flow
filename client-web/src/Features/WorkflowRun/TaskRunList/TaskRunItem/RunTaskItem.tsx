@@ -100,7 +100,6 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Pr
               <TaskApprovalModal
                 actionId={taskRun.results.find((result) => result.name === "actionRef")?.value}
                 closeModal={closeModal}
-                workflowRunId={workflowRun.id}
               />
             )}
           </ComposedModal>
@@ -125,7 +124,6 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Pr
                 actionId={taskRun.results.find((result) => result.name === "actionRef")?.value}
                 closeModal={closeModal}
                 instructions={taskRun.params.find((param) => param.name === "instructions")?.value}
-                workflowRunId={workflowRun.id}
               />
             )}
           </ComposedModal>

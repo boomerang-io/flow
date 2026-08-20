@@ -131,6 +131,11 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/action/summary${query ? "?" + query : ""}`,
       getActions: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/action/query${query ? "?" + query : ""}`,
+      // Fetch by id only. `/action/query` filters on types/statuses/workflows/dates - NOT on
+      // taskRunRef or workflowRunRef (WorkspaceActionControllerV2.query), and the by-TaskRun
+      // route next to it is commented out server-side - so a TaskRun's approver detail is
+      // reached via the `actionRef` result it carries, resolved through this route.
+      getAction: ({ workspace, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${workspace}/action/${id}`,
       putAction: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/action`,
     },
     task: {

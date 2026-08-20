@@ -7,7 +7,7 @@ import { profile, workspaces } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { RunPhase, RunStatus, TaskRun, WorkflowCanvas, WorkflowRun as WorkflowRunType, WorkflowStatus } from "Types";
-import WorkflowExecutionContainer from "./index";
+import WorkflowExecutionContainer, { loader } from "./WorkflowRun";
 
 const workspace = "tyson-workspace";
 const workflowName = "test-workflow";
@@ -144,7 +144,9 @@ beforeEach(() => {
 describe("Execution --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowExecutionContainer", async () => {
     const { baseElement } = global.rtlContextRouterRender(
-      <Route path={AppPath.Run} element={<WorkflowExecutionContainer />} />,
+      // The route now carries its own `loader` (see WorkflowRun.tsx) - the same shape
+      // app/routes/run.tsx wires up, and the pattern GlobalParameters.spec.tsx established.
+      <Route path={AppPath.Run} loader={loader} element={<WorkflowExecutionContainer />} />,
       {
         contextValue: {
           isTutorialActive: false,
