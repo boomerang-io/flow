@@ -1,8 +1,6 @@
 import React from "react";
-import axios from "axios";
 import { Helmet } from "react-helmet";
-import { useMutation } from "react-query";
-import { useRevalidator } from "react-router-dom";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import { matchSorter as ms } from "match-sorter";
 import sortBy from "lodash/sortBy";
 import { Formik, FieldArray } from "formik";
@@ -18,9 +16,9 @@ import {
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import EmptyState from "Components/EmptyState";
 import LabelModal from "Components/LabelModal";
-import { serviceUrl } from "Config/servicesConfig";
 import { Add, Edit, Save, TrashCan } from "@carbon/react/icons";
 import { FlowUser, ModalTriggerProps } from "Types";
+import type { UserDetailedActionResult } from "../UserDetailed";
 import styles from "./UserLabels.module.scss";
 
 interface UserLabelsProps {
@@ -40,29 +38,34 @@ function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
   // invalidateQueries.
   const revalidator = useRevalidator();
   const [searchQuery, setSearchQuery] = React.useState("");
+  // Bare useFetcher() -> the nearest matched route's action, i.e. UserDetailed.tsx's. The PATCH
+  // used to be a raw browser `axios.patch` here; it now runs server-side via serverFetch(request)
+  // against the `:userId` route param.
+  const fetcher = useFetcher<UserDetailedActionResult>();
+  const isLoading = fetcher.state !== "idle";
+  const result = fetcher.data;
 
-  const { mutateAsync: changeUserMutator, isLoading } = useMutation(
-    ({ userId, body }: any) => axios.patch(serviceUrl.getUser({ userId }), body),
-    {
-      onSuccess: () => {
-        revalidator.revalidate();
-      },
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !result || result.intent !== "saveLabels") {
+      return;
     }
-  );
-
-  const handleSubmit = async (values: any) => {
-    try {
-      await changeUserMutator({ body: values, userId: user.id });
+    if (result.ok) {
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
           title="User Labels Saved"
           subtitle={`Successfully saved labels for ${user.name}.`}
-        />
+        />,
       );
-    } catch (error) {
+    } else {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Request to save labels failed.`} />);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, result]);
+
+  const handleSubmit = (values: { labels: Record<string, string> }) => {
+    fetcher.submit({ intent: "saveLabels", labels: JSON.stringify(values.labels) }, { method: "post" });
   };
 
   return (

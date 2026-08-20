@@ -1,5 +1,6 @@
 import React from "react";
 import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
+import { formatErrorMessage } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { Route, Routes, useLoaderData } from "react-router-dom";
@@ -43,6 +44,57 @@ export async function loader({
     return { userDetails: response.data, errorLoading: false };
   } catch (error) {
     return { userDetails: null, errorLoading: true };
+  }
+}
+
+/*
+ * One action serves both write sites under this route (Header/ChangeRole and Labels/UserLabels),
+ * keyed by an `intent` form field; each submits through a bare useFetcher(), which resolves to
+ * the nearest matched route's action - this one. (The inner <Routes> below is a plain component
+ * switch, not router route matching, so "nearest matched route" is always this one route.)
+ *
+ * SECURITY: the user being modified is taken from the `:userId` ROUTE param, never from a form
+ * field the browser supplies - a submission cannot retarget the write at a different user than
+ * the URL the caller navigated to and was authorised for. The API call itself goes through
+ * serverFetch(request), which forwards the caller's inbound session Cookie; calling the browser
+ * `resolver`/`axios` instance here instead would send no credentials at all, because
+ * axios.defaults.withCredentials (Config/axiosGlobalConfig.ts) needs a browser cookie jar that
+ * Node does not have.
+ */
+export type UserDetailedActionResult = {
+  ok: boolean;
+  intent: "changeRole" | "saveLabels";
+  errorMessage?: { title: string; message: string };
+};
+
+export async function action({
+  params,
+  request,
+}: {
+  params: { userId?: string };
+  request: Request;
+}): Promise<UserDetailedActionResult> {
+  const userId = String(params.userId);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent")) as UserDetailedActionResult["intent"];
+
+  const body =
+    intent === "changeRole"
+      ? { type: String(formData.get("type")) }
+      : { labels: JSON.parse(String(formData.get("labels"))) };
+
+  try {
+    await serverFetch(request).patch(serviceUrl.getUser({ userId }), body);
+    return { ok: true, intent };
+  } catch (error) {
+    return {
+      ok: false,
+      intent,
+      errorMessage: formatErrorMessage({
+        error,
+        defaultMessage: intent === "changeRole" ? "Request to change the platform role failed" : "Request to save labels failed.",
+      }),
+    };
   }
 }
 
