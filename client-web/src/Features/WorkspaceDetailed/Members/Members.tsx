@@ -1,10 +1,10 @@
 import React from "react";
 import { Helmet } from "react-helmet";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
 import { resolver } from "Config/servicesConfig";
 import { matchSorter as ms } from "match-sorter";
 import sortBy from "lodash/sortBy";
-import { Link } from "react-router-dom";
+import { Link, useRevalidator } from "react-router-dom";
 import {
   Search,
   StructuredListWrapper,
@@ -15,30 +15,30 @@ import {
 } from "@carbon/react";
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { appLink } from "Config/appConfig";
-import { FlowWorkspace, FlowUser, Member } from "Types";
+import { Member } from "Types";
 import EmptyState from "Components/EmptyState";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import AddMember from "./AddMember";
 import AddMemberSearch from "./AddMemberSearch";
 import RemoveMember from "./RemoveMember";
 import styles from "./Members.module.scss";
 
-interface MemberProps {
-  canEdit: boolean;
-  workspace: FlowWorkspace;
-  user: FlowUser;
-  workspaceDetailsUrl: string;
-}
-
-const Members: React.FC<MemberProps> = ({ canEdit, workspace, user, workspaceDetailsUrl }) => {
+// Index route of /:workspace/manage (app/routes/manageWorkspaceMembers.tsx). The workspace,
+// `canEdit` and the current user used to arrive as props from the one route that rendered every
+// tab; they now come from the parent layout route's <Outlet context> - see WorkspaceDetailed.tsx.
+const Members: React.FC = () => {
+  const { canEdit, workspace, user } = useWorkspaceDetailedContext();
   const [searchQuery, setSearchQuery] = React.useState("");
   const filteredMemberList = searchQuery ? ms(workspace.members, searchQuery, { keys: ["name", "email"] }) : workspace.members;
   const memberMutator = useMutation(resolver.patchWorkspace);
-  const queryClient = useQueryClient();
+  // The workspace record is now loader data on the parent route, not a react-query entry, so
+  // queryClient.invalidateQueries(workspaceDetailsUrl) would be a silent no-op here.
+  const revalidator = useRevalidator();
 
   const handleSubmit = async (request: Array<Member>) => {
     try {
       await memberMutator.mutateAsync({ workspace: workspace.name, body: { members: request } });
-      queryClient.invalidateQueries([workspaceDetailsUrl]);
+      revalidator.revalidate();
       request.forEach((user: Member) => {
         return notify(
           <ToastNotification

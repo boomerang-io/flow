@@ -28,7 +28,8 @@ import EmptyState from "Components/EmptyState";
 import { arrayPagination } from "Utils/arrayHelper";
 import { TokenType } from "Constants";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import type { FlowWorkspace, Token } from "Types";
+import type { Token } from "Types";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./tokens.module.scss";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -81,7 +82,10 @@ const HEADERS = [
   },
 ];
 
-function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
+// Tokens tab of /:workspace/manage (app/routes/manageWorkspaceTokens.tsx). The workspace and
+// `canEdit` arrive from the parent layout route's <Outlet context> rather than as props.
+function Tokens() {
+  const { workspace, canEdit } = useWorkspaceDetailedContext();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -302,7 +306,12 @@ const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
             <StructuredListCell>{principal}</StructuredListCell>
             <StructuredListCell>
               <ul>
-                {actions.map((action) => (
+                {/* Defensive: TableExpandedRow keeps this mounted (aria-hidden, not unmounted)
+                    even while collapsed, so a malformed/missing actions array on any row - not
+                    just the expanded one - would otherwise throw during the initial render.
+                    Same fix as Features/GlobalTokens/GlobalTokens.tsx; this tab had no test
+                    that ever visited it, so the crash went unnoticed. */}
+                {(actions ?? []).map((action) => (
                   <li>{action}</li>
                 ))}
               </ul>

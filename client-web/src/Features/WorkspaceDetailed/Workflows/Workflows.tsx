@@ -17,10 +17,14 @@ import { Link } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { appLink } from "Config/appConfig";
 import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowWorkspace, PaginatedWorkflowResponse } from "Types";
+import { PaginatedWorkflowResponse } from "Types";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./Workflows.module.scss";
 
-function Workflows({ workspace }: { workspace: FlowWorkspace }) {
+// Workflows tab of /:workspace/manage (app/routes/manageWorkspaceWorkflows.tsx). The workspace
+// arrives from the parent layout route's <Outlet context> rather than as a prop.
+function Workflows() {
+  const { workspace } = useWorkspaceDetailedContext();
   const [searchQuery, setSearchQuery] = React.useState("");
 
   const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });

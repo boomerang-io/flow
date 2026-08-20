@@ -1,5 +1,6 @@
 import React from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { Formik, FieldArray } from "formik";
 import * as Yup from "yup";
 import sortBy from "lodash/sortBy";
@@ -163,7 +164,6 @@ type Props = {
   approverGroup?: ApproverGroup;
   approverGroups: string[];
   workspace?: FlowWorkspace | null;
-  workspaceDetailsUrl: string;
 };
 
 function CreateEditGroupModalContent({
@@ -172,9 +172,11 @@ function CreateEditGroupModalContent({
   approverGroup,
   approverGroups,
   workspace,
-  workspaceDetailsUrl,
 }: Props) {
-  const queryClient = useQueryClient();
+  // The approver groups live on the workspace record, which is now the parent Manage Workspace
+  // route's loader data rather than a react-query entry - re-run that loader instead of
+  // invalidating a cache key nothing reads any more.
+  const revalidator = useRevalidator();
   const workspaceMembers = workspace?.members;
   const approverGroupMutator = useMutation(resolver.patchWorkspace);
 
@@ -194,7 +196,7 @@ function CreateEditGroupModalContent({
         workspace: workspace?.name,
         body: { approverGroups: [mutatedApproverGroup] },
       });
-      queryClient.invalidateQueries(workspaceDetailsUrl);
+      revalidator.revalidate();
       if (isEdit) {
         notify(
           <ToastNotification

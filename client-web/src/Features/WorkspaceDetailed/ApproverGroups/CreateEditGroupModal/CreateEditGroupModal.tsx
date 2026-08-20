@@ -11,7 +11,6 @@ type CreateEditGroupModalProps = {
   approverGroups: ApproverGroup[];
   isEdit?: boolean;
   workspace?: FlowWorkspace | null;
-  workspaceDetailsUrl: string;
 };
 
 function CreateEditGroupModal({
@@ -19,7 +18,6 @@ function CreateEditGroupModal({
   approverGroups,
   isEdit,
   workspace,
-  workspaceDetailsUrl,
 }: CreateEditGroupModalProps) {
   /**
    * arrays of values for making the key unique
@@ -68,7 +66,6 @@ function CreateEditGroupModal({
           approverGroups={approverGroupNames}
           workspace={workspace}
           closeModal={closeModal}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         />
       )}
     </ComposedModal>

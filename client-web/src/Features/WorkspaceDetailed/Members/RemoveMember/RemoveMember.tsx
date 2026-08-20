@@ -1,8 +1,9 @@
 import React from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { ConfirmModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { TrashCan } from "@carbon/react/icons";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { resolver } from "Config/servicesConfig";
 import { Member } from "Types";
 import styles from "./RemoveMember.module.scss";
 
@@ -13,7 +14,10 @@ interface RemoveMemberProps {
 }
 
 const RemoveMember: React.FC<RemoveMemberProps> = ({ member, workspaceName, userId }) => {
-  const queryClient = useQueryClient();
+  // The workspace record (and so the member list) is loader data on the parent Manage Workspace
+  // route now, not a react-query entry - re-run that loader instead of invalidating a cache key
+  // nothing reads any more.
+  const revalidator = useRevalidator();
   const leaveWorkspaceMutator = useMutation(resolver.deleteWorkspaceMembers);
 
   async function handleCreateLeaveWorkspaceRequest() {
@@ -24,7 +28,7 @@ const RemoveMember: React.FC<RemoveMemberProps> = ({ member, workspaceName, user
     ];
     try {
       await leaveWorkspaceMutator.mutateAsync({ workspace: workspaceName, body: leaveWorkspaceData });
-      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspaceName }));
+      revalidator.revalidate();
       notify(
         <ToastNotification
           title="Remove User Requested"

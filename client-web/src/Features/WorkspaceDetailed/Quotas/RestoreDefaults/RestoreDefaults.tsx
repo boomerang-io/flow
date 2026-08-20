@@ -9,6 +9,7 @@ import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/reac
 import { Reset } from "@carbon/react/icons";
 import React from "react";
 import { useMutation, useQuery } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import styles from "./RestoreDefaults.module.scss";
 import { resolver, serviceUrl } from "Config/servicesConfig";
 import { ModalTriggerProps, FlowWorkspace } from "Types";
@@ -51,10 +52,15 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
   });
 
   const resetQuotasMutator = useMutation(resolver.deleteWorkspaceQuotas);
+  // The quota values this resets are on the workspace record, which is the parent Manage
+  // Workspace route's loader data - nothing invalidated them before (a pre-existing gap: the
+  // page kept showing the old quotas until reloaded), so re-run that loader here.
+  const revalidator = useRevalidator();
 
   const handleRestoreDefaultQuota = async () => {
     try {
       await resetQuotasMutator.mutateAsync({ workspace: workspaceName });
+      revalidator.revalidate();
       closeModal();
       notify(
         <ToastNotification

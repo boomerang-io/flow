@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Helmet } from "react-helmet";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
 import { useNavigate, useRevalidator } from "react-router-dom";
 import { InlineNotification, Button } from "@carbon/react";
 import {
@@ -21,23 +21,27 @@ import {
 import { Edit, Close, TrashCan, Add, Copy } from "@carbon/react/icons";
 import CopyToClipboard from "react-copy-to-clipboard";
 import sortBy from "lodash/sortBy";
-import { FlowWorkspace, ModalTriggerProps } from "Types";
+import { ModalTriggerProps } from "Types";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import LabelModal from "Components/LabelModal";
 import { appLink } from "Config/appConfig";
 import styles from "./Settings.module.scss";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { resolver } from "Config/servicesConfig";
 
 interface Label {
   key: string;
   value: string;
 }
 
-export default function Settings({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
+// Settings tab of /:workspace/manage (app/routes/manageWorkspaceSettings.tsx). The workspace and
+// `canEdit` arrive from the parent layout route's <Outlet context> rather than as props.
+export default function Settings() {
+  const { workspace, canEdit } = useWorkspaceDetailedContext();
   const [copyTokenText, setCopyTokenText] = useState("Copy");
-  const queryClient = useQueryClient();
-  // The user profile (workspace membership list) is now root-loader-driven (Features/App/App.tsx)
-  // rather than a react-query cache entry, so deleting a workspace here has to re-run that loader
-  // via revalidate() - queryClient.invalidateQueries(getUserProfile()) would be a silent no-op.
+  // The user profile (workspace membership list) is root-loader-driven (Features/App/App.tsx) and
+  // the workspace record itself is this route's parent loader data - neither is a react-query
+  // cache entry, so every refresh below goes through revalidate() rather than
+  // queryClient.invalidateQueries(), which would be a silent no-op.
   const revalidator = useRevalidator();
   const navigate = useNavigate();
 
@@ -73,7 +77,7 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
 
     try {
       await patchWorkspaceMutator.mutateAsync({ workspace: workspace.name, body: { labels: newLabelsRecord } });
-      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspace.name }));
+      revalidator.revalidate();
       notify(
         <ToastNotification
           title="Add Label"
@@ -98,7 +102,7 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
 
     try {
       await patchWorkspaceMutator.mutateAsync({ workspace: workspace.name, body: { labels: newLabelsRecord } });
-      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspace.name }));
+      revalidator.revalidate();
       notify(
         <ToastNotification
           title="Remove Workspace"

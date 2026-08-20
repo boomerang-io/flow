@@ -4,24 +4,67 @@ import {
   FeatureHeader,
   FeatureHeaderTitle as HeaderTitle,
   FeatureHeaderSubtitle as HeaderSubtitle,
-  Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
-import { Route, Routes } from "react-router-dom";
+import { Outlet, useLoaderData, useOutletContext } from "react-router-dom";
 import { Box } from "reflexbox";
-import { useAppContext, useWorkspaceContext } from "Hooks";
+import { useAppContext } from "Hooks";
 import { FeatureFlag } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import ApproverGroups from "./ApproverGroups";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import { FlowUser, FlowWorkspace } from "Types";
 import Header from "./Header";
-import Members from "./Members";
-import Quotas from "./Quotas";
-import Settings from "./Settings";
-import Tokens from "./Tokens";
-import Workflows from "./Workflows";
 import styles from "./workspaceDetailed.module.scss";
+
+// Layout route for the Manage Workspace tabs (app/routes/manageWorkspace.tsx + the nested
+// entries under it in app/routes.ts). This used to be a single "/*" splat route that fetched the
+// workspace with useQuery and then switched on an inner <Routes>; each tab is now a real nested
+// route with its own loader/action, and this file only owns the one read they all share - the
+// workspace record itself, which backs the header and is the sole data source for the Members,
+// Approver Groups, Quotas and Settings tabs.
+//
+// Server loader (see CLAUDE.md's client-web SSR direction), following
+// Features/Parameters/GlobalParameters/GlobalParameters.tsx: serverFetch(request) rather than the
+// browser `resolver`/`axios` instance, and a failed fetch resolves with an error flag instead of
+// throwing, so the page chrome still renders and only the body shows the error - matching the
+// previous `workspaceDetailsQuery.error` branch.
+
+type LoaderData = {
+  workspace: FlowWorkspace | null;
+  errorLoading: boolean;
+};
+
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  try {
+    const response = await serverFetch(request).get(
+      serviceUrl.resourceWorkspace({ workspace: String(params.workspace) }),
+    );
+    return { workspace: response.data, errorLoading: false };
+  } catch (error) {
+    return { workspace: null, errorLoading: true };
+  }
+}
+
+/**
+ * Handed to every tab through <Outlet context>. `canEdit` and `user` are client-only derivations
+ * (a feature flag and AppContext), so they're computed here once rather than in each tab.
+ */
+export type WorkspaceDetailedContext = {
+  workspace: FlowWorkspace;
+  canEdit: boolean;
+  user: FlowUser;
+};
+
+export function useWorkspaceDetailedContext() {
+  return useOutletContext<WorkspaceDetailedContext>();
+}
 
 const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   return (
@@ -44,67 +87,29 @@ const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
 };
 
 function WorkspaceDetailedContainer() {
+  const { workspace, errorLoading } = useLoaderData() as LoaderData;
   const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
-  const { workspace } = useWorkspaceContext();
   const { user } = useAppContext();
 
-  const workspaceDetailsUrl = serviceUrl.resourceWorkspace({ workspace: workspace.name });
-
-  const workspaceDetailsQuery = useQuery({
-    queryKey: workspaceDetailsUrl,
-    queryFn: resolver.query(workspaceDetailsUrl),
-  });
-
-  if (workspaceDetailsQuery.isLoading)
-    return (
-      <FeatureLayout>
-        <Loading />
-      </FeatureLayout>
-    );
-
-  if (workspaceDetailsQuery.error)
+  // No loading branch: the router resolves this route's loader before rendering it, so there is
+  // no in-component pending state to show (the previous workspaceDetailsQuery.isLoading case).
+  if (errorLoading || !workspace) {
     return (
       <FeatureLayout>
         <ErrorMessage />
       </FeatureLayout>
     );
-
-  if (workspaceDetailsQuery.data) {
-    const canEdit = workspaceManagementEnabled && workspaceDetailsQuery.data.status === "active";
-    // const workspaceOwnerIdList = workspaceDetailsData?.owners?.map((owner) => owner.ownerId);
-    return (
-      <div className={styles.container}>
-        <Header workspace={workspaceDetailsQuery.data} />
-        <Routes>
-          <Route
-            path=""
-            element={
-              <Members canEdit={canEdit} workspace={workspaceDetailsQuery.data} user={user} workspaceDetailsUrl={workspaceDetailsUrl} />
-            }
-          />
-          <Route path="workflows" element={<Workflows workspace={workspaceDetailsQuery.data} />} />
-          <Route
-            path="approver-groups"
-            element={<ApproverGroups workspace={workspaceDetailsQuery.data} canEdit={canEdit} workspaceDetailsUrl={workspaceDetailsUrl} />}
-          />
-          <Route
-            path="quotas"
-            element={
-              <Quotas
-                workspace={workspaceDetailsQuery.data}
-                canEdit={canEdit && user?.type === "admin"}
-                workspaceDetailsUrl={workspaceDetailsUrl}
-              />
-            }
-          />
-          <Route path="tokens" element={<Tokens workspace={workspaceDetailsQuery.data} canEdit={canEdit} />} />
-          <Route path="settings" element={<Settings workspace={workspaceDetailsQuery.data} canEdit={canEdit} />} />
-        </Routes>
-      </div>
-    );
   }
 
-  return null;
+  const canEdit = Boolean(workspaceManagementEnabled) && workspace.status === "active";
+  const context: WorkspaceDetailedContext = { workspace, canEdit, user };
+
+  return (
+    <div className={styles.container}>
+      <Header workspace={workspace} />
+      <Outlet context={context} />
+    </div>
+  );
 }
 
 export default WorkspaceDetailedContainer;

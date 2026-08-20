@@ -1,7 +1,8 @@
 import React from "react";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, NumberInput, InlineNotification } from "@carbon/react";
 import { Loading, ModalForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { resolver } from "Config/servicesConfig";
@@ -18,7 +19,6 @@ interface QuotaEditProps {
   quotaProperty: string;
   quotaValue: number;
   minValue: number;
-  workspaceDetailsUrl: string;
 }
 
 const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
@@ -32,16 +32,18 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
   quotaProperty,
   quotaValue,
   minValue,
-  workspaceDetailsUrl,
 }) => {
-  const queryClient = useQueryClient();
+  // Quota values live on the workspace record, which is the parent Manage Workspace route's
+  // loader data now rather than a react-query entry - re-run that loader instead of invalidating
+  // a cache key nothing reads any more.
+  const revalidator = useRevalidator();
   const updateWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
 
   const handleOnSubmit = async (values: { quotaFormValue: number | string }) => {
     let quotas = { [quotaProperty]: values.quotaFormValue };
     try {
       await updateWorkspaceMutator.mutateAsync({ workspace: workspaceName, body: { quotas: quotas } });
-      queryClient.invalidateQueries(workspaceDetailsUrl);
+      revalidator.revalidate();
       closeModal();
       notify(
         <ToastNotification kind="success" title="Update Workspace Quotas" subtitle="Workspace quota successfully updated" />,

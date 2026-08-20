@@ -8,9 +8,15 @@ import ProgressBar from "Components/ProgressBar";
 import QuotaEditModalContent from "./QuotaEditModalContent";
 import styles from "./Quotas.module.scss";
 import RestoreDefaults from "./RestoreDefaults";
-import { ModalTriggerProps, FlowWorkspace } from "Types";
+import { ModalTriggerProps } from "Types";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 
-function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWorkspace; canEdit: boolean; workspaceDetailsUrl: string }) {
+// Quotas tab of /:workspace/manage (app/routes/manageWorkspaceQuotas.tsx). The workspace, the
+// current user and `canEdit` arrive from the parent layout route's <Outlet context> rather than
+// as props; the admin-only narrowing of `canEdit` used to be applied by the caller.
+function Quotas() {
+  const { workspace, canEdit: workspaceCanEdit, user } = useWorkspaceDetailedContext();
+  const canEdit = workspaceCanEdit && user?.type === "admin";
   let workflowLimitPercentage = (workspace.quotas.currentWorkflowCount / workspace.quotas.maxWorkflowCount) * 100;
   let concurrentLimitPercentage = (workspace.quotas.currentConcurrentRuns / workspace.quotas.maxConcurrentRuns) * 100;
   let monthlyExecutionPercentage = (workspace.quotas.currentRuns / workspace.quotas.maxWorkflowRunMonthly) * 100;
@@ -64,7 +70,6 @@ function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWo
           quotaProperty="maxWorkflowCount"
           quotaValue={workspace.quotas.maxWorkflowCount}
           disabled={!canEdit}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowCount} Workflows`}</h3>
           <ProgressBar
@@ -89,7 +94,6 @@ function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWo
           quotaProperty="maxWorkflowRunMonthly"
           quotaValue={workspace.quotas.maxWorkflowRunMonthly}
           disabled={!canEdit}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunMonthly} per month`}</h3>
           <ProgressBar
@@ -113,7 +117,6 @@ function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWo
           quotaProperty="maxWorkflowRunDuration"
           quotaValue={workspace.quotas.maxWorkflowRunDuration}
           disabled={!canEdit}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunDuration} minutes`}</h3>
         </QuotaCard>
@@ -131,7 +134,6 @@ function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWo
           quotaProperty="maxConcurrentRuns"
           quotaValue={workspace.quotas.maxConcurrentRuns}
           disabled={!canEdit}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxConcurrentRuns} Workflows`}</h3>
           <ProgressBar
@@ -155,7 +157,6 @@ function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWo
           quotaProperty="maxWorkflowStorage"
           quotaValue={workspace.quotas.maxWorkflowStorage}
           disabled={!canEdit}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowStorage}GB per Workflow`}</h3>
         </QuotaCard>
@@ -173,7 +174,6 @@ function Quotas({ workspace, canEdit, workspaceDetailsUrl }: { workspace: FlowWo
           quotaProperty="maxWorkflowRunStorage"
           quotaValue={workspace.quotas.maxWorkflowRunStorage}
           disabled={!canEdit}
-          workspaceDetailsUrl={workspaceDetailsUrl}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}</h3>
         </QuotaCard>
@@ -196,7 +196,6 @@ interface QuotaCardProps {
   quotaValue: number;
   disabled: boolean;
   minValue: number;
-  workspaceDetailsUrl: string;
 }
 
 const QuotaCard: React.FC<QuotaCardProps> = ({
@@ -214,7 +213,6 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
   quotaValue,
   disabled,
   minValue,
-  workspaceDetailsUrl,
 }) => {
   return (
     <Tile className={styles.cardContainer}>
@@ -254,7 +252,6 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
               quotaProperty={quotaProperty}
               quotaValue={quotaValue}
               minValue={minValue}
-              workspaceDetailsUrl={workspaceDetailsUrl}
             />
           )}
         </ComposedModal>

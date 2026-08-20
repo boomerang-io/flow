@@ -9,8 +9,10 @@ import CreateEditGroupModal from "./CreateEditGroupModal";
 import moment from "moment";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { sortKeyDirection } from "Utils/arrayHelper";
-import { FlowWorkspace, ApproverGroup, Approver } from "Types";
+import { ApproverGroup, Approver } from "Types";
 import { TrashCan } from "@carbon/react/icons";
+import { useRevalidator } from "react-router-dom";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./approverGroups.module.scss";
 
 const HEADERS = [
@@ -36,26 +38,25 @@ const HEADERS = [
   },
 ];
 
-function ApproverGroups({
-  workspace,
-  canEdit,
-  workspaceDetailsUrl,
-}: {
-  workspace: FlowWorkspace;
-  canEdit: boolean;
-  workspaceDetailsUrl: string;
-}) {
+// Approver Groups tab of /:workspace/manage (app/routes/manageWorkspaceApproverGroups.tsx). The
+// workspace and `canEdit` arrive from the parent layout route's <Outlet context> rather than as
+// props, and the groups themselves are read off that loader-supplied workspace record.
+function ApproverGroups() {
+  const { workspace, canEdit } = useWorkspaceDetailedContext();
   const [sortKey, setSortKey] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("ASC");
   const approverGroups = workspace?.approverGroups ?? [];
   /** Delete Workspace Approver Group */
   const deleteApproverGroupMutation = useMutation(resolver.deleteApproverGroup);
+  // Re-runs the parent Manage Workspace loader - the approver groups live on the workspace
+  // record, which is loader data now rather than a react-query entry (this is the "TODO - replace
+  // with invalidate Workspace" the delete handler used to carry).
+  const revalidator = useRevalidator();
 
   const deleteApproverGroup = async (approverGroup: ApproverGroup) => {
     try {
       await deleteApproverGroupMutation.mutateAsync({ workspace: workspace?.name, groupId: approverGroup.id });
-      //TODO - replace with invalidate Workspace
-      // queryClient.invalidateQueries(serviceUrl.resourceApproverGroups({ workspaceId: activeWorkspace?.id, groupId: undefined })),
+      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"
@@ -100,7 +101,6 @@ function ApproverGroups({
               approverGroup={approverGroup}
               approverGroups={approverGroups}
               workspace={workspace}
-              workspaceDetailsUrl={workspaceDetailsUrl}
             />
             <ConfirmModal
               modalTrigger={({ openModal }: any) => (
@@ -197,7 +197,7 @@ function ApproverGroups({
           </p>
         </div>
         {canEdit && (
-          <CreateEditGroupModal approverGroups={approverGroups} workspace={workspace} workspaceDetailsUrl={workspaceDetailsUrl} />
+          <CreateEditGroupModal approverGroups={approverGroups} workspace={workspace} />
         )}
       </section>
       {totalItems > 0 ? (

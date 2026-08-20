@@ -1,4 +1,4 @@
-import { type RouteConfig, layout, route } from "@react-router/dev/routes";
+import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
 
 // Routes config API (explicit path -> file entries), not file-based conventions - the route
 // tree previously lived as JSX in src/Features/App/AppRoutes.tsx (see that file for the
@@ -31,7 +31,20 @@ export default [
     route("/:workspace/activity", "routes/activity.tsx"),
     route("/:workspace/insights", "routes/insights.tsx"),
     route("/:workspace/parameters", "routes/workspaceParameters.tsx"),
-    route("/:workspace/manage/*", "routes/manageWorkspace.tsx"),
+    // The Manage Workspace tabs are real nested routes, not an inner <Routes> switch inside one
+    // "/*" splat route (which is what routes/manageWorkspace.tsx used to render): the parent is a
+    // layout route whose loader fetches the workspace record the header and every tab reads, and
+    // each tab below owns the loader/action for its own data. Same URLs as before -
+    // AppPath.ManageWorkspace* / appLink.manageWorkspace* are unchanged, and Members stays the
+    // index route at bare `/:workspace/manage`.
+    route("/:workspace/manage", "routes/manageWorkspace.tsx", [
+      index("routes/manageWorkspaceMembers.tsx"),
+      route("workflows", "routes/manageWorkspaceWorkflows.tsx"),
+      route("approver-groups", "routes/manageWorkspaceApproverGroups.tsx"),
+      route("quotas", "routes/manageWorkspaceQuotas.tsx"),
+      route("tokens", "routes/manageWorkspaceTokens.tsx"),
+      route("settings", "routes/manageWorkspaceSettings.tsx"),
+    ]),
     route("/:workspace/actions/*", "routes/actions.tsx"),
     route("/:workspace/editor/:workflow/*", "routes/editor.tsx"),
     route("/:workspace/schedules", "routes/schedules.tsx"),
