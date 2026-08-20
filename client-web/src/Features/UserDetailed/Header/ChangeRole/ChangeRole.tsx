@@ -83,7 +83,9 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
           <RadioButtonGroup
             labelPosition="right"
             name="platform-role"
-            onChange={(newSelection: React.ReactText) => setSelectedRole(String(newSelection))}
+            onChange={(newSelection: string | number | undefined) =>
+              setSelectedRole(newSelection === undefined ? undefined : String(newSelection))
+            }
             orientation="vertical"
             valueSelected={selectedRole}
           >
