@@ -10,11 +10,11 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
 import moment from "moment";
-import { useMutation, useQueryClient } from "react-query";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import * as Yup from "yup";
 import { TokenType, TokenActorKind } from "Constants";
-import { resolver } from "Config/servicesConfig";
 import { TokenScopeType } from "Types";
+import type { TokenActionResult } from "Components/TokenSection/tokenRoute";
 import PermissionSelector, { PermissionSelection } from "./PermissionSelector";
 import styles from "./form.module.scss";
 
@@ -34,9 +34,6 @@ interface CreateServiceTokenFormProps {
   // callers (e.g. a User-type token) have no principal at all.
   principal?: string | null;
   actorKind?: TokenActorKindType;
-  getTokensUrl: string;
-  // See CreateToken.tsx's CreateServiceTokenButtonProps.onSuccess for why this exists.
-  onSuccess?: () => void;
 }
 
 function CreateServiceTokenForm({
@@ -47,13 +44,35 @@ function CreateServiceTokenForm({
   type,
   principal,
   actorKind,
-  getTokensUrl,
-  onSuccess,
 }: CreateServiceTokenFormProps) {
-  const queryClient = useQueryClient();
-  const tokenRequestMutation = useMutation(resolver.postToken);
+  // Posts to the shared token action on whichever route rendered this modal (see
+  // Components/TokenSection/tokenRoute.ts). Replaces the previous useMutation +
+  // queryClient.invalidateQueries(getTokensUrl) pair: all three token surfaces are now
+  // loader-driven, so there is no query cache to invalidate and the list is refreshed by
+  // revalidating the route instead - which is also why the `onSuccess` escape hatch the admin
+  // route needed is gone.
+  const fetcher = useFetcher<TokenActionResult>();
+  const revalidator = useRevalidator();
+  const isCreating = fetcher.state !== "idle";
+  const createFailed = Boolean(fetcher.data && fetcher.data.intent === "create" && !fetcher.data.ok);
 
-  const createToken = async (values: any) => {
+  // The fetcher settles asynchronously, so the "advance the modal to the Result step" work that
+  // used to sit after `await mutateAsync` runs here once the action actually succeeds. The token
+  // secret is only ever present on this response, so it is handed straight to saveValues.
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "create" || !fetcher.data.ok) {
+      return;
+    }
+    revalidator.revalidate();
+    saveValues?.(fetcher.data.token);
+    setIsTokenCreated();
+    goToStep?.(1);
+    // Only the fetcher settling should drive this; the callback props are fresh identities on
+    // every render and revalidator changes identity as it transitions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  const createToken = (values: any) => {
     const request = {
       name: values.name,
       type: values.type,
@@ -65,16 +84,7 @@ function CreateServiceTokenForm({
       ...(type !== TokenType.User ? (values.role ? { role: values.role } : { permissions: values.permissions ?? [] }) : {}),
     };
 
-    try {
-      const response = await tokenRequestMutation.mutateAsync({ body: request });
-      queryClient.invalidateQueries(getTokensUrl);
-      onSuccess?.();
-      saveValues?.(response.data);
-      setIsTokenCreated();
-      goToStep?.(1);
-    } catch (error) {
-      //noop
-    }
+    fetcher.submit({ intent: "create", body: JSON.stringify(request) }, { method: "post" });
   };
 
   const handleSelectDate = (setFieldValue: any, id: string, value: any) => {
@@ -85,6 +95,9 @@ function CreateServiceTokenForm({
     }
   };
 
+  // Formik's `isSubmitting` is deliberately not destructured below any more: onSubmit fires the
+  // fetcher and returns immediately, so Formik would flip it back to false before the request has
+  // settled. fetcher.state (isCreating) is the real in-flight signal.
   return (
     <Formik
       initialValues={{
@@ -108,7 +121,7 @@ function CreateServiceTokenForm({
         description: Yup.string().nullable(),
       })}
     >
-      {({ errors, touched, handleBlur, handleSubmit, setFieldValue, isValid, isSubmitting, values }) => {
+      {({ errors, touched, handleBlur, handleSubmit, setFieldValue, isValid, values }) => {
         const handlePermissionSelectionChange = (selection: PermissionSelection) => {
           setFieldValue("role", selection.role);
           setFieldValue("permissions", selection.permissions);
@@ -116,7 +129,7 @@ function CreateServiceTokenForm({
         return (
           <ModalFlowForm className={styles.container} onSubmit={handleSubmit}>
             <ModalBody>
-              {isSubmitting && <Loading />}
+              {isCreating && <Loading />}
               <p className={styles.modalHelper}>
                 This token will allow{" "}
                 {type === TokenType.Global
@@ -140,11 +153,7 @@ function CreateServiceTokenForm({
                 value={values.name}
               />
               {type !== TokenType.User ? (
-                <PermissionSelector
-                  scope={type === TokenType.Global ? "global" : "workspace"}
-                  principal={principal}
-                  onChange={handlePermissionSelectionChange}
-                />
+                <PermissionSelector onChange={handlePermissionSelectionChange} />
               ) : null}
               <DatePicker
                 dateFormat="Y/m/d"
@@ -185,7 +194,7 @@ function CreateServiceTokenForm({
                 onChange={(value: any) => setFieldValue("description", value.target.value)}
                 value={values.description}
               />
-              {tokenRequestMutation.error ? (
+              {createFailed ? (
                 <InlineNotification
                   lowContrast
                   className={styles.errorNotification}
@@ -201,11 +210,11 @@ function CreateServiceTokenForm({
                 Cancel
               </Button>
               <Button
-                disabled={!isValid || isSubmitting || tokenRequestMutation.isLoading}
+                disabled={!isValid || isCreating}
                 type="submit"
                 data-testid="create-token-submit"
               >
-                {isSubmitting ? "Creating..." : tokenRequestMutation.error ? "Try again" : "Create"}
+                {isCreating ? "Creating..." : createFailed ? "Try again" : "Create"}
               </Button>
             </ModalFooter>
           </ModalFlowForm>

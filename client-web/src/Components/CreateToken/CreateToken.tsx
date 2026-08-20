@@ -13,27 +13,16 @@ type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
 interface CreateServiceTokenButtonProps {
   type: TokenScopeType;
   principal?: string | null;
-  getTokensUrl: string;
   // Orthogonal to `type` - badges a `key` token minted for a Workflow's own use (see
   // TokenActorKind). Undefined for a normal human-driven token.
   actorKind?: TokenActorKindType;
-  // Fires after a successful create, in addition to the Form's own
-  // queryClient.invalidateQueries(getTokensUrl). Needed by loader-driven callers (the admin
-  // tokens route) whose list has no react-query cache entry for invalidateQueries to hit -
-  // see Form/index.tsx. Callers still on react-query reads (workspace tokens tab, the
-  // workflow editor's Configure tab via TokenSection) can omit it.
-  onSuccess?: () => void;
   [key: string]: any; // This allows for any additional optional props
 }
 
-function CreateServiceTokenButton({
-  type,
-  principal,
-  getTokensUrl,
-  actorKind,
-  onSuccess,
-  ...otherProps
-}: CreateServiceTokenButtonProps) {
+// `getTokensUrl`/`onSuccess` are gone: every token surface is loader-driven now, so the Form
+// submits the shared route action and revalidates the route rather than invalidating a
+// react-query cache entry keyed by that URL. See Components/TokenSection/tokenRoute.ts.
+function CreateServiceTokenButton({ type, principal, actorKind, ...otherProps }: CreateServiceTokenButtonProps) {
   const [isTokenCreated, setIsTokenCreated] = React.useState(false);
   return (
     <ModalFlow
@@ -68,8 +57,6 @@ function CreateServiceTokenButton({
         type={type}
         principal={principal}
         actorKind={actorKind}
-        getTokensUrl={getTokensUrl}
-        onSuccess={onSuccess}
       />
       <CreateServiceTokenResult />
     </ModalFlow>
