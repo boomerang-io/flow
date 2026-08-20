@@ -1,10 +1,19 @@
 //@ts-nocheck
-import React, { useState } from "react";
+import React, { Suspense, lazy, useState } from "react";
 import PropTypes from "prop-types";
 import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { ComposedModal, TextArea } from "@boomerang-io/carbon-addons-boomerang-react";
-import TextEditorView from "./TextEditorView";
 import styles from "./TextEditorModal.module.scss";
+
+// CodeMirror 5 (imported by TextEditorView) touches `navigator`/`document` at module scope and
+// cannot be evaluated in Node - genuinely SSR-infeasible, not just an unguarded access site (see
+// CLAUDE.md client-web SSR rules). ComposedModal below only invokes its `children` render prop
+// once `state.isOpen` is true (client-only, post user click), so the component itself never
+// renders during SSR - but a *static* import still gets eagerly evaluated by Node the moment this
+// module loads, crashing regardless of whether it's rendered. Deferring to `React.lazy` makes the
+// import itself lazy: the dynamic import only fires when React actually renders
+// `<TextEditorView>`, which - because of the isOpen gate above - only ever happens client-side.
+const TextEditorView = lazy(() => import("./TextEditorView"));
 
 const TextEditorModal = (props) => {
   const [value, setValue] = useState(props.initialValue);
@@ -38,13 +47,15 @@ const TextEditorModal = (props) => {
       )}
     >
       {({ closeModal }) => (
-        <TextEditorView
-          {...props}
-          closeModal={closeModal}
-          language={props.type?.includes("::") ? props.type.split("::")[1] : undefined}
-          setTextAreaValue={setValue}
-          value={value}
-        />
+        <Suspense fallback={null}>
+          <TextEditorView
+            {...props}
+            closeModal={closeModal}
+            language={props.type?.includes("::") ? props.type.split("::")[1] : undefined}
+            setTextAreaValue={setValue}
+            value={value}
+          />
+        </Suspense>
       )}
     </ComposedModal>
   );

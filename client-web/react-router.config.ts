@@ -13,7 +13,7 @@ import type { Config } from "@react-router/dev/config";
 // `app/` composes the existing `src/` tree instead: smallest diff, no rename, no collision risk.
 export default {
   appDirectory: "app",
-  ssr: false,
+  ssr: true,
   basename: "/apps/flow",
   // Splits each route's component/loader/action into its own chunk instead of one route file
   // eagerly pulling its whole module graph into the server-build entry - SPA mode only ever
@@ -23,11 +23,19 @@ export default {
   future: {
     v8_splitRouteModules: true,
   },
-  // The build still produces an internal, build-time-only server bundle (used solely to
-  // prerender the root route into server/build/index.html - see the ssr:false comment above);
-  // it needs to load in plain Node without ESM support declared in this project's
-  // package.json ("type": "module" isn't set, and setting it would flip every other .js file
-  // in this project - eslint config, commitlint config, scripts/ - to ESM too), so it's emitted
-  // as CommonJS rather than the framework's ESM default.
-  serverModuleFormat: "cjs",
+  // ESM (the framework default) rather than CJS. CJS was the right choice for the previous
+  // ssr:false build, where server/build's only job was a one-shot, build-time-only Node
+  // require() of app/root.tsx to prerender server/build/index.html - a narrow surface with no
+  // real dependency graph. Under ssr:true, this server bundle is the actual runtime request
+  // handler and pulls in the entire route tree, which includes several ESM-only packages
+  // (react-markdown v8 and its whole remark/rehype/unified/vfile dependency chain). Node's
+  // CommonJS require() cannot load a pure-ESM package at all (ERR_REQUIRE_ESM) - not even via
+  // Vite's ssr.noExternal bundling, since noExternal only changes *how* a package is resolved
+  // into the graph, not the module system of the emitted server entry itself. Node's ESM
+  // loader, by contrast, can import both ESM and CJS packages natively, so this sidesteps the
+  // entire class of error instead of hand-maintaining a noExternal allowlist for every
+  // ESM-only transitive dependency. Scoped to build/server/ via a generated package.json
+  // (see vite.config.mts) rather than flipping this package's own "type" to "module", so
+  // eslint config / commitlint config / scripts/ - all plain CJS - are unaffected.
+  serverModuleFormat: "esm",
 } satisfies Config;

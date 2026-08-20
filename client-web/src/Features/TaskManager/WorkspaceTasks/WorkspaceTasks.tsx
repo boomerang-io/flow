@@ -1,10 +1,11 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { useFeature } from "flagged";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Box } from "reflexbox";
+import ClientOnly from "Components/ClientOnly";
 import ErrorDragon from "Components/ErrorDragon";
 import WombatMessage from "Components/WombatMessage";
 import { useQuery } from "Hooks";
@@ -13,8 +14,12 @@ import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import Sidenav from "../Sidenav";
 import styles from "../TaskManager.module.scss";
-import TaskTemplateYamlEditor from "../TaskTemplateEditor";
 import TaskTemplateOverview from "../TaskTemplateOverview";
+
+// See AdminTasks.tsx for why this is lazy + ClientOnly rather than a plain import: CodeMirror 5
+// (inside TaskTemplateEditor) reads `navigator`/`document` at module scope and cannot be
+// evaluated in Node.
+const TaskTemplateYamlEditor = lazy(() => import("../TaskTemplateEditor"));
 
 const HELMET_TITLE = "Workspace Task Manager";
 
@@ -83,11 +88,17 @@ function TaskTemplatesContainer() {
         <Route
           path=":name/:version/editor"
           element={
-            <TaskTemplateYamlEditor
-              taskTemplates={tasksData?.content}
-              editVerifiedTasksEnabled={editVerifiedTasksEnabled}
-              getTaskTemplatesUrl={getWorkspaceTaskTemplatesUrl}
-            />
+            <ClientOnly>
+              {() => (
+                <Suspense fallback={null}>
+                  <TaskTemplateYamlEditor
+                    taskTemplates={tasksData?.content}
+                    editVerifiedTasksEnabled={editVerifiedTasksEnabled}
+                    getTaskTemplatesUrl={getWorkspaceTaskTemplatesUrl}
+                  />
+                </Suspense>
+              )}
+            </ClientOnly>
           }
         />
         <Route

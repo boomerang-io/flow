@@ -163,7 +163,8 @@
   "pnpm": {
     "patchedDependencies": {
       "react-virtualized@9.22.5": "patches/react-virtualized@9.22.5.patch",
-      "@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15": "patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch"
+      "@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15": "patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch",
+      "@boomerang-io/utils@1.1.0": "patches/@boomerang-io__utils@1.1.0.patch"
     }
   }
 }

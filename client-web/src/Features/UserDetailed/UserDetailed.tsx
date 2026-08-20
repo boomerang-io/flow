@@ -6,7 +6,8 @@ import { Route, Routes, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
 import { useAppContext } from "Hooks";
 import { FeatureFlag } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 import { FlowUser } from "Types";
 import Header from "./Header";
 import Labels from "./Labels";
@@ -24,11 +25,22 @@ type LoaderData = {
   errorLoading: boolean;
 };
 
-export async function loader({ params }: { params: { userId?: string } }): Promise<LoaderData> {
+// Server loader (ssr:true - see CLAUDE.md client-web SSR direction; server loaders are the
+// default now). Runs in Node, so it uses serverFetch(request) rather than the browser
+// `resolver`/`axios` instance in Config/servicesConfig.ts - see Config/serverFetch.ts for the
+// session-cookie-forwarding contract, unverified end-to-end until the auth exchange endpoint in
+// specifications/authentication.md lands.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { userId?: string };
+  request: Request;
+}): Promise<LoaderData> {
   const userDetailsUrl = serviceUrl.getUser({ userId: params.userId });
   try {
-    const userDetails = await resolver.query(userDetailsUrl)();
-    return { userDetails, errorLoading: false };
+    const response = await serverFetch(request).get(userDetailsUrl);
+    return { userDetails: response.data, errorLoading: false };
   } catch (error) {
     return { userDetails: null, errorLoading: true };
   }

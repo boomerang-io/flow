@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import useMutationObserver from "./useMutationObserver";
 
-const htmlElem = document.getElementsByTagName("html")[0];
+// SSR runs this module in Node, where `document` doesn't exist yet (see react-router.config.ts).
+const htmlElem = typeof document !== "undefined" ? document.getElementsByTagName("html")[0] : undefined;
 const HTML_MODAL_CLASS = "cds--bmrg-html-modal-is-open";
 
 function useIsModalOpen() {

@@ -8,6 +8,9 @@ patchedDependencies:
   '@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15':
     hash: eeacece13b1d04bbedf9de1a2cf5e4d3a984bae7290856b1f39edbed6fddf408
     path: patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch
+  '@boomerang-io/utils@1.1.0':
+    hash: f5b69c02eb6c4c7bb14af024239851a1c263adfcfc54359b65f864b10dc177f1
+    path: patches/@boomerang-io__utils@1.1.0.patch
   react-virtualized@9.22.5:
     hash: 88eb472efd3baa30f128546f84286bd4950af919742d395cd9f558617fbd94eb
     path: patches/react-virtualized@9.22.5.patch
@@ -24,7 +27,7 @@ importers:
         version: 1.1.0
       '@boomerang-io/utils':
         specifier: 1.1.0
-        version: 1.1.0(axios@1.19.0)(lodash@4.17.21)(query-string@6.14.1)(react-dom@18.3.1(react@18.3.1))(react-query@3.39.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)
+        version: 1.1.0(patch_hash=f5b69c02eb6c4c7bb14af024239851a1c263adfcfc54359b65f864b10dc177f1)(axios@1.19.0)(lodash@4.17.21)(query-string@6.14.1)(react-dom@18.3.1(react@18.3.1))(react-query@3.39.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)
       '@carbon/charts':
         specifier: ^1.13.6
         version: 1.13.6(d3-sankey@0.12.3)(d3@7.4.4)
@@ -8711,7 +8714,7 @@ snapshots:
       normalize-scss: 7.0.1
       rimraf: 3.0.2
 
-  '@boomerang-io/utils@1.1.0(axios@1.19.0)(lodash@4.17.21)(query-string@6.14.1)(react-dom@18.3.1(react@18.3.1))(react-query@3.39.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)':
+  '@boomerang-io/utils@1.1.0(patch_hash=f5b69c02eb6c4c7bb14af024239851a1c263adfcfc54359b65f864b10dc177f1)(axios@1.19.0)(lodash@4.17.21)(query-string@6.14.1)(react-dom@18.3.1(react@18.3.1))(react-query@3.39.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)':
     dependencies:
       axios: 1.19.0
       lodash: 4.17.21

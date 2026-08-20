@@ -9,7 +9,9 @@ import {
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { Helmet } from "react-helmet";
 import { useFetcher, useLoaderData } from "react-router-dom";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import { HttpMethod } from "Constants";
 import { DataDrivenInput } from "Types";
 import ParametersTable from "../ParametersTable";
 import styles from "./globalParameters.module.scss";
@@ -28,10 +30,16 @@ type LoaderData = {
 // would replace this whole route with the router's errorElement, losing the header/layout) - it
 // resolves with an error flag so the page chrome still renders and only the table area shows the
 // error state, exactly as it did under react-query.
-export async function loader(): Promise<LoaderData> {
+//
+// Server loader (see CLAUDE.md client-web SSR direction: server loaders are the default now
+// that ssr:true is on) - runs in Node, so it uses serverFetch(request) rather than the browser
+// `resolver`/`axios` instance in Config/servicesConfig.ts (no browser cookie jar server-side;
+// see Config/serverFetch.ts for the session-cookie-forwarding contract, which is unverified
+// end-to-end until the auth exchange endpoint in specifications/authentication.md lands).
+export async function loader({ request }: { request: Request }): Promise<LoaderData> {
   try {
-    const parameters = await resolver.query(serviceUrl.getGlobalParameters())();
-    return { parameters, errorLoading: false };
+    const response = await serverFetch(request).get(serviceUrl.getGlobalParameters());
+    return { parameters: response.data, errorLoading: false };
   } catch (error) {
     return { parameters: [], errorLoading: true };
   }
@@ -58,7 +66,7 @@ export async function action({ request }: { request: Request }): Promise<ActionR
     const name = String(formData.get("name"));
     const label = String(formData.get("label"));
     try {
-      await resolver.deleteGlobalParameter({ name });
+      await serverFetch(request).delete(serviceUrl.getGlobalParameter({ name }));
       return { ok: true, intent: "delete", label };
     } catch (error) {
       return {
@@ -74,8 +82,16 @@ export async function action({ request }: { request: Request }): Promise<ActionR
   const parameter = JSON.parse(String(formData.get("parameter")));
   try {
     const response = isEdit
-      ? await resolver.patchGlobalParameter({ body: parameter })
-      : await resolver.postGlobalParameter({ body: parameter });
+      ? await serverFetch(request)({
+          url: serviceUrl.getGlobalParameters(),
+          data: parameter,
+          method: HttpMethod.Put,
+        })
+      : await serverFetch(request)({
+          url: serviceUrl.getGlobalParameters(),
+          data: parameter,
+          method: HttpMethod.Post,
+        });
     return { ok: true, intent: isEdit ? "update" : "create", label: response.data.label };
   } catch (error) {
     return { ok: false, intent: isEdit ? "update" : "create", label: parameter.label };

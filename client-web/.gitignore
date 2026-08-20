@@ -13,6 +13,9 @@ node_modules
 # production
 build
 
+# react-router framework-mode typegen cache (regenerated on every dev/build run)
+.react-router
+
 # misc
 .DS_Store
 .env.local

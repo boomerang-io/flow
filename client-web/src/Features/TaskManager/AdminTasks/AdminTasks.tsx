@@ -1,9 +1,10 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { useFeature } from "flagged";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Box } from "reflexbox";
+import ClientOnly from "Components/ClientOnly";
 import ErrorDragon from "Components/ErrorDragon";
 import WombatMessage from "Components/WombatMessage";
 import { useQuery } from "Hooks";
@@ -11,8 +12,15 @@ import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import Sidenav from "../Sidenav";
 import styles from "../TaskManager.module.scss";
-import TaskTemplateYamlEditor from "../TaskTemplateEditor";
 import TaskTemplateOverview from "../TaskTemplateOverview";
+
+// TaskTemplateEditor pulls in CodeMirror 5, which reads `navigator`/`document` at module scope -
+// genuinely unrenderable in Node (see CLAUDE.md client-web SSR rules). Unlike TextEditorModal
+// (gated behind a modal's isOpen flag, which is always false on first render), this component
+// renders directly off a URL match (":name/:version/editor"), so React.lazy alone isn't enough -
+// SSR would still invoke the dynamic import for that exact route. ClientOnly gates rendering
+// (and therefore the import) until after the client has mounted.
+const TaskTemplateYamlEditor = lazy(() => import("../TaskTemplateEditor"));
 
 const HELMET_TITLE = "Task Manager";
 
@@ -66,11 +74,17 @@ function TaskTemplatesContainer() {
         <Route
           path=":name/:version/editor"
           element={
-            <TaskTemplateYamlEditor
-              taskTemplates={tasksData?.content}
-              editVerifiedTasksEnabled={editVerifiedTasksEnabled}
-              getTaskTemplatesUrl={getTaskTemplatesUrl}
-            />
+            <ClientOnly>
+              {() => (
+                <Suspense fallback={null}>
+                  <TaskTemplateYamlEditor
+                    taskTemplates={tasksData?.content}
+                    editVerifiedTasksEnabled={editVerifiedTasksEnabled}
+                    getTaskTemplatesUrl={getTaskTemplatesUrl}
+                  />
+                </Suspense>
+              )}
+            </ClientOnly>
           }
         />
         <Route

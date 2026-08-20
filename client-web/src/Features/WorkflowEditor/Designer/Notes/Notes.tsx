@@ -26,7 +26,9 @@ const MDETabs = {
 
 // window resize values
 const defaultWidth = 640;
-const maxWidth = window.innerWidth - 300;
+// SSR runs this module in Node, where `window` doesn't exist yet (see react-router.config.ts) -
+// fall back to a sensible default; the real value only matters once resizing happens client-side.
+const maxWidth = (typeof window !== "undefined" ? window.innerWidth : 1200) - 300;
 const minWidth = 400;
 
 function Notes({ markdown, updateNotes }: NotesProps) {
