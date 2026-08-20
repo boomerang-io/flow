@@ -9,7 +9,7 @@
 import axios from "axios";
 import { Envs, HttpMethod } from "Constants";
 
-// Set defaults, change them if Cypress is NOT defined
+// Set defaults; overridden below in production by the SSR-injected _SERVER_DATA.
 export let CORE_SERVICE_ENV_URL = "/api";
 
 // SSR (see react-router.config.ts) runs this module in Node, where `window` doesn't exist yet -

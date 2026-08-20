@@ -95,9 +95,9 @@ export default defineConfig(({ mode }) => {
       // @vitejs/plugin-react, bundling its own JSX/Fast-Refresh transform) only needs to be
       // active for the dev server and `vite build`, where the app/ framework-mode tree is
       // the real entry point. Gated on process.env.VITEST (set by the vitest runner itself),
-      // not `mode === "test"` - `start:test` also runs with --mode test (it serves the real
-      // app, framework-mode included, for the Cypress e2e suite) and must still get
-      // reactRouter().
+      // not `mode === "test"` - vitest itself defaults to Vite mode "test" (see the
+      // `devSourcemap` check above, which relies on exactly that default), so keying off
+      // `mode` here would also catch the vitest run and wrongly swap in reactRouter().
       process.env.VITEST ? react() : reactRouter(),
       eslint(),
       svgrPlugin({
