@@ -1,5 +1,7 @@
 import React from "react";
+import { http, HttpResponse } from "msw";
 import { Route, useParams } from "react-router-dom";
+import { server } from "ApiServer/msw/node";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
@@ -10,7 +12,7 @@ import { useQuery } from "Hooks";
 import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace } from "Types";
 import WorkspaceDetailed, { loader } from "./WorkspaceDetailed";
-import ApproverGroups from "./ApproverGroups";
+import ApproverGroups, { action as approverGroupsAction } from "./ApproverGroups/ApproverGroups";
 import Members from "./Members";
 import Quotas from "./Quotas";
 import Settings from "./Settings";
@@ -56,7 +58,7 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
     >
       <Route index element={<Members />} />
       <Route path="workflows" element={<Workflows />} />
-      <Route path="approver-groups" element={<ApproverGroups />} />
+      <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
       <Route path="quotas" element={<Quotas />} />
       <Route path="tokens" element={<Tokens />} />
       <Route path="settings" element={<Settings />} />
@@ -127,5 +129,58 @@ describe("WorkspaceDetailed --- RTL", () => {
     // Appears twice: the breadcrumb and the "Display Name" field in Settings (the header no
     // longer also shows a standalone workspace-name title, unlike when this assertion was written).
     expect(await (await screen.findAllByText("IBM Services Engineering test name")).length).toBe(2);
+  });
+});
+
+// Actions are called directly (rather than driven through the UI) for the same reason
+// WorkspaceTasks.spec.tsx does: they are plain functions of { params, request }, so there is no
+// need to fabricate a full navigation to exercise the request/response contract.
+describe("WorkspaceDetailed --- approver groups action", () => {
+  const WORKSPACE = workspaceFixture.name;
+
+  function submit(body: Record<string, string>) {
+    return approverGroupsAction({
+      params: { workspace: WORKSPACE },
+      request: new Request(`http://localhost/${WORKSPACE}/manage/approver-groups`, {
+        method: "post",
+        body: new URLSearchParams(body),
+      }),
+    });
+  }
+
+  test("deletes an approver group", async () => {
+    const result = await submit({ intent: "delete", groupId: "some-group-id", name: "Some Group" });
+    expect(result).toEqual({ ok: true, intent: "delete", name: "Some Group" });
+  });
+
+  test("creates an approver group through the workspace PATCH", async () => {
+    const result = await submit({
+      intent: "save",
+      isEdit: "false",
+      groupId: "",
+      name: "New Group",
+      approvers: JSON.stringify(["user-1", "user-2"]),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.intent).toBe("save");
+    expect(result.isEdit).toBe(false);
+  });
+
+  test("surfaces a failed save without throwing", async () => {
+    server.use(
+      http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+    const result = await submit({
+      intent: "save",
+      isEdit: "true",
+      groupId: "some-group-id",
+      name: "Some Group",
+      approvers: JSON.stringify([]),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.name).toBe("Some Group");
+    expect(result.errorMessage).toBeDefined();
   });
 });
