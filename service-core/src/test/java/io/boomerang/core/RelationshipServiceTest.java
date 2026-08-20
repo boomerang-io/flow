@@ -336,4 +336,59 @@ class RelationshipServiceTest {
       assertEquals(BoomerangError.AUTH_REQUIRED.getReason(), ex.getReason());
     }
   }
+
+  /**
+   * TRIPWIRE — the no-principal branches of {@code check()} and {@code filter()} are NOT
+   * equivalent, and the difference is load-bearing for tenant containment.
+   *
+   * <p>{@code filter()} (RelationshipService:491-497) swaps only the ANCHOR to {@code root}; it
+   * still runs the walk with {@code intermediateType}/{@code intermediateList} intact, so a
+   * workspace-containment constraint is still honoured. {@code check()} (RelationshipService:369-379)
+   * returns {@code true} BEFORE {@code hasNodes()} is reached, so the intermediate is never
+   * evaluated and containment silently evaporates.
+   *
+   * <p>That asymmetry matters because callers in {@code WorkspaceWorkflowRunService} (lines 58,
+   * 174, 195, 214, 235, 254, 273) pass {@code WORKSPACE=[team]} as the intermediate and rely on
+   * {@code check()} for tenant containment and existence, not merely for authz narrowing. Six of
+   * those seven mutate state.
+   *
+   * <p>This test asserts the CURRENT behaviour so the gap is visible in the suite. <b>If
+   * {@code check()}'s null branch is changed to mirror {@code filter()}'s (anchor at root, then
+   * {@code hasNodes(ROOT, "root", ...)}), the first assertion below flips to {@code false} and
+   * should be inverted.</b>
+   */
+  @Test
+  @DisplayName(
+      "With no principal, check() drops the workspace-containment intermediate while filter()"
+          + " preserves it")
+  void noPrincipalCheckDropsContainmentButFilterKeepsIt() {
+    node("workflowrun", "r1", "r1");
+    node("workflowrun", "r2", "r2");
+    edge("workspace:t1", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r1", Map.of());
+    edge("workspace:t2", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r2", Map.of());
+
+    when(identityService.getCurrentIdentity()).thenReturn(null);
+
+    // r2 belongs to workspace t2. Asking "is r2 contained in t1?" must be false, but check()
+    // short-circuits to true without ever evaluating the intermediate.
+    assertTrue(
+        service.check(
+            RelationshipType.WORKFLOWRUN,
+            "r2",
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of("t1"))),
+        "KNOWN GAP: check() returns true for a run in ANOTHER workspace because the null-principal"
+            + " branch skips the containment intermediate entirely");
+
+    // filter(), given the same containment constraint, correctly excludes r2.
+    assertEquals(
+        List.of("r1"),
+        service.filter(
+            RelationshipType.WORKFLOWRUN,
+            Optional.of(List.of("r1", "r2")),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of("t1")),
+            false),
+        "filter() anchors at root but still honours the intermediate, so containment holds");
+  }
 }
