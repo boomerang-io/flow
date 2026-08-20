@@ -1,7 +1,8 @@
 import React from "react";
 import axios from "axios";
 import { Helmet } from "react-helmet";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import { matchSorter as ms } from "match-sorter";
 import sortBy from "lodash/sortBy";
 import { Formik, FieldArray } from "formik";
@@ -33,14 +34,18 @@ interface Label {
 }
 
 function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
-  const queryClient = useQueryClient();
+  // UserDetailed's own user-detail read is now a loader (see UserDetailed.tsx), not a
+  // react-query cache entry, so there's nothing left to invalidate by query key - revalidate()
+  // re-runs the current route's loader(s) instead, which is the loader-era equivalent of
+  // invalidateQueries.
+  const revalidator = useRevalidator();
   const [searchQuery, setSearchQuery] = React.useState("");
 
   const { mutateAsync: changeUserMutator, isLoading } = useMutation(
     ({ userId, body }: any) => axios.patch(serviceUrl.getUser({ userId }), body),
     {
       onSuccess: () => {
-        queryClient.invalidateQueries(serviceUrl.getUser({ userId: user.id }));
+        revalidator.revalidate();
       },
     }
   );
