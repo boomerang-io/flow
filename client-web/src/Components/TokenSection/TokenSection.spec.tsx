@@ -129,3 +129,55 @@ describe("TokenSection --- action", () => {
     expect(result.intent).toBe("delete");
   });
 });
+
+describe("TokenSection --- action intent guard", () => {
+  // /profile composes this action with the profile's own (app/routes/profile.tsx dispatches on
+  // `intent`), so an unrecognised intent must NOT fall through to the delete branch - it used to,
+  // which would have fired DELETE /token/undefined for a profile submission.
+  test("rejects an unrecognised intent instead of deleting", async () => {
+    let deleteCalled = false;
+    server.use(
+      http.delete(serviceUrl.deleteToken({ tokenId: ":tokenId" }), () => {
+        deleteCalled = true;
+        return HttpResponse.json({});
+      }),
+    );
+
+    const result = await tokenAction({
+      request: new Request(`http://localhost${ROUTE}`, {
+        method: "post",
+        body: new URLSearchParams({ intent: "updateProfile", name: "someone" }),
+      }),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      intent: "unknown",
+      errorMessage: {
+        title: "Unsupported Token Action",
+        message: 'The token action does not handle the "updateProfile" intent.',
+      },
+    });
+    expect(deleteCalled).toBe(false);
+  });
+
+  test("refuses a delete with no tokenId", async () => {
+    let deleteCalled = false;
+    server.use(
+      http.delete(serviceUrl.deleteToken({ tokenId: ":tokenId" }), () => {
+        deleteCalled = true;
+        return HttpResponse.json({});
+      }),
+    );
+
+    const result = await tokenAction({
+      request: new Request(`http://localhost${ROUTE}`, {
+        method: "post",
+        body: new URLSearchParams({ intent: "delete" }),
+      }),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(deleteCalled).toBe(false);
+  });
+});

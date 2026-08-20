@@ -144,11 +144,35 @@ export type TokenActionResult =
   // The create response is the only place the token secret is ever returned; CreateToken/Form
   // hands it straight to the modal's Result step and it is never persisted client-side.
   | { ok: true; intent: "create"; token: Token & { token?: string } }
-  | { ok: false; intent: "create"; errorMessage: { title: string; message: string } };
+  | { ok: false; intent: "create"; errorMessage: { title: string; message: string } }
+  | { ok: false; intent: "unknown"; errorMessage: { title: string; message: string } };
 
+export const TOKEN_INTENTS = ["create", "delete"] as const;
+
+/*
+ * Handles exactly two intents and rejects everything else.
+ *
+ * The rejection is load-bearing, not defensive tidiness: a route has one action, and /profile
+ * composes this one with the profile's own (app/routes/profile.tsx dispatches on `intent`). An
+ * earlier version of this function fell through to the delete branch for any unrecognised
+ * intent, so a profile submission reaching it would have read a missing `tokenId` and fired
+ * DELETE /token/undefined. Unknown intents now return an error result instead of deleting
+ * anything - the consumers all narrow on `intent`, so an "unknown" result is inert for them.
+ */
 export async function tokenAction({ request }: { request: Request }): Promise<TokenActionResult> {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
+
+  if (!(TOKEN_INTENTS as readonly string[]).includes(intent)) {
+    return {
+      ok: false,
+      intent: "unknown",
+      errorMessage: {
+        title: "Unsupported Token Action",
+        message: `The token action does not handle the "${intent}" intent.`,
+      },
+    };
+  }
 
   if (intent === "create") {
     // JSON in a form field rather than encType:"application/json" - matches the GlobalParameters
@@ -170,7 +194,18 @@ export async function tokenAction({ request }: { request: Request }): Promise<To
     }
   }
 
-  const tokenId = String(formData.get("tokenId"));
+  // Reachable only for intent === "delete" now. Still checked explicitly: `String(null)` is the
+  // string "undefined", which would otherwise be sent as a real path segment.
+  const rawTokenId = formData.get("tokenId");
+  if (!rawTokenId) {
+    return {
+      ok: false,
+      intent: "delete",
+      errorMessage: { title: "Delete Token Failed", message: "No token was identified to delete." },
+    };
+  }
+
+  const tokenId = String(rawTokenId);
   try {
     await serverFetch(request).delete(serviceUrl.deleteToken({ tokenId }));
     return { ok: true, intent: "delete" };
