@@ -89,6 +89,12 @@ export const handlers: HttpHandler[] = [
       maxConcurrentRuns: 4,
     }),
   ),
+  /*
+   * DELETE /workspace/:workspace/quotas - the Quotas tab's "Restore defaults" action
+   * (Features/WorkspaceDetailed/Quotas/Quotas.tsx). Never mocked before, because the mutation
+   * only ran from a modal no spec ever opened.
+   */
+  http.delete(serviceUrl.deleteWorkspaceQuotas({ workspace: ":workspace" }), () => HttpResponse.json({})),
 
   http.put(serviceUrl.putActivationApp(), () => HttpResponse.json({})),
 

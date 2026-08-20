@@ -4,12 +4,84 @@ import { Tile, Button, InlineNotification } from "@carbon/react";
 import { Edit } from "@carbon/react/icons";
 import React from "react";
 import { Helmet } from "react-helmet";
+import { formatErrorMessage } from "@boomerang-io/utils";
 import ProgressBar from "Components/ProgressBar";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 import QuotaEditModalContent from "./QuotaEditModalContent";
 import styles from "./Quotas.module.scss";
 import RestoreDefaults from "./RestoreDefaults";
 import { ModalTriggerProps } from "Types";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
+
+// Route module for the Quotas tab (app/routes/manageWorkspaceQuotas.tsx).
+//
+// The workspace's *own* quota values come from the parent layout route's loader. The loader here
+// fetches the platform *default* quotas that the "Restore defaults" modal lists - previously a
+// useQuery inside that modal, so the fetch only started once a user opened it.
+//
+// Both writes on this tab - a single quota edit and the restore-to-defaults - post to the one
+// intent-keyed action below via useFetcher, whose completion revalidates the parent loader that
+// holds the displayed values.
+export type QuotasLoaderData = {
+  defaultQuotas: Record<string, number> | null;
+  errorLoadingDefaults: boolean;
+};
+
+export async function loader({ request }: { request: Request }): Promise<QuotasLoaderData> {
+  try {
+    const response = await serverFetch(request).get(serviceUrl.getWorkspaceQuotaDefaults());
+    return { defaultQuotas: response.data, errorLoadingDefaults: false };
+  } catch (error) {
+    return { defaultQuotas: null, errorLoadingDefaults: true };
+  }
+}
+
+export type QuotasActionResult = {
+  ok: boolean;
+  intent: "update" | "restore";
+  errorMessage?: { title: string; message: string };
+};
+
+export async function action({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<QuotasActionResult> {
+  const workspace = String(params.workspace);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
+
+  if (intent === "restore") {
+    try {
+      await serverFetch(request).delete(serviceUrl.deleteWorkspaceQuotas({ workspace }));
+      return { ok: true, intent: "restore" };
+    } catch (error) {
+      return {
+        ok: false,
+        intent: "restore",
+        errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to restore default quotas" }),
+      };
+    }
+  }
+
+  const quotaProperty = String(formData.get("quotaProperty"));
+  const quotaValue = String(formData.get("quotaValue"));
+  try {
+    await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), {
+      quotas: { [quotaProperty]: quotaValue },
+    });
+    return { ok: true, intent: "update" };
+  } catch (error) {
+    return {
+      ok: false,
+      intent: "update",
+      errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to update workspace quota" }),
+    };
+  }
+}
 
 // Quotas tab of /:workspace/manage (app/routes/manageWorkspaceQuotas.tsx). The workspace, the
 // current user and `canEdit` arrive from the parent layout route's <Outlet context> rather than

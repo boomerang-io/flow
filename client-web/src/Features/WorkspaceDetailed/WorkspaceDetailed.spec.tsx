@@ -14,7 +14,7 @@ import { FlowWorkspace } from "Types";
 import WorkspaceDetailed, { loader } from "./WorkspaceDetailed";
 import ApproverGroups, { action as approverGroupsAction } from "./ApproverGroups/ApproverGroups";
 import Members, { action as membersAction } from "./Members/Members";
-import Quotas from "./Quotas";
+import Quotas, { action as quotasAction, loader as quotasLoader } from "./Quotas/Quotas";
 import Settings from "./Settings";
 import Tokens from "./Tokens";
 // The Tokens tab is driven by the shared token loader/action pair (Components/TokenSection/
@@ -63,7 +63,7 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
       <Route index action={membersAction} element={<Members />} />
       <Route path="workflows" element={<Workflows />} />
       <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
-      <Route path="quotas" element={<Quotas />} />
+      <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
       <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
       <Route path="settings" element={<Settings />} />
     </Route>,
@@ -154,6 +154,36 @@ describe("WorkspaceDetailed --- RTL", () => {
 // Actions are called directly (rather than driven through the UI) for the same reason
 // WorkspaceTasks.spec.tsx does: they are plain functions of { params, request }, so there is no
 // need to fabricate a full navigation to exercise the request/response contract.
+describe("WorkspaceDetailed --- quotas loader/action", () => {
+  const WORKSPACE = workspaceFixture.name;
+
+  function submit(body: Record<string, string>) {
+    return quotasAction({
+      params: { workspace: WORKSPACE },
+      request: new Request(`http://localhost/${WORKSPACE}/manage/quotas`, {
+        method: "post",
+        body: new URLSearchParams(body),
+      }),
+    });
+  }
+
+  test("loads the platform default quotas", async () => {
+    const result = await quotasLoader({ request: new Request("http://localhost/quotas") });
+    expect(result.errorLoadingDefaults).toBe(false);
+    expect(result.defaultQuotas).toBeTruthy();
+  });
+
+  test("updates a single quota through the workspace PATCH", async () => {
+    const result = await submit({ intent: "update", quotaProperty: "maxWorkflowCount", quotaValue: "42" });
+    expect(result).toEqual({ ok: true, intent: "update" });
+  });
+
+  test("restores default quotas", async () => {
+    const result = await submit({ intent: "restore" });
+    expect(result).toEqual({ ok: true, intent: "restore" });
+  });
+});
+
 describe("WorkspaceDetailed --- members action", () => {
   const WORKSPACE = workspaceFixture.name;
 

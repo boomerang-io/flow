@@ -1,11 +1,10 @@
 import React from "react";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import { useMutation } from "react-query";
-import { useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, NumberInput, InlineNotification } from "@carbon/react";
 import { Loading, ModalForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import { resolver } from "Config/servicesConfig";
+import type { QuotasActionResult } from "../Quotas";
 import styles from "./QuotaEditModalContent.module.scss";
 
 interface QuotaEditProps {
@@ -33,30 +32,37 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
   quotaValue,
   minValue,
 }) => {
-  // Quota values live on the workspace record, which is the parent Manage Workspace route's
-  // loader data now rather than a react-query entry - re-run that loader instead of invalidating
-  // a cache key nothing reads any more.
-  const revalidator = useRevalidator();
-  const updateWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
+  // Posts to the Quotas tab's route action (see ../Quotas) - the displayed values live on the
+  // parent layout route's workspace record, which the fetcher's completion revalidates.
+  const fetcher = useFetcher<QuotasActionResult>();
+  const isSubmitting = fetcher.state !== "idle";
+  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "update");
 
-  const handleOnSubmit = async (values: { quotaFormValue: number | string }) => {
-    let quotas = { [quotaProperty]: values.quotaFormValue };
-    try {
-      await updateWorkspaceMutator.mutateAsync({ workspace: workspaceName, body: { quotas: quotas } });
-      revalidator.revalidate();
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "update") {
+      return;
+    }
+    if (fetcher.data.ok) {
       closeModal();
       notify(
         <ToastNotification kind="success" title="Update Workspace Quotas" subtitle="Workspace quota successfully updated" />,
       );
-    } catch {
+    } else {
       notify(<ToastNotification kind="error" subtitle="Failed to update workspace quota" title="Something's Wrong" />);
     }
+  }, [fetcher.state, fetcher.data, closeModal]);
+
+  const handleOnSubmit = (values: { quotaFormValue: number | string }) => {
+    fetcher.submit(
+      { intent: "update", quotaProperty, quotaValue: String(values.quotaFormValue) },
+      { method: "post" },
+    );
   };
 
   let buttonText = "Save";
-  if (updateWorkspaceMutator.isLoading) {
+  if (isSubmitting) {
     buttonText = "Saving...";
-  } else if (updateWorkspaceMutator.error) {
+  } else if (failed) {
     buttonText = "Try again";
   }
 
@@ -76,7 +82,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
           <ModalForm>
             <ModalBody className={styles.modalBodyContainer}>
               <div className={styles.modalInputContainer}>
-                {updateWorkspaceMutator.isLoading && <Loading />}
+                {isSubmitting && <Loading />}
                 <dt className={styles.detailedTitle}>{detailedTitle}</dt>
                 <dt className={styles.detailedData}>{detailedData}</dt>
                 <div className={styles.inputContainer}>
@@ -97,7 +103,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                   />
                   {inputUnits && <span className={styles.inputUnits}>{inputUnits}</span>}
                 </div>
-                {Boolean(updateWorkspaceMutator.error) && (
+                {failed && (
                   <InlineNotification
                     lowContrast
                     kind="error"
@@ -112,7 +118,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                 Cancel
               </Button>
               <Button
-                disabled={Boolean(errors.quotaFormValue) || updateWorkspaceMutator.isLoading || !dirty}
+                disabled={Boolean(errors.quotaFormValue) || isSubmitting || !dirty}
                 onClick={() => handleOnSubmit(values)}
               >
                 {buttonText}

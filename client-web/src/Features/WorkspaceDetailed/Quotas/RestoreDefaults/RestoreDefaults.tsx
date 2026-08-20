@@ -1,6 +1,5 @@
 import {
   ComposedModal,
-  Loading,
   ModalForm,
   notify,
   ToastNotification,
@@ -8,11 +7,10 @@ import {
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import { Reset } from "@carbon/react/icons";
 import React from "react";
-import { useMutation, useQuery } from "react-query";
-import { useRevalidator } from "react-router-dom";
+import { useFetcher, useLoaderData } from "react-router-dom";
 import styles from "./RestoreDefaults.module.scss";
-import { resolver, serviceUrl } from "Config/servicesConfig";
 import { ModalTriggerProps, FlowWorkspace } from "Types";
+import type { QuotasActionResult, QuotasLoaderData } from "../Quotas";
 
 interface RestoreDefaultsProps {
   workspace: FlowWorkspace;
@@ -35,32 +33,32 @@ const RestoreDefaults: React.FC<RestoreDefaultsProps> = ({ workspace, disabled }
         </Button>
       )}
     >
-      {({ closeModal }) => <RestoreModalContent closeModal={closeModal} workspaceName={workspace.name} />}
+      {({ closeModal }) => <RestoreModalContent closeModal={closeModal} />}
     </ComposedModal>
   );
 };
 
 interface restoreDefaultProps {
   closeModal: Function;
-  workspaceName: string;
 }
 
-const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, workspaceName }) => {
-  const defaultQuotasQuery = useQuery({
-    queryKey: serviceUrl.getWorkspaceQuotaDefaults(),
-    queryFn: resolver.query(serviceUrl.getWorkspaceQuotaDefaults()),
-  });
+const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal }) => {
+  // The default quotas come from the Quotas route's loader now (see ../Quotas) rather than a
+  // useQuery that only started once this modal opened - so there is no in-modal loading state
+  // left to render.
+  const { defaultQuotas, errorLoadingDefaults } = useLoaderData() as QuotasLoaderData;
+  // Posts to that same route's action. Its completion revalidates the parent Manage Workspace
+  // loader that holds the displayed quota values - nothing refreshed them before (a pre-existing
+  // gap: the page kept showing the old quotas until reloaded).
+  const fetcher = useFetcher<QuotasActionResult>();
+  const isSubmitting = fetcher.state !== "idle";
+  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "restore");
 
-  const resetQuotasMutator = useMutation(resolver.deleteWorkspaceQuotas);
-  // The quota values this resets are on the workspace record, which is the parent Manage
-  // Workspace route's loader data - nothing invalidated them before (a pre-existing gap: the
-  // page kept showing the old quotas until reloaded), so re-run that loader here.
-  const revalidator = useRevalidator();
-
-  const handleRestoreDefaultQuota = async () => {
-    try {
-      await resetQuotasMutator.mutateAsync({ workspace: workspaceName });
-      revalidator.revalidate();
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "restore") {
+      return;
+    }
+    if (fetcher.data.ok) {
       closeModal();
       notify(
         <ToastNotification
@@ -69,59 +67,57 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
           subtitle="Successfully restored default quotas"
         />,
       );
-    } catch {
+    } else {
       notify(<ToastNotification kind="error" title="Something's wrong" subtitle="Failed to restore default quotas" />);
     }
+  }, [fetcher.state, fetcher.data, closeModal]);
+
+  const handleRestoreDefaultQuota = () => {
+    fetcher.submit({ intent: "restore" }, { method: "post" });
   };
 
   let buttonText = "Save";
-  if (resetQuotasMutator.isLoading) {
+  if (isSubmitting) {
     buttonText = "Saving...";
-  } else if (resetQuotasMutator.error) {
+  } else if (failed) {
     buttonText = "Try again";
   }
   return (
     <ModalForm>
       <ModalBody className={styles.modalBodyContainer}>
-        {defaultQuotasQuery.isLoading ? (
-          <Loading />
-        ) : (
-          <div className={styles.gridContainer}>
-            <section>
-              <dt className={styles.detailedTitle}>Maximum number of Workflows </dt>
-              <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowCount} Workflows`}{" "}
-              </dt>
-            </section>
-            <section>
-              <dt className={styles.detailedTitle}>Maximum Workflow executions </dt>
-              <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowRunMonthly} per month`}
-              </dt>
-            </section>
-            <section>
-              <dt className={styles.detailedTitle}>Storage limit</dt>
-              <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error
-                  ? "---"
-                  : `${defaultQuotasQuery.data.maxWorkflowStorage}GB per Workflow`}
-              </dt>
-            </section>
-            <section>
-              <dt className={styles.detailedTitle}>Maximum Workflow duration</dt>
-              <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxWorkflowRunDuration} minutes`}
-              </dt>
-            </section>
-            <section>
-              <dt className={styles.detailedTitle}>Maximum concurrent Workflows</dt>
-              <dt className={styles.detailedData}>
-                {defaultQuotasQuery.error ? "---" : `${defaultQuotasQuery.data.maxConcurrentRuns} Workflows`}
-              </dt>
-            </section>
-          </div>
-        )}
-        {Boolean(resetQuotasMutator.error) && (
+        <div className={styles.gridContainer}>
+          <section>
+            <dt className={styles.detailedTitle}>Maximum number of Workflows </dt>
+            <dt className={styles.detailedData}>
+              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowCount} Workflows`}{" "}
+            </dt>
+          </section>
+          <section>
+            <dt className={styles.detailedTitle}>Maximum Workflow executions </dt>
+            <dt className={styles.detailedData}>
+              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowRunMonthly} per month`}
+            </dt>
+          </section>
+          <section>
+            <dt className={styles.detailedTitle}>Storage limit</dt>
+            <dt className={styles.detailedData}>
+              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowStorage}GB per Workflow`}
+            </dt>
+          </section>
+          <section>
+            <dt className={styles.detailedTitle}>Maximum Workflow duration</dt>
+            <dt className={styles.detailedData}>
+              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowRunDuration} minutes`}
+            </dt>
+          </section>
+          <section>
+            <dt className={styles.detailedTitle}>Maximum concurrent Workflows</dt>
+            <dt className={styles.detailedData}>
+              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxConcurrentRuns} Workflows`}
+            </dt>
+          </section>
+        </div>
+        {failed && (
           <InlineNotification
             lowContrast
             kind="error"
@@ -134,7 +130,7 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal, worksp
         <Button kind="secondary" type="button" onClick={() => closeModal()}>
           Cancel
         </Button>
-        <Button disabled={resetQuotasMutator.isLoading} onClick={handleRestoreDefaultQuota}>
+        <Button disabled={isSubmitting} onClick={handleRestoreDefaultQuota}>
           {buttonText}
         </Button>
       </ModalFooter>
