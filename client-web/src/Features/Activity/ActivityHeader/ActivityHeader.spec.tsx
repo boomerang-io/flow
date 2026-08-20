@@ -13,7 +13,11 @@ const props = {
 
 describe("ActivityHeader --- Snapshot", () => {
   it("Capturing Snapshot of ActivityHeader", () => {
-    const { baseElement } = global.rtlRender(<ActivityHeader {...props} />);
+    // ActivityHeader renders a react-router-dom <Link> (the "Home" breadcrumb) - global.rtlRender
+    // is a bare RTL render with no Router context, which throws
+    // ("Cannot destructure property 'basename' of 'React.useContext(...)' as it is null") the
+    // moment <Link> tries to read it. global.rtlRouterRender wraps in a real RouterProvider.
+    const { baseElement } = global.rtlRouterRender(<ActivityHeader {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });

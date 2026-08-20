@@ -1,1 +1,1 @@
-export { default } from "./Insights"
+export { default, loader } from "./Insights";

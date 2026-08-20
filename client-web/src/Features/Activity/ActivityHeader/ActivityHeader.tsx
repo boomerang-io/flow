@@ -9,6 +9,7 @@ import {
 import { Link } from "react-router-dom";
 import HeaderWidget from "Components/HeaderWidget";
 import { appLink } from "Config/appConfig";
+import { FlowWorkspace } from "Types";
 import styles from "./activityHeader.module.scss";
 
 interface ActivityHeaderProps {
@@ -17,7 +18,9 @@ interface ActivityHeaderProps {
   isLoading: boolean;
   failedActivities: number | string;
   runActivities: number | string;
-  workspace: any;
+  // Only `displayName` is ever read (the breadcrumb) - narrower than the full FlowWorkspace so
+  // callers/tests don't need to fabricate quotas/members/parameters/etc. just to satisfy the type.
+  workspace: Pick<FlowWorkspace, "displayName">;
   succeededActivities: number | string;
 }
 

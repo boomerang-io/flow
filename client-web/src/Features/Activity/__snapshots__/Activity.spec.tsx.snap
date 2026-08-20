@@ -1,9 +1,0 @@
-// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
-
-exports[`WorkflowActivity --- Snapshot > Capturing Snapshot of WorkflowActivity 1`] = `
-<body
-  id="app"
->
-  <div />
-</body>
-`;

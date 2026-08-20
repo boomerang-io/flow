@@ -3,7 +3,6 @@ import {
   DatePicker,
   DatePickerInput,
   FilterableMultiSelect,
-  SkeletonPlaceholder,
   Breadcrumb,
   BreadcrumbItem,
 } from "@carbon/react";
@@ -13,26 +12,18 @@ import {
   FeatureHeaderSubtitle as HeaderSubtitle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sortByProp } from "@boomerang-io/utils";
-import cx from "classnames";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
 import ErrorDragon from "Components/ErrorDragon";
 import { useWorkspaceContext } from "Hooks";
 import { timeSecondsToTimeUnit } from "Utils/timeSecondsToTimeUnit";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions, appLink } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import type {
-  RunStatus,
-  PaginatedWorkflowResponse,
-  MultiSelectItem,
-  MultiSelectItems,
-  Workflow,
-  FlowWorkspace,
-} from "Types";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import type { RunStatus, MultiSelectItem, MultiSelectItems, Workflow, FlowWorkspace } from "Types";
 import CarbonDonutChart from "./CarbonDonutChart";
 import CarbonLineChart from "./CarbonLineChart";
 import CarbonScatterChart from "./CarbonScatterChart";
@@ -40,6 +31,12 @@ import ChartsTile from "./ChartsTile";
 import styles from "./Insights.module.scss";
 import InsightsTile from "./InsightsTile";
 import { parseChartsData } from "./utils/formatData";
+
+// Route module: this file's `loader` is attached to the route in app/routes/insights.tsx
+// (path "/:workspace/insights"). See Features/Activity/Activity.tsx's module doc for the same
+// split this follows: `params.workspace` (the URL slug) drives every server fetch below, while
+// the full workspace object (for the header's displayName/breadcrumb) stays a client-side
+// concern, resolved by `WorkspaceContainer` same as it always has been.
 
 export interface InsightsRuns {
   creationDate: string;
@@ -103,36 +100,63 @@ function sortItemsBySelection<Item>(
   });
 }
 
-export default function Insights() {
-  const { workspace } = useWorkspaceContext();
-  const navigate = useNavigate();
-  const location = useLocation();
+const EMPTY_INSIGHTS: WorkflowInsightsRes = { concurrentRun: 0, totalRuns: 0, totalDuration: 0, medianDuration: 0, runs: [] };
 
-  /**
-   * Get insights data
-   */
+type LoaderData = {
+  insights: WorkflowInsightsRes;
+  errorLoadingInsights: boolean;
+  workflowOptions: Array<Workflow>;
+  errorLoadingWorkflows: boolean;
+};
+
+// Server loader (ssr:true - see CLAUDE.md client-web SSR direction). Runs in Node, so it uses
+// serverFetch(request) rather than the browser `resolver`/axios instance in
+// Config/servicesConfig.ts. Every filter value (statuses/workflows/fromDate/toDate) is read off
+// the request URL itself, preserving the exact param names the component already navigates with.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  const workspace = String(params.workspace);
   const {
     statuses,
     workflows,
     fromDate = defaultFromDate,
     toDate = defaultToDate,
-  } = queryString.parse(location.search, queryStringOptions);
+  } = queryString.parse(new URL(request.url).search, queryStringOptions);
 
-  const insightsSearchParams = queryString.stringify(
-    {
-      statuses,
-      workflows,
-      fromDate,
-      toDate,
-    },
-    queryStringOptions,
-  );
+  let insights: WorkflowInsightsRes = EMPTY_INSIGHTS;
+  let errorLoadingInsights = false;
+  try {
+    const insightsSearchParams = queryString.stringify({ statuses, workflows, fromDate, toDate }, queryStringOptions);
+    const response = await serverFetch(request).get(
+      serviceUrl.workspace.getInsights({ workspace, query: insightsSearchParams }),
+    );
+    insights = response.data;
+  } catch (error) {
+    errorLoadingInsights = true;
+  }
 
-  const insightsUrl = serviceUrl.workspace.getInsights({ workspace: workspace?.name, query: insightsSearchParams });
-  const insightsQuery = useQuery<WorkflowInsightsRes>({
-    queryKey: insightsUrl,
-    queryFn: resolver.query(insightsUrl),
-  });
+  let workflowOptions: Array<Workflow> = [];
+  let errorLoadingWorkflows = false;
+  try {
+    const response = await serverFetch(request).get(serviceUrl.workspace.workflow.getWorkflows({ workspace }));
+    workflowOptions = response.data.content;
+  } catch (error) {
+    errorLoadingWorkflows = true;
+  }
+
+  return { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows };
+}
+
+export default function Insights() {
+  const { workspace } = useWorkspaceContext();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows } = useLoaderData() as LoaderData;
 
   function updateHistorySearch({ ...props }) {
     const queryStr = `?${queryString.stringify({ ...props }, queryStringOptions)}`;
@@ -140,51 +164,29 @@ export default function Insights() {
     return;
   }
 
-  /** Retrieve Workflows */
-  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
-  const {
-    data: workflowsData,
-    isLoading: workflowsIsLoading,
-    isError: workflowsIsError,
-  } = useQuery<PaginatedWorkflowResponse, string>({
-    queryKey: getWorkflowsUrl,
-    queryFn: resolver.query(getWorkflowsUrl),
-  });
+  // The workspace object itself is a client-side concern (see the module doc above) - until
+  // WorkspaceContainer resolves it, there's nothing to render yet.
+  if (!workspace) {
+    return null;
+  }
 
-  if (insightsQuery.error || workflowsIsError) {
+  if (errorLoadingInsights || errorLoadingWorkflows) {
     return (
       <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
+        <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} />
         <ErrorDragon />
       </InsightsContainer>
     );
   }
 
-  if (insightsQuery.isLoading || workflowsIsLoading) {
-    return (
-      <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
-        <div className={styles.cardPlaceholderContainer}>
-          <SkeletonPlaceholder className={styles.cardPlaceholder} />
-          <SkeletonPlaceholder className={styles.cardPlaceholder} />
-          <SkeletonPlaceholder className={cx(styles.cardPlaceholder, styles.wide)} />
-        </div>
-        <SkeletonPlaceholder className={styles.graphPlaceholder} />
-        <SkeletonPlaceholder className={styles.graphPlaceholder} />
-      </InsightsContainer>
-    );
-  }
+  const { statuses } = queryString.parse(location.search, queryStringOptions);
 
-  if (insightsQuery.data) {
-    return (
-      <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
-        <Graphs data={insightsQuery.data} statuses={statuses as RunStatus | Array<RunStatus> | null} />
-      </InsightsContainer>
-    );
-  }
-
-  return null;
+  return (
+    <InsightsContainer workspace={workspace}>
+      <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} />
+      <Graphs data={insights} statuses={statuses as RunStatus | Array<RunStatus> | null} />
+    </InsightsContainer>
+  );
 }
 interface InsightsContainerProps {
   workspace: FlowWorkspace;
