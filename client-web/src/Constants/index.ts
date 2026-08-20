@@ -126,11 +126,15 @@ export const QueryStatus = {
   Success: "success",
 } as const;
 
+// ScheduleStatus gained "completed" (a runOnce schedule moves there after it fires) - keep this
+// filter/default-status list in sync with scheduleStatusLabelMap below so completed schedules
+// stay selectable as a filter and aren't silently excluded from the default (no-filter) query.
 export const scheduleStatusOptions: Array<{ label: string; value: ScheduleStatus }> = [
   { label: "Enabled", value: "active" },
   { label: "Disabled", value: "inactive" },
   { label: "Trigger Disabled", value: "trigger_disabled" },
   { label: "Error", value: "error" },
+  { label: "Completed", value: "completed" },
 ];
 
 export const scheduleStatusLabelMap: Record<ScheduleStatus, string> = {
