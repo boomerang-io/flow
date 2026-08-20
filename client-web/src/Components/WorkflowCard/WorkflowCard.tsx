@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 //@ts-ignore
 import { Button, InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Run, Bee, CircleFill, InformationFilled } from "@carbon/react/icons";
@@ -9,22 +9,19 @@ import {
   notify,
   TooltipHover,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { formatErrorMessage } from "@boomerang-io/utils";
 import workflowIcons from "Assets/workflowIcons";
 import axios from "axios";
 import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
 import cloneDeep from "lodash/cloneDeep";
-import { useMutation, useQueryClient } from "react-query";
-import { Link, useNavigate, useRevalidator } from "react-router-dom";
+import { useFetcher, Link, useNavigate, useRevalidator } from "react-router-dom";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 // @ts-ignore:next-line
 import { swapValue } from "Utils";
 import { WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import { BASE_URL } from "Config/servicesConfig";
-import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowViewType, DataDrivenInput } from "Types";
+import { serviceUrl } from "Config/servicesConfig";
+import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
 import WorkflowRunModalContent from "./WorkflowRunModalContent";
@@ -35,14 +32,21 @@ interface WorkflowCardProps {
   quotas: FlowWorkspaceQuotas | null;
   workflow: Workflow;
   viewType: WorkflowViewType;
-  getWorkflowsUrl: string;
 }
 
-const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType, getWorkflowsUrl }) => {
-  const queryClient = useQueryClient();
-  // Workflow templates are now read via TemplateWorkflows.tsx's own route loader, not a
-  // react-query cache entry - queryClient.invalidateQueries(template.getWorkflowTemplates())
-  // would be a silent no-op for that read, so the Template branch below revalidate()s instead.
+// Matches only the fields this component reads off the Workflows route's action result for the
+// "delete"/"duplicate"/"execute" intents it submits - see Features/Workflows/Workflows.tsx for the
+// actual action. Renders as a descendant of that route's element with no nested <Route> of its
+// own, so `useFetcher()` resolves against it - see WorkflowTemplateCard.tsx for the sibling
+// conversion (Workflow Templates) this mirrors.
+type ActionResult =
+  | { ok: true; intent: "delete" | "duplicate" }
+  | { ok: false; intent: "delete" | "duplicate" }
+  | { ok: true; intent: "execute"; execution: WorkflowRun; redirect: boolean }
+  | { ok: false; intent: "execute"; errorMessage: { title: string; message: string } };
+
+const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType }) => {
+  const fetcher = useFetcher<ActionResult>();
   const revalidator = useRevalidator();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
@@ -51,20 +55,88 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
   const navigate = useNavigate();
   const [errorMessage, seterrorMessage] = useState<{ title: string; message: string } | null>(null);
+  // handleExecuteWorkflow hands this component a `closeModal` + the "Run and View" redirect flag
+  // at submit time; the fetcher settles asynchronously (fetcher.state -> "idle"), so both are
+  // stashed here and read from the effect below once the execution actually succeeds - same
+  // "stay open with a spinner, close/navigate only on success" behaviour the old mutateAsync/then
+  // chain had.
+  const executeRef = useRef<{ closeModal: () => void; redirect: boolean } | null>(null);
 
-  const { mutateAsync: deleteWorkflowMutator, isLoading: isDeleting } = useMutation(resolver.deleteWorkflow, {});
+  const submittingIntent = fetcher.formData?.get("intent");
+  const isDeleting = submittingIntent === "delete";
+  const isDuplicating = submittingIntent === "duplicate";
+  const isExecuting = submittingIntent === "execute";
 
-  const {
-    mutateAsync: executeWorkflowMutator,
-    error: executeError,
-    isLoading: isExecuting,
-  } = useMutation(resolver.postSubmitWorkflow);
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    const data = fetcher.data;
 
-  const { mutateAsync: duplicateWorkflowMutator, isLoading: duplicateWorkflowIsLoading } = useMutation(
-    resolver.postDuplicateWorkflow,
-  );
+    if (data.intent === "delete") {
+      if (data.ok) {
+        notify(
+          <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
+        );
+        revalidator.revalidate();
+      } else {
+        notify(
+          <ToastNotification
+            kind="error"
+            title="Something's Wrong"
+            subtitle={`Request to delete ${viewType.toLowerCase()} failed`}
+          />,
+        );
+      }
+      return;
+    }
 
-  const isDuplicating = duplicateWorkflowIsLoading;
+    if (data.intent === "duplicate") {
+      if (data.ok) {
+        notify(
+          <ToastNotification
+            kind="success"
+            title={`Duplicate ${viewType}`}
+            subtitle={`Successfully duplicated ${viewType.toLowerCase()}`}
+          />,
+        );
+        revalidator.revalidate();
+      } else {
+        notify(
+          <ToastNotification
+            kind="error"
+            title="Something's Wrong"
+            subtitle={`Request to duplicate ${viewType.toLowerCase()} failed`}
+          />,
+        );
+      }
+      return;
+    }
+
+    if (data.intent === "execute") {
+      if (data.ok) {
+        notify(
+          <ToastNotification
+            kind="success"
+            title={`Run ${viewType}`}
+            subtitle={`Successfully started ${viewType.toLowerCase()} execution`}
+          />,
+        );
+        seterrorMessage(null);
+        if (data.redirect) {
+          navigate(appLink.execution({ workspace: workspaceName, runId: data.execution.id }), {
+            state: { fromUrl: appLink.workflows({ workspace: workspaceName }), fromText: `${viewType}s` },
+          });
+        } else {
+          revalidator.revalidate();
+          executeRef.current?.closeModal();
+        }
+      } else {
+        seterrorMessage(data.errorMessage);
+      }
+      executeRef.current = null;
+    }
+  }, [fetcher.state, fetcher.data]);
 
   /**
    * Format properties to be edited in form by Formik. It doesn't work with property notation :(
@@ -77,50 +149,12 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     return params.filter((param: DataDrivenInput) => !param.readOnly);
   };
 
-  const handleDeleteWorkflow = async () => {
-    try {
-      await deleteWorkflowMutator({ workspace: workspaceName, workflow: workflow.name });
-      notify(
-        <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
-      );
-      queryClient.invalidateQueries(getWorkflowsUrl);
-    } catch {
-      notify(
-        <ToastNotification
-          kind="error"
-          title="Something's Wrong"
-          subtitle={`Request to delete ${viewType.toLowerCase()} failed`}
-        />,
-      );
-    }
+  const handleDeleteWorkflow = () => {
+    fetcher.submit({ intent: "delete", workflowName: workflow.name }, { method: "post" });
   };
 
-  const handleDuplicateWorkflow = async (workflow: Workflow) => {
-    try {
-      await duplicateWorkflowMutator({ workspace: workspaceName, workflow: workflow.name });
-      notify(
-        <ToastNotification
-          kind="success"
-          title={`Duplicate ${viewType}`}
-          subtitle={`Successfully duplicated ${viewType.toLowerCase()}`}
-        />,
-      );
-      if (viewType === WorkflowView.Template) {
-        revalidator.revalidate();
-      } else {
-        queryClient.invalidateQueries(getWorkflowsUrl);
-      }
-      return;
-    } catch (e) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title="Something's Wrong"
-          subtitle={`Request to duplicate ${viewType.toLowerCase()} failed`}
-        />,
-      );
-      return;
-    }
+  const handleDuplicateWorkflow = (workflow: Workflow) => {
+    fetcher.submit({ intent: "duplicate", workflowName: workflow.name }, { method: "post" });
   };
 
   const handleExportWorkflow = (workflow: Workflow) => {
@@ -152,48 +186,11 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     }
     const params = Object.entries(newProperties).map(([name, value]) => ({ name, value }));
     const body = { params: params, trigger: "manual" };
-    try {
-      // @ts-ignore:next-line
-      const { data: execution } = await executeWorkflowMutator({
-        workspace: workspaceName,
-        workflow: workflow.name,
-        body: body,
-      });
-      notify(
-        <ToastNotification
-          kind="success"
-          title={`Run ${viewType}`}
-          subtitle={`Successfully started ${viewType.toLowerCase()} execution`}
-        />,
-      );
-      if (redirect) {
-        navigate(appLink.execution({ workspace: workspaceName, runId: execution.id }), {
-          state: { fromUrl: appLink.workflows({ workspace: workspaceName }), fromText: `${viewType}s` },
-        });
-      } else {
-        queryClient.invalidateQueries(getWorkflowsUrl);
-        closeModal();
-      }
-    } catch (err) {
-      const response = axios.isAxiosError(err) ? err.response : undefined;
-      if (response?.status === 429) {
-        const data = response.data;
-        seterrorMessage({
-          title: "Quota Exceeded",
-          message:
-            data && typeof data === "object" && "message" in data
-              ? String(data.message)
-              : "Too many requests. Please try again later.",
-        });
-      } else {
-        seterrorMessage(
-          formatErrorMessage({
-            error: err,
-            defaultMessage: "Run Workflow Failed",
-          }),
-        );
-      }
-    }
+    executeRef.current = { closeModal, redirect };
+    fetcher.submit(
+      { intent: "execute", workflowName: workflow.name, body: JSON.stringify(body), redirect: String(redirect) },
+      { method: "post" },
+    );
   };
 
   let menuOptions = [
@@ -297,7 +294,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
               {({ closeModal }) => (
                 <WorkflowInputModalContent
                   closeModal={closeModal}
-                  executeError={executeError}
+                  executeError={Boolean(errorMessage)}
                   executeWorkflow={handleExecuteWorkflow}
                   isExecuting={isExecuting}
                   /* @ts-ignore-next-line */
@@ -328,7 +325,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
               {({ closeModal }) => (
                 <WorkflowRunModalContent
                   closeModal={closeModal}
-                  executeError={executeError}
+                  executeError={Boolean(errorMessage)}
                   executeWorkflow={handleExecuteWorkflow}
                   isExecuting={isExecuting}
                   errorMessage={errorMessage}
@@ -404,7 +401,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         <UpdateWorkflow
           onCloseModal={() => setIsUpdateWorkflowModalOpen(false)}
           workflowRef={workflow.name}
-          getWorkflowsUrl={getWorkflowsUrl}
           workspaceName={workspaceName}
           type={viewType}
         />

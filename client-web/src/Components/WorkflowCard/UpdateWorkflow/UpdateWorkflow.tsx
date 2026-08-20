@@ -1,8 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { notify, ToastNotification, ModalFlow } from "@boomerang-io/carbon-addons-boomerang-react";
-import queryString from "query-string";
-import { useMutation, useQueryClient } from "react-query";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { useFetcher, useRevalidator } from "react-router-dom";
 import { Workflow } from "Types";
 import ImportWorkflowContent from "./ImportWorkflowContent";
 import styles from "./updateWorkflow.module.scss";
@@ -10,31 +8,42 @@ import styles from "./updateWorkflow.module.scss";
 interface UpdateWorkflowProps {
   workspaceName: string | null;
   workflowRef: string;
-  getWorkflowsUrl: string;
   onCloseModal: () => void;
   type: string;
 }
 
-const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({
-  workspaceName,
-  workflowRef,
-  getWorkflowsUrl,
-  onCloseModal,
-  type,
-}) => {
-  const queryClient = useQueryClient();
+// Matches only the fields this component reads off the Workflows route's action result for the
+// "update" intent it submits - see Features/Workflows/Workflows.tsx for the actual action.
+// Renders as a descendant of that route's element (via WorkflowCard.tsx, itself a descendant, no
+// nested <Route> anywhere in between), so `useFetcher()` resolves against it.
+//
+// Request-shape note: the previous mutateAsync call here (`importWorkflowMutator({ workspace:
+// workspaceName, body: data })`) only ever sent `workspace` and `body` - matching
+// serviceUrl.workspace.workflow.putApplyWorkflow's signature (`{ workspace }` only, PUT
+// /workspace/{workspace}/workflow, the workflow identified by `body.name`) exactly. There was no
+// extra `workflow` field being sent that the URL builder ignored; the action below preserves the
+// same shape (workspace from the route param, the full parsed file as the body).
+type ActionResult = { ok: true; intent: "update" } | { ok: false; intent: "update" };
 
-  //TODO - update the query and mutator as post endpoint different
-  const { mutateAsync: importWorkflowMutator, isLoading: isPosting } = useMutation(resolver.putApplyWorkflow);
-  const handleImportWorkflow = async (data: Workflow, closeModal: () => void) => {
-    try {
-      await importWorkflowMutator({ workspace: workspaceName, body: data });
-      queryClient.invalidateQueries(getWorkflowsUrl);
-      notify(<ToastNotification kind="success" title={`Update ${type}`} subtitle={`${type} successfully updated`} />);
-      closeModal();
-    } catch {
-      // no-op
+const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({ workspaceName, workflowRef, onCloseModal, type }) => {
+  const fetcher = useFetcher<ActionResult>();
+  const revalidator = useRevalidator();
+  const isPosting = fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "update") {
+      return;
     }
+    if (fetcher.data.ok) {
+      revalidator.revalidate();
+      notify(<ToastNotification kind="success" title={`Update ${type}`} subtitle={`${type} successfully updated`} />);
+      onCloseModal();
+    }
+    // failures are a no-op here, matching the previous catch.
+  }, [fetcher.state, fetcher.data]);
+
+  const handleImportWorkflow = async (data: Workflow) => {
+    fetcher.submit({ intent: "update", workflow: JSON.stringify(data) }, { method: "post" });
   };
 
   return (

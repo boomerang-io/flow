@@ -10,7 +10,7 @@ exports[`WorkflowCard --- Snapshot > Capturing Snapshot of WorkflowCard 1`] = `
     >
       <a
         data-discover="true"
-        href="/tyson-workspace/editor/Personal - ML Train – Bot Efficiency/canvas"
+        href="/tyson-workspace/editor/test-workflow/canvas"
       >
         <section
           class="_details_483afa"
@@ -47,7 +47,7 @@ exports[`WorkflowCard --- Snapshot > Capturing Snapshot of WorkflowCard 1`] = `
             <h1
               class="_name_483afa"
               data-testid="workflow-card-title"
-              title="Personal - ML Train – Bot Efficiency"
+              title="test-workflow"
             >
               Personal - ML Train – Bot Efficiency
             </h1>

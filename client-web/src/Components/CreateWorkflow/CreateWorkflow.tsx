@@ -1,14 +1,11 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Add } from "@carbon/react/icons";
 import { ComposedModal, notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
-import { formatErrorMessage } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
-import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useRevalidator } from "react-router-dom";
+import { useFetcher, useNavigate, useRevalidator } from "react-router-dom";
 import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
 import { FlowWorkspace, ModalTriggerProps, CreateWorkflowSummary, Workflow, WorkflowViewType } from "Types";
 import CreateWorkflowContainer from "./CreateWorkflowContainer";
 import styles from "./createWorkflow.module.scss";
@@ -20,81 +17,76 @@ interface CreateWorkflowProps {
   viewType: WorkflowViewType;
 }
 
+// Matches only the fields this component reads off the Workflows route's action result for
+// "create"/"import" intents - see Features/Workflows/Workflows.tsx for the actual action. Renders
+// as a descendant of that route's element with no nested <Route> of its own, so `useFetcher()`
+// resolves against it - see GlobalParameters.tsx for the closeModalRef-style pattern the import
+// flow below follows, and WorkflowTemplateCard.tsx/CreateWorkflowTemplate.tsx for the sibling
+// conversion (Workflow Templates) this mirrors.
+type ActionResult =
+  | { ok: true; intent: "create" | "import"; workflow: Workflow }
+  | { ok: false; intent: "create" | "import"; errorMessage: { title: string; message: string } };
+
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {
-  const queryClient = useQueryClient();
-  // Workflow templates are now read via TemplateWorkflows.tsx's own route loader, not a
-  // react-query cache entry - queryClient.invalidateQueries(template.getWorkflowTemplates())
-  // would be a silent no-op for that read, so the Template branches below revalidate() instead.
+  const fetcher = useFetcher<ActionResult>();
   const revalidator = useRevalidator();
   const navigate = useNavigate();
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
+  // handleImportWorkflow hands this component a `closeModal` at submit time; the fetcher settles
+  // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked from the
+  // effect below only once the import actually succeeds - the modal stays open (with the inline
+  // importError) on failure, matching the previous mutateAsync/try-catch behaviour. handleCreateWorkflow
+  // doesn't need this: on success it navigates away immediately, same as before.
+  const closeModalRef = useRef<(() => void) | null>(null);
 
-  const createWorkflowMutator = useMutation(resolver.postCreateWorkflow);
-  const createTemplateMutator = useMutation(resolver.postCreateTemplate);
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    const data = fetcher.data;
 
-  const handleCreateWorkflow = async (workflowSummary: CreateWorkflowSummary) => {
-    try {
-      const { data: newWorkflow } =
-        viewType === WorkflowView.Workflow
-          ? await createWorkflowMutator.mutateAsync({
-              workspace: workspace?.name,
-              body: workflowSummary,
-            })
-          : await createTemplateMutator.mutateAsync({
-              body: workflowSummary,
-            });
-      navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
+    if (data.ok) {
+      navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: data.workflow.name }));
       notify(
-        <ToastNotification kind="success" title={`Create ${viewType}`} subtitle={`${viewType} successfully created`} />,
+        <ToastNotification kind="success" title={`${data.intent === "create" ? "Create" : "Import"} ${viewType}`} subtitle={`${viewType} successfully ${data.intent === "create" ? "created" : "imported"}`} />,
       );
       if (viewType === WorkflowView.Template) {
         revalidator.revalidate();
-      } else if (workspace?.name) {
-        queryClient.invalidateQueries(serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace.name }));
+      }
+      if (data.intent === "import") {
+        closeModalRef.current?.();
+        closeModalRef.current = null;
       }
       return;
-    } catch (e) {
-      console.log(e);
-      return;
-      //no-op
     }
+
+    // create failures are silent here (the same no-op the previous catch had) - CreateWorkflowContent
+    // surfaces them inline via `createError`. Import failures do get a toast, matching before.
+    if (data.intent === "import") {
+      notify(<ToastNotification kind="error" title={data.errorMessage.title} subtitle={data.errorMessage.message} />);
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  const handleCreateWorkflow = async (workflowSummary: CreateWorkflowSummary) => {
+    fetcher.submit(
+      { intent: "create", viewType, workflow: JSON.stringify(workflowSummary) },
+      { method: "post" },
+    );
   };
 
   const handleImportWorkflow = async (workflow: Workflow, closeModal: () => void) => {
-    try {
-      const { data: newWorkflow } =
-        viewType === WorkflowView.Workflow
-          ? await createWorkflowMutator.mutateAsync({
-              workspace: workspace?.name,
-              body: workflow,
-            })
-          : await createTemplateMutator.mutateAsync({
-              body: workflow,
-            });
-      navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: newWorkflow.name }));
-      notify(
-        <ToastNotification
-          kind="success"
-          title={`Import ${viewType}`}
-          subtitle={`${viewType} successfully imported`}
-        />,
-      );
-      if (viewType === WorkflowView.Template) {
-        revalidator.revalidate();
-      } else {
-        queryClient.invalidateQueries(serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name! }));
-      }
-      closeModal();
-    } catch (err) {
-      const errorMessages = formatErrorMessage({
-        error: err,
-        defaultMessage: `Import ${viewType} Failed`,
-      });
-      notify(<ToastNotification kind="error" title={errorMessages.title} subtitle={errorMessages.message} />);
-    }
+    closeModalRef.current = closeModal;
+    fetcher.submit({ intent: "import", viewType, workflow: JSON.stringify(workflow) }, { method: "post" });
   };
 
-  const isLoading = createWorkflowMutator.isLoading;
+  const isLoading = fetcher.state !== "idle";
+  // See UpdateWorkflow.tsx's request-shape note: CreateWorkflowContainer expects a prop literally
+  // named `importError` - the previous code passed the create mutation's error under the prop name
+  // `importWorkflowMutator` instead (which CreateWorkflowContainer doesn't read), so `importError`
+  // was always undefined and the inline "Request to import ... failed" notification never rendered.
+  // Preserved as-is here rather than silently fixed - see the conversion report.
+  const createError = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "create");
+  const importWorkflowMutatorError = createError;
 
   return (
     <ComposedModal
@@ -131,9 +123,9 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
       {({ closeModal }) => (
         <CreateWorkflowContainer
           closeModal={closeModal}
-          createError={createWorkflowMutator.error}
+          createError={createError}
           createWorkflow={handleCreateWorkflow}
-          importWorkflowMutator={createWorkflowMutator.error}
+          importWorkflowMutator={importWorkflowMutatorError}
           importWorkflow={handleImportWorkflow}
           isLoading={isLoading}
           workspace={workspace}
