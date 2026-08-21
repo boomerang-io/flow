@@ -45,6 +45,7 @@ import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.schedule.ScheduleService;
 import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.WorkflowService;
+import io.boomerang.workspace.FlowQuotaProperties;
 import io.boomerang.workspace.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -61,7 +62,8 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort.Direction;
@@ -80,14 +82,24 @@ import org.springframework.stereotype.Service;
  * adjust
  *
  * E8 mode-gating note: intentionally NOT @ConditionalOnFlowMode(STANDALONE) despite the
- * "Workspace*" name and the workspace.WorkspaceService field below - that field is @Lazy
- * specifically so this bean constructs fine without a WorkspaceService bean present. Two things
- * require it to stay unconditional: ScheduleJob (schedule package, standalone-only) hard-depends
- * on it non-lazily for the fire path, and the api mode-matrix row keeps "the same surface,
- * team->default" in engine mode too (J1 remap deferred to E10). Only the team-quota-specific
- * paths (canCreateWithQuotas, canRunWithQuotas, the getWorkflowMaxDurationForTeam call in
- * internalSubmit) will throw NoSuchBeanDefinitionException off the lazy proxy if actually invoked
- * outside standalone mode - a known, deferred gap, not fixed here.
+ * "Workspace*" name. Two things require it to stay unconditional: ScheduleJob (schedule package,
+ * standalone-only) hard-depends on it for the fire path, and the api mode-matrix row keeps "the
+ * same surface, team->default" in engine mode too (J1 remap deferred to E10) - in particular
+ * POST /workspace/{workspace}/workflow/{name}/submit, the only HTTP route that starts a run, must
+ * work in engine mode against the single `system` workspace (AM-10, EngineWorkspaceInterceptor).
+ *
+ * Its two standalone-only collaborators are therefore held as ObjectProvider, not as fields:
+ * workspace.WorkspaceService and schedule.ScheduleService are both
+ * @ConditionalOnFlowMode(STANDALONE), so in engine mode neither bean exists. (Same intent as the
+ * Optional<IntegrationService> injection in event.WebhookEventService; ObjectProvider rather than
+ * Optional because both beans take this one back in their own constructors - Optional resolves
+ * eagerly and would close the cycle at construction time.) Every call through them is guarded:
+ *
+ * - quotas (canCreateWithQuotas, canRunWithQuotas, the run-duration ceiling in internalSubmit) run
+ *   only when the quota subsystem is on - see workspace.FlowQuotaProperties. Off in engine mode,
+ *   where the run-duration ceiling falls back to the platform default in the "workspaces" settings.
+ * - schedules (delete, updateScheduleTriggers) are skipped when no ScheduleService bean is present,
+ *   because engine mode has no schedule management at all (ruling I2).
  */
 @Service
 public class WorkspaceWorkflowService {
@@ -104,22 +116,24 @@ public class WorkspaceWorkflowService {
 
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
-  private final ScheduleService scheduleService;
+  private final ObjectProvider<ScheduleService> scheduleService;
   private final ParamLayerService paramLayerService;
   private final SettingsService settingsService;
   private final WorkspaceActionService workspaceActionService;
   private final TokenService tokenService;
-  private final WorkspaceService workspaceService;
+  private final ObjectProvider<WorkspaceService> workspaceService;
+  private final boolean quotasEnabled;
 
   public WorkspaceWorkflowService(
       WorkflowService workflowService,
       RelationshipService relationshipService,
-      @Lazy ScheduleService scheduleService,
+      ObjectProvider<ScheduleService> scheduleService,
       ParamLayerService paramLayerService,
       SettingsService settingsService,
       WorkspaceActionService workspaceActionService,
       TokenService tokenService,
-      @Lazy WorkspaceService workspaceService) {
+      ObjectProvider<WorkspaceService> workspaceService,
+      Environment environment) {
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.scheduleService = scheduleService;
@@ -128,6 +142,39 @@ public class WorkspaceWorkflowService {
     this.workspaceActionService = workspaceActionService;
     this.tokenService = tokenService;
     this.workspaceService = workspaceService;
+    this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
+  }
+
+  /*
+   * Whether quota limits are actually enforced: the quota subsystem has to be on for this
+   * flow.mode (FlowQuotaProperties - off in engine mode) AND the operator has to have left the
+   * "workspaceQuotas" feature enabled. Short-circuits, so engine mode never reads the setting.
+   */
+  private boolean quotasEnforced() {
+    return quotasEnabled
+        && settingsService
+            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
+            .getBooleanValue();
+  }
+
+  /*
+   * The ceiling for a WorkflowRun's timeout, in minutes.
+   *
+   * With the quota subsystem on this is the workspace's max run duration (its own quota override
+   * if set, else the platform default). In engine mode there is no WorkspaceService and no
+   * per-workspace quota record, so the platform default in the "workspaces" settings document
+   * stands on its own - the same value WorkspaceService.getWorkflowMaxDurationForTeam starts from.
+   */
+  private long maxWorkflowDuration(String team) {
+    if (quotasEnabled) {
+      return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
+    }
+    return Long.parseLong(
+        settingsService
+            .getSettingConfig(
+                WorkspaceService.WORKSPACES_SETTINGS_KEY,
+                WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
+            .getValue());
   }
 
   /*
@@ -327,10 +374,7 @@ public class WorkspaceWorkflowService {
   }
 
   private void setUpWorkspaceDefaults(Workflow request) {
-    boolean quotasEnabled =
-        settingsService
-            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
-            .getBooleanValue();
+    boolean quotasEnabled = quotasEnforced();
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       // Workflow Storage
       for (WorkflowWorkspace ws : request.getWorkspaces()) {
@@ -513,7 +557,7 @@ public class WorkspaceWorkflowService {
       LOGGER.info("Setting debug = " + enableDebug);
     }
     // Set Workflow Timeout
-    Long timeout = workspaceService.getWorkflowMaxDurationForTeam(team).longValue();
+    Long timeout = maxWorkflowDuration(team);
     if (!Objects.isNull(request.getTimeout()) && request.getTimeout() < timeout) {
       timeout = request.getTimeout();
     }
@@ -601,7 +645,9 @@ public class WorkspaceWorkflowService {
     if (!refs.isEmpty()) {
       // Deletes the Workflow and associated WorkflowRuns, and TaskRuns
       workflowService.delete(refs.get(0));
-      scheduleService.deleteAllForWorkflow(refs.get(0));
+      // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
+      // schedules to delete.
+      scheduleService.ifAvailable(s -> s.deleteAllForWorkflow(refs.get(0)));
       tokenService.deleteAllForPrincipal(name);
       workspaceActionService.deleteAllByWorkflow(refs.get(0));
       // This has to be the ID (ref) as it is unique across all teams
@@ -748,6 +794,12 @@ public class WorkspaceWorkflowService {
    */
   private void updateScheduleTriggers(
       final String team, final Workflow request, WorkflowTrigger currentTriggers) {
+    // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
+    // schedules whose trigger state could need syncing.
+    ScheduleService schedules = scheduleService.getIfAvailable();
+    if (schedules == null) {
+      return;
+    }
     if (!Objects.isNull(request.getTriggers())
         && !Objects.isNull(request.getTriggers().getSchedule())
         && !Objects.isNull(currentTriggers)
@@ -755,9 +807,9 @@ public class WorkspaceWorkflowService {
       boolean currentSchedulerEnabled = currentTriggers.getSchedule().getEnabled();
       boolean requestSchedulerEnabled = request.getTriggers().getSchedule().getEnabled();
       if (currentSchedulerEnabled != false && requestSchedulerEnabled == false) {
-        scheduleService.disableAllTriggerSchedules(team, request.getId());
+        schedules.disableAllTriggerSchedules(team, request.getId());
       } else if (currentSchedulerEnabled == false && requestSchedulerEnabled == true) {
-        scheduleService.enableAllTriggerSchedules(team, request.getId());
+        schedules.enableAllTriggerSchedules(team, request.getId());
       }
     }
   }
@@ -766,10 +818,8 @@ public class WorkspaceWorkflowService {
    * Check if the Workspace Quotas allow a Workflow to run
    */
   private void canCreateWithQuotas(String team) {
-    if (settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
-        .getBooleanValue()) {
-      CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
+    if (quotasEnforced()) {
+      CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
       if (quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
         throw new BoomerangException(
@@ -785,10 +835,8 @@ public class WorkspaceWorkflowService {
    * Check if the Workspace Quotas allow a Workflow to run
    */
   private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
-    if (settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
-        .getBooleanValue()) {
-      CurrentQuotas quotas = workspaceService.getCurrentQuotas(team);
+    if (quotasEnforced()) {
+      CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
       if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
         throw new BoomerangException(

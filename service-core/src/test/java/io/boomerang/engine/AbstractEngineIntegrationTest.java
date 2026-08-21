@@ -14,6 +14,7 @@ import io.boomerang.core.repository.SettingsRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -89,9 +90,55 @@ public abstract class AbstractEngineIntegrationTest {
   }
 
   private static SettingConfig quotaConfig(String key, String value) {
+    return settingConfig(key, "number", value);
+  }
+
+  // WorkspaceWorkflowService.internalSubmit stamps the boomerang.io/task-* execution annotations
+  // off the "task" settings document the loader normally seeds. Mirrors seed/settings.json.
+  protected void seedTaskSettings() {
+    if (settingsRepository.findOneByKey("task") != null) {
+      return;
+    }
+    SettingEntity settings = new SettingEntity();
+    settings.setKey("task");
+    settings.setName("Task");
+    settings.setConfig(
+        List.of(
+            settingConfig("debug", "boolean", "false"),
+            settingConfig("default.image", "string", "boomerangio/worker-flow:2.11.15"),
+            settingConfig("deletion.policy", "string", "Never"),
+            settingConfig("default.timeout", "number", "90")));
+    settingsRepository.save(settings);
+  }
+
+  /**
+   * Sets one key in the "features" settings document, creating the document or the key as needed.
+   * Merges rather than replaces - the shared Testcontainers Mongo means several test classes seed
+   * their own keys into this one document.
+   */
+  protected void setFeatureSetting(String key, boolean value) {
+    SettingEntity settings = settingsRepository.findOneByKey("features");
+    if (settings == null) {
+      settings = new SettingEntity();
+      settings.setKey("features");
+      settings.setName("Features");
+      settings.setConfig(new ArrayList<>());
+    }
+    List<SettingConfig> config = new ArrayList<>(settings.getConfig());
+    config.stream()
+        .filter(c -> key.equals(c.getKey()))
+        .findFirst()
+        .ifPresentOrElse(
+            c -> c.setValue(Boolean.toString(value)),
+            () -> config.add(settingConfig(key, "boolean", Boolean.toString(value))));
+    settings.setConfig(config);
+    settingsRepository.save(settings);
+  }
+
+  private static SettingConfig settingConfig(String key, String type, String value) {
     SettingConfig config = new SettingConfig();
     config.setKey(key);
-    config.setType("number");
+    config.setType(type);
     config.setValue(value);
     return config;
   }
