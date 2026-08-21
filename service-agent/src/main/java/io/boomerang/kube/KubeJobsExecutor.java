@@ -5,7 +5,6 @@ import com.google.gson.reflect.TypeToken;
 import io.boomerang.agent.WorkspaceService;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
@@ -24,7 +23,6 @@ import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.EmptyDirVolumeSource;
-import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.HostAlias;
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
@@ -41,7 +39,6 @@ import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.Watch;
 import java.lang.reflect.Type;
 import java.text.ParseException;
@@ -113,11 +110,11 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   private KubernetesClient client;
 
-  public KubeJobsExecutor() {
-    this.client = new KubernetesClientBuilder().build();
+  public KubeJobsExecutor(KubernetesClient client) {
+    this.client = client;
   }
 
-  // Using a setter instead of the constructor due to autowiring issues (matches KubeServiceImpl).
+  // Tests swap in the mock-server client after the context is up.
   public void setClient(KubernetesClient client) {
     this.client = client;
   }
@@ -149,7 +146,12 @@ public class KubeJobsExecutor implements TaskExecutor {
     container.setWorkingDir(spec.getWorkingDir());
     container.setArgs(spec.getArguments());
     container.setCommand(containerCommand);
-    container.setEnv(createContainerEnvVars(spec.getDebug(), spec.getEnvs()));
+    container.setEnv(
+        helperKubeService.createTaskEnvVars(
+            spec.getDebug(),
+            task.getParams(),
+            spec.getEnvs(),
+            helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log")));
     container.setVolumeMounts(volumeMounts);
     container.setTerminationMessagePath("/dev/termination-log");
     container.setTerminationMessagePolicy("File");
@@ -327,17 +329,6 @@ public class KubeJobsExecutor implements TaskExecutor {
     volumeMounts.add(mount);
 
     return List.of("/scripts/script");
-  }
-
-  private List<EnvVar> createContainerEnvVars(Boolean debug, List<TaskEnvVar> envVars) {
-    List<EnvVar> vars = new ArrayList<>(helperKubeService.createProxyEnvVars());
-    vars.add(helperKubeService.createEnvVar("DEBUG", String.valueOf(debug)));
-    vars.add(helperKubeService.createEnvVar("CI", "true"));
-    vars.add(helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log"));
-    if (envVars != null) {
-      envVars.forEach(var -> vars.add(helperKubeService.createEnvVar(var.getName(), var.getValue())));
-    }
-    return vars;
   }
 
   private Map<String, String> nodeSelectors() {

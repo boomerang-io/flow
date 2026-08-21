@@ -3,7 +3,6 @@ package io.boomerang.kube;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.util.List;
@@ -24,9 +23,9 @@ public class KubeLogService {
 
   KubernetesClient client = null;
 
-  public KubeLogService(KubeHelperService helperKubeService) {
+  public KubeLogService(KubeHelperService helperKubeService, KubernetesClient client) {
     this.helperKubeService = helperKubeService;
-    this.client = new KubernetesClientBuilder().build();
+    this.client = client;
   }
 
   public String getPodLog(

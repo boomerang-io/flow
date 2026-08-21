@@ -3,7 +3,7 @@ package io.boomerang.kube;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.boomerang.agent.WorkspaceService;
-import io.boomerang.common.enums.WorkspaceType;
+import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskEnvVar;
@@ -25,7 +25,6 @@ import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.VolumeProjection;
-import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
@@ -41,7 +40,6 @@ import java.lang.reflect.Type;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -159,8 +157,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   TektonClient client = null;
 
-  public TektonServiceImpl() {
-    this.client = new KubernetesClientBuilder().build().adapt(TektonClient.class);
+  public TektonServiceImpl(TektonClient client) {
+    this.client = client;
   }
 
   @Override
@@ -242,7 +240,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
             //        boolean pvcExists =
             //            kubeService.checkWorkspacePVCExists(workspaceRef, ws.getType(), false);
             //        if (pvcExists) {
-            if (WorkspaceType.fromLabel(ws.getType()).isPresent()) {
+            if (StorageType.fromLabel(ws.getType()).isPresent()) {
               WorkspaceDeclaration wsWorkspaceDeclaration = new WorkspaceDeclaration();
               wsWorkspaceDeclaration.setName(
                   helperKubeService.getPrefixVol() + "-ws-" + ws.getType());
@@ -252,7 +250,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
                       : "/workspace/" + ws.getType();
               wsWorkspaceDeclaration.setMountPath(mountPath);
               String description =
-                  (WorkspaceType.fromLabel(ws.getType()).orElse(null) == WorkspaceType.workflow)
+                  (StorageType.fromLabel(ws.getType()).orElse(null) == StorageType.workflow)
                       ? "Storage for a workflow across execution"
                       : "Storage for the specific workflow execution";
               wsWorkspaceDeclaration.setDescription(description);
@@ -383,36 +381,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     List<LocalObjectReference> imagePullSecrets = new ArrayList<>();
     imagePullSecrets.add(imagePullSecret);
 
-    /*
-     * Define environment variables made up of, in increasing precedence (later entries win
-     * on a name collision):
-     * - Proxy (if enabled)
-     * - Debug and CI
-     * - One PARAM_<NAME> per Task Param
-     * - Task defined envVars
-     */
-    Map<String, EnvVar> tknEnvVarsByName = new LinkedHashMap<>();
-    helperKubeService
-        .createProxyEnvVars()
-        .forEach(var -> tknEnvVarsByName.put(var.getName(), var));
-    tknEnvVarsByName.put("DEBUG", helperKubeService.createEnvVar("DEBUG", debug.toString()));
-    tknEnvVarsByName.put("CI", helperKubeService.createEnvVar("CI", "true"));
-    params.forEach(
-        p -> {
-          String paramEnvName =
-              "PARAM_" + p.getName().toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
-          tknEnvVarsByName.put(
-              paramEnvName,
-              helperKubeService.createEnvVar(
-                  paramEnvName, helperKubeService.paramValueAsString(p.getValue())));
-        });
-    if (envVars != null) {
-      envVars.forEach(
-          var ->
-              tknEnvVarsByName.put(
-                  var.getName(), helperKubeService.createEnvVar(var.getName(), var.getValue())));
-    }
-    List<EnvVar> tknEnvVars = new ArrayList<>(tknEnvVarsByName.values());
+    List<EnvVar> tknEnvVars = helperKubeService.createTaskEnvVars(debug, params, envVars);
 
     /*
      * Define Task Params and Task Spec Params

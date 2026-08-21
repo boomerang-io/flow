@@ -1,6 +1,7 @@
 package io.boomerang.kube;
 
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.TaskEnvVar;
 import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.EnvVar;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -92,6 +94,33 @@ public class KubeHelperService {
     envVar.setName(key);
     envVar.setValue(value);
     return envVar;
+  }
+
+  /*
+   * The task container environment, in increasing precedence (later entries win on a name
+   * collision): proxy vars, DEBUG/CI, executor-specific runtimeVars, one PARAM_<NAME> per Task
+   * Param, then the Task-defined envVars.
+   */
+  protected List<EnvVar> createTaskEnvVars(
+      Boolean debug, List<RunParam> params, List<TaskEnvVar> envVars, EnvVar... runtimeVars) {
+    Map<String, EnvVar> byName = new LinkedHashMap<>();
+    createProxyEnvVars().forEach(var -> byName.put(var.getName(), var));
+    byName.put("DEBUG", createEnvVar("DEBUG", String.valueOf(debug)));
+    byName.put("CI", createEnvVar("CI", "true"));
+    for (EnvVar var : runtimeVars) {
+      byName.put(var.getName(), var);
+    }
+    if (params != null) {
+      params.forEach(
+          p -> {
+            String name = "PARAM_" + p.getName().toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
+            byName.put(name, createEnvVar(name, paramValueAsString(p.getValue())));
+          });
+    }
+    if (envVars != null) {
+      envVars.forEach(var -> byName.put(var.getName(), createEnvVar(var.getName(), var.getValue())));
+    }
+    return new ArrayList<>(byName.values());
   }
 
   protected List<EnvVar> createEnvVars(

@@ -1,7 +1,6 @@
 package io.boomerang.executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -137,7 +136,14 @@ public class KubeJobsExecutorTest {
 
     List<EnvVar> env = container.getEnv();
     assertTrue(env.stream().anyMatch(e -> "CI".equals(e.getName()) && "true".equals(e.getValue())));
-    assertFalse(env.stream().anyMatch(e -> e.getName().startsWith("PARAM_")));
+    // Every Task Param is also exposed as PARAM_<NAME>, exactly as the Tekton executor does.
+    assertTrue(env.stream().anyMatch(e -> e.getName().startsWith("PARAM_")));
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "RESULTS_PATH".equals(e.getName())
+                        && "/dev/termination-log".equals(e.getValue())));
   }
 
   @Test

@@ -11,7 +11,6 @@ import io.fabric8.kubernetes.api.model.PersistentVolumeClaimList;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.util.List;
 import java.util.Map;
@@ -71,11 +70,11 @@ public class KubeServiceImpl implements KubeService {
 
   protected KubernetesClient client = null;
 
-  public KubeServiceImpl() {
-    this.client = new KubernetesClientBuilder().build();
+  public KubeServiceImpl(KubernetesClient client) {
+    this.client = client;
   }
 
-  //  Using setter instead of Constructor due to autowiring issues
+  // Tests swap in the mock-server client after the context is up.
   public void setClient(KubernetesClient client) {
     LOGGER.info("Creating Client with default namespace: " + client.getNamespace());
     this.client = client;
