@@ -51,6 +51,28 @@ public class KubeHelperServiceTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  public void testCreateTaskEnvVarsExposesLosslessParamsJson() {
+    List<RunParam> params =
+        List.of(
+            new RunParam("privateKey", "secret"),
+            new RunParam("my-param", 42),
+            new RunParam("flags", Map.of("dryRun", true)),
+            new RunParam("missing", null));
+
+    List<EnvVar> envVars = helperKubeService.createTaskEnvVars(false, params, List.of());
+
+    Map<String, Object> parsed =
+        new ObjectMapper()
+            .readValue(findEnv(envVars, "PARAMS").orElseThrow().getValue(), Map.class);
+    assertEquals("secret", parsed.get("privateKey"));
+    assertEquals(42, parsed.get("my-param"));
+    assertEquals(Map.of("dryRun", true), parsed.get("flags"));
+    assertTrue(parsed.containsKey("missing"));
+    assertEquals(null, parsed.get("missing"));
+  }
+
+  @Test
   public void testCreateTaskEnvVarsExplicitTaskEnvVarWinsOverGeneratedParam() {
     List<RunParam> params = List.of(new RunParam("greeting", "hello"));
     List<TaskEnvVar> envVars = List.of(new TaskEnvVar("PARAM_GREETING", "overridden"));

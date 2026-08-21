@@ -14,10 +14,17 @@ the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `agent.exec
 
 Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
 `/workspace/<type>` (or the declared mount path). Params are delivered to the task container as environment variables
-only — every param is exposed as `PARAM_<NAME>` (the name upper-cased, any character outside `[A-Za-z0-9_]` replaced
-with `_`; non-string values are JSON-encoded). Two params whose sanitised names collide fail the Task rather than
-silently overwriting each other. Explicitly declared task env vars win on name collision with a generated `PARAM_`
-var.
+only, on two channels:
+
+- `PARAMS` — the whole `{name: value}` map as one JSON object, original names and types. This is the lossless channel
+  that task libraries (`@boomerang-io/task-core`) read.
+- `PARAM_<NAME>` — one per param for shell use (the name upper-cased, any character outside `[A-Za-z0-9_]` replaced
+  with `_`; non-string values are JSON-encoded). Two params whose sanitised names collide fail the Task rather than
+  silently overwriting each other.
+
+Explicitly declared task env vars win on name collision with a generated var. Both executors also set `RESULTS_PATH`:
+a directory for Tekton (`/tekton/results`, one file per result) and a single file for Jobs (`/dev/termination-log`,
+one JSON object).
 
 When writing new integrations, it is recommended to look through the Kubernetes Client Docs to find the exact Client
 method to use and then look at the API code to see how it works for advance configurations such as the Watcher API.

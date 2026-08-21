@@ -352,7 +352,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     List<LocalObjectReference> imagePullSecrets = new ArrayList<>();
     imagePullSecrets.add(imagePullSecret);
 
-    List<EnvVar> tknEnvVars = helperKubeService.createTaskEnvVars(debug, params, envVars);
+    List<EnvVar> tknEnvVars =
+        helperKubeService.createTaskEnvVars(
+            debug,
+            params,
+            envVars,
+            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"));
 
     /*
      * Define Task Params and Task Spec Params
