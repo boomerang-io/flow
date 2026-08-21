@@ -374,7 +374,7 @@ public class WorkspaceWorkflowService {
   }
 
   private void setUpWorkspaceDefaults(Workflow request) {
-    boolean quotasEnabled = quotasEnforced();
+    boolean enforceQuotas = quotasEnforced();
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       // Workflow Storage
       for (WorkflowWorkspace ws : request.getWorkspaces()) {
@@ -393,7 +393,7 @@ public class WorkspaceWorkflowService {
           }
           if (workflowWorkspaceSpec.getSize() == null) {
             workflowWorkspaceSpec.setSize(maxStorageSizeQuota);
-          } else if (quotasEnabled
+          } else if (enforceQuotas
               && (Integer.valueOf(workflowWorkspaceSpec.getSize())
                   > Integer.valueOf(maxStorageSizeQuota))) {
             throw new BoomerangException(
@@ -418,7 +418,7 @@ public class WorkspaceWorkflowService {
           }
           if (workflowWorkspaceSpec.getSize() == null) {
             workflowWorkspaceSpec.setSize(maxStorageSizeQuota);
-          } else if (quotasEnabled
+          } else if (enforceQuotas
               && (Integer.valueOf(workflowWorkspaceSpec.getSize())
                   > Integer.valueOf(maxStorageSizeQuota))) {
             throw new BoomerangException(
