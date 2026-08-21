@@ -1,16 +1,23 @@
 package io.boomerang.engine;
 
+import io.boomerang.api.WorkspaceTaskService;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.Task;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
+import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.SettingsRepository;
+import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Duration;
@@ -23,6 +30,8 @@ import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.mongodb.MongoDBContainer;
@@ -59,6 +68,7 @@ public abstract class AbstractEngineIntegrationTest {
   @Autowired protected TaskRunService taskRunService;
   @Autowired protected RelationshipService relationshipService;
   @Autowired protected SettingsRepository settingsRepository;
+  @Autowired protected WorkspaceTaskService workspaceTaskService;
 
   // Every workspace/global-task creation anchors on the root relationship node - a fresh install
   // seeds it via the loader, but this shared Testcontainers Mongo starts empty. The node id is
@@ -141,6 +151,66 @@ public abstract class AbstractEngineIntegrationTest {
     config.setType(type);
     config.setValue(value);
     return config;
+  }
+
+  /**
+   * Creates a global template Task (idempotently) so workflows have something real to reference:
+   * DAGUtility.createTaskList resolves every non-start/end task against the catalogue. Needs the
+   * root relationship node, so call {@link #seedRelationshipRoot()} first. The changelog author
+   * comes off the current identity, hence the temporary global principal.
+   */
+  protected void seedGlobalTask(String name) {
+    if (!relationshipService
+        .filter(RelationshipType.TASK, Optional.of(List.of(name)))
+        .isEmpty()) {
+      return;
+    }
+    Token principal = new Token(AuthScope.global);
+    principal.setPrincipal("integration-test-principal");
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(principal.getPrincipal(), null);
+    authentication.setDetails(principal);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+    try {
+      Task task = new Task();
+      task.setName(name);
+      task.setType(TaskType.template);
+      task.getSpec().setImage("busybox:latest");
+      task.getSpec().setCommand(List.of("echo"));
+      workspaceTaskService.create(task);
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  /**
+   * A Workflow that actually passes DAGUtility.validateWorkflow: start -> one task -> end. A
+   * Workflow carrying only the implicit start/end pair is rejected as "incomplete, or invalid".
+   */
+  protected static Workflow runnableWorkflow(String name, String taskSlug) {
+    Workflow workflow = new Workflow();
+    workflow.setName(name);
+    workflow.setTasks(
+        new LinkedList<>(
+            List.of(
+                workflowTask("start", TaskType.start, null, null),
+                workflowTask("work", TaskType.template, taskSlug, "start"),
+                workflowTask("end", TaskType.end, null, "work"))));
+    return workflow;
+  }
+
+  private static WorkflowTask workflowTask(
+      String name, TaskType type, String taskRef, String dependsOn) {
+    WorkflowTask task = new WorkflowTask();
+    task.setName(name);
+    task.setType(type);
+    task.setTaskRef(taskRef);
+    if (dependsOn != null) {
+      WorkflowTaskDependency dependency = new WorkflowTaskDependency();
+      dependency.setTaskRef(dependsOn);
+      task.setDependencies(new LinkedList<>(List.of(dependency)));
+    }
+    return task;
   }
 
   protected static ConditionFactory awaitEngine(String alias) {

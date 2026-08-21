@@ -9,6 +9,7 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.schedule.ScheduleService;
@@ -38,6 +39,8 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
 
   private static final String SYSTEM_WORKSPACE = "system";
 
+  private static final String TASK_SLUG = "engine-submit-test-task";
+
   // The platform default in the seeded "workspaces" settings document - what the run-duration
   // ceiling must fall back to with no workspace quota record to read.
   private static final long PLATFORM_DEFAULT_DURATION = 30L;
@@ -53,6 +56,7 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
     // ParamLayerService reads both parameter feature flags on every submit.
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
+    seedGlobalTask(TASK_SLUG);
     seedSystemWorkspaceNode();
   }
 
@@ -72,7 +76,8 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
 
     assertNotNull(run);
     assertNotNull(run.getId());
-    assertEquals(RunStatus.notstarted, run.getStatus());
+    // Admitted (queued but not started) - not `invalid`, which is what a rejected DAG leaves.
+    assertEquals(RunStatus.ready, run.getStatus());
   }
 
   @Test
@@ -118,9 +123,7 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   }
 
   private void createWorkflow(String name) {
-    Workflow workflow = new Workflow();
-    workflow.setName(name);
-    workspaceWorkflowService.create(SYSTEM_WORKSPACE, workflow);
+    workspaceWorkflowService.create(SYSTEM_WORKSPACE, runnableWorkflow(name, TASK_SLUG));
   }
 
   private WorkflowRun submit(String name) {
@@ -134,16 +137,23 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   }
 
   // Engine mode has no workspace CRUD, so the `system` workspace's relationship node is seeded by
-  // changeunit _0014__SeedSystemWorkspace rather than by any service - the loader does not run
-  // against this Testcontainers Mongo, so stand it up directly.
+  // changeunit _0003__SeedSystemWorkspace rather than by any service - the loader does not run
+  // against this Testcontainers Mongo, so stand up the same shape directly: a workspace node plus
+  // the root:root --contains--> edge every anchored walk starts from.
   private void seedSystemWorkspaceNode() {
-    if (!relationshipService
-        .filter(RelationshipType.WORKSPACE, Optional.of(List.of(SYSTEM_WORKSPACE)))
-        .isEmpty()) {
+    if (relationshipService.doesSlugOrRefExistForType(
+        RelationshipType.WORKSPACE, SYSTEM_WORKSPACE)) {
       return;
     }
-    relationshipService.createNode(
-        RelationshipType.WORKSPACE, SYSTEM_WORKSPACE, SYSTEM_WORKSPACE, Optional.empty());
+    relationshipService.createNodeAndEdge(
+        RelationshipType.ROOT,
+        "root",
+        RelationshipLabel.CONTAINS,
+        RelationshipType.WORKSPACE,
+        SYSTEM_WORKSPACE,
+        SYSTEM_WORKSPACE,
+        Optional.empty(),
+        Optional.empty());
   }
 
 }

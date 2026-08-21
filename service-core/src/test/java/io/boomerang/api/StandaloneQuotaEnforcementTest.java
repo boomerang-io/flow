@@ -28,6 +28,8 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
 
   private static final String QUOTA_FEATURE = "workspaceQuotas";
 
+  private static final String TASK_SLUG = "standalone-quota-test-task";
+
   @Autowired private WorkspaceWorkflowService workspaceWorkflowService;
   @Autowired private WorkspaceService workspaceService;
 
@@ -36,6 +38,7 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     seedRelationshipRoot();
     seedTeamQuotaSettings();
     seedTaskSettings();
+    seedGlobalTask(TASK_SLUG);
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     setFeatureSetting(QUOTA_FEATURE, false);
@@ -50,14 +53,16 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
   @Test
   void theWorkflowCountQuotaIsStillEnforcedInStandaloneMode() {
     String workspace = createWorkspace("standalone-quota-count", quotasWithWorkflowCount(0));
-    workspaceWorkflowService.create(workspace, newWorkflow("quota-first-workflow"));
+    workspaceWorkflowService.create(workspace, runnableWorkflow("quota-first-workflow", TASK_SLUG));
 
     setFeatureSetting(QUOTA_FEATURE, true);
 
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
-            () -> workspaceWorkflowService.create(workspace, newWorkflow("quota-second-workflow")));
+            () ->
+                workspaceWorkflowService.create(
+                    workspace, runnableWorkflow("quota-second-workflow", TASK_SLUG)));
     assertEquals("QUOTA_EXCEEDED", ex.getReason());
   }
 
@@ -66,7 +71,8 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     // The ceiling is gated on the quota subsystem (mode), not on the "workspaceQuotas" feature
     // setting - unchanged from before the fix, so this must hold with the feature off.
     String workspace = createWorkspace("standalone-quota-duration", quotasWithRunDuration(7));
-    workspaceWorkflowService.create(workspace, newWorkflow("quota-duration-workflow"));
+    workspaceWorkflowService.create(
+        workspace, runnableWorkflow("quota-duration-workflow", TASK_SLUG));
 
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(TriggerEnum.manual);
@@ -94,12 +100,6 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     Quotas quotas = new Quotas();
     quotas.setMaxWorkflowRunDuration(minutes);
     return quotas;
-  }
-
-  private static Workflow newWorkflow(String name) {
-    Workflow workflow = new Workflow();
-    workflow.setName(name);
-    return workflow;
   }
 
 }
