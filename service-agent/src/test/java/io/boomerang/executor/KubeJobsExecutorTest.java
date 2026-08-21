@@ -1,6 +1,7 @@
 package io.boomerang.executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -97,8 +98,8 @@ public class KubeJobsExecutorTest {
   public void testCreateCommandTaskWithWorkflowWorkspace() throws Exception {
     TaskRun task = commandTask("taskrun-cmd", true);
 
-    // Pre-create the PVC and params ConfigMap, exactly as TaskService.execute() does before
-    // delegating to the executor.
+    // Pre-create the PVC, exactly as TaskService.execute() does before delegating to the
+    // executor.
     try {
       kubeService.createWorkspacePVC(
           task.getWorkflowRef(), task.getWorkflowRef(), "workflow", null, "1Gi", "", "ReadWriteMany", 1L);
@@ -106,9 +107,6 @@ public class KubeJobsExecutorTest {
       // The mock server never reports a PVC phase of Bound/Pending, so the wait times out; the
       // PVC itself is still created and that's all getPVCName() needs.
     }
-    kubeService.createTaskConfigMap(
-        task.getWorkflowRef(), task.getWorkflowRunRef(), task.getName(), task.getId(), task.getLabels(),
-        task.getParams());
 
     kubeJobsExecutor.create(task, 30L);
 
@@ -127,7 +125,7 @@ public class KubeJobsExecutorTest {
     String volPrefix = flowProduct + "-vol";
     List<String> volumeNames = volumes.stream().map(Volume::getName).toList();
     assertTrue(volumeNames.contains(volPrefix + "-data"));
-    assertTrue(volumeNames.contains(volPrefix + "-params"));
+    assertFalse(volumeNames.contains(volPrefix + "-params"));
     assertTrue(volumeNames.contains(volPrefix + "-ws-workflow"));
 
     Container container = job.getSpec().getTemplate().getSpec().getContainers().get(0);
@@ -152,21 +150,14 @@ public class KubeJobsExecutorTest {
     task.getSpec().setCommand(null);
     task.getSpec().setScript("#!/bin/sh\necho hello");
 
-    kubeService.createTaskConfigMap(
-        task.getWorkflowRef(), task.getWorkflowRunRef(), task.getName(), task.getId(), task.getLabels(),
-        task.getParams());
-
     kubeJobsExecutor.create(task, 30L);
 
     List<ConfigMap> configMaps =
         client.configMaps().withLabels(Map.of("boomerang.io/taskrun-ref", task.getId())).list().getItems();
-    // The task-params ConfigMap (pre-created above) plus the script ConfigMap create() built.
-    assertEquals(2, configMaps.size());
-    ConfigMap scriptConfigMap =
-        configMaps.stream()
-            .filter(cm -> cm.getMetadata().getGenerateName().contains("-script-"))
-            .findFirst()
-            .orElseThrow();
+    // Only the script ConfigMap create() built — params are env-only, no ConfigMap for them.
+    assertEquals(1, configMaps.size());
+    ConfigMap scriptConfigMap = configMaps.get(0);
+    assertTrue(scriptConfigMap.getMetadata().getGenerateName().contains("-script-"));
     assertEquals("#!/bin/sh\necho hello", scriptConfigMap.getData().get("script"));
 
     Job job = soleJobFor(task.getId());
@@ -175,11 +166,23 @@ public class KubeJobsExecutorTest {
   }
 
   @Test
+  public void testDeleteRemovesScriptConfigMap() throws Exception {
+    TaskRun task = commandTask("taskrun-script-delete", false);
+    task.getSpec().setCommand(null);
+    task.getSpec().setScript("#!/bin/sh\necho hello");
+
+    kubeJobsExecutor.create(task, 30L);
+    Map<String, String> taskLabels = Map.of("boomerang.io/taskrun-ref", task.getId());
+    assertEquals(1, client.configMaps().withLabels(taskLabels).list().getItems().size());
+
+    kubeJobsExecutor.delete(task);
+
+    assertTrue(client.configMaps().withLabels(taskLabels).list().getItems().isEmpty());
+  }
+
+  @Test
   public void testCreateWithoutRuntimeClassNameLeavesItUnset() throws Exception {
     TaskRun task = commandTask("taskrun-no-runtimeclass", false);
-    kubeService.createTaskConfigMap(
-        task.getWorkflowRef(), task.getWorkflowRunRef(), task.getName(), task.getId(), task.getLabels(),
-        task.getParams());
 
     kubeJobsExecutor.create(task, 30L);
 
@@ -265,10 +268,6 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
     spec.setCommand(List.of("echo", "hello"));
     spec.setDebug(false);
     task.setSpec(spec);
-
-    kubeService.createTaskConfigMap(
-        task.getWorkflowRef(), task.getWorkflowRunRef(), task.getName(), task.getId(), task.getLabels(),
-        task.getParams());
 
     kubeJobsExecutor.create(task, 30L);
 

@@ -12,9 +12,12 @@ the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `agent.exec
 | `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
 | `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. `agent.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every task. |
 
-Both executors build the same volumes: `/params` (projected ConfigMap, one file per param), `/data` (emptyDir), and
-the `workflow` / `workflowrun` workspace PVCs at `/workspace/<type>` (or the declared mount path). Every param is also
-exposed as a `PARAM_<NAME>` environment variable; explicitly declared task env vars win on name collision.
+Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
+`/workspace/<type>` (or the declared mount path). Params are delivered to the task container as environment variables
+only — every param is exposed as `PARAM_<NAME>` (the name upper-cased, any character outside `[A-Za-z0-9_]` replaced
+with `_`; non-string values are JSON-encoded). Two params whose sanitised names collide fail the Task rather than
+silently overwriting each other. Explicitly declared task env vars win on name collision with a generated `PARAM_`
+var.
 
 When writing new integrations, it is recommended to look through the Kubernetes Client Docs to find the exact Client
 method to use and then look at the API code to see how it works for advance configurations such as the Watcher API.

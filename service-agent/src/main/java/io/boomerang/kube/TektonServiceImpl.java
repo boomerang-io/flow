@@ -12,7 +12,6 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.TaskExecutor;
 import io.fabric8.knative.pkg.apis.Condition;
-import io.fabric8.kubernetes.api.model.ConfigMapProjection;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.Duration;
 import io.fabric8.kubernetes.api.model.EmptyDirVolumeSource;
@@ -20,11 +19,9 @@ import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.HostAlias;
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource;
-import io.fabric8.kubernetes.api.model.ProjectedVolumeSource;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
-import io.fabric8.kubernetes.api.model.VolumeProjection;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
@@ -283,8 +280,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
      * https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
      *
      * Create volumes and Volume Mounts
-     * - /props for mounting config_maps @deprecated
-     * - /params for mounting taskrun params as files
      * - /data for task storage (optional - needed if using in memory storage)
      */
     List<VolumeMount> volumeMounts = new ArrayList<>();
@@ -311,30 +306,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     }
     dataVolume.setEmptyDir(dataEmptyDirVolumeSource);
     volumes.add(dataVolume);
-
-    /*
-     * Creation of projected volume to mount task params
-     */
-    VolumeMount propsVolumeMount = new VolumeMount();
-    propsVolumeMount.setName(helperKubeService.getPrefixVol() + "-params");
-    propsVolumeMount.setMountPath("/params");
-    volumeMounts.add(propsVolumeMount);
-
-    Volume propsVolume = new Volume();
-    propsVolume.setName(helperKubeService.getPrefixVol() + "-params");
-    ProjectedVolumeSource projectedVolPropsSource = new ProjectedVolumeSource();
-    List<VolumeProjection> projectPropsVolumeList = new ArrayList<>();
-    VolumeProjection taskCMVolumeProjection = new VolumeProjection();
-    ConfigMapProjection projectedTaskConfigMap = new ConfigMapProjection();
-    projectedTaskConfigMap.setName(
-        kubeService.getConfigMapName(
-            helperKubeService.getTaskLabels(
-                workflowId, workflowActivityId, taskActivityId, customLabels)));
-    taskCMVolumeProjection.setConfigMap(projectedTaskConfigMap);
-    projectPropsVolumeList.add(taskCMVolumeProjection);
-    projectedVolPropsSource.setSources(projectPropsVolumeList);
-    propsVolume.setProjected(projectedVolPropsSource);
-    volumes.add(propsVolume);
 
     /*
      * Configure Node Selector and Tolerations if defined

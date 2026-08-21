@@ -6,7 +6,6 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.TaskExecutor;
-import io.boomerang.kube.KubeServiceImpl;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.text.ParseException;
@@ -30,12 +29,9 @@ public class TaskService {
   @Value("${kube.task.timeout}")
   private Long taskTimeout;
 
-  private final KubeServiceImpl kubeService;
-
   private final TaskExecutor executor;
 
-  public TaskService(KubeServiceImpl kubeService, TaskExecutor executor) {
-    this.kubeService = kubeService;
+  public TaskService(TaskExecutor executor) {
     this.executor = executor;
     LOGGER.info("Task executor: " + executor.getClass().getSimpleName());
   }
@@ -67,13 +63,6 @@ public class TaskService {
     } else {
       Long timeout = getTaskTimeout(task.getTimeout());
       try {
-        kubeService.createTaskConfigMap(
-            task.getWorkflowRef(),
-            task.getWorkflowRunRef(),
-            task.getName(),
-            task.getId(),
-            task.getLabels(),
-            task.getParams());
         executor.create(task, timeout);
         results = executor.watch(task, timeout);
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
@@ -101,8 +90,6 @@ public class TaskService {
             1, "TASK_CREATION_TIMEOUT_ERROR", HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
       } finally {
         response.setResults(results);
-        kubeService.deleteTaskConfigMap(
-            task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
           this.deleteTaskRun(task);
         }

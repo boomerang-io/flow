@@ -731,6 +731,9 @@ evidence (file/class or measurement).
     re-claims can't adopt), adopt-or-supersede, and `abandon(handle)` on lease rejection.
     Docker divergences enumerated (agent-side substitution, file-based results,
     dispatcher-armed timeout, named volumes).
+    **2026-08-21:** `/params` ConfigMap channel removed; params are env-only;
+    `$(params.x)` interpolation is being moved engine-side (supersedes the agent-side
+    divergence).
 - **Q-403** Which catalogue tasks depend on shared-workspace/PVC semantics, and what is the storage story on serverless targets?
   - ✅ **Answered — scoping (2026-07-23):** dependence is low and partially broken — the
     `workflowRun` workspace lifecycle filters on the typo **`"workfowRun"`** so per-run

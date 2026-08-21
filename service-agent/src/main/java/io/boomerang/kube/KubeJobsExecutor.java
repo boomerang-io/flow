@@ -15,7 +15,6 @@ import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TerminationMessageParser;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
-import io.fabric8.kubernetes.api.model.ConfigMapProjection;
 import io.fabric8.kubernetes.api.model.ConfigMapVolumeSource;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerState;
@@ -30,11 +29,9 @@ import io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodSpec;
 import io.fabric8.kubernetes.api.model.PodTemplateSpec;
-import io.fabric8.kubernetes.api.model.ProjectedVolumeSource;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
-import io.fabric8.kubernetes.api.model.VolumeProjection;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobSpec;
@@ -58,8 +55,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * Executes Tasks as Kubernetes batch/v1 Jobs instead of Tekton TaskRuns. Reuses the
- * runtime-agnostic PVC/ConfigMap plumbing in {@link KubeServiceImpl}/{@link KubeHelperService};
- * builds the same volumes (data/params/workspace) that {@link TektonServiceImpl} builds.
+ * runtime-agnostic PVC plumbing in {@link KubeServiceImpl}/{@link KubeHelperService}; builds the
+ * same volumes (data/workspace) that {@link TektonServiceImpl} builds. Params are delivered as
+ * environment variables only ({@link KubeHelperService#createTaskEnvVars}); the script ConfigMap
+ * is owned end-to-end by this class (created in {@link #create}, cleaned up in {@link #watch},
+ * {@link #cancel}, and {@link #delete}).
  */
 @Component
 @ConditionalOnProperty(name = "agent.executor", havingValue = "kube-jobs")
@@ -133,7 +133,6 @@ public class KubeJobsExecutor implements TaskExecutor {
     List<Volume> volumes = new ArrayList<>();
     List<VolumeMount> volumeMounts = new ArrayList<>();
     addDataVolume(volumes, volumeMounts, task.getParams());
-    addParamsVolume(volumes, volumeMounts, taskLabels);
     addWorkspaceVolumes(volumes, volumeMounts, workflowRef, workflowRunRef, task.getWorkspaces());
 
     List<String> containerCommand =
@@ -223,28 +222,6 @@ public class KubeJobsExecutor implements TaskExecutor {
     Volume volume = new Volume();
     volume.setName(name);
     volume.setEmptyDir(emptyDir);
-    volumes.add(volume);
-  }
-
-  private void addParamsVolume(
-      List<Volume> volumes, List<VolumeMount> volumeMounts, Map<String, String> taskLabels) {
-    String name = helperKubeService.getPrefixVol() + "-params";
-
-    VolumeMount mount = new VolumeMount();
-    mount.setName(name);
-    mount.setMountPath("/params");
-    volumeMounts.add(mount);
-
-    ConfigMapProjection configMapProjection = new ConfigMapProjection();
-    configMapProjection.setName(kubeService.getConfigMapName(taskLabels));
-    VolumeProjection projection = new VolumeProjection();
-    projection.setConfigMap(configMapProjection);
-    ProjectedVolumeSource projectedSource = new ProjectedVolumeSource();
-    projectedSource.setSources(List.of(projection));
-
-    Volume volume = new Volume();
-    volume.setName(name);
-    volume.setProjected(projectedSource);
     volumes.add(volume);
   }
 
@@ -393,7 +370,17 @@ public class KubeJobsExecutor implements TaskExecutor {
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
+    } finally {
+      deleteConfigMaps(taskLabels);
     }
+  }
+
+  /**
+   * Delete any ConfigMaps created for the task (currently just the script ConfigMap for script
+   * tasks). Label-selector delete is idempotent — safe to call even when none exist.
+   */
+  private void deleteConfigMaps(Map<String, String> taskLabels) {
+    client.configMaps().withLabels(taskLabels).delete();
   }
 
   private List<RunResult> readResults(Map<String, String> taskLabels, List<RunResult> declaredResults) {
@@ -448,6 +435,7 @@ public class KubeJobsExecutor implements TaskExecutor {
         .withLabels(taskLabels)
         .withPropagationPolicy(DeletionPropagation.FOREGROUND)
         .delete();
+    deleteConfigMaps(taskLabels);
   }
 
   @Override
@@ -465,5 +453,6 @@ public class KubeJobsExecutor implements TaskExecutor {
         .withLabels(taskLabels)
         .withPropagationPolicy(DeletionPropagation.BACKGROUND)
         .delete();
+    deleteConfigMaps(taskLabels);
   }
 }
