@@ -231,6 +231,8 @@ class LoaderMigrationTest {
     assertWorkspaceQuotaSettingsKeyRenamed();
     assertWorkspaceFeatureFlagSettingsKeysRenamed();
     assertDefinitionIndexes();
+    assertRelationshipAndAuditIndexes();
+    assertSweepIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
     assertRootNodeSeeded();
@@ -1159,6 +1161,46 @@ class LoaderMigrationTest {
     assertIndex("task_revisions", "parent_ref_version", List.of("parentRef", "version"));
     assertIndex("workflow_schedules", "fire_sweep", List.of("status", "nextFireAt"));
     assertIndex("workflow_schedules", "workflow_lookup", List.of("workflowRef"));
+  }
+
+  /**
+   * {@code _0036}: the relationship-walk, audit-trail and user-lookup indexes. The relationship
+   * pairs are asserted key-by-key (not just by name) because the {@code $or} shape {@code
+   * RelationshipNodeRepository} issues needs BOTH {@code (type, slug)} and {@code (type, ref)} — one
+   * alone leaves the query a collection scan.
+   */
+  private void assertRelationshipAndAuditIndexes() {
+    assertIndex("rel_nodes", "type_slug", List.of("type", "slug"));
+    assertIndex("rel_nodes", "type_ref", List.of("type", "ref"));
+    assertIndex("rel_edges", "from_label", List.of("from", "label"));
+    assertIndex("rel_edges", "to_label", List.of("to", "label"));
+
+    assertIndex("audit", "scope_self_ref", List.of("scope", "selfRef"));
+    assertIndex("audit", "scope_self_name", List.of("scope", "selfName"));
+    assertIndex("audit", "scope_parent", List.of("scope", "parent"));
+
+    // The seeded changelog carries neither the "112" nor the "4000" marker, so this fixture is
+    // detected as V4 (see InstallGeneration.detect) — _0019__DomainIndexes' v3-gated email_unique
+    // is therefore NOT created, which is exactly the gap email_lookup exists to close. Asserting
+    // both facts together proves the new index is the only email index a non-v3 install gets, and
+    // that it did not silently inherit uniqueness.
+    assertThat(indexesByName("users")).doesNotContainKey("email_unique");
+    assertIndex("users", "email_lookup", List.of("email"));
+    assertThat(indexesByName("users").get("email_lookup").getBoolean("unique")).isNull();
+  }
+
+  /**
+   * {@code _0037}: the WorkflowWatcher sweep and dispatcher long-poll indexes. Each of these
+   * queries filters {@code phase} (or {@code status} on {@code actions}) WITHOUT the leading key of
+   * {@code _0017__RunIndexes}' {@code claim_page} compounds, so none of them could seek an existing
+   * index.
+   */
+  private void assertSweepIndexes() {
+    assertIndex("workflow_runs", "phase_creation_sweep", List.of("phase", "creationDate"));
+    assertIndex("workflow_runs", "phase_start_sweep", List.of("phase", "startTime"));
+    assertIndex("workflow_runs", "workflow_ref_phase", List.of("workflowRef", "phase"));
+    assertIndex("task_runs", "claimed_sweep", List.of("phase", "claim.at"));
+    assertIndex("actions", "status_sweep", List.of("status", "creationDate"));
   }
 
   private void assertWorkspaceRenameApplied() {

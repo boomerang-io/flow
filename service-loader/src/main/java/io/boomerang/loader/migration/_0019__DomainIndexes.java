@@ -221,14 +221,16 @@ public class _0019__DomainIndexes {
    *       index cannot serve. A MongoDB wildcard index ({@code labels.$**}) is the standard tool
    *       for indexing an arbitrary, caller-chosen set of sub-fields — created here on both
    *       collections.
-   *   <li><b>{@code rel_edges.from} / {@code rel_edges.to}</b> — ALREADY COVERED:
-   *       {@code RelationshipEdgeEntity} declares {@code from_to_idx} ({@code from: -1, to: -1}),
-   *       {@code from_to_label_idx} ({@code from: -1, to: -1, label: -1}) and {@code
-   *       to_label_idx} ({@code to: -1, label: -1}) — {@code from} leads the first two, {@code
-   *       to} leads the third, so equality lookups on either field alone are already served by a
-   *       compound-index prefix (MongoDB does not need a field to be the index's ONLY key to use
-   *       it for an equality match on that field). Legacy {@code 4041} never created these, but
-   *       v5's own entity does. Skipped — no new index added.
+   *   <li><b>{@code rel_edges.from} / {@code rel_edges.to}</b> — NOT covered here, and NOT covered
+   *       by the entity either: {@code RelationshipEdgeEntity}'s {@code from_to_idx}/{@code
+   *       from_to_label_idx}/{@code to_label_idx} annotations are inert on v5 for exactly the
+   *       reason stated above ({@code auto-index-creation=false}), so on a fresh install nothing
+   *       builds them. (An earlier revision of this javadoc claimed the entity covered them — it
+   *       contradicted its own {@code auto-index-creation} note.) The queries that matter are
+   *       {@code findByFromAndLabel}/{@code findByToAndLabel}, which want {@code label} adjacent to
+   *       the anchor rather than behind {@code to}; both are created by {@code
+   *       _0036__RelationshipAndAuditIndexes} as {@code from_label}/{@code to_label}. Still skipped
+   *       here — this is the v3-only parity pass, and those indexes are needed on every generation.
    * </ul>
    *
    * <p>Idempotent: every {@code ensureIndex} call is a no-op if the identically-named/keyed index
