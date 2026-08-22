@@ -735,6 +735,7 @@ evidence (file/class or measurement).
     `$(params.x)` interpolation is being moved engine-side (supersedes the agent-side
     divergence).
 - **Q-403** Which catalogue tasks depend on shared-workspace/PVC semantics, and what is the storage story on serverless targets?
+  - 📌 **Future item (2026-08-22, maintainer):** add ConfigMap / Secret (read-only input) and emptyDir (writable, per-pod) as Workflow Storage *source* types alongside PVC, Tekton-workspace style, for clusters without a usable PVC class; object-storage staging stays the answer for anything that must outlive the pod. See `task-contract-research.md` §6. Params are NOT a storage channel (C2 ruling).
   - ✅ **Answered — scoping (2026-07-23):** dependence is low and partially broken — the
     `workflowRun` workspace lifecycle filters on the typo **`"workfowRun"`** so per-run
     PVCs are never provisioned/cleaned (silently, without complaint — gap H18).

@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -97,10 +98,11 @@ public class KubeHelperService {
 
   /*
    * The task container environment, in increasing precedence (later entries win on a name
-   * collision): proxy vars, DEBUG/CI, executor-specific runtimeVars, PARAMS (the whole
-   * {name: value} map as JSON - original names and types, the lossless channel task libraries
-   * read), one PARAM_<NAME> per Task Param (params whose sanitised names collide fail the Task
-   * rather than silently overwrite each other), then the Task-defined envVars.
+   * collision): proxy vars, DEBUG/CI, executor-specific runtimeVars, one PARAM_<NAME> per Task
+   * Param plus PARAM_NAMES (the original names, comma-separated, so a task library can map
+   * PARAM_PRIVATEKEY back to privateKey; params whose sanitised names collide fail the Task
+   * rather than silently overwrite each other), then the Task-defined envVars. $(params.x)
+   * references in script/args are substituted by the engine.
    */
   protected List<EnvVar> createTaskEnvVars(
       Boolean debug, List<RunParam> params, List<TaskEnvVar> envVars, EnvVar... runtimeVars) {
@@ -112,9 +114,11 @@ public class KubeHelperService {
       byName.put(var.getName(), var);
     }
     if (params != null) {
-      Map<String, Object> paramMap = new LinkedHashMap<>();
-      params.forEach(p -> paramMap.put(p.getName(), p.getValue()));
-      byName.put("PARAMS", createEnvVar("PARAMS", OBJECT_MAPPER.writeValueAsString(paramMap)));
+      byName.put(
+          "PARAM_NAMES",
+          createEnvVar(
+              "PARAM_NAMES",
+              params.stream().map(RunParam::getName).collect(Collectors.joining(","))));
       Map<String, String> paramNameByEnvName = new HashMap<>();
       for (RunParam p : params) {
         String name = "PARAM_" + p.getName().toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");

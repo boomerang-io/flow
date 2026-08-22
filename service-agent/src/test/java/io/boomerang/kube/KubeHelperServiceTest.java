@@ -51,25 +51,16 @@ public class KubeHelperServiceTest {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
-  public void testCreateTaskEnvVarsExposesLosslessParamsJson() {
+  public void testCreateTaskEnvVarsExposesOriginalParamNames() {
     List<RunParam> params =
-        List.of(
-            new RunParam("privateKey", "secret"),
-            new RunParam("my-param", 42),
-            new RunParam("flags", Map.of("dryRun", true)),
-            new RunParam("missing", null));
+        List.of(new RunParam("privateKey", "secret"), new RunParam("my-param", 42));
 
     List<EnvVar> envVars = helperKubeService.createTaskEnvVars(false, params, List.of());
 
-    Map<String, Object> parsed =
-        new ObjectMapper()
-            .readValue(findEnv(envVars, "PARAMS").orElseThrow().getValue(), Map.class);
-    assertEquals("secret", parsed.get("privateKey"));
-    assertEquals(42, parsed.get("my-param"));
-    assertEquals(Map.of("dryRun", true), parsed.get("flags"));
-    assertTrue(parsed.containsKey("missing"));
-    assertEquals(null, parsed.get("missing"));
+    assertEquals("privateKey,my-param", findEnv(envVars, "PARAM_NAMES").orElseThrow().getValue());
+    assertEquals("secret", findEnv(envVars, "PARAM_PRIVATEKEY").orElseThrow().getValue());
+    assertEquals("42", findEnv(envVars, "PARAM_MY_PARAM").orElseThrow().getValue());
+    assertTrue(findEnv(envVars, "PARAMS").isEmpty());
   }
 
   @Test
