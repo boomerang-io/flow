@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.EnumUtils;
@@ -67,6 +68,25 @@ public class UserService {
     this.mongoTemplate = mongoTemplate;
   }
 
+  /**
+   * The single normalisation point for {@code users.email}: every read and every write of an email
+   * in this service passes through here, and this service is the only writer of {@code users.email}
+   * in the application (the loader's {@code _0038__NormaliseUserEmails} covers rows written before
+   * this rule existed).
+   *
+   * <p>Storing emails already lower-cased is what lets {@link UserRepository}'s lookups be exact
+   * equality rather than {@code ...IgnoreCase} — an {@code $options:'i'} regex has no computable
+   * index bounds, so it can only scan {@code users.email_lookup}, never seek it. {@code
+   * Locale.ROOT} is mandatory: the default locale would lower-case {@code "I"} to a dotless {@code
+   * "ı"} under a Turkish locale and silently split an account across two rows.
+   *
+   * <p>Only the case is changed — no trimming, no other rewriting — so a stored email is always
+   * byte-identical to what the identity provider supplied apart from case.
+   */
+  private static String normaliseEmail(String email) {
+    return email == null ? null : email.toLowerCase(Locale.ROOT);
+  }
+
   /*
    * If OTC matches, activate the instance
    *
@@ -107,10 +127,12 @@ public class UserService {
     Optional<UserEntity> userEntity = getUserEntityByEmail(email);
     boolean createRelationshipNode = false;
     if (externalUserUrl.isBlank()) {
+      // The one write path for users.email in the application - see normaliseEmail().
+      String normalisedEmail = normaliseEmail(email);
       if (userEntity.isEmpty() && allowUserCreation) {
         // Create new User (UserEntity is defaulted on new)
         UserEntity newUserEntity = new UserEntity();
-        newUserEntity.setEmail(email);
+        newUserEntity.setEmail(normalisedEmail);
         if (userType.isPresent()) {
           newUserEntity.setType(userType.get());
         }
@@ -140,7 +162,9 @@ public class UserService {
             RelationshipLabel.CONTAINS,
             RelationshipType.USER,
             userEntity.get().getId(),
-            email,
+            // The node slug is a copy of the user's email, so it carries the same normalisation -
+            // node.slug and users.email must never disagree for the same registration.
+            normalisedEmail,
             Optional.empty(),
             Optional.empty());
       }
@@ -182,10 +206,16 @@ public class UserService {
     return Optional.empty();
   }
 
+  /**
+   * Resolves a user by email. The internal store is queried with an exact-match equality on the
+   * normalised value (see {@link #normaliseEmail}) so the lookup seeks {@code users.email_lookup};
+   * the external-IdP branch passes the caller's value through untouched, because that email is the
+   * external directory's key (and the subject of the JWT minted for the call), not ours to rewrite.
+   */
   private Optional<UserEntity> getUserEntityByEmail(String userEmail) {
     if (externalUserUrl.isBlank()) {
       UserEntity extUser =
-          userRepository.findByEmailIgnoreCaseAndStatus(userEmail, UserStatus.active);
+          userRepository.findByEmailAndStatus(normaliseEmail(userEmail), UserStatus.active);
       if (extUser != null) {
         UserEntity userEntity = new UserEntity();
         BeanUtils.copyProperties(extUser, userEntity);
@@ -364,12 +394,12 @@ public class UserService {
   //    if (externalUserUrl.isBlank()
   //        && request != null
   //        && request.getEmail() != null
-  //        && this.userRepository.countByEmailIgnoreCaseAndStatus(
-  //                request.getEmail(), UserStatus.active)
+  //        && this.userRepository.countByEmailAndStatus(
+  //                normaliseEmail(request.getEmail()), UserStatus.active)
   //            == 0) {
   //      // Create User (UserEntity is defaulted on new)
   //      UserEntity userEntity = new UserEntity();
-  //      userEntity.setEmail(request.getEmail());
+  //      userEntity.setEmail(normaliseEmail(request.getEmail()));
   //      if (request.getName() != null && !request.getName().isBlank()) {
   //        userEntity.setName(request.getName());
   //      }
@@ -403,8 +433,8 @@ public class UserService {
       } else if (request != null && request.getEmail() != null && !request.getEmail().isBlank()) {
         userOptional =
             Optional.of(
-                this.userRepository.findByEmailIgnoreCaseAndStatus(
-                    request.getEmail(), UserStatus.active));
+                this.userRepository.findByEmailAndStatus(
+                    normaliseEmail(request.getEmail()), UserStatus.active));
       }
       if (userOptional.isPresent()) {
         UserEntity user = userOptional.get();

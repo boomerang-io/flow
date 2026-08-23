@@ -961,6 +961,77 @@ class LoaderMigrationTest {
         .isNull();
   }
 
+  /**
+   * {@code _0038__NormaliseUserEmails}: {@code users.email} is lower-cased so the exact-match
+   * lookups that replaced the {@code ...IgnoreCase} derivations can seek {@code email_lookup}
+   * instead of scanning it.
+   *
+   * <p>The fixture carries the v3 changelog marker ({@code "112"}) deliberately: that is the only
+   * generation on which {@code _0019__DomainIndexes} builds the UNIQUE {@code email_unique} index,
+   * and lower-casing a case-colliding pair underneath a unique index would fail with {@code E11000}
+   * and abort the deploy. Skipping collisions is what keeps the run green — and the two accounts
+   * are LEFT IN PLACE (never merged, never deleted), because deciding which of them is the real
+   * user is not a migration's call to make.
+   */
+  @Test
+  void normalisesUserEmailsAndLeavesCaseCollisionsIntact() {
+    String uri = MONGO.getReplicaSetUrl("emailnormalise");
+    MongoDatabase emailDb = client.getDatabase("emailnormalise");
+    emailDb.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+
+    MongoCollection<Document> users = emailDb.getCollection(PREFIX + "_users");
+    ObjectId alreadyLower = insertPlainUser(users, "ada.lovelace@example.com");
+    ObjectId mixedCase = insertPlainUser(users, "Grace.Hopper@Example.COM");
+    ObjectId collidingUpper = insertPlainUser(users, "Collide@example.com");
+    ObjectId collidingLower = insertPlainUser(users, "collide@example.com");
+    ObjectId withoutEmail = new ObjectId();
+    users.insertOne(new Document("_id", withoutEmail).append("name", "no email at all"));
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    assertThat(emailOf(users, alreadyLower)).isEqualTo("ada.lovelace@example.com");
+    assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
+    assertThat(emailOf(users, collidingUpper))
+        .as("colliding accounts keep their stored value - reported, never rewritten")
+        .isEqualTo("Collide@example.com");
+    assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
+    assertThat(users.countDocuments()).as("no user row is merged or deleted").isEqualTo(5);
+    // A missing email stays missing - $toLower would otherwise coerce it to "".
+    assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
+
+    // email_lookup is deliberately non-unique, so the surviving duplicate pair does not break it.
+    Map<String, Document> userIndexes = new java.util.HashMap<>();
+    users.listIndexes().forEach(index -> userIndexes.put(index.getString("name"), index));
+    assertThat(userIndexes.get("email_lookup")).isNotNull();
+    assertThat(userIndexes.get("email_lookup").getBoolean("unique")).isNull();
+    assertThat(userIndexes.get("email_unique").getBoolean("unique"))
+        .as("the v3-gated unique index is untouched by this change")
+        .isTrue();
+
+    // Idempotency: the pipeline re-runs (skipped by the audit log), then every change unit re-runs
+    // against the already-normalised data with the audit log dropped. Neither changes anything.
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    emailDb.getCollection(PREFIX + "_sys_changelog_loader").drop();
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    assertThat(emailOf(users, alreadyLower)).isEqualTo("ada.lovelace@example.com");
+    assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
+    assertThat(emailOf(users, collidingUpper)).isEqualTo("Collide@example.com");
+    assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
+    assertThat(users.countDocuments()).isEqualTo(5);
+    assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
+  }
+
+  private static ObjectId insertPlainUser(MongoCollection<Document> users, String email) {
+    ObjectId id = new ObjectId();
+    users.insertOne(new Document("_id", id).append("email", email).append("type", "user"));
+    return id;
+  }
+
+  private static String emailOf(MongoCollection<Document> users, ObjectId id) {
+    return users.find(Filters.eq("_id", id)).first().getString("email");
+  }
+
   @Test
   void failsWhenMongoIsUnreachable() {
     assertThatThrownBy(

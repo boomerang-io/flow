@@ -63,13 +63,14 @@ import org.bson.Document;
  *       the deploy on a unique-index build failure); this adds the plain lookup for everyone.
  * </ul>
  *
- * <p><b>Known limit on {@code users.email_lookup}.</b> Every call site is case-insensitive ({@code
- * findByEmailIgnoreCase}, {@code findByEmailIgnoreCaseAndStatus}, {@code
+ * <p><b>Former limit on {@code users.email_lookup}, since closed.</b> Every call site used to be
+ * case-insensitive ({@code findByEmailIgnoreCase}, {@code findByEmailIgnoreCaseAndStatus}, {@code
  * countByEmailIgnoreCaseAndStatus}), which Spring Data renders as an {@code $options:'i'} regex.
- * MongoDB cannot compute index bounds for a case-insensitive regex, so this index turns the login
- * lookup from a COLLSCAN into a full IXSCAN — a real win on a small, hot collection, but not a
- * seek. A true seek needs either a normalised lower-case email field or a collation index, both of
- * which are entity/query changes and out of scope here.
+ * MongoDB cannot compute index bounds for a case-insensitive regex, so this index only ever turned
+ * the login lookup from a COLLSCAN into a full IXSCAN — a real win on a small, hot collection, but
+ * not a seek. The "normalised lower-case email" option noted here as out of scope was taken:
+ * {@code UserService} now lower-cases on write and queries with plain equality, and {@code
+ * _0038__NormaliseUserEmails} back-fills existing rows, so this index seeks.
  */
 @Change(id = "0036-relationship-and-audit-indexes", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
