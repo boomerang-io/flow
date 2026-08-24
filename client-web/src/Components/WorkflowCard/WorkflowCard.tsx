@@ -14,7 +14,7 @@ import axios from "axios";
 import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
 import cloneDeep from "lodash/cloneDeep";
-import { useFetcher, Link, useNavigate, useRevalidator } from "react-router-dom";
+import { useFetcher, Link, useNavigate } from "react-router-dom";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 // @ts-ignore:next-line
 import { swapValue } from "Utils";
@@ -47,7 +47,6 @@ type ActionResult =
 
 const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType }) => {
   const fetcher = useFetcher<ActionResult>();
-  const revalidator = useRevalidator();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
@@ -78,7 +77,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         notify(
           <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
         );
-        revalidator.revalidate();
       } else {
         notify(
           <ToastNotification
@@ -100,7 +98,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
             subtitle={`Successfully duplicated ${viewType.toLowerCase()}`}
           />,
         );
-        revalidator.revalidate();
       } else {
         notify(
           <ToastNotification
@@ -128,7 +125,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
             state: { fromUrl: appLink.workflows({ workspace: workspaceName }), fromText: `${viewType}s` },
           });
         } else {
-          revalidator.revalidate();
           executeRef.current?.closeModal();
         }
       } else {

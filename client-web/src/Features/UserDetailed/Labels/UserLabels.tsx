@@ -1,6 +1,6 @@
 import React from "react";
 import { Helmet } from "react-helmet";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { matchSorter as ms } from "match-sorter";
 import sortBy from "lodash/sortBy";
 import { Formik, FieldArray } from "formik";
@@ -32,13 +32,10 @@ interface Label {
 }
 
 function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
-  // UserDetailed's own user-detail read is now a loader (see UserDetailed.tsx), not a
-  // react-query cache entry, so there's nothing left to invalidate by query key - revalidate()
-  // re-runs the current route's loader(s) instead, which is the loader-era equivalent of
-  // invalidateQueries.
-  const revalidator = useRevalidator();
   const [searchQuery, setSearchQuery] = React.useState("");
-  // Bare useFetcher() -> the nearest matched route's action, i.e. UserDetailed.tsx's. The PATCH
+  // Bare useFetcher() -> the nearest matched route's action, i.e. UserDetailed.tsx's, whose
+  // user-detail read is a loader that React Router revalidates automatically once the action
+  // settles (queryClient.invalidateQueries would be an inert no-op against it). The PATCH
   // used to be a raw browser `axios.patch` here; it now runs server-side via serverFetch(request)
   // against the `:userId` route param.
   const fetcher = useFetcher<UserDetailedActionResult>();
@@ -50,7 +47,6 @@ function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
       return;
     }
     if (result.ok) {
-      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"

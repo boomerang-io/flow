@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useFetcher, useNavigate, useRevalidator } from "react-router-dom";
+import { Link, useFetcher, useNavigate } from "react-router-dom";
 import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import { appLink } from "Config/appConfig";
@@ -24,11 +24,11 @@ type LeaveWorkspaceActionResult = {
 const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const navigate = useNavigate();
-  // Home has no loader of its own yet (its data comes from useAppContext(), fed by App.tsx's
-  // in-flight loader conversion); revalidate() is still the correct refresh call - it becomes
-  // live the moment that loader lands, unlike queryClient.invalidateQueries, which would be an
-  // inert no-op once it does (see UserLabels/ChangeRole for the bug that already caused).
-  const revalidator = useRevalidator();
+  // Home has no loader of its own; the workspace list this card renders comes from
+  // useAppContext(), fed by the root loader (Features/App/App.tsx). React Router revalidates
+  // every matched loader - root included - once this fetcher's action settles, so no explicit
+  // refresh call is needed here (and queryClient.invalidateQueries would be an inert no-op
+  // against a loader-driven read - see UserLabels/ChangeRole for the bug that already caused).
   const fetcher = useFetcher<LeaveWorkspaceActionResult>();
 
   useEffect(() => {
@@ -36,7 +36,6 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
       return;
     }
     if (fetcher.data.ok) {
-      revalidator.revalidate();
       notify(
         <ToastNotification kind="success" title={`Leave Workspace`} subtitle={`${fetcher.data.displayName} successfully left`} />,
       );

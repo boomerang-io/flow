@@ -11,7 +11,7 @@ import { Button, DataTable, Pagination, Search } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import React, { useEffect, useRef } from "react";
 import { Helmet } from "react-helmet";
-import { useFetcher, useLoaderData, useNavigate, useLocation, useRevalidator } from "react-router-dom";
+import { useFetcher, useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import debounce from "lodash/debounce";
@@ -129,7 +129,6 @@ const WorkspaceList: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAppContext();
-  const revalidator = useRevalidator();
   // TODO - make this read only
   const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
   const { workspaces: workspacesData, errorLoading } = useLoaderData() as LoaderData;
@@ -154,9 +153,10 @@ const WorkspaceList: React.FC = () => {
     }
     const { ok, errorMessage } = fetcher.data;
     if (ok) {
-      // Refresh the loader-driven list rather than react-query's queryClient.invalidateQueries -
-      // once the read is loader-driven, invalidateQueries is an inert no-op (see CLAUDE.md).
-      revalidator.revalidate();
+      // The list is loader-driven and React Router revalidates every matched loader once this
+      // fetcher's action settles - queryClient.invalidateQueries would be an inert no-op against
+      // a loader-driven read (see CLAUDE.md), and an explicit revalidate() would just double
+      // the request.
       notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
       closeModalRef.current?.();
       closeModalRef.current = null;

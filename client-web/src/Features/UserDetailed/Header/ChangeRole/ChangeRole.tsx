@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, RadioButton, RadioButtonGroup, InlineNotification } from "@carbon/react";
 import { Loading, ModalFlowForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { UserType, UserTypeCopy } from "Constants";
@@ -21,12 +21,11 @@ const rolesList = [
 ];
 
 const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
-  // The page's own user-detail read is a loader (see UserDetailed.tsx), not a react-query cache
-  // entry, so there's nothing to invalidate by query key - revalidate() re-runs the current
-  // route's loader(s) instead, which is the loader-era equivalent of invalidateQueries.
-  const revalidator = useRevalidator();
   // Bare useFetcher() -> the nearest matched route's action, i.e. UserDetailed.tsx's, which
-  // targets the `:userId` route param rather than any id this component submits.
+  // targets the `:userId` route param rather than any id this component submits. That route's
+  // user-detail read is a loader, and React Router revalidates every matched loader once the
+  // action settles - so nothing refreshes it by hand (queryClient.invalidateQueries would be an
+  // inert no-op against a loader-driven read).
   const fetcher = useFetcher<UserDetailedActionResult>();
   const role = user?.type;
   const [selectedRole, setSelectedRole] = useState<string | undefined>(role);
@@ -46,7 +45,6 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
       return;
     }
     if (result.ok) {
-      revalidator.revalidate();
       closeModal();
       notify(
         <ToastNotification
@@ -61,8 +59,8 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
         subtitle: `Request to change ${user?.name}'s platform role failed`,
       });
     }
-    // closeModal/revalidator identities are not stable; keying on the settled result is what makes
-    // this fire once per submission.
+    // closeModal's identity is not stable; keying on the settled result is what makes this fire
+    // once per submission.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.state, result]);
 

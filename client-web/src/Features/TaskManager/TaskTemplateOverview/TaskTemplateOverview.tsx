@@ -8,7 +8,7 @@ import { Formik } from "formik";
 import fileDownload from "js-file-download";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { Helmet } from "react-helmet";
-import { useFetcher, useNavigate, useBlocker, matchPath, useParams, useRevalidator } from "react-router-dom";
+import { useFetcher, useNavigate, useBlocker, matchPath, useParams } from "react-router-dom";
 import { Box } from "reflexbox";
 import EditTaskTemplateModal from "Components/EditTaskTemplateModal";
 import EmptyState from "Components/EmptyState";
@@ -249,11 +249,10 @@ export function TaskTemplateOverview({
 }: TaskOverviewProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
-  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) below would be a silent
-  // no-op, so those three call sites revalidate() instead. Data reads (the selected task
-  // template, its changelog) come from the parent route's loader as props now, rather than
-  // useQuery, so a successful write revalidates the loader instead of a query cache.
-  const revalidator = useRevalidator();
+  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) would be a silent no-op.
+  // Data reads (the selected task template, its changelog) come from the parent route's loader
+  // as props now, rather than useQuery, and React Router revalidates every matched loader once
+  // this fetcher's action settles, so a successful write refreshes them with no explicit call.
   const fetcher = useFetcher<
     | { ok: true; intent: "apply" | "applyYaml"; task: Task }
     | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
@@ -274,7 +273,6 @@ export function TaskTemplateOverview({
     const result = fetcher.data;
 
     if (pending.kind === "archive") {
-      revalidator.revalidate();
       notify(
         result.ok ? (
           <ToastNotification
@@ -296,7 +294,6 @@ export function TaskTemplateOverview({
     }
 
     if (pending.kind === "restore") {
-      revalidator.revalidate();
       notify(
         result.ok ? (
           <ToastNotification
@@ -320,7 +317,6 @@ export function TaskTemplateOverview({
     // pending.kind === "save"
     setIsSaving(false);
     if (result.ok) {
-      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"

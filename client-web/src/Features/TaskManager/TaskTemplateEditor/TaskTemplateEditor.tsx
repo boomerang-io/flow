@@ -26,7 +26,7 @@ import fileDownload from "js-file-download";
 import { Controlled as CodeMirrorReact } from "react-codemirror2";
 import { Helmet } from "react-helmet";
 import ReactMarkdown from "react-markdown";
-import { useFetcher, useParams, useNavigate, useBlocker, matchPath, useRevalidator } from "react-router-dom";
+import { useFetcher, useParams, useNavigate, useBlocker, matchPath } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { TaskTemplateStatus } from "Constants";
 import { yamlInstructions } from "Constants";
@@ -87,10 +87,10 @@ export function TaskTemplateYamlEditor({
 }: TaskYamlEditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
-  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) below would be a silent
-  // no-op, so those call sites revalidate() instead. The yaml text, task template and changelog
-  // all come from the parent route's loader as props now (see AdminTasks.tsx/WorkspaceTasks.tsx).
-  const revalidator = useRevalidator();
+  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) would be a silent no-op.
+  // The yaml text, task template and changelog all come from the parent route's loader as props
+  // now (see AdminTasks.tsx/WorkspaceTasks.tsx), and React Router revalidates every matched
+  // loader once this fetcher's action settles, so no write needs to refresh them by hand.
   const fetcher = useFetcher<
     | { ok: true; intent: "apply" | "applyYaml"; task: Task }
     | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
@@ -114,7 +114,6 @@ export function TaskTemplateYamlEditor({
     const result = fetcher.data;
 
     if (pending.kind === "archive") {
-      revalidator.revalidate();
       notify(
         result.ok ? (
           <ToastNotification
@@ -136,7 +135,6 @@ export function TaskTemplateYamlEditor({
     }
 
     if (pending.kind === "restore") {
-      revalidator.revalidate();
       notify(
         result.ok ? (
           <ToastNotification
@@ -160,7 +158,6 @@ export function TaskTemplateYamlEditor({
     // pending.kind === "save"
     setIsSaving(false);
     if (result.ok) {
-      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"

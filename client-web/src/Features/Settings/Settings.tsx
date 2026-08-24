@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Helmet } from "react-helmet";
-import { useFetcher, useLoaderData, useRevalidator } from "react-router-dom";
+import { useFetcher, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
 import { Accordion } from "@carbon/react";
 import {
@@ -91,7 +91,6 @@ const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
 const Settings: React.FC = () => {
   const { settings, errorLoading } = useLoaderData() as LoaderData;
   const fetcher = useFetcher<ActionResult>();
-  const revalidator = useRevalidator();
   // onSave hands this component a Formik `setFieldError` at submit time; the fetcher settles
   // asynchronously, so - same as GlobalParameters.tsx's closeModalRef - the callback is stashed
   // here and invoked from the effect below only on success, matching the previous
@@ -104,7 +103,6 @@ const Settings: React.FC = () => {
     }
     if (fetcher.data.ok) {
       notify(<ToastNotification title="Update Settings" subtitle="Settings succesfully updated" kind="success" />);
-      revalidator.revalidate();
       setFieldErrorRef.current?.("initialerror", "required");
       setFieldErrorRef.current = null;
     } else {

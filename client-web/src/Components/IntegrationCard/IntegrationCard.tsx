@@ -3,7 +3,7 @@ import { InlineLoading } from "@carbon/react";
 import { CircleFill, CircleStroke, Popup } from "@carbon/react/icons";
 import { ComposedModal, ToastNotification, notify, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { Link, useFetcher, useRevalidator } from "react-router-dom";
+import { Link, useFetcher } from "react-router-dom";
 import type { ActionResult } from "Features/Integrations/Integrations";
 import { ModalTriggerProps } from "Types";
 import ModalContent from "./ModalContent";
@@ -15,7 +15,6 @@ interface IntegrationCardProps {
 }
 
 const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }) => {
-  const revalidator = useRevalidator();
   const fetcher = useFetcher<ActionResult>();
   const [errorMessage, seterrorMessage] = useState(null);
   // The fetcher settles asynchronously (fetcher.state -> "idle"), so the closeModal callback
@@ -25,9 +24,9 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
   // for the identical pattern.
   const closeModalRef = useRef<(() => void) | null>(null);
 
-  // Refresh the loader-driven integrations list rather than react-query's
-  // queryClient.invalidateQueries - once the read is loader-driven, invalidateQueries is an
-  // inert no-op (see CLAUDE.md).
+  // The integrations list is loader-driven: React Router revalidates every matched loader
+  // automatically once this fetcher's action settles, so there is nothing to invalidate or
+  // revalidate by hand here.
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
@@ -40,7 +39,6 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
           subtitle={`${fetcher.data.name} successfully disabled`}
         />,
       );
-      revalidator.revalidate();
       closeModalRef.current?.();
       closeModalRef.current = null;
     } else {

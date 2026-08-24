@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Add } from "@carbon/react/icons";
 import { ComposedModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { ModalTriggerProps, Workflow } from "Types";
 import ImportWorkflowContainer from "./ImportWorkflowContainer";
 import styles from "./createWorkflowTemplate.module.scss";
@@ -21,7 +21,6 @@ type CreateResult = {
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
   const fetcher = useFetcher<CreateResult>();
-  const revalidator = useRevalidator();
   // handleImportWorkflow hands this component a `closeModal` at submit time; the fetcher settles
   // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked from
   // the effect below only on success - the modal stays open (with the inline importError) on
@@ -36,7 +35,6 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
       notify(
         <ToastNotification kind="success" title={`Import Workflow Template`} subtitle={`Template successfully imported`} />,
       );
-      revalidator.revalidate();
       closeModalRef.current?.();
       closeModalRef.current = null;
     } else {

@@ -9,7 +9,7 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { Helmet } from "react-helmet";
-import { useFetcher, useNavigate, useRevalidator, Link } from "react-router-dom";
+import { useFetcher, useNavigate, Link } from "react-router-dom";
 import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -77,7 +77,6 @@ export async function action({
 
 function WorkspaceParameters() {
   const navigate = useNavigate();
-  const revalidator = useRevalidator();
   const fetcher = useFetcher<ActionResult>();
   const { workspace } = useWorkspaceContext();
   // handleSubmit hands this component a `closeModal` at submit time; the fetcher settles
@@ -102,7 +101,6 @@ function WorkspaceParameters() {
             data-testid="delete-workspace-param-notification"
           />,
         );
-        revalidator.revalidate();
       } else {
         notify(
           <ToastNotification
@@ -125,7 +123,6 @@ function WorkspaceParameters() {
           data-testid="create-update-workspace-prop-notification"
         />,
       );
-      revalidator.revalidate();
     } else {
       notify(
         <ToastNotification

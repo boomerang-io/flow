@@ -17,7 +17,7 @@ import { notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-ad
 import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import { Helmet } from "react-helmet";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { Box } from "reflexbox";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
@@ -89,7 +89,6 @@ function Tokens() {
   const { workspace, canEdit } = useWorkspaceDetailedContext();
   const routeData = useTokenSectionData();
   const fetcher = useFetcher<TokenActionResult>();
-  const revalidator = useRevalidator();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortKey, setSortKey] = useState("creationDate");
@@ -100,7 +99,6 @@ function Tokens() {
       return;
     }
     if (fetcher.data.ok) {
-      revalidator.revalidate();
       notify(<ToastNotification kind="success" title="Delete Workspace Token" subtitle={`Token successfully deleted`} />);
     } else {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);

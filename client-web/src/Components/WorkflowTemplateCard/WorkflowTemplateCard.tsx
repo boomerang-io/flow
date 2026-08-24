@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Bee } from "@carbon/react/icons";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import workflowIcons from "Assets/workflowIcons";
 import { Workflow } from "Types";
 import styles from "./workflowTemplateCard.module.scss";
@@ -23,7 +23,6 @@ type DeleteResult = {
 
 const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow }) => {
   const fetcher = useFetcher<DeleteResult>();
-  const revalidator = useRevalidator();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const isDeleting = fetcher.state !== "idle";
 
@@ -39,7 +38,6 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow })
           subtitle={`Workflow Template successfully deleted`}
         />,
       );
-      revalidator.revalidate();
     } else {
       notify(
         <ToastNotification

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { notify, ToastNotification, ModalFlow } from "@boomerang-io/carbon-addons-boomerang-react";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { Workflow } from "Types";
 import ImportWorkflowContent from "./ImportWorkflowContent";
 import styles from "./updateWorkflow.module.scss";
@@ -27,7 +27,6 @@ type ActionResult = { ok: true; intent: "update" } | { ok: false; intent: "updat
 
 const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({ workspaceName, workflowRef, onCloseModal, type }) => {
   const fetcher = useFetcher<ActionResult>();
-  const revalidator = useRevalidator();
   const isPosting = fetcher.state !== "idle";
 
   useEffect(() => {
@@ -35,7 +34,6 @@ const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({ workspaceName, workflow
       return;
     }
     if (fetcher.data.ok) {
-      revalidator.revalidate();
       notify(<ToastNotification kind="success" title={`Update ${type}`} subtitle={`${type} successfully updated`} />);
       onCloseModal();
     }

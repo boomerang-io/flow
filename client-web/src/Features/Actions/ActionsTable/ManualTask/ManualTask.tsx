@@ -8,7 +8,7 @@ import {
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import "Styles/markdown.css";
 import EmptyGraphic from "Components/EmptyState/EmptyGraphic";
 import styles from "./ManualTask.module.scss";
@@ -45,14 +45,13 @@ type FormProps = {
 };
 
 function Form({ action, closeModal }: FormProps) {
-  const revalidator = useRevalidator();
   const fetcher = useFetcher<ActionResult>();
   const { id, instructions, status } = action ?? {};
   // The fetcher settles asynchronously; the closeModal callback is invoked from the effect below
   // only on success, matching the previous mutateAsync/then-based behaviour (modal stays open with
-  // the inline error banner on failure). Refresh via useRevalidator().revalidate() rather than
-  // react-query's queryClient.invalidateQueries - once the read is loader-driven, invalidateQueries
-  // is an inert no-op (see CLAUDE.md).
+  // the inline error banner on failure). The actions list is loader-driven and React Router
+  // revalidates every matched loader once this fetcher's action settles, so nothing refreshes it
+  // by hand (queryClient.invalidateQueries would be an inert no-op here - see CLAUDE.md).
   const closeModalRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -60,7 +59,6 @@ function Form({ action, closeModal }: FormProps) {
       return;
     }
     if (fetcher.data.ok) {
-      revalidator.revalidate();
       notify(
         <ToastNotification
           kind="success"

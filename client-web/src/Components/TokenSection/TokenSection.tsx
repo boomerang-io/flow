@@ -19,7 +19,7 @@ import {
 } from "@carbon/react";
 import { notify, ToastNotification, ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import { TokenActorKind } from "Constants";
@@ -97,7 +97,6 @@ interface TokenProps {
 const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
   const routeData = useTokenSectionData();
   const fetcher = useFetcher<TokenActionResult>();
-  const revalidator = useRevalidator();
 
   React.useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "delete") {
@@ -105,9 +104,8 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
     }
     const result = fetcher.data;
     if (result.ok) {
-      // The list is loader-driven, so there is no react-query cache entry to invalidate -
-      // re-run the route's loader instead.
-      revalidator.revalidate();
+      // The list is loader-driven and React Router revalidates it automatically once this
+      // fetcher's action settles - nothing to invalidate or revalidate by hand.
       notify(<ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />);
     } else {
       notify(
@@ -118,8 +116,6 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
         />,
       );
     }
-    // revalidator identity changes on every state transition; depending on it here would re-fire
-    // this effect (and re-notify) after its own revalidate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.state, fetcher.data]);
 

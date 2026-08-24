@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import { useAppContext } from "Hooks";
@@ -97,15 +97,15 @@ type FormProps = {
 
 function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalRejection, type }: FormProps) {
   const { user } = useAppContext();
-  const revalidator = useRevalidator();
   const fetcher = useFetcher<ActionResult>();
   const [approveLoading, setApproveLoading] = React.useState(false);
   const [rejectLoading, setRejectLoading] = React.useState(false);
   // handleActions hands this a { notificationTitle, notificationSubtitle } pair at submit time;
   // the fetcher settles asynchronously, so it's stashed here and consumed from the effect below
-  // once the PUT actually resolves - see GlobalParameters.tsx for the identical pattern. Refresh
-  // via useRevalidator().revalidate() rather than react-query's queryClient.invalidateQueries -
-  // once the read is loader-driven, invalidateQueries is an inert no-op (see CLAUDE.md).
+  // once the PUT actually resolves - see GlobalParameters.tsx for the identical pattern. The
+  // actions list is loader-driven and React Router revalidates every matched loader once this
+  // fetcher's action settles, so nothing refreshes it by hand (queryClient.invalidateQueries
+  // would be an inert no-op against a loader-driven read - see CLAUDE.md).
   const pendingNotificationRef = useRef<{ title: string; subtitle: string } | null>(null);
 
   useEffect(() => {
@@ -116,7 +116,6 @@ function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalReje
     setRejectLoading(false);
     if (fetcher.data.ok) {
       onSuccessfulApprovalRejection();
-      revalidator.revalidate();
       if (pendingNotificationRef.current) {
         notify(
           <ToastNotification

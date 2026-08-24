@@ -2,8 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Add } from "@carbon/react/icons";
 import { ComposedModal, notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
-import { useFetcher, useNavigate, useRevalidator } from "react-router-dom";
-import { WorkflowView } from "Constants";
+import { useFetcher, useNavigate } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
 import { FlowWorkspace, ModalTriggerProps, CreateWorkflowSummary, Workflow, WorkflowViewType } from "Types";
@@ -29,7 +28,6 @@ type ActionResult =
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {
   const fetcher = useFetcher<ActionResult>();
-  const revalidator = useRevalidator();
   const navigate = useNavigate();
   // useFeature returns boolean | FeatureGroup; every consumer here treats it as a plain flag.
   const workspaceQuotasEnabled = Boolean(useFeature(FeatureFlag.WorkspaceQuotasEnabled));
@@ -51,9 +49,6 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
       notify(
         <ToastNotification kind="success" title={`${data.intent === "create" ? "Create" : "Import"} ${viewType}`} subtitle={`${viewType} successfully ${data.intent === "create" ? "created" : "imported"}`} />,
       );
-      if (viewType === WorkflowView.Template) {
-        revalidator.revalidate();
-      }
       if (data.intent === "import") {
         closeModalRef.current?.();
         closeModalRef.current = null;

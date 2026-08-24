@@ -10,7 +10,7 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
 import moment from "moment";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import * as Yup from "yup";
 import { TokenType, TokenActorKind } from "Constants";
 import { TokenScopeType } from "Types";
@@ -52,7 +52,6 @@ function CreateServiceTokenForm({
   // revalidating the route instead - which is also why the `onSuccess` escape hatch the admin
   // route needed is gone.
   const fetcher = useFetcher<TokenActionResult>();
-  const revalidator = useRevalidator();
   const isCreating = fetcher.state !== "idle";
   const createFailed = Boolean(fetcher.data && fetcher.data.intent === "create" && !fetcher.data.ok);
 
@@ -63,12 +62,11 @@ function CreateServiceTokenForm({
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "create" || !fetcher.data.ok) {
       return;
     }
-    revalidator.revalidate();
     saveValues?.(fetcher.data.token);
     setIsTokenCreated();
     goToStep?.(1);
     // Only the fetcher settling should drive this; the callback props are fresh identities on
-    // every render and revalidator changes identity as it transitions.
+    // every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.state, fetcher.data]);
 

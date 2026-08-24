@@ -8,7 +8,7 @@ import cx from "classnames";
 import kebabcase from "lodash/kebabCase";
 import sortBy from "lodash/sortBy";
 import queryString from "query-string";
-import { useFetcher, useNavigate, useLocation, useRevalidator } from "react-router-dom";
+import { useFetcher, useNavigate, useLocation } from "react-router-dom";
 import HomeBanner from "Components/HomeBanner";
 import LearnCard from "Components/LearnCard";
 import WorkspaceCard from "Components/WorkspaceCard";
@@ -92,11 +92,11 @@ export async function action({ request }: { request: Request }): Promise<ActionR
 
 export default function Home() {
   const { workspaces, name, user, workflowTemplates } = useAppContext();
-  // See the comment on `action` above: no loader lives here today, but revalidate() is the
-  // loader-era refresh primitive regardless - once App.tsx's own loader conversion lands, this
-  // starts re-running it for free. Never queryClient.invalidateQueries here (dead once a read is
-  // loader-driven; see UserLabels/ChangeRole for the bug this already caused).
-  const revalidator = useRevalidator();
+  // See the comment on `action` above: no loader lives on this route, but the workspace list
+  // comes from the root loader (Features/App/App.tsx) via useAppContext, and React Router
+  // revalidates every matched loader once a fetcher action settles - so creation refreshes it
+  // with no explicit call. Never queryClient.invalidateQueries here (dead against a
+  // loader-driven read; see UserLabels/ChangeRole for the bug this already caused).
   const location = useLocation();
   const navigate = useNavigate();
   const { action: queryAction, workspaceName } = queryString.parse(location.search);
@@ -116,7 +116,6 @@ export default function Home() {
       return;
     }
     if (result.ok) {
-      revalidator.revalidate();
       notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
       successFnRef.current?.();
       successFnRef.current = null;

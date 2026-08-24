@@ -1,5 +1,5 @@
 import React from "react";
-import { useFetcher, useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import { Formik } from "formik";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
 import {
@@ -20,10 +20,10 @@ interface UpdateBasicDetailsProps {
 }
 
 const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, user }) => {
-  // The profile is root-loader-driven (Features/App/App.tsx), not a react-query cache entry -
-  // revalidate() re-runs that loader; queryClient.invalidateQueries(getUserProfile()) would be a
-  // silent no-op.
-  const revalidator = useRevalidator();
+  // The profile is root-loader-driven (Features/App/App.tsx), and React Router revalidates every
+  // matched loader - root included - once this fetcher's action settles, so the updated profile
+  // comes back with no explicit refresh call (queryClient.invalidateQueries(getUserProfile())
+  // would be a silent no-op).
   // Bare useFetcher() -> the nearest matched route's action, i.e. Features/UserProfile/UserProfile.tsx
   // via app/routes/profile.tsx. That action issues the PATCH with serverFetch(request), which
   // forwards the caller's session cookie; the previous useMutation(resolver.patchProfile) call is
@@ -41,14 +41,13 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
       return;
     }
     if (result.ok) {
-      revalidator.revalidate();
       notify(<ToastNotification kind="success" title="Update Profile" subtitle="Profile successfully updated" />);
       closeModal();
     } else {
       notify(<ToastNotification kind="error" subtitle="Failed to update profile" title="Something's Wrong" />);
     }
-    // closeModal/revalidator identities are not stable across renders; keying the effect on the
-    // settled fetcher result is what makes it fire once per submission.
+    // closeModal's identity is not stable across renders; keying the effect on the settled fetcher
+    // result is what makes it fire once per submission.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.state, result]);
 
