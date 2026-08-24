@@ -197,6 +197,23 @@ export async function editorAction({
     return tokenAction({ request });
   }
 
+  /*
+   * Rejecting the rest is load-bearing, not defensive tidiness - the same trap tokenAction
+   * documents. Falling through to the revision branch for an unrecognised intent would
+   * `JSON.parse(String(null))` into `null` and PUT an empty body over the workflow's compose,
+   * destroying it. Consumers narrow on `intent`, so an "unknown" result is inert for them.
+   */
+  if (intent !== "createRevision") {
+    return {
+      ok: false,
+      intent: "unknown",
+      errorMessage: {
+        title: "Unsupported Editor Action",
+        message: `The workflow editor action does not handle the "${intent}" intent.`,
+      },
+    };
+  }
+
   // JSON in a form field rather than encType:"application/json", matching the GlobalParameters
   // and tokenRoute conversions - it keeps one fetcher able to carry both shapes of payload.
   const body = JSON.parse(String(formData.get("revision")));

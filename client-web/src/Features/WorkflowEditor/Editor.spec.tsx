@@ -135,4 +135,17 @@ describe("Editor --- action", () => {
 
     expect(result.intent).toBe("delete");
   });
+
+  // An intent neither half owns must not fall through to the revision branch: that branch would
+  // JSON.parse a missing field into null and PUT an empty body over the workflow's compose.
+  test("rejects an intent neither half of the action owns", async () => {
+    const request = new Request(`http://localhost${appLink.editorCanvas({ workspace, workflow })}`, {
+      method: "post",
+      body: new URLSearchParams({ intent: "updateProfile", name: "someone" }),
+    });
+
+    const result = await editorAction({ request, params: { workspace, workflow } });
+
+    expect(result).toMatchObject({ ok: false, intent: "unknown" });
+  });
 });
