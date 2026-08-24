@@ -54,11 +54,20 @@ public class AuthExchangeService {
    * TokenService.resolvePermissionsForUser itself.
    */
   private SessionToken exchangeProxy() {
+    // Still null-checked: this route is permitAll, so with security ENABLED AuthenticationFilter
+    // may legitimately resolve no identity for it (see its PATH_AUTH_EXCHANGE branch).
     Token identity = identityService.getCurrentIdentity();
     if (identity == null || identity.getPrincipal() == null) {
       throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
     }
+    // A resolved identity is not necessarily a USER: with security disabled the established
+    // identity is the machine UnauthenticatedGlobalToken, which maps to no user record. There is
+    // no session to mint for it - fail the same way as above rather than handing null to
+    // mintSessionToken(), which dereferences user.getId().
     UserEntity user = userService.getCurrentUser();
+    if (user == null) {
+      throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
+    }
     return tokenService.createSessionTokenForUser(user);
   }
 
