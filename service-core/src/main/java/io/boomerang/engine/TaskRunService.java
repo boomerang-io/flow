@@ -15,6 +15,7 @@ import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.ResultUtil;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -39,6 +40,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Service
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
+
+  // How far back the terminal termination page looks. See findClaimableForTermination.
+  private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -83,39 +87,84 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
-  // Return the page of terminal TaskRuns that a dispatcher still owns: cancelled or timedout in
-  // the completed phase, of the polling agent's task types, with the claim block still recording
-  // an owner. The surviving claim IS the outstanding-work marker - the run was handed to an
-  // executor, so whatever that executor provisioned (a Tekton TaskRun and its pod) is still out
-  // there and has to be terminated. This mirrors findClaimableForTeardown on WorkflowRunEntity,
-  // where the surviving workspaces play exactly that role. A terminal TaskRun that was never
-  // claimed provisioned nothing and is deliberately excluded.
+  // Return the page of TaskRuns whose executor-side work (a Tekton TaskRun and its pod) is still
+  // out there and has to be terminated. A surviving claim IS the outstanding-work marker - the run
+  // was handed to an executor, so it provisioned something - which mirrors findClaimableForTeardown
+  // on WorkflowRunEntity, where the surviving workspaces play exactly that role. Two shapes carry
+  // that residue, and each is a separate indexed query rather than one $or, because an $or forces
+  // a blocking SORT and drags the whole hot ready/pending bucket through the claim.by filter:
+  //
+  //   1. TERMINAL - completed + cancelled|timedout. The node is finished; nothing follows.
+  //   2. PARKED FOR RETRY - waiting + pending (see tryRequeue). The node is mid-retry: the attempt
+  //      that timed out left a pod behind, and the SAME TaskRun runs again once that pod is gone
+  //      and the backoff elapses.
+  //
+  // A run that was never claimed provisioned nothing and is deliberately excluded from both.
   public List<TaskRunEntity> findClaimableForTermination(List<TaskType> types, int limit) {
-    Criteria criteria =
-        Criteria.where("phase")
-            .is(RunPhase.completed)
-            .and("status")
-            .in(RunStatus.cancelled, RunStatus.timedout)
-            .and("type")
-            .in(types)
-            .and("claim.by")
-            .exists(true);
+    List<TaskRunEntity> candidates =
+        new ArrayList<>(
+            findOwnedResidue(
+                types,
+                limit,
+                Criteria.where("phase")
+                    .is(RunPhase.completed)
+                    .and("status")
+                    .in(RunStatus.cancelled, RunStatus.timedout)
+                    // Bound the terminal page to recent history: without it every poll walks the
+                    // whole completed cancelled/timedout bucket, which only ever grows, to apply
+                    // the claim.by filter. creationDate is the index's last key behind three
+                    // equalities, so this is a real index bound and not a residual filter. A pod
+                    // older than the window outlived any plausible engine outage and is gone with
+                    // its cluster.
+                    .and("creationDate")
+                    .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))));
+    candidates.addAll(
+        findOwnedResidue(
+            types,
+            limit,
+            Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
+    return candidates;
+  }
+
+  // One indexed termination page: the given status/phase shape, restricted to the agent's task
+  // types and to runs a dispatcher still owns, oldest first.
+  private List<TaskRunEntity> findOwnedResidue(List<TaskType> types, int limit, Criteria shape) {
     Query query =
-        Query.query(criteria).with(Sort.by(Sort.Direction.ASC, "creationDate")).limit(limit);
-    // The claim page only needs the id - tryClaimForTermination transitions by id.
+        Query.query(shape.and("type").in(types).and("claim.by").exists(true))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+            .limit(limit);
+    // The claim page only needs the id - tryClaimForTermination re-reads and transitions by id.
     query.fields().include("_id");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
-  // Termination Compare-And-Set: re-checks the terminal-and-still-owned state, then RELEASES the
-  // claim (by/at/leaseExpiresAt - claim.seq is never cleared) so exactly one polling agent is told
-  // to terminate the executor-side work and the run drops out of the termination page for good.
-  // Releasing is the inverse of WorkflowRunService.tryStart clearing the dispatch claim to free
-  // the teardown claimable, and it is what stops the v4 defect of redelivering terminal runs to
-  // every agent on every poll. Status and phase are untouched: the agent's handler keys off
-  // completed + cancelled/timedout, and a terminal status is never rewritten. Returns the
-  // pre-image (still carrying the original owner), or null when another agent won.
+  // Termination Compare-And-Set: re-checks one of the two owned-residue shapes and RELEASES the
+  // claim (by/at/leaseExpiresAt - claim.seq is never cleared), so exactly one polling agent is
+  // told to terminate the executor-side work and the run drops out of the termination page for
+  // good. Releasing is the inverse of WorkflowRunService.tryStart clearing the dispatch claim to
+  // free the teardown claimable, and it is what stops the v4 defect of redelivering terminal runs
+  // to every agent on every poll. Returns the pre-image, patched to the wire shape the dispatcher
+  // acts on, or null when another agent won.
   public TaskRunEntity tryClaimForTermination(String id, String claimedBy) {
+    TaskRunEntity preImage = tryClaimTerminalResidue(id);
+    if (preImage == null) {
+      preImage = tryClaimParkedResidue(id);
+    }
+    if (preImage != null) {
+      LOGGER.debug(
+          "[{}] Termination of the {}/{} TaskRun claimed by dispatcher {} (previous owner {}).",
+          id,
+          preImage.getStatus(),
+          preImage.getPhase(),
+          claimedBy,
+          preImage.getClaim() != null ? preImage.getClaim().getBy() : null);
+    }
+    return preImage;
+  }
+
+  // Shape 1, the finished node: status and phase are untouched - the agent's handler keys off
+  // completed + cancelled/timedout, and a terminal status is never rewritten.
+  private TaskRunEntity tryClaimTerminalResidue(String id) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -126,17 +175,43 @@ public class TaskRunService {
                 .in(RunStatus.cancelled, RunStatus.timedout)
                 .and("claim.by")
                 .exists(true));
-    Update update =
-        new Update().unset("claim.by").unset("claim.at").unset("claim.leaseExpiresAt");
+    Update update = new Update().unset("claim.by").unset("claim.at").unset("claim.leaseExpiresAt");
     TaskRunEntity preImage = findAndModifyPreImage(query, update);
     if (preImage != null) {
-      LOGGER.debug(
-          "[{}] Termination of the {} TaskRun claimed by dispatcher {} (previous owner {}).",
-          id,
-          preImage.getStatus(),
-          claimedBy,
-          preImage.getClaim() != null ? preImage.getClaim().getBy() : null);
       publish(preImage, preImage.getStatus(), preImage.getPhase());
+    }
+    return preImage;
+  }
+
+  // Shape 2, the node parked mid-retry: releasing the claim and re-arming the node are the SAME
+  // write, so a task can never be re-claimed for execution while its previous pod is still alive.
+  // retry.after (written by tryRequeue) still gates findClaimable, so the backoff is served after
+  // the pod is gone. The returned pre-image is patched to the retired attempt's record -
+  // completed + timedout - because that is what this dispatch instructs the agent to terminate,
+  // and it is the shape its terminate handler keys off; the stored TaskRun stays non-terminal so
+  // the DAG never sees the node finish.
+  private TaskRunEntity tryClaimParkedResidue(String id) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("status")
+                .is(RunStatus.waiting)
+                .and("claim.by")
+                .exists(true));
+    Update update =
+        new Update()
+            .set("status", RunStatus.ready)
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt");
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.ready, RunPhase.pending);
+      preImage.setStatus(RunStatus.timedout);
+      preImage.setPhase(RunPhase.completed);
     }
     return preImage;
   }
@@ -361,27 +436,73 @@ public class TaskRunService {
     return preImage;
   }
 
-  // Requeue Compare-And-Set: clears claim.by/claim.at/claim.leaseExpiresAt (never claim.seq) and
-  // the baked deadline, writes the retry block and parks the TaskRun back at ready/pending.
-  // Fenced on the observed claim seq. Returns the pre-image, or null when fenced/already gone.
+  // Requeue Compare-And-Set: writes the retry block, drops the baked deadline and parks the SAME
+  // TaskRun for another attempt - Tekton's model, one record per node with an attempt counter, not
+  // a second TaskRun per attempt (which the node_uniqueness index forbids anyway). Fenced on the
+  // observed claim seq. Returns the pre-image, or null when fenced/already gone.
+  //
+  // Two landing states, because the attempt that timed out may have left a pod behind:
+  //
+  //   CLAIMED (an executor was handed this attempt) -> waiting/pending with the claim block KEPT.
+  //   The surviving claim.by publishes the run on the dispatcher's termination page, and because
+  //   findClaimable admits only ready/pending-with-no-claim, the node cannot start attempt N+1
+  //   while attempt N's pod is still alive. claim.seq increments: the requeue supersedes that
+  //   claimant, so a late report from it is fenced out even though its identity is still on the
+  //   record. The run stays NON-terminal throughout, so the DAG never sees the node finish and
+  //   the WorkflowRun keeps running (existsInFlightByWorkflowRunRef counts waiting as in flight,
+  //   so the stall recovery leaves it alone too).
+  //
+  //   UNCLAIMED (nothing was ever provisioned) -> straight back to ready/pending, as before. There
+  //   is no pod to terminate, so parking it would strand a node no agent would ever release.
+  //
+  // Either way retry.after gates re-admission, so the backoff is served in full.
   public TaskRunEntity tryRequeue(String id, Long observedClaimSeq, Date retryAfter, int retryCount) {
+    TaskRunEntity preImage =
+        tryRequeueWith(id, observedClaimSeq, true, RunStatus.waiting, retryAfter, retryCount);
+    if (preImage == null) {
+      preImage =
+          tryRequeueWith(id, observedClaimSeq, false, RunStatus.ready, retryAfter, retryCount);
+    }
+    return preImage;
+  }
+
+  // One requeue landing, guarded on whether the attempt was claimed. The two guards are mutually
+  // exclusive, so trying the claimed shape first and falling back is race-free: whichever
+  // Compare-And-Set matches is the only one that can, and a concurrent winner moves the run out of
+  // the queued/running phase both guards require.
+  private TaskRunEntity tryRequeueWith(
+      String id,
+      Long observedClaimSeq,
+      boolean claimed,
+      RunStatus toStatus,
+      Date retryAfter,
+      int retryCount) {
     Criteria criteria =
-        Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
+        Criteria.where("_id")
+            .is(id)
+            .and("phase")
+            .in(RunPhase.queued, RunPhase.running)
+            .and("claim.by")
+            .exists(claimed);
     fence(criteria, observedClaimSeq);
     Update update =
         new Update()
-            .set("status", RunStatus.ready)
+            .set("status", toStatus)
             .set("phase", RunPhase.pending)
             .set("retry.after", retryAfter)
             .set("retry.count", retryCount)
-            .unset("claim.by")
-            .unset("claim.at")
             .unset("claim.leaseExpiresAt")
             .unset("timeoutAt");
-    TaskRunEntity preImage =
-        findAndModifyPreImage(Query.query(criteria), update);
+    if (claimed) {
+      // The claim block survives as the pod-still-out-there marker; the seq bump supersedes the
+      // claimant that timed out.
+      update.inc("claim.seq", 1);
+    } else {
+      update.unset("claim.by").unset("claim.at");
+    }
+    TaskRunEntity preImage = findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
-      publish(preImage, RunStatus.ready, RunPhase.pending);
+      publish(preImage, toStatus, RunPhase.pending);
     }
     return preImage;
   }

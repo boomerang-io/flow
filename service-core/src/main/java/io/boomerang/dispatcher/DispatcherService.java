@@ -162,11 +162,12 @@ public class DispatcherService {
    * Long-poll endpoint dispatching TaskRuns to the agent.
    *
    * <p>Each cycle pages two sets of candidates, both restricted to the agent's registered task
-   * types: the ready/pending unclaimed runs to execute, and the terminal (cancelled or timedout)
-   * runs a dispatcher still owns, whose executor-side work must be terminated. Each candidate is
-   * claimed individually via a Compare-And-Set, so racing agents cannot both win a TaskRun and the
-   * response contains only the documents this agent actually claimed. Neither path redelivers: an
-   * execution claim takes ownership, a termination claim releases it.
+   * types: the ready/pending unclaimed runs to execute, and the runs a dispatcher still owns whose
+   * executor-side work must be terminated - either because the node finished cancelled/timedout,
+   * or because it timed out with retry budget left and is parked mid-retry until its previous pod
+   * is gone. Each candidate is claimed individually via a Compare-And-Set, so racing agents cannot
+   * both win a TaskRun and the response contains only the documents this agent actually claimed.
+   * Neither path redelivers: an execution claim takes ownership, a termination claim releases it.
    *
    * @param agentId
    * @return
@@ -209,10 +210,11 @@ public class DispatcherService {
             taskRuns.add(new TaskRun(claimed));
           }
         }
-        // Second path, mirroring the WorkflowRun provision/teardown pair: a cancelled or
-        // timed-out TaskRun a dispatcher still owns carries executor-side work (a Tekton
-        // TaskRun and its pod) that has to be terminated. The claim release is what makes it
-        // one agent's job and stops the run being redelivered on the next poll.
+        // Second path, mirroring the WorkflowRun provision/teardown pair: a TaskRun a dispatcher
+        // still owns carries executor-side work (a Tekton TaskRun and its pod) that has to be
+        // terminated - the node either finished cancelled/timedout, or is parked mid-retry. The
+        // claim release is what makes it one agent's job, stops the run being redelivered on the
+        // next poll, and (for a retry) is what re-arms the node for its next attempt.
         for (TaskRunEntity candidate :
             taskRunService.findClaimableForTermination(entity.getTaskTypes(), PAGE_SIZE)) {
           TaskRunEntity claimed =

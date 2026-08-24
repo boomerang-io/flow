@@ -12,6 +12,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.RunClaim;
+import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.Date;
@@ -235,6 +236,39 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
     assertNotNull(
         taskRunRepository.findById(customId).orElseThrow().getClaim().getBy(),
         "an unrouted termination keeps its claim for an agent of that type");
+  }
+
+  // The parked-mid-retry shape (waiting/pending, still owned) is delivered for termination on the
+  // same terms as a terminal run: once, to one agent, and never again - the release re-arms the
+  // node for its next attempt, so a redelivery would also be a spurious second kill order.
+  @Test
+  void aParkedRetryIsDeliveredForTerminationOnceOnly() {
+    String agentA = registerAgent("parked-agent-a");
+    String agentB = registerAgent("parked-agent-b");
+    TaskRunEntity parked =
+        savedOwnedTerminalTaskRun(TaskType.template, RunStatus.cancelled, agentA);
+    // The shape tryRequeue leaves behind: non-terminal, backed off, claim retained.
+    parked.setStatus(RunStatus.waiting);
+    parked.setPhase(RunPhase.pending);
+    RunRetry retry = new RunRetry();
+    retry.setCount(1);
+    retry.setAfter(new Date(System.currentTimeMillis() + 600000));
+    parked.setRetry(retry);
+    taskRunRepository.save(parked);
+
+    ResponseEntity<List<TaskRun>> first = dispatcherService.getTaskQueue(agentA);
+    TaskRun dispatched = delivered(first, parked.getId());
+    assertNotNull(dispatched, "a parked retry must be dispatched so the old pod is terminated");
+    assertEquals(RunPhase.completed, dispatched.getPhase());
+    assertEquals(RunStatus.timedout, dispatched.getStatus());
+
+    for (String agent : List.of(agentA, agentB)) {
+      String beaconId = savedReadyTaskRun().getId();
+      ResponseEntity<List<TaskRun>> repoll = dispatcherService.getTaskQueue(agent);
+      assertTrue(containsId(repoll, beaconId), "poll should have claimed its ready beacon");
+      assertFalse(
+          containsId(repoll, parked.getId()), "a claimed termination must never be redelivered");
+    }
   }
 
   @Test
