@@ -15,15 +15,14 @@ import { useFeature } from "flagged";
 import { Formik, FormikErrors, FormikProps, FieldArray } from "formik";
 import capitalize from "lodash/capitalize";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
 import { useEditorContext, useWorkspaceContext } from "Hooks";
 import { TokenActorKind, TokenType, WorkspaceConfigType } from "Constants";
 import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
-import { resolver, serviceUrl } from "Config/servicesConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
+import { useEditorRouteData } from "../editorRouteData";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureEventTrigger from "./ConfigureEventTrigger";
 import ConfigureStorage from "./ConfigureStorage";
@@ -76,15 +75,14 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
   const location = useLocation();
   const { workflowsQueryData } = useEditorContext();
 
-  const getGitHubAppInstallationForWorkspace = serviceUrl.getGitHubAppInstallationForWorkspace({
-    workspace: params.workspace,
-  });
-
-  const getGitHubInstallationQuery = useQuery({
-    queryKey: getGitHubAppInstallationForWorkspace,
-    queryFn: resolver.query(getGitHubAppInstallationForWorkspace),
-    enabled: Boolean(params.workspace),
-  });
+  /*
+   * The GitHub installation lookup moved to the editor route's loader (editorRoute.ts). It is
+   * read through useMatches() rather than useLoaderData() because this component renders inside
+   * Editor.tsx's descendant <Routes> - see editorRouteData.ts. `null` when the integration is not
+   * installed or the lookup failed, which is the same falsy value the previous query's
+   * `undefined` produced: the "Integration Required" notification below covers both.
+   */
+  const githubAppInstallation = useEditorRouteData()?.githubAppInstallation ?? null;
 
   const isOnConfigurePath = location.pathname.startsWith(
     appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow }),
@@ -188,7 +186,7 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
                 workflowTriggersEnabled={workflowTriggersEnabled as boolean}
                 formikProps={formikProps}
                 workflow={workflow}
-                githubAppInstallation={getGitHubInstallationQuery.data}
+                githubAppInstallation={githubAppInstallation}
                 workspace={workspace}
               />
             </div>
