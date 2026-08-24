@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Optional;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -69,6 +71,32 @@ public abstract class AbstractEngineIntegrationTest {
   @Autowired protected RelationshipService relationshipService;
   @Autowired protected SettingsRepository settingsRepository;
   @Autowired protected WorkspaceTaskService workspaceTaskService;
+
+  /**
+   * Establishes an identity for every test, mirroring production: a served request always has one
+   * (AuthenticationFilter when {@code flow.security.enabled=true}, otherwise
+   * UnauthenticatedGlobalAuthenticationFilter), and background work hoists its own (ScheduleJob).
+   *
+   * <p>These tests call authz-scoped services (RelationshipService.filter/check,
+   * WorkspaceWorkflowService.count) DIRECTLY, bypassing the servlet chain that would normally
+   * establish it - so without this they run under a condition production never produces. Subclasses
+   * that need a specific principal still override it in their own {@code @BeforeEach}, which JUnit
+   * runs after this one.
+   */
+  @BeforeEach
+  void establishTestIdentity() {
+    Token principal = new Token(AuthScope.global);
+    principal.setPrincipal("integration-test-principal");
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(principal.getPrincipal(), null);
+    authentication.setDetails(principal);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  @AfterEach
+  void clearTestIdentity() {
+    SecurityContextHolder.clearContext();
+  }
 
   // Every workspace/global-task creation anchors on the root relationship node - a fresh install
   // seeds it via the loader, but this shared Testcontainers Mongo starts empty. The node id is
@@ -156,8 +184,10 @@ public abstract class AbstractEngineIntegrationTest {
   /**
    * Creates a global template Task (idempotently) so workflows have something real to reference:
    * DAGUtility.createTaskList resolves every non-start/end task against the catalogue. Needs the
-   * root relationship node, so call {@link #seedRelationshipRoot()} first. The changelog author
-   * comes off the current identity, hence the temporary global principal.
+   * root relationship node, so call {@link #seedRelationshipRoot()} first. Both the existence
+   * filter and the changelog author read the current identity, which {@link
+   * #establishTestIdentity()} has already put in place - this method no longer installs (and then
+   * clears) one of its own, which used to leave the filter call above running with none.
    */
   protected void seedGlobalTask(String name) {
     if (!relationshipService
@@ -165,22 +195,12 @@ public abstract class AbstractEngineIntegrationTest {
         .isEmpty()) {
       return;
     }
-    Token principal = new Token(AuthScope.global);
-    principal.setPrincipal("integration-test-principal");
-    UsernamePasswordAuthenticationToken authentication =
-        new UsernamePasswordAuthenticationToken(principal.getPrincipal(), null);
-    authentication.setDetails(principal);
-    SecurityContextHolder.getContext().setAuthentication(authentication);
-    try {
-      Task task = new Task();
-      task.setName(name);
-      task.setType(TaskType.template);
-      task.getSpec().setImage("busybox:latest");
-      task.getSpec().setCommand(List.of("echo"));
-      workspaceTaskService.create(task);
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
+    Task task = new Task();
+    task.setName(name);
+    task.setType(TaskType.template);
+    task.getSpec().setImage("busybox:latest");
+    task.getSpec().setCommand(List.of("echo"));
+    workspaceTaskService.create(task);
   }
 
   /**

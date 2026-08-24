@@ -28,12 +28,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 /**
- * With no current user (e.g. {@code flow.security.enabled=false} - {@code
- * UserService.getCurrentUser()} resolves to {@code null}), actioning a manual/approval task must
- * not NPE on the approver identity - see {@code WorkspaceActionService#action}, which used to
- * dereference {@code userEntity.getId()} directly. Mirrors {@code RelationshipService.check()}'s
- * no-principal branch (already allowing the request through unscoped above in the same method):
- * group membership can't be denied on a principal that doesn't exist.
+ * With no current USER, actioning a manual/approval task must not NPE on the approver identity -
+ * see {@code WorkspaceActionService#action}, which used to dereference {@code userEntity.getId()}
+ * directly.
+ *
+ * <p>Note this is NOT the "no identity" case, which no longer exists: an identity is always
+ * established. {@code UserService.getCurrentUser()} still resolves to {@code null} whenever that
+ * identity is not a user - the {@code UnauthenticatedGlobalToken} when {@code
+ * flow.security.enabled=false}, and equally any {@code key}/{@code global} machine token when
+ * security IS enabled. So the {@code userEntity == null} branch in {@code action} remains
+ * genuinely reachable and was deliberately left in place: it currently sets {@code partOfGroup =
+ * true}, i.e. a machine token bypasses approver-group membership. Tightening that would change
+ * authorization semantics under security-enabled and is a separate maintainer decision.
  */
 @ExtendWith(MockitoExtension.class)
 class WorkspaceActionServiceTest {
