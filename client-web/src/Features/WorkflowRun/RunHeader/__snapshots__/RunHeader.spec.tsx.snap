@@ -58,6 +58,7 @@ exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
             </nav>
             <button
               class="_workflowAdvancedDetailTrigger_268f38"
+              data-testid="advanced-detail-trigger"
             >
               <svg
                 aria-hidden="true"

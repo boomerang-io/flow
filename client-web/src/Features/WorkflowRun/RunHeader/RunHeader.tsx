@@ -13,7 +13,7 @@ import {
 import { capitalize } from "lodash";
 import moment from "moment";
 import CopyToClipboard from "react-copy-to-clipboard";
-import { Link, useFetcher, useLocation, useParams } from "react-router-dom";
+import { Link, useFetcher, useLocation } from "react-router-dom";
 import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem/OutputPropertiesLog";
 import ErrorModal from "Components/ErrorModal";
 import { useAppContext, useWorkspaceContext } from "Hooks";
@@ -139,13 +139,17 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
               }}
               modalTrigger={({ openModal }) => (
                 <TooltipHover direction="right" content="Advanced detail">
-                  <button className={styles.workflowAdvancedDetailTrigger} onClick={openModal}>
+                  <button
+                    className={styles.workflowAdvancedDetailTrigger}
+                    data-testid="advanced-detail-trigger"
+                    onClick={openModal}
+                  >
                     <Catalog />
                   </button>
                 </TooltipHover>
               )}
             >
-              {() => <WorkflowAdvancedDetail workflow={workflow} />}
+              {() => <WorkflowAdvancedDetail workflow={workflow} workflowRun={workflowRun} />}
             </ComposedModal>
           )}
         </div>
@@ -347,17 +351,36 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   );
 }
 
-function WorkflowAdvancedDetail({ workflow }: { workflow: WorkflowCanvas }) {
-  const { workspace, workflow: workflowRef, runId } = useParams<{ workspace: string; workflow: string; runId: string }>();
+function WorkflowAdvancedDetail({
+  workflow,
+  workflowRun,
+}: {
+  workflow: WorkflowCanvas;
+  workflowRun: WorkflowRun;
+}) {
   const [copyTokenText, setCopyTokenText] = React.useState("Copy");
 
-  const labelTexts = [`boomerang.io/workflow-ref=${workflowRef}`, `boomerang.io/workflowrun-ref=${runId}`];
+  // These are the labels service-agent stamps on the Tekton/Kubernetes resources it creates
+  // (KubeHelperService#getLabels: "boomerang.io/workflow-ref" carries the workflow ref,
+  // "boomerang.io/workflowrun-ref" the run id), so the two CLI commands below only select
+  // anything when the values match what the agent wrote.
+  //
+  // Both come off the run. `boomerang.io/workflow-ref` used to read a `:workflow` route param,
+  // but this page's route is `/:workspace/activity/:runId` (app/routes.ts) and has no such
+  // param - so it rendered a literal `boomerang.io/workflow-ref=undefined` into the labels and
+  // into both copyable commands. A ref that is somehow absent now drops its label rather than
+  // emitting "undefined" into a command the user is invited to paste into a terminal.
+  const labelTexts = [
+    workflowRun.workflowRef ? `boomerang.io/workflow-ref=${workflowRun.workflowRef}` : null,
+    workflowRun.id ? `boomerang.io/workflowrun-ref=${workflowRun.id}` : null,
+  ].filter((label): label is string => label !== null);
 
-  if (Array.isArray(workflow.labels) && workflow.labels.length > 0) {
-    workflow.labels.forEach((label) => {
-      labelTexts.push(`${label.key}=${label.value}`);
-    });
-  }
+  // Workflow labels are a Record<string, string> (Types.Workflow#labels), not the array of
+  // { key, value } pairs this used to test for with Array.isArray - which never matched, so the
+  // workflow's own labels were silently dropped from both commands.
+  Object.entries(workflow.labels ?? {}).forEach(([key, value]) => {
+    labelTexts.push(`${key}=${value}`);
+  });
 
   const kubernetesCommand = `kubectl get pods -l ${labelTexts.join(",")}`;
   const tektonCommand = `tkn tr list --label ${labelTexts.join(",")}`;

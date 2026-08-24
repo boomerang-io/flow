@@ -1,6 +1,7 @@
 import React from "react";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun, WorkflowStatus } from "Types";
 import RunHeader from "./RunHeader";
@@ -71,7 +72,7 @@ const workflow: WorkflowCanvas = {
   config: [],
 };
 
-function renderRunHeader(overrides: Partial<WorkflowRun> = {}) {
+function renderRunHeader(overrides: Partial<WorkflowRun> = {}, workflowOverrides: Partial<WorkflowCanvas> = {}) {
   // RunHeader uses useFetcher, so it needs to sit on a real route of the data router rather than
   // the helper's catch-all - same shape as app/routes/run.tsx.
   return global.rtlContextRouterRender(
@@ -79,7 +80,7 @@ function renderRunHeader(overrides: Partial<WorkflowRun> = {}) {
       path={AppPath.Run}
       element={
         <RunHeader
-          workflow={workflow}
+          workflow={{ ...workflow, ...workflowOverrides }}
           workflowRun={{ ...workflowRun, ...overrides }}
           version={1}
           executionViewRedirect={() => {}}
@@ -112,5 +113,57 @@ describe("RunHeader --- RTL", () => {
 
     renderRunHeader({ paused: true });
     expect(screen.getByTestId("paused-indicator")).toBeInTheDocument();
+  });
+});
+
+// The Advanced detail modal builds the `kubectl`/`tkn` label selectors the user is invited to
+// paste into a terminal, so every value in them has to be real. workflow-ref came from a
+// `:workflow` route param that AppPath.Run (/:workspace/activity/:runId) does not supply, so the
+// user was shown - and copied - `boomerang.io/workflow-ref=undefined`.
+describe("RunHeader --- Advanced detail", () => {
+  async function openAdvancedDetail(
+    overrides: Partial<WorkflowRun> = {},
+    workflowOverrides: Partial<WorkflowCanvas> = {},
+  ) {
+    const view = renderRunHeader(overrides, workflowOverrides);
+    await userEvent.click(screen.getByTestId("advanced-detail-trigger"));
+    // "Advanced detail" itself appears twice (the trigger tooltip and the modal header), so key
+    // the wait on something only the modal body renders. Text queries rather than role queries
+    // throughout this block: react-modal's ariaHideApp puts aria-hidden="true" on the app element
+    // - which under this harness is <body> itself - while the modal is open, so every plain
+    // byRole query misses the whole tree.
+    await screen.findByText("Labels");
+    return view;
+  }
+
+  it("labels the run with the workflow ref off the run, not an absent route param", async () => {
+    await openAdvancedDetail();
+
+    const expectedLabel = `boomerang.io/workflow-ref=${workflowRun.workflowRef}`;
+    expect(screen.getByText(expectedLabel)).toBeInTheDocument();
+    expect(screen.getByText(`boomerang.io/workflowrun-ref=${runId}`)).toBeInTheDocument();
+    expect(screen.queryByText(/workflow-ref=undefined/)).not.toBeInTheDocument();
+
+    // The same selector feeds both copyable commands.
+    const commands = screen
+      .getAllByRole("textbox", { hidden: true })
+      .map((el) => (el as HTMLTextAreaElement).value);
+    expect(commands.some((command) => command.includes(`tkn tr list --label ${expectedLabel},`))).toBe(true);
+    expect(commands.some((command) => command.includes(`kubectl get pods -l ${expectedLabel},`))).toBe(true);
+    expect(commands.every((command) => !command.includes("undefined"))).toBe(true);
+  });
+
+  it("includes the workflow's own labels, which are a record rather than an array of pairs", async () => {
+    await openAdvancedDetail({}, { labels: { tier: "gold", env: "prod" } });
+
+    expect(screen.getByText("tier=gold")).toBeInTheDocument();
+    expect(screen.getByText("env=prod")).toBeInTheDocument();
+  });
+
+  it("omits a label whose ref is missing rather than printing undefined", async () => {
+    await openAdvancedDetail({ workflowRef: undefined as unknown as string });
+
+    expect(screen.queryByText(/boomerang.io\/workflow-ref=/)).not.toBeInTheDocument();
+    expect(screen.getByText(`boomerang.io/workflowrun-ref=${runId}`)).toBeInTheDocument();
   });
 });
