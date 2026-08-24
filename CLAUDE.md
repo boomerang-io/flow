@@ -155,22 +155,28 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   the relationship layer (`layer=relationship` tag) — watch these before the A2 flip.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
-- **LIVE — `RelationshipService.check()` drops tenant containment when there is no principal**
-  (found 2026-08-21). `check()` returns `true` immediately on a null identity, while `filter()`
-  anchors at `ROOT` and still walks — so `check()` admits a run belonging to another workspace that
-  `filter()` correctly excludes. **7 call sites use `check()` for containment and existence, not
-  just authz** (`WorkspaceWorkflowRunService` :58,174,195,214,235,254,273); six of them mutate.
-  `retry` (:273) is the worst: on success it writes a new
-  `WORKSPACE:team -HAS_WORKFLOWRUN-> WORKFLOWRUN` edge, **grafting another workspace's run into the
-  caller's graph**. Reachable whenever there is no principal — i.e. `flow.security.enabled=false`
-  (the documented local-dev/E2E posture) and `flow.mode=engine`. Proven by
-  `RelationshipServiceTest.noPrincipalCheckDropsContainmentButFilterKeepsIt`.
-  **Proposed fix, NOT applied** (changes security posture in the security-off path — same
-  propose→confirm treatment as the rest of `specifications/authentication.md`): make `check()`'s
-  null branch mirror `filter()`'s — anchor at root, then `hasNodes(ROOT, "root", type, toList,
-  intermediateType, intermediateList)`, honouring the intermediate while still denying nothing in
-  engine mode. Rule together with `WorkspaceActionService:119-124`, where `userEntity == null` ⇒
-  `partOfGroup = true` bypasses approver-group membership on the same path.
+- **LIVE, HIGH — `RelationshipService.check()` drops tenant containment for `global`-scope tokens**
+  (found 2026-08-21, scope corrected 2026-08-24). **This affects real admin/service tokens with
+  security ENABLED — it is not a security-off-only issue.** `check()` is
+  `case global: return true;` (`RelationshipService.java:417-419`), returned *before* `hasNodes()`,
+  so `intermediateType`/`intermediateList` are never evaluated. `filter()`'s `case global`
+  (`:505-509`) instead sets `fromType=ROOT` and still walks with the intermediate intact, so
+  containment holds there. The two disagree.
+  **Consequence**: the 7 `WorkspaceWorkflowRunService` call sites pass `WORKSPACE=[team]` purely for
+  containment (:58 get, :174 start, :195 finalize, :214 cancel, :235 pause, :254 resume, :273 retry)
+  and **6 of 7 mutate**. Nothing re-validates downstream — `cancel(team, workflowRunId)` gates only
+  on `check()` and then calls `engineWorkflowRunService.cancel(workflowRunId)`, which takes just the
+  run id. So a global-scoped token can cancel/pause/resume/retry a run in **any** workspace by
+  naming any team in the path; the path segment is effectively ignored. `retry` also writes a
+  `WORKSPACE:team -HAS_WORKFLOWRUN-> WORKFLOWRUN` edge, grafting another workspace's run into the
+  caller's graph. Proven by the TRIPWIRE test in `RelationshipServiceTest` using a genuine `global`
+  token.
+  **NOT fixed — needs a maintainer decision**, because making `check()` honour the intermediate
+  narrows what admin/service tokens can do today. Proposed: mirror `filter()` — anchor at root, then
+  `hasNodes(ROOT, "root", type, toList, intermediateType, intermediateList)`. Rule together with
+  `WorkspaceActionService:122-124`, where `partOfGroup = userEntity == null || …` lets any machine
+  token (`key`/`global`, security on or off) bypass approver-group membership — same family, same
+  decision.
 - ~~Agent endpoints (`AgentControllerV1`) are unauthenticated~~ **FIXED (E7-4)**: `/api/v1/agent`
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
