@@ -999,14 +999,19 @@ class LoaderMigrationTest {
     // A missing email stays missing - $toLower would otherwise coerce it to "".
     assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
 
-    // email_lookup is deliberately non-unique, so the surviving duplicate pair does not break it.
+    // This fixture is v3-marked, so _0019 builds the unique email_unique over {email:1} and
+    // _0036's ensureIndexKeys finds those keys already covered - email_lookup is skipped rather
+    // than creating a second index over the same field. That skip is why the colliding pair must
+    // be left un-normalised: lowercasing it underneath a unique index would fail E11000 and abort
+    // the deploy.
     Map<String, Document> userIndexes = new java.util.HashMap<>();
     users.listIndexes().forEach(index -> userIndexes.put(index.getString("name"), index));
-    assertThat(userIndexes.get("email_lookup")).isNotNull();
-    assertThat(userIndexes.get("email_lookup").getBoolean("unique")).isNull();
     assertThat(userIndexes.get("email_unique").getBoolean("unique"))
         .as("the v3-gated unique index is untouched by this change")
         .isTrue();
+    assertThat(userIndexes.get("email_lookup"))
+        .as("skipped on v3 - email_unique already covers {email:1}")
+        .isNull();
 
     // Idempotency: the pipeline re-runs (skipped by the audit log), then every change unit re-runs
     // against the already-normalised data with the audit log dropped. Neither changes anything.
