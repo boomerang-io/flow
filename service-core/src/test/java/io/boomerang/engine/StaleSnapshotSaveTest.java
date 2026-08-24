@@ -14,7 +14,9 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
@@ -83,6 +85,91 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
         "a TaskRun another caller already admitted and started must not be overwritten as skipped");
     assertEquals(RunPhase.running, after.getPhase(), "the started phase must not be rolled back");
     assertNotNull(after.getStartTime(), "the start time written by tryStartExecution was lost");
+  }
+
+  /**
+   * The skip is two writes - the Compare-And-Set, then {@code end()}. A caller that dies in between
+   * leaves the TaskRun at {@code status=skipped, phase=pending}, and the graph advance re-drives it
+   * through {@code queue()} ({@code TaskExecutionService:1042}, {@code WorkflowWatcher:305}). The
+   * skip Compare-And-Set must therefore accept {@code skipped} as well as {@code notstarted}:
+   * matching only {@code notstarted} would fail the re-drive's CAS, {@code end()} would never be
+   * called, and the run would stall permanently - a regression versus the unguarded save.
+   */
+  @Test
+  void requeueOfAnAlreadySkippedButUncompletedTaskMustStillEndIt() {
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("skip-redrive-wf", RunStatus.running, RunPhase.running);
+    // Exactly the state a caller that died between the skip write and end() leaves behind.
+    TaskRunEntity orphan =
+        savedTaskRun(
+            "orphaned-skip",
+            TaskType.template,
+            RunStatus.skipped,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    String orphanId = orphan.getId();
+
+    doAnswer(invocation -> false).when(dagUtility).canRunTask(anyList(), any());
+
+    taskExecutionService.queue(orphanId);
+
+    awaitEngine("the re-driven skip to complete")
+        .until(() -> RunPhase.completed.equals(current(orphanId).getPhase()));
+
+    TaskRunEntity after = current(orphanId);
+    assertEquals(RunStatus.skipped, after.getStatus(), "the re-drive must keep the skipped status");
+    assertEquals(
+        RunPhase.completed,
+        after.getPhase(),
+        "a skipped-but-pending TaskRun must still be ended by a re-drive, not stall the run");
+  }
+
+  /**
+   * The guard must not break the ordinary case: a task that genuinely cannot run is still marked
+   * skipped, completed by {@code end()}, and its dependants are still queued.
+   */
+  @Test
+  void genuineSkipStillEndsTheTaskAndAdvancesTheGraph() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("skip-advance-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity skipped =
+        savedTaskRun(
+            "skipme",
+            TaskType.template,
+            RunStatus.notstarted,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    TaskRunEntity dependant =
+        savedTaskRun(
+            "next",
+            TaskType.template,
+            RunStatus.notstarted,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    WorkflowTaskDependency dependency = new WorkflowTaskDependency();
+    dependency.setTaskRef("skipme");
+    dependant.setDependencies(new LinkedList<>(List.of(dependency)));
+    taskRunRepository.save(dependant);
+    String skippedId = skipped.getId();
+    String dependantId = dependant.getId();
+
+    // "skipme" has no valid path; its dependant does once "skipme" completes.
+    doAnswer(
+            invocation ->
+                !"skipme".equals(((TaskRunEntity) invocation.getArgument(1)).getName()))
+        .when(dagUtility)
+        .canRunTask(anyList(), any());
+
+    taskExecutionService.queue(skippedId);
+
+    awaitEngine("the skipped task to complete and the graph to advance")
+        .until(() -> RunStatus.ready.equals(current(dependantId).getStatus()));
+
+    TaskRunEntity after = current(skippedId);
+    assertEquals(RunStatus.skipped, after.getStatus(), "a genuine skip must still be marked skipped");
+    assertEquals(RunPhase.completed, after.getPhase(), "a genuine skip must still be ended");
   }
 
   /**

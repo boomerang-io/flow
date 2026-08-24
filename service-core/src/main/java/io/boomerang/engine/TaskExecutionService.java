@@ -165,9 +165,17 @@ public class TaskExecutionService {
       }
     } else {
       LOGGER.debug("[{}] Skipping task: {}", taskExecutionId, taskExecution.getName());
-      // Persist the skipped status for end() to re-read.
-      taskExecution.setStatus(RunStatus.skipped);
-      taskRunRepository.save(taskExecution);
+      // Skip Compare-And-Set: persist the skipped status for end() to re-read. A full-document
+      // save of the entry snapshot would roll back everything a concurrent caller wrote - a join
+      // queued by both parents, where the other parent already admitted, started and had the
+      // TaskRun claimed, would be reverted to ready/pending with no claim, i.e. straight back
+      // into findClaimable and a second dispatcher.
+      if (taskRunService.trySkip(taskExecutionId) == null) {
+        // Another caller admitted or started this TaskRun. Do not call end(): it only returns
+        // early on phase=completed, so a losing caller would wrongly complete a running task.
+        LOGGER.info("[{}] TaskRun already admitted or started. Not skipping.", taskExecutionId);
+        return;
+      }
       self.end(taskExecutionId);
     }
   }

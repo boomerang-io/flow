@@ -285,6 +285,33 @@ public class TaskRunService {
     return preImage;
   }
 
+  // Skip Compare-And-Set: a still-pending TaskRun becomes skipped, so end() can complete it.
+  // Returns the pre-image, or null when another caller already admitted/started the TaskRun -
+  // the loser must then perform no side effects, end() included.
+  //
+  // Why `skipped` is accepted alongside `notstarted`: the skip is two writes (this CAS, then
+  // end()). A caller that dies in between leaves the TaskRun at status=skipped/phase=pending,
+  // and the graph advance re-drives it through queue() (TaskExecutionService:1042,
+  // WorkflowWatcher:305). Matching only `notstarted` would fail that re-drive's CAS, so end()
+  // would never be called and the run would stall. `ready`/`running` are still excluded, which
+  // is the whole point of the guard.
+  public TaskRunEntity trySkip(String id) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("status")
+                .in(RunStatus.notstarted, RunStatus.skipped));
+    Update update = new Update().set("status", RunStatus.skipped);
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.skipped, preImage.getPhase());
+    }
+    return preImage;
+  }
+
   // Execution-entry Compare-And-Set: ready + pending/queued becomes running with the given start
   // time, baking timeoutAt from the given budget. Returns the document with the transition
   // applied, or null on a duplicate dispatch.
