@@ -155,28 +155,24 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   the relationship layer (`layer=relationship` tag) — watch these before the A2 flip.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
-- **LIVE, HIGH — `RelationshipService.check()` drops tenant containment for `global`-scope tokens**
-  (found 2026-08-21, scope corrected 2026-08-24). **This affects real admin/service tokens with
-  security ENABLED — it is not a security-off-only issue.** `check()` is
-  `case global: return true;` (`RelationshipService.java:417-419`), returned *before* `hasNodes()`,
-  so `intermediateType`/`intermediateList` are never evaluated. `filter()`'s `case global`
-  (`:505-509`) instead sets `fromType=ROOT` and still walks with the intermediate intact, so
-  containment holds there. The two disagree.
-  **Consequence**: the 7 `WorkspaceWorkflowRunService` call sites pass `WORKSPACE=[team]` purely for
-  containment (:58 get, :174 start, :195 finalize, :214 cancel, :235 pause, :254 resume, :273 retry)
-  and **6 of 7 mutate**. Nothing re-validates downstream — `cancel(team, workflowRunId)` gates only
-  on `check()` and then calls `engineWorkflowRunService.cancel(workflowRunId)`, which takes just the
-  run id. So a global-scoped token can cancel/pause/resume/retry a run in **any** workspace by
-  naming any team in the path; the path segment is effectively ignored. `retry` also writes a
-  `WORKSPACE:team -HAS_WORKFLOWRUN-> WORKFLOWRUN` edge, grafting another workspace's run into the
-  caller's graph. Proven by the TRIPWIRE test in `RelationshipServiceTest` using a genuine `global`
-  token.
-  **NOT fixed — needs a maintainer decision**, because making `check()` honour the intermediate
-  narrows what admin/service tokens can do today. Proposed: mirror `filter()` — anchor at root, then
-  `hasNodes(ROOT, "root", type, toList, intermediateType, intermediateList)`. Rule together with
-  `WorkspaceActionService:122-124`, where `partOfGroup = userEntity == null || …` lets any machine
-  token (`key`/`global`, security on or off) bypass approver-group membership — same family, same
-  decision.
+- **`check()` ignores the workspace path segment for `global`-scope tokens — NOT an authz hole**
+  (raised 2026-08-21 as a security finding; **corrected by the maintainer 2026-08-24 — a global
+  token doing everything is what global scope is for, so this is not a privilege escalation**).
+  `check()` is `case global: return true;` (`RelationshipService.java:417-419`), returned before
+  `hasNodes()`, so the `intermediateType`/`intermediateList` containment arguments are never
+  evaluated; `filter()`'s `case global` (`:505-509`) anchors at `ROOT` and still walks. The
+  practical effect is that `/workspace/{team}/workflowrun/{id}/...` ignores `{team}` for a global
+  token — but the same caller could legitimately reach that run via its own workspace URL, so
+  nothing is granted that was not already permitted.
+  **The one real defect**: `WorkspaceWorkflowRunService.retry` (:280-287) writes
+  `createNodeAndEdge(WORKSPACE, team, HAS_WORKFLOWRUN, ...)` using the **path** team rather than the
+  run's owning workspace, so retrying via another workspace's URL permanently records the wrong
+  owner in the relationship graph. The other six call sites read or mutate the run and write no
+  ownership, so they are unaffected.
+  **Deliberately not patched**: these are pass-through guards in `api/WorkspaceWorkflowRunService`
+  over `engine/WorkflowRunService`, and the F1/F2/F3 merge-cleanup collapses the two into one
+  service — at which point `team` either becomes authoritative or disappears. Fix the edge-owner
+  bug as part of that work rather than patching a line about to be deleted.
 - ~~Agent endpoints (`AgentControllerV1`) are unauthenticated~~ **FIXED (E7-4)**: `/api/v1/agent`
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
