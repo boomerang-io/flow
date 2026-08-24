@@ -64,7 +64,6 @@ class SecurityInterceptorTests {
     token.setPermissions(
         List.of(
             new ResolvedPermissions(PermissionScope.global, "test-user", List.of("workflow/write"))));
-    when(identityService.getCurrentScope()).thenReturn(AuthScope.global);
     when(identityService.getCurrentIdentity()).thenReturn(token);
 
     assertTrue(interceptor.preHandle(request, response, handlerMethod));
@@ -84,7 +83,6 @@ class SecurityInterceptorTests {
 
   @Test
   void testScopeMismatchDeniesAndCountsDenied() throws Exception {
-    when(identityService.getCurrentScope()).thenReturn(AuthScope.user);
     when(identityService.getCurrentIdentity()).thenReturn(new Token(AuthScope.user));
     when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
 
