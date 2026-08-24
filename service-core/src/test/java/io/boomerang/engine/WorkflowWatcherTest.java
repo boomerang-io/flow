@@ -51,10 +51,16 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     watcher.reapTaskTimeouts();
 
     TaskRunEntity requeued = taskRunRepository.findById(taskRunId).orElseThrow();
-    assertEquals(RunStatus.ready, requeued.getStatus());
+    // The killed claimant may have left a pod behind, so the node parks awaiting its termination
+    // rather than going straight back on the execution queue. Non-terminal, so the DAG sees
+    // nothing finish.
+    assertEquals(RunStatus.waiting, requeued.getStatus());
     assertEquals(RunPhase.pending, requeued.getPhase());
-    assertNull(requeued.getClaim().getBy(), "requeue must clear the claim ownership");
-    assertEquals(1L, requeued.getClaim().getSeq(), "requeue must never clear claim.seq");
+    assertEquals(
+        "dead-agent",
+        requeued.getClaim().getBy(),
+        "requeue keeps the claim as the marker that a pod may still be out there");
+    assertEquals(2L, requeued.getClaim().getSeq(), "the requeue supersedes the reaped claimant");
     assertNull(requeued.getTimeoutAt(), "the deadline is baked at the next execution start");
     assertNotNull(requeued.getRetry());
     assertEquals(1, requeued.getRetry().getCount());
@@ -62,7 +68,17 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
         requeued.getRetry().getAfter().after(new Date()),
         "the retry backoff must gate the next attempt");
 
-    // The claim page honours the backoff: excluded until retry.after elapses.
+    // Not re-claimable for execution while the previous pod may still be alive.
+    assertFalse(claimPageContains(taskRunId));
+
+    // An agent takes the termination, which releases the claim and re-arms the node.
+    assertNotNull(taskRunService.tryClaimForTermination(taskRunId, "live-agent"));
+    TaskRunEntity released = taskRunRepository.findById(taskRunId).orElseThrow();
+    assertEquals(RunStatus.ready, released.getStatus());
+    assertNull(released.getClaim().getBy(), "the termination release clears the claim ownership");
+    assertEquals(2L, released.getClaim().getSeq(), "claim.seq is never cleared");
+
+    // The claim page still honours the backoff: excluded until retry.after elapses.
     assertFalse(claimPageContains(taskRunId));
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(taskRunId)),
@@ -93,9 +109,9 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     watcher.reapTaskTimeouts();
 
     TaskRunEntity requeued = taskRunRepository.findById(taskRunId).orElseThrow();
-    assertEquals(RunStatus.ready, requeued.getStatus());
+    assertEquals(RunStatus.waiting, requeued.getStatus());
     assertEquals(2, requeued.getRetry().getCount());
-    assertEquals(3L, requeued.getClaim().getSeq());
+    assertEquals(4L, requeued.getClaim().getSeq(), "each requeue supersedes the claim it reaped");
   }
 
   @Test

@@ -65,16 +65,19 @@ class E4AuditGapTest extends AbstractEngineIntegrationTest {
     assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaim().getSeq());
 
     // The real reap path: WorkflowWatcher.reapTaskTimeouts requeues a timed-out claim through
-    // tryRequeue, which clears claim.by but never claim.seq. Backoff is set in the past so B can
-    // claim on the next poll.
+    // tryRequeue, which parks the node awaiting termination of A's pod (claim.by kept, claim.seq
+    // superseded). Backoff is set in the past so nothing but that termination gates the reclaim.
     assertNotNull(
         taskRunService.tryRequeue(
             taskRunId, 1L, new Date(System.currentTimeMillis() - 1000), 1));
 
+    // B's first poll takes the termination of A's pod, which releases the claim and re-arms the
+    // node; its second poll claims the node for the next attempt.
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB), taskRunId));
     assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB), taskRunId));
     TaskRunEntity reclaimed = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(dispatcherB, reclaimed.getClaim().getBy());
-    assertEquals(2L, reclaimed.getClaim().getSeq());
+    assertEquals(3L, reclaimed.getClaim().getSeq());
     return taskRunId;
   }
 
