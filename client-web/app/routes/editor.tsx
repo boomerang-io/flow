@@ -1,16 +1,20 @@
 import Editor from "Features/WorkflowEditor";
 import { WorkspaceContainer } from "Features/App/App";
-import { workflowTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
+import { editorLoader, editorAction } from "Features/WorkflowEditor/editorRoute";
 
-// The editor's own data (workflow, revisions, tasks, changelog) is still react-query inside
-// Features/WorkflowEditor - only the Configure > Tokens tab is loader-driven so far. Its
-// <TokenSection> sits inside the editor's descendant <Routes>, so it reads this loader's data
-// through useMatches() rather than useLoaderData() (see
-// Components/TokenSection/tokenRouteData.ts) and submits back to `action` with a plain
-// useFetcher(), the same way TaskTemplateOverview.tsx does from WorkspaceTasks' descendant
-// <Routes>.
-export const loader = workflowTokensLoader;
-export const action = tokenAction;
+// ssr:true (react-router.config.ts) means loader/action run server-side in Node - see
+// app/routes/globalParameters.tsx for the fuller rationale comment.
+//
+// One loader/action pair now covers the whole editor: the workflow compose, the workspace's
+// other workflows, the changelog, the available parameters, both task catalogues, Configure's
+// GitHub installation, the Schedules tab's schedules/calendar, and (still, via
+// Components/TokenSection/tokenRoute) the Configure > Tokens tab. Everything under
+// Features/WorkflowEditor is rendered inside Editor.tsx's descendant <Routes>, so those
+// components read this loader's data through useMatches() (Features/WorkflowEditor/
+// editorRouteData.ts) rather than useLoaderData(), and write back with a plain useFetcher() -
+// the same shape TaskTemplateOverview.tsx uses from WorkspaceTasks' descendant <Routes>.
+export const loader = editorLoader;
+export const action = editorAction;
 
 export default function EditorRoute() {
   return (
