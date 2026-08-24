@@ -75,25 +75,46 @@ function renderConfigure(route = appLink.editorConfigureGeneral({ workspace: WOR
   );
 }
 
-describe("Configure", () => {
-  it("renders the basic information section", async () => {
-    renderConfigure();
-    expect(await screen.findByText(/Basic Information/i)).toBeInTheDocument();
-  });
+/*
+ * The loader blocks first paint on the whole batch of (mocked) requests the editor needs, so
+ * until it resolves the router renders its HydrateFallback (nothing) - RTL's default 1000ms
+ * findBy window is not enough on a machine running the full suite across workers, where the
+ * previous useQuery version painted immediately. Same constants as Editor.spec.tsx.
+ */
+const LOADER_WAIT = { timeout: 15000 };
+const TEST_TIMEOUT = 30000;
 
-  it("renders the icon picker and labels sections", async () => {
-    renderConfigure();
-    expect(await screen.findByText(/Pick an icon/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Labels$/)).toBeInTheDocument();
-  });
+describe("Configure", () => {
+  it(
+    "renders the basic information section",
+    async () => {
+      renderConfigure();
+      expect(await screen.findByText(/Basic Information/i, undefined, LOADER_WAIT)).toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "renders the icon picker and labels sections",
+    async () => {
+      renderConfigure();
+      expect(await screen.findByText(/Pick an icon/i, undefined, LOADER_WAIT)).toBeInTheDocument();
+      expect(screen.getByText(/^Labels$/)).toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
 
   // Covers the read that moved out of this component and onto the editor route's loader: with an
   // installation resolved, the GitHub toggle is enabled and the "Integration Required" warning is
   // absent. Fixture: ApiServer/fixtures/installations.js.
-  it("enables the GitHub trigger from the installation the loader resolved", async () => {
-    renderConfigure(appLink.editorConfigureTriggers({ workspace: WORKSPACE, workflow: WORKFLOW }));
+  it(
+    "enables the GitHub trigger from the installation the loader resolved",
+    async () => {
+      renderConfigure(appLink.editorConfigureTriggers({ workspace: WORKSPACE, workflow: WORKFLOW }));
 
-    expect(await screen.findByText(/^GitHub$/)).toBeInTheDocument();
-    expect(screen.queryByText(/Integration Required/i)).not.toBeInTheDocument();
-  });
+      expect(await screen.findByText(/^GitHub$/, undefined, LOADER_WAIT)).toBeInTheDocument();
+      expect(screen.queryByText(/Integration Required/i)).not.toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
 });

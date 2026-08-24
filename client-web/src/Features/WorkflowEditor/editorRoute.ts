@@ -7,7 +7,14 @@ import { HttpMethod, scheduleStatusOptions } from "Constants";
 import { queryStringOptions } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
-import type { CalendarEntry, PaginatedSchedulesResponse, WorkflowCanvas } from "Types";
+import type {
+  CalendarEntry,
+  ChangeLog,
+  PaginatedSchedulesResponse,
+  PaginatedTaskResponse,
+  PaginatedWorkflowResponse,
+  WorkflowCanvas,
+} from "Types";
 import type { EditorData, EditorRouteData, EditorScheduleData } from "./editorRouteData";
 
 /*
@@ -34,11 +41,27 @@ const ACTIVE_TASKS_QUERY = queryString.stringify({ statuses: "active" });
  */
 const SCHEDULE_TAB = "schedule";
 
-// Settled, not `all`: one failed read must not blank the others out. Each of the six core reads
-// below independently contributed `isError` to Editor.tsx's single <Error /> gate, which this
-// reproduces by OR-ing the rejections into one `errorLoading` flag.
-function valueOf<T>(result: PromiseSettledResult<{ data: T }>): T | undefined {
-  return result.status === "fulfilled" ? result.value.data : undefined;
+/*
+ * Settled, not rejecting: one failed read must not blank the others out. Each of the six core
+ * reads independently contributed `isError` to Editor.tsx's single <Error /> gate, which the
+ * loader reproduces by OR-ing the rejections into one `errorLoading` flag.
+ *
+ * `settle` rather than `Promise.allSettled` on the whole list because that list also carries a
+ * call that settles itself (workflowTokensLoader) - mixing the two in one `Promise.all` keeps
+ * every entry's result type honest instead of wrapping the already-safe one a second time.
+ */
+type Settled<T> = { ok: true; data: T } | { ok: false };
+
+async function settle<T>(promise: Promise<{ data: T }>): Promise<Settled<T>> {
+  try {
+    return { ok: true, data: (await promise).data };
+  } catch (error) {
+    return { ok: false };
+  }
+}
+
+function valueOf<T>(result: Settled<T>): T | undefined {
+  return result.ok ? result.data : undefined;
 }
 
 async function loadSchedule(
@@ -111,27 +134,41 @@ export async function editorLoader({
    */
   const version = new URL(request.url).searchParams.get("version") ?? "";
 
-  const [workflowResult, workflowsResult, changeLogResult, availableParametersResult, tasksResult, workspaceTasksResult] =
-    await Promise.allSettled([
-      api.get(serviceUrl.workspace.workflow.getWorkflowCompose({ workspace, workflow, version })),
-      api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
-      api.get(serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace, workflow })),
-      api.get(serviceUrl.workspace.workflow.getAvailableParameters({ workspace, workflow })),
-      api.get(serviceUrl.task.queryTasks({ query: ACTIVE_TASKS_QUERY })),
-      api.get(serviceUrl.workspace.task.queryTasks({ workspace, query: ACTIVE_TASKS_QUERY })),
-    ]);
+  /*
+   * One wave, not several. Every read below was an independent useQuery firing on mount, so they
+   * all went out in parallel before this conversion; awaiting them in sequence here would turn
+   * the editor's first paint into a chain of round trips, and the loader blocks that paint
+   * entirely (there is no per-query loading state left to render behind). Only the schedules
+   * chain below is genuinely dependent, and it is the one thing kept sequential.
+   *
+   * Configure.tsx renders on every tab (Editor.tsx mounts it unconditionally so its Formik state
+   * survives tab switches), so its installation lookup is unconditional here too - matching the
+   * `enabled: Boolean(params.workspace)` useQuery it replaces. The token section is fetched by
+   * the shared workflowTokensLoader, which is itself a parallel pair.
+   */
+  const [
+    workflowResult,
+    workflowsResult,
+    changeLogResult,
+    availableParametersResult,
+    tasksResult,
+    workspaceTasksResult,
+    githubResult,
+    tokenSectionResult,
+  ] = await Promise.all([
+    settle(api.get<WorkflowCanvas>(serviceUrl.workspace.workflow.getWorkflowCompose({ workspace, workflow, version }))),
+    settle(api.get<PaginatedWorkflowResponse>(serviceUrl.workspace.workflow.getWorkflows({ workspace }))),
+    settle(api.get<ChangeLog>(serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace, workflow }))),
+    settle(api.get<Array<string>>(serviceUrl.workspace.workflow.getAvailableParameters({ workspace, workflow }))),
+    settle(api.get<PaginatedTaskResponse>(serviceUrl.task.queryTasks({ query: ACTIVE_TASKS_QUERY }))),
+    settle(api.get<PaginatedTaskResponse>(serviceUrl.workspace.task.queryTasks({ workspace, query: ACTIVE_TASKS_QUERY }))),
+    settle(api.get<any>(serviceUrl.getGitHubAppInstallationForWorkspace({ workspace }))),
+    // Delegated rather than re-specified: workflowTokensLoader already owns the "which tokens
+    // does the Configure > Tokens tab show" contract, and three other routes share the helper.
+    workflowTokensLoader({ params, request }),
+  ]);
 
-  // Configure.tsx renders on every tab (Editor.tsx mounts it unconditionally so its Formik state
-  // survives tab switches), so its installation lookup is unconditional here too - matching the
-  // `enabled: Boolean(params.workspace)` useQuery it replaces.
-  let githubAppInstallation: any | null = null;
-  try {
-    const response = await api.get(serviceUrl.getGitHubAppInstallationForWorkspace({ workspace }));
-    githubAppInstallation = response.data ?? null;
-  } catch (error) {
-    githubAppInstallation = null;
-  }
-
+  const githubAppInstallation = valueOf<any>(githubResult) ?? null;
   const workflowData = valueOf<WorkflowCanvas>(workflowResult);
 
   const editor: EditorData = {
@@ -148,7 +185,7 @@ export async function editorLoader({
       availableParametersResult,
       tasksResult,
       workspaceTasksResult,
-    ].some((result) => result.status === "rejected"),
+    ].some((result) => !result.ok),
     githubAppInstallation,
     /*
      * Filtered by the workflow's own name, as Schedule/Schedule.tsx did with
@@ -162,9 +199,7 @@ export async function editorLoader({
         : null,
   };
 
-  // Delegated rather than re-specified: workflowTokensLoader already owns the "which tokens does
-  // the Configure > Tokens tab show" contract, and three other routes share the same helper.
-  return { editor, ...(await workflowTokensLoader({ params, request })) };
+  return { editor, ...tokenSectionResult };
 }
 
 export type EditorActionResult =

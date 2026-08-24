@@ -51,6 +51,15 @@ const workflow: WorkflowCanvas = {
  * Rendering <Schedule> directly under a loader-less route leaves useEditorRouteData() undefined
  * and the component parked on its spinner, which is what this asserts against below.
  */
+/*
+ * The loader blocks first paint on the whole batch of (mocked) requests the editor needs, so
+ * until it resolves the router renders its HydrateFallback (nothing) - RTL's default 1000ms
+ * findBy window is not enough on a machine running the full suite across workers, where the
+ * previous useQuery version painted a spinner immediately. Same constants as Editor.spec.tsx.
+ */
+const LOADER_WAIT = { timeout: 15000 };
+const TEST_TIMEOUT = 30000;
+
 function renderSchedule() {
   return global.rtlContextRouterRender(
     <Route path="/:workspace/editor/:workflow/*" loader={editorLoader} element={<Schedule workflow={workflow} />} />,
@@ -59,22 +68,30 @@ function renderSchedule() {
 }
 
 describe("Schedule", () => {
-  it("renders the workflow's schedules from the route loader", async () => {
-    renderSchedule();
+  it(
+    "renders the workflow's schedules from the route loader",
+    async () => {
+      renderSchedule();
 
-    // Names from ApiServer/fixtures/workflowSchedules.js, rendered by SchedulePanelList.
-    expect(await screen.findByText("Trigger")).toBeInTheDocument();
-    expect(screen.getByText("Daily event")).toBeInTheDocument();
-  });
+      // Names from ApiServer/fixtures/workflowSchedules.js, rendered by SchedulePanelList.
+      expect(await screen.findByText("Trigger", undefined, LOADER_WAIT)).toBeInTheDocument();
+      expect(screen.getByText("Daily event")).toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
 
-  it("renders the calendar alongside the schedule list", async () => {
-    renderSchedule();
+  it(
+    "renders the calendar alongside the schedule list",
+    async () => {
+      renderSchedule();
 
-    await screen.findByText("Trigger");
-    // react-big-calendar's month-view toolbar and weekday headers - proves the calendar half
-    // mounted rather than the component bailing out to its spinner or ErrorDragon. The test clock
-    // is frozen to 2020-01-01 (setupTests.tsx), so the month label is deterministic.
-    expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
-    expect(screen.getByText("January 2020")).toBeInTheDocument();
-  });
+      await screen.findByText("Trigger", undefined, LOADER_WAIT);
+      // react-big-calendar's month-view toolbar and title - proves the calendar half mounted
+      // rather than the component bailing out to its spinner or ErrorDragon. The test clock is
+      // frozen to 2020-01-01 (setupTests.tsx), so the month label is deterministic.
+      expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
+      expect(screen.getByText("January 2020")).toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
 });

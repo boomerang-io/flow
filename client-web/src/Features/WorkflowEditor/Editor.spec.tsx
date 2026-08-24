@@ -1,7 +1,7 @@
-import { vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { Route } from "react-router-dom";
 import { workspaces } from "ApiServer/fixtures";
+import { Route } from "react-router-dom";
+import { vi } from "vitest";
 import { AppPath, appLink } from "Config/appConfig";
 import { editorAction, editorLoader } from "./editorRoute";
 import Editor from "./index";
@@ -40,6 +40,17 @@ beforeEach(() => {
  * its usual catch-all, so the loader actually runs. Everything the editor renders now reads that
  * loader's data, so without it the page renders nothing at all.
  */
+
+/*
+ * The loader blocks first paint on the whole batch of (mocked) requests the editor needs, where
+ * the previous useQuery version painted a spinner immediately and filled in per query - so until
+ * it resolves the router renders its HydrateFallback (nothing), and RTL's default 1000ms findBy
+ * window is not enough on a machine running the full suite across workers. Measured: this file
+ * takes ~2.5s serially. Waits are given an explicit window, and the tests a matching timeout.
+ */
+const LOADER_WAIT = { timeout: 15000 };
+const TEST_TIMEOUT = 30000;
+
 function renderEditor(route: string) {
   return rtlContextRouterRender(
     <Route path={`${AppPath.Editor}/*`} loader={editorLoader} action={editorAction} element={<Editor />} />,
@@ -48,18 +59,22 @@ function renderEditor(route: string) {
 }
 
 describe("Editor --- Snapshot", () => {
-  it("Capturing Snapshot of Editor", async () => {
-    // `appLink.editorCanvas` takes `{ workspace, workflow }` (see Config/appConfig.ts) - this
-    // used to be called with a nonexistent `workflowId` key, which produced a `/undefined/editor/
-    // undefined/canvas` route that jsdom/react-router still matched (the `:workspace`/`:workflow`
-    // segments just bound to the literal string "undefined"). Untyped .jsx let it slip through,
-    // and every render used to crash earlier (Mirage mock gaps, then a missing ResizeObserver
-    // stub) before ever reaching a point where that would show up in the output - now that both
-    // are fixed, the snapshot would otherwise bake in "undefined" hrefs throughout the nav.
-    const { baseElement } = renderEditor(appLink.editorCanvas({ workspace, workflow }));
-    await screen.findByText("Editor");
-    expect(baseElement).toMatchSnapshot();
-  });
+  it(
+    "Capturing Snapshot of Editor",
+    async () => {
+      // `appLink.editorCanvas` takes `{ workspace, workflow }` (see Config/appConfig.ts) - this
+      // used to be called with a nonexistent `workflowId` key, which produced a `/undefined/editor/
+      // undefined/canvas` route that jsdom/react-router still matched (the `:workspace`/`:workflow`
+      // segments just bound to the literal string "undefined"). Untyped .jsx let it slip through,
+      // and every render used to crash earlier (Mirage mock gaps, then a missing ResizeObserver
+      // stub) before ever reaching a point where that would show up in the output - now that both
+      // are fixed, the snapshot would otherwise bake in "undefined" hrefs throughout the nav.
+      const { baseElement } = renderEditor(appLink.editorCanvas({ workspace, workflow }));
+      await screen.findByText("Editor", undefined, LOADER_WAIT);
+      expect(baseElement).toMatchSnapshot();
+    },
+    TEST_TIMEOUT,
+  );
 });
 
 describe("Editor --- loader", () => {
