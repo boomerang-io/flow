@@ -83,6 +83,64 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
+  // Return the page of terminal TaskRuns that a dispatcher still owns: cancelled or timedout in
+  // the completed phase, of the polling agent's task types, with the claim block still recording
+  // an owner. The surviving claim IS the outstanding-work marker - the run was handed to an
+  // executor, so whatever that executor provisioned (a Tekton TaskRun and its pod) is still out
+  // there and has to be terminated. This mirrors findClaimableForTeardown on WorkflowRunEntity,
+  // where the surviving workspaces play exactly that role. A terminal TaskRun that was never
+  // claimed provisioned nothing and is deliberately excluded.
+  public List<TaskRunEntity> findClaimableForTermination(List<TaskType> types, int limit) {
+    Criteria criteria =
+        Criteria.where("phase")
+            .is(RunPhase.completed)
+            .and("status")
+            .in(RunStatus.cancelled, RunStatus.timedout)
+            .and("type")
+            .in(types)
+            .and("claim.by")
+            .exists(true);
+    Query query =
+        Query.query(criteria).with(Sort.by(Sort.Direction.ASC, "creationDate")).limit(limit);
+    // The claim page only needs the id - tryClaimForTermination transitions by id.
+    query.fields().include("_id");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Termination Compare-And-Set: re-checks the terminal-and-still-owned state, then RELEASES the
+  // claim (by/at/leaseExpiresAt - claim.seq is never cleared) so exactly one polling agent is told
+  // to terminate the executor-side work and the run drops out of the termination page for good.
+  // Releasing is the inverse of WorkflowRunService.tryStart clearing the dispatch claim to free
+  // the teardown claimable, and it is what stops the v4 defect of redelivering terminal runs to
+  // every agent on every poll. Status and phase are untouched: the agent's handler keys off
+  // completed + cancelled/timedout, and a terminal status is never rewritten. Returns the
+  // pre-image (still carrying the original owner), or null when another agent won.
+  public TaskRunEntity tryClaimForTermination(String id, String claimedBy) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .is(RunPhase.completed)
+                .and("status")
+                .in(RunStatus.cancelled, RunStatus.timedout)
+                .and("claim.by")
+                .exists(true));
+    Update update =
+        new Update().unset("claim.by").unset("claim.at").unset("claim.leaseExpiresAt");
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      LOGGER.debug(
+          "[{}] Termination of the {} TaskRun claimed by dispatcher {} (previous owner {}).",
+          id,
+          preImage.getStatus(),
+          claimedBy,
+          preImage.getClaim() != null ? preImage.getClaim().getBy() : null);
+      publish(preImage, preImage.getStatus(), preImage.getPhase());
+    }
+    return preImage;
+  }
+
   // Claim Compare-And-Set: re-checks full eligibility between page and claim; racing claimants
   // cannot both win. Bakes the task's real deadline (claimedAt + effectiveTimeout + grace) in the
   // same write, computed once here from the pre-claim document - the same RunTimeouts helper

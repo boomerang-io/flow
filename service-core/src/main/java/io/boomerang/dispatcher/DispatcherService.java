@@ -161,10 +161,12 @@ public class DispatcherService {
   /**
    * Long-poll endpoint dispatching TaskRuns to the agent.
    *
-   * <p>Each cycle pages the eligible candidates (ready, pending, unclaimed, of the agent's task
-   * types) and claims each one individually via a Compare-And-Set; racing agents cannot both win
-   * a TaskRun and the response contains only the documents this agent actually claimed. Terminal
-   * runs are never redelivered.
+   * <p>Each cycle pages two sets of candidates, both restricted to the agent's registered task
+   * types: the ready/pending unclaimed runs to execute, and the terminal (cancelled or timedout)
+   * runs a dispatcher still owns, whose executor-side work must be terminated. Each candidate is
+   * claimed individually via a Compare-And-Set, so racing agents cannot both win a TaskRun and the
+   * response contains only the documents this agent actually claimed. Neither path redelivers: an
+   * execution claim takes ownership, a termination claim releases it.
    *
    * @param agentId
    * @return
@@ -203,6 +205,18 @@ public class DispatcherService {
         for (TaskRunEntity candidate :
             taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
+          if (claimed != null) {
+            taskRuns.add(new TaskRun(claimed));
+          }
+        }
+        // Second path, mirroring the WorkflowRun provision/teardown pair: a cancelled or
+        // timed-out TaskRun a dispatcher still owns carries executor-side work (a Tekton
+        // TaskRun and its pod) that has to be terminated. The claim release is what makes it
+        // one agent's job and stops the run being redelivered on the next poll.
+        for (TaskRunEntity candidate :
+            taskRunService.findClaimableForTermination(entity.getTaskTypes(), PAGE_SIZE)) {
+          TaskRunEntity claimed =
+              taskRunService.tryClaimForTermination(candidate.getId(), agentId);
           if (claimed != null) {
             taskRuns.add(new TaskRun(claimed));
           }
