@@ -9,8 +9,6 @@ import {
   FeatureNavTab as Tab,
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { AxiosResponse } from "axios";
-import { UseMutationResult } from "react-query";
 import { Link, useParams } from "react-router-dom";
 import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
@@ -24,13 +22,12 @@ interface DesignerHeaderProps {
   createRevision: (reason: string, callback?: () => any) => void;
   changeRevision: (revisionNumber: string) => void;
   canCreateNewVersion: boolean;
+  // Two plain flags rather than the react-query mutation object this used to be handed: the write
+  // is a useFetcher() submission in Editor.tsx now (see its module comment), and a fetcher has no
+  // equivalent object to pass down - only `state` and `data`, which the parent narrows for us.
+  createRevisionFailed: boolean;
+  isCreatingRevision: boolean;
   revisionCount: number;
-  revisionMutator: UseMutationResult<
-    AxiosResponse<any, any>,
-    unknown,
-    { workspace: any; workflow: any; body: any },
-    unknown
-  >;
   revisionState: WorkflowCanvas;
 
   viewType: WorkflowViewType;
@@ -40,8 +37,9 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
   createRevision,
   changeRevision,
   canCreateNewVersion,
+  createRevisionFailed,
+  isCreatingRevision,
   revisionCount,
-  revisionMutator,
   revisionState,
   viewType,
 }) => {
@@ -139,7 +137,8 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
                   <VersionCommentForm
                     closeModal={closeModal}
                     createRevision={createRevision}
-                    revisionMutator={revisionMutator}
+                    createRevisionFailed={createRevisionFailed}
+                    isCreatingRevision={isCreatingRevision}
                   />
                 )}
               </ComposedModal>
