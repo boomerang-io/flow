@@ -233,20 +233,20 @@ public class UserService {
     return Optional.empty();
   }
 
-  /*
-   * Retrieves the current user, or null if no principal is resolvable (e.g.
-   * flow.security.enabled=false - IdentityService returns no principal, since no
-   * AuthenticationFilter ever ran to attach one). No synthetic/placeholder user is fabricated -
-   * callers that can gracefully render "no current user" (ContextService.getHeaderNavigation)
-   * already null-check; callers that fundamentally need a real user
-   * (updateCurrentProfile/isCurrentUserAdmin) check for the missing principal themselves.
+  /**
+   * Retrieves the user record for the current identity, or {@code null} when that identity is not a
+   * user.
+   *
+   * <p>An identity is always established now (see {@code IdentityService}), so "no principal" is no
+   * longer a case. What remains - and is genuinely reachable - is a principal with no user record:
+   * the {@code UnauthenticatedGlobalToken} installed when {@code flow.security.enabled=false}, and
+   * equally any {@code key}/{@code global} machine token when security IS enabled. No
+   * synthetic/placeholder user is fabricated for them; callers that can gracefully render "no
+   * current user" ({@code ContextService.getHeaderNavigation}) already null-check, and {@code
+   * updateCurrentProfile} fails clearly on its own.
    */
   public UserEntity getCurrentUser() {
-    String principal = identityService.getCurrentPrincipal();
-    if (principal == null) {
-      return null;
-    }
-    return getUserByID(principal).get();
+    return getUserByID(identityService.getCurrentPrincipal()).orElse(null);
   }
 
   /*
@@ -475,22 +475,23 @@ public class UserService {
     }
   }
 
+  /**
+   * Whether the current identity maps to a user record carrying an elevated type.
+   *
+   * <p>A machine identity (the {@code UnauthenticatedGlobalToken} installed when security is
+   * disabled, or any {@code key}/{@code global} service token) has no user record, so this answers
+   * {@code false} - privilege is never asserted for a principal that is not a user. That preserves
+   * the previous security-disabled answer exactly, and additionally stops the machine-token case
+   * throwing {@code NoSuchElementException} out of the old {@code .get()}.
+   */
   public boolean isCurrentUserAdmin() {
-    String principal = identityService.getCurrentPrincipal();
-    if (principal == null) {
-      // No principal (e.g. security disabled) - there is no authenticated user to elevate, so
-      // the nav/UI admin gate defaults to non-admin rather than asserting privilege for nobody.
-      return false;
-    }
-    boolean isUserAdmin = false;
-    final UserEntity userEntity = getUserByID(principal).get();
-    if (userEntity != null
-        && (userEntity.getType() == UserType.admin
-            || userEntity.getType() == UserType.operator
-            || userEntity.getType() == UserType.auditor
-            || userEntity.getType() == UserType.author)) {
-      isUserAdmin = true;
-    }
-    return isUserAdmin;
+    return getUserByID(identityService.getCurrentPrincipal())
+        .map(
+            user ->
+                user.getType() == UserType.admin
+                    || user.getType() == UserType.operator
+                    || user.getType() == UserType.auditor
+                    || user.getType() == UserType.author)
+        .orElse(false);
   }
 }

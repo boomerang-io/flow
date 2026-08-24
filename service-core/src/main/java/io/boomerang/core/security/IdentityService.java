@@ -8,22 +8,29 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 /**
- * Helpers to retrieve the idenity of the current principal from the security context.
+ * Helpers to retrieve the identity of the current principal from the security context.
  *
- * <p><b>No Token on the SecurityContext (e.g. {@code flow.security.enabled=false} -
- * {@code AuthenticationFilter} is {@code @ConditionalOnProperty} on that flag and never loads, so
- * no request ever attaches a {@link Token}):</b> {@link #getCurrentIdentity()} already returned
- * {@code null} for this case; {@link #getCurrentPrincipal()} and {@link #getCurrentScope()} now
- * also return {@code null} instead of NPE-ing on it, rather than inventing a placeholder identity.
- * This mirrors how the rest of the codebase already treats "no principal": {@code
- * RelationshipService.check()}/{@code filter()} have an explicit no-principal branch that allows
- * unscoped access (there is nothing to narrow by), and {@code TokenService.resolveGrantCeiling()}
- * mirrors it for permission ceilings. Those are data-scoping decisions the CALLER is best placed
- * to make - IdentityService itself has no such context, so it just reports the honest answer (no
- * identity) and leaves "what does that mean for me" to the caller, same as {@code
- * getCurrentIdentity()} already does. {@code SecurityInterceptor.preHandle()} was already written
- * to treat a {@code null} scope as a real, meaningful signal (an AuthN/AuthZ mismatch) - it just
- * never actually received one because this class NPE'd first.
+ * <p><b>An identity is always established for a served request.</b> When {@code
+ * flow.security.enabled=true}, {@code AuthenticationFilter} attaches a real {@link Token} or 401s.
+ * When it is {@code false} (local-dev/E2E, and the default for {@code flow.mode=engine}), {@code
+ * UnauthenticatedGlobalAuthenticationFilter} attaches an {@link
+ * io.boomerang.core.security.UnauthenticatedGlobalToken} instead of leaving the context empty -
+ * following Spring Security's own rationale for {@code AnonymousAuthenticationToken} ("classes can
+ * be authored more robustly if they know the SecurityContextHolder always contains an
+ * Authentication object, and never null"). Background work that runs off a request thread hoists
+ * its own token the same way (see {@code ScheduleJob}).
+ *
+ * <p>Consequently {@link #getCurrentPrincipal()} and {@link #getCurrentScope()} dereference the
+ * identity directly - the "no principal" branches they used to carry are gone, along with the
+ * ones in {@code RelationshipService.check()}/{@code filter()} and {@code UserService} that each
+ * invented a different meaning for "nobody is here".
+ *
+ * <p>{@link #getCurrentIdentity()} remains {@code null}-returning: it is the raw accessor, and
+ * under {@code flow.security.enabled=true} there genuinely are routes that bypass {@code
+ * AuthenticationFilter} entirely ({@code shouldNotFilter}: {@code /health}, {@code /api/docs}, the
+ * GitHub callback; plus the {@code permitAll} auth-exchange path). None of those carry an {@code
+ * @AuthCriteria}, which is why {@code SecurityInterceptor.preHandle()} tests this accessor for
+ * {@code null} to catch exactly that misconfiguration and answer a clean 401.
  */
 @Service
 public class IdentityService {
@@ -31,13 +38,11 @@ public class IdentityService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   public String getCurrentPrincipal() {
-    Token token = this.getCurrentIdentity();
-    return token == null ? null : token.getPrincipal();
+    return this.getCurrentIdentity().getPrincipal();
   }
 
   public AuthScope getCurrentScope() {
-    Token token = this.getCurrentIdentity();
-    return token == null ? null : token.getType();
+    return this.getCurrentIdentity().getType();
   }
 
   public Token getCurrentIdentity() {

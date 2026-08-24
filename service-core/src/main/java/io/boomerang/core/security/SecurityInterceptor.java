@@ -43,12 +43,14 @@ public class SecurityInterceptor implements HandlerInterceptor {
         return true;
       }
 
-      // If annotation is found but CurrentScope is not then mismatch must have happened between
-      // routes with AuthN and AuthZ
-      if (identityService.getCurrentScope() == null) {
+      // If the annotation is found but no identity was established, a mismatch must have happened
+      // between routes with AuthN and AuthZ. Tested against getCurrentIdentity() (the raw,
+      // legitimately-nullable accessor) rather than getCurrentScope(), which now dereferences the
+      // identity - the 401 answered here is unchanged.
+      Token accessToken = this.identityService.getCurrentIdentity();
+      if (accessToken == null) {
         LOGGER.error(
-            "SecurityInterceptor - mismatch between AuthN and AuthZ. A permitAll route has an AuthScope. Scope: {}.",
-            identityService.getCurrentScope());
+            "SecurityInterceptor - mismatch between AuthN and AuthZ. A permitAll route has an AuthScope.");
         response.getWriter().write("");
         response.setStatus(401);
         return false;
@@ -57,7 +59,6 @@ public class SecurityInterceptor implements HandlerInterceptor {
       // Check the required token scope is assigned
       // TODO should this check the assignedScope in the permission rather than the token type
       AuthScope[] assignableScopes = authCriteria.assignableScopes();
-      Token accessToken = this.identityService.getCurrentIdentity();
       if (!Arrays.asList(assignableScopes).contains(accessToken.getType())) {
         LOGGER.error(
             "SecurityInterceptor - Unauthorized Assigned Scope. Needed: {}, Provided: {}",
