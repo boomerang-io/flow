@@ -59,9 +59,13 @@ public class WorkflowWatcher {
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
-  // A dispatcher is treated as gone once it has not connected for this long - many multiples of
-  // its long-poll cycle, so only a genuinely dead dispatcher trips it.
-  private static final long DISPATCHER_STALE_MILLIS = 300000;
+  // A dispatcher is treated as gone once it has not connected for this long. Its queue poll
+  // refreshes lastConnectedDate every 5s, so this is twelve missed cycles - short enough that a
+  // dead dispatcher's claims are recovered promptly, long enough that a GC pause or network blip
+  // does not reap a healthy one. Recovering a claim re-dispatches the task while the original
+  // executor may still be running it, and nothing kills that executor, so this cannot be tightened
+  // further until the dispatch protocol can cancel in-flight work.
+  private static final long DISPATCHER_STALE_MILLIS = 60000;
 
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
