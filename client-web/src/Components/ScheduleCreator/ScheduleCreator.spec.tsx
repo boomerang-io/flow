@@ -83,6 +83,14 @@ describe("ScheduleCreator", () => {
       target: { value: moment().add(1, "day").format(DATETIME_LOCAL_INPUT_FORMAT) },
     });
 
+    // Labels: the Creatable emits "key:value" strings, which handleSubmit converts to the
+    // Record<string, string> the API takes. This block was commented out in the v4 import (and
+    // the dead code inside called .length/.map on a Record), so labels silently never reached
+    // the API - the `labels` assertion below is what proves that fixed.
+    await userEvent.type(screen.getByLabelText("Label key"), "level");
+    await userEvent.type(screen.getByLabelText("Label value"), "important");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+
     const createButton = await screen.findByRole("button", { name: "Create" }, { timeout: 3000 });
     await waitFor(() => expect(createButton).toBeEnabled());
     await userEvent.click(createButton);
@@ -91,6 +99,12 @@ describe("ScheduleCreator", () => {
     // somewhere in the tree to actually paint anything - none is wired up in this test harness
     // (see setupTests.tsx), so toast content isn't observable here. `createdBody` is the
     // meaningful assertion: it proves the mutation fired with the right payload.
-    await waitFor(() => expect(createdBody).toMatchObject({ name: "Nightly Backup", type: "runOnce" }));
+    await waitFor(() =>
+      expect(createdBody).toMatchObject({
+        name: "Nightly Backup",
+        type: "runOnce",
+        labels: { level: "important" },
+      }),
+    );
   });
 });
