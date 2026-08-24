@@ -66,6 +66,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Value("${kube.timeout.waitUntil}")
   protected long waitUntilTimeout;
 
+  @Value("${kube.timeout.watchGraceMinutes}")
+  protected long watchGraceMinutes;
+
   @Override
   public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
       throws InterruptedException, ParseException {
@@ -508,10 +511,11 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       // has moved from initial state. If its still in initial state then check PVC
       // PVC might have Event / Condition "ProvisioningFailed" with a reason.
 
-      // Timeout is 10 minutes more than the TaskRun to account for delays in provisioning etc.
-      // Note:
-      // - The TaskRun Timeout will trigger an interrupt which enters this block as well
-      boolean taskComplete = latch.await(timeout + 10, TimeUnit.MINUTES);
+      // A backstop only, for the case where Tekton's own timeout interrupt never reaches this
+      // watch. The engine owns the deadline and reaps at the task budget plus a few seconds, so it
+      // always acts first; this grace exists to release the thread and report, not to wait for
+      // provisioning. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
+      boolean taskComplete = latch.await(timeout + watchGraceMinutes, TimeUnit.MINUTES);
       if (!taskComplete) {
         throw new BoomerangException(
             BoomerangError.TASK_EXECUTION_ERROR,

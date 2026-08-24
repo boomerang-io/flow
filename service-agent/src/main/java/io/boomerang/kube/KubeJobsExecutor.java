@@ -75,6 +75,9 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   @Autowired private WorkspaceService workspaceService;
 
+  @Value("${kube.timeout.watchGraceMinutes}")
+  private long watchGraceMinutes;
+
   @Value("${kube.image.pullPolicy}")
   private String kubeImagePullPolicy;
 
@@ -346,8 +349,11 @@ public class KubeJobsExecutor implements TaskExecutor {
     JobWatcher jobWatcher = new JobWatcher(latch);
 
     try (Watch ignore = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher)) {
-      // Timeout is 10 minutes more than the Job's own deadline to allow for scheduling delays.
-      boolean jobComplete = latch.await(timeoutMinutes + 10, TimeUnit.MINUTES);
+      // A backstop only, for the case where the Job's own deadline never reaches this watch. The
+      // engine owns the deadline and reaps at the task budget plus a few seconds, so it always
+      // acts first; this grace exists to release the thread and report, not to wait for
+      // scheduling. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
+      boolean jobComplete = latch.await(timeoutMinutes + watchGraceMinutes, TimeUnit.MINUTES);
       if (!jobComplete) {
         throw new BoomerangException(
             BoomerangError.TASK_EXECUTION_ERROR,
