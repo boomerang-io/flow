@@ -54,9 +54,16 @@ class UserServiceTest {
     ReflectionTestUtils.setField(userService, "externalUserUrl", "");
   }
 
+  /**
+   * An identity is always established now, so "no principal" is gone. The reachable case is a
+   * principal with no USER RECORD - the security-off {@code UnauthenticatedGlobalToken}
+   * ({@code principal="system"}), and equally any {@code key}/{@code global} machine token with
+   * security enabled. That used to throw {@code NoSuchElementException} out of {@code .get()}.
+   */
   @Test
-  void noPrincipalGetCurrentUserReturnsNullNotNpe() {
-    when(identityService.getCurrentPrincipal()).thenReturn(null);
+  void machinePrincipalWithNoUserRecordGetCurrentUserReturnsNullNotThrows() {
+    when(identityService.getCurrentPrincipal()).thenReturn("system");
+    when(userRepository.findById("system")).thenReturn(java.util.Optional.empty());
 
     assertThat(userService.getCurrentUser()).isNull();
   }
@@ -189,9 +196,15 @@ class UserServiceTest {
     verify(userRepository).findByEmailAndStatus("ada.lovelace@example.com", UserStatus.active);
   }
 
+  /**
+   * Privilege is never asserted for a principal that is not a user: the security-off system
+   * identity is global-scoped, but it maps to no user record, so the admin gate stays closed -
+   * the same answer the deleted no-principal branch gave.
+   */
   @Test
-  void noPrincipalIsCurrentUserAdminReturnsFalseNotNpe() {
-    when(identityService.getCurrentPrincipal()).thenReturn(null);
+  void machinePrincipalWithNoUserRecordIsCurrentUserAdminReturnsFalse() {
+    when(identityService.getCurrentPrincipal()).thenReturn("system");
+    when(userRepository.findById("system")).thenReturn(java.util.Optional.empty());
 
     assertThat(userService.isCurrentUserAdmin()).isFalse();
   }

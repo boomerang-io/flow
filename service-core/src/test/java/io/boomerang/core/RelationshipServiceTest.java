@@ -18,6 +18,7 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RelationshipEdgeRepository;
 import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.AuthScope;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
@@ -281,10 +282,10 @@ class RelationshipServiceTest {
 
   @Test
   @DisplayName(
-      "With no principal on the SecurityContext, check()/filter() behave unscoped instead of"
-          + " throwing (e.g. flow.mode=engine with security disabled)")
-  void noPrincipalIsUnscopedNotDenied() {
-    when(identityService.getCurrentIdentity()).thenReturn(null);
+      "With security disabled the established UnauthenticatedGlobalToken behaves unscoped, exactly"
+          + " as the deleted no-principal branches did (e.g. flow.mode=engine)")
+  void securityDisabledIdentityIsUnscopedNotDenied() {
+    when(identityService.getCurrentIdentity()).thenReturn(new UnauthenticatedGlobalToken());
 
     assertTrue(
         service.check(RelationshipType.WORKFLOW, "w1", Optional.empty(), Optional.empty()));
@@ -338,12 +339,12 @@ class RelationshipServiceTest {
   }
 
   /**
-   * TRIPWIRE — the no-principal branches of {@code check()} and {@code filter()} are NOT
-   * equivalent, and the difference is load-bearing for tenant containment.
+   * TRIPWIRE — {@code check()} and {@code filter()} are NOT equivalent for a {@code global}-scoped
+   * identity, and the difference is load-bearing for tenant containment.
    *
-   * <p>{@code filter()} (RelationshipService:491-497) swaps only the ANCHOR to {@code root}; it
-   * still runs the walk with {@code intermediateType}/{@code intermediateList} intact, so a
-   * workspace-containment constraint is still honoured. {@code check()} (RelationshipService:369-379)
+   * <p>{@code filter()}'s {@code case global} swaps only the ANCHOR to {@code root}; it still runs
+   * the walk with {@code intermediateType}/{@code intermediateList} intact, so a
+   * workspace-containment constraint is still honoured. {@code check()}'s {@code case global}
    * returns {@code true} BEFORE {@code hasNodes()} is reached, so the intermediate is never
    * evaluated and containment silently evaporates.
    *
@@ -352,22 +353,29 @@ class RelationshipServiceTest {
    * {@code check()} for tenant containment and existence, not merely for authz narrowing. Six of
    * those seven mutate state.
    *
-   * <p>This test asserts the CURRENT behaviour so the gap is visible in the suite. <b>If
-   * {@code check()}'s null branch is changed to mirror {@code filter()}'s (anchor at root, then
-   * {@code hasNodes(ROOT, "root", ...)}), the first assertion below flips to {@code false} and
-   * should be inverted.</b>
+   * <p><b>This is NOT specific to the security-disabled path.</b> Deleting {@code check()}'s
+   * no-principal branch did not close it: the branch returned {@code true} explicitly "mirroring
+   * the global token case below", and the established {@code UnauthenticatedGlobalToken} now
+   * reaches that very same {@code case global}. The first assertion below is therefore driven by a
+   * GENUINE {@code global} token - a real admin/service credential under {@code
+   * flow.security.enabled=true} - to pin that the defect is pre-existing and independent of this
+   * change. Closing it is a separate maintainer decision about containment semantics for global
+   * tokens.
    */
   @Test
   @DisplayName(
-      "With no principal, check() drops the workspace-containment intermediate while filter()"
-          + " preserves it")
-  void noPrincipalCheckDropsContainmentButFilterKeepsIt() {
+      "For a global-scoped token, check() drops the workspace-containment intermediate while"
+          + " filter() preserves it - security-enabled and security-disabled alike")
+  void globalScopeCheckDropsContainmentButFilterKeepsIt() {
     node("workflowrun", "r1", "r1");
     node("workflowrun", "r2", "r2");
     edge("workspace:t1", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r1", Map.of());
     edge("workspace:t2", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r2", Map.of());
 
-    when(identityService.getCurrentIdentity()).thenReturn(null);
+    // A REAL global token, as minted for an admin/service caller with security ENABLED.
+    Token globalToken = new Token(AuthScope.global);
+    globalToken.setPrincipal("admin-1");
+    when(identityService.getCurrentIdentity()).thenReturn(globalToken);
 
     // r2 belongs to workspace t2. Asking "is r2 contained in t1?" must be false, but check()
     // short-circuits to true without ever evaluating the intermediate.
@@ -377,8 +385,18 @@ class RelationshipServiceTest {
             "r2",
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of("t1"))),
-        "KNOWN GAP: check() returns true for a run in ANOTHER workspace because the null-principal"
-            + " branch skips the containment intermediate entirely");
+        "KNOWN GAP: check() returns true for a run in ANOTHER workspace because `case global`"
+            + " skips the containment intermediate entirely");
+
+    // The synthetic security-off identity reaches the SAME branch, so it inherits the same gap.
+    when(identityService.getCurrentIdentity()).thenReturn(new UnauthenticatedGlobalToken());
+    assertTrue(
+        service.check(
+            RelationshipType.WORKFLOWRUN,
+            "r2",
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of("t1"))),
+        "the security-off identity inherits the global branch's containment gap unchanged");
 
     // filter(), given the same containment constraint, correctly excludes r2.
     assertEquals(
