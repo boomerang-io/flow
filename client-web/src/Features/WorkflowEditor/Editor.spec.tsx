@@ -71,6 +71,14 @@ describe("Editor --- Snapshot", () => {
       // are fixed, the snapshot would otherwise bake in "undefined" hrefs throughout the nav.
       const { baseElement } = renderEditor(appLink.editorCanvas({ workspace, workflow }));
       await screen.findByText("Editor", undefined, LOADER_WAIT);
+      // The Notes panel (Designer/Notes/Notes.tsx) hands react-mde a `generateMarkdownPreview`
+      // that returns a Promise, so the preview pane renders as an empty `mde-preview ... loading`
+      // placeholder until it resolves - one commit after the chrome this spec waited on. The
+      // recorded snapshot contains the resolved `<div class="markdown-body"><h1>Hello world</h1>`,
+      // so capturing on "Editor" alone made the snapshot a race, and it lost under worker load.
+      // Waiting on the heading (the textarea holds "# Hello world", which does not match this
+      // exact-text query) pins the tree to the state the snapshot actually records.
+      await screen.findByText("Hello world", undefined, LOADER_WAIT);
       expect(baseElement).toMatchSnapshot();
     },
     TEST_TIMEOUT,

@@ -1,6 +1,6 @@
 import React from "react";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import { profile } from "ApiServer/fixtures";
 import { TokenType } from "Constants";
@@ -45,7 +45,7 @@ describe("CreateServiceTokenButton --- RTL", () => {
     const button = await screen.findByTestId(/create-token-button/i);
     expect(screen.queryByText(/Create new token/i)).not.toBeInTheDocument();
     userEvent.click(button);
-    expect(screen.getByText(/Create new token/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Create new token/i)).toBeInTheDocument();
   });
 
   it("Renders the server-driven permission grid for a non-user token", async () => {
@@ -67,9 +67,14 @@ describe("CreateServiceTokenButton --- RTL", () => {
     expect(screen.queryByText(/Create new token/i)).not.toBeInTheDocument();
     userEvent.click(button);
 
-    expect(screen.getByText(/Create new token/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Create new token/i)).toBeInTheDocument();
 
-    const nameInput = screen.getByLabelText(/^Name$/i);
+    // ModalFlow mounts the modal's header and its step body in separate commits: a run that
+    // caught the tree in between found the <h2>Create new token</h2> and the close button on
+    // screen with the whole <ModalBody> - and therefore this field - still absent, so a
+    // synchronous getByLabelText here failed with "Unable to find a label with the text of:
+    // /^Name$/i". The body is asynchronous, so the query has to be too.
+    const nameInput = await screen.findByLabelText(/^Name$/i);
     userEvent.type(nameInput, "my-test-token");
 
     const descriptionInput = screen.getByTestId("token-description");
@@ -77,7 +82,15 @@ describe("CreateServiceTokenButton --- RTL", () => {
 
     const createButton = screen.getByTestId(/create-token-submit/i);
 
-    expect(createButton).toBeEnabled();
+    // The submit button is `disabled={!isValid || isCreating}` (Form/index.tsx) and Formik's
+    // validation - Yup, `validateOnMount` - is asynchronous, so `isValid` reflects the name typed
+    // above only once that validation resolves. The synchronous assertion this replaces was
+    // passing for the wrong reason: Formik's `errors` starts out `{}`, which makes `isValid` true
+    // and the button briefly enabled BEFORE "Name is required" ever lands, so the check could
+    // succeed against pre-validation state. Making the queries above properly async moved the
+    // click past that window and turned this line red every time - which is how the wrong reason
+    // surfaced. Waiting asserts the same thing against settled validation.
+    await waitFor(() => expect(createButton).toBeEnabled());
     userEvent.click(createButton);
     expect(await screen.findByText(/Token successfully created/i)).toBeInTheDocument();
   });

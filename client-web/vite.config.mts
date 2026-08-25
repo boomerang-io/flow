@@ -133,6 +133,13 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: "jsdom",
       setupFiles: "./src/setupTests.tsx",
+      // Headroom over the 5000ms RTL `asyncUtilTimeout` set in setupTests.tsx: several specs
+      // chain three or four loader-backed waits in one test (WorkspaceDetailed's tab walk does
+      // six), so vitest's own 5000ms default would start timing out tests that the widened RTL
+      // window is meant to let finish. Raising it changes only how long a genuinely hung test
+      // takes to report, never whether it fails.
+      testTimeout: 20000,
+      hookTimeout: 20000,
       coverage: {
         reporter: ["json"],
         include: [

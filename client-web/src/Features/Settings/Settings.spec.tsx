@@ -17,6 +17,14 @@ describe("Settings --- Snapshot", () => {
   test("Capturing Snapshot of Settings", async () => {
     const { baseElement } = renderSettings();
     await screen.findByRole("heading", { name: /^Settings$/i });
+    // Carbon's ComboBox derives its input's `title` from a ref it reads during render
+    // (@carbon/react ComboBox.js:589, `title: textInput?.current?.value`), so the attribute is
+    // absent on the first pass and only appears once something re-renders the field - here
+    // SettingsSection's Formik, asynchronously. The recorded snapshot carries
+    // `title="Always"` on the job.deletion.policy combobox, so capturing on the page heading
+    // alone raced that second pass and lost it under worker load. This is the only `title="Always"`
+    // in the tree.
+    await screen.findByTitle("Always");
     expect(baseElement).toMatchSnapshot();
   });
 });
