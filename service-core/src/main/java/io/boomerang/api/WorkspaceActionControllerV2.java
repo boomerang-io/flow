@@ -6,6 +6,7 @@ import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.workflow.ActionService;
 import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workflow.model.ActionSummary;
@@ -36,10 +37,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Actions", description = "Create and manage Manual and Approval Actions.")
 public class WorkspaceActionControllerV2 {
 
-  private final WorkspaceActionService workspaceActionService;
+  private final ActionService actionService;
 
-  public WorkspaceActionControllerV2(WorkspaceActionService workspaceActionService) {
-    this.workspaceActionService = workspaceActionService;
+  public WorkspaceActionControllerV2(ActionService actionService) {
+    this.actionService = actionService;
   }
 
   @GetMapping(value = "/{actionId}")
@@ -63,7 +64,7 @@ public class WorkspaceActionControllerV2 {
           String workspace,
       @Parameter(name = "actionId", description = "ID of Action", required = true) @PathVariable
           String actionId) {
-    return workspaceActionService.get(workspace, actionId);
+    return actionService.get(workspace, actionId);
   }
 
   //  @GetMapping(value = "")
@@ -75,7 +76,7 @@ public class WorkspaceActionControllerV2 {
   //  public Action getByTaskRun(
   //      @Parameter(name = "taskRunId", description = "Retrieve Action by TaskRun",
   //      required = true) @RequestParam(required = true) String taskRunId) {
-  //      return workspaceActionService.getByTaskRun(taskRunId);
+  //      return actionService.getByTaskRun(taskRunId);
   //  }
 
   @PutMapping(value = "")
@@ -98,7 +99,7 @@ public class WorkspaceActionControllerV2 {
           @PathVariable
           String workspace,
       @RequestBody List<ActionRequest> request) {
-    workspaceActionService.action(workspace, request);
+    actionService.action(workspace, request);
   }
 
   @GetMapping(value = "/query")
@@ -185,7 +186,7 @@ public class WorkspaceActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return workspaceActionService.query(workspace, from, to, pageable, types, statuses, workflows);
+    return actionService.query(workspace, from, to, pageable, types, statuses, workflows);
   }
 
   @GetMapping(value = "/summary")
@@ -235,6 +236,6 @@ public class WorkspaceActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return workspaceActionService.summary(workspace, from, to, workflows);
+    return actionService.summary(workspace, from, to, workflows);
   }
 }

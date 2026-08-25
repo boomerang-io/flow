@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionStatus;
@@ -17,7 +17,6 @@ import io.boomerang.core.model.User;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
-import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workflow.model.ActionSummary;
@@ -38,8 +37,23 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
+/**
+ * The Action (approval / manual task) domain service.
+ *
+ * <p>Despite its former name and package this was never an {@code api} pass-through: it owns the
+ * Action collection outright - {@code action} runs the approver-group and quorum logic and ends the
+ * blocked TaskRun, {@code query}/{@code summary} build their own Mongo criteria, and there is no
+ * {@code engine} service underneath it to delegate to. F3 moved it to the feature package it
+ * belongs to and gave it the plain domain name the house convention asks for
+ * ({@code <Name>Service}); its behaviour, its signatures and its authorization are unchanged.
+ *
+ * <p>Every operation is workspace-scoped ({@code action}/{@code query}/{@code summary} take the
+ * {@code /api/v2/workspace/&#123;workspace&#125;/action} path segment) except {@code
+ * deleteAllByWorkflow}, the cascade {@link WorkflowService#delete} calls after it has already
+ * authorized the Workflow.
+ */
 @Service
-public class WorkspaceActionService {
+public class ActionService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -51,7 +65,7 @@ public class WorkspaceActionService {
   private final UserService userService;
   private final MongoTemplate mongoTemplate;
 
-  public WorkspaceActionService(
+  public ActionService(
       ActionRepository actionRepository,
       ApproverGroupRepository approverGroupRepository,
       TaskRunService engineTaskRunService,

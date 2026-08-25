@@ -29,7 +29,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * <p>Before this filter existed, {@code flow.security.enabled=false} left the SecurityContext empty
  * and every consumer invented its own meaning for "nobody is here" - {@code
  * RelationshipService.check()} allowed unscoped, {@code filter()} anchored at {@code ROOT}, {@code
- * WorkspaceActionService} bypassed approver-group membership, and {@code AuditInterceptor} threw
+ * ActionService} bypassed approver-group membership, and {@code AuditInterceptor} threw
  * inside {@code new AuditActor(token)} so <b>no audit record was written at all</b>. Those
  * no-principal branches have been deleted; this test pins the invariant that makes their deletion
  * safe, rather than re-testing each removed branch.

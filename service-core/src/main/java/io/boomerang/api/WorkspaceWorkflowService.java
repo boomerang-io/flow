@@ -43,6 +43,7 @@ import io.boomerang.workflow.model.CanvasNodePosition;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.schedule.ScheduleService;
+import io.boomerang.workflow.ActionService;
 import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.FlowQuotaProperties;
@@ -119,7 +120,7 @@ public class WorkspaceWorkflowService {
   private final ObjectProvider<ScheduleService> scheduleService;
   private final ParamLayerService paramLayerService;
   private final SettingsService settingsService;
-  private final WorkspaceActionService workspaceActionService;
+  private final ActionService actionService;
   private final TokenService tokenService;
   private final ObjectProvider<WorkspaceService> workspaceService;
   private final boolean quotasEnabled;
@@ -130,7 +131,7 @@ public class WorkspaceWorkflowService {
       ObjectProvider<ScheduleService> scheduleService,
       ParamLayerService paramLayerService,
       SettingsService settingsService,
-      WorkspaceActionService workspaceActionService,
+      ActionService actionService,
       TokenService tokenService,
       ObjectProvider<WorkspaceService> workspaceService,
       Environment environment) {
@@ -139,7 +140,7 @@ public class WorkspaceWorkflowService {
     this.scheduleService = scheduleService;
     this.paramLayerService = paramLayerService;
     this.settingsService = settingsService;
-    this.workspaceActionService = workspaceActionService;
+    this.actionService = actionService;
     this.tokenService = tokenService;
     this.workspaceService = workspaceService;
     this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
@@ -649,7 +650,7 @@ public class WorkspaceWorkflowService {
       // schedules to delete.
       scheduleService.ifAvailable(s -> s.deleteAllForWorkflow(refs.get(0)));
       tokenService.deleteAllForPrincipal(name);
-      workspaceActionService.deleteAllByWorkflow(refs.get(0));
+      actionService.deleteAllByWorkflow(refs.get(0));
       // This has to be the ID (ref) as it is unique across all teams
       relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, refs.get(0));
     } else {

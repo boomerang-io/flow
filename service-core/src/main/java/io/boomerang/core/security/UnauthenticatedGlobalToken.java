@@ -17,7 +17,7 @@ import java.util.List;
  * never loads - so {@link io.boomerang.core.security.IdentityService#getCurrentIdentity()} returned
  * {@code null} and every caller invented its own meaning for "nobody is here". They disagreed:
  * {@code RelationshipService.check()} allowed unscoped, {@code filter()} anchored at {@code ROOT},
- * {@code WorkspaceActionService} bypassed approver-group membership, and {@code AuditInterceptor}
+ * {@code ActionService} bypassed approver-group membership, and {@code AuditInterceptor}
  * threw inside {@code new AuditActor(token)} - so <b>no audit record was ever written at all</b>
  * with security off.
  *

@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,7 +13,6 @@ import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.repository.ActionRepository;
-import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
@@ -29,7 +28,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 
 /**
  * With no current USER, actioning a manual/approval task must not NPE on the approver identity -
- * see {@code WorkspaceActionService#action}, which used to dereference {@code userEntity.getId()}
+ * see {@code ActionService#action}, which used to dereference {@code userEntity.getId()}
  * directly.
  *
  * <p>Note this is NOT the "no identity" case, which no longer exists: an identity is always
@@ -42,7 +41,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
  * authorization semantics under security-enabled and is a separate maintainer decision.
  */
 @ExtendWith(MockitoExtension.class)
-class WorkspaceActionServiceTest {
+class ActionServiceTest {
 
   @Mock private ActionRepository actionRepository;
   @Mock private ApproverGroupRepository approverGroupRepository;
@@ -52,12 +51,12 @@ class WorkspaceActionServiceTest {
   @Mock private UserService userService;
   @Mock private MongoTemplate mongoTemplate;
 
-  private WorkspaceActionService workspaceActionService;
+  private ActionService actionService;
 
   @BeforeEach
   void setUp() {
-    workspaceActionService =
-        new WorkspaceActionService(
+    actionService =
+        new ActionService(
             actionRepository,
             approverGroupRepository,
             engineTaskRunService,
@@ -88,7 +87,7 @@ class WorkspaceActionServiceTest {
     request.setId("a1");
     request.setApproved(true);
 
-    workspaceActionService.action("team1", List.of(request));
+    actionService.action("team1", List.of(request));
 
     assertThat(entity.getActioners()).hasSize(1);
     Actioner actioner = entity.getActioners().get(0);
@@ -113,7 +112,7 @@ class WorkspaceActionServiceTest {
     request.setId("a1");
     request.setApproved(true);
 
-    workspaceActionService.action("team1", List.of(request));
+    actionService.action("team1", List.of(request));
 
     assertThat(entity.getActioners()).hasSize(1);
     assertThat(entity.getActioners().get(0).getApproverId()).isNull();
@@ -138,7 +137,7 @@ class WorkspaceActionServiceTest {
     request.setId("a1");
     request.setApproved(true);
 
-    workspaceActionService.action("team1", List.of(request));
+    actionService.action("team1", List.of(request));
 
     assertThat(entity.getActioners()).isEmpty();
   }
