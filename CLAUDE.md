@@ -10,7 +10,7 @@ This is a **Java 25 / Spring Boot 4 monorepo** (plus one pnpm/Vite frontend). Cu
 
 | Module           | Role                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------- |
-| `service-core`   | The merged deployable: v2 REST API, auth/authz, workspaces, workflows, AND the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Nine flat feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations,api}`. |
+| `service-core`   | The merged deployable: v2 REST API, auth/authz, workspaces, workflows, AND the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Eight flat feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}` — the ninth, `api`, was dissolved (F3, 2026-08-25): every `*ControllerV2` now sits in the package owning the service it injects. |
 | `service-agent`  | Pluggable execution worker (→ `dispatcher` per DD-06). Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default, `TektonServiceImpl`) or `kube-jobs` (`KubeJobsExecutor`, plain `batch/v1` Jobs, no Tekton). |
 | `service-loader`  | Flamingock migrations + bootstrap seeding, run as a pre-deploy Job (DD-07).              |
 | `lib-common`     | Shared domain model, entities, enums, error handling. (Being dissolved per Q-202.)       |

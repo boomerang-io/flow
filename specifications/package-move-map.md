@@ -6,6 +6,12 @@ Target layout (ARCHIE flat-feature convention): `io.boomerang.{core, workspace, 
 dispatcher, schedule, event, integrations, api}` + `Application`; lib-common stays the separate
 shared-contract Maven module.
 
+> **Superseded for `api` (F3, 2026-08-25):** `api` no longer exists. Its five pass-through services
+> were collapsed into the owning feature services, and the remaining 17 controllers plus
+> `api.model.UserProfile` moved into the package owning the service each injects — 8 to `workflow`,
+> 4 to `core`, 3 to `workspace`, 1 to `schedule`, 1 to `integrations`. The live layout is eight flat
+> feature packages. Routes and `@AuthCriteria` were proven byte-identical across the move.
+
 ## Phase ordering (cleanest-first)
 
 1. **P1 — zero-risk deletions + C5** (~20 classes): delete the dead `io.boomerang.audit` package

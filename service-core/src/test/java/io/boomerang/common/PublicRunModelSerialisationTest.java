@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
