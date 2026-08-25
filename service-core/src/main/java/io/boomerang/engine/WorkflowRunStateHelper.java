@@ -30,12 +30,12 @@ import org.springframework.stereotype.Service;
  * post-merge, these primitives are not.
  */
 @Service
-public class WorkflowRunStateService {
+public class WorkflowRunStateHelper {
 
   private final MongoTemplate mongoTemplate;
   private final ApplicationEventPublisher eventPublisher;
 
-  public WorkflowRunStateService(
+  public WorkflowRunStateHelper(
       MongoTemplate mongoTemplate, ApplicationEventPublisher eventPublisher) {
     this.mongoTemplate = mongoTemplate;
     this.eventPublisher = eventPublisher;

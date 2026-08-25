@@ -25,7 +25,7 @@ import io.boomerang.event.enums.InboxStatus;
 import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowExecutionService;
-import io.boomerang.engine.WorkflowRunStateService;
+import io.boomerang.engine.WorkflowRunStateHelper;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.event.repository.EventInboxRepository;
@@ -97,7 +97,7 @@ public class WorkflowRunService {
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
   private final EventInboxRepository eventInboxRepository;
-  private final WorkflowRunStateService workflowRunStateService;
+  private final WorkflowRunStateHelper workflowRunStateHelper;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
 
@@ -111,7 +111,7 @@ public class WorkflowRunService {
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
       EventInboxRepository eventInboxRepository,
-      WorkflowRunStateService workflowRunStateService,
+      WorkflowRunStateHelper workflowRunStateHelper,
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
@@ -123,7 +123,7 @@ public class WorkflowRunService {
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
     this.eventInboxRepository = eventInboxRepository;
-    this.workflowRunStateService = workflowRunStateService;
+    this.workflowRunStateHelper = workflowRunStateHelper;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
   }
@@ -776,7 +776,7 @@ public class WorkflowRunService {
     }
     // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
     // admission and the recovery sweeps exclude it from here on.
-    if (!workflowRunStateService.tryPause(workflowRunId)) {
+    if (!workflowRunStateHelper.tryPause(workflowRunId)) {
       LOGGER.info("[{}] WorkflowRun not running or already paused. Nothing to pause.", workflowRunId);
     }
     return ConvertUtil.entityToModel(
@@ -791,7 +791,7 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
     // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
-    if (workflowRunStateService.tryResume(workflowRunId)) {
+    if (workflowRunStateHelper.tryResume(workflowRunId)) {
       taskExecutionService.advance(workflowRunId);
     } else {
       LOGGER.info("[{}] WorkflowRun not paused. Nothing to resume.", workflowRunId);
@@ -813,7 +813,7 @@ public class WorkflowRunService {
     }
     // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
     // can never overwrite a terminal status. Only the winner drives the timeout to completion.
-    WorkflowRunEntity preImage = workflowRunStateService.tryMarkTimedOut(workflowRunId);
+    WorkflowRunEntity preImage = workflowRunStateHelper.tryMarkTimedOut(workflowRunId);
     if (preImage != null) {
       // The cause is known here; the completion path just writes the message it is given.
       String statusMessage =

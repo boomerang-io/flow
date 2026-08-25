@@ -21,7 +21,7 @@ class WorkflowRunPausedFieldTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowRunService workflowRunService;
 
-  @Autowired private WorkflowRunStateService workflowRunStateService;
+  @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
 
   @Test
   void pausingARunFlipsTheWireBooleanWithoutChangingStatusOrPhase() {
@@ -31,7 +31,7 @@ class WorkflowRunPausedFieldTest extends AbstractEngineIntegrationTest {
     WorkflowRun beforePause = workflowRunService.get(wfRun.getId(), false);
     assertFalse(beforePause.isPaused(), "a run with no pauseRequestedAt must report unpaused");
 
-    boolean won = workflowRunStateService.tryPause(wfRun.getId());
+    boolean won = workflowRunStateHelper.tryPause(wfRun.getId());
     assertTrue(won, "the Compare-And-Set must win on a running, not-yet-paused run");
 
     WorkflowRunEntity persisted = workflowRunRepository.findById(wfRun.getId()).orElseThrow();

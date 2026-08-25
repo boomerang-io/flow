@@ -74,7 +74,7 @@ public class WorkflowWatcher {
   private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskExecutionService taskExecutionService;
   private final WorkflowRunService workflowRunService;
-  private final WorkflowRunStateService workflowRunStateService;
+  private final WorkflowRunStateHelper workflowRunStateHelper;
   private final ActionRepository actionRepository;
   private final DispatcherRepository dispatcherRepository;
 
@@ -92,7 +92,7 @@ public class WorkflowWatcher {
       WorkflowRevisionRepository workflowRevisionRepository,
       TaskExecutionService taskExecutionService,
       WorkflowRunService workflowRunService,
-      WorkflowRunStateService workflowRunStateService,
+      WorkflowRunStateHelper workflowRunStateHelper,
       ActionRepository actionRepository,
       DispatcherRepository dispatcherRepository) {
     this.taskRunService = taskRunService;
@@ -101,7 +101,7 @@ public class WorkflowWatcher {
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskExecutionService = taskExecutionService;
     this.workflowRunService = workflowRunService;
-    this.workflowRunStateService = workflowRunStateService;
+    this.workflowRunStateHelper = workflowRunStateHelper;
     this.actionRepository = actionRepository;
     this.dispatcherRepository = dispatcherRepository;
   }
@@ -180,7 +180,7 @@ public class WorkflowWatcher {
   /** Reap running WorkflowRuns past their durable {@code timeoutAt} deadline. */
   public void reapWorkflowTimeouts() {
     SweepRunner.forEachIsolated(
-        workflowRunStateService.findTimedOut(new Date(), PAGE_SIZE),
+        workflowRunStateHelper.findTimedOut(new Date(), PAGE_SIZE),
         wfRun -> workflowRunService.timeout(wfRun.getId(), false),
         (wfRun, ex) ->
             LOGGER.error("[{}] Workflow timeout reap failed: {}", wfRun.getId(), ex.getMessage()));
@@ -194,7 +194,7 @@ public class WorkflowWatcher {
   public void recoverStalledRuns() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
     SweepRunner.forEachIsolated(
-        workflowRunStateService.findRunningStartedBefore(startedBefore, PAGE_SIZE),
+        workflowRunStateHelper.findRunningStartedBefore(startedBefore, PAGE_SIZE),
         wfRun -> {
           if (!taskRunService.existsInFlightByWorkflowRunRef(wfRun.getId())) {
             LOGGER.info(
@@ -213,9 +213,9 @@ public class WorkflowWatcher {
    */
   public void finalizeWorkspacelessRuns() {
     SweepRunner.forEachIsolated(
-        workflowRunStateService.findFinalizableWithoutWorkspaces(PAGE_SIZE),
+        workflowRunStateHelper.findFinalizableWithoutWorkspaces(PAGE_SIZE),
         wfRun -> {
-          if (workflowRunStateService.tryFinalize(wfRun.getId()) != null) {
+          if (workflowRunStateHelper.tryFinalize(wfRun.getId()) != null) {
             LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
           }
         },
@@ -281,7 +281,7 @@ public class WorkflowWatcher {
    */
   public void reapRunsWithMissingRevision() {
     SweepRunner.forEachIsolated(
-        workflowRunStateService.findInFlight(PAGE_SIZE),
+        workflowRunStateHelper.findInFlight(PAGE_SIZE),
         wfRun -> {
           if (workflowRevisionRepository.existsById(wfRun.getWorkflowRevisionRef())) {
             return;
@@ -290,7 +290,7 @@ public class WorkflowWatcher {
               wfRun.getStartTime() != null
                   ? new Date().getTime() - wfRun.getStartTime().getTime()
                   : 0;
-          if (workflowRunStateService.tryComplete(
+          if (workflowRunStateHelper.tryComplete(
                   wfRun.getId(),
                   IN_FLIGHT_PHASES,
                   RunStatus.invalid,

@@ -11,7 +11,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
-import io.boomerang.engine.WorkflowRunStateService;
+import io.boomerang.engine.WorkflowRunStateHelper;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
@@ -40,17 +40,17 @@ public class DispatcherService {
   private boolean queueEnabled;
 
   private final DispatcherRepository agentRepository;
-  private final WorkflowRunStateService workflowRunStateService;
+  private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
-      WorkflowRunStateService workflowRunStateService,
+      WorkflowRunStateHelper workflowRunStateHelper,
       TaskRunService taskRunService,
       MongoTemplate mongoTemplate) {
     this.agentRepository = agentRepository;
-    this.workflowRunStateService = workflowRunStateService;
+    this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
   }
@@ -129,16 +129,16 @@ public class DispatcherService {
         // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
         // provision and start, completed to tear down and finalize.
         List<WorkflowRun> workflowRuns = new LinkedList<>();
-        for (WorkflowRunEntity candidate : workflowRunStateService.findClaimableForProvision(PAGE_SIZE)) {
+        for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              workflowRunStateService.tryClaimForProvision(candidate.getId(), agentId);
+              workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
-        for (WorkflowRunEntity candidate : workflowRunStateService.findClaimableForTeardown(PAGE_SIZE)) {
+        for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForTeardown(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              workflowRunStateService.tryClaimForTeardown(candidate.getId(), agentId);
+              workflowRunStateHelper.tryClaimForTeardown(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }

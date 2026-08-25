@@ -46,7 +46,7 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private WorkflowRunService workflowRunService;
 
-  @Autowired private WorkflowRunStateService workflowRunStateService;
+  @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
   @Autowired private MongoTemplate mongoTemplate;
 
   @MockitoSpyBean private DAGUtility dagUtility;
@@ -216,7 +216,7 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
     doAnswer(
             invocation -> {
               if (injected.compareAndSet(false, true)) {
-                workflowRunStateService.appendResult(wfRunId, new RunResult("artifact", "build-42"));
+                workflowRunStateHelper.appendResult(wfRunId, new RunResult("artifact", "build-42"));
               }
               return invocation.callRealMethod();
             })
