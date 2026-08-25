@@ -159,6 +159,26 @@ class WorkflowWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
         FOREIGN_WORKFLOW,
         workflowService.get(FOREIGN_WORKSPACE, FOREIGN_WORKFLOW, Optional.empty(), false).getName(),
         "the same token reaching the Workflow through its OWN workspace is served");
+
+    // submit resolves through the SAME filter call, which is why it cannot reproduce the
+    // wrong-owner defect f46ede7 fixed in retry(). retry() guards with check(), and check()
+    // returns true unconditionally for a global token, so the path segment reached the edge
+    // write unverified; submit() guards with filter(), which keeps walking and applies the
+    // workspace containment even for global scope. The `team` it writes into
+    // createNodeAndEdge(WORKSPACE, team, HAS_WORKFLOWRUN, ...) is therefore always a workspace
+    // that really does contain the Workflow. Pinned so that a future change to either call site
+    // cannot quietly open the hole.
+    assertRefused(
+        () ->
+            workflowService.submit(
+                MY_WORKSPACE, FOREIGN_WORKFLOW, new WorkflowSubmitRequest(), false),
+        "submit");
+    assertTrue(
+        workflowRunRepository
+            .findByWorkflowRefAndPhaseIn(
+                foreignWorkflowRef, List.of(io.boomerang.common.enums.RunPhase.values()))
+            .isEmpty(),
+        "a submit refused by the workspace narrowing must not create a run");
   }
 
   @Test
