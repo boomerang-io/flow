@@ -262,10 +262,14 @@ public class WorkflowRunService {
     requireWorkspaceRelationship(team, workflowRunId);
     WorkflowRun wfRun = retry(workflowRunId, false, 1);
 
-    // Creates relationship with owning team
+    // Record ownership against the run's REAL owning workspace, resolved from the run - NOT the
+    // `team` path segment. `team` only proves the caller can reach this run through that path, and
+    // for a global-scope token RelationshipService.check returns true for ANY path workspace
+    // (RelationshipService:417-419). Using it here permanently recorded the wrong owner whenever a
+    // run was retried through another workspace's URL.
     relationshipService.createNodeAndEdge(
         RelationshipType.WORKSPACE,
-        team,
+        owningWorkspace(workflowRunId, wfRun.getWorkflowRef()),
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,
         wfRun.getId(),
@@ -273,6 +277,25 @@ public class WorkflowRunService {
         Optional.empty(),
         Optional.empty());
     return ResponseEntity.ok(wfRun);
+  }
+
+  /**
+   * The workspace that owns a WorkflowRun: its own recorded owner, or - for a run created without
+   * an ownership edge, which is what the engine's auto-retry produces - the owner of the Workflow
+   * it ran. The fallback is the same resolution {@code RelationshipEventListener
+   * .onChildWorkflowRunCreated} and {@code ScheduleWatcher.resolveTeam} already use, and it keeps
+   * a chained retry from failing on a missing parent.
+   */
+  private String owningWorkspace(String workflowRunId, String workflowRef) {
+    String workspace =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, workflowRunId);
+    if (workspace == null || workspace.isBlank()) {
+      workspace =
+          relationshipService.getParentByLabel(
+              RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
+    }
+    return workspace;
   }
 
   /**
