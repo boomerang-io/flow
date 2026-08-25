@@ -3,6 +3,7 @@ package io.boomerang.api;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunRequest;
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -38,10 +39,10 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowRunControllerV2 {
 
-  private final WorkspaceWorkflowRunService workspaceWorkflowRunService;
+  private final WorkflowRunService workflowRunService;
 
-  public WorkspaceWorkflowRunControllerV2(WorkspaceWorkflowRunService workspaceWorkflowRunService) {
-    this.workspaceWorkflowRunService = workspaceWorkflowRunService;
+  public WorkspaceWorkflowRunControllerV2(WorkflowRunService workflowRunService) {
+    this.workflowRunService = workflowRunService;
   }
 
   @GetMapping(value = "/query")
@@ -129,7 +130,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = false)
           @RequestParam
           Optional<Long> toDate) {
-    return workspaceWorkflowRunService.query(
+    return workflowRunService.query(
         workspace,
         fromDate,
         toDate,
@@ -192,7 +193,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = false)
           @RequestParam
           Optional<Long> toDate) {
-    return workspaceWorkflowRunService.count(workspace, fromDate, toDate, labels, workflows);
+    return workflowRunService.count(workspace, fromDate, toDate, labels, workflows);
   }
 
   @GetMapping(value = "/{workflowRunId}")
@@ -223,7 +224,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return workspaceWorkflowRunService.get(workspace, workflowRunId, withTasks);
+    return workflowRunService.get(workspace, workflowRunId, withTasks);
   }
 
   @PutMapping(value = "/{workflowRunId}/start")
@@ -253,7 +254,7 @@ public class WorkspaceWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workspaceWorkflowRunService.start(workspace, workflowRunId, runRequest);
+    return workflowRunService.start(workspace, workflowRunId, runRequest);
   }
 
   @PutMapping(value = "/{workflowRunId}/finalize")
@@ -281,7 +282,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.finalize(workspace, workflowRunId);
+    return workflowRunService.finalize(workspace, workflowRunId);
   }
 
   @DeleteMapping(value = "/{workflowRunId}/cancel")
@@ -309,7 +310,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.cancel(workspace, workflowRunId);
+    return workflowRunService.cancel(workspace, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/pause")
@@ -337,7 +338,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.pause(workspace, workflowRunId);
+    return workflowRunService.pause(workspace, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/resume")
@@ -365,7 +366,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId) {
-    return workspaceWorkflowRunService.resume(workspace, workflowRunId);
+    return workflowRunService.resume(workspace, workflowRunId);
   }
 
   @PutMapping(value = "/{workflowRunId}/retry")
@@ -394,6 +395,6 @@ public class WorkspaceWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workspaceWorkflowRunService.retry(workspace, workflowRunId);
+    return workflowRunService.retry(workspace, workflowRunId);
   }
 }

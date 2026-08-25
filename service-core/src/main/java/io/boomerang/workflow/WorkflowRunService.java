@@ -4,15 +4,20 @@ import static java.util.stream.Collectors.groupingBy;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import io.boomerang.api.model.WorkflowRunResponsePage;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.*;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
 import io.boomerang.engine.TaskExecutionService;
@@ -20,6 +25,7 @@ import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowExecutionService;
 import io.boomerang.engine.WorkflowRunStateService;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
+import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.event.repository.EventInboxRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
@@ -52,8 +58,27 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+/**
+ * The WorkflowRun domain service - one service for every run operation the product performs.
+ *
+ * <p>It has two entry shapes over the same operations:
+ *
+ * <ul>
+ *   <li><b>Workspace-scoped</b> ({@code get(workspace, ...)}, {@code cancel(workspace, ...)}, ...)
+ *       - the {@code /api/v2/workspace/&#123;workspace&#125;/workflowrun} surface. Each one performs
+ *       its own {@link RelationshipService} check before doing the work.
+ *   <li><b>Unscoped</b> ({@code get(id, ...)}, {@code cancel(id)}, ...) - internal callers that
+ *       carry no workspace and are authorized elsewhere or not at all: the engine's watcher and
+ *       execution services, the webhook event path, and the v1 dispatcher callback controller.
+ * </ul>
+ *
+ * <p>F3 collapsed the former {@code api.WorkspaceWorkflowRunService} pass-through into this class:
+ * the workspace check and the operation now live together instead of being split across a service
+ * boundary that only existed because the engine used to be a separate deployable (DD-02).
+ */
 @Service
 public class WorkflowRunService {
 
@@ -63,33 +88,226 @@ public class WorkflowRunService {
   private final WorkflowRepository workflowRepository;
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
+  private final ActionRepository actionRepository;
   private final TaskRunService taskRunService;
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
   private final EventInboxRepository eventInboxRepository;
   private final WorkflowRunStateService workflowRunStateService;
+  private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
+      ActionRepository actionRepository,
       TaskRunService taskRunService,
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
       EventInboxRepository eventInboxRepository,
       WorkflowRunStateService workflowRunStateService,
+      RelationshipService relationshipService,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
+    this.actionRepository = actionRepository;
     this.taskRunService = taskRunService;
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
     this.eventInboxRepository = eventInboxRepository;
     this.workflowRunStateService = workflowRunStateService;
+    this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
   }
+
+  // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
+  //
+  // Every method here performs the SAME relationship check the deleted
+  // api.WorkspaceWorkflowRunService performed, then does the work inline.
+
+  /*
+   * Get Workflow Run
+   *
+   * No need to validate params as they are either defaulted or optional
+   */
+  public ResponseEntity<WorkflowRun> get(String team, String workflowRunId, boolean withTasks) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    return ResponseEntity.ok(get(workflowRunId, withTasks));
+  }
+
+  /*
+   * Query for WorkflowRun
+   *
+   * No need to validate params as they are either defaulted or optional
+   */
+  public WorkflowRunResponsePage query(
+      String queryTeam,
+      Optional<Long> fromDate,
+      Optional<Long> toDate,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> queryOrder,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryPhase,
+      Optional<List<String>> queryWorkflowRuns,
+      Optional<List<String>> queryWorkflows,
+      Optional<List<String>> queryTriggers) {
+
+    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    // TODO query workflow runs
+    if (wfRefs.isEmpty()) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+    Page<WorkflowRun> page =
+        query(
+            fromDate.map(Date::new),
+            toDate.map(Date::new),
+            queryLimit,
+            queryPage,
+            queryOrder,
+            queryLabels,
+            queryStatus,
+            queryPhase,
+            Optional.empty(),
+            Optional.of(wfRefs),
+            queryTriggers);
+    return new WorkflowRunResponsePage(
+        page.getContent(), page.getPageable(), page.getTotalElements());
+  }
+
+  /*
+   * Retrieve the insights / statistics for a specific period of time and filters
+   */
+  public WorkflowRunInsight insight(
+      String queryTeam,
+      Optional<Long> from,
+      Optional<Long> to,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryWorkflows) {
+    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    return insights(
+        from.map(Date::new), to.map(Date::new), queryLabels, Optional.empty(), Optional.of(wfRefs));
+  }
+
+  /*
+   * Retrieve the counts by status for a specific period of time and filters
+   */
+  public WorkflowRunCount count(
+      String queryTeam,
+      Optional<Long> from,
+      Optional<Long> to,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryWorkflows) {
+    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    return count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(wfRefs));
+  }
+
+  /*
+   * Start WorkflowRun
+   *
+   * TODO: do we expose this one?
+   */
+  public ResponseEntity<WorkflowRun> start(
+      String team, String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    return ResponseEntity.ok(start(workflowRunId, optRunRequest));
+  }
+
+  /*
+   * Finalize WorkflowRun
+   *
+   * TODO: do we expose this one?
+   */
+  public ResponseEntity<WorkflowRun> finalize(String team, String workflowRunId) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    return ResponseEntity.ok(finalize(workflowRunId));
+  }
+
+  /*
+   * Cancel WorkflowRun
+   */
+  public ResponseEntity<WorkflowRun> cancel(String team, String workflowRunId) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    WorkflowRun wfRun = cancel(workflowRunId);
+    // Close any Action (approval / manual task) the cancelled run left open. Inlined from the
+    // deleted WorkspaceActionService.cancelAllByWorkflowRun, which was a one-line delegation to
+    // this repository call and had no other caller.
+    actionRepository.updateStatusByWorkflowRunRef(workflowRunId, ActionStatus.cancelled);
+    return ResponseEntity.ok(wfRun);
+  }
+
+  /*
+   * Pause WorkflowRun
+   */
+  public ResponseEntity<WorkflowRun> pause(String team, String workflowRunId) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    return ResponseEntity.ok(pause(workflowRunId));
+  }
+
+  /*
+   * Resume WorkflowRun
+   */
+  public ResponseEntity<WorkflowRun> resume(String team, String workflowRunId) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    return ResponseEntity.ok(resume(workflowRunId));
+  }
+
+  /*
+   * Retry WorkflowRun
+   */
+  public ResponseEntity<WorkflowRun> retry(String team, String workflowRunId) {
+    requireWorkspaceRelationship(team, workflowRunId);
+    WorkflowRun wfRun = retry(workflowRunId, false, 1);
+
+    // Creates relationship with owning team
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        team,
+        RelationshipLabel.HAS_WORKFLOWRUN,
+        RelationshipType.WORKFLOWRUN,
+        wfRun.getId(),
+        wfRun.getId(),
+        Optional.empty(),
+        Optional.empty());
+    return ResponseEntity.ok(wfRun);
+  }
+
+  /**
+   * The single workspace guard for the operations above: the caller must be able to reach this
+   * WorkflowRun through the workspace named in the path. A blank id fails the same way an
+   * unreachable one does, exactly as the pass-through did.
+   */
+  private void requireWorkspaceRelationship(String team, String workflowRunId) {
+    if (workflowRunId == null
+        || workflowRunId.isBlank()
+        || !relationshipService.check(
+            RelationshipType.WORKFLOWRUN,
+            workflowRunId,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)))) {
+      // TODO: do we want to return invalid ref or unauthorized
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+  }
+
+  /** The Workflows of the given workspace that the caller may see, narrowed by the query filter. */
+  private List<String> workspaceWorkflowRefs(
+      String queryTeam, Optional<List<String>> queryWorkflows) {
+    List<String> wfRefs =
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            queryWorkflows,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
+    LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
+    return wfRefs;
+  }
+
+  // ── Unscoped operations (engine, webhook and v1 dispatcher callers) ────────
 
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {

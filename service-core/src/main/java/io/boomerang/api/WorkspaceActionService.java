@@ -347,7 +347,4 @@ public class WorkspaceActionService {
     actionRepository.deleteByWorkflowRef(workflowRef);
   }
 
-  public void cancelAllByWorkflowRun(String workflowRunRef) {
-    actionRepository.updateStatusByWorkflowRunRef(workflowRunRef, ActionStatus.cancelled);
-  }
 }
