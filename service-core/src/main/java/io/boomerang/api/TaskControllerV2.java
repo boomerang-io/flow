@@ -1,6 +1,7 @@
 package io.boomerang.api;
 
-import io.boomerang.api.model.TaskResponsePage;
+import io.boomerang.common.model.TaskResponsePage;
+import io.boomerang.workflow.TaskService;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
 import io.boomerang.core.security.AuthCriteria;
@@ -30,10 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Tasks", description = "Create and Manage the global Task definitions.")
 public class TaskControllerV2 {
 
-  private final WorkspaceTaskService workspaceTaskService;
+  private final TaskService taskService;
 
-  public TaskControllerV2(WorkspaceTaskService workspaceTaskService) {
-    this.workspaceTaskService = workspaceTaskService;
+  public TaskControllerV2(TaskService taskService) {
+    this.taskService = taskService;
   }
 
   @GetMapping(value = "/{name}")
@@ -55,7 +56,7 @@ public class TaskControllerV2 {
       @Parameter(name = "version", description = "Task Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workspaceTaskService.get(name, version);
+    return taskService.getGlobal(name, version);
   }
 
   @GetMapping(value = "/{name}", produces = "application/x-yaml")
@@ -77,7 +78,7 @@ public class TaskControllerV2 {
       @Parameter(name = "version", description = "Task Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workspaceTaskService.getAsTekton(name, version);
+    return taskService.getAsTektonGlobal(name, version);
   }
 
   @GetMapping(value = "/query")
@@ -128,7 +129,7 @@ public class TaskControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return workspaceTaskService.query(limit, page, sort, labels, statuses, names);
+    return taskService.queryGlobal(limit, page, sort, labels, statuses, names);
   }
 
   @PostMapping(value = "")
@@ -146,7 +147,7 @@ public class TaskControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public Task create(@RequestBody Task task) {
-    return workspaceTaskService.create(task);
+    return taskService.createGlobal(task);
   }
 
   @PostMapping(value = "", consumes = "application/x-yaml", produces = "application/x-yaml")
@@ -164,7 +165,7 @@ public class TaskControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public TektonTask createYAML(@RequestBody TektonTask tektonTask) {
-    return workspaceTaskService.createAsTekton(tektonTask);
+    return taskService.createAsTektonGlobal(tektonTask);
   }
 
   @PutMapping(value = "/{name}")
@@ -188,7 +189,7 @@ public class TaskControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceTaskService.apply(name, task, replace);
+    return taskService.applyGlobal(name, task, replace);
   }
 
   @PutMapping(value = "/{name}", consumes = "application/x-yaml", produces = "application/x-yaml")
@@ -212,7 +213,7 @@ public class TaskControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceTaskService.applyAsTekton(name, tektonTask, replace);
+    return taskService.applyAsTektonGlobal(name, tektonTask, replace);
   }
 
   @GetMapping(value = "/{name}/changelog")
@@ -231,7 +232,7 @@ public class TaskControllerV2 {
   public List<ChangeLogVersion> getChangelog(
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name) {
-    return workspaceTaskService.changelog(name);
+    return taskService.changelogGlobal(name);
   }
 
   @PostMapping(
@@ -251,6 +252,6 @@ public class TaskControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void validateYaml(@RequestBody TektonTask tektonTask) {
-    workspaceTaskService.validateAsTekton(tektonTask);
+    taskService.validateAsTekton(tektonTask);
   }
 }

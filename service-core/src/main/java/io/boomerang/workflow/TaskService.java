@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.entity.TaskEntity;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.enums.RunPhase;
@@ -8,16 +9,26 @@ import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.UserService;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.User;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
+import io.boomerang.workflow.tekton.TektonConverter;
+import io.boomerang.workflow.tekton.TektonTask;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.EnumUtils;
@@ -38,15 +49,36 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
-/*
- * Tasks are stored in a main TaskEntity with fields that have limited change scope
- * and a TaskRevisionEntity that holds the versioned elements
+/**
+ * The Task (template) domain service - one service for every Task operation the product performs.
  *
- * It utilises a @DocumentReference for the parent field that allows us to retrieve the TaskEntity from within the TaskRevisionEntity when reading
+ * <p>Tasks are stored in a main TaskEntity with fields that have limited change scope and a
+ * TaskRevisionEntity that holds the versioned elements. It utilises a {@code @DocumentReference}
+ * for the parent field that allows us to retrieve the TaskEntity from within the TaskRevisionEntity
+ * when reading.
+ *
+ * <p>It has three entry shapes over the same operations:
+ *
+ * <ul>
+ *   <li><b>Workspace-scoped</b> ({@code get(team, name, ...)}, {@code create(team, ...)}, ...) - the
+ *       {@code /api/v2/workspace/&#123;workspace&#125;/task} surface. Each one resolves the slug
+ *       through {@link RelationshipService#filter} anchored on {@code TEAMTASK} within the named
+ *       workspace, so an unreachable Task is indistinguishable from a missing one.
+ *   <li><b>Global-scoped</b> ({@code getGlobal}, {@code createGlobal}, ...) - the {@code
+ *       /api/v2/task} catalogue surface. Same shape, but the filter anchors on {@code TASK} with no
+ *       workspace narrowing, which is what the global catalogue means. These carry the {@code
+ *       Global} suffix because they take the same argument list as the unscoped operations below
+ *       and could not otherwise be told apart.
+ *   <li><b>Unscoped</b> ({@code get(ref, version)}, {@code create(request)}, {@code
+ *       retrieveAndValidateTask}, ...) - internal callers that carry no workspace and are
+ *       authorized elsewhere or not at all: {@code engine.DAGUtility}, {@link WorkflowService} and
+ *       {@link WorkflowTemplateService} resolving a workflow's task references.
+ * </ul>
+ *
+ * <p>F3 collapsed the former {@code api.WorkspaceTaskService} pass-through into this class: the
+ * slug resolution and the operation now live together instead of being split across a service
+ * boundary that only existed because the engine used to be a separate deployable (DD-02).
  */
-// The domain (definition) service - carries the plain name per house convention
-// (<Name>Service/<Name>Controller; AM-6). The api-layer composition shim that wraps this is
-// io.boomerang.api.WorkspaceTaskService.
 @Service
 public class TaskService {
   private static final Logger LOGGER = LogManager.getLogger();
@@ -64,17 +96,472 @@ public class TaskService {
   private final TaskRevisionRepository taskRevisionRepository;
   private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
+  private final RelationshipService relationshipService;
+  private final IdentityService identityService;
+  private final UserService userService;
 
   public TaskService(
       TaskRepository taskRepository,
       TaskRevisionRepository taskRevisionRepository,
       TaskRunRepository taskRunRepository,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      RelationshipService relationshipService,
+      IdentityService identityService,
+      UserService userService) {
     this.taskRepository = taskRepository;
     this.taskRevisionRepository = taskRevisionRepository;
     this.taskRunRepository = taskRunRepository;
     this.mongoTemplate = mongoTemplate;
+    this.relationshipService = relationshipService;
+    this.identityService = identityService;
+    this.userService = userService;
   }
+
+  // ── Workspace- and global-scoped operations (the /api/v2 surface) ──────────
+  //
+  // Every method here performs the SAME relationship call the deleted
+  // api.WorkspaceTaskService performed, then does the work inline.
+
+  /*
+   * Retrieve a TEAMTASK by team, name and optional version. If no version specified, will retrieve the latest.
+   */
+  public Task get(String team, String name, Optional<Integer> version) {
+    // Checks principal and provided Task has relationship to Workspace.
+    if (!Objects.isNull(name) && !name.isBlank()) {
+      List<String> taskRefs =
+          relationshipService.filter(
+              RelationshipType.TEAMTASK,
+              Optional.of(List.of(name)),
+              Optional.of(RelationshipType.WORKSPACE),
+              Optional.of(List.of(team)),
+              false);
+      if (!taskRefs.isEmpty()) {
+        // Assumes there is only one task of that slug in a team
+        return internalGet(taskRefs.get(0), version);
+      }
+    }
+    throw new BoomerangException(
+        BoomerangError.TASK_INVALID_REF, name, version.isPresent() ? version.get() : "latest");
+  }
+
+  /*
+   * Retrieve a TASK by name and optional version. If no version specified, will retrieve the latest.
+   */
+  public Task getGlobal(String name, Optional<Integer> version) {
+    if (!Objects.isNull(name) && !name.isBlank()) {
+      List<String> taskRefs =
+          relationshipService.filter(
+              RelationshipType.TASK,
+              Optional.of(List.of(name)),
+              Optional.empty(),
+              Optional.empty(),
+              false);
+      if (!taskRefs.isEmpty()) {
+        // Assumes there is only one task of that slug in a team
+        return internalGet(taskRefs.get(0), version);
+      }
+    }
+    throw new BoomerangException(
+        BoomerangError.TASK_INVALID_REF, name, version.isPresent() ? version.get() : "latest");
+  }
+
+  private Task internalGet(String id, Optional<Integer> version) {
+    Task taskTemplate = get(id, version);
+
+    // Switch author from ID to Name
+    switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
+
+    // Remove ID
+    taskTemplate.setId(null);
+
+    return taskTemplate;
+  }
+
+  /*
+   * Query for TEAMTASKS.
+   */
+  public TaskResponsePage query(
+      String queryTeam,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryNames) {
+
+    // Check for relationship
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TEAMTASK,
+            queryNames,
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(queryTeam)),
+            false);
+    LOGGER.debug("Task Refs: {}", refs.toString());
+    if (refs == null || refs.size() == 0) {
+      return new TaskResponsePage();
+    }
+    return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);
+  }
+
+  /*
+   * Query for TASKS.
+   */
+  public TaskResponsePage queryGlobal(
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryNames) {
+
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TASK, queryNames, Optional.empty(), Optional.empty(), false);
+    LOGGER.debug("Global Task Refs: {}", refs.toString());
+    if (refs == null || refs.size() == 0) {
+      return new TaskResponsePage();
+    }
+    return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);
+  }
+
+  private TaskResponsePage internalQuery(
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      List<String> queryRefs) {
+    // The old URL builder always appended an "ids" query param (even for an empty list), so the
+    // Engine's queryIds Optional was always present - preserved here as Optional.of(queryRefs)
+    // rather than being conditioned on emptiness.
+    Page<Task> page =
+        query(
+            queryLimit,
+            queryPage,
+            querySort,
+            queryLabels,
+            queryStatus,
+            Optional.empty(),
+            Optional.of(queryRefs));
+    TaskResponsePage response =
+        new TaskResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
+
+    if (!response.getContent().isEmpty()) {
+      response
+          .getContent()
+          .forEach(
+              t -> {
+                switchChangeLogAuthorToUserName(t.getChangelog());
+                // Remove ID
+                t.setId(null);
+              });
+    }
+    return response;
+  }
+
+  /*
+   * Creates the Task and Relationship
+   */
+  public Task create(String team, Task request) {
+    // Validate Access
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
+
+    // Check name matches the requirements
+    if (request.getName().isBlank() || !request.getName().matches(NAME_REGEX)) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
+    }
+
+    // Check Slugs for Tasks in team
+    List<String> existingTeamTaskRefs =
+        relationshipService.filter(
+            RelationshipType.TEAMTASK,
+            Optional.of(List.of(request.getName())),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!existingTeamTaskRefs.isEmpty()) {
+      throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
+    }
+
+    // Create Task
+    Task task = internalCreate(request);
+
+    // Create Relationship
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        team,
+        RelationshipLabel.HAS_TASK,
+        RelationshipType.TEAMTASK,
+        task.getId(),
+        task.getName(),
+        Optional.empty(),
+        Optional.empty());
+
+    // Remove ID
+    task.setId(null);
+    return task;
+  }
+
+  public Task createGlobal(Task request) {
+    // Check name matches the requirements
+    if (request.getName().isBlank() || !request.getName().matches(NAME_REGEX)) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
+    }
+
+    // Check Slugs for GlobalTasks
+    List<String> existingTaskRefs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(request.getName())),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!existingTaskRefs.isEmpty()) {
+      throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
+    }
+
+    // Create Task
+    Task task = internalCreate(request);
+
+    // Create Relationship
+    relationshipService.createNodeAndEdge(
+        RelationshipType.ROOT,
+        "root",
+        RelationshipLabel.HAS_TASK,
+        RelationshipType.TASK,
+        task.getId(),
+        task.getName(),
+        Optional.empty(),
+        Optional.empty());
+
+    // Remove ID
+    task.setId(null);
+    return task;
+  }
+
+  private Task internalCreate(Task request) {
+    // Ignore any provided Ids as this is a create
+    request.setId(null);
+    // Set verified to false - this is only able to be set via Engine or Loader
+    request.setVerified(false);
+
+    // Update Changelog
+    stampChangeLog(request.getChangelog());
+
+    // Come back to this once we have separated the controllers - works better for scope checks.
+    Task taskTemplate = create(request);
+    switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
+
+    return taskTemplate;
+  }
+
+  /*
+   * Apply allows you to create a new version as well as create new
+   *
+   * Names are akin to a slug and are immutable. If the name changes, a new TaskTemplate is created
+   *
+   */
+  public Task apply(String name, String team, Task request, boolean replace) {
+    if (name.isBlank() || !name.matches(NAME_REGEX)) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
+    }
+
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TEAMTASK,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!refs.isEmpty()) {
+      request.setId(refs.get(0));
+      // Name is immutable
+      request.setName(name);
+      Task task = this.internalApply(request, replace);
+
+      // Remove ID
+      task.setId(null);
+      return task;
+    } else {
+      return this.create(team, request);
+    }
+  }
+
+  public Task applyGlobal(String name, Task request, boolean replace) {
+    LOGGER.debug("Applying Task: {}", request.toString());
+    if (name.isBlank() || !name.matches(NAME_REGEX)) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
+    }
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(name)),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!refs.isEmpty()) {
+      request.setId(refs.get(0));
+      request.setName(name); // name is immutable
+      Task task = this.internalApply(request, replace);
+
+      // Remove ID
+      task.setId(null);
+      return task;
+    } else {
+      return this.createGlobal(request);
+    }
+  }
+
+  private Task internalApply(Task request, boolean replace) {
+    // Set verfied to false - this is only able to be set via Engine or Loader
+    request.setVerified(false);
+
+    // Update Changelog
+    stampChangeLog(request.getChangelog());
+
+    Task template = apply(request, replace);
+    switchChangeLogAuthorToUserName(template.getChangelog());
+
+    return template;
+  }
+
+  // Override changelog date and set author. Used on creation/update of TaskTemplate.
+  // Named apart from the two-argument updateChangeLog below, which copies a REQUEST's changelog
+  // fields onto a new revision's - a different job that happens to share the old name.
+  private void stampChangeLog(ChangeLog changelog) {
+    if (changelog == null) {
+      changelog = new ChangeLog();
+    }
+    changelog.setDate(new Date());
+    // No principal (e.g. security disabled) leaves the author unset - same as a resolved
+    // identity with no principal string, which this already tolerated.
+    String principal = identityService.getCurrentPrincipal();
+    if (principal != null) {
+      changelog.setAuthor(principal);
+    }
+  }
+
+  // TODO - need to make more performant
+  private void switchChangeLogAuthorToUserName(ChangeLog changelog) {
+    if (changelog != null && changelog.getAuthor() != null) {
+      Optional<User> user = userService.getUserByID(changelog.getAuthor());
+      if (user.isPresent()) {
+        changelog.setAuthor(
+            user.get().getDisplayName().isEmpty()
+                ? user.get().getName()
+                : user.get().getDisplayName());
+      } else {
+        changelog.setAuthor("---");
+      }
+    }
+  }
+
+  public TektonTask getAsTekton(String team, String name, Optional<Integer> version) {
+    Task template = this.get(team, name, version);
+    return TektonConverter.convertTaskTemplateToTektonTask(template);
+  }
+
+  public TektonTask getAsTektonGlobal(String name, Optional<Integer> version) {
+    Task template = this.getGlobal(name, version);
+    return TektonConverter.convertTaskTemplateToTektonTask(template);
+  }
+
+  public TektonTask createAsTekton(String team, TektonTask tektonTask) {
+    Task template = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
+    this.create(team, template);
+    return tektonTask;
+  }
+
+  public TektonTask createAsTektonGlobal(TektonTask tektonTask) {
+    Task template = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
+    this.createGlobal(template);
+    return tektonTask;
+  }
+
+  public TektonTask applyAsTekton(
+      String name, String team, TektonTask tektonTask, boolean replace) {
+    Task template = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
+    this.apply(name, team, template, replace);
+    return tektonTask;
+  }
+
+  public TektonTask applyAsTektonGlobal(String name, TektonTask tektonTask, boolean replace) {
+    Task template = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
+    this.applyGlobal(name, template, replace);
+    return tektonTask;
+  }
+
+  public void validateAsTekton(TektonTask tektonTask) {
+    TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
+  }
+
+  public List<ChangeLogVersion> changelog(String team, String name) {
+    if (name.isBlank() || !name.matches(NAME_REGEX)) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    }
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TEAMTASK,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!refs.isEmpty()) {
+      return internalChangelog(refs.get(0));
+    }
+    // TODO - change error to don't have access
+    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+  }
+
+  public List<ChangeLogVersion> changelogGlobal(String name) {
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(name)),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!refs.isEmpty()) {
+      return internalChangelog(refs.get(0));
+    }
+    // TODO - change error to don't have access
+    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+  }
+
+  private List<ChangeLogVersion> internalChangelog(String id) {
+    List<ChangeLogVersion> changeLog = changelog(id);
+    changeLog.forEach(clv -> switchChangeLogAuthorToUserName(clv));
+    return changeLog;
+  }
+
+  /*
+   * Deletes a TeamTask - team is required as you cannot delete a global template (only make
+   * inactive)
+   */
+  public void delete(String team, String name) {
+    if (Objects.isNull(name) || name.isBlank()) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
+    }
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TEAMTASK,
+            Optional.of(List.of(name)),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    if (!refs.isEmpty()) {
+      delete(refs.get(0));
+      return;
+    }
+    // TODO - change error to don't have access
+    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+  }
+
+  // ── Unscoped operations (engine, workflow-definition and template callers) ─
 
   public Task get(String ref, Optional<Integer> version) {
     Optional<TaskEntity> taskEntity =

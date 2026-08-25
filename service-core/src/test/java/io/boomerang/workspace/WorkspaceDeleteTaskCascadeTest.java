@@ -3,7 +3,6 @@ package io.boomerang.workspace;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.api.WorkspaceTaskService;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.Task;
 import io.boomerang.core.RelationshipService;
@@ -23,10 +22,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * Deleting a workspace must remove that workspace's own tasks and no others. The cascade resolves
  * a workspace's tasks through the TEAMTASK relationship (the type that actually anchors a task
  * under a workspace - TASK anchors the global catalogue under root instead) and deletes each by
- * workspace + name, the shape {@link WorkspaceTaskService#delete(String, String)} expects.
+ * workspace + name, the shape {@link TaskService#delete(String, String)} expects.
  *
  * <p>Fixtures wire the TEAMTASK/TASK relationship edges directly (mirroring what {@link
- * WorkspaceTaskService#create} does) rather than going through that method itself: its duplicate
+ * TaskService#create} does) rather than going through that method itself: its duplicate
  * check calls {@code RelationshipService.check()}, which - unrelated to anything under test here
  * - always answers "exists" when there is no principal on the SecurityContext, as in this test.
  */

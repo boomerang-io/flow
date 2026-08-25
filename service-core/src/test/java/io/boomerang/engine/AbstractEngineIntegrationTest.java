@@ -1,6 +1,5 @@
 package io.boomerang.engine;
 
-import io.boomerang.api.WorkspaceTaskService;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
@@ -12,6 +11,7 @@ import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.workflow.TaskService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
@@ -70,7 +70,7 @@ public abstract class AbstractEngineIntegrationTest {
   @Autowired protected TaskRunService taskRunService;
   @Autowired protected RelationshipService relationshipService;
   @Autowired protected SettingsRepository settingsRepository;
-  @Autowired protected WorkspaceTaskService workspaceTaskService;
+  @Autowired protected TaskService taskService;
 
   /**
    * Establishes an identity for every test, mirroring production: a served request always has one
@@ -131,7 +131,7 @@ public abstract class AbstractEngineIntegrationTest {
     return settingConfig(key, "number", value);
   }
 
-  // WorkspaceWorkflowService.internalSubmit stamps the boomerang.io/task-* execution annotations
+  // WorkflowService.internalSubmit stamps the boomerang.io/task-* execution annotations
   // off the "task" settings document the loader normally seeds. Mirrors seed/settings.json.
   protected void seedTaskSettings() {
     if (settingsRepository.findOneByKey("task") != null) {
@@ -200,7 +200,7 @@ public abstract class AbstractEngineIntegrationTest {
     task.setType(TaskType.template);
     task.getSpec().setImage("busybox:latest");
     task.getSpec().setCommand(List.of("echo"));
-    workspaceTaskService.create(task);
+    taskService.createGlobal(task);
   }
 
   /**
