@@ -1,9 +1,8 @@
-package io.boomerang.api;
+package io.boomerang.workspace;
 
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
-import io.boomerang.workspace.InsightsService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

@@ -1,14 +1,13 @@
-package io.boomerang.api;
+package io.boomerang.workspace;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.api.model.UserProfile;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
-import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.UserProfile;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;

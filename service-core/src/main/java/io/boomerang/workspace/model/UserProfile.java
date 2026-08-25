@@ -1,8 +1,7 @@
-package io.boomerang.api.model;
+package io.boomerang.workspace.model;
 
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.security.model.ResolvedPermissions;
-import io.boomerang.workspace.model.WorkspaceSummary;
 import java.util.List;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
@@ -12,10 +11,10 @@ import org.springframework.beans.BeanUtils;
  *
  * Same as User but with Teams & permissions
  *
- * Stays in api.model deliberately. ProfileControllerV2 is its only user, and the type spans core
- * (UserEntity) and workspace (WorkspaceSummary) - core does not depend on workspace, so moving this
- * into core.model would create that dependency. It is an api-layer composition, which is exactly
- * the reason ProfileControllerV2 composes the response there rather than in core.UserService.
+ * Lives in workspace.model, NOT core.model. The type spans core (UserEntity, ResolvedPermissions)
+ * and workspace (WorkspaceSummary). io.boomerang.core has zero outbound feature-package imports and
+ * must keep it, so core.model cannot reference WorkspaceSummary; workspace already depends on core,
+ * so this direction is free. It sits beside its only user, ProfileControllerV2.
  */
 @Data
 public class UserProfile extends UserEntity {

@@ -1,6 +1,5 @@
-package io.boomerang.api;
+package io.boomerang.workspace;
 
-import io.boomerang.api.model.UserProfile;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.core.TokenService;
@@ -11,7 +10,7 @@ import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.UserProfile;
 import io.boomerang.workspace.model.WorkspaceSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,9 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 /*
  * Composes the User Profile response.
  *
- * The Workspace membership rollup (summaries + permissions) spans core (User) and workspace (Workspace)
- * data - core.UserService cannot depend on workspace, so this composition lives here in the api
- * layer, which may depend on everything.
+ * Lives in workspace, not core, even though two of its three services are core ones. The Workspace
+ * membership rollup (summaries + permissions) spans core (User) and workspace (Workspace) data, and
+ * io.boomerang.core has zero outbound feature-package imports - core.UserService cannot depend on
+ * workspace, and putting this controller in core would create core -> workspace against the existing
+ * workspace -> core. The workspace dependency is what defines this endpoint (it is also why it is
+ * STANDALONE-only), so it belongs on that side of the edge.
  */
 // E8: hard-depends on workspace.WorkspaceService, so full-mode-only.
 @RestController
