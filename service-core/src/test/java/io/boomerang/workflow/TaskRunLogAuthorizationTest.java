@@ -14,6 +14,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
@@ -127,12 +128,13 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
 
   @Test
   void anUnknownOrBlankTaskRunIsRejectedBeforeAnyRelationshipCall() {
+    // The reason string, not the enum constant name - they differ here
+    // (TASKRUN_INVALID_REF carries the reason "TASKRUN_INVALID_REFERENCE"), and assertRefused
+    // compares the reason. Read it off the enum so the two cannot drift apart again.
+    String reason = BoomerangError.TASKRUN_INVALID_REF.getReason();
+    assertRefused(() -> workflowRunService.streamTaskRunLog("   "), reason, "blank id");
     assertRefused(
-        () -> workflowRunService.streamTaskRunLog("   "), "TASKRUN_INVALID_REF", "blank id");
-    assertRefused(
-        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"),
-        "TASKRUN_INVALID_REF",
-        "unknown id");
+        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"), reason, "unknown id");
   }
 
   /**
