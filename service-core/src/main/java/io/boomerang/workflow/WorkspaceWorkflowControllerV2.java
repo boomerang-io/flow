@@ -1,7 +1,6 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import io.boomerang.common.model.WorkflowResponsePage;
-import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;

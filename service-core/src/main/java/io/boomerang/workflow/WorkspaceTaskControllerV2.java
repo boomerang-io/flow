@@ -1,7 +1,6 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import io.boomerang.common.model.TaskResponsePage;
-import io.boomerang.workflow.TaskService;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
 import io.boomerang.core.security.AuthCriteria;

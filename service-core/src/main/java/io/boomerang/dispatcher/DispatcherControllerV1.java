@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.*;
  * protocol with exactly one consumer, {@code service-agent}. Consolidating them here is a
  * maintainer-approved wire change; {@code service-agent}'s {@code flow.engine.*.url} properties move
  * with it. Embedders/hosts use the v2 surface ({@link
- * io.boomerang.api.WorkspaceWorkflowRunControllerV2}, {@link io.boomerang.api.TaskRunControllerV2}).
+ * io.boomerang.workflow.WorkspaceWorkflowRunControllerV2}, {@link io.boomerang.workflow.TaskRunControllerV2}).
  *
  * <p>{@code /{id}/workflows} and {@code /workflowrun/{id}/start} overlap in shape; Spring's
  * {@code RequestMappingInfo} ordering prefers a literal segment over a path variable, so a

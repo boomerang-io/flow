@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
@@ -6,7 +6,6 @@ import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workflow.ActionService;
 import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workflow.model.ActionSummary;
