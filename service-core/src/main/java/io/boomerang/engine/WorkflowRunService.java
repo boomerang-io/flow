@@ -947,10 +947,11 @@ public class WorkflowRunService {
         .forEach(
             tr -> {
               LOGGER.debug("TaskRun Update: {}", tr.getName());
-              tr.getAnnotations().put("boomerang.io/status", request.getStatus());
-              tr.setPreApproved(true);
-              tr.getResults().addAll(request.getResults());
-              taskRunRepository.save(tr);
+              // Field-scoped write - the status annotation, preApproved and the appended results,
+              // nothing else. Saving `tr` whole reverted whatever a concurrent Compare-And-Set had
+              // written to this TaskRun since the findByWorkflowRunRef page above was read.
+              taskRunService.applyEventDelivery(
+                  tr.getId(), request.getStatus(), request.getResults());
             });
     // Process the waiting tasks
     topicTaskRuns.stream()

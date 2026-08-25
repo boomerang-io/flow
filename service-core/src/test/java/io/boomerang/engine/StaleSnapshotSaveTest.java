@@ -1,7 +1,9 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
@@ -16,12 +18,18 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.engine.model.WorkflowRunEventRequest;
+import io.boomerang.engine.repository.TaskRunRepository;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
@@ -36,9 +44,11 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
 
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private WorkflowRunService workflowRunService;
+  @Autowired private MongoTemplate mongoTemplate;
 
   @MockitoSpyBean private DAGUtility dagUtility;
   @MockitoSpyBean private TaskRunService spiedTaskRunService;
+  @MockitoSpyBean private TaskRunRepository spiedTaskRunRepository;
 
   /**
    * Q-127 #6/#11 — the admission Compare-And-Set was supposed to make a join queued by both
@@ -222,6 +232,96 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
         "the concurrently appended WorkflowRun result was rolled back by the full-document save;"
             + " got "
             + results);
+  }
+
+  /**
+   * {@code WorkflowRunService.event}'s non-waiting branch mutated a TaskRun it had read from the
+   * {@code findByWorkflowRunRef} page earlier in the method and saved the WHOLE document back, so a
+   * Compare-And-Set that landed in between — here the execution-entry transition to {@code
+   * running} — was silently rolled back. The delivery is now three field-scoped operators.
+   *
+   * <p>Also pins the Mongo escaping of the {@code boomerang.io/status} annotation key: {@code
+   * MongoConfiguration.setMapKeyDotReplacement("#")} escapes dots in map keys on a whole-document
+   * write and unescapes them on read, but does NOT rewrite an {@code Update}'s field paths — so the
+   * update writes {@code annotations.boomerang#io/status} itself. An unescaped path would create a
+   * nested {@code boomerang} sub-document that {@code processWaitForEventTask} would never find.
+   */
+  @Test
+  void eventDeliveryMustNotRollBackConcurrentTaskRunWrites() {
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("event-stale-save-wf", RunStatus.running, RunPhase.running);
+    String wfRunId = wfRun.getId();
+    TaskRunEntity task =
+        savedTaskRun(
+            "wait-for-build",
+            TaskType.eventwait,
+            RunStatus.ready,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRunId);
+    task.setParams(List.of(new RunParam("topic", "build-complete", ParamType.string)));
+    taskRunRepository.save(task);
+    String taskRunId = task.getId();
+
+    // The TaskRun starts executing between event()'s page read and its write - exactly where a
+    // second instance's Compare-And-Set lands in production. The page is read first (the same
+    // documents the derived query returns; a Spring Data proxy has no real method to call), then
+    // the transition lands, so event() is handed a snapshot that is already stale.
+    AtomicBoolean injected = new AtomicBoolean();
+    doAnswer(
+            invocation -> {
+              List<TaskRunEntity> page =
+                  mongoTemplate.find(
+                      Query.query(Criteria.where("workflowRunRef").is(wfRunId)),
+                      TaskRunEntity.class);
+              if (injected.compareAndSet(false, true)) {
+                taskRunService.tryStartExecution(taskRunId, new Date(), 0L);
+              }
+              return page;
+            })
+        .when(spiedTaskRunRepository)
+        .findByWorkflowRunRef(wfRunId);
+
+    WorkflowRunEventRequest request = new WorkflowRunEventRequest();
+    request.setTopic("build-complete");
+    request.setStatus(RunStatus.succeeded);
+    request.setResults(List.of(new RunResult("data", "{\"build\":\"ok\"}")));
+    workflowRunService.event(wfRunId, request);
+
+    TaskRunEntity after = current(taskRunId);
+    assertEquals(
+        RunStatus.running,
+        after.getStatus(),
+        "the concurrently started TaskRun was rolled back by the full-document save");
+    assertEquals(RunPhase.running, after.getPhase(), "the started phase must not be rolled back");
+    assertNotNull(after.getStartTime(), "the start time written by tryStartExecution was lost");
+
+    // The delivery itself must still have landed, on all three fields.
+    assertTrue(after.isPreApproved(), "the delivery must still mark the TaskRun pre-approved");
+    assertEquals(
+        RunStatus.succeeded.getStatus(),
+        after.getAnnotations().get("boomerang.io/status"),
+        "the delivered status annotation must read back under its unescaped key");
+    assertEquals(
+        1,
+        after.getResults().stream().filter(r -> "data".equals(r.getName())).count(),
+        "the delivered result must still be appended; got " + after.getResults());
+
+    // The stored document, unmapped: the key is escaped, and nothing was written as a nested path.
+    Document stored =
+        mongoTemplate.execute(
+            TaskRunEntity.class,
+            collection -> collection.find(new Document("workflowRunRef", wfRunId)).first());
+    assertNotNull(stored, "the TaskRun document should exist");
+    Document annotations = stored.get("annotations", Document.class);
+    assertEquals(
+        RunStatus.succeeded.getStatus(),
+        annotations.getString("boomerang#io/status"),
+        "the annotation key must be stored dot-escaped; got " + annotations);
+    assertFalse(
+        annotations.containsKey("boomerang"),
+        "an unescaped update path would nest the key under a 'boomerang' sub-document; got "
+            + annotations);
   }
 
   private TaskRunEntity current(String id) {

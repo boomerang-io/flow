@@ -348,6 +348,33 @@ public class TaskRunService {
     return preImage;
   }
 
+  // Field-scoped event delivery: records the delivered status annotation, marks the TaskRun
+  // pre-approved and appends the event's results - and touches nothing else. Not a
+  // Compare-And-Set: an inbound event is applied to whatever state the TaskRun is in, exactly as
+  // before. What changed is the WRITE: the caller used to mutate the TaskRun it had read from a
+  // findByWorkflowRunRef page and save the whole document back, so any claim/phase/status/
+  // timeoutAt a concurrent Compare-And-Set had committed in between was silently rolled back.
+  //
+  // The annotation key is written ESCAPED - "boomerang#io/status", not "boomerang.io/status".
+  // MongoConfiguration.setMapKeyDotReplacement("#") escapes dots in map keys when the converter
+  // writes a whole Map, and unescapes them on read, but it does NOT rewrite the field paths of an
+  // Update: an unescaped "annotations.boomerang.io/status" would be read by Mongo as a path and
+  // create a nested annotations -> boomerang -> "io/status" document that
+  // TaskExecutionService.processWaitForEventTask would never find.
+  //
+  // Results are appended with $push/$each, NOT $addToSet: a redelivered event appends its results
+  // a second time today, which is inherited behaviour deliberately left alone - see
+  // EventDeliveryIdempotencyTest.
+  public void applyEventDelivery(String id, RunStatus status, List<RunResult> results) {
+    Update update =
+        new Update().set("annotations.boomerang#io/status", status).set("preApproved", true);
+    if (results != null && !results.isEmpty()) {
+      update.push("results").each(results.toArray());
+    }
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(id)), update, TaskRunEntity.class);
+  }
+
   // Execution-entry Compare-And-Set: ready + pending/queued becomes running with the given start
   // time, baking timeoutAt from the given budget. Returns the document with the transition
   // applied, or null on a duplicate dispatch.
