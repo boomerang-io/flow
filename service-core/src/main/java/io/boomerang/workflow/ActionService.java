@@ -48,9 +48,8 @@ import org.springframework.stereotype.Service;
  * ({@code <Name>Service}); its behaviour, its signatures and its authorization are unchanged.
  *
  * <p>Every operation is workspace-scoped ({@code action}/{@code query}/{@code summary} take the
- * {@code /api/v2/workspace/&#123;workspace&#125;/action} path segment) except {@code
- * deleteAllByWorkflow}, the cascade {@link WorkflowService#delete} calls after it has already
- * authorized the Workflow.
+ * {@code /api/v2/workspace/&#123;workspace&#125;/action} path segment) except the
+ * {@link WorkflowService#delete} cascade, which calls {@code ActionRepository} directly.
  */
 @Service
 public class ActionService {
@@ -355,10 +354,6 @@ public class ActionService {
     }
 
     return new Criteria().andOperator(criterias.toArray(new Criteria[criterias.size()]));
-  }
-
-  public void deleteAllByWorkflow(String workflowRef) {
-    actionRepository.deleteByWorkflowRef(workflowRef);
   }
 
 }

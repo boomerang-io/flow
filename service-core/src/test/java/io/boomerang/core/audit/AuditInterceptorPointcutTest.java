@@ -23,7 +23,7 @@ import org.springframework.aop.aspectj.AspectJExpressionPointcut;
  * pointcuts referenced {@code io.boomerang.service.WorkflowService} / {@code
  * io.boomerang.service.WorkspaceService} - a package that has not existed since the flat
  * feature-package restructure (the team-scoped methods live on {@code
- * io.boomerang.api.WorkspaceWorkflowService}, the workspace ones on {@code
+ * io.boomerang.workflow.WorkflowService}, the workspace ones on {@code
  * io.boomerang.workspace.WorkspaceService}). Nothing matched, so the aspect - the ONLY writer of
  * {@code AuditEntity} - silently wrote no audit records at all. The DD-01 rename even rewrote
  * {@code TeamService} to {@code WorkspaceService} inside an already-dead package string without

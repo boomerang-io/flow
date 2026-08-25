@@ -46,7 +46,7 @@ public class AuditInterceptor {
    */
   @AfterReturning(
       pointcut =
-          "execution(* io.boomerang.api.WorkspaceWorkflowService.create(..)) && args(team, request)",
+          "execution(* io.boomerang.workflow.WorkflowService.create(..)) && args(team, request)",
       returning = "entity")
   public void createWorkflow(JoinPoint joinPoint, String team, Workflow request, Workflow entity) {
     createLog(
@@ -64,7 +64,7 @@ public class AuditInterceptor {
    */
   @AfterReturning(
       pointcut =
-          "execution(* io.boomerang.api.WorkspaceWorkflowService.duplicate(..)) && args(team, id)",
+          "execution(* io.boomerang.workflow.WorkflowService.duplicate(..)) && args(team, id)",
       returning = "entity")
   private void duplicateWorkflow(JoinPoint joinPoint, String team, String id, Workflow entity) {
     Map<String, String> data = new HashMap<>();
@@ -80,7 +80,7 @@ public class AuditInterceptor {
 
   @AfterReturning(
       pointcut =
-          "execution(* io.boomerang.api.WorkspaceWorkflowService.apply(..)) && args(team, request, replace)",
+          "execution(* io.boomerang.workflow.WorkflowService.apply(..)) && args(team, request, replace)",
       returning = "entity")
   private void updateWorkflow(
       JoinPoint thisJoinPoint, String team, Workflow request, boolean replace, Workflow entity) {
@@ -99,7 +99,7 @@ public class AuditInterceptor {
    */
   @AfterReturning(
       pointcut =
-          "execution(* io.boomerang.api.WorkspaceWorkflowService.composeApply(..)) && args(team, request, replace)",
+          "execution(* io.boomerang.workflow.WorkflowService.composeApply(..)) && args(team, request, replace)",
       returning = "entity")
   private void updateWorkflow(
       JoinPoint thisJoinPoint, String team, Object request, boolean replace, Object entity) {
@@ -114,7 +114,7 @@ public class AuditInterceptor {
   }
 
   @AfterReturning(
-      pointcut = "execution(* io.boomerang.api.WorkspaceWorkflowService.submit(..)) && args(team, id, ..)",
+      pointcut = "execution(* io.boomerang.workflow.WorkflowService.submit(..)) && args(team, id, ..)",
       returning = "entity")
   private void updateWorkflow(
       JoinPoint thisJoinPoint, String team, String name, WorkflowRun entity) {
@@ -128,7 +128,7 @@ public class AuditInterceptor {
   }
 
   @AfterReturning(
-      "execution(* io.boomerang.api.WorkspaceWorkflowService.delete(..))" + " && args(team, id)")
+      "execution(* io.boomerang.workflow.WorkflowService.delete(..))" + " && args(team, id)")
   private void deleteWorkflow(JoinPoint thisJoinPoint, String team, String name) {
     LOGGER.debug("AuditInterceptor - {}", thisJoinPoint.getSignature().getDeclaringType());
     updateLog(

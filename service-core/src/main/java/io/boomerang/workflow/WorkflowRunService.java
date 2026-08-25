@@ -4,7 +4,7 @@ import static java.util.stream.Collectors.groupingBy;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import io.boomerang.api.model.WorkflowRunResponsePage;
+import io.boomerang.common.model.WorkflowRunResponsePage;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;

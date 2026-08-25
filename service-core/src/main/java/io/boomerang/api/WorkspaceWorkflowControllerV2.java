@@ -1,6 +1,7 @@
 package io.boomerang.api;
 
-import io.boomerang.api.model.WorkflowResponsePage;
+import io.boomerang.common.model.WorkflowResponsePage;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
@@ -38,10 +39,10 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowControllerV2 {
 
-  private final WorkspaceWorkflowService workspaceWorkflowService;
+  private final WorkflowService workflowService;
 
-  public WorkspaceWorkflowControllerV2(WorkspaceWorkflowService workspaceWorkflowService) {
-    this.workspaceWorkflowService = workspaceWorkflowService;
+  public WorkspaceWorkflowControllerV2(WorkflowService workflowService) {
+    this.workflowService = workflowService;
   }
 
   @GetMapping(value = "/{name}")
@@ -82,7 +83,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = false)
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
-    return workspaceWorkflowService.get(workspace, name, version, withTasks);
+    return workflowService.get(workspace, name, version, withTasks);
   }
 
   @GetMapping(value = "/query")
@@ -137,7 +138,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return workspaceWorkflowService.query(workspace, limit, page, sort, labels, statuses, workflows);
+    return workflowService.query(workspace, limit, page, sort, labels, statuses, workflows);
   }
 
   @PostMapping(value = "")
@@ -160,7 +161,7 @@ public class WorkspaceWorkflowControllerV2 {
           @PathVariable
           String workspace,
       @RequestBody Workflow workflow) {
-    return workspaceWorkflowService.create(workspace, workflow);
+    return workflowService.create(workspace, workflow);
   }
 
   @PutMapping(value = "")
@@ -186,7 +187,7 @@ public class WorkspaceWorkflowControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceWorkflowService.apply(workspace, workflow, replace);
+    return workflowService.apply(workspace, workflow, replace);
   }
 
   @GetMapping(value = "/{name}/changelog")
@@ -217,7 +218,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.changelog(workspace, name);
+    return workflowService.changelog(workspace, name);
   }
 
   @DeleteMapping(value = "/{name}")
@@ -246,7 +247,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    workspaceWorkflowService.delete(workspace, name);
+    workflowService.delete(workspace, name);
   }
 
   @PostMapping(value = "/{name}/submit")
@@ -283,7 +284,7 @@ public class WorkspaceWorkflowControllerV2 {
           @RequestParam(required = false, defaultValue = "false")
           boolean start,
       @RequestBody WorkflowSubmitRequest request) {
-    return workspaceWorkflowService.submit(workspace, name, request, start);
+    return workflowService.submit(workspace, name, request, start);
   }
 
   @GetMapping(value = "/{name}/export", produces = "application/json")
@@ -307,7 +308,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.export(workspace, name);
+    return workflowService.export(workspace, name);
   }
 
   @GetMapping(value = "/{name}/compose")
@@ -340,7 +341,7 @@ public class WorkspaceWorkflowControllerV2 {
       @Parameter(name = "version", description = "Workflow Version", required = false)
           @RequestParam(required = false)
           Optional<Integer> version) {
-    return workspaceWorkflowService.composeGet(workspace, name, version);
+    return workflowService.composeGet(workspace, name, version);
   }
 
   @PutMapping(value = "/{name}/compose")
@@ -366,7 +367,7 @@ public class WorkspaceWorkflowControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
-    return workspaceWorkflowService.composeApply(workspace, canvas, replace);
+    return workflowService.composeApply(workspace, canvas, replace);
   }
 
   @PostMapping(value = "/{name}/duplicate")
@@ -390,7 +391,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.duplicate(workspace, name);
+    return workflowService.duplicate(workspace, name);
   }
 
   @GetMapping(value = "/{name}/available-parameters")
@@ -414,6 +415,6 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name) {
-    return workspaceWorkflowService.getAvailableParameters(workspace, name);
+    return workflowService.getAvailableParameters(workspace, name);
   }
 }
