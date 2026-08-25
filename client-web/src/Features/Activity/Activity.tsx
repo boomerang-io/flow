@@ -89,47 +89,47 @@ export async function loader({
     toDate = DEFAULT_TO_DATE,
   } = queryString.parse(new URL(request.url).search, queryStringOptions);
 
-  let workflowOptions: LoaderData["workflowOptions"] = [];
-  let errorLoadingWorkflows = false;
-  try {
-    const response = await serverFetch(request).get(serviceUrl.workspace.workflow.getWorkflows({ workspace }));
-    workflowOptions = response.data.content;
-  } catch (error) {
-    errorLoadingWorkflows = true;
-  }
+  // One wave, not three. The workflow filter options, the header's "today" counts and the run
+  // table are independent endpoints - three useQuery calls firing on mount before this route moved
+  // onto the router - and a loader blocks first paint with no pending UI behind it
+  // (useNavigation() is used nowhere in the app), so awaiting them in sequence costs three round
+  // trips of blank screen. See Features/WorkflowEditor/editorRoute.ts for the same shape.
+  //
+  // `allSettled` rather than `all`: each read's failure stays its own, exactly as the per-call
+  // try/catch did - one rejection must not blank out the other two.
+  const api = serverFetch(request);
+
+  const summaryQuery = queryString.stringify(
+    { fromDate: moment().startOf("day").valueOf(), toDate: moment().endOf("day").valueOf() },
+    queryStringOptions,
+  );
+  const runsQuery = queryString.stringify(
+    { order, page, limit, sort, statuses, triggers, workflows, fromDate, toDate },
+    queryStringOptions,
+  );
+
+  const [workflowsResult, runSummaryResult, runsResult] = await Promise.allSettled([
+    api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
+    api.get(serviceUrl.workspace.workflowrun.getWorkflowRunCount({ workspace, query: summaryQuery })),
+    api.get(serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace, query: runsQuery })),
+  ]);
+
+  const workflowOptions: LoaderData["workflowOptions"] =
+    workflowsResult.status === "fulfilled" ? workflowsResult.value.data.content : [];
+  const errorLoadingWorkflows = workflowsResult.status === "rejected";
 
   // Today's numbers for the header widgets - a fixed "today" range, independent of the table's
-  // filters/pagination above. A failure here is swallowed (mirrors the previous
+  // filters/pagination. A failure here is swallowed (mirrors the previous
   // wfRunSummaryQuery.data?.status.x ?? 0 behaviour, which never gated the page into an error
   // state on its own) - the header widgets just render zeros.
-  let runSummary: LoaderData["runSummary"] = EMPTY_RUN_SUMMARY;
-  try {
-    const summaryQuery = queryString.stringify(
-      { fromDate: moment().startOf("day").valueOf(), toDate: moment().endOf("day").valueOf() },
-      queryStringOptions,
-    );
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.workflowrun.getWorkflowRunCount({ workspace, query: summaryQuery }),
-    );
-    runSummary = response.data;
-  } catch (error) {
-    // intentionally swallowed - see comment above.
-  }
+  const runSummary: LoaderData["runSummary"] =
+    runSummaryResult.status === "fulfilled" ? runSummaryResult.value.data : EMPTY_RUN_SUMMARY;
 
-  let runs: LoaderData["runs"] = { number: 0, size: Number(limit) || DEFAULT_LIMIT, totalElements: 0, content: [] };
-  let errorLoadingRuns = false;
-  try {
-    const runsQuery = queryString.stringify(
-      { order, page, limit, sort, statuses, triggers, workflows, fromDate, toDate },
-      queryStringOptions,
-    );
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace, query: runsQuery }),
-    );
-    runs = response.data;
-  } catch (error) {
-    errorLoadingRuns = true;
-  }
+  const runs: LoaderData["runs"] =
+    runsResult.status === "fulfilled"
+      ? runsResult.value.data
+      : { number: 0, size: Number(limit) || DEFAULT_LIMIT, totalElements: 0, content: [] };
+  const errorLoadingRuns = runsResult.status === "rejected";
 
   return { workflowOptions, errorLoadingWorkflows, runSummary, runs, errorLoadingRuns };
 }

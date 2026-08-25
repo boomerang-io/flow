@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
 import AdminTasks, { action, loader } from "./AdminTasks";
 
@@ -30,6 +31,27 @@ describe("AdminTasks --- loader", () => {
   test("renders a not-found state for an unknown task template", async () => {
     renderAdminTasks("/admin/task-manager/does-not-exist/1");
     expect(await screen.findByText("Task Template not found")).toBeInTheDocument();
+  });
+});
+
+// The sidenav's task list is independent of the selected template's task/changelog pair, so all
+// three belong in one wave. Only the YAML read (editor sub-route) genuinely depends on the
+// selected task having resolved.
+describe("AdminTasks --- loader concurrency", () => {
+  test("fires the task list alongside the selected task and its changelog", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(serviceUrl.task.queryTasks({ query: "" }), trace.resolver("tasks", { content: [] })),
+      http.get(serviceUrl.task.getTaskChangelog({ name: ":name" }), trace.resolver("changelog", [])),
+      http.get(serviceUrl.task.getTask({ name: ":name" }), trace.resolver("selectedTask", { name: "a-task" })),
+    );
+
+    await loader({
+      params: { "*": "a-task/1" },
+      request: new Request("http://localhost/admin/task-manager/a-task/1"),
+    });
+
+    expect(trace.startedTogether(3)).toBe(true);
   });
 });
 

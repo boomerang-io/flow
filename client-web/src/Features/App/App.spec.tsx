@@ -1,5 +1,9 @@
+import { http } from "msw";
 import { screen } from "@testing-library/react";
-import { buildFeatureFlags, ProtectedRoute } from "./App";
+import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
+import { serviceUrl } from "Config/servicesConfig";
+import { buildFeatureFlags, loader, ProtectedRoute } from "./App";
 import { featureFlags as featureFlagsFixture } from "ApiServer/fixtures";
 
 // Regression guard for the failure mode where a backend settings-key rename (e.g. the
@@ -45,5 +49,28 @@ describe("App --- ProtectedRoute", () => {
     expect(
       screen.getByText("If you think you should be, contact your friendly neighborhood platform admin.")
     ).toBeInTheDocument();
+  });
+});
+
+// The root bootstrap loader blocks the first paint of every route in the app, so its reads have
+// to go out together. `context` and `navigation` are the exception - they are user-scoped and
+// genuinely wait on the profile - but feature flags and workflow templates were always
+// unconditional, and awaiting the profile before firing them adds a round trip to every cold load.
+describe("App --- root loader concurrency", () => {
+  test("fires the feature flags and workflow templates alongside the profile fetch", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(serviceUrl.getUserProfile(), trace.resolver("profile", { id: "user-1" })),
+      http.get(serviceUrl.getFeatureFlags(), trace.resolver("features", { features: {} })),
+      http.get(serviceUrl.template.getWorkflowTemplates(), trace.resolver("templates", { content: [] })),
+      http.get(serviceUrl.getContext(), trace.resolver("context", {})),
+      http.get(serviceUrl.getNavigation({ query: "" }), trace.resolver("navigation", [])),
+    );
+
+    await loader({ request: new Request("http://localhost/home") });
+
+    expect(trace.startedTogether(3)).toBe(true);
+    // The user-scoped pair still waits on the profile - that dependency is real.
+    expect(trace.events.indexOf("profile:end")).toBeLessThan(trace.events.indexOf("context:start"));
   });
 });

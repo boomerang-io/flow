@@ -79,57 +79,50 @@ export async function loader({
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
   const { workflows, statuses, fromDate, toDate } = parsedQuery;
 
+  /*
+   * One wave, not four. None of these reads depends on another - they were four independent
+   * useQuery calls firing on mount before this route moved onto the router - and a loader blocks
+   * first paint with no pending UI behind it (useNavigation() is used nowhere in the app), so
+   * awaiting them in sequence turns a cold load into four round trips of blank screen. See
+   * Features/WorkflowEditor/editorRoute.ts for the same shape.
+   *
+   * `allSettled` rather than `all`: each read's failure has to stay its own, exactly as the
+   * per-call try/catch below did - one rejection must not blank out the other three.
+   */
+  const api = serverFetch(request);
+
   /** Today's numbers, independent of the filters above */
   const summaryQuery = queryString.stringify({ fromDate: DEFAULT_FROM_DATE, toDate: DEFAULT_TO_DATE });
-  let actionsSummary: ActionsSummary | null = null;
-  let errorLoadingActionsSummary = false;
-  try {
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.action.getActionsSummary({ workspace, query: summaryQuery }),
-    );
-    actionsSummary = response.data;
-  } catch (error) {
-    errorLoadingActionsSummary = true;
-  }
-
   /** Table data */
   const actionsUrlQuery = queryString.stringify(
     { order, page, limit, sort, statuses, workspaces: workspace, types: actionType, workflows, fromDate, toDate },
     queryStringOptions,
   );
-  let actionsTable: ActionsTableData | null = null;
-  let errorLoadingActionsTable = false;
-  try {
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.action.getActions({ workspace, query: actionsUrlQuery }),
-    );
-    actionsTable = response.data;
-  } catch (error) {
-    errorLoadingActionsTable = true;
-  }
-
   /** Number of approvals/manual tasks under the current filters, for the tab labels */
   const actionsUrlSummaryQuery = queryString.stringify({ workflows, fromDate, toDate }, queryStringOptions);
-  let filterSummary: ActionsSummary | null = null;
-  try {
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.action.getActionsSummary({ workspace, query: actionsUrlSummaryQuery }),
-    );
-    filterSummary = response.data;
-  } catch (error) {
-    // Matches the previous useQuery's un-branched error handling: filterSummary stays null and
-    // the tab-label counts below default to 0.
-  }
 
-  /** Workflows, for the "Choose workflow(s)" filter */
-  let workflowsData: PaginatedWorkflowResponse | null = null;
-  let errorLoadingWorkflows = false;
-  try {
-    const response = await serverFetch(request).get(serviceUrl.workspace.workflow.getWorkflows({ workspace }));
-    workflowsData = response.data;
-  } catch (error) {
-    errorLoadingWorkflows = true;
-  }
+  const [summaryResult, tableResult, filterSummaryResult, workflowsResult] = await Promise.allSettled([
+    api.get(serviceUrl.workspace.action.getActionsSummary({ workspace, query: summaryQuery })),
+    api.get(serviceUrl.workspace.action.getActions({ workspace, query: actionsUrlQuery })),
+    api.get(serviceUrl.workspace.action.getActionsSummary({ workspace, query: actionsUrlSummaryQuery })),
+    /** Workflows, for the "Choose workflow(s)" filter */
+    api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
+  ]);
+
+  const actionsSummary: ActionsSummary | null = summaryResult.status === "fulfilled" ? summaryResult.value.data : null;
+  const errorLoadingActionsSummary = summaryResult.status === "rejected";
+
+  const actionsTable: ActionsTableData | null = tableResult.status === "fulfilled" ? tableResult.value.data : null;
+  const errorLoadingActionsTable = tableResult.status === "rejected";
+
+  // No error flag, matching the previous useQuery's un-branched error handling: filterSummary
+  // stays null and the tab-label counts default to 0.
+  const filterSummary: ActionsSummary | null =
+    filterSummaryResult.status === "fulfilled" ? filterSummaryResult.value.data : null;
+
+  const workflowsData: PaginatedWorkflowResponse | null =
+    workflowsResult.status === "fulfilled" ? workflowsResult.value.data : null;
+  const errorLoadingWorkflows = workflowsResult.status === "rejected";
 
   return {
     actionType,

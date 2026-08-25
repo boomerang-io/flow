@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
@@ -140,6 +141,29 @@ describe("Schedules --- loader", () => {
 
     expect(await screen.findByText("Calendar unavailable")).toBeInTheDocument();
     expect(screen.getByText("Daily event")).toBeInTheDocument();
+  });
+
+  // The workflows read and the schedules read have no data dependency on each other (only the
+  // calendar depends on schedules), so they belong in one wave - the loader blocks first paint.
+  test("fires the workflows and schedules reads in one wave, not as a waterfall", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(
+        serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }),
+        trace.resolver("workflows", { content: [] }),
+      ),
+      http.get(
+        serviceUrl.workspace.schedule.getSchedules({ workspace: ":workspace" }),
+        trace.resolver("schedules", { content: [] }),
+      ),
+    );
+
+    await loader({
+      params: { workspace: WORKSPACE },
+      request: new Request(`http://localhost/${WORKSPACE}/schedules`),
+    });
+
+    expect(trace.startedTogether(2)).toBe(true);
   });
 
   test("does not throw when the schedules fetch fails, so the route chrome still renders", async () => {

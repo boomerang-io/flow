@@ -5,6 +5,7 @@ import { Route } from "react-router-dom";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
 import WorkflowInsights, { loader } from "./Insights";
@@ -103,5 +104,22 @@ describe("WorkflowInsights --- loader error handling", () => {
     expect(data.errorLoadingWorkflows).toBe(true);
     expect(data.insights.runs).toEqual([]);
     expect(data.workflowOptions).toEqual([]);
+  });
+});
+
+describe("WorkflowInsights --- loader concurrency", () => {
+  test("fires its two independent reads in one wave, not as a waterfall", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), trace.resolver("insights", {})),
+      http.get(
+        serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }),
+        trace.resolver("workflows", { content: [] }),
+      ),
+    );
+
+    await loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/insights`) });
+
+    expect(trace.startedTogether(2)).toBe(true);
   });
 });

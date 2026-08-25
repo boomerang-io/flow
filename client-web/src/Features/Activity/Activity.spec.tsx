@@ -4,6 +4,7 @@ import { Route } from "react-router-dom";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
 import WorkflowActivity, { loader } from "./Activity";
@@ -86,6 +87,27 @@ describe("WorkflowActivity --- RTL", () => {
         "?" + queryString.stringify({ workflows: "Personal - Java - Deploy", ...basicQuery }, queryStringOptions),
       ),
     );
+  });
+});
+
+describe("WorkflowActivity --- loader concurrency", () => {
+  test("fires its three independent reads in one wave, not as a waterfall", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), trace.resolver("workflows", { content: [] })),
+      http.get(
+        serviceUrl.workspace.workflowrun.getWorkflowRunCount({ workspace: ":workspace" }),
+        trace.resolver("runSummary", { status: {} }),
+      ),
+      http.get(
+        serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace: ":workspace" }),
+        trace.resolver("runs", { number: 0, size: 10, totalElements: 0, content: [] }),
+      ),
+    );
+
+    await loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/activity`) });
+
+    expect(trace.startedTogether(3)).toBe(true);
   });
 });
 

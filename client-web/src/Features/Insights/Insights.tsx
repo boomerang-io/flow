@@ -128,26 +128,24 @@ export async function loader({
     toDate = defaultToDate,
   } = queryString.parse(new URL(request.url).search, queryStringOptions);
 
-  let insights: WorkflowInsightsRes = EMPTY_INSIGHTS;
-  let errorLoadingInsights = false;
-  try {
-    const insightsSearchParams = queryString.stringify({ statuses, workflows, fromDate, toDate }, queryStringOptions);
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.getInsights({ workspace, query: insightsSearchParams }),
-    );
-    insights = response.data;
-  } catch (error) {
-    errorLoadingInsights = true;
-  }
+  // One wave, not two: the insights payload and the workflow filter options are independent
+  // endpoints (two useQuery calls firing on mount before this route moved onto the router), and a
+  // loader blocks first paint with no pending UI behind it. `allSettled` keeps each failure its
+  // own, exactly as the per-call try/catch did. See Features/WorkflowEditor/editorRoute.ts.
+  const api = serverFetch(request);
+  const insightsSearchParams = queryString.stringify({ statuses, workflows, fromDate, toDate }, queryStringOptions);
 
-  let workflowOptions: Array<Workflow> = [];
-  let errorLoadingWorkflows = false;
-  try {
-    const response = await serverFetch(request).get(serviceUrl.workspace.workflow.getWorkflows({ workspace }));
-    workflowOptions = response.data.content;
-  } catch (error) {
-    errorLoadingWorkflows = true;
-  }
+  const [insightsResult, workflowsResult] = await Promise.allSettled([
+    api.get(serviceUrl.workspace.getInsights({ workspace, query: insightsSearchParams })),
+    api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
+  ]);
+
+  const insights: WorkflowInsightsRes = insightsResult.status === "fulfilled" ? insightsResult.value.data : EMPTY_INSIGHTS;
+  const errorLoadingInsights = insightsResult.status === "rejected";
+
+  const workflowOptions: Array<Workflow> =
+    workflowsResult.status === "fulfilled" ? workflowsResult.value.data.content : [];
+  const errorLoadingWorkflows = workflowsResult.status === "rejected";
 
   return { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows };
 }

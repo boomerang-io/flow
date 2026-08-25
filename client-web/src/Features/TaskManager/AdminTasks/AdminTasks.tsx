@@ -60,46 +60,50 @@ export async function loader({
   params: { "*"?: string };
   request: Request;
 }): Promise<LoaderData> {
-  let tasks: Array<Task> = [];
-  let errorLoadingTasks = false;
-  try {
-    const response = await serverFetch(request).get(
-      serviceUrl.task.queryTasks({ query: queryString.stringify({ statuses: "active,inactive" }) }),
-    );
-    tasks = response.data.content;
-  } catch (error) {
-    errorLoadingTasks = true;
-  }
-
+  const api = serverFetch(request);
   const [name, version, subroute] = (params["*"] ?? "").split("/").filter(Boolean);
 
-  let selectedTask: Task | null = null;
-  let changelog: ChangeLog | null = null;
-  let errorLoadingSelected = false;
+  // The sidenav's task list has no dependency on the selected template, so it goes out in the same
+  // wave as the task/changelog pair rather than ahead of it - a loader blocks first paint, and
+  // there is no pending UI behind it (useNavigation() is used nowhere in the app). Each of the two
+  // groups keeps the failure semantics it had: the list degrades to `errorLoadingTasks`, and the
+  // pair still fails as a unit (either response missing means no template to render).
+  const tasksPromise = api
+    .get(serviceUrl.task.queryTasks({ query: queryString.stringify({ statuses: "active,inactive" }) }))
+    .then((response) => ({ tasks: response.data.content as Array<Task>, errorLoadingTasks: false }))
+    .catch(() => ({ tasks: [] as Array<Task>, errorLoadingTasks: true }));
+
+  const selectedPromise =
+    name && version
+      ? Promise.all([
+          api.get(serviceUrl.task.getTask({ name, version })),
+          api.get(serviceUrl.task.getTaskChangelog({ name })),
+        ])
+          .then(([taskResponse, changelogResponse]) => ({
+            selectedTask: taskResponse.data as Task | null,
+            changelog: changelogResponse.data as ChangeLog | null,
+            errorLoadingSelected: false,
+          }))
+          .catch(() => ({ selectedTask: null, changelog: null, errorLoadingSelected: true }))
+      : Promise.resolve({ selectedTask: null, changelog: null, errorLoadingSelected: false });
+
+  const [{ tasks, errorLoadingTasks }, { selectedTask, changelog, errorLoadingSelected }] = await Promise.all([
+    tasksPromise,
+    selectedPromise,
+  ]);
+
+  // Genuinely dependent, so it stays sequential: the YAML is only fetched for the editor
+  // sub-route, and only once the selected template is known to have resolved.
   let yaml: string | null = null;
   let errorLoadingYaml = false;
-
-  if (name && version) {
+  if (name && version && subroute === "editor" && !errorLoadingSelected) {
     try {
-      const [taskResponse, changelogResponse] = await Promise.all([
-        serverFetch(request).get(serviceUrl.task.getTask({ name, version })),
-        serverFetch(request).get(serviceUrl.task.getTaskChangelog({ name })),
-      ]);
-      selectedTask = taskResponse.data;
-      changelog = changelogResponse.data;
+      const yamlResponse = await api.get(serviceUrl.task.getTask({ name, version }), {
+        headers: { accept: "application/x-yaml" },
+      });
+      yaml = yamlResponse.data;
     } catch (error) {
-      errorLoadingSelected = true;
-    }
-
-    if (subroute === "editor" && !errorLoadingSelected) {
-      try {
-        const yamlResponse = await serverFetch(request).get(serviceUrl.task.getTask({ name, version }), {
-          headers: { accept: "application/x-yaml" },
-        });
-        yaml = yamlResponse.data;
-      } catch (error) {
-        errorLoadingYaml = true;
-      }
+      errorLoadingYaml = true;
     }
   }
 

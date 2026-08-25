@@ -104,11 +104,14 @@ type LoaderData = {
 // Server loader (see CLAUDE.md client-web SSR direction) - runs in Node via serverFetch(request),
 // never the browser resolver/axios instance (see GlobalParameters.tsx for the fuller rationale).
 //
-// Sequencing: the calendar fetch is genuinely dependent on the schedules fetch (it needs the
-// resolved schedule ids), so it's an explicit `await` after `schedules` resolves rather than
-// fired in a `Promise.all` alongside it and gated after the fact - the previous client-side
-// version achieved the same thing with react-query's `enabled: hasScheduleData`. Workflows and
-// schedules are independent of each other, so those two do run without waiting on one another.
+// Sequencing: workflows and schedules are independent of each other, so they go out in ONE wave -
+// a loader blocks first paint with no pending UI behind it, and this comment previously claimed
+// the parallelism the code did not actually have (they were awaited one after the other).
+//
+// The calendar fetch is the genuine dependency: it needs the resolved schedule ids, so it stays an
+// explicit `await` after schedules resolve rather than being fired alongside them and gated after
+// the fact - the previous client-side version expressed the same thing with react-query's
+// `enabled: hasScheduleData`.
 export async function loader({
   params,
   request,
@@ -121,28 +124,23 @@ export async function loader({
   const { statuses = defaultStatusArray, workflows: workflowsFilter } = queryString.parse(url.search, queryStringOptions);
   const { fromDate = defaultFromDate, toDate = defaultToDate } = queryString.parse(url.search, queryStringOptions);
 
-  let workflowsData: PaginatedWorkflowResponse | undefined;
-  let errorLoadingWorkflows = false;
-  try {
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.workflow.getWorkflows({ workspace, query: `statuses=active,inactive` }),
-    );
-    workflowsData = response.data;
-  } catch (error) {
-    errorLoadingWorkflows = true;
-  }
+  const api = serverFetch(request);
+  const schedulesUrlQuery = queryString.stringify({ statuses, workflows: workflowsFilter }, queryStringOptions);
 
-  let schedulesData: PaginatedSchedulesResponse | undefined;
-  let errorLoadingSchedules = false;
-  try {
-    const schedulesUrlQuery = queryString.stringify({ statuses, workflows: workflowsFilter }, queryStringOptions);
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.schedule.getSchedules({ workspace, query: schedulesUrlQuery }),
-    );
-    schedulesData = response.data;
-  } catch (error) {
-    errorLoadingSchedules = true;
-  }
+  // `allSettled` rather than `all`: each read's failure stays its own, exactly as the per-call
+  // try/catch did - one rejection must not blank out the other.
+  const [workflowsResult, schedulesResult] = await Promise.allSettled([
+    api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace, query: `statuses=active,inactive` })),
+    api.get(serviceUrl.workspace.schedule.getSchedules({ workspace, query: schedulesUrlQuery })),
+  ]);
+
+  const workflowsData: PaginatedWorkflowResponse | undefined =
+    workflowsResult.status === "fulfilled" ? workflowsResult.value.data : undefined;
+  const errorLoadingWorkflows = workflowsResult.status === "rejected";
+
+  const schedulesData: PaginatedSchedulesResponse | undefined =
+    schedulesResult.status === "fulfilled" ? schedulesResult.value.data : undefined;
+  const errorLoadingSchedules = schedulesResult.status === "rejected";
 
   let calendarEntries: Array<CalendarEntry> = [];
   let errorLoadingCalendar = false;

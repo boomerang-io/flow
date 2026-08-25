@@ -98,8 +98,32 @@ function stripAppRoot(pathname: string): string {
   return pathname.startsWith(APP_ROOT) ? (pathname.slice(APP_ROOT.length) || "/") : pathname;
 }
 
+/*
+ * Wraps a request so it can be started before it is awaited: `settle` never rejects, so a promise
+ * created here and abandoned by an early return below cannot become an unhandled rejection.
+ * Mirrors Features/WorkflowEditor/editorRoute.ts's helper of the same name.
+ */
+type Settled<T> = { ok: true; data: T } | { ok: false };
+
+async function settle<T>(promise: Promise<{ data: T }>): Promise<Settled<T>> {
+  try {
+    return { ok: true, data: (await promise).data };
+  } catch (error) {
+    return { ok: false };
+  }
+}
+
 export async function loader({ request }: { request: Request }): Promise<BootstrapData> {
   const api = serverFetch(request);
+
+  /*
+   * Started here, awaited further down: neither depends on the user (both were unconditional
+   * useQuery calls before this route moved onto the router), so holding them behind the profile
+   * fetch adds a round trip to the cold load of EVERY route in the app - this loader blocks the
+   * first paint of all of them.
+   */
+  const featuresPromise = settle(api.get<FlowFeatures>(featureFlagsUrl));
+  const templatesPromise = settle(api.get<PaginatedResponse<WorkflowTemplate>>(workflowTemplatesUrl));
 
   let user: FlowUser | null = null;
   try {
@@ -120,28 +144,27 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   const workspaceName = resolveWorkspaceName(pathname);
   const navigationUrl = serviceUrl.getNavigation({ query: workspaceName ? `?workspace=${workspaceName}` : "" });
 
-  // Mirrors the old queries' `enabled: Boolean(userQuery.data?.id)` gate: context/navigation
-  // are user-scoped and never fetched without a resolved user. Feature flags and workflow
-  // templates were always unconditional, so those two are always attempted.
-  const [featuresResult, templatesResult, contextResult, navigationResult] = await Promise.allSettled([
-    api.get<FlowFeatures>(featureFlagsUrl),
-    api.get<PaginatedResponse<WorkflowTemplate>>(workflowTemplatesUrl),
-    user?.id ? api.get<ContextConfig>(getContextUrl) : Promise.resolve(null),
-    user?.id ? api.get<Array<FlowNavigationItem>>(navigationUrl) : Promise.resolve(null),
+  // Genuinely dependent, so these two stay behind the profile fetch: they mirror the old queries'
+  // `enabled: Boolean(userQuery.data?.id)` gate - user-scoped, and never fetched without a
+  // resolved user (the navigation URL is also workspace-scoped off the request path). `null`
+  // means "not attempted", which is not an error.
+  const [contextResult, navigationResult] = await Promise.all([
+    user?.id ? settle(api.get<ContextConfig>(getContextUrl)) : Promise.resolve(null),
+    user?.id ? settle(api.get<Array<FlowNavigationItem>>(navigationUrl)) : Promise.resolve(null),
   ]);
+  const [featuresResult, templatesResult] = await Promise.all([featuresPromise, templatesPromise]);
 
-  const features = featuresResult.status === "fulfilled" ? featuresResult.value.data : null;
-  const workflowTemplates = templatesResult.status === "fulfilled" ? templatesResult.value.data.content : [];
-  const context = contextResult.status === "fulfilled" && contextResult.value ? contextResult.value.data : null;
-  const navigation =
-    navigationResult.status === "fulfilled" && navigationResult.value ? navigationResult.value.data : [];
+  const features = featuresResult.ok ? featuresResult.data : null;
+  const workflowTemplates = templatesResult.ok ? templatesResult.data.content : [];
+  const context = contextResult?.ok ? contextResult.data : null;
+  const navigation = navigationResult?.ok ? navigationResult.data : [];
 
   const errorLoading =
     !user ||
-    featuresResult.status === "rejected" ||
-    templatesResult.status === "rejected" ||
-    (Boolean(user?.id) && contextResult.status === "rejected") ||
-    (Boolean(user?.id) && navigationResult.status === "rejected");
+    !featuresResult.ok ||
+    !templatesResult.ok ||
+    Boolean(contextResult && !contextResult.ok) ||
+    Boolean(navigationResult && !navigationResult.ok);
 
   return { status: "ok", user, context, features, navigation, workflowTemplates, errorLoading };
 }

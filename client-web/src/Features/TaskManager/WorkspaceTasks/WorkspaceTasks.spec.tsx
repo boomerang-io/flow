@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
@@ -38,6 +39,36 @@ function renderWorkspaceTasks(route: string = `/${WORKSPACE}/task-manager`) {
 // instance every test), so nothing else needs registering here.
 beforeEach(() => {
   db.workspaces.push(structuredClone(workspaceFixture));
+});
+
+// Mirrors AdminTasks.spec.tsx: the sidenav's task list is independent of the selected template's
+// task/changelog pair, so all three belong in one wave. Only the YAML read (editor sub-route)
+// genuinely depends on the selected task having resolved.
+describe("WorkspaceTasks --- loader concurrency", () => {
+  test("fires the task list alongside the selected task and its changelog", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(
+        serviceUrl.workspace.task.queryTasks({ workspace: ":workspace", query: "" }),
+        trace.resolver("tasks", { content: [] }),
+      ),
+      http.get(
+        serviceUrl.workspace.task.getTaskChangelog({ workspace: ":workspace", name: ":name" }),
+        trace.resolver("changelog", []),
+      ),
+      http.get(
+        serviceUrl.workspace.task.getTask({ workspace: ":workspace", name: ":name" }),
+        trace.resolver("selectedTask", { name: "a-task" }),
+      ),
+    );
+
+    await loader({
+      params: { workspace: WORKSPACE, "*": "a-task/1" },
+      request: new Request(`http://localhost/${WORKSPACE}/task-manager/a-task/1`),
+    });
+
+    expect(trace.startedTogether(3)).toBe(true);
+  });
 });
 
 describe("WorkspaceTasks --- loader", () => {
