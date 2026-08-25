@@ -66,6 +66,8 @@ public class TaskExecutionService {
 
   @Autowired private WorkflowRunService workflowRunService;
 
+  @Autowired private WorkflowRunStateService workflowRunStateService;
+
   @Autowired private WorkflowService workflowService;
 
   @Autowired private TaskRunRepository taskRunRepository;
@@ -617,7 +619,7 @@ public class TaskExecutionService {
             wfRunEntity.getId(), ActionStatus.submitted);
     wfRunEntity.setAwaitingApproval(existingApprovals);
     // Field-scoped write so a level-triggered recompute can never stomp concurrent run state.
-    this.workflowRunService.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
+    this.workflowRunStateService.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
   }
 
   private void saveWorkflowStatus(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -628,7 +630,7 @@ public class TaskExecutionService {
       // wfRunEntity whole wrote back the snapshot execute() read at its entry, reverting every
       // field a concurrent Compare-And-Set had committed since: a result pushed by a parallel
       // setwfproperty, isAwaitingApproval, pauseRequestedAt, phase/status, duration.
-      this.workflowRunService.setStatusOverride(wfRunEntity.getId(), taskStatus);
+      this.workflowRunStateService.setStatusOverride(wfRunEntity.getId(), taskStatus);
       // Keep the in-memory snapshot consistent with the stored document for the remainder of
       // this execute() call; finishWorkflow re-reads the WorkflowRun for its own decision.
       wfRunEntity.setStatusOverride(taskStatus);
@@ -989,7 +991,7 @@ public class TaskExecutionService {
     taskExecution.setStatus(RunStatus.waiting);
     taskExecution = taskRunRepository.save(taskExecution);
     // Atomic single-field set - no lock, no full-document rewrite.
-    workflowRunService.setAwaitingApproval(wfRunEntity.getId(), true);
+    workflowRunStateService.setAwaitingApproval(wfRunEntity.getId(), true);
   }
 
   private void saveWorkflowParam(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -1012,7 +1014,7 @@ public class TaskExecutionService {
     wfResult.setName(output);
     wfResult.setValue(input);
     // Atomic append - no lock, no read-modify-write, so concurrent writers cannot lose a result.
-    workflowRunService.appendResult(wfRunEntity.getId(), wfResult);
+    workflowRunStateService.appendResult(wfRunEntity.getId(), wfResult);
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
@@ -1044,7 +1046,7 @@ public class TaskExecutionService {
 
     // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
     // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
-    if (workflowRunService.tryComplete(
+    if (workflowRunStateService.tryComplete(
             wfRunEntity.getId(), List.of(RunPhase.running), status, null, duration)
         == null) {
       LOGGER.info(

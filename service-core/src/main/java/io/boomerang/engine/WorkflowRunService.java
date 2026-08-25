@@ -37,7 +37,6 @@ import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
@@ -46,11 +45,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
@@ -67,10 +64,8 @@ public class WorkflowRunService {
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
   private final EventInboxRepository eventInboxRepository;
+  private final WorkflowRunStateService workflowRunStateService;
   private final MongoTemplate mongoTemplate;
-  private final ApplicationEventPublisher eventPublisher;
-
-  // Grace added on top of the timeout budget so a run at exactly its budget is not reaped.
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -80,8 +75,8 @@ public class WorkflowRunService {
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
       EventInboxRepository eventInboxRepository,
-      MongoTemplate mongoTemplate,
-      ApplicationEventPublisher eventPublisher) {
+      WorkflowRunStateService workflowRunStateService,
+      MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
@@ -89,318 +84,10 @@ public class WorkflowRunService {
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
     this.eventInboxRepository = eventInboxRepository;
+    this.workflowRunStateService = workflowRunStateService;
     this.mongoTemplate = mongoTemplate;
-    this.eventPublisher = eventPublisher;
   }
 
-  // Return the page of ready/pending unclaimed WorkflowRuns for an agent to provision, oldest
-  // first.
-  public List<WorkflowRunEntity> findClaimableForProvision(int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("status")
-                    .is(RunStatus.ready)
-                    .and("phase")
-                    .is(RunPhase.pending)
-                    .and("claim.by")
-                    .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit);
-    // The claim page only needs the id - tryClaimForProvision transitions by id.
-    query.fields().include("_id");
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  public List<WorkflowRunEntity> findClaimableForTeardown(int limit) {
-    // workspaces.0 exists = the run still has workspaces for the claimant to tear down.
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.completed)
-                    .and("claim.by")
-                    .exists(false)
-                    .and("workspaces.0")
-                    .exists(true))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit);
-    // The claim page only needs the id - tryClaimForTeardown transitions by id.
-    query.fields().include("_id");
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  public WorkflowRunEntity tryClaimForProvision(String id, String claimedBy) {
-    Date now = new Date();
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("status")
-                .is(RunStatus.ready)
-                .and("phase")
-                .is(RunPhase.pending)
-                .and("claim.by")
-                .exists(false));
-    Update update =
-        new Update()
-            .set("phase", RunPhase.queued)
-            .set("claim.by", claimedBy)
-            .set("claim.at", now)
-            .inc("claim.seq", 1);
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.queued);
-      // Return the pre-image with the claim transition applied - the caller ships this to the
-      // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
-      preImage.setPhase(RunPhase.queued);
-      preImage.setClaim(TaskRunService.claimApplied(preImage.getClaim(), claimedBy, now));
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryClaimForTeardown(String id, String claimedBy) {
-    Date now = new Date();
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("phase")
-                .is(RunPhase.completed)
-                .and("claim.by")
-                .exists(false)
-                .and("workspaces.0")
-                .exists(true));
-    Update update =
-        new Update()
-            .set("claim.by", claimedBy)
-            .set("claim.at", now)
-            .inc("claim.seq", 1);
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), preImage.getPhase());
-      // Return the pre-image with the claim owner applied - teardown leaves the phase (completed)
-      // unchanged, so only the claim block needs patching for the caller's agent payload.
-      preImage.setClaim(TaskRunService.claimApplied(preImage.getClaim(), claimedBy, now));
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("status")
-                .is(RunStatus.notstarted)
-                .and("phase")
-                .is(RunPhase.pending));
-    Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.ready, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryStart(String id, Date startTime, Long timeoutMinutes) {
-    // Clearing the dispatch claim frees the completed-phase teardown claimable; claim.seq is
-    // never cleared and survives.
-    Query query =
-        Query.query(
-            Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.queued));
-    Update update =
-        new Update()
-            .set("status", RunStatus.running)
-            .set("phase", RunPhase.running)
-            .set("startTime", startTime)
-            .unset("claim.by")
-            .unset("claim.at")
-            .unset("claim.leaseExpiresAt");
-    Date timeoutAt = RunTimeouts.deadline(startTime, timeoutMinutes);
-    if (timeoutAt != null) {
-      update.set("timeoutAt", timeoutAt);
-    }
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage == null) {
-      return null;
-    }
-    publish(preImage, RunStatus.running, RunPhase.running);
-    // Return the pre-image with the transition applied - the caller executes on the new state.
-    preImage.setStatus(RunStatus.running);
-    preImage.setPhase(RunPhase.running);
-    preImage.setStartTime(startTime);
-    preImage.setTimeoutAt(timeoutAt);
-    if (preImage.getClaim() != null) {
-      preImage.getClaim().setBy(null);
-      preImage.getClaim().setAt(null);
-      preImage.getClaim().setLeaseExpiresAt(null);
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryComplete(
-      String id, List<RunPhase> fromPhases, RunStatus status, String statusMessage, long duration) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").in(fromPhases));
-    Update update =
-        new Update()
-            .set("status", status)
-            .set("phase", RunPhase.completed)
-            .set("duration", duration)
-            .unset("timeoutAt");
-    if (statusMessage != null) {
-      update.set("statusMessage", statusMessage);
-    }
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, status, RunPhase.completed);
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryMarkTimedOut(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
-    Update update = new Update().set("status", RunStatus.timedout);
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryFinalize(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.completed));
-    Update update = new Update().set("phase", RunPhase.finalized);
-    WorkflowRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.finalized);
-    }
-    return preImage;
-  }
-
-  // Pause Compare-And-Set: a running, not-yet-paused run gains the flag. Returns whether this
-  // caller won (the pre-image is not needed - pause publishes no transition).
-  public boolean tryPause(String id) {
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("phase")
-                .is(RunPhase.running)
-                .and("pauseRequestedAt")
-                .exists(false));
-    return mongoTemplate
-            .updateFirst(query, new Update().set("pauseRequestedAt", new Date()), WorkflowRunEntity.class)
-            .getModifiedCount()
-        > 0;
-  }
-
-  // Resume Compare-And-Set: clears the pause flag. Returns whether this caller won.
-  public boolean tryResume(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("pauseRequestedAt").exists(true));
-    return mongoTemplate
-            .updateFirst(query, new Update().unset("pauseRequestedAt"), WorkflowRunEntity.class)
-            .getModifiedCount()
-        > 0;
-  }
-
-  // Paused runs are excluded from both recovery sweeps. The deadline deliberately does not
-  // advance while paused - a run paused past its deadline is reaped on resume.
-  public List<WorkflowRunEntity> findTimedOut(Date now, int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("timeoutAt")
-                    .lte(now)
-                    .and("phase")
-                    .is(RunPhase.running)
-                    .and("pauseRequestedAt")
-                    .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  public List<WorkflowRunEntity> findRunningStartedBefore(Date startedBefore, int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.running)
-                    .and("startTime")
-                    .lte(startedBefore)
-                    .and("pauseRequestedAt")
-                    .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, "startTime"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  // Return the page of in-flight WorkflowRuns, oldest first - the orphan backstop checks each
-  // one's revision ref resolves; not itself an indexed predicate, so the page stays narrow and
-  // any miss is caught again on the next tick.
-  public List<WorkflowRunEntity> findInFlight(int limit) {
-    Query query =
-        Query.query(Criteria.where("phase").in(RunPhase.pending, RunPhase.queued, RunPhase.running))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  public List<WorkflowRunEntity> findFinalizableWithoutWorkspaces(int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("phase").is(RunPhase.completed).and("workspaces.0").exists(false))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  public void setAwaitingApproval(String id, boolean awaitingApproval) {
-    mongoTemplate.updateFirst(
-        Query.query(Criteria.where("_id").is(id)),
-        new Update().set("isAwaitingApproval", awaitingApproval),
-        WorkflowRunEntity.class);
-  }
-
-  public void setStatusOverride(String id, RunStatus statusOverride) {
-    mongoTemplate.updateFirst(
-        Query.query(Criteria.where("_id").is(id)),
-        new Update().set("statusOverride", statusOverride),
-        WorkflowRunEntity.class);
-  }
-
-  public void appendResult(String id, RunResult result) {
-    mongoTemplate.updateFirst(
-        Query.query(Criteria.where("_id").is(id)),
-        new Update().push("results", result),
-        WorkflowRunEntity.class);
-  }
-
-  // The Compare-And-Set primitive: apply the update only when the query's expected prior state
-  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
-  private WorkflowRunEntity findAndModifyPreImage(Query query, Update update) {
-    return mongoTemplate.findAndModify(
-        query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
-  }
-
-  private void publish(WorkflowRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {
-    eventPublisher.publishEvent(
-        new WorkflowRunTransition(
-            preImage.getId(),
-            preImage.getWorkflowRef(),
-            preImage.getStatus(),
-            preImage.getPhase(),
-            toStatus,
-            toPhase));
-  }
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {
     if (wfRunId == null || wfRunId.isBlank()) {
@@ -786,7 +473,7 @@ public class WorkflowRunService {
     }
     // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
     // admission and the recovery sweeps exclude it from here on.
-    if (!tryPause(workflowRunId)) {
+    if (!workflowRunStateService.tryPause(workflowRunId)) {
       LOGGER.info("[{}] WorkflowRun not running or already paused. Nothing to pause.", workflowRunId);
     }
     return ConvertUtil.entityToModel(
@@ -801,7 +488,7 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
     // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
-    if (tryResume(workflowRunId)) {
+    if (workflowRunStateService.tryResume(workflowRunId)) {
       taskExecutionService.advance(workflowRunId);
     } else {
       LOGGER.info("[{}] WorkflowRun not paused. Nothing to resume.", workflowRunId);
@@ -822,7 +509,7 @@ public class WorkflowRunService {
     }
     // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
     // can never overwrite a terminal status. Only the winner drives the timeout to completion.
-    WorkflowRunEntity preImage = tryMarkTimedOut(workflowRunId);
+    WorkflowRunEntity preImage = workflowRunStateService.tryMarkTimedOut(workflowRunId);
     if (preImage != null) {
       // The cause is known here; the completion path just writes the message it is given.
       String statusMessage =

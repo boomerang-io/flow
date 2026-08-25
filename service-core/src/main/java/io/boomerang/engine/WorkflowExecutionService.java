@@ -46,6 +46,8 @@ public class WorkflowExecutionService {
 
   @Autowired @Lazy private WorkflowRunService workflowRunService;
 
+  @Autowired private WorkflowRunStateService workflowRunStateService;
+
 
   @Autowired
   @Lazy
@@ -72,7 +74,7 @@ public class WorkflowExecutionService {
       if (dagUtility.validateWorkflow(wfRunEntity, tasks)) {
         // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
         // params in the same guarded write. A duplicate queue loses and performs no side effects.
-        if (workflowRunService.tryAdmit(wfRunId, wfRunEntity.getParams()) == null) {
+        if (workflowRunStateService.tryAdmit(wfRunId, wfRunEntity.getParams()) == null) {
           LOGGER.info("[{}] WorkflowRun already admitted. Nothing to do.", wfRunId);
         }
         return;
@@ -125,7 +127,7 @@ public class WorkflowExecutionService {
             .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     // Finalize Compare-And-Set: only a completed run can be finalized, so an early or duplicate
     // finalize can never stomp a run that is still executing.
-    if (workflowRunService.tryFinalize(wfRunId) == null) {
+    if (workflowRunStateService.tryFinalize(wfRunId) == null) {
       LOGGER.info(
           "[{}] WorkflowRun not completed (phase: {}). Nothing to finalize.",
           wfRunId,
@@ -145,7 +147,7 @@ public class WorkflowExecutionService {
     }
     // Completion Compare-And-Set: only a run that has not yet completed can be cancelled - a
     // terminal status is never overwritten.
-    if (workflowRunService.tryComplete(
+    if (workflowRunStateService.tryComplete(
             wfRunId,
             List.of(RunPhase.pending, RunPhase.queued, RunPhase.running),
             RunStatus.cancelled,
@@ -186,7 +188,7 @@ public class WorkflowExecutionService {
       // Start Compare-And-Set: pending/queued becomes running exactly once, baking the durable
       // timeoutAt deadline. Only the winner queues the first tasks and schedules the timeout; a
       // duplicate start performs no side effects.
-      WorkflowRunEntity wfRunEntity = workflowRunService.tryStart(wfRunId, new Date(), timeout);
+      WorkflowRunEntity wfRunEntity = workflowRunStateService.tryStart(wfRunId, new Date(), timeout);
       if (wfRunEntity == null) {
         LOGGER.info("[{}] WorkflowRun already started. Only the start winner proceeds.", wfRunId);
         return true;
@@ -241,7 +243,7 @@ public class WorkflowExecutionService {
     // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
     // completed; only the winner cancels tasks and evaluates the auto-retry, so a duplicate
     // timeout can never spawn a duplicate retry.
-    if (workflowRunService.tryComplete(
+    if (workflowRunStateService.tryComplete(
             wfRunId, List.of(RunPhase.running), RunStatus.timedout, statusMessage, duration)
         == null) {
       LOGGER.info("[{}] WorkflowRun already completed. Only the timeout winner acts.", wfRunId);
