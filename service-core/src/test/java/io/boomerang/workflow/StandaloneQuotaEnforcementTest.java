@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,7 +30,7 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "standalone-quota-test-task";
 
-  @Autowired private WorkspaceWorkflowService workspaceWorkflowService;
+  @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
 
   @BeforeEach
@@ -53,7 +53,7 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
   @Test
   void theWorkflowCountQuotaIsStillEnforcedInStandaloneMode() {
     String workspace = createWorkspace("standalone-quota-count", quotasWithWorkflowCount(0));
-    workspaceWorkflowService.create(workspace, runnableWorkflow("quota-first-workflow", TASK_SLUG));
+    workflowService.create(workspace, runnableWorkflow("quota-first-workflow", TASK_SLUG));
 
     setFeatureSetting(QUOTA_FEATURE, true);
 
@@ -61,7 +61,7 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
         assertThrows(
             BoomerangException.class,
             () ->
-                workspaceWorkflowService.create(
+                workflowService.create(
                     workspace, runnableWorkflow("quota-second-workflow", TASK_SLUG)));
     assertEquals("QUOTA_EXCEEDED", ex.getReason());
   }
@@ -71,13 +71,13 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     // The ceiling is gated on the quota subsystem (mode), not on the "workspaceQuotas" feature
     // setting - unchanged from before the fix, so this must hold with the feature off.
     String workspace = createWorkspace("standalone-quota-duration", quotasWithRunDuration(7));
-    workspaceWorkflowService.create(
+    workflowService.create(
         workspace, runnableWorkflow("quota-duration-workflow", TASK_SLUG));
 
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(TriggerEnum.manual);
     WorkflowRun run =
-        workspaceWorkflowService.submit(workspace, "quota-duration-workflow", request, false);
+        workflowService.submit(workspace, "quota-duration-workflow", request, false);
 
     assertEquals(7L, run.getTimeout());
   }

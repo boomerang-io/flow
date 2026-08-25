@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,7 +25,7 @@ import org.springframework.test.context.TestPropertySource;
 /**
  * POST /api/v2/workspace/{workspace}/workflow/{name}/submit is the only HTTP route that starts a
  * WorkflowRun, so until this was fixed a run could only ever be created in engine mode by an
- * already-running run - nothing could start the first one. WorkspaceWorkflowService.internalSubmit
+ * already-running run - nothing could start the first one. WorkflowService.internalSubmit
  * called WorkspaceService.getWorkflowMaxDurationForTeam unconditionally, and WorkspaceService is
  * {@code @ConditionalOnFlowMode(STANDALONE)}: in engine mode the injected proxy threw
  * NoSuchBeanDefinitionException at request time. Boot still succeeded, which is exactly why no
@@ -45,7 +45,7 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   // ceiling must fall back to with no workspace quota record to read.
   private static final long PLATFORM_DEFAULT_DURATION = 30L;
 
-  @Autowired private WorkspaceWorkflowService workspaceWorkflowService;
+  @Autowired private WorkflowService workflowService;
   @Autowired private ApplicationContext context;
 
   @BeforeEach
@@ -96,7 +96,7 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
     WorkflowSubmitRequest request = newSubmitRequest();
     request.setTimeout(5L);
     WorkflowRun run =
-        workspaceWorkflowService.submit(
+        workflowService.submit(
             SYSTEM_WORKSPACE, "engine-submit-timeout-request", request, false);
 
     assertEquals(5L, run.getTimeout());
@@ -106,10 +106,10 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   void deletingAWorkflowSucceedsInEngineModeDespiteNoScheduleService() {
     createWorkflow("engine-delete-no-schedules");
 
-    workspaceWorkflowService.delete(SYSTEM_WORKSPACE, "engine-delete-no-schedules");
+    workflowService.delete(SYSTEM_WORKSPACE, "engine-delete-no-schedules");
 
     assertTrue(
-        workspaceWorkflowService
+        workflowService
             .query(
                 SYSTEM_WORKSPACE,
                 Optional.empty(),
@@ -123,11 +123,11 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   }
 
   private void createWorkflow(String name) {
-    workspaceWorkflowService.create(SYSTEM_WORKSPACE, runnableWorkflow(name, TASK_SLUG));
+    workflowService.create(SYSTEM_WORKSPACE, runnableWorkflow(name, TASK_SLUG));
   }
 
   private WorkflowRun submit(String name) {
-    return workspaceWorkflowService.submit(SYSTEM_WORKSPACE, name, newSubmitRequest(), false);
+    return workflowService.submit(SYSTEM_WORKSPACE, name, newSubmitRequest(), false);
   }
 
   private static WorkflowSubmitRequest newSubmitRequest() {

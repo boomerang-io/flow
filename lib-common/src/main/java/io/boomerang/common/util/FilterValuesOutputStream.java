@@ -18,7 +18,7 @@ import java.util.Set;
  * the tail is caught, but one straddling a chunk boundary of such an oversize line can leak a
  * fragment - an accepted edge for 64KB+ single log lines.
  */
-public class SecretScrubbingOutputStream extends OutputStream {
+public class FilterValuesOutputStream extends OutputStream {
 
   private static final int MAX_BUFFERED_BYTES = 64 * 1024;
 
@@ -28,7 +28,7 @@ public class SecretScrubbingOutputStream extends OutputStream {
   private byte[] buffer = new byte[8 * 1024];
   private int length = 0;
 
-  public SecretScrubbingOutputStream(OutputStream out, Set<String> secrets) {
+  public FilterValuesOutputStream(OutputStream out, Set<String> secrets) {
     this.out = out;
     this.secrets = secrets;
     this.longestSecretBytes =

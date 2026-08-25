@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.api.model.WorkflowRunResponsePage;
+import io.boomerang.common.model.WorkflowRunResponsePage;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.error.BoomerangException;

@@ -149,10 +149,10 @@ under 4 characters are name-blanked but not value-scrubbed). The utilities live 
 `DataAdapterUtil` `filter*` family (`filterWorkflowRunValueByFieldType` reuses
 `filterRunParamValueByFieldType` for the name-join; `filterTaskRunValues` is the value scrub).
 **The TaskRun log stream is ALSO closed (2026-08-25)**: `WorkspaceTaskRunService.streamLog` wraps
-the stream in `SecretScrubbingOutputStream` (line-buffered UTF-8 scrub; a secret straddling a
+the stream in `FilterValuesOutputStream` (line-buffered UTF-8 scrub; a secret straddling a
 chunk boundary of a single >64KB line is the accepted edge), realising the v4 commented-out
 masking intent at the streaming function itself. Covered by `ParamRedactionTest`,
-`RunRedactionTest`, `SecretScrubbingOutputStreamTest`.
+`RunRedactionTest`, `FilterValuesOutputStreamTest`.
 
 ## 8. Future: workspace storage sources beyond PVC
 

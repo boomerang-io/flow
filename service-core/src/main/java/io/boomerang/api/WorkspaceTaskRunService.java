@@ -5,7 +5,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
-import io.boomerang.common.util.SecretScrubbingOutputStream;
+import io.boomerang.common.util.FilterValuesOutputStream;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskRunService;
@@ -75,7 +75,7 @@ public class WorkspaceTaskRunService {
       if (secrets.isEmpty()) {
         return body;
       }
-      return outputStream -> body.writeTo(new SecretScrubbingOutputStream(outputStream, secrets));
+      return outputStream -> body.writeTo(new FilterValuesOutputStream(outputStream, secrets));
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
   }
