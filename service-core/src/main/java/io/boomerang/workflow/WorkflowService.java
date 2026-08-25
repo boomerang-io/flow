@@ -1550,9 +1550,43 @@ public class WorkflowService {
         // Shared utility with DAGUtility
         Task taskTemplate = taskService.retrieveAndValidateTask(wfTask);
         wfTask.setTaskVersion(taskTemplate.getVersion());
+
+        // Reject node params the Task Template does not declare
+        validateDeclaredParams(wfTask, taskTemplate);
       }
     }
     return wfRevisionEntity;
+  }
+
+  /*
+   * Rejects any node param the referenced Task Template does not declare. The engine's merge
+   * (ParameterUtil.addUniqueParams, the same match DAGUtility relies on) accepts any key, so an
+   * undeclared param becomes an undeclared PARAM_<NAME> env var on the TaskRun container - this
+   * is where a typo is caught instead of silently reaching the container.
+   *
+   * Only enforced once the Template resolves and declares at least one param: several system
+   * task types (e.g. runworkflow/runscheduledworkflow's "workflowRef") take node params their
+   * Template spec leaves undeclared, so a Template with an empty declared set is left unchecked
+   * rather than treated as "no params allowed".
+   */
+  private void validateDeclaredParams(WorkflowTask wfTask, Task taskTemplate) {
+    List<AbstractParam> declaredParams = taskTemplate.getSpec().getParams();
+    if (declaredParams == null || declaredParams.isEmpty() || wfTask.getParams() == null) {
+      return;
+    }
+    List<String> declaredNames =
+        declaredParams.stream().map(AbstractParam::getName).collect(Collectors.toList());
+    List<String> undeclaredNames =
+        wfTask.getParams().stream()
+            .map(RunParam::getName)
+            .filter(name -> !declaredNames.contains(name))
+            .collect(Collectors.toList());
+    if (!undeclaredNames.isEmpty()) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_PARAM,
+          wfTask.getName(),
+          undeclaredNames.toString());
+    }
   }
 
   // TODO: handle more of the apply i.e. if original has element, and new does not, keep the
