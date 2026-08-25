@@ -1,4 +1,4 @@
-package io.boomerang.api.model;
+package io.boomerang.common.model;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +8,6 @@ import org.springframework.data.domain.Pageable;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
-import io.boomerang.common.model.WorkflowTemplate;
 
 public class WorkflowTemplateResponsePage extends PageImpl<WorkflowTemplate> {
   @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)

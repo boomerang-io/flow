@@ -1,7 +1,6 @@
 package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import io.boomerang.api.model.AuthExchangeRequest;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.config.ConditionalOnFlowMode;
@@ -10,6 +9,7 @@ import io.boomerang.core.TokenService;
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.model.Token;
 import java.text.ParseException;
 import org.springframework.stereotype.Service;

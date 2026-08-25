@@ -1,9 +1,9 @@
 package io.boomerang.api;
 
-import io.boomerang.api.model.AuthExchangeRequest;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.core.TokenService.SessionToken;
+import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.AuthExchangeService;
 import io.boomerang.core.security.SessionCookie;

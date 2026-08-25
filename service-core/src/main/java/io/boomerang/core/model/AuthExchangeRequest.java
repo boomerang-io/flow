@@ -1,4 +1,4 @@
-package io.boomerang.api.model;
+package io.boomerang.core.model;
 
 import lombok.Data;
 
