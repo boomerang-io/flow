@@ -312,9 +312,19 @@ export const handlers: HttpHandler[] = [
   // the underlying serviceUrl.resourceApproverGroups builder ignores (it only takes `workspace`),
   // so that path segment was dead and the handler's `request.params.groupId` read was always
   // undefined.
-  http.delete(serviceUrl.resourceApproverGroups({ workspace: ":workspace" }), async ({ request }) => {
-    const names = await jsonStringArrayBody(request);
-    db.approverGroups = db.approverGroups.filter((group) => !names.includes(group.name ?? ""));
+  // The body is an array of identifiers; ApproverGroups.tsx sends group *ids*, so match on either
+  // id or name. The groups the Approver Groups tab renders come off the workspace record (the
+  // parent loader's `workspace.approverGroups`), not the standalone collection above, so the
+  // delete has to remove the group from both - same as the members delete handler below.
+  http.delete(serviceUrl.resourceApproverGroups({ workspace: ":workspace" }), async ({ params, request }) => {
+    const identifiers = await jsonStringArrayBody(request);
+    const isRemoved = (group: { id?: string; name?: string }) =>
+      identifiers.includes(group.id ?? "") || identifiers.includes(group.name ?? "");
+    db.approverGroups = db.approverGroups.filter((group) => !isRemoved(group));
+    const workspace = findWorkspace(pathParam(params.workspace));
+    if (workspace) {
+      workspace.approverGroups = (workspace.approverGroups ?? []).filter((group) => !isRemoved(group));
+    }
     return HttpResponse.json({});
   }),
 

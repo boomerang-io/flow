@@ -116,6 +116,19 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(await screen.findByText("Showing 2 members")).toBeInTheDocument();
   });
 
+  // The Approver Groups tab's delete is the same fetcher-settle -> parent-loader-revalidate chain
+  // the member test above proves, and it regressed once: this route's shouldRevalidate suppressed
+  // revalidation for the literal intent "delete", which the Settings tab submits for the WORKSPACE
+  // delete and this tab submitted for a GROUP delete. The DELETE succeeded server-side while the
+  // row stayed on screen until the user navigated away.
+  test("deletes an approver group and re-renders the list from the parent loader", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceApprovers({ workspace: workspaceFixture.name }));
+    expect(await screen.findByText("Showing 1 approver group")).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("delete-approver-group"));
+    fireEvent.click(await screen.findByText("Delete"));
+    expect(await screen.findByText("Showing 0 approver groups")).toBeInTheDocument();
+  });
+
   test("deep-links into the workflows tab and lists loader-supplied workflows", async () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceWorkflows({ workspace: workspaceFixture.name }));
     expect(await screen.findByText("These are the workflows for this Workspace.")).toBeInTheDocument();
@@ -162,6 +175,30 @@ describe("WorkspaceDetailed --- RTL", () => {
 // Actions are called directly (rather than driven through the UI) for the same reason
 // WorkspaceTasks.spec.tsx does: they are plain functions of { params, request }, so there is no
 // need to fabricate a full navigation to exercise the request/response contract.
+// Pins the intent names themselves, which is what keeps the two operations apart. Called
+// directly: shouldRevalidate is a plain function of the submission.
+describe("WorkspaceDetailed --- shouldRevalidate", () => {
+  function revalidatesFor(intent: string) {
+    const formData = new FormData();
+    formData.set("intent", intent);
+    return shouldRevalidate({ formData, defaultShouldRevalidate: true });
+  }
+
+  test("suppresses only the two workspace-level intents that make this loader unrunnable", () => {
+    expect(revalidatesFor("renameWorkspace")).toBe(false);
+    expect(revalidatesFor("deleteWorkspace")).toBe(false);
+  });
+
+  test("revalidates for every other tab's writes, including the deletes that are not the workspace's", () => {
+    expect(revalidatesFor("deleteApproverGroup")).toBe(true);
+    expect(revalidatesFor("saveApproverGroup")).toBe(true);
+    expect(revalidatesFor("delete")).toBe(true); // the Tokens tab's token delete
+    expect(revalidatesFor("updateWorkspaceLabels")).toBe(true);
+    expect(revalidatesFor("remove")).toBe(true);
+    expect(revalidatesFor("update")).toBe(true);
+  });
+});
+
 describe("WorkspaceDetailed --- settings action", () => {
   const WORKSPACE = workspaceFixture.name;
 
@@ -176,18 +213,18 @@ describe("WorkspaceDetailed --- settings action", () => {
   }
 
   test("updates labels", async () => {
-    const result = await submit({ intent: "labels", operation: "add", labels: JSON.stringify({ a: "b" }) });
-    expect(result).toEqual({ ok: true, intent: "labels", detail: "add" });
+    const result = await submit({ intent: "updateWorkspaceLabels", operation: "add", labels: JSON.stringify({ a: "b" }) });
+    expect(result).toEqual({ ok: true, intent: "updateWorkspaceLabels", detail: "add" });
   });
 
   test("renames the workspace and returns the new slug", async () => {
-    const result = await submit({ intent: "rename", name: "renamed-workspace", displayName: "Renamed Workspace" });
-    expect(result).toEqual({ ok: true, intent: "rename", detail: "renamed-workspace" });
+    const result = await submit({ intent: "renameWorkspace", name: "renamed-workspace", displayName: "Renamed Workspace" });
+    expect(result).toEqual({ ok: true, intent: "renameWorkspace", detail: "renamed-workspace" });
   });
 
   test("deletes the workspace", async () => {
-    const result = await submit({ intent: "delete" });
-    expect(result).toEqual({ ok: true, intent: "delete" });
+    const result = await submit({ intent: "deleteWorkspace" });
+    expect(result).toEqual({ ok: true, intent: "deleteWorkspace" });
   });
 });
 
@@ -273,20 +310,20 @@ describe("WorkspaceDetailed --- approver groups action", () => {
   }
 
   test("deletes an approver group", async () => {
-    const result = await submit({ intent: "delete", groupId: "some-group-id", name: "Some Group" });
-    expect(result).toEqual({ ok: true, intent: "delete", name: "Some Group" });
+    const result = await submit({ intent: "deleteApproverGroup", groupId: "some-group-id", name: "Some Group" });
+    expect(result).toEqual({ ok: true, intent: "deleteApproverGroup", name: "Some Group" });
   });
 
   test("creates an approver group through the workspace PATCH", async () => {
     const result = await submit({
-      intent: "save",
+      intent: "saveApproverGroup",
       isEdit: "false",
       groupId: "",
       name: "New Group",
       approvers: JSON.stringify(["user-1", "user-2"]),
     });
     expect(result.ok).toBe(true);
-    expect(result.intent).toBe("save");
+    expect(result.intent).toBe("saveApproverGroup");
     expect(result.isEdit).toBe(false);
   });
 
@@ -297,7 +334,7 @@ describe("WorkspaceDetailed --- approver groups action", () => {
       ),
     );
     const result = await submit({
-      intent: "save",
+      intent: "saveApproverGroup",
       isEdit: "true",
       groupId: "some-group-id",
       name: "Some Group",

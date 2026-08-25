@@ -15,6 +15,7 @@ import { Button, Checkbox, InlineNotification, ModalBody, ModalFooter, Search } 
 import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { AddAlt, SubtractAlt } from "@carbon/react/icons";
 import { FlowWorkspace, Approver, ApproverGroup } from "Types";
+import { ApproverGroupIntent } from "../../ApproverGroups";
 import type { ApproverGroupsActionResult } from "../../ApproverGroups";
 import styles from "./createEditGroupModalContent.module.scss";
 
@@ -178,14 +179,14 @@ function CreateEditGroupModalContent({
   // parent layout loader that supplies the group list, so no manual invalidation here.
   const fetcher = useFetcher<ApproverGroupsActionResult>();
   const isSubmitting = fetcher.state !== "idle";
-  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "save");
+  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === ApproverGroupIntent.Save);
 
   const { title, message: subtitle } = failed
     ? (fetcher.data?.errorMessage ?? { title: "Something's Wrong", message: undefined })
     : { title: "", message: undefined };
 
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "save" || !fetcher.data.ok) {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== ApproverGroupIntent.Save || !fetcher.data.ok) {
       return;
     }
     notify(
@@ -204,7 +205,7 @@ function CreateEditGroupModalContent({
   const handleSubmit = (values: any) => {
     fetcher.submit(
       {
-        intent: "save",
+        intent: ApproverGroupIntent.Save,
         isEdit: String(Boolean(isEdit)),
         groupId: isEdit ? (approverGroup?.id ?? "") : "",
         name: values.groupName,

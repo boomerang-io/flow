@@ -20,9 +20,20 @@ import styles from "./approverGroups.module.scss";
 // post to this one action, keyed by an `intent` form field; a fetcher with no explicit action
 // path resolves to the nearest matched route, which is this tab. Settling the fetcher
 // revalidates the parent layout route's loader, which is where the group list comes from.
+//
+// Intent names are approver-group-scoped, not bare verbs: every tab under the Manage Workspace
+// layout route submits to the same matched route tree, and that route's shouldRevalidate
+// (../WorkspaceDetailed) keys off the Settings tab's workspace-level intents. A bare "delete"
+// here collided with the workspace delete and had its revalidation suppressed, so a deleted
+// group stayed on screen.
+export const ApproverGroupIntent = {
+  Delete: "deleteApproverGroup",
+  Save: "saveApproverGroup",
+} as const;
+
 export type ApproverGroupsActionResult = {
   ok: boolean;
-  intent: "delete" | "save";
+  intent: (typeof ApproverGroupIntent)[keyof typeof ApproverGroupIntent];
   /** Present for "save": distinguishes the created/updated toast. */
   isEdit?: boolean;
   /** The name shown in the resulting toast. */
@@ -41,17 +52,17 @@ export async function action({
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
-  if (intent === "delete") {
+  if (intent === ApproverGroupIntent.Delete) {
     const groupId = String(formData.get("groupId"));
     const name = String(formData.get("name"));
     try {
       // DELETE with a request body, matching the previous resolver.deleteApproverGroup.
       await serverFetch(request).delete(serviceUrl.resourceApproverGroups({ workspace }), { data: [groupId] });
-      return { ok: true, intent: "delete", name };
+      return { ok: true, intent: ApproverGroupIntent.Delete, name };
     } catch (error) {
       return {
         ok: false,
-        intent: "delete",
+        intent: ApproverGroupIntent.Delete,
         name,
         errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Approver Group Failed" }),
       };
@@ -71,11 +82,11 @@ export async function action({
     });
     // Pre-existing quirk preserved: patchWorkspace returns the *workspace*, so the toast has
     // always echoed the workspace name here rather than the group name.
-    return { ok: true, intent: "save", isEdit, name: response.data.name };
+    return { ok: true, intent: ApproverGroupIntent.Save, isEdit, name: response.data.name };
   } catch (error) {
     return {
       ok: false,
-      intent: "save",
+      intent: ApproverGroupIntent.Save,
       isEdit,
       name: approverGroup.name,
       errorMessage: formatErrorMessage({
@@ -121,7 +132,7 @@ function ApproverGroups() {
   const fetcher = useFetcher<ApproverGroupsActionResult>();
 
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "delete") {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== ApproverGroupIntent.Delete) {
       return;
     }
     const { ok, name, errorMessage } = fetcher.data;
@@ -146,7 +157,7 @@ function ApproverGroups() {
 
   const deleteApproverGroup = (approverGroup: ApproverGroup) => {
     fetcher.submit(
-      { intent: "delete", groupId: approverGroup.id ?? "", name: approverGroup.name },
+      { intent: ApproverGroupIntent.Delete, groupId: approverGroup.id ?? "", name: approverGroup.name },
       { method: "post" },
     );
   };

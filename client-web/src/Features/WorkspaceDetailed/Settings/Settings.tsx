@@ -22,7 +22,7 @@ import { Edit, Close, TrashCan, Add, Copy } from "@carbon/react/icons";
 import CopyToClipboard from "react-copy-to-clipboard";
 import sortBy from "lodash/sortBy";
 import { ModalTriggerProps } from "Types";
-import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
+import { useWorkspaceDetailedContext, WorkspaceIntent } from "../WorkspaceDetailed";
 import LabelModal from "Components/LabelModal";
 import { appLink } from "Config/appConfig";
 import styles from "./Settings.module.scss";
@@ -43,10 +43,18 @@ interface Label {
 // The one call NOT here is the rename modal's name-availability probe: it runs inside a Yup
 // async validation test, which needs a promise it can await per keystroke, and fetcher.submit is
 // fire-and-forget. It stays a direct browser call - see ./UpdateWorkspaceName.
+//
+// The intent names are the workspace-scoped ones exported by ../WorkspaceDetailed
+// (`renameWorkspace`/`deleteWorkspace`/`updateWorkspaceLabels`), not bare verbs: that route's
+// shouldRevalidate keys off two of them, and the Approver Groups and Tokens tabs submit their own
+// deletes to the same matched route tree.
 export type SettingsActionResult = {
   ok: boolean;
-  intent: "labels" | "delete" | "rename";
-  /** "labels": which of the two toasts to raise. "rename": the new workspace slug to navigate to. */
+  intent: (typeof WorkspaceIntent)[keyof typeof WorkspaceIntent];
+  /**
+   * "updateWorkspaceLabels": which of the two toasts to raise. "renameWorkspace": the new
+   * workspace slug to navigate to.
+   */
   detail?: string;
   errorMessage?: { title: string; message: string };
 };
@@ -62,44 +70,44 @@ export async function action({
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
-  if (intent === "delete") {
+  if (intent === WorkspaceIntent.Delete) {
     try {
       await serverFetch(request).delete(serviceUrl.resourceWorkspace({ workspace }));
-      return { ok: true, intent: "delete" };
+      return { ok: true, intent: WorkspaceIntent.Delete };
     } catch (error) {
       return {
         ok: false,
-        intent: "delete",
+        intent: WorkspaceIntent.Delete,
         errorMessage: formatErrorMessage({ error, defaultMessage: "Request to delete workspace failed" }),
       };
     }
   }
 
-  if (intent === "rename") {
+  if (intent === WorkspaceIntent.Rename) {
     const name = String(formData.get("name"));
     const displayName = String(formData.get("displayName"));
     try {
       await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { name, displayName });
-      return { ok: true, intent: "rename", detail: name };
+      return { ok: true, intent: WorkspaceIntent.Rename, detail: name };
     } catch (error) {
       return {
         ok: false,
-        intent: "rename",
+        intent: WorkspaceIntent.Rename,
         errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to update workspace settings" }),
       };
     }
   }
 
-  // "labels": the whole label record is sent, add and remove alike - the caller computes it.
+  // Labels: the whole label record is sent, add and remove alike - the caller computes it.
   const labels = JSON.parse(String(formData.get("labels")));
   const operation = String(formData.get("operation"));
   try {
     await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { labels });
-    return { ok: true, intent: "labels", detail: operation };
+    return { ok: true, intent: WorkspaceIntent.UpdateLabels, detail: operation };
   } catch (error) {
     return {
       ok: false,
-      intent: "labels",
+      intent: WorkspaceIntent.UpdateLabels,
       detail: operation,
       errorMessage: formatErrorMessage({ error, defaultMessage: "Request to update labels failed" }),
     };
@@ -126,7 +134,7 @@ export default function Settings() {
       // Matches the previous handlers, which all swallowed their errors (`// noop`).
       return;
     }
-    if (intent === "delete") {
+    if (intent === WorkspaceIntent.Delete) {
       navigate(appLink.home());
       notify(
         <ToastNotification
@@ -137,7 +145,7 @@ export default function Settings() {
       );
       return;
     }
-    if (intent === "labels") {
+    if (intent === WorkspaceIntent.UpdateLabels) {
       notify(
         detail === "add" ? (
           <ToastNotification
@@ -154,7 +162,7 @@ export default function Settings() {
         ),
       );
     }
-    // "rename" is handled in ./UpdateWorkspaceName, which owns its own fetcher.
+    // The rename is handled in ./UpdateWorkspaceName, which owns its own fetcher.
   }, [fetcher.state, fetcher.data, navigate, workspace.displayName]);
 
   const submitLabels = (labels: Array<Label>, operation: "add" | "remove") => {
@@ -165,11 +173,14 @@ export default function Settings() {
       },
       {} as Record<string, string>,
     );
-    fetcher.submit({ intent: "labels", operation, labels: JSON.stringify(labelsRecord) }, { method: "post" });
+    fetcher.submit(
+      { intent: WorkspaceIntent.UpdateLabels, operation, labels: JSON.stringify(labelsRecord) },
+      { method: "post" },
+    );
   };
 
   const handleDeleteWorkspace = () => {
-    fetcher.submit({ intent: "delete" }, { method: "post" });
+    fetcher.submit({ intent: WorkspaceIntent.Delete }, { method: "post" });
   };
 
   const handleAddLabel = (value: Label) => submitLabels([...workspaceLabels, value], "add");

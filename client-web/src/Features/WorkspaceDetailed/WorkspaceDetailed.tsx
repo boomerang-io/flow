@@ -53,6 +53,26 @@ export async function loader({
 }
 
 /*
+ * The Settings tab's intents (see ./Settings/Settings.tsx, which owns the action they post to).
+ * They are named for the workspace-level operation they perform rather than the bare verb,
+ * because the tabs under this route tree all submit to the same matched route and several of
+ * them have their own "delete": the Approver Groups tab deletes a GROUP and the Tokens tab
+ * deletes a TOKEN. When this route's shouldRevalidate below keyed off the literal string
+ * "delete", an approver-group delete was silently suppressed along with the workspace one - the
+ * DELETE succeeded server-side and the row stayed on screen until the user navigated away.
+ */
+export const WorkspaceIntent = {
+  Rename: "renameWorkspace",
+  Delete: "deleteWorkspace",
+  UpdateLabels: "updateWorkspaceLabels",
+} as const;
+
+/*
+ * The two intents above that make this route's own loader unrunnable, and only those two.
+ */
+const SUPPRESS_REVALIDATION_INTENTS: ReadonlyArray<string> = [WorkspaceIntent.Rename, WorkspaceIntent.Delete];
+
+/*
  * A fetcher submission revalidates every matched loader by default, which is what keeps the tabs
  * in sync after a write. Two of the Settings tab's intents are the exception: a rename changes
  * the `:workspace` slug and a delete removes the record outright, so re-running THIS loader
@@ -61,6 +81,10 @@ export async function loader({
  * whose effect was about to navigate to the right place - leaving the user on an error page with
  * no toast. Skipping revalidation lets that navigation happen; the destination loads fresh data
  * on arrival, and the root loader (the user's workspace list) still revalidates either way.
+ *
+ * Every other write on every other tab MUST revalidate: the Members, Approver Groups and Quotas
+ * tabs all render straight off this loader's workspace record, so suppressing them leaves the
+ * screen showing data the server no longer has.
  */
 export function shouldRevalidate({
   formData,
@@ -70,7 +94,7 @@ export function shouldRevalidate({
   defaultShouldRevalidate: boolean;
 }): boolean {
   const intent = formData?.get("intent");
-  if (intent === "rename" || intent === "delete") {
+  if (typeof intent === "string" && SUPPRESS_REVALIDATION_INTENTS.includes(intent)) {
     return false;
   }
   return defaultShouldRevalidate;

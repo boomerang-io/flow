@@ -24,6 +24,9 @@ interface Workspace extends Record<string, unknown> {
   name?: string;
   parameters?: Array<Record<string, unknown>>;
   labels?: Record<string, unknown>;
+  // The Approver Groups tab renders these off the workspace record, so the approver-group
+  // handlers mutate them here as well as in the standalone `approverGroups` collection.
+  approverGroups?: Array<NamedRecord>;
 }
 
 interface NamedRecord extends Record<string, unknown> {
