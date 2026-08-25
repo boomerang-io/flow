@@ -20,7 +20,7 @@ import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
 import { useEditorContext, useWorkspaceContext } from "Hooks";
 import { TokenActorKind, TokenType, WorkspaceConfigType } from "Constants";
-import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
 import { useEditorRouteData } from "../editorRouteData";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
@@ -209,6 +209,11 @@ interface ConfigureProps {
 
 function Configure(props: ConfigureProps) {
   const workflowTokensEnabled = useFeature(FeatureFlag.WorkflowTokensEnabled);
+  // Read off the URL rather than built from props.workflow.name: the two differ (appLink.editorCanvas
+  // builds from the name, while specs and older bookmarks address the editor by id - see
+  // editorRoute.ts), and the default-panel redirect below must not change which workflow the URL
+  // identifies.
+  const routeParams = useParams<{ workspace: string; workflow: string }>();
   const handleOnToggleChange = (value: any, id: string) => {
     props.formikProps.setFieldValue(id, value);
   };
@@ -895,7 +900,26 @@ function Configure(props: ConfigureProps) {
             </>
           }
         />
-        <Route path="configure" element={<Navigate to={AppPath.EditorConfigureGeneral} replace />} />
+        {/*
+          * `appLink.*` (a builder that takes the params), never `AppPath.*` (the route PATTERN):
+          * v5's <Redirect from to> interpolated ":workspace"/":workflow" from the current match,
+          * v7's <Navigate> does not, so an AppPath here navigates to the literal
+          * "/:workspace/editor/:workflow/..." URL and the editor loader fetches a workflow by
+          * that name. The editor header links to the bare `configure` path, so this redirect is
+          * the entry point to the whole Configure tab.
+          */}
+        <Route
+          path="configure"
+          element={
+            <Navigate
+              to={appLink.editorConfigureGeneral({
+                workspace: routeParams.workspace ?? "",
+                workflow: routeParams.workflow ?? "",
+              })}
+              replace
+            />
+          }
+        />
       </Routes>
     </div>
   );

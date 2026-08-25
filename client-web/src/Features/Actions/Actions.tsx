@@ -20,7 +20,7 @@ import HeaderWidget from "Components/HeaderWidget";
 import { useWorkspaceContext } from "Hooks";
 import { ActionType, HttpMethod } from "Constants";
 import { approvalStatusOptions } from "Constants/filterOptions";
-import { AppPath, appLink, queryStringOptions } from "Config/appConfig";
+import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { Action, PaginatedWorkflowResponse } from "Types";
@@ -311,7 +311,13 @@ function Actions() {
               </Helmet>
             }
           />
-          <Route path="" element={<Navigate to={AppPath.ActionsApprovals} replace />} />
+          {/*
+            * `appLink.*` (a builder that takes the params), never `AppPath.*` (the route PATTERN):
+            * v5's <Redirect from to> interpolated ":workspace" from the current match, v7's
+            * <Navigate> does not, so an AppPath here navigates to the literal "/:workspace/..."
+            * URL and the loader fetches a workspace by that name.
+            */}
+          <Route path="" element={<Navigate to={appLink.actionsApprovals({ workspace: workspace.name })} replace />} />
         </Routes>
         <Header
           className={styles.header}

@@ -104,6 +104,26 @@ describe("Configure", () => {
     TEST_TIMEOUT,
   );
 
+  /*
+   * The editor header links to the bare `/configure` path (WorkflowEditor/Header/Header.tsx), so
+   * this redirect is the only thing that gets a user onto a panel. React Router v5's
+   * `<Redirect from to>` interpolated route params; v7's `<Navigate>` does not, so redirecting to
+   * the AppPath PATTERN ("/:workspace/editor/:workflow/configure/general") navigated to that
+   * literal URL - the loader then fetched a workflow called ":workflow" and the page errored.
+   */
+  it(
+    "redirects the bare configure path onto the General panel with the real params",
+    async () => {
+      const { history } = renderConfigure(appLink.editorConfigure({ workspace: WORKSPACE, workflow: WORKFLOW }));
+
+      expect(await screen.findByText(/Basic Information/i, undefined, LOADER_WAIT)).toBeInTheDocument();
+      expect(history.location.pathname).toBe(
+        appLink.editorConfigureGeneral({ workspace: WORKSPACE, workflow: WORKFLOW }),
+      );
+    },
+    TEST_TIMEOUT,
+  );
+
   // Covers the read that moved out of this component and onto the editor route's loader: with an
   // installation resolved, the GitHub toggle is enabled and the "Integration Required" warning is
   // absent. Fixture: ApiServer/fixtures/installations.js.
