@@ -14,6 +14,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.*;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -29,6 +31,7 @@ import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.event.repository.EventInboxRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
@@ -86,6 +89,7 @@ public class WorkflowRunService {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final WorkflowRepository workflowRepository;
+  private final WorkflowRevisionRepository workflowRevisionRepository;
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
   private final ActionRepository actionRepository;
@@ -99,6 +103,7 @@ public class WorkflowRunService {
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
+      WorkflowRevisionRepository workflowRevisionRepository,
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
       ActionRepository actionRepository,
@@ -110,6 +115,7 @@ public class WorkflowRunService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate) {
     this.workflowRepository = workflowRepository;
+    this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.actionRepository = actionRepository;
@@ -134,7 +140,29 @@ public class WorkflowRunService {
    */
   public ResponseEntity<WorkflowRun> get(String team, String workflowRunId, boolean withTasks) {
     requireWorkspaceRelationship(team, workflowRunId);
-    return ResponseEntity.ok(get(workflowRunId, withTasks));
+    WorkflowRun wfRun = get(workflowRunId, withTasks);
+    redactForDisplay(wfRun);
+    return ResponseEntity.ok(wfRun);
+  }
+
+  /*
+   * Sensitive params are sensitive UPWARD (engine to UI/API consumer), so redaction happens on
+   * the workspace-scoped v2 surface only - never on the unscoped reads the engine and dispatcher
+   * use, which must see real values. Password-typed params (the workflow revision's param spec is
+   * the type authority; RunParam carries no type on the wire) are blanked by name, and their
+   * resolved values are scrubbed from task params, spec fields and results, where they can appear
+   * under any name after substitution. Mutates the response model only.
+   */
+  void redactForDisplay(WorkflowRun wfRun) {
+    if (wfRun == null || wfRun.getWorkflowRevisionRef() == null) {
+      return;
+    }
+    workflowRevisionRepository
+        .findById(wfRun.getWorkflowRevisionRef())
+        .ifPresent(
+            revision ->
+                DataAdapterUtil.redactWorkflowRun(
+                    wfRun, revision.getParams(), FieldType.PASSWORD.value()));
   }
 
   /*
@@ -174,6 +202,7 @@ public class WorkflowRunService {
             Optional.empty(),
             Optional.of(wfRefs),
             queryTriggers);
+    page.getContent().forEach(this::redactForDisplay);
     return new WorkflowRunResponsePage(
         page.getContent(), page.getPageable(), page.getTotalElements());
   }

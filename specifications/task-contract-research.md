@@ -139,8 +139,16 @@ redacts **resolved RunParam values on run payloads** by joining the run's params
 workflow's param spec — has **zero callers**. A WorkflowRun/TaskRun response therefore returns
 resolved password values in plain text, which breaks the upward half of the trust model. `RunParam`
 itself carries no type marker on the wire (`ParamType` is `@JsonIgnore`), so run-payload redaction
-must join against the definition, exactly as that orphaned method does. Closing this gap (run
-GET/query responses + anything that logs resolved params) is the work — not a new field.
+must join against the definition, exactly as that orphaned method does.
+
+**Gap CLOSED (2026-08-25)** for payloads: `WorkflowRunService.redactForDisplay` runs on the
+workspace-scoped v2 `get`/`query` only (never the unscoped engine/dispatcher reads) — password
+params blanked by name against the run's revision spec, and their resolved values scrubbed from
+task params, spec fields and results (`DataAdapterUtil.redactWorkflowRun`/`redactTaskRun`; values
+under 4 characters are name-blanked but not value-scrubbed). Covered by `ParamRedactionTest` +
+`RunRedactionTest`. **Still open: the TaskRun log stream** (`/api/v2/taskrun/{id}/log`) is not
+scrubbed — a script that echoes a secret shows it in the log; v4 had commented-out value-masking
+for exactly this (`WorkspaceTaskRunService`), which is the follow-up.
 
 ## 8. Future: workspace storage sources beyond PVC
 
