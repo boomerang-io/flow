@@ -11,6 +11,7 @@ import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -103,9 +104,60 @@ public class ParameterManager {
     // Return WorkflowRun or TaskRun RunParams
     if (optTaskRun.isPresent()) {
       optTaskRun.get().setParams(runParams);
+      // The spec is part of the contract too: $(params.x) in script/command/arguments/envs must
+      // resolve identically on every executor, so it happens here rather than relying on
+      // Tekton's controller-side substitution (which Kubernetes Jobs and Docker do not have).
+      resolveSpec(optTaskRun.get().getSpec(), wfRun.getId(), paramLayers, taskRunMemo);
     } else {
       wfRun.setParams(runParams);
     }
+  }
+
+  /*
+   * Resolve $(params.x) references inside the TaskRun spec's string fields. Same one-pass
+   * semantics as a param value referencing another param; unresolved references are left as-is.
+   */
+  private void resolveSpec(
+      TaskRunSpec spec,
+      String wfRunId,
+      ParamLayers paramLayers,
+      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+    if (spec == null) {
+      return;
+    }
+    spec.setScript(resolveString(spec.getScript(), wfRunId, paramLayers, taskRunMemo));
+    spec.setCommand(resolveStrings(spec.getCommand(), wfRunId, paramLayers, taskRunMemo));
+    spec.setArguments(resolveStrings(spec.getArguments(), wfRunId, paramLayers, taskRunMemo));
+    if (spec.getEnvs() != null) {
+      spec.getEnvs()
+          .forEach(
+              env -> env.setValue(resolveString(env.getValue(), wfRunId, paramLayers, taskRunMemo)));
+    }
+  }
+
+  private String resolveString(
+      String value,
+      String wfRunId,
+      ParamLayers paramLayers,
+      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+    if (value == null) {
+      return null;
+    }
+    Object resolved = resolveParam(ParamType.string, value, wfRunId, paramLayers, taskRunMemo);
+    return resolved != null ? resolved.toString() : null;
+  }
+
+  private List<String> resolveStrings(
+      List<String> values,
+      String wfRunId,
+      ParamLayers paramLayers,
+      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+    if (values == null) {
+      return null;
+    }
+    return values.stream()
+        .map(v -> resolveString(v, wfRunId, paramLayers, taskRunMemo))
+        .collect(Collectors.toList());
   }
 
   /*

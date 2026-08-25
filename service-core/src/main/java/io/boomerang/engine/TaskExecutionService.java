@@ -150,7 +150,9 @@ public class TaskExecutionService {
       // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
       // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
       // queued by both parents) loses here and performs no side effects.
-      if (taskRunService.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
+      if (taskRunService.tryAdmit(
+              taskExecutionId, taskExecution.getParams(), taskExecution.getSpec())
+          == null) {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }

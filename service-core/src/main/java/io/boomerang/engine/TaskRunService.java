@@ -8,6 +8,7 @@ import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.model.TaskRunTransition;
@@ -266,8 +267,9 @@ public class TaskRunService {
   }
 
   // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params
-  // in the same guarded write. Returns the pre-image, or null when already admitted.
-  public TaskRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
+  // AND the resolved spec ($(params.x) substituted into script/command/arguments/envs) in the
+  // same guarded write. Returns the pre-image, or null when already admitted.
+  public TaskRunEntity tryAdmit(String id, List<RunParam> resolvedParams, TaskRunSpec resolvedSpec) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -276,7 +278,11 @@ public class TaskRunService {
                 .is(RunStatus.notstarted)
                 .and("phase")
                 .is(RunPhase.pending));
-    Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
+    Update update =
+        new Update()
+            .set("status", RunStatus.ready)
+            .set("params", resolvedParams)
+            .set("spec", resolvedSpec);
     TaskRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {

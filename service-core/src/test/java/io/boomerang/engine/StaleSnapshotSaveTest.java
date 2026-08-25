@@ -14,6 +14,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import java.util.Date;
 import java.util.LinkedList;
@@ -66,7 +67,7 @@ class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
     // caller's entry read and its skip-path save.
     doAnswer(
             invocation -> {
-              taskRunService.tryAdmit(joinId, List.of());
+              taskRunService.tryAdmit(joinId, List.of(), new TaskRunSpec());
               taskRunService.tryStartExecution(joinId, new Date(), 0L);
               return false;
             })
