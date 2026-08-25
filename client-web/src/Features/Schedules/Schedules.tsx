@@ -89,8 +89,15 @@ function sortItemsBySelection<Item>(
 }
 
 const defaultStatusArray = scheduleStatusOptions.map((statusObj) => statusObj.value);
-const defaultFromDate = moment().startOf("month").unix();
-const defaultToDate = moment().endOf("month").unix();
+/*
+ * Computed per call, not hoisted to module constants: this module is imported ONCE into a
+ * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
+ * process boot and every later request reuses it - the page would silently omit newer records
+ * while the client-rendered date picker showed today, and a refresh would not help.
+ * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
+ */
+const defaultFromDate = () => moment().startOf("month").unix();
+const defaultToDate = () => moment().endOf("month").unix();
 
 type LoaderData = {
   workflowsData?: PaginatedWorkflowResponse;
@@ -122,7 +129,7 @@ export async function loader({
   const workspace = String(params.workspace);
   const url = new URL(request.url);
   const { statuses = defaultStatusArray, workflows: workflowsFilter } = queryString.parse(url.search, queryStringOptions);
-  const { fromDate = defaultFromDate, toDate = defaultToDate } = queryString.parse(url.search, queryStringOptions);
+  const { fromDate = defaultFromDate(), toDate = defaultToDate() } = queryString.parse(url.search, queryStringOptions);
 
   const api = serverFetch(request);
   const schedulesUrlQuery = queryString.stringify({ statuses, workflows: workflowsFilter }, queryStringOptions);
@@ -198,7 +205,7 @@ export default function Schedules() {
   );
   const getSchedulesUrl = serviceUrl.workspace.schedule.getSchedules({ workspace: workspace?.name, query: schedulesUrlQuery });
 
-  const { fromDate = defaultFromDate, toDate = defaultToDate } = queryString.parse(location.search, queryStringOptions);
+  const { fromDate = defaultFromDate(), toDate = defaultToDate() } = queryString.parse(location.search, queryStringOptions);
 
   const userScheduleIds = (schedulesData?.content ?? []).map((schedule) => schedule.id);
 

@@ -34,9 +34,16 @@ const DEFAULT_PAGE = 0;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "creationDate";
 
-const DEFAULT_MAX_DATE = moment().format("MM/DD/YYYY");
-const DEFAULT_FROM_DATE = moment().subtract(3, "months").valueOf();
-const DEFAULT_TO_DATE = moment().endOf("day").valueOf();
+/*
+ * Computed per call, not hoisted to module constants: this module is imported ONCE into a
+ * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
+ * process boot and every later request reuses it - the page would silently omit newer records
+ * while the client-rendered date picker showed today, and a refresh would not help.
+ * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
+ */
+const defaultMaxDate = () => moment().format("MM/DD/YYYY");
+const defaultFromDate = () => moment().subtract(3, "months").valueOf();
+const defaultToDate = () => moment().endOf("day").valueOf();
 
 type LoaderData = {
   workflowOptions: Array<{ name: string; displayName: string }>;
@@ -85,8 +92,8 @@ export async function loader({
     workflows,
     triggers,
     statuses,
-    fromDate = DEFAULT_FROM_DATE,
-    toDate = DEFAULT_TO_DATE,
+    fromDate = defaultFromDate(),
+    toDate = defaultToDate(),
   } = queryString.parse(new URL(request.url).search, queryStringOptions);
 
   // One wave, not three. The workflow filter options, the header's "today" counts and the run
@@ -145,8 +152,8 @@ function WorkflowActivity() {
     page = DEFAULT_PAGE,
     limit = DEFAULT_LIMIT,
     sort = DEFAULT_SORT,
-    fromDate = DEFAULT_FROM_DATE,
-    toDate = DEFAULT_TO_DATE,
+    fromDate = defaultFromDate(),
+    toDate = defaultToDate(),
   } = queryString.parse(location.search, queryStringOptions);
 
   /** Start input handlers */
@@ -240,12 +247,12 @@ function WorkflowActivity() {
     ? Number.parseInt(fromDate[0])
     : typeof fromDate === "string"
     ? Number.parseInt(fromDate)
-    : DEFAULT_FROM_DATE;
+    : defaultFromDate();
   const selectedToDate = Array.isArray(toDate)
     ? Number.parseInt(toDate[0])
     : typeof toDate === "string"
     ? Number.parseInt(toDate)
-    : DEFAULT_TO_DATE;
+    : defaultToDate();
 
   const workflowNameMap = workflowOptions.reduce((acc, workflow) => {
     acc[workflow.name] = workflow.displayName;
@@ -320,7 +327,7 @@ function WorkflowActivity() {
             id="activity-date-picker"
             className={styles.timeFilters}
             datePickerType="range"
-            maxDate={DEFAULT_MAX_DATE}
+            maxDate={defaultMaxDate()}
             onChange={handleSelectDate}
           >
             <DatePickerInput

@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import queryString, { StringifyOptions } from "query-string";
 import { Route } from "react-router-dom";
@@ -108,6 +109,46 @@ describe("WorkflowActivity --- loader concurrency", () => {
     await loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/activity`) });
 
     expect(trace.startedTogether(3)).toBe(true);
+  });
+});
+
+// src/setupTests.tsx freezes the global clock here (vi.setSystemTime, no fake timers), so moving
+// it and putting it back is all these tests need - timers themselves are untouched, which matters
+// because msw and axios need real ones for the request to resolve.
+const SETUP_DATE = new Date("2020-01-01T00:00:00.000Z");
+
+async function atSystemTime<T>(isoDate: string, run: () => Promise<T>): Promise<T> {
+  vi.setSystemTime(new Date(isoDate));
+  try {
+    return await run();
+  } finally {
+    vi.setSystemTime(SETUP_DATE);
+  }
+}
+
+describe("WorkflowActivity --- default date window", () => {
+  // The defaults were module-scope `moment()` constants. This module is imported ONCE into a
+  // long-lived Node server under ssr:true, so every request reused the window computed at process
+  // boot: the run table silently omitted newer runs while the client-rendered DatePicker showed
+  // today, and a refresh did not help. editorRoute.ts already computes its window per request and
+  // says why.
+  test("computes the default from/to dates per request, not at module load", async () => {
+    const captured: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace: ":workspace" }), ({ request }) => {
+        captured.push(new URL(request.url).searchParams.get("fromDate"));
+        return HttpResponse.json({ number: 0, size: 10, totalElements: 0, content: [] });
+      }),
+    );
+
+    const run = () =>
+      loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/activity`) });
+
+    await atSystemTime("2030-01-15T12:00:00.000Z", run);
+    await atSystemTime("2030-03-15T12:00:00.000Z", run);
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0]).not.toBe(captured[1]);
   });
 });
 

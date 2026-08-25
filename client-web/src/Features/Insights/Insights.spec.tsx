@@ -123,3 +123,40 @@ describe("WorkflowInsights --- loader concurrency", () => {
     expect(trace.startedTogether(2)).toBe(true);
   });
 });
+
+// src/setupTests.tsx freezes the global clock here (vi.setSystemTime, no fake timers), so moving
+// it and putting it back is all these tests need - timers themselves are untouched, which matters
+// because msw and axios need real ones for the request to resolve.
+const SETUP_DATE = new Date("2020-01-01T00:00:00.000Z");
+
+async function atSystemTime<T>(isoDate: string, run: () => Promise<T>): Promise<T> {
+  vi.setSystemTime(new Date(isoDate));
+  try {
+    return await run();
+  } finally {
+    vi.setSystemTime(SETUP_DATE);
+  }
+}
+
+describe("WorkflowInsights --- default date window", () => {
+  // See Activity.spec.tsx: module-scope `moment()` defaults freeze at Node process boot under
+  // ssr:true, so every request reuses the boot-time window.
+  test("computes the default from/to dates per request, not at module load", async () => {
+    const captured: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), ({ request }) => {
+        captured.push(new URL(request.url).searchParams.get("fromDate"));
+        return HttpResponse.json({});
+      }),
+    );
+
+    const run = () =>
+      loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/insights`) });
+
+    await atSystemTime("2030-01-15T12:00:00.000Z", run);
+    await atSystemTime("2030-03-15T12:00:00.000Z", run);
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0]).not.toBe(captured[1]);
+  });
+});

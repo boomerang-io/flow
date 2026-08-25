@@ -42,8 +42,15 @@ const DEFAULT_ORDER = "DESC";
 const DEFAULT_PAGE = 0;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "creationDate";
-const DEFAULT_FROM_DATE = moment(new Date()).subtract("24", "hours").unix();
-const DEFAULT_TO_DATE = moment(new Date()).unix();
+/*
+ * Computed per call, not hoisted to module constants: this module is imported ONCE into a
+ * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
+ * process boot and every later request reuses it - the page would silently omit newer records
+ * while the client-rendered date picker showed today, and a refresh would not help.
+ * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
+ */
+const defaultFromDate = () => moment(new Date()).subtract("24", "hours").unix();
+const defaultToDate = () => moment(new Date()).unix();
 
 type ActionsSummary = { approvals: number; manual: number; approvalsRate: number };
 type ActionsTableData = { number: number; size: number; totalElements: number; content: Action[] };
@@ -92,7 +99,7 @@ export async function loader({
   const api = serverFetch(request);
 
   /** Today's numbers, independent of the filters above */
-  const summaryQuery = queryString.stringify({ fromDate: DEFAULT_FROM_DATE, toDate: DEFAULT_TO_DATE });
+  const summaryQuery = queryString.stringify({ fromDate: defaultFromDate(), toDate: defaultToDate() });
   /** Table data */
   const actionsUrlQuery = queryString.stringify(
     { order, page, limit, sort, statuses, workspaces: workspace, types: actionType, workflows, fromDate, toDate },

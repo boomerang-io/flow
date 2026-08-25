@@ -53,9 +53,16 @@ interface WorkflowInsightsRes {
   runs: Array<InsightsRuns>;
 }
 
-const maxDate = moment().format("MM/DD/YYYY");
-const defaultFromDate = moment().subtract(3, "months").valueOf();
-const defaultToDate = moment().endOf("day").valueOf();
+/*
+ * Computed per call, not hoisted to module constants: this module is imported ONCE into a
+ * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
+ * process boot and every later request reuses it - the page would silently omit newer records
+ * while the client-rendered date picker showed today, and a refresh would not help.
+ * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
+ */
+const defaultMaxDate = () => moment().format("MM/DD/YYYY");
+const defaultFromDate = () => moment().subtract(3, "months").valueOf();
+const defaultToDate = () => moment().endOf("day").valueOf();
 
 // FilterableMultiSelect's item type requires an (optional) `disabled` field;
 // carry it alongside our domain types rather than widening them.
@@ -124,8 +131,8 @@ export async function loader({
   const {
     statuses,
     workflows,
-    fromDate = defaultFromDate,
-    toDate = defaultToDate,
+    fromDate = defaultFromDate(),
+    toDate = defaultToDate(),
   } = queryString.parse(new URL(request.url).search, queryStringOptions);
 
   // One wave, not two: the insights payload and the workflow filter options are independent
@@ -241,12 +248,12 @@ function Selects(props: SelectsProps) {
     ? Number.parseInt(fromDate[0])
     : typeof fromDate === "string"
     ? Number.parseInt(fromDate)
-    : defaultFromDate;
+    : defaultFromDate();
   const selectedToDate = Array.isArray(toDate)
     ? Number.parseInt(toDate[0])
     : typeof toDate === "string"
     ? Number.parseInt(toDate)
-    : defaultToDate;
+    : defaultToDate();
 
   function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
@@ -320,7 +327,7 @@ function Selects(props: SelectsProps) {
         titleText="Filter by status"
       />
       <div className={styles.timeFilters}>
-        <DatePicker id="insights-date-picker" datePickerType="range" maxDate={maxDate} onChange={handleSelectDate}>
+        <DatePicker id="insights-date-picker" datePickerType="range" maxDate={defaultMaxDate()} onChange={handleSelectDate}>
           <DatePickerInput
             autoComplete="off"
             id="insights-date-picker-start"

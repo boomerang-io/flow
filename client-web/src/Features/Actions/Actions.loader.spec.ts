@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
@@ -38,6 +39,37 @@ describe("Actions --- loader", () => {
     await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request() });
 
     expect(trace.startedTogether(4)).toBe(true);
+  });
+
+  // The "today's numbers" window was a pair of module-scope `moment()` constants. This module is
+  // imported ONCE into a long-lived Node server under ssr:true, so every request reused the window
+  // computed at process boot. editorRoute.ts already computes its window per request and says why.
+  test("computes the today's-numbers window per request, not at module load", async () => {
+    const captured: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.action.getActionsSummary({ workspace: ":workspace" }), ({ request }) => {
+        const fromDate = new URL(request.url).searchParams.get("fromDate");
+        // The filtered summary (tab labels) sends no fromDate unless the user picked one.
+        if (fromDate) captured.push(fromDate);
+        return HttpResponse.json({});
+      }),
+    );
+
+    const run = () => loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request() });
+
+    // src/setupTests.tsx freezes the global clock (vi.setSystemTime, no fake timers) - move it and
+    // put it back. Timers themselves stay real, which msw and axios need to resolve the request.
+    try {
+      vi.setSystemTime(new Date("2030-01-15T12:00:00.000Z"));
+      await run();
+      vi.setSystemTime(new Date("2030-03-15T12:00:00.000Z"));
+      await run();
+    } finally {
+      vi.setSystemTime(new Date("2020-01-01T00:00:00.000Z"));
+    }
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0]).not.toBe(captured[1]);
   });
 
   test("keeps each read's failure independent rather than throwing", async () => {

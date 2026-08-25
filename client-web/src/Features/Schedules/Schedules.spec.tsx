@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
@@ -164,6 +165,37 @@ describe("Schedules --- loader", () => {
     });
 
     expect(trace.startedTogether(2)).toBe(true);
+  });
+
+  // The calendar window defaulted to a pair of module-scope `moment()` constants. This module is
+  // imported ONCE into a long-lived Node server under ssr:true, so every request reused the month
+  // the process happened to boot in. editorRoute.ts's loadSchedule already computes its window per
+  // request and says why.
+  test("computes the default calendar month per request, not at module load", async () => {
+    const captured: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace: ":workspace" }), ({ request }) => {
+        captured.push(new URL(request.url).searchParams.get("fromDate"));
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const run = () =>
+      loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/schedules`) });
+
+    // src/setupTests.tsx freezes the global clock (vi.setSystemTime, no fake timers) - move it and
+    // put it back. Timers themselves stay real, which msw and axios need to resolve the request.
+    try {
+      vi.setSystemTime(new Date("2030-01-15T12:00:00.000Z"));
+      await run();
+      vi.setSystemTime(new Date("2030-03-15T12:00:00.000Z"));
+      await run();
+    } finally {
+      vi.setSystemTime(new Date("2020-01-01T00:00:00.000Z"));
+    }
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0]).not.toBe(captured[1]);
   });
 
   test("does not throw when the schedules fetch fails, so the route chrome still renders", async () => {
