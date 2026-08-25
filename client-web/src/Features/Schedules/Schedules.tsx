@@ -1,6 +1,7 @@
 import React from "react";
-import { Layer, FilterableMultiSelect, Breadcrumb, BreadcrumbItem } from "@carbon/react";
+import { InlineNotification, Layer, FilterableMultiSelect, Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
+  Error,
   FeatureHeader as Header,
   FeatureHeaderSubtitle as HeaderSubtitle,
   FeatureHeaderTitle as HeaderTitle,
@@ -165,7 +166,14 @@ export default function Schedules() {
   const navigate = useNavigate();
   const location = useLocation();
   const { workspace } = useWorkspaceContext();
-  const { workflowsData, schedulesData, calendarEntries, errorLoadingCalendar } = useLoaderData() as LoaderData;
+  const {
+    workflowsData,
+    schedulesData,
+    calendarEntries,
+    errorLoadingWorkflows,
+    errorLoadingSchedules,
+    errorLoadingCalendar,
+  } = useLoaderData() as LoaderData;
   const [activeSchedule, setActiveSchedule] = React.useState<ScheduleUnion | undefined>();
   const [newSchedule, setNewSchedule] = React.useState<Pick<ScheduleDate, "dateSchedule" | "type"> | undefined>();
   const [isPanelOpen, setIsPanelOpen] = React.useState(false);
@@ -262,22 +270,58 @@ export default function Schedules() {
     return sortByProp(workflowsList, "name", "ASC");
   }
 
-  if (workspace && workflowsData) {
+  // The workspace object itself is a client-side concern - until WorkspaceContainer resolves it,
+  // there is nothing to render.
+  if (!workspace) {
+    return null;
+  }
+
+  const NavigationComponent = () => {
+    return (
+      <Breadcrumb noTrailingSlash>
+        <BreadcrumbItem>
+          <Link to={appLink.home()}>Home</Link>
+        </BreadcrumbItem>
+        <BreadcrumbItem isCurrentPage>
+          <p>{workspace.displayName}</p>
+        </BreadcrumbItem>
+      </Breadcrumb>
+    );
+  };
+
+  /*
+   * A failed read renders the page chrome plus an explicit error, never an empty list - the same
+   * convention as Features/Activity/Activity.tsx and Features/Insights/Insights.tsx. Both flags
+   * were computed by the loader but read by nobody here, so an API failure arrived on screen as
+   * "no schedules", which a user reasonably reads as "my schedules were deleted". The calendar's
+   * own failure is handled separately in CalendarView below: it is a partial failure, and the
+   * schedule list beside it is still accurate.
+   */
+  if (errorLoadingWorkflows || errorLoadingSchedules) {
+    return (
+      <>
+        <Header
+          nav={<NavigationComponent />}
+          className={styles.header}
+          includeBorder={true}
+          header={
+            <>
+              <HeaderTitle className={styles.headerTitle}>Schedules</HeaderTitle>
+              <HeaderSubtitle>Your Workflow's calendar assistant - set it and forget it!</HeaderSubtitle>
+            </>
+          }
+        />
+        <section aria-label="Schedules Error" className={styles.content}>
+          <Error />
+        </section>
+      </>
+    );
+  }
+
+  if (workflowsData) {
     const { workflows = "", statuses = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
     const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
-    const NavigationComponent = () => {
-      return (
-        <Breadcrumb noTrailingSlash>
-          <BreadcrumbItem>
-            <Link to={appLink.home()}>Home</Link>
-          </BreadcrumbItem>
-          <BreadcrumbItem isCurrentPage>
-            <p>{workspace.displayName}</p>
-          </BreadcrumbItem>
-        </Breadcrumb>
-      );
-    };
 
     const itemToStringWorkflow = (workflow: SelectableWorkflow | null) => (workflow ? workflow.displayName : "");
     const itemToStringStatus = (item: SelectableStatus | null) => (item ? item.label : "");
@@ -431,7 +475,22 @@ function CalendarView(props: CalendarViewProps) {
   }
 
   return (
-    <section className={styles.calendarContainer} data-is-loading={props.errorLoadingCalendar}>
+    <section className={styles.calendarContainer}>
+      {/*
+       * The calendar entries are a separate (dependent) fetch from the schedule list, so this is a
+       * partial failure: the list is still accurate and the calendar is simply empty. It used to
+       * be piped into a `data-is-loading` attribute on this section - a loading flag driven by an
+       * error flag, which showed the user nothing either way.
+       */}
+      {props.errorLoadingCalendar ? (
+        <InlineNotification
+          lowContrast
+          hideCloseButton={true}
+          kind="error"
+          title="Calendar unavailable"
+          subtitle="The scheduled dates could not be loaded. The schedule list is still up to date."
+        />
+      ) : null}
       <Calendar
         heightOffset={220}
         //@ts-ignore

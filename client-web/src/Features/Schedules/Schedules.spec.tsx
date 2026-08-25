@@ -97,6 +97,51 @@ describe("Schedules --- loader", () => {
     expect(data.calendarEntries.length).toBeGreaterThan(0);
   });
 
+  // The loader has always computed errorLoadingSchedules/errorLoadingWorkflows, but the component
+  // destructured neither, so a failed read reached the user as an ordinary empty page - "no
+  // schedules", which reads as "your schedules were deleted". Same convention as Activity and
+  // Insights: page chrome plus an explicit error, never a silently empty list.
+  test("renders an error, not an empty schedule list, when the schedules fetch fails", async () => {
+    server.use(
+      http.get(serviceUrl.workspace.schedule.getSchedules({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    renderSchedules();
+
+    expect(await screen.findByText("Oops, something went wrong.")).toBeInTheDocument();
+    expect(screen.queryByText("Daily event")).not.toBeInTheDocument();
+  });
+
+  test("renders an error when the workflows fetch fails", async () => {
+    server.use(
+      http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    renderSchedules();
+
+    expect(await screen.findByText("Oops, something went wrong.")).toBeInTheDocument();
+  });
+
+  // A failed calendar fetch is a partial failure - the schedule list is still accurate - so it
+  // surfaces next to the calendar rather than replacing the page. It used to be piped into a
+  // `data-is-loading` attribute on the calendar container, which showed the user nothing.
+  test("surfaces a failed calendar fetch beside the still-valid schedule list", async () => {
+    server.use(
+      http.get(serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    renderSchedules();
+
+    expect(await screen.findByText("Calendar unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Daily event")).toBeInTheDocument();
+  });
+
   test("does not throw when the schedules fetch fails, so the route chrome still renders", async () => {
     server.use(
       http.get(serviceUrl.workspace.schedule.getSchedules({ workspace: ":workspace" }), () =>
