@@ -69,8 +69,8 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
 
     // The display path redacts by name at the workflow level and by value below it.
     WorkflowRun display = workflowRunService.get(run.getId(), true);
-    workflowRunService.redactForDisplay(display);
-    assertEquals(DataAdapterUtil.REDACTED, display.getParams().get(0).getValue());
+    workflowRunService.filterSensitiveValues(display);
+    assertEquals("", display.getParams().get(0).getValue(), "name-join blanks to empty, matching filterRunParamValueByFieldType");
     assertEquals(DataAdapterUtil.REDACTED, display.getTasks().get(0).getParams().get(0).getValue());
     assertFalse(display.getTasks().get(0).getSpec().getScript().contains(SECRET));
     assertTrue(

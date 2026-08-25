@@ -3,12 +3,18 @@ package io.boomerang.api;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.DataAdapterUtil.FieldType;
+import io.boomerang.common.util.SecretScrubbingOutputStream;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ParamLayerService;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,16 +35,22 @@ public class WorkspaceTaskRunService {
   private final TaskRunService engineTaskRunService;
   private final ParamLayerService paramLayerService;
   private final RelationshipService relationshipService;
+  private final WorkflowRunRepository workflowRunRepository;
+  private final WorkflowRevisionRepository workflowRevisionRepository;
 
   public WorkspaceTaskRunService(
       @Qualifier("internalRestTemplate") RestTemplate restTemplate,
       TaskRunService engineTaskRunService,
       ParamLayerService paramLayerService,
-      RelationshipService relationshipService) {
+      RelationshipService relationshipService,
+      WorkflowRunRepository workflowRunRepository,
+      WorkflowRevisionRepository workflowRevisionRepository) {
     this.restTemplate = restTemplate;
     this.engineTaskRunService = engineTaskRunService;
     this.paramLayerService = paramLayerService;
     this.relationshipService = relationshipService;
+    this.workflowRunRepository = workflowRunRepository;
+    this.workflowRevisionRepository = workflowRevisionRepository;
   }
 
   public StreamingResponseBody streamLog(String taskRunId) {
@@ -55,9 +67,35 @@ public class WorkspaceTaskRunService {
         throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
       }
       LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
-      return engineTaskRunService.streamLog(taskRunId);
+      StreamingResponseBody body = engineTaskRunService.streamLog(taskRunId);
+      // Sensitive-upward: a script that echoes a password-typed param shows it in its log, so the
+      // stream is scrubbed here - the same DataAdapterUtil rule the run payloads go through, at
+      // the same workspace-scoped surface. The dispatcher/engine never read logs through here.
+      Set<String> secrets = sensitiveValues(taskRun.getWorkflowRunRef());
+      if (secrets.isEmpty()) {
+        return body;
+      }
+      return outputStream -> body.writeTo(new SecretScrubbingOutputStream(outputStream, secrets));
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+  }
+
+  // The resolved values of the owning run's password-typed params, per DataAdapterUtil's
+  // name-join against the workflow revision's param spec (the type authority).
+  private Set<String> sensitiveValues(String workflowRunRef) {
+    return workflowRunRepository
+        .findById(workflowRunRef)
+        .flatMap(
+            run ->
+                Optional.ofNullable(run.getWorkflowRevisionRef())
+                    .flatMap(workflowRevisionRepository::findById)
+                    .map(
+                        revision ->
+                            DataAdapterUtil.sensitiveValues(
+                                revision.getParams(),
+                                run.getParams(),
+                                FieldType.PASSWORD.value())))
+        .orElse(Set.of());
   }
   //
   //  private ResponseExtractor<Void> getResponseExtractorForRemovalList(List<String> maskWordList,

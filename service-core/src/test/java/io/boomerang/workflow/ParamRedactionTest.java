@@ -78,7 +78,7 @@ class ParamRedactionTest {
   }
 
   @Test
-  void redactWorkflowRunBlanksByNameAndScrubsTasksByValue() {
+  void filterWorkflowRunBlanksByNameAndScrubsTasksByValue() {
     var specs = java.util.List.of(spec("githubToken", "password"), spec("plain", "text"));
     WorkflowRun run = new WorkflowRun();
     run.setParams(
@@ -93,9 +93,9 @@ class ParamRedactionTest {
     task.setResults(java.util.List.of(new RunResult("out", "ok")));
     run.setTasks(java.util.List.of(task));
 
-    DataAdapterUtil.redactWorkflowRun(run, specs, "password");
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(run, specs, "password");
 
-    assertEquals(DataAdapterUtil.REDACTED, run.getParams().get(0).getValue());
+    assertEquals("", run.getParams().get(0).getValue(), "name-join blanks like the existing filter family");
     assertEquals("hello", run.getParams().get(1).getValue(), "non-password params stay");
     assertEquals("value is " + DataAdapterUtil.REDACTED + " here", run.getResults().get(0).getValue());
     assertEquals(DataAdapterUtil.REDACTED, task.getParams().get(0).getValue());
@@ -113,9 +113,9 @@ class ParamRedactionTest {
     task.getSpec().setScript("abcdef abc");
     run.setTasks(java.util.List.of(task));
 
-    DataAdapterUtil.redactWorkflowRun(run, specs, "password");
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(run, specs, "password");
 
-    assertEquals(DataAdapterUtil.REDACTED, run.getParams().get(0).getValue());
+    assertEquals("", run.getParams().get(0).getValue(), "name-join blanks like the existing filter family");
     assertEquals(
         "abcdef abc",
         task.getSpec().getScript(),
@@ -128,7 +128,7 @@ class ParamRedactionTest {
     task.setParams(
         java.util.List.of(new RunParam("config", java.util.Map.of("auth", "ghp_secret42"))));
 
-    DataAdapterUtil.redactTaskRun(task, java.util.Set.of("ghp_secret42"));
+    DataAdapterUtil.filterTaskRunValues(task, java.util.Set.of("ghp_secret42"));
 
     assertEquals(DataAdapterUtil.REDACTED, task.getParams().get(0).getValue());
   }

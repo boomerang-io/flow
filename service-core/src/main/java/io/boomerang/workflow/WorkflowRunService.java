@@ -141,19 +141,19 @@ public class WorkflowRunService {
   public ResponseEntity<WorkflowRun> get(String team, String workflowRunId, boolean withTasks) {
     requireWorkspaceRelationship(team, workflowRunId);
     WorkflowRun wfRun = get(workflowRunId, withTasks);
-    redactForDisplay(wfRun);
+    filterSensitiveValues(wfRun);
     return ResponseEntity.ok(wfRun);
   }
 
   /*
-   * Sensitive params are sensitive UPWARD (engine to UI/API consumer), so redaction happens on
+   * Sensitive params are sensitive UPWARD (engine to UI/API consumer), so filtering happens on
    * the workspace-scoped v2 surface only - never on the unscoped reads the engine and dispatcher
    * use, which must see real values. Password-typed params (the workflow revision's param spec is
    * the type authority; RunParam carries no type on the wire) are blanked by name, and their
    * resolved values are scrubbed from task params, spec fields and results, where they can appear
    * under any name after substitution. Mutates the response model only.
    */
-  void redactForDisplay(WorkflowRun wfRun) {
+  void filterSensitiveValues(WorkflowRun wfRun) {
     if (wfRun == null || wfRun.getWorkflowRevisionRef() == null) {
       return;
     }
@@ -161,7 +161,7 @@ public class WorkflowRunService {
         .findById(wfRun.getWorkflowRevisionRef())
         .ifPresent(
             revision ->
-                DataAdapterUtil.redactWorkflowRun(
+                DataAdapterUtil.filterWorkflowRunValueByFieldType(
                     wfRun, revision.getParams(), FieldType.PASSWORD.value()));
   }
 
@@ -202,7 +202,7 @@ public class WorkflowRunService {
             Optional.empty(),
             Optional.of(wfRefs),
             queryTriggers);
-    page.getContent().forEach(this::redactForDisplay);
+    page.getContent().forEach(this::filterSensitiveValues);
     return new WorkflowRunResponsePage(
         page.getContent(), page.getPageable(), page.getTotalElements());
   }

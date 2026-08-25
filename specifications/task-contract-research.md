@@ -145,10 +145,14 @@ must join against the definition, exactly as that orphaned method does.
 workspace-scoped v2 `get`/`query` only (never the unscoped engine/dispatcher reads) — password
 params blanked by name against the run's revision spec, and their resolved values scrubbed from
 task params, spec fields and results (`DataAdapterUtil.redactWorkflowRun`/`redactTaskRun`; values
-under 4 characters are name-blanked but not value-scrubbed). Covered by `ParamRedactionTest` +
-`RunRedactionTest`. **Still open: the TaskRun log stream** (`/api/v2/taskrun/{id}/log`) is not
-scrubbed — a script that echoes a secret shows it in the log; v4 had commented-out value-masking
-for exactly this (`WorkspaceTaskRunService`), which is the follow-up.
+under 4 characters are name-blanked but not value-scrubbed). The utilities live in the existing
+`DataAdapterUtil` `filter*` family (`filterWorkflowRunValueByFieldType` reuses
+`filterRunParamValueByFieldType` for the name-join; `filterTaskRunValues` is the value scrub).
+**The TaskRun log stream is ALSO closed (2026-08-25)**: `WorkspaceTaskRunService.streamLog` wraps
+the stream in `SecretScrubbingOutputStream` (line-buffered UTF-8 scrub; a secret straddling a
+chunk boundary of a single >64KB line is the accepted edge), realising the v4 commented-out
+masking intent at the streaming function itself. Covered by `ParamRedactionTest`,
+`RunRedactionTest`, `SecretScrubbingOutputStreamTest`.
 
 ## 8. Future: workspace storage sources beyond PVC
 

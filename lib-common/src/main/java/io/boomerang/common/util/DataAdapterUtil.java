@@ -131,31 +131,24 @@ public class DataAdapterUtil {
   }
 
   /**
-   * Redact a WorkflowRun MODEL for display: blank the password-typed params by name, then scrub
-   * their resolved values wherever they appear on the run's results and tasks. Mutates the model
-   * only - callers must never persist a redacted object.
+   * Filter sensitive data from a WorkflowRun MODEL: the same name-join blanking
+   * filterRunParamValueByFieldType performs on the run's own params, then a value scrub of the
+   * resolved secrets from the run's results and tasks (where substitution can place them under any
+   * name). Mutates the model only - callers must never persist a filtered object.
    */
-  public static void redactWorkflowRun(
+  public static void filterWorkflowRunValueByFieldType(
       WorkflowRun run, List<AbstractParam> specParams, String fieldType) {
     if (run == null) {
       return;
     }
+    // Collect the resolved values BEFORE the name-join blanks them.
     Set<String> secrets = sensitiveValues(specParams, run.getParams(), fieldType);
     if (specParams != null && run.getParams() != null) {
-      Set<String> names =
-          specParams.stream()
-              .filter(c -> fieldType.equals(c.getType()))
-              .map(AbstractParam::getName)
-              .filter(Objects::nonNull)
-              .map(String::toLowerCase)
-              .collect(Collectors.toSet());
-      run.getParams().stream()
-          .filter(p -> p.getName() != null && names.contains(p.getName().toLowerCase()))
-          .forEach(p -> p.setValue(REDACTED));
+      filterRunParamValueByFieldType(specParams, run.getParams(), fieldType);
     }
     scrubResults(run.getResults(), secrets);
     if (run.getTasks() != null) {
-      run.getTasks().forEach(task -> redactTaskRun(task, secrets));
+      run.getTasks().forEach(task -> filterTaskRunValues(task, secrets));
     }
   }
 
@@ -163,7 +156,7 @@ public class DataAdapterUtil {
    * Scrub every occurrence of the given secret values from a TaskRun MODEL's params, results and
    * spec (script/command/arguments/envs). Mutates the model only - never persist it.
    */
-  public static void redactTaskRun(TaskRun task, Set<String> secrets) {
+  public static void filterTaskRunValues(TaskRun task, Set<String> secrets) {
     if (task == null || secrets == null || secrets.isEmpty()) {
       return;
     }
