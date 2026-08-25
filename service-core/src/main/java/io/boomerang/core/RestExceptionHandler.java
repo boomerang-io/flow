@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.core;
 
 import java.util.Locale;
 import org.springframework.beans.factory.annotation.Autowired;
