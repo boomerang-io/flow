@@ -6,6 +6,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunSpec;
@@ -23,7 +24,9 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -41,6 +44,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Service
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  @Value("${flow.engine.task.results.max-bytes:4096}")
+  private int resultsMaxBytes;
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
@@ -287,6 +294,29 @@ public class TaskRunService {
         findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, preImage.getPhase());
+    }
+    return preImage;
+  }
+
+  // Invalidation Compare-And-Set: a notstarted/pending TaskRun becomes invalid with the given
+  // message, so end() can complete it and the run fails with guidance. Mirrors trySkip; used when
+  // admission-time validation (the resolved-params payload cap) rejects the task BEFORE tryAdmit
+  // would make it claimable. Returns the pre-image, or null when another caller already
+  // admitted/started the TaskRun - the loser performs no side effects.
+  public TaskRunEntity tryInvalidate(String id, String statusMessage) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(RunStatus.notstarted)
+                .and("phase")
+                .is(RunPhase.pending));
+    Update update =
+        new Update().set("status", RunStatus.invalid).set("statusMessage", statusMessage);
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.invalid, preImage.getPhase());
     }
     return preImage;
   }
@@ -684,6 +714,12 @@ public class TaskRunService {
               && !optRunRequest.get().getStatusMessage().isEmpty()) {
             taskRunEntity.setStatusMessage(optRunRequest.get().getStatusMessage());
           }
+          // addUniqueResults mutates the entity's list, so the pre-merge state must be copied for
+          // the payload-cap rollback below.
+          List<RunResult> priorResults =
+              taskRunEntity.getResults() != null
+                  ? new ArrayList<>(taskRunEntity.getResults())
+                  : new ArrayList<>();
           taskRunEntity.setResults(
               ResultUtil.addUniqueResults(
                   taskRunEntity.getResults(), optRunRequest.get().getResults()));
@@ -695,6 +731,20 @@ public class TaskRunService {
             throw new BoomerangException(BoomerangError.TASKRUN_INVALID_END_STATUS);
           } else {
             taskRunEntity.setStatus(optRunRequest.get().getStatus());
+          }
+          // Engine-enforced results cap, identical on every executor (4096 bytes is the portable
+          // Kubernetes termination-message ceiling). Oversize fails the task and keeps the
+          // pre-merge results rather than persisting a payload every downstream reader re-reads.
+          byte[] resultBytes = OBJECT_MAPPER.writeValueAsBytes(taskRunEntity.getResults());
+          if (resultBytes.length > resultsMaxBytes) {
+            taskRunEntity.setResults(priorResults);
+            taskRunEntity.setStatus(RunStatus.failed);
+            taskRunEntity.setStatusMessage(
+                "RESULTS_TOO_LARGE - results total "
+                    + resultBytes.length
+                    + " bytes, exceeding the "
+                    + resultsMaxBytes
+                    + " byte cap. Pass large outputs by reference (workspace path or URI).");
           }
         }
         // Persist the request merge for the handler to re-read. The handler ignores an end

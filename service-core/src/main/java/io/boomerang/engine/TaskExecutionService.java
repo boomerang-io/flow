@@ -30,6 +30,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
@@ -55,6 +56,9 @@ public class TaskExecutionService {
   private static final long LOCK_RETRY_BACKOFF_MILLIS = 5000;
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  @Value("${flow.engine.task.params.max-bytes:16384}")
+  private int paramsMaxBytes;
 
   @Autowired private DAGUtility dagUtility;
 
@@ -146,6 +150,27 @@ public class TaskExecutionService {
     if (canRunTask) {
       // Resolve Parameter Substitutions
       paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
+
+      // Engine-enforced params cap, identical on every executor and checked BEFORE admission so
+      // an oversize task is never claimable. Substrate limits differ (128 KiB per env string,
+      // 1.5 MiB pod object, 4 KB Lambda env) - the cap makes the failure mode a clear engine
+      // message instead of a container that crashes at exec.
+      byte[] paramBytes = OBJECT_MAPPER.writeValueAsBytes(taskExecution.getParams());
+      if (paramBytes.length > paramsMaxBytes) {
+        String message =
+            "PARAMS_TOO_LARGE - resolved params total "
+                + paramBytes.length
+                + " bytes, exceeding the "
+                + paramsMaxBytes
+                + " byte cap. Pass large values by reference (workspace path or URI).";
+        if (taskRunService.tryInvalidate(taskExecutionId, message) == null) {
+          LOGGER.info("[{}] TaskRun already admitted or started. Not invalidating.", taskExecutionId);
+          return;
+        }
+        LOGGER.error("[{}] {}", taskExecutionId, message);
+        self.end(taskExecutionId);
+        return;
+      }
 
       // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
       // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
