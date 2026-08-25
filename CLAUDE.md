@@ -164,12 +164,18 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   practical effect is that `/workspace/{team}/workflowrun/{id}/...` ignores `{team}` for a global
   token — but the same caller could legitimately reach that run via its own workspace URL, so
   nothing is granted that was not already permitted.
-  **The one real defect**: `WorkspaceWorkflowRunService.retry` (:280-287) writes
-  `createNodeAndEdge(WORKSPACE, team, HAS_WORKFLOWRUN, ...)` using the **path** team rather than the
-  run's owning workspace, so retrying via another workspace's URL permanently records the wrong
-  owner in the relationship graph. The other six call sites read or mutate the run and write no
-  ownership, so they are unaffected.
-  **Deliberately not patched**: these are pass-through guards in `api/WorkspaceWorkflowRunService`
+  ~~**The one real defect**: `WorkspaceWorkflowRunService.retry` writes the `HAS_WORKFLOWRUN` edge
+  from the **path** team rather than the run's owning workspace~~ **FIXED by F3** (`f46ede717`,
+  `3ee5cbb49`): the owner is resolved from the run's own `HAS_WORKFLOWRUN` parent (falling back to
+  the Workflow's `HAS_WORKFLOW` parent) **before** the retried run is created, so an unresolvable
+  owner refuses with `TEAM_INVALID_REF` rather than throwing after the clone is already queued. The
+  other six call sites read or mutate the run and write no ownership, so they were unaffected.
+  **Two same-shaped items remain open, both pre-existing (confirmed against `feat-v5-track8`)**:
+  `WorkspaceWorkflowService.submit` still writes the edge from the path team, and the engine's
+  auto-retry (`WorkflowExecutionService:265`) writes no ownership edge at all — so an auto-retried
+  run appears in `/query` (which filters on `workflowRef`) but fails `check()` on `GET /{id}`.
+  **Historical note on why it waited**: these were pass-through guards in
+  `api/WorkspaceWorkflowRunService`
   over `engine/WorkflowRunService`, and the F1/F2/F3 merge-cleanup collapses the two into one
   service — at which point `team` either becomes authoritative or disappears. Fix the edge-owner
   bug as part of that work rather than patching a line about to be deleted.
