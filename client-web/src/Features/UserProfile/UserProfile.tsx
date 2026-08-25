@@ -19,11 +19,17 @@ import styles from "./UserProfile.module.scss";
 // confirm), keyed by an `intent` form field; each calls it through a bare useFetcher(), which
 // resolves to the nearest matched route's action - this one.
 
-type ActionResult = {
-  ok: boolean;
-  intent: "updateProfile" | "deleteAccount";
-  errorMessage?: { title: string; message: string };
-};
+type ActionResult =
+  | {
+      ok: boolean;
+      intent: "updateProfile" | "deleteAccount";
+      errorMessage?: { title: string; message: string };
+    }
+  // Consumers narrow on `intent`, so an "unknown" result is inert for them - the same shape
+  // tokenAction and editorAction return for an intent they do not own.
+  | { ok: false; intent: "unknown"; errorMessage: { title: string; message: string } };
+
+const PROFILE_INTENTS = ["updateProfile", "deleteAccount"] as const;
 
 /*
  * SECURITY - the identity these writes act on is never taken from the browser.
@@ -48,22 +54,40 @@ type ActionResult = {
 export async function action({ request }: { request: Request }): Promise<ActionResult> {
   const api = serverFetch(request);
   const formData = await request.formData();
-  const intent = String(formData.get("intent")) as ActionResult["intent"];
+  const intent = String(formData.get("intent"));
+
+  /*
+   * Rejecting anything unrecognised is load-bearing, not defensive tidiness - the same trap
+   * tokenAction and editorAction document. app/routes/profile.tsx dispatches EVERY non-token
+   * intent to this action, and the profile PATCH used to be the fall-through branch: a stray or
+   * malformed submission sent `displayName: ""` and blanked the user's display name.
+   */
+  if (!(PROFILE_INTENTS as readonly string[]).includes(intent)) {
+    return {
+      ok: false,
+      intent: "unknown",
+      errorMessage: {
+        title: "Unsupported Profile Action",
+        message: `The profile action does not handle the "${intent}" intent.`,
+      },
+    };
+  }
 
   if (intent === "deleteAccount") {
     try {
       const profile = await api.get(serviceUrl.getUserProfile());
       await api.delete(serviceUrl.deleteUser({ userId: profile.data.id }));
-      return { ok: true, intent };
+      return { ok: true, intent: "deleteAccount" };
     } catch (error) {
       return {
         ok: false,
-        intent,
+        intent: "deleteAccount",
         errorMessage: formatErrorMessage({ error, defaultMessage: "Unable to close the account." }),
       };
     }
   }
 
+  // Reachable only for intent === "updateProfile" now.
   const displayName = String(formData.get("displayName") ?? "");
   try {
     await api({ url: serviceUrl.getUserProfile(), data: { displayName }, method: HttpMethod.Patch });

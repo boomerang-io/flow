@@ -105,6 +105,28 @@ describe("UserProfile action --- Node SSR", () => {
     expect(deleted).not.toContain("victim-user-id");
   });
 
+  // The profile PATCH used to be the fall-through branch: anything that was not "deleteAccount"
+  // reached it and sent `displayName: String(formData.get("displayName") ?? "")`, so a stray or
+  // malformed submission blanked the user's display name. app/routes/profile.tsx routes EVERY
+  // non-token intent here, so an unrecognised intent must not reach the PATCH - the same trap
+  // tokenAction and editorAction already reject explicitly.
+  it("writes nothing for an unrecognised intent instead of blanking the display name", async () => {
+    let patched = false;
+    server.use(
+      http.patch(`${INTERNAL_ORIGIN}/api/profile`, () => {
+        patched = true;
+        return HttpResponse.json({});
+      }),
+    );
+
+    const { action } = await import("./UserProfile");
+    const result = await action({ request: actionRequest({ intent: "notAnIntent" }) });
+
+    expect(patched).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.intent).toBe("unknown");
+  });
+
   it("reports failure rather than throwing when the API rejects the update", async () => {
     server.use(http.patch(`${INTERNAL_ORIGIN}/api/profile`, () => new HttpResponse(null, { status: 401 })));
 
