@@ -114,16 +114,20 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   /**
    * The agent lifecycle callbacks are part of the SAME worker protocol as the queue polls and are
    * called with the same bearer-attaching {@code internalRestTemplate}, so they must be gated by
-   * the same filter. They previously fell outside its path prefix and were fully unauthenticated —
-   * anyone with network reach could write terminal status and results onto any run.
+   * the same filter. They previously lived on their own path roots ({@code /api/v1/taskrun/**},
+   * {@code /api/v1/workflowrun/**}), fell outside the filter's prefix and were fully
+   * unauthenticated — anyone with network reach could write terminal status and results onto any
+   * run. They now sit under {@code /api/v1/dispatcher} with the rest of the protocol, which is what
+   * collapsed the filter's prefix set back to one entry; these assertions are what prevent that
+   * consolidation from silently re-opening the hole.
    */
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "/api/v1/taskrun/any-run-id/start",
-        "/api/v1/taskrun/any-run-id/end",
-        "/api/v1/workflowrun/any-run-id/start",
-        "/api/v1/workflowrun/any-run-id/finalize"
+        "/api/v1/dispatcher/taskrun/any-run-id/start",
+        "/api/v1/dispatcher/taskrun/any-run-id/end",
+        "/api/v1/dispatcher/workflowrun/any-run-id/start",
+        "/api/v1/dispatcher/workflowrun/any-run-id/finalize"
       })
   void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
     mockMvc.perform(put(path)).andExpect(status().isUnauthorized());
@@ -135,7 +139,8 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
 
     mockMvc
         .perform(
-            put("/api/v1/taskrun/any-run-id/end").header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+            put("/api/v1/dispatcher/taskrun/any-run-id/end")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
         .andExpect(status().is(not(401)));
   }
 
