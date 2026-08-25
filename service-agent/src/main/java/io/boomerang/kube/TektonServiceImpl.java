@@ -155,9 +155,17 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Value("${agent.tasks.tolerations}")
   private String kubeWorkerTolerations;
 
+  @Value("${agent.tasks.runtimeClassName}")
+  private String kubeWorkerRuntimeClassName;
+
   TektonClient client = null;
 
   public TektonServiceImpl(TektonClient client) {
+    this.client = client;
+  }
+
+  // Tests swap in the mock-server client after the context is up.
+  public void setClient(TektonClient client) {
     this.client = client;
   }
 
@@ -454,6 +462,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
             .withNewSpec()
             //      .withPodTemplate(taskPodTemplate)
             .withNewPodTemplate()
+            // Same deployment-wide isolation setting the Kubernetes Jobs executor honours
+            // (agent.tasks.runtimeClassName); null leaves the field off the pod template.
+            .withRuntimeClassName(
+                kubeWorkerRuntimeClassName != null && !kubeWorkerRuntimeClassName.isBlank()
+                    ? kubeWorkerRuntimeClassName
+                    : null)
             .addToNodeSelector(nodeSelectors)
             .addAllToTolerations(tolerations)
             .addAllToImagePullSecrets(imagePullSecrets)

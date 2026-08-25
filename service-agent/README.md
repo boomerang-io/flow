@@ -10,7 +10,11 @@ the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `agent.exec
 | `agent.executor` | Implementation | Runtime object | Notes |
 | ---------------- | -------------- | -------------- | ----- |
 | `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
-| `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. `agent.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every task. |
+| `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. |
+
+`agent.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
+task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.
+One setting per agent deployment; run a second agent deployment for a different isolation tier.
 
 Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
 `/workspace/<type>` (or the declared mount path). Params reach the task container two ways, both usable by any image,
