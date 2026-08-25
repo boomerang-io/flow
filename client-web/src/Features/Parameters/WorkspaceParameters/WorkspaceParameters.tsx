@@ -9,7 +9,7 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { Helmet } from "react-helmet";
-import { useFetcher, useNavigate, Link } from "react-router-dom";
+import { useFetcher, useLoaderData, useNavigate, Link } from "react-router-dom";
 import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -17,13 +17,48 @@ import { serverFetch } from "Config/serverFetch";
 import { DataDrivenInput } from "Types";
 import ParametersTable from "../ParametersTable";
 
-// This route (app/routes/workspaceParameters.tsx) has no loader of its own - the parameters this
-// page displays come from useWorkspaceContext().workspace.parameters (WorkspaceContainer's own
-// client-side query, see Features/App/App.tsx), so only the writes below move to a route action.
-// See Features/Parameters/GlobalParameters/GlobalParameters.tsx for the reference conversion this
-// otherwise follows. The route is workspace-scoped (`/:workspace/parameters`), so the action reads
-// the `:workspace` route param directly rather than the (client-only) workspace context - see
+// Route module for app/routes/workspaceParameters.tsx, following
+// Features/Parameters/GlobalParameters/GlobalParameters.tsx. The route is workspace-scoped
+// (`/:workspace/parameters`), so both the loader and the action read the `:workspace` route param
+// directly rather than the (client-only) workspace context - see
 // Features/TaskManager/WorkspaceTasks/WorkspaceTasks.tsx for the same pattern.
+//
+// The loader owns the read that this page's table renders. It used to come from
+// useWorkspaceContext().workspace.parameters - WorkspaceContainer's react-query cache
+// (Features/App/App.tsx) - while the writes had already moved onto this route's action. Settling a
+// fetcher revalidates loaders, not react-query, so with no loader here a create/edit/delete raised
+// its success toast and left the table exactly as it was until the user navigated away and back
+// (the old `queryClient.invalidateQueries` was dropped in the conversion, and
+// `refetchOnWindowFocus: false` in app/root.tsx removed the last accidental refresh).
+//
+// It reads the workspace record - the same GET WorkspaceContainer makes - rather than
+// `serviceUrl.workspace.resourceWorkspaceParameters`, because there is no dedicated
+// parameter list/create route on the API (see that builder's TODO in Config/servicesConfig.ts);
+// parameters are carried on the workspace and merged in through patchWorkspace.
+type LoaderData = {
+  parameters: DataDrivenInput[];
+  errorLoading: boolean;
+};
+
+// A failed fetch resolves with an error flag rather than throwing, so the page chrome still
+// renders and only the table area shows the error - same contract as GlobalParameters.tsx.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  try {
+    const response = await serverFetch(request).get(
+      serviceUrl.resourceWorkspace({ workspace: String(params.workspace) }),
+    );
+    return { parameters: response.data?.parameters ?? [], errorLoading: false };
+  } catch (error) {
+    return { parameters: [], errorLoading: true };
+  }
+}
+
 type ActionResult = {
   ok: boolean;
   intent: "create" | "update" | "delete";
@@ -78,7 +113,10 @@ export async function action({
 function WorkspaceParameters() {
   const navigate = useNavigate();
   const fetcher = useFetcher<ActionResult>();
+  // The workspace object stays a client-side concern (header breadcrumb only); the parameters the
+  // table renders come from this route's loader, which is what a fetcher settle revalidates.
   const { workspace } = useWorkspaceContext();
+  const { parameters, errorLoading } = useLoaderData() as LoaderData;
   // handleSubmit hands this component a `closeModal` at submit time; the fetcher settles
   // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked once the
   // create/update settles (success or failure both closed the modal before, see the effect below) -
@@ -186,11 +224,11 @@ function WorkspaceParameters() {
         }
       />
       <ParametersTable
-        parameters={workspace.parameters ?? []}
+        parameters={parameters}
         isLoading={false}
         isSubmitting={isSubmitting}
         errorSubmitting={errorSubmitting}
-        errorLoading={false}
+        errorLoading={errorLoading}
         handleDelete={handleDelete}
         handleSubmit={handleSubmit}
       />
