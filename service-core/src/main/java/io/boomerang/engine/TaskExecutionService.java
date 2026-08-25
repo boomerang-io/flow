@@ -624,8 +624,14 @@ public class TaskExecutionService {
     String status = ParameterUtil.getValue(taskExecution.getParams(), "status").toString();
     if (!status.isBlank()) {
       RunStatus taskStatus = RunStatus.valueOf(status);
+      // Field-scoped write - statusOverride is the ONLY field setwfstatus owns. Saving
+      // wfRunEntity whole wrote back the snapshot execute() read at its entry, reverting every
+      // field a concurrent Compare-And-Set had committed since: a result pushed by a parallel
+      // setwfproperty, isAwaitingApproval, pauseRequestedAt, phase/status, duration.
+      this.workflowRunService.setStatusOverride(wfRunEntity.getId(), taskStatus);
+      // Keep the in-memory snapshot consistent with the stored document for the remainder of
+      // this execute() call; finishWorkflow re-reads the WorkflowRun for its own decision.
       wfRunEntity.setStatusOverride(taskStatus);
-      this.workflowRunRepository.save(wfRunEntity);
     }
   }
 

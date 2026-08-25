@@ -370,6 +370,13 @@ public class WorkflowRunService {
         WorkflowRunEntity.class);
   }
 
+  public void setStatusOverride(String id, RunStatus statusOverride) {
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(id)),
+        new Update().set("statusOverride", statusOverride),
+        WorkflowRunEntity.class);
+  }
+
   public void appendResult(String id, RunResult result) {
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(id)),
