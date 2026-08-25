@@ -7,7 +7,8 @@ import { profile, workspaces } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { RunPhase, RunStatus, TaskRun, WorkflowCanvas, WorkflowRun as WorkflowRunType, WorkflowStatus } from "Types";
-import WorkflowExecutionContainer, { loader } from "./WorkflowRun";
+import { HttpMethod } from "Constants";
+import WorkflowExecutionContainer, { action, loader, type RunActionIntent } from "./WorkflowRun";
 
 const workspace = "tyson-workspace";
 const workflowName = "test-workflow";
@@ -160,5 +161,140 @@ describe("Execution --- Snapshot", () => {
     await screen.findByText(/Activity detail/i);
 
     expect(baseElement).toMatchSnapshot();
+  });
+});
+
+/*
+ * The route `action` is the entire write surface of this screen - the six lifecycle transitions
+ * RunHeader drives plus the approval/manual submission both task modals make - and nothing
+ * rendered it before. These call it directly, the idiom AdminTasks.spec.tsx/GlobalTokens.spec.tsx
+ * established for route-module actions.
+ *
+ * Every expectation below is built by calling the same `serviceUrl.*` builder the action's own
+ * RUN_INTENT_REQUESTS table names, never a hand-copied path string, so an intent wired to the
+ * wrong builder (retry -> putStartWorkflow, say) fails here rather than passing on a literal that
+ * was copied from the same mistake.
+ */
+type CapturedRequest = { path: string; method: string; body: string };
+
+/** Intercepts every outbound request the action makes, whatever URL/method it picks. */
+function captureRequests(): Array<CapturedRequest> {
+  const captured: Array<CapturedRequest> = [];
+  server.use(
+    http.all("*", async ({ request }) => {
+      captured.push({
+        path: new URL(request.url).pathname,
+        method: request.method.toLowerCase(),
+        body: await request.text(),
+      });
+      return HttpResponse.json({});
+    }),
+  );
+  return captured;
+}
+
+function actionRequest(fields: Record<string, string>) {
+  return new Request(`http://localhost${appLink.execution({ workspace, runId })}`, {
+    method: "post",
+    body: new URLSearchParams(fields),
+  });
+}
+
+function submit(fields: Record<string, string>) {
+  return action({ params: { workspace, runId }, request: actionRequest(fields) });
+}
+
+const runUrl = serviceUrl.workspace.workflowrun;
+
+const INTENT_CONTRACT: Array<{ intent: RunActionIntent; path: string; method: string }> = [
+  { intent: "retry", path: runUrl.putRetryWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+  { intent: "cancel", path: runUrl.deleteCancelWorkflow({ workspace, id: runId }), method: HttpMethod.Delete },
+  { intent: "start", path: runUrl.putStartWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+  { intent: "pause", path: runUrl.putPauseWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+  { intent: "resume", path: runUrl.putResumeWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+  { intent: "finalize", path: runUrl.putFinalizeWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+];
+
+describe("WorkflowRun --- action", () => {
+  INTENT_CONTRACT.forEach(({ intent, path, method }) => {
+    it(`issues a single ${method.toUpperCase()} ${intent} request to the run's ${intent} route`, async () => {
+      const captured = captureRequests();
+
+      const result = await submit({ intent });
+
+      expect(result).toEqual({ ok: true, intent });
+      expect(captured).toEqual([{ path, method, body: "" }]);
+    });
+  });
+
+  it("sends the approval decision as a one-element array", async () => {
+    const captured = captureRequests();
+
+    const result = await submit({
+      intent: "action",
+      actionId: "action-abc",
+      approved: "true",
+      comments: "Looks good to me",
+    });
+
+    expect(result).toEqual({ ok: true, intent: "action" });
+    expect(captured).toHaveLength(1);
+    expect(captured[0].path).toBe(serviceUrl.workspace.action.putAction({ workspace }));
+    expect(captured[0].method).toBe(HttpMethod.Put);
+    expect(JSON.parse(captured[0].body)).toEqual([
+      { id: "action-abc", approved: true, comments: "Looks good to me" },
+    ]);
+  });
+
+  it("derives approved from the submitted string and defaults an absent comment to an empty string", async () => {
+    const captured = captureRequests();
+
+    // `approved` arrives as a form field, so it is the string "false" here, not the boolean -
+    // anything other than the exact string "true" is a rejection.
+    await submit({ intent: "action", actionId: "action-abc", approved: "false" });
+
+    expect(JSON.parse(captured[0].body)).toEqual([{ id: "action-abc", approved: false, comments: "" }]);
+  });
+
+  it("rejects an unrecognised intent without issuing any request", async () => {
+    const captured = captureRequests();
+
+    const result = await submit({ intent: "explode" });
+
+    expect(result).toEqual({
+      ok: false,
+      intent: "explode",
+      errorMessage: { title: "Something's wrong", message: "Unrecognised request" },
+    });
+    expect(captured).toHaveLength(0);
+  });
+
+  it("returns a formatted error rather than throwing when a lifecycle call fails", async () => {
+    server.use(
+      http.put(runUrl.putRetryWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    const result = await submit({ intent: "retry" });
+
+    expect(result.ok).toBe(false);
+    expect(result.intent).toBe("retry");
+    expect(result.errorMessage?.title).toEqual(expect.any(String));
+    expect(result.errorMessage?.message).toEqual(expect.any(String));
+  });
+
+  it("returns a formatted error rather than throwing when the action submission fails", async () => {
+    server.use(
+      http.put(serviceUrl.workspace.action.putAction({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    const result = await submit({ intent: "action", actionId: "action-abc", approved: "true" });
+
+    expect(result.ok).toBe(false);
+    expect(result.intent).toBe("action");
+    expect(result.errorMessage?.message).toEqual(expect.any(String));
   });
 });
