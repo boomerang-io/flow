@@ -114,7 +114,35 @@ Also ruled: a TaskRun's params are already only the template-declared set merged
 values (§1), but the node merge accepts undeclared keys — validating "node params ⊆ declared
 params" is a definition-side follow-up alongside the substitution work.
 
-## 6. Future: workspace storage sources beyond PVC
+## 6. Isolation — RULED (2026-08-25, maintainer)
+
+**One setting per agent/dispatcher deployment** (`agent.tasks.runtimeClassName`); NO per-task
+`isolation` field on the task spec. A deployment that needs a different tier is a separate agent
+deployment (each registers with its own name/task-types, so the engine already routes between
+them). Re-open only if a real deployment needs mixed trust tiers behind one agent.
+
+## 7. Sensitive params — direction under exploration (2026-08-25)
+
+**Trust model (maintainer):** sensitive means sensitive *upward* — from the engine to the UI/API
+consumer. *Downward* — engine to task execution — plain delivery is acceptable because only Ops
+has access to the execution substrate.
+
+**What exists (verified):** `DataAdapterUtil` (lib-common) redacts params whose spec
+`type == "password"` (`FieldType.PASSWORD`) by nulling the value and setting `hiddenValue=true`,
+which `client-web` honours. Applied at the definition/config surfaces: workspace/team params
+(`WorkspaceService:867`), global params (`ParameterService:112`), workflow param specs
+(`WorkspaceWorkflowService:192/259/359/472`). So **no new `sensitive` field is needed — the
+`type=password` param spec type IS the marker.**
+
+**The gap (verified):** `DataAdapterUtil.filterRunParamValueByFieldType` — the variant that
+redacts **resolved RunParam values on run payloads** by joining the run's params against the
+workflow's param spec — has **zero callers**. A WorkflowRun/TaskRun response therefore returns
+resolved password values in plain text, which breaks the upward half of the trust model. `RunParam`
+itself carries no type marker on the wire (`ParamType` is `@JsonIgnore`), so run-payload redaction
+must join against the definition, exactly as that orphaned method does. Closing this gap (run
+GET/query responses + anything that logs resolved params) is the work — not a new field.
+
+## 8. Future: workspace storage sources beyond PVC
 
 Recorded as a future Workflow Storage option (not built): in Tekton, a workspace may be bound to a
 **ConfigMap or Secret** (read-only — Kubernetes mounts them read-only, a task cannot write back),
