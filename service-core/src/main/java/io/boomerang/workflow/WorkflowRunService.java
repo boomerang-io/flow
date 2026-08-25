@@ -260,6 +260,15 @@ public class WorkflowRunService {
    */
   public ResponseEntity<WorkflowRun> retry(String team, String workflowRunId) {
     requireWorkspaceRelationship(team, workflowRunId);
+
+    // Ownership is resolved BEFORE the retried run is created, which makes this operation
+    // all-or-nothing. The edge write below is the only step that can fail on an unresolvable
+    // owner, and running it afterwards meant a graph-orphaned run answered the caller with an
+    // unmapped 500 - IllegalArgumentException("Node does not exist: workspace:") out of
+    // RelationshipService.createNodeAndEdge - while the retried run had already been created,
+    // queued and left to execute ownerless.
+    String owner = owningWorkspace(workflowRunId);
+
     WorkflowRun wfRun = retry(workflowRunId, false, 1);
 
     // Record ownership against the run's REAL owning workspace, resolved from the run - NOT the
@@ -269,7 +278,7 @@ public class WorkflowRunService {
     // run was retried through another workspace's URL.
     relationshipService.createNodeAndEdge(
         RelationshipType.WORKSPACE,
-        owningWorkspace(workflowRunId, wfRun.getWorkflowRef()),
+        owner,
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,
         wfRun.getId(),
@@ -285,15 +294,36 @@ public class WorkflowRunService {
    * it ran. The fallback is the same resolution {@code RelationshipEventListener
    * .onChildWorkflowRunCreated} and {@code ScheduleWatcher.resolveTeam} already use, and it keeps
    * a chained retry from failing on a missing parent.
+   *
+   * <p>When neither is recorded there is no third option: the {@code team} path segment is not an
+   * owner, because a global-scope token passes {@link RelationshipService#check} for any workspace
+   * (RelationshipService:417-419) - which is precisely how such a caller reaches a graph-orphaned
+   * run - and adopting it is the wrong-owner bug this resolution exists to fix. So this refuses
+   * with the mapped {@link BoomerangError#TEAM_INVALID_REF} (400) the rest of the product already
+   * uses for an unresolvable workspace, rather than minting a run no workspace owns.
    */
-  private String owningWorkspace(String workflowRunId, String workflowRef) {
+  private String owningWorkspace(String workflowRunId) {
     String workspace =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, workflowRunId);
+    if (workspace != null && !workspace.isBlank()) {
+      return workspace;
+    }
+    String workflowRef =
+        workflowRunRepository
+            .findById(workflowRunId)
+            .map(WorkflowRunEntity::getWorkflowRef)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
+    workspace =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
     if (workspace == null || workspace.isBlank()) {
-      workspace =
-          relationshipService.getParentByLabel(
-              RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
+      LOGGER.error(
+          "[{}] Neither the WorkflowRun nor its Workflow ({}) has an owning workspace in the"
+              + " relationship graph. Refusing the retry rather than creating an ownerless run.",
+          workflowRunId,
+          workflowRef);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
     return workspace;
   }

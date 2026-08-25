@@ -2,8 +2,12 @@ package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
@@ -34,6 +38,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
 
   private static final String OWNING_WORKSPACE = "retry-owner-owning-ws";
   private static final String OTHER_WORKSPACE = "retry-owner-other-ws";
+  private static final List<RunPhase> ALL_PHASES = List.of(RunPhase.values());
 
   @Autowired private TaskService taskService;
   @Autowired private WorkflowService workflowService;
@@ -115,6 +120,44 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, retried.getId()),
         "with no run-level owner the Workflow's workspace is the owner, never the path's");
+  }
+
+  /**
+   * The owner must be resolved BEFORE the retried run is created, so an unresolvable one cannot
+   * fail the request after the fact.
+   *
+   * <p>Previously {@code createNodeAndEdge(WORKSPACE, "", ...)} ran after {@code retry} had already
+   * saved and queued the clone, so a graph-orphaned Workflow produced {@code
+   * IllegalArgumentException: Node does not exist: workspace:} - an unmapped 500 - while the run
+   * executed anyway with no owner. Both halves are asserted: the mapped error, and that nothing was
+   * created.
+   */
+  @Test
+  void retryIsRefusedWithAMappedErrorAndCreatesNothingWhenNoWorkspaceOwnsTheRun() {
+    seedRelationshipRoot();
+    relationshipService.createNode(
+        RelationshipType.WORKSPACE, OTHER_WORKSPACE, OTHER_WORKSPACE, Optional.empty());
+
+    // A graph-orphaned Workflow: no HAS_WORKFLOW edge, so its runs have no owner to inherit and
+    // no HAS_WORKFLOWRUN edge of their own either. Reachable because the identity here is
+    // global-scope, for which RelationshipService.check returns true for any path workspace.
+    String workflowId = createLinearWorkflow("retry-owner-orphan");
+    String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () -> workflowRunService.retry(OTHER_WORKSPACE, wfRunId),
+            "an unresolvable owner must surface as a mapped domain error, not IllegalArgumentException");
+    assertEquals(
+        "TEAM_INVALID_REF", ex.getReason(), "the failure must name the unresolvable workspace");
+
+    assertEquals(
+        List.of(wfRunId),
+        workflowRunRepository.findByWorkflowRefAndPhaseIn(workflowId, ALL_PHASES).stream()
+            .map(WorkflowRunEntity::getId)
+            .toList(),
+        "the retry must fail before the clone is created, leaving only the source run");
   }
 
   private String createLinearWorkflow(String name) {
