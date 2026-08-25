@@ -1,4 +1,4 @@
-package io.boomerang.api;
+package io.boomerang.core;
 
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;

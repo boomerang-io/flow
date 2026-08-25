@@ -1,8 +1,7 @@
-package io.boomerang.api;
+package io.boomerang.core;
 
 import io.boomerang.core.model.User;
 import io.boomerang.core.model.UserRequest;
-import io.boomerang.core.UserService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

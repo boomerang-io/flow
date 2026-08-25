@@ -1,10 +1,9 @@
-package io.boomerang.api;
+package io.boomerang.core;
 
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.model.TokenCreateResponse;
 import io.boomerang.core.model.TokenPermissionCatalog;
-import io.boomerang.core.TokenService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;

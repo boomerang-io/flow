@@ -1,20 +1,14 @@
-package io.boomerang.api;
+package io.boomerang.core;
 
 import io.boomerang.core.model.Features;
 import io.boomerang.core.model.HeaderNavigationResponse;
 import io.boomerang.core.model.Navigation;
 import io.boomerang.core.model.OneTimeCode;
 import io.boomerang.core.model.Setting;
-import io.boomerang.core.SettingsService;
-import io.boomerang.core.UserService;
-import io.boomerang.core.NavigationService;
-import io.boomerang.core.ContextService;
-import io.boomerang.core.FeatureService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workflow.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -44,8 +38,6 @@ public class SystemControllerV2 {
   @Autowired private SettingsService settingsService;
 
   @Autowired private UserService userService;
-
-  @Autowired private ParameterService paramService;
 
   @Autowired private NavigationService navigationService;
 
