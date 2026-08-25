@@ -1,4 +1,4 @@
-package io.boomerang.engine;
+package io.boomerang.workflow;
 
 import static java.util.stream.Collectors.groupingBy;
 
@@ -15,14 +15,17 @@ import io.boomerang.common.model.*;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
-import io.boomerang.engine.model.*;
+import io.boomerang.engine.TaskExecutionService;
+import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.WorkflowExecutionService;
+import io.boomerang.engine.WorkflowRunStateService;
+import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.boomerang.event.repository.EventInboxRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.workflow.ConvertUtil;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -501,9 +504,10 @@ public class WorkflowRunService {
   }
 
   /*
-   * To be used internally within the Engine
+   * Times out a WorkflowRun. Engine-internal: called only by the WorkflowWatcher timeout sweep
+   * and TaskExecutionService's final-task-timeout path, never from an API surface.
    */
-  protected WorkflowRun timeout(String workflowRunId, boolean taskRunTimeout) {
+  public WorkflowRun timeout(String workflowRunId, boolean taskRunTimeout) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }

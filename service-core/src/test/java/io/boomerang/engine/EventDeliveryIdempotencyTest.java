@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.workflow.WorkflowRunService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.boomerang.common.entity.TaskRunEntity;

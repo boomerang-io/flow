@@ -20,7 +20,6 @@ import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.workflow.ConvertUtil;
-import io.boomerang.engine.WorkflowRunService;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;

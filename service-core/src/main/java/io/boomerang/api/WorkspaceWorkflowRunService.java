@@ -10,7 +10,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.model.WorkflowRunRequest;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.workflow.WorkflowRunService;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;

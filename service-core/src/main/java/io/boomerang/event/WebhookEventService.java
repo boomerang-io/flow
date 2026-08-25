@@ -21,7 +21,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.GitHubService;
 import io.boomerang.integrations.IntegrationService;
 import io.boomerang.api.WorkspaceWorkflowService;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.data.PojoCloudEventData;

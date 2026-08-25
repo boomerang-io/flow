@@ -20,7 +20,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.workflow.WorkflowRunService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;

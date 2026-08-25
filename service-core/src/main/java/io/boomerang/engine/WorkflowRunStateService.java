@@ -1,5 +1,4 @@
 package io.boomerang.engine;
-
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;

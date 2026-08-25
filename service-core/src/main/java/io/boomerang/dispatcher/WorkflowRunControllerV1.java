@@ -2,7 +2,7 @@ package io.boomerang.dispatcher;
 
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunRequest;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

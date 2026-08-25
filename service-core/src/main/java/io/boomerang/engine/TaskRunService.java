@@ -1,5 +1,4 @@
 package io.boomerang.engine;
-
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
@@ -149,7 +148,7 @@ public class TaskRunService {
   // Termination Compare-And-Set: re-checks one of the two owned-residue shapes and RELEASES the
   // claim (by/at/leaseExpiresAt - claim.seq is never cleared), so exactly one polling agent is
   // told to terminate the executor-side work and the run drops out of the termination page for
-  // good. Releasing is the inverse of WorkflowRunService.tryStart clearing the dispatch claim to
+  // good. Releasing is the inverse of WorkflowRunStateService.tryStart clearing the dispatch claim to
   // free the teardown claimable, and it is what stops the v4 defect of redelivering terminal runs
   // to every agent on every poll. Returns the pre-image, patched to the wire shape the dispatcher
   // acts on, or null when another agent won.
