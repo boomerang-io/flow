@@ -4,6 +4,7 @@ import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,10 +25,13 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Tag(name = "TaskRuns", description = "View, Start, Stop, and Update Status of your Task Runs.")
 public class TaskRunControllerV2 {
 
-  private final WorkspaceTaskRunService workspaceTaskRunService;
+  // A TaskRun's log is authorized against, and scrubbed with, its owning WorkflowRun - so the
+  // operation lives on the WorkflowRun domain service, where that guard and that scrub already
+  // are. See WorkflowRunService.streamTaskRunLog.
+  private final WorkflowRunService workflowRunService;
 
-  public TaskRunControllerV2(WorkspaceTaskRunService workspaceTaskRunService) {
-    this.workspaceTaskRunService = workspaceTaskRunService;
+  public TaskRunControllerV2(WorkflowRunService workflowRunService) {
+    this.workflowRunService = workflowRunService;
   }
 
   @GetMapping(value = "/{taskRunId}/log")
@@ -49,6 +53,6 @@ public class TaskRunControllerV2 {
     response.setContentType("text/plain");
     response.setCharacterEncoding("UTF-8");
     return new ResponseEntity<StreamingResponseBody>(
-        workspaceTaskRunService.streamLog(taskRunId), HttpStatus.OK);
+        workflowRunService.streamTaskRunLog(taskRunId), HttpStatus.OK);
   }
 }

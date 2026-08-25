@@ -148,7 +148,7 @@ task params, spec fields and results (`DataAdapterUtil.redactWorkflowRun`/`redac
 under 4 characters are name-blanked but not value-scrubbed). The utilities live in the existing
 `DataAdapterUtil` `filter*` family (`filterWorkflowRunValueByFieldType` reuses
 `filterRunParamValueByFieldType` for the name-join; `filterTaskRunValues` is the value scrub).
-**The TaskRun log stream is ALSO closed (2026-08-25)**: `WorkspaceTaskRunService.streamLog` wraps
+**The TaskRun log stream is ALSO closed (2026-08-25)**: `WorkflowRunService.streamTaskRunLog` wraps
 the stream in `FilterValuesOutputStream` (line-buffered UTF-8 scrub; a secret straddling a
 chunk boundary of a single >64KB line is the accepted edge), realising the v4 commented-out
 masking intent at the streaming function itself. Covered by `ParamRedactionTest`,

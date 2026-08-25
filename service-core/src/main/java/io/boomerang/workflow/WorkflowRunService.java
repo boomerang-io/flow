@@ -16,6 +16,7 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.*;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
+import io.boomerang.common.util.FilterValuesOutputStream;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -43,7 +44,9 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
@@ -63,6 +66,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * The WorkflowRun domain service - one service for every run operation the product performs.
@@ -315,6 +319,65 @@ public class WorkflowRunService {
         Optional.empty(),
         Optional.empty());
     return ResponseEntity.ok(wfRun);
+  }
+
+  /**
+   * A TaskRun's log, for the {@code /api/v2/taskrun/&#123;taskRunId&#125;/log} surface.
+   *
+   * <p>F3 collapsed the former {@code api.WorkspaceTaskRunService} pass-through - a single method
+   * that resolved the TaskRun through {@code engine.TaskRunService}, checked the caller against its
+   * owning WorkflowRun, then scrubbed the stream - into this class rather than into {@link
+   * io.boomerang.engine.TaskRunService}: the guard's anchor is the owning WorkflowRun, the scrub's
+   * type authority is that run's revision, and both are already this service's job (see {@link
+   * #requireWorkspaceRelationship} and {@link #filterSensitiveValues}). {@code
+   * engine.TaskRunService.streamLog} stays exactly as it is - the raw, unscrubbed stream the
+   * engine owns - and is called from here.
+   *
+   * <p>The check is deliberately NOT {@link #requireWorkspaceRelationship}: there is no TASKRUN
+   * relationship node, and this route carries no workspace path segment, so ownership is reachable
+   * only through the parent WorkflowRun and no intermediate containment can be applied. That is
+   * the check the pass-through performed, carried over unchanged.
+   */
+  public StreamingResponseBody streamTaskRunLog(String taskRunId) {
+    if (Objects.isNull(taskRunId) || taskRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+    }
+    TaskRun taskRun = taskRunService.get(taskRunId).getBody();
+    if (!relationshipService.check(
+        RelationshipType.WORKFLOWRUN,
+        taskRun.getWorkflowRunRef(),
+        Optional.empty(),
+        Optional.empty())) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
+    LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
+    StreamingResponseBody body = taskRunService.streamLog(taskRunId);
+    // Sensitive-upward, the same rule filterSensitiveValues applies to the run payloads: a script
+    // that echoes a password-typed param shows it in its log, so the stream is scrubbed at this
+    // workspace-scoped surface. The dispatcher/engine never read logs through here.
+    Set<String> secrets = taskRunSensitiveValues(taskRun.getWorkflowRunRef());
+    if (secrets.isEmpty()) {
+      return body;
+    }
+    return outputStream -> body.writeTo(new FilterValuesOutputStream(outputStream, secrets));
+  }
+
+  // The resolved values of the owning run's password-typed params, per DataAdapterUtil's
+  // name-join against the workflow revision's param spec (the type authority).
+  private Set<String> taskRunSensitiveValues(String workflowRunRef) {
+    return workflowRunRepository
+        .findById(workflowRunRef)
+        .flatMap(
+            run ->
+                Optional.ofNullable(run.getWorkflowRevisionRef())
+                    .flatMap(workflowRevisionRepository::findById)
+                    .map(
+                        revision ->
+                            DataAdapterUtil.sensitiveValues(
+                                revision.getParams(),
+                                run.getParams(),
+                                FieldType.PASSWORD.value())))
+        .orElse(Set.of());
   }
 
   /**

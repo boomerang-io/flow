@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** The log-stream half of the sensitive-upward rule: see WorkspaceTaskRunService.streamLog. */
+/** The log-stream half of the sensitive-upward rule: see WorkflowRunService.streamTaskRunLog. */
 class FilterValuesOutputStreamTest {
 
   private static final String SECRET = "ghp_secret42";
