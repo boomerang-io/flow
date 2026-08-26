@@ -154,7 +154,46 @@ chunk boundary of a single >64KB line is the accepted edge), realising the v4 co
 masking intent at the streaming function itself. Covered by `ParamRedactionTest`,
 `RunRedactionTest`, `FilterValuesOutputStreamTest`.
 
-## 8. Future: workspace storage sources beyond PVC
+## 8. Param-name case sensitivity — research (2026-08-26, ruling pending)
+
+Prompted by the `PARAM_NAMES` round-trip: should Flow go case-insensitive, or presume lowercase?
+
+| System | Case rule | Notes |
+|---|---|---|
+| Tekton | Sensitive, exact | Lowercase-kebab is Catalog convention only |
+| Argo Workflows | Sensitive, exact | Template substitution is literal |
+| **GitHub Actions** | **Insensitive** | Contexts/secrets/functions documented+observed insensitive; pairs with uniqueness (mangles to `INPUT_*`/env uppercase, so case-variant duplicates cannot coexist) |
+| GitLab CI | Sensitive | Variables ARE env vars |
+| Airflow / Kubeflow / n8n / Temporal | Sensitive | Python dict keys / JS object keys / payload maps |
+| Conductor | Sensitive | JSON keys, `${workflow.input.x}` literal |
+| Langflow | Sensitive | Tweaks/inputs keyed by the component's internal Python `name` (snake_case convention) |
+| Dagger | Sensitive, normalising | Python snake_case args surface as camelCase GraphQL fields — a rename, not case-folding |
+
+The field is near-unanimously case-sensitive; GitHub Actions is the one insensitive system, and it
+is also the one whose delivery mechanism (uppercased env mangling) matches Flow's — insensitivity
+plus a uniqueness rule is what makes lossy mangling safe there.
+
+Options for Flow: (A) status quo — exact match + `PARAM_NAMES`; (B) GitHub-Actions model —
+case-insensitive matching everywhere (`$(params.myParam)` == declared `MyParam`), reject
+case/separator-variant duplicates (the mangling-collision check already built in
+`createTaskEnvVars`, promoted to definition-side), keep declared casing for display/delivery and
+keep `PARAM_NAMES` (JavaScript destructuring is case-sensitive regardless of what the engine
+does); (C) enforce lowercase names — makes the env mangle reversible and `PARAM_NAMES` droppable
+only if hyphens are also banned, and **breaks the catalogue's own camelCase params**
+(`privateKey`, `spreadsheetId`, `clientEmail` in `tasks/flow` commands) plus every existing
+workflow using them.
+
+**RULED (2026-08-26, maintainer): B — case-insensitive matching, SHIPPED (`feat-v5-track9`).**
+The whole reference is insensitive: param names, scope words, and the `params`/`tasks`/`results`
+literals (`ParameterManager.resolveParam` resolves over a `CASE_INSENSITIVE_ORDER` view of the
+flat layers); the merge is insensitive with declared casing winning
+(`ParameterUtil.addUniqueParam`); and the safety pair is definition-side rejection of
+case/separator-variant duplicates (`ParameterUtil.envFold`/`paramNameCollisions`, error
+`PARAM_NAME_COLLISION` 1209) at workflow save (node params) AND task-template save (declared
+params). The agent's dispatch-time env-collision check remains as the backstop for pre-existing
+definitions. `DataAdapterUtil`'s ignore-case joins are now the consistent rule, not the outlier.
+
+## 9. Future: workspace storage sources beyond PVC
 
 Recorded as a future Workflow Storage option (not built): in Tekton, a workspace may be bound to a
 **ConfigMap or Secret** (read-only — Kubernetes mounts them read-only, a task cannot write back),

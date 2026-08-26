@@ -28,7 +28,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * (ParameterUtil.addUniqueParams, keyed by exact name) with no key check at all - every merged
  * name becomes a {@code PARAM_<NAME>} env var on the TaskRun container, so a node param the
  * template never declared is both an undeclared injection point and a silently-swallowed typo.
- * This pins that the same exact-name match used by the merge is what rejects the save.
+ * Matching is CASE-INSENSITIVE (ruled 2026-08-26, the GitHub Actions model): a node param may
+ * case-vary from its declared name, and in exchange, names that are case/separator variants of
+ * each other are rejected as PARAM_NAME_COLLISION - lossy PARAM_<NAME> env mangling is only safe
+ * when such duplicates cannot exist.
  */
 class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
 
@@ -106,6 +109,56 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
             () -> workflowService.apply(WORKSPACE, update, false));
 
     assertEquals("WORKFLOW_INVALID_TASK_PARAM", ex.getReason());
+  }
+
+  @Test
+  void aNodeParamThatCaseVariesFromTheDeclaredNameIsAccepted() {
+    String taskSlug = declaredParamTask("param-validation-case", "githubToken");
+    Workflow workflow =
+        workflowWithTaskParams(
+            "param-validation-case-wf", taskSlug, new RunParam("GITHUBTOKEN", "ghp_x"));
+
+    Workflow saved = workflowService.create(WORKSPACE, workflow);
+
+    assertEquals("param-validation-case-wf", saved.getName());
+  }
+
+  @Test
+  void caseOrSeparatorVariantNodeParamsAreRejected() {
+    String taskSlug = noParamTask("param-validation-collision");
+    Workflow workflow =
+        workflowWithTaskParams(
+            "param-validation-collision-wf",
+            taskSlug,
+            new RunParam("my-param", "a"),
+            new RunParam("my_param", "b"));
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class, () -> workflowService.create(WORKSPACE, workflow));
+
+    assertEquals("PARAM_NAME_COLLISION", ex.getReason());
+  }
+
+  @Test
+  void aTemplateDeclaringCaseVariantParamsIsRejected() {
+    Task task = new Task();
+    task.setName("param-validation-template-collision");
+    task.setType(TaskType.template);
+    task.getSpec().setImage("busybox:latest");
+    task.getSpec().setCommand(List.of("echo"));
+    AbstractParam upper = new AbstractParam();
+    upper.setName("Token");
+    upper.setType("text");
+    AbstractParam lower = new AbstractParam();
+    lower.setName("token");
+    lower.setType("text");
+    task.getSpec().setParams(new LinkedList<>(List.of(upper, lower)));
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> taskService.createGlobal(task));
+
+    assertEquals("PARAM_NAME_COLLISION", ex.getReason());
   }
 
   private static Workflow workflowWithTaskParams(

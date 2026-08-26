@@ -119,10 +119,10 @@ public class DataAdapterUtil {
             .filter(c -> fieldType.equals(c.getType()))
             .map(AbstractParam::getName)
             .filter(Objects::nonNull)
-            .map(String::toLowerCase)
+            .map(name -> name.toLowerCase(java.util.Locale.ROOT))
             .collect(Collectors.toSet());
     return runParams.stream()
-        .filter(p -> p.getName() != null && names.contains(p.getName().toLowerCase()))
+        .filter(p -> p.getName() != null && names.contains(p.getName().toLowerCase(java.util.Locale.ROOT)))
         .map(RunParam::getValue)
         .filter(Objects::nonNull)
         .map(Object::toString)

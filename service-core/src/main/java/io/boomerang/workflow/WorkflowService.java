@@ -1570,16 +1570,30 @@ public class WorkflowService {
    * rather than treated as "no params allowed".
    */
   private void validateDeclaredParams(WorkflowTask wfTask, Task taskTemplate) {
+    if (wfTask.getParams() != null) {
+      // Case/separator-variant duplicates collide as PARAM_<NAME> env vars and, under
+      // case-insensitive matching, as references - rejected here rather than at dispatch.
+      List<List<String>> collisions =
+          ParameterUtil.paramNameCollisions(
+              wfTask.getParams().stream().map(RunParam::getName).collect(Collectors.toList()));
+      if (!collisions.isEmpty()) {
+        throw new BoomerangException(
+            BoomerangError.PARAM_NAME_COLLISION,
+            collisions.toString(),
+            ParameterUtil.envFold(collisions.get(0).get(0)));
+      }
+    }
     List<AbstractParam> declaredParams = taskTemplate.getSpec().getParams();
     if (declaredParams == null || declaredParams.isEmpty() || wfTask.getParams() == null) {
       return;
     }
+    // Case-insensitive (ruled 2026-08-26), matching the engine's resolution and merge.
     List<String> declaredNames =
         declaredParams.stream().map(AbstractParam::getName).collect(Collectors.toList());
     List<String> undeclaredNames =
         wfTask.getParams().stream()
             .map(RunParam::getName)
-            .filter(name -> !declaredNames.contains(name))
+            .filter(name -> declaredNames.stream().noneMatch(d -> d.equalsIgnoreCase(name)))
             .collect(Collectors.toList());
     if (!undeclaredNames.isEmpty()) {
       throw new BoomerangException(
