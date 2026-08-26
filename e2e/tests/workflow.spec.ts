@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniqueName, createWorkspace } from "../support/api";
+import { uniqueName, createWorkspace, APP_BASENAME } from "../support/api";
 
 /*
  * Create a workflow through the UI inside a fresh workspace, then confirm it shows up again
@@ -15,7 +15,7 @@ test("create a workflow and find it via workspace search", async ({ page, reques
   const workspace = await createWorkspace(request, uniqueName("e2e-workflow-ws"));
   const workflowName = uniqueName("e2e-workflow");
 
-  await page.goto(`/${workspace.name}/workflows`);
+  await page.goto(`${APP_BASENAME}/${workspace.name}/workflows`);
 
   await page.getByTestId("workflows-create-workflow-button").click();
   await page.locator("#displayName").fill(workflowName);
@@ -27,7 +27,7 @@ test("create a workflow and find it via workspace search", async ({ page, reques
   await expect(page).toHaveURL(new RegExp(`/${workspace.name}/editor/${workflowName.toLowerCase()}/canvas`));
 
   // Back to the list: the workflow must be findable by its real, current search affordance.
-  await page.goto(`/${workspace.name}/workflows`);
+  await page.goto(`${APP_BASENAME}/${workspace.name}/workflows`);
   await page.getByTestId("workflows-workspace-search").fill(workflowName);
   await expect(page.getByTestId("workflow-card-title").filter({ hasText: workflowName })).toBeVisible();
 
