@@ -9,12 +9,12 @@ on:
     paths:
       - 'service-dispatcher/**'
       - 'lib-common/**'
-      - '.github/workflows/ci-agent.yml'
+      - '.github/workflows/ci-dispatcher.yml'
   pull_request:
     paths:
       - 'service-dispatcher/**'
       - 'lib-common/**'
-      - '.github/workflows/ci-agent.yml'
+      - '.github/workflows/ci-dispatcher.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

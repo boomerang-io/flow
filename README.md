@@ -1,144 +1,134 @@
-# Boomerang Flow Services Monorepo
+# Boomerang Flow Monorepo
 
-Welcome to the Boomerang Flow Services Monorepo! This repository is the powerhouse behind the Boomerang Flow Workflow
-services that enable the creation and execution of workflows as Directed Acyclic Graphs (DAGs).
+Boomerang Flow is an open-source, cloud-native, low-code/no-code workflow automation platform. Workflows
+execute as Directed Acyclic Graphs (DAGs). Apache-2.0 licensed.
 
-The [Flow service](./service-flow) provides v2 RESTful APIs for the CRUD operations backing the front-end and direct
-consumption with:
-comprehensive User & Team Management, relationship graph
-between objects, authentication and authorisation, scheduling engine and so on.
+This repository holds the whole product — services, migrations, and the web application.
 
-The [Engine service](./service-engine) is the backbone providing the execution of the workflows as Directed Acyclic
-Graphs (DAGs).
-
-The [Dispatcher service](./service-dispatcher) is the service that connects to the Engine and retrieves and executes the
-appropriate filtered Workflows and Tasks. The Agent that comes by default is the Tekton Agent and
-executes the Tasks using Tekton on Kubernetes. Additional implementations can be added, such as IBM
-Code Engine, Azure Container Apps, etc
+| Module | Role |
+|---|---|
+| [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. Runs as `flow.mode = standalone \| engine`. |
+| [`service-dispatcher`](./service-dispatcher) | Pluggable execution worker. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default) or `kube-jobs`. Additional runtimes can be added. |
+| [`service-loader`](./service-loader) | Flamingock migrations and bootstrap seeding, run as a pre-deploy Job. |
+| [`lib-common`](./lib-common) | Shared domain model, entities, enums, error handling. |
+| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. Its own image; served only in `standalone` mode. |
+| [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
 
 ```mermaid
 graph LR
-    A[External Requests] -->|HTTP| B[Flow Service]
-    B -->|HTTP| C[Engine Service]
-    D[Agent 1] -->|Events| C
-    E[Agent 2] -->|Events| C
-    F[Agent n] -->|Events| C
+    U[Browser] -->|HTTP| W[client-web]
+    W -->|/api/v2| C[service-core]
+    U -->|/api/v2| C
+    D1[dispatcher 1] -->|/api/v1/dispatcher| C
+    D2[dispatcher n] -->|/api/v1/dispatcher| C
+    D1 --> K[Kubernetes / Tekton]
 ```
 
-## v3 to v4 Change Log
+`service-flow` and `service-engine` were separate deployables in v4 and are now merged into `service-core`.
+The dispatchers pull work from `service-core` and report back over `/api/v1/dispatcher/**`; the engine never
+calls a dispatcher.
 
-There has been an entire code base refactor from v3 to v4 for the engine. We suggest you read the following information
-to understand the full breadth of changes
+## Prerequisites
 
-- [Model changes and v3 to v4 model comparison](https://github.com/boomerang-io/roadmap/issues/368)
-- [Distributed async architecture change](https://github.com/boomerang-io/architecture/tree/feat-v4)
-
-## Dependencies
-
-With dependencies like CloudEvents and Quartz, this service ensures
-reliable event consumption and scheduled job execution.
-
-### Prerequisites
-
-1. Java 21
-2. Spring Boot 3
+1. **Java 25** — check this first if Maven fails. The default `java` on a dev machine is often still 21, and
+   Maven then reports `class file version 69.0 ... only recognizes ... up to 65.0`, which reads like a code
+   error but is purely a toolchain mismatch.
+   ```bash
+   export JAVA_HOME=$(/usr/libexec/java_home -v 25)   # macOS; verify with: java -version
+   ```
+2. Spring Boot 4.1
 3. Maven
+4. Node + pnpm (for `client-web`)
+5. Docker (for the local stack and the Testcontainers-backed tests)
 
-### CloudEvents
+## Running the whole product locally
 
-This service listen and consumes CloudEvents.
+`docker-compose.yml` brings up MongoDB, the one-shot `service-loader` migration/seed job (gated so
+`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and an nginx
+gateway that puts the webapp and the API behind one origin.
 
-### Quartz
+`service-dispatcher` is deliberately **not** in the stack — it drives Tekton on a real Kubernetes cluster.
 
-The Java Quartz library is used for running scheduled jobs via mongoDB and underpins the Schedule trigger.
+Published `boomerangio/*` images are the v4 line and will not match this branch, so build locally:
 
-The following links will help provide guidance in development
-
-- http://www.quartz-scheduler.org/documentation/quartz-2.2.2/tutorials/tutorial-lesson-04.html
-- http://www.quartz-scheduler.org/documentation/2.4.0-SNAPSHOT/cookbook/UpdateTrigger.html
-- https://github.com/StackAbuse/spring-boot-quartz/blob/master/src/main/java/com/stackabuse/service/SchedulerJobService.java
-- https://stackabuse.com/guide-to-quartz-with-spring-boot-job-scheduling-and-automation/
-
-## Packaging
-
-When ready to package the service(s) as a container, the tags will trigger the appropriate GitHub Action using the
-format `<svc>/<semver>`:
-
-- Engine Service: tag = `engine/1.0.0-beta.111`
-- Flow Service: tag = `flow/4.0.1`
-
-## Developing and Testing Locally
-
-### Pre-requisits
-
-This service connects to MongoDB and requires Task Templates and indexes loaded through the Flow Loader. You can run
-these locally, or alternatively connect to a remote MongoDB service.
-
-### Run Local MongoDB w Docker
-
-```
-docker run --name local-mongo -d mongo:latest
+```bash
+mvn -pl service-core,service-loader -am clean package -DskipTests
+cd client-web && pnpm install && pnpm run build && cd ..
+docker compose up --build
 ```
 
-### Load Boomerang Flow Data
+| Surface | URL |
+|---|---|
+| Unified origin (use this for manual testing and E2E) | http://localhost:8080 |
+| `service-core` direct | http://localhost:7700 |
+| `client-web` direct | http://localhost:3000 |
 
-```
-docker run -e JAVA_OPTS="-Dspring.data.mongodb.uri=mongodb://localhost:27017/boomerang -Dflow.mongo.collection.prefix=flow -Dspring.profiles.active=flow" --network host --platform linux/amd64 boomerangio/flow-loader:latest
-```
+Security is off in this stack (`FLOW_SECURITY_ENABLED=false`). That is deliberate and temporary — there is
+no login flow yet, so a secured stack would show a blank page.
 
-### Development via Spring
+### End-to-end tests
 
-1. Clone the repository
-2. Run `mvn clean install` to build the project
-3. Run `mvn spring-boot:run` to start the application
-
-### Development via Docker
-
-```
-docker buildx build --platform=linux/amd64 -f ./service-engine/Dockerfile -t flow-engine:latest .
-docker run -e JAVA_OPTS="-Dspring.data.mongodb.uri=mongodb://localhost:27017/boomerang -Dflow.mongo.collection.prefix=flow -Dspring.profiles.active=flow" --platform=linux/amd64 flow-engine:latest
+```bash
+cd e2e && npm ci && npx playwright test    # requires the compose stack above to be up
 ```
 
-## Design Details
+### Developing a single service
 
-### Parameters and Results
+```bash
+mvn clean install                                   # build everything
+mvn -pl service-core -am spring-boot:run            # run the API + engine
+cd client-web && pnpm start                         # run the webapp with hot reload
+```
 
-The implementation is based on Tekton Params and Results.
+## Packaging and releases
 
-There is limited support
-for [Tekton Propagated Object Parameters](https://tekton.dev/docs/pipelines/taskruns/#propagated-object-parameters) in
-that Tekton requires you to provide the Spec for the JSON Object if you are going to reference child elements. We do not
-have this constraint, we essentially take the path from what is provided after `params.<param-name>`.
+One product tag builds the whole compatible image set — there is no per-service version line. Tags match
+`5.x.y`, optionally with a `-beta.N` or `-rc.N` suffix:
 
-### Locks
+```
+5.0.0
+5.1.0-beta.3
+```
 
-For distributed locking, we use this [distributed lock](https://github.com/alturkovic/distributed-lock) project with the
-Mongo implementation.
+Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
 
-The implementation in `LockManagerImpl.java` relies on the TTL Index for Retries having been added via
-the `flow.loader`.
+## Design details
 
-## Error Handling
+### Parameters and results
 
-The following provides design and reference information about the status codes and error messages.
+Modelled on Tekton params and results. Tekton requires a spec for a JSON object before you can reference
+child elements; Flow does not — the path after `params.<param-name>` is taken as given.
 
-### Response Format
+### Execution model
 
-The format can be seen in `io.boomerang.error.ErrorDetail.java`
+Work is claimed atomically with `findAndModify` — there are no distributed locks. Contended state
+transitions use a status Compare-And-Set rather than optimistic-locking retries, and crash recovery is a
+set of level-triggered sweeps in `WorkflowWatcher` that any instance can run. The `acquirelock` and
+`releaselock` task types use the `task_locks` collection.
 
-| Field     | Description                                                                                                          |
-|-----------|----------------------------------------------------------------------------------------------------------------------|
-| timestamp | UTC timestamp of when the error occurred                                                                             | 
-| code      | unique identifier (int) that can be read and understood that detect and handle errors programmatically.              |
-| reason    | unique identifier (string) that can be used to quickly identify and search for more information regarding the error. |
-| message   | a description of the error intended for a human and an end user to provide context.                                  |
-| status    | HTTP Status Code & Message                                                                                           |
-| cause     | Optional present if `flow.error.include-cause=true` config property is provided                                      |
+### Indexes
+
+MongoDB index creation is owned entirely by `service-loader` changeunits. Entity `@Indexed` and
+`@CompoundIndex` annotations are **inert** — `spring.data.mongodb.auto-index-creation=false` — so an
+annotation without a matching changeunit creates no index.
+
+## Error handling
+
+All API errors use `io.boomerang.common.error.RestErrorResponse`:
+
+| Field | Description |
+|---|---|
+| timestamp | UTC timestamp of when the error occurred |
+| code | unique identifier (int) for handling errors programmatically |
+| reason | unique identifier (string) for searching for more information |
+| message | a description intended for a human end user |
+| status | HTTP status code and message |
+| cause | present only when `flow.error.include-cause=true` |
 
 ```json
 {
   "timestamp": "2023-01-31T00:15:12.672+00:00",
-  "code": 1001
+  "code": 1001,
   "reason": "QUERY_INVALID_FILTERS",
   "message": "Invalid query filters(status) have been provided.",
   "status": "400 BAD_REQUEST",
@@ -146,26 +136,31 @@ The format can be seen in `io.boomerang.error.ErrorDetail.java`
 }
 ```
 
-### Implementation
+Known codes are indexed in `io.boomerang.common.error.BoomerangError`, with the message text in
+`messages.properties`. A custom exception can be thrown instead, at the cost of localisation.
 
-The implementation allows for known and custom exceptions in the code.
-
-Known codes are indexed in the `io.boomerang.error.BoomerangError.java` with the message text in `messages.properties`.
-Alternatively, a custom exception can be thrown in the code however this will lose the benefit of localization (
-_future_)
-
-## Feature Flags
+## Feature flags
 
 ### Security
 
-Security is enabled / disabled through the `flow.security.enabled` flag in the application.properties (default derives from `flow.mode`: `standalone` = enabled, `engine` = disabled)
+Security is toggled by `flow.security.enabled`. Its default derives from `flow.mode` — `standalone` enables
+it, `engine` disables it — unless set explicitly. These classes load conditionally:
 
-The following classes are conditionally loaded based on this flag
+| Class | Loaded when |
+|---|---|
+| `AuthenticationFilter` | true |
+| `SecurityInterceptorConfiguration` (and so `SecurityInterceptor`) | true |
+| `SecurityConfiguration` | true |
+| `SecurityDisabledConfiguration` | false |
 
-| Class                                                              | Condition |
-|---------------------------------------------------------------------|-----------|
-| AuthenticationFilter                                                 | true      |
-| SecurityInterceptorConfiguration (and by association SecurityInterceptor) | true      |
-| SecurityConfiguration                                                | true      |
-| SecurityDisabledConfiguration                                        | false     |
+### Quotas
 
+`flow.quotas.enabled` gates workspace quota enforcement, defaulting from `flow.mode` the same way — on for
+`standalone`, off for `engine`, where there is no workspace to scope a quota to.
+
+## History
+
+The v3 → v4 rewrite of the engine is documented in:
+
+- [Model changes and v3 to v4 model comparison](https://github.com/boomerang-io/roadmap/issues/368)
+- [Distributed async architecture change](https://github.com/boomerang-io/architecture/tree/feat-v4)
