@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { uniqueName, createWorkspace, createWorkflow, submitWorkflowRun, executionStatusCopy } from "../support/api";
+import {
+  uniqueName,
+  createWorkspace,
+  createWorkflow,
+  submitWorkflowRun,
+  executionStatusCopy,
+  APP_BASENAME,
+} from "../support/api";
 
 /*
  * Submit a run via the API (no agent is part of this stack - see docker-compose.yml's
@@ -23,7 +30,7 @@ test("submitted run is visible in Activity with the correct status", async ({ pa
   const expectedStatusText = executionStatusCopy[run.status];
   expect(expectedStatusText, `no UI copy mapped for backend status "${run.status}" - update support/api.ts`).toBeTruthy();
 
-  await page.goto(`/${workspace.name}/activity`);
+  await page.goto(`${APP_BASENAME}/${workspace.name}/activity`);
 
   const row = page.getByTestId("configuration-property-table-row").filter({ hasText: workflow.displayName });
   await expect(row).toBeVisible();

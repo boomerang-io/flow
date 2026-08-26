@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniqueName } from "../support/api";
+import { uniqueName, APP_BASENAME } from "../support/api";
 
 /*
  * Admin screen journey: change a platform setting seeded by service-loader
@@ -17,7 +17,7 @@ import { uniqueName } from "../support/api";
 test("admin settings: changing a platform setting persists", async ({ page }) => {
   const newAppName = uniqueName("e2e-app-name");
 
-  await page.goto("/admin/settings");
+  await page.goto(`${APP_BASENAME}/admin/settings`);
 
   // "Configure Customizations" is not the first (auto-open) accordion group, so open it.
   await page.getByText("Configure Customizations").click();

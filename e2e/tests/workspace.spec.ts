@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniqueName, getWorkspace } from "../support/api";
+import { uniqueName, getWorkspace, APP_BASENAME } from "../support/api";
 
 /*
  * Create a workspace end to end through the UI, then confirm it actually exists in the real
@@ -11,7 +11,7 @@ import { uniqueName, getWorkspace } from "../support/api";
 test("create a workspace and see it in the workspace list", async ({ page, request }) => {
   const displayName = uniqueName("e2e-workspace");
 
-  await page.goto("/home");
+  await page.goto(`${APP_BASENAME}/home`);
 
   await page.getByTestId("workflows-create-workflow-button").click();
   await page.getByTestId("text-input-workspace-name").fill(displayName);
