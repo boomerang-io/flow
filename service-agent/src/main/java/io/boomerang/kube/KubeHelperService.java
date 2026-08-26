@@ -1,6 +1,7 @@
 package io.boomerang.kube;
 
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
@@ -121,7 +122,7 @@ public class KubeHelperService {
               params.stream().map(RunParam::getName).collect(Collectors.joining(","))));
       Map<String, String> paramNameByEnvName = new HashMap<>();
       for (RunParam p : params) {
-        String name = "PARAM_" + p.getName().toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
+        String name = "PARAM_" + ParameterUtil.envFold(p.getName());
         String collidingParam = paramNameByEnvName.put(name, p.getName());
         if (collidingParam != null) {
           throw new BoomerangException(

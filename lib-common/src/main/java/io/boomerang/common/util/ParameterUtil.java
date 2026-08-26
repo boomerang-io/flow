@@ -75,7 +75,9 @@ public class ParameterUtil {
    * vars and, under case-insensitive matching, as references.
    */
   public static String envFold(String name) {
-    return name.toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
+    // Locale.ROOT: the fold must match task-core's JavaScript toUpperCase() on every JVM locale
+    // (Turkish dotted-I would otherwise fold "id" to PARAM__D instead of PARAM_ID).
+    return name.toUpperCase(Locale.ROOT).replaceAll("[^A-Za-z0-9_]", "_");
   }
 
   /*
