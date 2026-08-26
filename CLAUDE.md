@@ -183,7 +183,8 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
   `bfd` prefix) shipped with T6-1.
-- **`flow.security.enabled=false` — NPEs FIXED, the product decision is still open.**
+- ~~`flow.security.enabled=false` blank-page / identity gap~~ **RESOLVED (2026-08-26)**: the ruled virtual admin identity (`UnauthenticatedGlobalToken.virtualUser()`, never persisted — `specifications/authentication.md` "Security-off identity") closes it; the e2e suite runs fully green against the compose stack. Historical detail follows.
+- **`flow.security.enabled=false` — NPEs FIXED, the product decision WAS open (ruled 2026-08-26, see above).**
   `IdentityService.getCurrentPrincipal()`/`getCurrentScope()` and
   `UserService.getCurrentUser()`/`isCurrentUserAdmin()` are now null-safe: they return `null` for
   the no-principal case rather than NPE-ing, mirroring `RelationshipService.check()`'s existing
