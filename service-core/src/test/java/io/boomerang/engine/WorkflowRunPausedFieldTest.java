@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.workflow.WorkflowRunService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,6 +21,8 @@ class WorkflowRunPausedFieldTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowRunService workflowRunService;
 
+  @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
+
   @Test
   void pausingARunFlipsTheWireBooleanWithoutChangingStatusOrPhase() {
     WorkflowRunEntity wfRun =
@@ -28,7 +31,7 @@ class WorkflowRunPausedFieldTest extends AbstractEngineIntegrationTest {
     WorkflowRun beforePause = workflowRunService.get(wfRun.getId(), false);
     assertFalse(beforePause.isPaused(), "a run with no pauseRequestedAt must report unpaused");
 
-    boolean won = workflowRunService.tryPause(wfRun.getId());
+    boolean won = workflowRunStateHelper.tryPause(wfRun.getId());
     assertTrue(won, "the Compare-And-Set must win on a running, not-yet-paused run");
 
     WorkflowRunEntity persisted = workflowRunRepository.findById(wfRun.getId()).orElseThrow();

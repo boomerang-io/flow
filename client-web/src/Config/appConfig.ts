@@ -3,11 +3,20 @@
 import { StringifyOptions } from "query-string";
 import { Envs } from "Constants";
 
+// Framework mode's ssr:false build still runs this module once in Node (to prerender
+// server/build/index.html's root shell - see react-router.config.ts) before it ever runs in a
+// browser, so the `window` read below needs the same guard any SSR-reachable module needs -
+// `window` itself doesn't exist yet at that point. Runtime behaviour in the browser (including
+// the window._SERVER_DATA override) is unchanged.
 export const APP_ROOT =
-  window._SERVER_DATA && window._SERVER_DATA.APP_ROOT ? window._SERVER_DATA.APP_ROOT : "/apps/flow";
+  typeof window !== "undefined" && window._SERVER_DATA && window._SERVER_DATA.APP_ROOT
+    ? window._SERVER_DATA.APP_ROOT
+    : "/apps/flow";
 
 export const CORE_ENV_URL =
-  window._SERVER_DATA && window._SERVER_DATA.CORE_ENV_URL ? window._SERVER_DATA.CORE_ENV_URL : "";
+  typeof window !== "undefined" && window._SERVER_DATA && window._SERVER_DATA.CORE_ENV_URL
+    ? window._SERVER_DATA.CORE_ENV_URL
+    : "";
 
 export const BASE_DOCUMENTATION_URL = "https://www.useboomerang.io/docs/boomerang-flow";
 

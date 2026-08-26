@@ -2,10 +2,13 @@ package io.boomerang.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.config.MongoConfiguration;
 import io.boomerang.core.entity.RelationshipEdgeEntity;
 import io.boomerang.core.entity.RelationshipNodeEntity;
@@ -15,6 +18,7 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RelationshipEdgeRepository;
 import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.AuthScope;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
@@ -278,10 +282,10 @@ class RelationshipServiceTest {
 
   @Test
   @DisplayName(
-      "With no principal on the SecurityContext, check()/filter() behave unscoped instead of"
-          + " throwing (e.g. flow.mode=engine with security disabled)")
-  void noPrincipalIsUnscopedNotDenied() {
-    when(identityService.getCurrentIdentity()).thenReturn(null);
+      "With security disabled the established UnauthenticatedGlobalToken behaves unscoped, exactly"
+          + " as the deleted no-principal branches did (e.g. flow.mode=engine)")
+  void securityDisabledIdentityIsUnscopedNotDenied() {
+    when(identityService.getCurrentIdentity()).thenReturn(new UnauthenticatedGlobalToken());
 
     assertTrue(
         service.check(RelationshipType.WORKFLOW, "w1", Optional.empty(), Optional.empty()));
@@ -308,5 +312,101 @@ class RelationshipServiceTest {
     assertEquals("acme", service.getSlugByRefForType(RelationshipType.WORKSPACE, "t1"));
     service.updateNodeByRefOrSlug(RelationshipType.WORKSPACE, "t1", "renamed");
     assertEquals("renamed", service.getSlugByRefForType(RelationshipType.WORKSPACE, "t1"));
+  }
+
+  @Test
+  @DisplayName(
+      "With no principal, the \"for the current principal\" mutation overloads fail clearly"
+          + " (AUTH_REQUIRED) instead of NPE-ing - unlike check()/filter(), there is no \"me\" to"
+          + " create/update/remove an edge for")
+  void noPrincipalMutationOverloadsFailClearlyNotNpe() {
+    when(identityService.getCurrentIdentity()).thenReturn(null);
+
+    assertThrows(
+        BoomerangException.class,
+        () -> service.createEdge(RelationshipType.WORKSPACE, "t1", Optional.empty()));
+    assertThrows(
+        BoomerangException.class,
+        () -> service.updateEdgeData(RelationshipType.WORKSPACE, "t1", Map.of("role", "owner")));
+    assertThrows(
+        BoomerangException.class, () -> service.removeEdge(RelationshipType.WORKSPACE, "t1"));
+
+    try {
+      service.removeEdge(RelationshipType.WORKSPACE, "t1");
+    } catch (BoomerangException ex) {
+      assertEquals(BoomerangError.AUTH_REQUIRED.getReason(), ex.getReason());
+    }
+  }
+
+  /**
+   * TRIPWIRE — {@code check()} and {@code filter()} are NOT equivalent for a {@code global}-scoped
+   * identity, and the difference is load-bearing for tenant containment.
+   *
+   * <p>{@code filter()}'s {@code case global} swaps only the ANCHOR to {@code root}; it still runs
+   * the walk with {@code intermediateType}/{@code intermediateList} intact, so a
+   * workspace-containment constraint is still honoured. {@code check()}'s {@code case global}
+   * returns {@code true} BEFORE {@code hasNodes()} is reached, so the intermediate is never
+   * evaluated and containment silently evaporates.
+   *
+   * <p>That asymmetry matters because callers in {@code WorkspaceWorkflowRunService} (lines 58,
+   * 174, 195, 214, 235, 254, 273) pass {@code WORKSPACE=[team]} as the intermediate and rely on
+   * {@code check()} for tenant containment and existence, not merely for authz narrowing. Six of
+   * those seven mutate state.
+   *
+   * <p><b>This is NOT specific to the security-disabled path.</b> Deleting {@code check()}'s
+   * no-principal branch did not close it: the branch returned {@code true} explicitly "mirroring
+   * the global token case below", and the established {@code UnauthenticatedGlobalToken} now
+   * reaches that very same {@code case global}. The first assertion below is therefore driven by a
+   * GENUINE {@code global} token - a real admin/service credential under {@code
+   * flow.security.enabled=true} - to pin that the defect is pre-existing and independent of this
+   * change. Closing it is a separate maintainer decision about containment semantics for global
+   * tokens.
+   */
+  @Test
+  @DisplayName(
+      "For a global-scoped token, check() drops the workspace-containment intermediate while"
+          + " filter() preserves it - security-enabled and security-disabled alike")
+  void globalScopeCheckDropsContainmentButFilterKeepsIt() {
+    node("workflowrun", "r1", "r1");
+    node("workflowrun", "r2", "r2");
+    edge("workspace:t1", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r1", Map.of());
+    edge("workspace:t2", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r2", Map.of());
+
+    // A REAL global token, as minted for an admin/service caller with security ENABLED.
+    Token globalToken = new Token(AuthScope.global);
+    globalToken.setPrincipal("admin-1");
+    when(identityService.getCurrentIdentity()).thenReturn(globalToken);
+
+    // r2 belongs to workspace t2. Asking "is r2 contained in t1?" must be false, but check()
+    // short-circuits to true without ever evaluating the intermediate.
+    assertTrue(
+        service.check(
+            RelationshipType.WORKFLOWRUN,
+            "r2",
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of("t1"))),
+        "KNOWN GAP: check() returns true for a run in ANOTHER workspace because `case global`"
+            + " skips the containment intermediate entirely");
+
+    // The synthetic security-off identity reaches the SAME branch, so it inherits the same gap.
+    when(identityService.getCurrentIdentity()).thenReturn(new UnauthenticatedGlobalToken());
+    assertTrue(
+        service.check(
+            RelationshipType.WORKFLOWRUN,
+            "r2",
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of("t1"))),
+        "the security-off identity inherits the global branch's containment gap unchanged");
+
+    // filter(), given the same containment constraint, correctly excludes r2.
+    assertEquals(
+        List.of("r1"),
+        service.filter(
+            RelationshipType.WORKFLOWRUN,
+            Optional.of(List.of("r1", "r2")),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of("t1")),
+            false),
+        "filter() anchors at root but still honours the intermediate, so containment holds");
   }
 }

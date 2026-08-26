@@ -1,7 +1,7 @@
 import React from "react";
 import { Helmet } from "react-helmet";
-import { resolver } from "Config/servicesConfig";
-import { useMutation } from "react-query";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 import sortBy from "lodash/sortBy";
 import { Button, DataTable, InlineNotification } from "@carbon/react";
 import { ConfirmModal, Error404, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
@@ -9,9 +9,93 @@ import CreateEditGroupModal from "./CreateEditGroupModal";
 import moment from "moment";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { sortKeyDirection } from "Utils/arrayHelper";
-import { FlowWorkspace, ApproverGroup, Approver } from "Types";
+import { ApproverGroup, Approver } from "Types";
 import { TrashCan } from "@carbon/react/icons";
+import { useFetcher } from "react-router-dom";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./approverGroups.module.scss";
+
+// Route module for the Approver Groups tab (app/routes/manageWorkspaceApproverGroups.tsx). Both
+// writes on this tab - the delete below and the create/update in CreateEditGroupModalContent -
+// post to this one action, keyed by an `intent` form field; a fetcher with no explicit action
+// path resolves to the nearest matched route, which is this tab. Settling the fetcher
+// revalidates the parent layout route's loader, which is where the group list comes from.
+//
+// Intent names are approver-group-scoped, not bare verbs: every tab under the Manage Workspace
+// layout route submits to the same matched route tree, and that route's shouldRevalidate
+// (../WorkspaceDetailed) keys off the Settings tab's workspace-level intents. A bare "delete"
+// here collided with the workspace delete and had its revalidation suppressed, so a deleted
+// group stayed on screen.
+export const ApproverGroupIntent = {
+  Delete: "deleteApproverGroup",
+  Save: "saveApproverGroup",
+} as const;
+
+export type ApproverGroupsActionResult = {
+  ok: boolean;
+  intent: (typeof ApproverGroupIntent)[keyof typeof ApproverGroupIntent];
+  /** Present for "save": distinguishes the created/updated toast. */
+  isEdit?: boolean;
+  /** The name shown in the resulting toast. */
+  name: string;
+  errorMessage?: { title: string; message: string };
+};
+
+export async function action({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<ApproverGroupsActionResult> {
+  const workspace = String(params.workspace);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
+
+  if (intent === ApproverGroupIntent.Delete) {
+    const groupId = String(formData.get("groupId"));
+    const name = String(formData.get("name"));
+    try {
+      // DELETE with a request body, matching the previous resolver.deleteApproverGroup.
+      await serverFetch(request).delete(serviceUrl.resourceApproverGroups({ workspace }), { data: [groupId] });
+      return { ok: true, intent: ApproverGroupIntent.Delete, name };
+    } catch (error) {
+      return {
+        ok: false,
+        intent: ApproverGroupIntent.Delete,
+        name,
+        errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Approver Group Failed" }),
+      };
+    }
+  }
+
+  const isEdit = formData.get("isEdit") === "true";
+  const groupId = formData.get("groupId") ? String(formData.get("groupId")) : null;
+  const approverGroup = {
+    name: String(formData.get("name")),
+    groupId,
+    approvers: JSON.parse(String(formData.get("approvers"))),
+  };
+  try {
+    const response = await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), {
+      approverGroups: [approverGroup],
+    });
+    // Pre-existing quirk preserved: patchWorkspace returns the *workspace*, so the toast has
+    // always echoed the workspace name here rather than the group name.
+    return { ok: true, intent: ApproverGroupIntent.Save, isEdit, name: response.data.name };
+  } catch (error) {
+    return {
+      ok: false,
+      intent: ApproverGroupIntent.Save,
+      isEdit,
+      name: approverGroup.name,
+      errorMessage: formatErrorMessage({
+        error,
+        defaultMessage: `${!isEdit ? "Create" : "Update"} Approver Group Failed`,
+      }),
+    };
+  }
+}
 
 const HEADERS = [
   {
@@ -36,45 +120,46 @@ const HEADERS = [
   },
 ];
 
-function ApproverGroups({
-  workspace,
-  canEdit,
-  workspaceDetailsUrl,
-}: {
-  workspace: FlowWorkspace;
-  canEdit: boolean;
-  workspaceDetailsUrl: string;
-}) {
+// Approver Groups tab of /:workspace/manage (app/routes/manageWorkspaceApproverGroups.tsx). The
+// workspace and `canEdit` arrive from the parent layout route's <Outlet context> rather than as
+// props, and the groups themselves are read off that loader-supplied workspace record.
+function ApproverGroups() {
+  const { workspace, canEdit } = useWorkspaceDetailedContext();
   const [sortKey, setSortKey] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("ASC");
   const approverGroups = workspace?.approverGroups ?? [];
-  /** Delete Workspace Approver Group */
-  const deleteApproverGroupMutation = useMutation(resolver.deleteApproverGroup);
+  /** Delete Workspace Approver Group - see this file's `action`. */
+  const fetcher = useFetcher<ApproverGroupsActionResult>();
 
-  const deleteApproverGroup = async (approverGroup: ApproverGroup) => {
-    try {
-      await deleteApproverGroupMutation.mutateAsync({ workspace: workspace?.name, groupId: approverGroup.id });
-      //TODO - replace with invalidate Workspace
-      // queryClient.invalidateQueries(serviceUrl.resourceApproverGroups({ workspaceId: activeWorkspace?.id, groupId: undefined })),
-      notify(
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== ApproverGroupIntent.Delete) {
+      return;
+    }
+    const { ok, name, errorMessage } = fetcher.data;
+    notify(
+      ok ? (
         <ToastNotification
           kind="success"
           title={"Approver Group Deleted"}
-          subtitle={`Request to delete ${approverGroup.name} succeeded`}
+          subtitle={`Request to delete ${name} succeeded`}
           data-testid="delete-approver-group-notification"
-        />,
-      );
-    } catch (err) {
-      const errorMessages = formatErrorMessage({ error: err, defaultMessage: "Delete Approver Group Failed" });
-      notify(
+        />
+      ) : (
         <ToastNotification
           kind="error"
-          title={errorMessages.title}
-          subtitle={errorMessages.message}
+          title={errorMessage?.title ?? "Something's Wrong"}
+          subtitle={errorMessage?.message}
           data-testid="delete-approver-group-notification"
-        />,
-      );
-    }
+        />
+      ),
+    );
+  }, [fetcher.state, fetcher.data]);
+
+  const deleteApproverGroup = (approverGroup: ApproverGroup) => {
+    fetcher.submit(
+      { intent: ApproverGroupIntent.Delete, groupId: approverGroup.id ?? "", name: approverGroup.name },
+      { method: "post" },
+    );
   };
 
   const renderCell = (groupId: string, cellIndex: number, value: any) => {
@@ -100,7 +185,6 @@ function ApproverGroups({
               approverGroup={approverGroup}
               approverGroups={approverGroups}
               workspace={workspace}
-              workspaceDetailsUrl={workspaceDetailsUrl}
             />
             <ConfirmModal
               modalTrigger={({ openModal }: any) => (
@@ -197,7 +281,7 @@ function ApproverGroups({
           </p>
         </div>
         {canEdit && (
-          <CreateEditGroupModal approverGroups={approverGroups} workspace={workspace} workspaceDetailsUrl={workspaceDetailsUrl} />
+          <CreateEditGroupModal approverGroups={approverGroups} workspace={workspace} />
         )}
       </section>
       {totalItems > 0 ? (

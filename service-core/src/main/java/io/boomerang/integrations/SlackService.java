@@ -28,6 +28,7 @@ import com.slack.api.model.view.View.ViewBuilder;
 import com.slack.api.model.view.ViewClose;
 import com.slack.api.model.view.ViewSubmit;
 import com.slack.api.model.view.ViewTitle;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
@@ -37,7 +38,6 @@ import io.boomerang.config.FlowMode;
 import io.boomerang.core.SettingsService;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.entity.IntegrationsEntity;
-import io.boomerang.api.WorkspaceWorkflowService;
 import io.boomerang.integrations.repository.IntegrationsRepository;
 import java.io.IOException;
 import java.net.URI;
@@ -85,14 +85,14 @@ public class SlackService {
 
   private final SettingsService settingsService;
   private final IntegrationsRepository extensionsRepository;
-  private final WorkspaceWorkflowService workspaceWorkflowService;
+  private final WorkflowService workflowService;
 
   public SlackService(
       SettingsService settingsService,
-      WorkspaceWorkflowService workspaceWorkflowService,
+      WorkflowService workflowService,
       IntegrationsRepository extensionsRepository) {
     this.settingsService = settingsService;
-    this.workspaceWorkflowService = workspaceWorkflowService;
+    this.workflowService = workflowService;
     this.extensionsRepository = extensionsRepository;
   }
 
@@ -152,7 +152,7 @@ public class SlackService {
           // Trigger workflow Execution and impersonate Slack user
           String userEmail = userInfo.getUser().getProfile().getEmail();
           if (userEmail != null && canExecuteWorkflow(workflowId, userEmail)) {
-            workflow = workspaceWorkflowService.get(teamId, workflowId, Optional.empty(), false);
+            workflow = workflowService.get(teamId, workflowId, Optional.empty(), false);
             if (workflow != null) {
               modalViewBuilder.submit(
                   ViewSubmit.builder()
@@ -371,7 +371,7 @@ public class SlackService {
           if (userEmail != null && canExecuteWorkflow(workflowId, userEmail)) {
             WorkflowSubmitRequest request = new WorkflowSubmitRequest();
             request.setTrigger(TriggerEnum.webhook);
-            WorkflowRun workflowRun = workspaceWorkflowService.submit(teamId, workflowId, request, true);
+            WorkflowRun workflowRun = workflowService.submit(teamId, workflowId, request, true);
             LOGGER.debug(workflowRun.toString());
 
             // ChatPostMessageResponse messageResponse = slack.methods(authToken)

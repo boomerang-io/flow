@@ -1,55 +1,44 @@
+import React from "react";
 import { notify, Loading, ModalForm, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import ReactMarkdown from "react-markdown";
-import { useWorkspaceContext } from "Hooks";
-import { useQueryClient, useMutation } from "react-query";
+import { useFetcher } from "react-router-dom";
 import "Styles/markdown.css";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import type { ActionResult } from "Features/WorkflowRun/WorkflowRun";
 
 type Props = {
   actionId?: string;
   closeModal: () => void;
   instructions?: string;
-  workflowRunId: string;
 };
 
-// TODO: update to load info about the approval
-// Need to get the approval and the instructions
-function TaskApprovalModal({ actionId, closeModal, instructions, workflowRunId }: Props) {
-  const queryClient = useQueryClient();
-  const { workspace } = useWorkspaceContext();
+function TaskApprovalModal({ actionId, closeModal, instructions }: Props) {
+  // Submits to the run route's `action` (WorkflowRun.tsx); its completion revalidates the route
+  // loader, replacing the invalidateQueries(getWorkflowRun) this used to do onSuccess.
+  const fetcher = useFetcher<ActionResult>();
+  const approvalsIsLoading = fetcher.state !== "idle";
+  const approvalsError = Boolean(fetcher.data && !fetcher.data.ok);
 
-  const {
-    mutateAsync: approvalMutator,
-    isLoading: approvalsIsLoading,
-    error: approvalsError,
-  } = useMutation(resolver.putAction, {
-    onSuccess: () => {
-      queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace.name, id: workflowRunId }));
-    },
-  });
-
-  const handleSubmit = async (approvalValue: boolean) => {
-    const body = [
-      {
-        id: actionId,
-        approved: approvalValue,
-        comments: "",
-      },
-    ];
-    try {
-      await approvalMutator({ workspace: workspace.name, body });
-      notify(
-        <ToastNotification
-          kind="success"
-          title="Manual Task"
-          subtitle={"Successfully submitted manual task completion request"}
-        />,
-      );
-      closeModal();
-    } catch (err) {
-      // noop
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || !fetcher.data.ok) {
+      return;
     }
+    notify(
+      <ToastNotification
+        kind="success"
+        title="Manual Task"
+        subtitle={"Successfully submitted manual task completion request"}
+      />,
+    );
+    closeModal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  const handleSubmit = (approvalValue: boolean) => {
+    fetcher.submit(
+      { intent: "action", actionId: actionId ?? "", approved: String(approvalValue), comments: "" },
+      { method: "post" },
+    );
   };
 
   return (

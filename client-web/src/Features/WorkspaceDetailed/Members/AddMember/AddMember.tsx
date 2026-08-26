@@ -31,19 +31,18 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
     setMembers(newMembers);
   };
 
-  const handleInternalSubmit = async (e: React.SyntheticEvent<HTMLButtonElement>, closeModal: Function) => {
+  // The submit is a route-action fetcher now (see ../Members), which settles asynchronously - so
+  // `closeModal` is handed over rather than called here, and Members invokes it once the add
+  // actually succeeds. Previously the mutation swallowed its own errors, so this closed the modal
+  // either way; a failed add now keeps it open and shows the inline error below.
+  const handleInternalSubmit = (e: React.SyntheticEvent<HTMLButtonElement>, closeModal: Function) => {
     e.preventDefault();
     const addMemberRequestData: Array<NewMember> = members.map((user) => ({
       email: user.email,
       role: user.role,
     }));
 
-    try {
-      await handleSubmit(addMemberRequestData);
-      closeModal();
-    } catch (error) {
-      // noop
-    }
+    handleSubmit(addMemberRequestData, closeModal);
   };
 
   const memberEmailList = memberList?.map((member) => member.email);
@@ -93,7 +92,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                       <TextInput
                         id="email"
                         invalid={emailIsInvalid}
-                        invalidText={errors.email}
+                        invalidText={typeof errors.email === "string" ? errors.email : undefined}
                         labelText="Email"
                         onBlur={handleBlur}
                         onChange={handleChange}
@@ -110,7 +109,6 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                         selectedItem={values.role}
                         label="Role"
                         titleText="Role"
-                        placeholder="Select role"
                       />
                       <Button
                         kind="tertiary"

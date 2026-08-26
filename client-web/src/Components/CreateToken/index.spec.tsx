@@ -1,33 +1,39 @@
 import React from "react";
-import { startApiServer } from "ApiServer";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { Route } from "react-router-dom";
 import { profile } from "ApiServer/fixtures";
 import { TokenType } from "Constants";
-import { serviceUrl } from "Config/servicesConfig";
+import { workflowTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
 import CreateServiceTokenButton from "./CreateToken";
 
-let server: any;
-const getTokensUrl = serviceUrl.getTokens({ query: "" });
+// The `getTokensUrl` prop is gone: the form posts the shared "create" intent to the matched
+// route's action and the list refreshes by revalidating that route's loader, so this spec has to
+// render inside a real loader/action-carrying <Route> (the same shape the router config uses)
+// rather than rtlContextRouterRender's catch-all. The loader is what supplies PermissionSelector
+// with its server-driven catalog, which a `key`-type token renders.
+const ROUTE_PATH = "/:workspace/editor/:workflow/*";
+const ROUTE = "/test-workspace/editor/test-workflow/configure/tokens";
+
 // The app populates AppContext.workspaces from the flat user.teams array
 // (see Features/App/App.tsx) -- not the paginated workspaces query response.
 const contextValue = { workspaces: profile.teams };
 
-beforeEach(() => {
-  document.body.setAttribute("id", "app");
-  server = startApiServer();
-});
-
-afterEach(() => {
-  server.shutdown();
-});
+function renderCreateToken() {
+  return global.rtlContextRouterRender(
+    <Route
+      path={ROUTE_PATH}
+      loader={workflowTokensLoader}
+      action={tokenAction}
+      element={<CreateServiceTokenButton type={TokenType.Key} />}
+    />,
+    { contextValue, route: ROUTE },
+  );
+}
 
 describe("CreateServiceTokenButton --- Snapshot", () => {
   it("Capturing Snapshot of CreateServiceTokenButton", async () => {
-    const { baseElement } = global.rtlContextRouterRender(
-      <CreateServiceTokenButton type={TokenType.Key} getTokensUrl={getTokensUrl} />,
-      { contextValue }
-    );
+    const { baseElement } = renderCreateToken();
     await screen.findByText(/Create Token/i);
     expect(baseElement).toMatchSnapshot();
   });
@@ -35,26 +41,40 @@ describe("CreateServiceTokenButton --- Snapshot", () => {
 
 describe("CreateServiceTokenButton --- RTL", () => {
   it("Open token creation modal", async () => {
-    global.rtlContextRouterRender(<CreateServiceTokenButton type={TokenType.Key} getTokensUrl={getTokensUrl} />, {
-      contextValue,
-    });
-    const button = screen.getByTestId(/create-token-button/i);
+    renderCreateToken();
+    const button = await screen.findByTestId(/create-token-button/i);
     expect(screen.queryByText(/Create new token/i)).not.toBeInTheDocument();
     userEvent.click(button);
-    expect(screen.getByText(/Create new token/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Create new token/i)).toBeInTheDocument();
+  });
+
+  it("Renders the server-driven permission grid for a non-user token", async () => {
+    renderCreateToken();
+    userEvent.click(await screen.findByTestId(/create-token-button/i));
+
+    // Role presets and the resource x action grid both come from GET /token/catalog, which the
+    // route loader fetched - so they are on screen without a loading pass. "Owner" is the first
+    // rolePresets key in the catalog fixture, selected by default; asserting on it (rather than
+    // just the grid disclosure) is what proves real catalog data arrived rather than the
+    // "Unable to load the permission catalog" fallback.
+    expect(await screen.findByText("Owner")).toBeInTheDocument();
+    expect(screen.getByText(/Customise permissions/i)).toBeInTheDocument();
   });
 
   it("Fill out form", async () => {
-    global.rtlContextRouterRender(<CreateServiceTokenButton type={TokenType.Key} getTokensUrl={getTokensUrl} />, {
-      contextValue,
-    });
-    const button = screen.getByTestId(/create-token-button/i);
+    renderCreateToken();
+    const button = await screen.findByTestId(/create-token-button/i);
     expect(screen.queryByText(/Create new token/i)).not.toBeInTheDocument();
     userEvent.click(button);
 
-    expect(screen.getByText(/Create new token/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Create new token/i)).toBeInTheDocument();
 
-    const nameInput = screen.getByLabelText(/^Name$/i);
+    // ModalFlow mounts the modal's header and its step body in separate commits: a run that
+    // caught the tree in between found the <h2>Create new token</h2> and the close button on
+    // screen with the whole <ModalBody> - and therefore this field - still absent, so a
+    // synchronous getByLabelText here failed with "Unable to find a label with the text of:
+    // /^Name$/i". The body is asynchronous, so the query has to be too.
+    const nameInput = await screen.findByLabelText(/^Name$/i);
     userEvent.type(nameInput, "my-test-token");
 
     const descriptionInput = screen.getByTestId("token-description");
@@ -62,7 +82,15 @@ describe("CreateServiceTokenButton --- RTL", () => {
 
     const createButton = screen.getByTestId(/create-token-submit/i);
 
-    expect(createButton).toBeEnabled();
+    // The submit button is `disabled={!isValid || isCreating}` (Form/index.tsx) and Formik's
+    // validation - Yup, `validateOnMount` - is asynchronous, so `isValid` reflects the name typed
+    // above only once that validation resolves. The synchronous assertion this replaces was
+    // passing for the wrong reason: Formik's `errors` starts out `{}`, which makes `isValid` true
+    // and the button briefly enabled BEFORE "Name is required" ever lands, so the check could
+    // succeed against pre-validation state. Making the queries above properly async moved the
+    // click past that window and turned this line red every time - which is how the wrong reason
+    // surfaced. Waiting asserts the same thing against settled validation.
+    await waitFor(() => expect(createButton).toBeEnabled());
     userEvent.click(createButton);
     expect(await screen.findByText(/Token successfully created/i)).toBeInTheDocument();
   });

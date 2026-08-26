@@ -1,5 +1,8 @@
 package io.boomerang.core;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.NavigationType;
 import io.boomerang.core.model.Features;
 import io.boomerang.core.model.Navigation;
@@ -221,10 +224,16 @@ public class NavigationService {
         uriComponents = uriComponentsBuilder.queryParam("teamId", optTeamId.get()).build();
       }
 
+      // The external navigation service is proxied on behalf of a real user (their email is the
+      // JWT subject) - unlike the Flow-internal navigation above, there is no sensible unscoped
+      // answer with no current user (e.g. security disabled), so fail clearly rather than NPE.
+      UserEntity currentUser = userService.getCurrentUser();
+      if (currentUser == null) {
+        throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
+      }
       HttpHeaders headers = new HttpHeaders();
       headers.add(
-          AUTHORIZATION_HEADER,
-          TOKEN_PREFIX + apiTokenService.createJWTToken(userService.getCurrentUser().getEmail()));
+          AUTHORIZATION_HEADER, TOKEN_PREFIX + apiTokenService.createJWTToken(currentUser.getEmail()));
       HttpEntity<String> request = new HttpEntity<>(headers);
       ResponseEntity<List<Navigation>> response =
           restTemplate.exchange(

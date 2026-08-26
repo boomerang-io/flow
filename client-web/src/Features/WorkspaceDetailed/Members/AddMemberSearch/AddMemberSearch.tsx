@@ -112,7 +112,9 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
     setSelectedUsers(users);
   };
 
-  const handleInternalSubmit = async (e: React.SyntheticEvent<HTMLButtonElement>) => {
+  // See AddMember.tsx: `closeModal` is handed to the route-action fetcher in ../Members and
+  // invoked once the add succeeds, rather than being called eagerly here.
+  const handleInternalSubmit = (e: React.SyntheticEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const addMemberRequestData: Array<Member> = selectedUsers.map((user) => ({
       id: user.id,
@@ -120,12 +122,7 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
       role: MemberRole.Editor,
     }));
 
-    try {
-      await handleSubmit(addMemberRequestData);
-      closeModal();
-    } catch (error) {
-      // noop
-    }
+    handleSubmit(addMemberRequestData, closeModal);
   };
 
   if (userQuery.error) {

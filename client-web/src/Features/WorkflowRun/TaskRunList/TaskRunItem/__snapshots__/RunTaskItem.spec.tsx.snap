@@ -1,0 +1,131 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TaskItem --- Snapshot > Capturing Snapshot of TaskItem 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <li
+      class="_taskitem_fe6a3c _succeeded_fe6a3c"
+      id="task-Send Slack Message"
+    >
+      <div
+        class="_progressBar_fe6a3c"
+      />
+      <section
+        class="_header_fe6a3c"
+      >
+        <div
+          class="_title_fe6a3c"
+        >
+          <svg
+            aria-label="succeeded"
+            class="_taskIcon_fe6a3c"
+            fill="currentColor"
+            focusable="false"
+            height="16"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            viewBox="0 0 32 32"
+            width="16"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+            />
+            <path
+              d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+            />
+          </svg>
+          <p
+            data-testid="taskitem-name"
+            title="Send Slack Message"
+          >
+            Send Slack Message
+          </p>
+        </div>
+        <div
+          class="_status_fe6a3c _succeeded_fe6a3c"
+        >
+          <svg
+            aria-label="succeeded"
+            class="_statusIcon_fe6a3c"
+            fill="currentColor"
+            focusable="false"
+            height="16"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            viewBox="0 0 32 32"
+            width="16"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+            />
+            <path
+              d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+            />
+          </svg>
+          <p>
+            Succeeded
+          </p>
+        </div>
+      </section>
+      <section
+        class="_data_fe6a3c"
+      >
+        <div
+          class="_time_fe6a3c"
+        >
+          <p
+            class="_timeTitle_fe6a3c"
+          >
+            Start time
+          </p>
+          <time
+            class="_timeValue_fe6a3c"
+          >
+            03:00:00 PM
+          </time>
+        </div>
+        <div
+          class="_time_fe6a3c"
+        >
+          <p
+            class="_timeTitle_fe6a3c"
+          >
+            Duration
+          </p>
+          <time
+            class="_timeValue_fe6a3c"
+          >
+            5 mins
+          </time>
+        </div>
+      </section>
+      <section
+        class="_data_fe6a3c"
+      >
+        <button
+          class="_modalTrigger_fe6a3c cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+          type="button"
+        >
+          View Details
+        </button>
+        <button
+          class="_trigger_0cae46 cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+          type="button"
+        >
+          View Log
+        </button>
+      </section>
+    </li>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

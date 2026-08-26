@@ -1,1 +1,1 @@
-export { default } from "./WorkspaceTasks";
+export { default, loader, action } from "./WorkspaceTasks";

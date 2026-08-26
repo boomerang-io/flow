@@ -6,11 +6,13 @@ import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
 import com.slack.api.app_backend.SlackSignature.Generator;
 import com.slack.api.app_backend.SlackSignature.Verifier;
+import io.boomerang.common.error.BoomerangError;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -27,6 +29,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -50,18 +53,30 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   //  private static final String X_SLACK_TIMESTAMP = "X-Slack-Request-Timestamp";
   private static final String PATH_ACTIVATE = "/api/v2/activate";
   private static final String PATH_PROFILE = "/api/v2/profile";
+  // The unified token exchange (specifications/authentication.md §1) is now, alongside
+  // PATH_PROFILE/PATH_ACTIVATE, a valid first call for a brand-new proxy-identified caller - so it
+  // gets the same allowActivation/allowUserCreation treatment below. It is ALSO the one path this
+  // filter must not reject with a 401 when it resolves no identity at all: the direct OIDC login
+  // body ({idToken}) carries no proxy headers, and the exchange controller verifies that token
+  // itself rather than relying on this filter.
+  static final String PATH_AUTH_EXCHANGE = "/api/v2/auth/exchange";
   private static final String TOKEN_PATTERN = "Bearer\\sbf._(.)+";
 
   private TokenService tokenService;
   private SettingsService settingsService;
   private String basicPassword;
+  private AuthenticationEntryPoint authEntryPoint;
 
   public AuthenticationFilter(
-      TokenService tokenService, SettingsService settingsService, String basicPassword) {
+      TokenService tokenService,
+      SettingsService settingsService,
+      String basicPassword,
+      AuthenticationEntryPoint authEntryPoint) {
     super();
     this.tokenService = tokenService;
     this.settingsService = settingsService;
     this.basicPassword = basicPassword;
+    this.authEntryPoint = authEntryPoint;
   }
 
   /*
@@ -90,23 +105,50 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         authentication = getTokenAuthentication(req.getParameter(TOKEN_URL_PARAM_NAME));
       } else if (req.getHeader(X_FORWARDED_EMAIL) != null) {
         authentication = getGithubUserAuthentication(req);
+      } else if (getSessionCookieValue(req) != null) {
+        authentication = getTokenAuthentication(getSessionCookieValue(req));
       }
 
       if (authentication != null) {
         LOGGER.debug("AuthFilter() - authorized.");
         SecurityContextHolder.getContext().setAuthentication(authentication);
         chain.doFilter(req, res);
+      } else if (req.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
+        // The exchange endpoint's direct OIDC login path verifies the id_token itself and has no
+        // proxy-forwarded identity to resolve here - permitAll in SecurityConfiguration lets an
+        // unauthenticated request continue past the authorization layer too.
+        chain.doFilter(req, res);
       } else {
         LOGGER.error("AuthFilter() - not authorized.");
-        res.sendError(401);
+        authEntryPoint.commence(
+            req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, null));
       }
     } catch (final HttpClientErrorException ex) {
       LOGGER.error(ex);
       res.sendError(ex.getStatusCode().value());
     } catch (AccessDeniedException | AuthenticationException ex) {
       LOGGER.error(ex);
-      res.sendError(401);
+      authEntryPoint.commence(
+          req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, ex.getMessage()));
     }
+  }
+
+  /*
+   * Extracts the opaque bfs_ value from the session cookie (SessionCookie.NAME), if present - the
+   * additional identity source minted by POST /api/v2/auth/exchange (specifications/authentication.md
+   * §1), added alongside the existing branches above, never in place of them.
+   */
+  private String getSessionCookieValue(HttpServletRequest request) {
+    Cookie[] cookies = request.getCookies();
+    if (cookies == null) {
+      return null;
+    }
+    for (Cookie cookie : cookies) {
+      if (SessionCookie.NAME.equals(cookie.getName())) {
+        return cookie.getValue();
+      }
+    }
+    return null;
   }
 
   /*
@@ -121,12 +163,14 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     final String token = request.getHeader(AUTHORIZATION_HEADER);
 
     boolean allowActivation = false;
-    if (request.getServletPath().startsWith(PATH_ACTIVATE)) {
+    if (request.getServletPath().startsWith(PATH_ACTIVATE)
+        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
       allowActivation = true;
     }
 
     boolean allowUserCreation = false;
-    if (request.getServletPath().startsWith(PATH_PROFILE)) {
+    if (request.getServletPath().startsWith(PATH_PROFILE)
+        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
       allowUserCreation = true;
     }
 
@@ -239,12 +283,14 @@ public class AuthenticationFilter extends OncePerRequestFilter {
    */
   private Authentication getGithubUserAuthentication(HttpServletRequest request) {
     boolean allowActivation = false;
-    if (request.getServletPath().startsWith(PATH_ACTIVATE)) {
+    if (request.getServletPath().startsWith(PATH_ACTIVATE)
+        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
       allowActivation = true;
     }
 
     boolean allowUserCreation = false;
-    if (request.getServletPath().startsWith(PATH_PROFILE)) {
+    if (request.getServletPath().startsWith(PATH_PROFILE)
+        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
       allowUserCreation = true;
     }
     String email = request.getHeader(X_FORWARDED_EMAIL);

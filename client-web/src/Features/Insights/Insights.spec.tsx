@@ -1,0 +1,162 @@
+import { vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import queryString, { StringifyOptions } from "query-string";
+import { Route } from "react-router-dom";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { server } from "ApiServer/msw/node";
+import { createRequestTrace } from "ApiServer/msw/requestTrace";
+import { WorkspaceContainer } from "Features/App/App";
+import { serviceUrl } from "Config/servicesConfig";
+import WorkflowInsights, { loader } from "./Insights";
+
+vi.mock("@carbon/charts-react", () => ({
+  DonutChart: () => <div>DonutChart</div>,
+  LineChart: () => <div>LineChart</div>,
+  ScatterChart: () => <div>ScatterChart</div>,
+}));
+
+vi.mock("@carbon/charts/interfaces", () => ({
+  Alignments: {},
+  LegendPositions: {},
+  ScaleTypes: {},
+}));
+
+const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skipEmptyString: true };
+const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js content[0] (setupTests.tsx's default workspace).
+
+// Route-module test pattern - see Activity.spec.tsx/GlobalParameters.spec.tsx. Wraps the same
+// WorkspaceContainer app/routes/insights.tsx does, since the header's workspace object
+// (displayName/breadcrumb) is still a client-side context concern - the loader itself only ever
+// needs the `:workspace` URL param (see Insights.tsx's module doc).
+function renderInsights(route: string = `/${WORKSPACE}/insights`) {
+  return global.rtlContextRouterRender(
+    <Route
+      path="/:workspace/insights"
+      loader={loader}
+      element={
+        <WorkspaceContainer>
+          <WorkflowInsights />
+        </WorkspaceContainer>
+      }
+    />,
+    { route },
+  );
+}
+
+describe("WorkflowInsights --- Snapshot", () => {
+  it("Capturing Snapshot of WorkflowInsights", async () => {
+    const { baseElement } = renderInsights();
+    await screen.findByTestId("completed-insights");
+    // eslint-disable-next-line testing-library/no-node-access
+    const a11yElement = baseElement.querySelector("#a11y-status-message");
+    if (baseElement.contains(a11yElement)) {
+      // eslint-disable-next-line testing-library/no-node-access
+      a11yElement?.parentNode?.removeChild(a11yElement);
+    }
+    expect(baseElement).toMatchSnapshot();
+  });
+});
+
+describe("WorkflowInsights --- RTL", () => {
+  test("filtering by status updates the URL search params", async () => {
+    const { history } = renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    userEvent.click(screen.getByRole("combobox", { name: /Filter by status/i }));
+    userEvent.click(screen.getAllByText("Failed")[0]);
+
+    await waitFor(() =>
+      expect(history.location.search).toBe("?" + queryString.stringify({ statuses: "failed" }, queryStringOptions)),
+    );
+  });
+
+  test("filtering by workflow updates the URL search params", async () => {
+    const { history } = renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    userEvent.click(screen.getByRole("combobox", { name: /Filter by Workflow/i }));
+    userEvent.click(await screen.findByText("Personal - Java - Deploy"));
+
+    await waitFor(() =>
+      expect(history.location.search).toBe(
+        "?" + queryString.stringify({ workflows: "Personal - Java - Deploy", page: 0 }, queryStringOptions),
+      ),
+    );
+  });
+});
+
+describe("WorkflowInsights --- loader error handling", () => {
+  test("does not throw when a fetch fails - surfaces per-source error flags instead", async () => {
+    // The loader must swallow each fetch's failure individually (errorLoadingInsights/
+    // errorLoadingWorkflows) rather than throw, per CLAUDE.md's "Loaders must not throw" rule.
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), () => HttpResponse.json({}, { status: 500 })),
+      http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+    const request = new Request(`http://localhost/${WORKSPACE}/insights`);
+
+    const data = await loader({ params: { workspace: WORKSPACE }, request });
+
+    expect(data.errorLoadingInsights).toBe(true);
+    expect(data.errorLoadingWorkflows).toBe(true);
+    expect(data.insights.runs).toEqual([]);
+    expect(data.workflowOptions).toEqual([]);
+  });
+});
+
+describe("WorkflowInsights --- loader concurrency", () => {
+  test("fires its two independent reads in one wave, not as a waterfall", async () => {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), trace.resolver("insights", {})),
+      http.get(
+        serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }),
+        trace.resolver("workflows", { content: [] }),
+      ),
+    );
+
+    await loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/insights`) });
+
+    expect(trace.startedTogether(2)).toBe(true);
+  });
+});
+
+// src/setupTests.tsx freezes the global clock here (vi.setSystemTime, no fake timers), so moving
+// it and putting it back is all these tests need - timers themselves are untouched, which matters
+// because msw and axios need real ones for the request to resolve.
+const SETUP_DATE = new Date("2020-01-01T00:00:00.000Z");
+
+async function atSystemTime<T>(isoDate: string, run: () => Promise<T>): Promise<T> {
+  vi.setSystemTime(new Date(isoDate));
+  try {
+    return await run();
+  } finally {
+    vi.setSystemTime(SETUP_DATE);
+  }
+}
+
+describe("WorkflowInsights --- default date window", () => {
+  // See Activity.spec.tsx: module-scope `moment()` defaults freeze at Node process boot under
+  // ssr:true, so every request reuses the boot-time window.
+  test("computes the default from/to dates per request, not at module load", async () => {
+    const captured: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), ({ request }) => {
+        captured.push(new URL(request.url).searchParams.get("fromDate"));
+        return HttpResponse.json({});
+      }),
+    );
+
+    const run = () =>
+      loader({ params: { workspace: WORKSPACE }, request: new Request(`http://localhost/${WORKSPACE}/insights`) });
+
+    await atSystemTime("2030-01-15T12:00:00.000Z", run);
+    await atSystemTime("2030-03-15T12:00:00.000Z", run);
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0]).not.toBe(captured[1]);
+  });
+});

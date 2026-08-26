@@ -1,7 +1,7 @@
 import React from "react";
-import { useQueryClient, useMutation } from "react-query";
+import { useMutation } from "react-query";
 import { Formik } from "formik";
-import { useHistory } from "react-router-dom";
+import { useFetcher, useNavigate } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
 import {
   notify,
@@ -10,12 +10,14 @@ import {
   TextInput,
   Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { resolver } from "Config/servicesConfig";
 import kebabcase from "lodash/kebabCase";
 import * as Yup from "yup";
 import { appLink } from "Config/appConfig";
 import styles from "./UpdateWorkspaceName.module.scss";
 import { FlowWorkspace } from "Types";
+import type { SettingsActionResult } from "../Settings";
+import { WorkspaceIntent } from "../../WorkspaceDetailed";
 
 interface UpdateWorkspaceNameProps {
   closeModal: () => void;
@@ -23,36 +25,50 @@ interface UpdateWorkspaceNameProps {
 }
 
 const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, workspace }) => {
-  const queryClient = useQueryClient();
-  const history = useHistory();
+  const navigate = useNavigate();
+  // The rename itself posts to the Settings tab's route action (see ../Settings).
+  const fetcher = useFetcher<SettingsActionResult>();
+  const isSubmitting = fetcher.state !== "idle";
+  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === WorkspaceIntent.Rename);
 
+  // The name-availability probe stays a direct browser call rather than moving to the route
+  // action: it runs inside Yup's async `test`, which needs a promise to await per keystroke, and
+  // fetcher.submit is fire-and-forget with no awaitable result. It is a validation probe, not the
+  // mutation - the mutation above is what moved.
   const validateWorkspaceNameMutator = useMutation(resolver.postWorkspaceValidateName);
-  const updateWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace);
-  const updateWorkspaceName = async (values: { name: string }) => {
-    const newWorkspaceName = kebabcase(values.name?.replace(`'`, "-"));
-    try {
-      await updateWorkspaceMutator.mutateAsync({
-        workspace: workspace.name,
-        body: {
-          name: newWorkspaceName,
-          displayName: values.name,
-        },
-      });
-      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: newWorkspaceName }));
-      history.push(appLink.manageWorkspaceSettings({ workspace: newWorkspaceName }));
+
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== WorkspaceIntent.Rename) {
+      return;
+    }
+    if (fetcher.data.ok) {
+      // The slug is part of the URL, so a rename has to move the router to the new one; the
+      // parent loader then re-fetches under the new :workspace param.
+      navigate(appLink.manageWorkspaceSettings({ workspace: String(fetcher.data.detail) }));
       notify(
         <ToastNotification kind="success" title="Update Workspace Settings" subtitle="Workspace settings successfully updated" />
       );
       closeModal();
-    } catch (error) {
+    } else {
       notify(<ToastNotification kind="error" subtitle="Failed to update workspace settings" title="Something's Wrong" />);
     }
+  }, [fetcher.state, fetcher.data, navigate, closeModal]);
+
+  const updateWorkspaceName = (values: { name: string }) => {
+    fetcher.submit(
+      {
+        intent: WorkspaceIntent.Rename,
+        name: kebabcase(values.name?.replace(`'`, "-")),
+        displayName: values.name,
+      },
+      { method: "post" },
+    );
   };
 
   let buttonText = "Save";
-  if (updateWorkspaceMutator.isLoading) {
+  if (isSubmitting) {
     buttonText = "Saving...";
-  } else if (updateWorkspaceMutator.isError) {
+  } else if (failed) {
     buttonText = "Try again";
   } else if (validateWorkspaceNameMutator.isLoading) {
     buttonText = "Validating...";
@@ -91,7 +107,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
           <ModalFlowForm>
             <ModalBody>
               <div className={styles.modalInputContainer}>
-                {updateWorkspaceMutator.isLoading && <Loading />}
+                {isSubmitting && <Loading />}
                 <TextInput
                   id="workspace-update-name-id"
                   data-testid="text-input-workspace-name"
@@ -108,7 +124,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
                       : errors.name
                   }
                 />
-                {updateWorkspaceMutator.error && (
+                {failed && (
                   <InlineNotification
                     lowContrast
                     kind="error"
@@ -138,7 +154,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
               <Button
                 disabled={Boolean(
                   errors.name ||
-                    updateWorkspaceMutator.isLoading ||
+                    isSubmitting ||
                     validateWorkspaceNameMutator.error ||
                     validateWorkspaceNameMutator.isLoading,
                 )}

@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.boomerang.api.WorkspaceWorkflowService;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.core.entity.SettingEntity;
@@ -26,7 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
 
-  @Autowired private WorkspaceWorkflowService workspaceWorkflowService;
+  @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
 
   @BeforeEach
@@ -40,7 +40,7 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
   void creatingAWorkflowWithAUniqueNameInTheWorkspaceSucceeds() {
     String workspace = createWorkspace("workflow-uniqueness-a");
 
-    Workflow workflow = workspaceWorkflowService.create(workspace, newWorkflow("unique-workflow"));
+    Workflow workflow = workflowService.create(workspace, newWorkflow("unique-workflow"));
 
     assertNotNull(workflow);
     assertEquals("unique-workflow", workflow.getName());
@@ -49,12 +49,12 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
   @Test
   void creatingAWorkflowWithADuplicateNameInTheSameWorkspaceIsRejected() {
     String workspace = createWorkspace("workflow-uniqueness-b");
-    workspaceWorkflowService.create(workspace, newWorkflow("duplicate-workflow"));
+    workflowService.create(workspace, newWorkflow("duplicate-workflow"));
 
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
-            () -> workspaceWorkflowService.create(workspace, newWorkflow("duplicate-workflow")));
+            () -> workflowService.create(workspace, newWorkflow("duplicate-workflow")));
     assertEquals("WORKFLOW_INVALID_REFERENCE", ex.getReason());
   }
 
@@ -62,9 +62,9 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
   void theSameWorkflowNameInADifferentWorkspaceIsNotADuplicate() {
     String workspaceA = createWorkspace("workflow-uniqueness-c");
     String workspaceB = createWorkspace("workflow-uniqueness-d");
-    workspaceWorkflowService.create(workspaceA, newWorkflow("shared-name"));
+    workflowService.create(workspaceA, newWorkflow("shared-name"));
 
-    Workflow workflow = workspaceWorkflowService.create(workspaceB, newWorkflow("shared-name"));
+    Workflow workflow = workflowService.create(workspaceB, newWorkflow("shared-name"));
 
     assertNotNull(workflow);
     assertEquals("shared-name", workflow.getName());

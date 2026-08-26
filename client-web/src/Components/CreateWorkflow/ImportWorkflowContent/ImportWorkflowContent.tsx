@@ -105,7 +105,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
   };
 
   return (
-    <Formik
+    <Formik<FormProps>
       initialValues={{
         name: "",
         displayName: "",

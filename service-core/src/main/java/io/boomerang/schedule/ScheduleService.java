@@ -19,7 +19,6 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.schedule.model.WorkflowScheduleCalendar;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
-import io.boomerang.api.WorkspaceWorkflowService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -54,21 +53,18 @@ public class ScheduleService {
   private final Logger LOGGER = LogManager.getLogger(getClass());
 
   private final WorkflowScheduleRepository scheduleRepository;
-  private final WorkspaceWorkflowService workspaceWorkflowService;
-  private final RelationshipService relationshipService;
   private final WorkflowService workflowService;
+  private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
 
   public ScheduleService(
       WorkflowScheduleRepository scheduleRepository,
-      WorkspaceWorkflowService workspaceWorkflowService,
-      RelationshipService relationshipService,
       WorkflowService workflowService,
+      RelationshipService relationshipService,
       MongoTemplate mongoTemplate) {
     this.scheduleRepository = scheduleRepository;
-    this.workspaceWorkflowService = workspaceWorkflowService;
-    this.relationshipService = relationshipService;
     this.workflowService = workflowService;
+    this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -368,7 +364,7 @@ public class ScheduleService {
          */
         WorkflowScheduleStatus newStatus = scheduleEntity.getStatus();
         Workflow workflow =
-            workspaceWorkflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
+            workflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
         Boolean enableJob = true;
         if (!previousStatus.equals(newStatus)) {
           if (WorkflowScheduleStatus.active.equals(previousStatus)

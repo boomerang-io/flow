@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.boomerang.api.WorkspaceTaskService;
+import io.boomerang.workflow.TaskService;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Task;
@@ -31,14 +31,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
 
-  @Autowired private WorkspaceTaskService workspaceTaskService;
+  @Autowired private TaskService taskService;
   @Autowired private WorkspaceService workspaceService;
 
   @BeforeEach
   void seedFixtures() {
     seedRelationshipRoot();
     seedTeamQuotaSettings();
-    // WorkspaceTaskService.internalCreate touches the changelog author off the current identity -
+    // TaskService.internalCreate touches the changelog author off the current identity -
     // a global principal keeps that path populated without needing a workspace membership edge.
     seedGlobalIdentity();
   }
@@ -52,7 +52,7 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
   void creatingATeamTaskWithAUniqueNameSucceeds() {
     String workspace = createWorkspace("task-uniqueness-a");
 
-    Task task = workspaceTaskService.create(workspace, newTask("unique-team-task"));
+    Task task = taskService.create(workspace, newTask("unique-team-task"));
 
     assertNotNull(task);
     assertEquals("unique-team-task", task.getName());
@@ -61,18 +61,18 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
   @Test
   void creatingATeamTaskWithADuplicateNameInTheSameWorkspaceIsRejected() {
     String workspace = createWorkspace("task-uniqueness-b");
-    workspaceTaskService.create(workspace, newTask("duplicate-team-task"));
+    taskService.create(workspace, newTask("duplicate-team-task"));
 
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
-            () -> workspaceTaskService.create(workspace, newTask("duplicate-team-task")));
+            () -> taskService.create(workspace, newTask("duplicate-team-task")));
     assertEquals("TASK_ALREADY_EXISTS", ex.getReason());
   }
 
   @Test
   void creatingAGlobalTaskWithAUniqueNameSucceeds() {
-    Task task = workspaceTaskService.create(newTask("unique-global-task"));
+    Task task = taskService.createGlobal(newTask("unique-global-task"));
 
     assertNotNull(task);
     assertEquals("unique-global-task", task.getName());
@@ -80,12 +80,12 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
 
   @Test
   void creatingAGlobalTaskWithADuplicateNameIsRejected() {
-    workspaceTaskService.create(newTask("duplicate-global-task"));
+    taskService.createGlobal(newTask("duplicate-global-task"));
 
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
-            () -> workspaceTaskService.create(newTask("duplicate-global-task")));
+            () -> taskService.createGlobal(newTask("duplicate-global-task")));
     assertEquals("TASK_ALREADY_EXISTS", ex.getReason());
   }
 

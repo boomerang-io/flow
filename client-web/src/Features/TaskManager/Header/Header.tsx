@@ -195,7 +195,8 @@ const Header: React.FC<HeaderProps> = ({
   isActive,
   isLoading,
 }) => {
-  const params: { workspace: string; name: string; version: string } = useParams();
+  const rawParams = useParams<{ workspace: string; name: string; version: string }>();
+  const params = { workspace: rawParams.workspace ?? "", name: rawParams.name ?? "", version: rawParams.version ?? "" };
 
   const TaskIcon = taskIcons.find((icon) => icon.name === selectedTaskTemplate.icon);
   const versionCount = changelog.length;
@@ -209,7 +210,7 @@ const Header: React.FC<HeaderProps> = ({
       footer={
         <Tabs ariaLabel="Task template views">
           <Tab
-            exact
+            end
             label="Overview"
             to={
               params.workspace
@@ -225,7 +226,7 @@ const Header: React.FC<HeaderProps> = ({
             }
           />
           <Tab
-            exact
+            end
             label="Editor"
             to={
               params.workspace

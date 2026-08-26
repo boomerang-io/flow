@@ -14,7 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Guards the worker-facing dispatcher endpoints ({@code /api/v1/dispatcher/**}) with a real Flow
+ * Guards the worker-facing v1 endpoints ({@code /api/v1/dispatcher/**}) with a real Flow
  * token (T6-1) — a global-scope token carrying a machine {@code actorKind} (see {@link
  * io.boomerang.core.security.enums.TokenActorKind}), minted through the existing token API. No
  * new {@code AuthScope} value or token prefix was added: the dispatcher token is deliberately an
@@ -38,7 +38,21 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class DispatcherAuthFilter extends OncePerRequestFilter {
 
-  private static final String DISPATCHER_PATH_PREFIX = "/api/v1/dispatcher/";
+  /**
+   * The worker-facing v1 surface — one prefix, because the whole v1 dispatcher protocol now lives
+   * under {@code /api/v1/dispatcher} (see {@link DispatcherControllerV1}).
+   *
+   * <p>History worth keeping: the filter originally matched this same single prefix while the four
+   * agent lifecycle callbacks sat on {@code /api/v1/taskrun/} and {@code /api/v1/workflowrun/}, so
+   * they were fully unauthenticated even though {@code service-agent}'s {@code EngineClient} calls
+   * all seven endpoints with the SAME bearer-attaching {@code internalRestTemplate} — the client was
+   * presenting a credential the server never read. The E1/E2 audit fixed that by adding the two
+   * extra prefixes; consolidating the routes removes the need for them. Those callbacks write
+   * terminal run status and task results, so they are at least as sensitive as the queue polls, and
+   * {@code DispatcherAuthTest} pins every one of them against a regression.
+   */
+  private static final String[] WORKER_PATH_PREFIXES = {"/api/v1/dispatcher/"};
+
   private static final String BEARER_PREFIX = "Bearer ";
 
   private final TokenService tokenService;
@@ -51,8 +65,14 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
-    // Only guard the dispatcher endpoints; everything else stays permitAll.
-    return !request.getRequestURI().startsWith(DISPATCHER_PATH_PREFIX);
+    // Only guard the worker-facing endpoints; everything else stays permitAll.
+    String uri = request.getRequestURI();
+    for (String prefix : WORKER_PATH_PREFIXES) {
+      if (uri.startsWith(prefix)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override

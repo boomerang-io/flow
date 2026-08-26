@@ -3,7 +3,6 @@ import {
   DatePicker,
   DatePickerInput,
   FilterableMultiSelect,
-  SkeletonPlaceholder,
   Breadcrumb,
   BreadcrumbItem,
 } from "@carbon/react";
@@ -13,26 +12,18 @@ import {
   FeatureHeaderSubtitle as HeaderSubtitle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sortByProp } from "@boomerang-io/utils";
-import cx from "classnames";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
-import { useHistory, useLocation, Link } from "react-router-dom";
+import { useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
 import ErrorDragon from "Components/ErrorDragon";
 import { useWorkspaceContext } from "Hooks";
 import { timeSecondsToTimeUnit } from "Utils/timeSecondsToTimeUnit";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions, appLink } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import type {
-  RunStatus,
-  PaginatedWorkflowResponse,
-  MultiSelectItem,
-  MultiSelectItems,
-  Workflow,
-  FlowWorkspace,
-} from "Types";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import type { RunStatus, MultiSelectItem, MultiSelectItems, Workflow, FlowWorkspace } from "Types";
 import CarbonDonutChart from "./CarbonDonutChart";
 import CarbonLineChart from "./CarbonLineChart";
 import CarbonScatterChart from "./CarbonScatterChart";
@@ -40,6 +31,12 @@ import ChartsTile from "./ChartsTile";
 import styles from "./Insights.module.scss";
 import InsightsTile from "./InsightsTile";
 import { parseChartsData } from "./utils/formatData";
+
+// Route module: this file's `loader` is attached to the route in app/routes/insights.tsx
+// (path "/:workspace/insights"). See Features/Activity/Activity.tsx's module doc for the same
+// split this follows: `params.workspace` (the URL slug) drives every server fetch below, while
+// the full workspace object (for the header's displayName/breadcrumb) stays a client-side
+// concern, resolved by `WorkspaceContainer` same as it always has been.
 
 export interface InsightsRuns {
   creationDate: string;
@@ -56,9 +53,16 @@ interface WorkflowInsightsRes {
   runs: Array<InsightsRuns>;
 }
 
-const maxDate = moment().format("MM/DD/YYYY");
-const defaultFromDate = moment().subtract(3, "months").valueOf();
-const defaultToDate = moment().endOf("day").valueOf();
+/*
+ * Computed per call, not hoisted to module constants: this module is imported ONCE into a
+ * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
+ * process boot and every later request reuses it - the page would silently omit newer records
+ * while the client-rendered date picker showed today, and a refresh would not help.
+ * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
+ */
+const defaultMaxDate = () => moment().format("MM/DD/YYYY");
+const defaultFromDate = () => moment().subtract(3, "months").valueOf();
+const defaultToDate = () => moment().endOf("day").valueOf();
 
 // FilterableMultiSelect's item type requires an (optional) `disabled` field;
 // carry it alongside our domain types rather than widening them.
@@ -75,105 +79,119 @@ function filterItemsByLabel<Item>(items: readonly Item[], { itemToString, inputV
   return items.filter((item) => itemToString(item).toLowerCase().includes(inputValue.toLowerCase()));
 }
 
-function compareItemLabels(itemA: string, itemB: string, { locale }: { locale: string }): number {
-  return itemA.localeCompare(itemB, locale, { numeric: true });
+function compareItemLabels(labelA: string, labelB: string, { locale }: { locale: string }): number {
+  return labelA.localeCompare(labelB, locale, { numeric: true });
+}
+
+// Carbon types compareItems/sortItems' compareItems against the raw item (not its
+// rendered label), so adapt the label comparator to that item-based contract.
+function makeCompareItems<Item>(itemToString: (item: Item) => string) {
+  return (itemA: Item, itemB: Item, options: { locale: string }): number =>
+    compareItemLabels(itemToString(itemA), itemToString(itemB), options);
 }
 
 function sortItemsBySelection<Item>(
   items: Item[],
-  { selectedItems = [], itemToString, compareItems, locale = "en" }: { selectedItems?: Item[]; itemToString: (item: Item) => string; compareItems: (a: string, b: string, ctx: { locale: string }) => number; locale?: string },
+  {
+    selectedItems = [],
+    compareItems,
+    locale = "en",
+  }: { selectedItems?: Item[]; itemToString?: (item: Item) => string; compareItems: (a: Item, b: Item, ctx: { locale: string }) => number; locale?: string },
 ): Item[] {
   return [...items].sort((itemA, itemB) => {
     const hasItemA = selectedItems.includes(itemA);
     const hasItemB = selectedItems.includes(itemB);
     if (hasItemA && !hasItemB) return -1;
     if (hasItemB && !hasItemA) return 1;
-    return compareItems(itemToString(itemA), itemToString(itemB), { locale });
+    return compareItems(itemA, itemB, { locale });
   });
+}
+
+const EMPTY_INSIGHTS: WorkflowInsightsRes = { concurrentRun: 0, totalRuns: 0, totalDuration: 0, medianDuration: 0, runs: [] };
+
+type LoaderData = {
+  insights: WorkflowInsightsRes;
+  errorLoadingInsights: boolean;
+  workflowOptions: Array<Workflow>;
+  errorLoadingWorkflows: boolean;
+};
+
+// Server loader (ssr:true - see CLAUDE.md client-web SSR direction). Runs in Node, so it uses
+// serverFetch(request) rather than the browser `resolver`/axios instance in
+// Config/servicesConfig.ts. Every filter value (statuses/workflows/fromDate/toDate) is read off
+// the request URL itself, preserving the exact param names the component already navigates with.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  const workspace = String(params.workspace);
+  const {
+    statuses,
+    workflows,
+    fromDate = defaultFromDate(),
+    toDate = defaultToDate(),
+  } = queryString.parse(new URL(request.url).search, queryStringOptions);
+
+  // One wave, not two: the insights payload and the workflow filter options are independent
+  // endpoints (two useQuery calls firing on mount before this route moved onto the router), and a
+  // loader blocks first paint with no pending UI behind it. `allSettled` keeps each failure its
+  // own, exactly as the per-call try/catch did. See Features/WorkflowEditor/editorRoute.ts.
+  const api = serverFetch(request);
+  const insightsSearchParams = queryString.stringify({ statuses, workflows, fromDate, toDate }, queryStringOptions);
+
+  const [insightsResult, workflowsResult] = await Promise.allSettled([
+    api.get(serviceUrl.workspace.getInsights({ workspace, query: insightsSearchParams })),
+    api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
+  ]);
+
+  const insights: WorkflowInsightsRes = insightsResult.status === "fulfilled" ? insightsResult.value.data : EMPTY_INSIGHTS;
+  const errorLoadingInsights = insightsResult.status === "rejected";
+
+  const workflowOptions: Array<Workflow> =
+    workflowsResult.status === "fulfilled" ? workflowsResult.value.data.content : [];
+  const errorLoadingWorkflows = workflowsResult.status === "rejected";
+
+  return { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows };
 }
 
 export default function Insights() {
   const { workspace } = useWorkspaceContext();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
-
-  /**
-   * Get insights data
-   */
-  const {
-    statuses,
-    workflows,
-    fromDate = defaultFromDate,
-    toDate = defaultToDate,
-  } = queryString.parse(location.search, queryStringOptions);
-
-  const insightsSearchParams = queryString.stringify(
-    {
-      statuses,
-      workflows,
-      fromDate,
-      toDate,
-    },
-    queryStringOptions,
-  );
-
-  const insightsUrl = serviceUrl.workspace.getInsights({ workspace: workspace?.name, query: insightsSearchParams });
-  const insightsQuery = useQuery<WorkflowInsightsRes>({
-    queryKey: insightsUrl,
-    queryFn: resolver.query(insightsUrl),
-  });
+  const { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows } = useLoaderData() as LoaderData;
 
   function updateHistorySearch({ ...props }) {
     const queryStr = `?${queryString.stringify({ ...props }, queryStringOptions)}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
     return;
   }
 
-  /** Retrieve Workflows */
-  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
-  const {
-    data: workflowsData,
-    isLoading: workflowsIsLoading,
-    isError: workflowsIsError,
-  } = useQuery<PaginatedWorkflowResponse, string>({
-    queryKey: getWorkflowsUrl,
-    queryFn: resolver.query(getWorkflowsUrl),
-  });
+  // The workspace object itself is a client-side concern (see the module doc above) - until
+  // WorkspaceContainer resolves it, there's nothing to render yet.
+  if (!workspace) {
+    return null;
+  }
 
-  if (insightsQuery.error || workflowsIsError) {
+  if (errorLoadingInsights || errorLoadingWorkflows) {
     return (
       <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
+        <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} />
         <ErrorDragon />
       </InsightsContainer>
     );
   }
 
-  if (insightsQuery.isLoading || workflowsIsLoading) {
-    return (
-      <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
-        <div className={styles.cardPlaceholderContainer}>
-          <SkeletonPlaceholder className={styles.cardPlaceholder} />
-          <SkeletonPlaceholder className={styles.cardPlaceholder} />
-          <SkeletonPlaceholder className={cx(styles.cardPlaceholder, styles.wide)} />
-        </div>
-        <SkeletonPlaceholder className={styles.graphPlaceholder} />
-        <SkeletonPlaceholder className={styles.graphPlaceholder} />
-      </InsightsContainer>
-    );
-  }
+  const { statuses } = queryString.parse(location.search, queryStringOptions);
 
-  if (insightsQuery.data) {
-    return (
-      <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowsData?.content} updateHistorySearch={updateHistorySearch} />
-        <Graphs data={insightsQuery.data} statuses={statuses as RunStatus | Array<RunStatus> | null} />
-      </InsightsContainer>
-    );
-  }
-
-  return null;
+  return (
+    <InsightsContainer workspace={workspace}>
+      <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} />
+      <Graphs data={insights} statuses={statuses as RunStatus | Array<RunStatus> | null} />
+    </InsightsContainer>
+  );
 }
 interface InsightsContainerProps {
   workspace: FlowWorkspace;
@@ -230,12 +248,12 @@ function Selects(props: SelectsProps) {
     ? Number.parseInt(fromDate[0])
     : typeof fromDate === "string"
     ? Number.parseInt(fromDate)
-    : defaultFromDate;
+    : defaultFromDate();
   const selectedToDate = Array.isArray(toDate)
     ? Number.parseInt(toDate[0])
     : typeof toDate === "string"
     ? Number.parseInt(toDate)
-    : defaultToDate;
+    : defaultToDate();
 
   function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
@@ -273,6 +291,9 @@ function Selects(props: SelectsProps) {
     return sortByProp(workflowsList, "name", "ASC");
   }
 
+  const itemToStringWorkflow = (workflow: SelectableWorkflow | null) => (workflow ? workflow.displayName : "");
+  const itemToStringStatus = (item: SelectableStatus | null) => (item ? item.label : "");
+
   return (
     <div className={styles.dataFilters}>
       <FilterableMultiSelect<SelectableWorkflow>
@@ -281,11 +302,9 @@ function Selects(props: SelectsProps) {
         invalid={false}
         onChange={handleSelectWorkflows}
         items={getWorkflowOptions()}
-        itemToString={(workflow) => {
-          return workflow ? workflow.displayName : "";
-        }}
+        itemToString={itemToStringWorkflow}
         filterItems={filterItemsByLabel}
-        compareItems={compareItemLabels}
+        compareItems={makeCompareItems(itemToStringWorkflow)}
         sortItems={sortItemsBySelection}
         initialSelectedItems={getWorkflowOptions().filter((workflow: Workflow) =>
           Boolean(selectedWorkflowRefs ? selectedWorkflowRefs.find((ref) => ref === workflow.name) : false),
@@ -298,9 +317,9 @@ function Selects(props: SelectsProps) {
         invalid={false}
         onChange={handleSelectStatuses}
         items={statusOptions}
-        itemToString={(item) => (item ? item.label : "")}
+        itemToString={itemToStringStatus}
         filterItems={filterItemsByLabel}
-        compareItems={compareItemLabels}
+        compareItems={makeCompareItems(itemToStringStatus)}
         sortItems={sortItemsBySelection}
         initialSelectedItems={statusOptions.filter((option) =>
           Boolean(selectedStatuses?.find((status: string) => status === option.value)),
@@ -308,7 +327,7 @@ function Selects(props: SelectsProps) {
         titleText="Filter by status"
       />
       <div className={styles.timeFilters}>
-        <DatePicker id="insights-date-picker" datePickerType="range" maxDate={maxDate} onChange={handleSelectDate}>
+        <DatePicker id="insights-date-picker" datePickerType="range" maxDate={defaultMaxDate()} onChange={handleSelectDate}>
           <DatePickerInput
             autoComplete="off"
             id="insights-date-picker-start"

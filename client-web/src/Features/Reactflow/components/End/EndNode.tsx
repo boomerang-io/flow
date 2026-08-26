@@ -1,6 +1,6 @@
 import React from "react";
 import cx from "classnames";
-import { Connection, Handle, Position, NodeProps } from "reactflow";
+import { Handle, IsValidConnection, Position, NodeProps } from "@xyflow/react";
 import { useWorkflowContext } from "Hooks";
 import { WorkflowEngineMode } from "Constants";
 import styles from "./EndNode.module.scss";
@@ -21,6 +21,5 @@ export default function EndNode(props: NodeProps) {
     </div>
   );
 }
-function isValidHandle(connection: Connection) {
-  return connection.source !== connection.target;
-}
+// See StartNode.tsx for why this is typed via `IsValidConnection` rather than `Connection`.
+const isValidHandle: IsValidConnection = (connection) => connection.source !== connection.target;

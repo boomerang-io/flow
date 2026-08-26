@@ -16,7 +16,7 @@
     "esModuleInterop": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
@@ -35,6 +35,8 @@
     "server"
   ],
   "include": [
-    "src"
+    "src",
+    "app",
+    "react-router.config.ts"
   ]
 }

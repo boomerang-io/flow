@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   DataTable,
-  DataTableSkeleton,
   Pagination,
   TableExpandHeader,
   TableExpandRow,
@@ -20,19 +19,29 @@ import {
   FeatureHeaderSubtitle as HeaderSubtitle,
   ErrorMessage,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import cx from "classnames";
 import moment from "moment";
-import queryString from "query-string";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useFetcher, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import EmptyState from "Components/EmptyState";
+import { globalTokensLoader, tokenAction, type TokenActionResult } from "Components/TokenSection/tokenRoute";
+import type { TokenSectionRouteData } from "Components/TokenSection/tokenRouteData";
 import { arrayPagination } from "Utils/arrayHelper";
 import { TokenType } from "Constants";
-import { serviceUrl, resolver } from "Config/servicesConfig";
 import { Token } from "Types";
 import styles from "./GlobalTokens.module.scss";
+
+// Route module: loader/action attached at app/routes/tokens.tsx (path=/admin/tokens), following
+// the GlobalParameters.tsx reference conversion (see that file for the fuller rationale comment).
+//
+// Both are now the shared pair in Components/TokenSection/tokenRoute.ts rather than local copies:
+// this route's <CreateToken> renders the same PermissionSelector as the other two token surfaces,
+// which reads its server-driven catalog off `tokenSection.catalog`, and submits the same "create"
+// intent. That also retires the `onSuccess` callback this file used to pass CreateToken - the
+// Form revalidates the route itself now.
+export const loader = globalTokensLoader;
+export const action = tokenAction;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [DEFAULT_PAGE_SIZE, 20, 50, 100];
@@ -107,44 +116,37 @@ const FeatureLayout = ({ children }: FeatureLayoutProps) => {
 };
 
 function Tokens() {
-  const queryClient = useQueryClient();
+  const { tokenSection } = useLoaderData() as TokenSectionRouteData;
+  const { tokens, errorLoading } = tokenSection;
+  const fetcher = useFetcher<TokenActionResult>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortKey, setSortKey] = useState("creationDate");
   const [sortDirection, setSortDirection] = useState("DESC");
 
-  const getTokensUrl = serviceUrl.getTokens({
-    query: queryString.stringify({ types: "global" }),
-  });
-
-  const {
-    data: tokensData,
-    error: tokensError,
-    isLoading: tokensIsLoading,
-  } = useQuery({
-    queryKey: getTokensUrl,
-    queryFn: resolver.query(getTokensUrl),
-  });
-
-  const { mutateAsync: deleteTokenMutator } = useMutation(resolver.deleteToken, {
-    onSuccess: () => queryClient.invalidateQueries([getTokensUrl]),
-  });
-
-  if (tokensIsLoading) {
-    return (
-      <FeatureLayout>
-        <DataTableSkeleton
-          data-testid="token-loading-skeleton"
-          className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
-          rowCount={DEFAULT_PAGE_SIZE}
-          columnCount={HEADERS.length}
-          headers={HEADERS}
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (fetcher.data.intent !== "delete") {
+      return;
+    }
+    const ok = fetcher.data.ok;
+    const errorMessage = fetcher.data.ok ? undefined : fetcher.data.errorMessage;
+    notify(
+      ok ? (
+        <ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />
+      ) : (
+        <ToastNotification
+          kind="error"
+          title={errorMessage?.title ?? "Something's Wrong"}
+          subtitle={errorMessage?.message ?? "Request to delete token failed"}
         />
-      </FeatureLayout>
+      ),
     );
-  }
+  }, [fetcher.state, fetcher.data]);
 
-  if (tokensError) {
+  if (errorLoading) {
     return (
       <FeatureLayout>
         <ErrorMessage />
@@ -152,17 +154,12 @@ function Tokens() {
     );
   }
 
-  const deleteToken = async (tokenId: string) => {
-    try {
-      await deleteTokenMutator({ tokenId });
-      notify(<ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />);
-    } catch (error) {
-      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);
-    }
+  const deleteToken = (tokenId: string) => {
+    fetcher.submit({ intent: "delete", tokenId }, { method: "post" });
   };
 
   const renderCell = (tokenItemId: string, cellIndex: number, value: string) => {
-    const tokenDetails = tokensData?.content.find((token: Token) => token.id === tokenItemId);
+    const tokenDetails = tokens.find((token: Token) => token.id === tokenItemId);
     const column = HEADERS[cellIndex];
     switch (column.key) {
       case "valid":
@@ -203,12 +200,12 @@ function Tokens() {
   return (
     <FeatureLayout>
       <div className={styles.buttonContainer}>
-        <CreateToken type={TokenType.Global} getTokensUrl={getTokensUrl} principal="**" />
+        <CreateToken type={TokenType.Global} principal="**" />
       </div>
-      {tokensData?.content?.length > 0 ? (
+      {tokens.length > 0 ? (
         <>
           <DataTable
-            rows={arrayPagination(tokensData?.content, page, pageSize, sortKey, sortDirection)}
+            rows={arrayPagination(tokens, page, pageSize, sortKey, sortDirection)}
             // rows above are already sorted/paginated externally; keep Carbon's own comparator a no-op
             sortRow={() => 0}
             headers={HEADERS}
@@ -258,10 +255,10 @@ function Tokens() {
                           ))}
                         </TableExpandRow>
                         <TableExpandedRow colSpan={headers.length + 1}>
-                          {tokensData.content.find((t: Token) => t.id === row.id).permissions.length > 0 ? (
+                          {tokens.find((t: Token) => t.id === row.id)!.permissions.length > 0 ? (
                             <TokenPermissions
-                              permissions={tokensData.content
-                                .find((t: Token) => t.id === row.id)
+                              permissions={tokens
+                                .find((t: Token) => t.id === row.id)!
                                 .permissions.map((p: Token["permissions"][number], i: number) => ({ id: `${row.id}-${i}`, ...p }))}
                             />
                           ) : (
@@ -280,7 +277,7 @@ function Tokens() {
             page={page}
             pageSize={pageSize}
             pageSizes={PAGE_SIZES}
-            totalItems={tokensData?.content?.length}
+            totalItems={tokens.length}
           />
         </>
       ) : (
@@ -293,7 +290,10 @@ function Tokens() {
 }
 
 interface TokenPermissionsProps {
-  permissions: [{ scope: string; principal: string; actions: string[] }];
+  // Array, not a 1-tuple - the previous `[{ ... }]` annotation only ever typechecked because
+  // this data flowed through an untyped react-query cache; now that it comes from the typed
+  // loader (Token[]), a real multi-element permissions array no longer satisfies a 1-tuple.
+  permissions: Array<{ scope: string; principal: string; actions: string[] }>;
 }
 
 const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
@@ -313,7 +313,10 @@ const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
             <StructuredListCell>{principal}</StructuredListCell>
             <StructuredListCell>
               <ul>
-                {actions.map((action) => (
+                {/* Defensive: TableExpandedRow keeps this mounted (aria-hidden, not unmounted)
+                    even while collapsed, so a malformed/missing actions array on any row - not
+                    just the expanded one - would otherwise throw during the initial render. */}
+                {(actions ?? []).map((action) => (
                   <li>{action}</li>
                 ))}
               </ul>

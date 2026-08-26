@@ -1,0 +1,68 @@
+diff --git a/dist/cjs/components/FeatureNavTab/FeatureNavTab.js b/dist/cjs/components/FeatureNavTab/FeatureNavTab.js
+index be79cbd27b27e83b41b5b6593ca722fc73c5f7e4..064acf023eaa9b9d7d0597f74d2965d40d9036a3 100644
+--- a/dist/cjs/components/FeatureNavTab/FeatureNavTab.js
++++ b/dist/cjs/components/FeatureNavTab/FeatureNavTab.js
+@@ -23,8 +23,11 @@ function FeatureNavTab({ activeClassName = "", className = "", disabled = false,
+         [`${settings.prefix}--tabs__nav-item--disabled`]: disabled,
+     }, className);
+     const activeClassNames = cx__default.default(`${settings.prefix}--tabs__nav-item--selected`, activeClassName);
++    // react-router-dom v6+ dropped NavLink's activeClassName prop in favour of a
++    // ({isActive}) => string className function - patched here (rather than upstream)
++    // to keep the "selected" tab styling working under v6/v7.
+     return isLoading ? (React__default.default.createElement("div", { className: `${settings.prefix}--bmrg-feature-nav-tab--loading` },
+-        React__default.default.createElement(react.SkeletonPlaceholder, { className: `${settings.prefix}--bmrg-feature-nav-tab--loading__skeleton` }))) : (React__default.default.createElement(reactRouterDom.NavLink, { className: classNames, activeClassName: activeClassNames, style: style, ...rest }, label));
++        React__default.default.createElement(react.SkeletonPlaceholder, { className: `${settings.prefix}--bmrg-feature-nav-tab--loading__skeleton` }))) : (React__default.default.createElement(reactRouterDom.NavLink, { className: ({ isActive }) => cx__default.default(classNames, isActive && activeClassNames), style: style, ...rest }, label));
+ }
+ 
+ exports.default = FeatureNavTab;
+diff --git a/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js b/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js
+index acacb7c32c1379c10d6ea1979c0b510a7c747724..2652091ab54f20ab022a2d9b103232e2ceb48bc9 100644
+--- a/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js
++++ b/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js
+@@ -19,8 +19,11 @@ IBM Confidential
+ */
+ function FeatureSideNavLink(props) {
+     const { children, className, activeClassName, iconProps, icon: Icon, hasDivider = false, ...rest } = props;
++    // react-router-dom v6+ dropped NavLink's activeClassName prop in favour of a
++    // ({isActive}) => string className function - patched here (rather than upstream)
++    // to keep the "current link" styling working under v6/v7.
+     return (React__default.default.createElement(React__default.default.Fragment, null,
+-        React__default.default.createElement(reactRouterDom.NavLink, { className: cx__default.default(`${settings.prefix}--bmrg-feature-sidenav-link`, className), activeClassName: cx__default.default(`${settings.prefix}--bmrg-feature-sidenav-active-link`, activeClassName), ...rest },
++        React__default.default.createElement(reactRouterDom.NavLink, { className: ({ isActive }) => cx__default.default(`${settings.prefix}--bmrg-feature-sidenav-link`, className, isActive && cx__default.default(`${settings.prefix}--bmrg-feature-sidenav-active-link`, activeClassName)), ...rest },
+             Icon && React__default.default.createElement(Icon, { ...iconProps }),
+             React__default.default.createElement("div", { className: `${settings.prefix}--bmrg-feature-sidenav-link-content` }, children)),
+         hasDivider && React__default.default.createElement("hr", { className: `${settings.prefix}--bmrg-feature-sidenav-link-divider` })));
+diff --git a/dist/esm/components/FeatureNavTab/FeatureNavTab.js b/dist/esm/components/FeatureNavTab/FeatureNavTab.js
+index 4c9f8cb68fc934cf63806584075082f7a9c3de55..2137fabf52d579c73de4a74da512f463d77e4ec7 100644
+--- a/dist/esm/components/FeatureNavTab/FeatureNavTab.js
++++ b/dist/esm/components/FeatureNavTab/FeatureNavTab.js
+@@ -14,8 +14,11 @@ function FeatureNavTab({ activeClassName = "", className = "", disabled = false,
+         [`${prefix}--tabs__nav-item--disabled`]: disabled,
+     }, className);
+     const activeClassNames = cx(`${prefix}--tabs__nav-item--selected`, activeClassName);
++    // react-router-dom v6+ dropped NavLink's activeClassName prop in favour of a
++    // ({isActive}) => string className function - patched here (rather than upstream)
++    // to keep the "selected" tab styling working under v6/v7.
+     return isLoading ? (React.createElement("div", { className: `${prefix}--bmrg-feature-nav-tab--loading` },
+-        React.createElement(SkeletonPlaceholder, { className: `${prefix}--bmrg-feature-nav-tab--loading__skeleton` }))) : (React.createElement(NavLink, { className: classNames, activeClassName: activeClassNames, style: style, ...rest }, label));
++        React.createElement(SkeletonPlaceholder, { className: `${prefix}--bmrg-feature-nav-tab--loading__skeleton` }))) : (React.createElement(NavLink, { className: ({ isActive }) => cx(classNames, isActive && activeClassNames), style: style, ...rest }, label));
+ }
+ 
+ export { FeatureNavTab as default };
+diff --git a/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js b/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js
+index b308a953b707e5dd5178ce28f918cb27b086cc6e..0a053e896b70ac99d960a67f02d4b86e535fefc8 100644
+--- a/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js
++++ b/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js
+@@ -10,8 +10,11 @@ IBM Confidential
+ */
+ function FeatureSideNavLink(props) {
+     const { children, className, activeClassName, iconProps, icon: Icon, hasDivider = false, ...rest } = props;
++    // react-router-dom v6+ dropped NavLink's activeClassName prop in favour of a
++    // ({isActive}) => string className function - patched here (rather than upstream)
++    // to keep the "current link" styling working under v6/v7.
+     return (React.createElement(React.Fragment, null,
+-        React.createElement(NavLink, { className: cx(`${prefix}--bmrg-feature-sidenav-link`, className), activeClassName: cx(`${prefix}--bmrg-feature-sidenav-active-link`, activeClassName), ...rest },
++        React.createElement(NavLink, { className: ({ isActive }) => cx(`${prefix}--bmrg-feature-sidenav-link`, className, isActive && cx(`${prefix}--bmrg-feature-sidenav-active-link`, activeClassName)), ...rest },
+             Icon && React.createElement(Icon, { ...iconProps }),
+             React.createElement("div", { className: `${prefix}--bmrg-feature-sidenav-link-content` }, children)),
+         hasDivider && React.createElement("hr", { className: `${prefix}--bmrg-feature-sidenav-link-divider` })));

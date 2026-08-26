@@ -10,6 +10,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.util.HashMap;
@@ -112,6 +113,42 @@ class ParameterManagerTest {
     WorkflowRunEntity run = run(str("ref", "just text"));
     parameterManager.resolveParamLayers(run, Optional.empty());
     assertEquals("just text", resolved(run, "ref"));
+  }
+
+  // Spec string fields (script/command/arguments/envs) get the same $(params.x) substitution as
+  // param values, engine-side, so behaviour is identical on every executor (Tekton previously did
+  // this in its controller; Kubernetes Jobs and Docker have no equivalent).
+  @Test
+  void resolvesSpecFieldsForTaskRun() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("greeting", "hello")));
+    task.getSpec().setScript("#!/bin/sh\necho $(params.greeting)");
+    task.getSpec().setCommand(List.of("run", "$(params.greeting)"));
+    task.getSpec().setArguments(List.of("--msg", "$(params.greeting)"));
+    task.getSpec().setEnvs(List.of(new TaskEnvVar("GREETING", "$(params.greeting)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("#!/bin/sh\necho hello", task.getSpec().getScript());
+    assertEquals(List.of("run", "hello"), task.getSpec().getCommand());
+    assertEquals(List.of("--msg", "hello"), task.getSpec().getArguments());
+    assertEquals("hello", task.getSpec().getEnvs().get(0).getValue());
+  }
+
+  // Null spec fields survive substitution untouched; unresolved references stay verbatim.
+  @Test
+  void resolvesSpecFieldsNullSafeAndPassthrough() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of());
+    task.getSpec().setCommand(List.of("echo", "$(params.unknown)"));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(null, task.getSpec().getScript());
+    assertEquals(null, task.getSpec().getArguments());
+    assertEquals(List.of("echo", "$(params.unknown)"), task.getSpec().getCommand());
   }
 
   private void stubTask(String name, RunResult result) {

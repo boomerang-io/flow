@@ -1,6 +1,6 @@
 import React from "react";
 import cx from "classnames";
-import { Connection, Handle, Position, NodeProps } from "reactflow";
+import { Handle, IsValidConnection, Position, NodeProps } from "@xyflow/react";
 import { useWorkflowContext } from "Hooks";
 import { WorkflowEngineMode } from "Constants";
 import styles from "./StartNode.module.scss";
@@ -22,6 +22,7 @@ export function StartNode(props: NodeProps) {
   );
 }
 
-function isValidHandle(connection: Connection) {
-  return connection.source !== connection.target;
-}
+// v12 broadens `isValidConnection`'s parameter from just `Connection` to `Connection | Edge`
+// (it's also invoked when validating a reconnection of an existing edge) - typing this with
+// xyflow's own `IsValidConnection` picks that up instead of re-narrowing it back to `Connection`.
+const isValidHandle: IsValidConnection = (connection) => connection.source !== connection.target;

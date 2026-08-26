@@ -86,35 +86,36 @@ function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
       }
       footer={
         <Tabs ariaLabel="Workspace pages">
+          <Tab end label="Members" to={appLink.manageWorkspace({ workspace: workspace.name })} state={location.state} />
           <Tab
-            exact
-            label="Members"
-            to={{ pathname: appLink.manageWorkspace({ workspace: workspace.name }), state: location.state }}
-          />
-          <Tab
-            exact
+            end
             label="Workflows"
-            to={{ pathname: appLink.manageWorkspaceWorkflows({ workspace: workspace.name }), state: location.state }}
+            to={appLink.manageWorkspaceWorkflows({ workspace: workspace.name })}
+            state={location.state}
           />
           <Tab
-            exact
+            end
             label="Approver Groups"
-            to={{ pathname: appLink.manageWorkspaceApprovers({ workspace: workspace.name }), state: location.state }}
+            to={appLink.manageWorkspaceApprovers({ workspace: workspace.name })}
+            state={location.state}
           />
           <Tab
-            exact
+            end
             label="Quotas"
-            to={{ pathname: appLink.manageWorkspaceQuotas({ workspace: workspace.name }), state: location.state }}
+            to={appLink.manageWorkspaceQuotas({ workspace: workspace.name })}
+            state={location.state}
           />
           <Tab
-            exact
+            end
             label="Tokens"
-            to={{ pathname: appLink.manageWorkspaceTokens({ workspace: workspace.name }), state: location.state }}
+            to={appLink.manageWorkspaceTokens({ workspace: workspace.name })}
+            state={location.state}
           />
           <Tab
-            exact
+            end
             label="Settings"
-            to={{ pathname: appLink.manageWorkspaceSettings({ workspace: workspace.name }), state: location.state }}
+            to={appLink.manageWorkspaceSettings({ workspace: workspace.name })}
+            state={location.state}
           />
         </Tabs>
       }

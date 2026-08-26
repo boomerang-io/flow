@@ -86,7 +86,7 @@ Transient-value fixes: `_0013` writes `audit.scope="WORKSPACE"` directly (no lon
 |---|---|---|
 | 1 | Entity `@Indexed`/`@CompoundIndex` inert; no loader unit created `workflows.name`, `workflow_revisions{workflowRef,version}`, `tasks.name`, `workflow_templates{name,version}`, `workflow_schedules.nextFireAt` | **Fixed** — `_0033__DefinitionIndexes` (+ `task_revisions{parentRef,version}`, `workflow_schedules{status,nextFireAt}` sweep, `{workflowRef}`); `MigrationUtils.ensureIndexKeys` keeps a v4 auto-built index with the same keys. `task_runs{status,phase}` deliberately not created — no query needs it without `type`/`workflowRunRef` in front. `_0019` javadoc corrected. |
 | 2 | `claim.leaseExpiresAt` declared + `lease_sweep` indexed, never written | **Left** — AM-3 (leases deferred), the field is pre-provisioned for worker leases; the only inert index. |
-| 3 | `EventOutboxEntity._id` is a generated ObjectId, not the spec's `<refType>:<ref>:<seq>`; no `transitionSeq` on the runs | **Open — G2 gate.** Proposed: `transitionSeq: Long` on `WorkflowRunEntity`/`TaskRunEntity`, `.inc("transitionSeq",1)` inside `findAndModifyPreImage` (all 15 transition CAS sites route through it), `TaskRunTransition`/`WorkflowRunTransition` carry `seq = pre+1`, `CloudEventsBridge` sets `_id` and swallows `DuplicateKeyException`. |
+| 3 | `EventOutboxEntity._id` is a generated ObjectId, not the spec's `<refType>:<ref>:<seq>`; no `transitionSeq` on the runs | **Deferred — maintainer-ruled 2026-08-21.** This is the outbox creation-loss window (§7). Not built: consistent with the "do not build ahead of proven need" precedent already applied to the retry classes and to leases (AM-3). The design stands if the window is ever observed: `transitionSeq: Long` on `WorkflowRunEntity`/`TaskRunEntity`, `.inc("transitionSeq",1)` inside `findAndModifyPreImage` (all 15 transition CAS sites route through it), `TaskRunTransition`/`WorkflowRunTransition` carry `seq = pre+1`, `CloudEventsBridge` sets `_id` and swallows `DuplicateKeyException`. |
 | 4 | `WorkflowRunService.retry()` clone inherited `claim`, `timeoutAt`, `isAwaitingApproval`, `statusOverride`, `results` | **Fixed** — cleared on the clone (`pauseRequestedAt` untouched; being removed). |
 | 5 | `waitUntil` written via whole-entity `save()` (last-write-wins over `claim`/`retry`/`timeoutAt`) | **Fixed** — `TaskRunService.tryPark(id, waitUntil)` targeted update fenced on `phase=running`; the two `TaskExecutionService` park sites (`createSleepTask`, `acquireTaskLock`) call it. No transition event is published for the park (pre-existing behaviour). |
 | 6 | `event_queue` never dropped; hand-off fields never unset | **Fixed** — `_0031`. |
@@ -97,3 +97,33 @@ Transient-value fixes: `_0013` writes `audit.scope="WORKSPACE"` directly (no lon
 Also noted, not actioned: `WorkflowScheduleEntity.schedulerRef` (dead JobRunr id, kept to avoid a
 migration); `TaskLockEntity.workflowRunRef/acquiredAt` and `EventInboxEntity.topic/requestedStatus/processedAt`
 are write-only diagnostics; `EventOutboxEntity.retry.count` never written (the counter is `attempts`).
+
+## 7. Known limitation — the outbox creation-loss window (Stable)
+
+**Accepted, deliberately not fixed (maintainer-ruled 2026-08-21).** Documented here so it is a known
+property of the system rather than a surprise.
+
+**What happens.** A transition commits via a single-document `findAndModify` CAS. Only the CAS winner
+then calls `publish(...)`, and a synchronous `@EventListener` on `CloudEventsBridge` inserts the
+`events_outbox` row. **No transaction spans those two steps** — verified: there is no `@Transactional`,
+no `@TransactionalEventListener`, and no `MongoTransactionManager` anywhere in `service-core`. If the
+process dies after the CAS commits and before the insert lands, that event is lost permanently.
+
+**Scope of the weakness — creation, not delivery.** Once a row exists, delivery is sound:
+`OutboxDispatcher` drains `status=pending` under a status CAS with bounded retry and a `dead` terminal
+state, so rows that exist are delivered at-least-once. The gap is strictly that a row may never be
+created.
+
+**Blast radius.** Outbound CloudEvents only (`flow.events.sink`, off by default). The engine does not
+read the outbox to make decisions — the DAG advance is level-triggered and the `WorkflowWatcher`
+sweeps re-drive state from the runs themselves — so a lost row cannot stall or corrupt an execution.
+It costs an external observer one status notification.
+
+**Why not fixed.** The window is narrow (microseconds between two adjacent statements), the
+consequence is an external notification rather than execution state, and no instance has been observed
+hitting it. Building `transitionSeq` ahead of that evidence repeats the mistake the retry-class design
+already made — see §6 anomaly 3 for the design to build if it is ever observed.
+
+**What would change the ruling.** Any report of a missing terminal-status CloudEvent, or a consumer
+being made load-bearing on outbox delivery (e.g. billing, audit-of-record, an external scheduler).
+Both make the window a correctness issue rather than an observability one.

@@ -2,13 +2,17 @@
 import React, { Component } from "react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import { Loading, ModalForm, TextArea } from "@boomerang-io/carbon-addons-boomerang-react";
-import { UseMutationResult } from "react-query";
-import { QueryStatus } from "Constants";
 
+/*
+ * `revisionMutator` (a react-query UseMutationResult) was replaced by the two booleans the form
+ * actually read off it - `status === QueryStatus.Loading` and `error` - now that the write is a
+ * useFetcher() submission owned by Editor.tsx.
+ */
 interface VersionCommentFormProps {
   closeModal(): void;
   createRevision: (reason: string, callback?: () => any) => void;
-  revisionMutator: UseMutationResult<any, any, any, any>;
+  createRevisionFailed: boolean;
+  isCreatingRevision: boolean;
 }
 
 class VersionCommentForm extends Component<VersionCommentFormProps> {
@@ -35,8 +39,7 @@ class VersionCommentForm extends Component<VersionCommentFormProps> {
   };
 
   render() {
-    const { revisionMutator } = this.props;
-    const isCreatingRevision = revisionMutator.status === QueryStatus.Loading;
+    const { createRevisionFailed, isCreatingRevision } = this.props;
     return (
       <ModalForm>
         <ModalBody>
@@ -52,7 +55,7 @@ class VersionCommentForm extends Component<VersionCommentFormProps> {
             placeholder="Enter version comment"
             value={this.state.versionComment}
           />
-          {revisionMutator.error && (
+          {createRevisionFailed && (
             <InlineNotification
               lowContrast
               kind="error"

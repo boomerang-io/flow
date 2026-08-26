@@ -5,14 +5,12 @@ import io.boomerang.common.enums.TaskDeletion;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.kube.KubeServiceImpl;
-import io.boomerang.kube.TektonServiceImpl;
+import io.boomerang.executor.TaskExecutor;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,22 +23,17 @@ public class TaskService {
 
   private static final Logger LOGGER = LogManager.getLogger(TaskService.class);
 
-  @Value("${kube.timeout.waitUntil}")
-  protected long waitUntilTimeout;
-
   @Value("${kube.task.deletion}")
   private TaskDeletion taskDeletion;
 
   @Value("${kube.task.timeout}")
   private Long taskTimeout;
 
-  private final KubeServiceImpl kubeService;
+  private final TaskExecutor executor;
 
-  private final TektonServiceImpl tektonService;
-
-  public TaskService(KubeServiceImpl kubeService, TektonServiceImpl tektonService) {
-    this.kubeService = kubeService;
-    this.tektonService = tektonService;
+  public TaskService(TaskExecutor executor) {
+    this.executor = executor;
+    LOGGER.info("Task executor: " + executor.getClass().getSimpleName());
   }
 
   protected TaskDeletion getTaskDeletion(TaskDeletion deletion) {
@@ -55,8 +48,7 @@ public class TaskService {
     TaskResponse response =
         new TaskResponse("0", "Task (" + task.getId() + ") is meant to be terminated now.", null);
 
-    tektonService.cancelTaskRun(
-        task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+    executor.cancel(task);
 
     return response;
   }
@@ -69,43 +61,13 @@ public class TaskService {
       throw new BoomerangException(
           1, "NO_TASK_IMAGE", HttpStatus.BAD_REQUEST, task.getClass().toString());
     } else {
+      Long timeout = getTaskTimeout(task.getTimeout());
       try {
-        kubeService.createTaskConfigMap(
-            task.getWorkflowRef(),
-            task.getWorkflowRunRef(),
-            task.getName(),
-            task.getId(),
-            task.getLabels(),
-            task.getParams());
-        tektonService.createTaskRun(
-            task.getWorkflowRef(),
-            task.getWorkflowRunRef(),
-            task.getId(),
-            task.getName(),
-            task.getLabels(),
-            task.getSpec().getImage(),
-            task.getSpec().getCommand(),
-            task.getSpec().getScript(),
-            task.getSpec().getArguments(),
-            task.getParams(),
-            task.getSpec().getEnvs(),
-            task.getResults(),
-            task.getSpec().getWorkingDir(),
-            task.getWorkspaces(),
-            waitUntilTimeout,
-            getTaskTimeout(task.getTimeout()),
-            task.getSpec().getDebug());
-        results =
-            tektonService.watchTaskRun(
-                task.getWorkflowRef(),
-                task.getWorkflowRunRef(),
-                task.getId(),
-                task.getLabels(),
-                getTaskTimeout(task.getTimeout()));
+        executor.create(task, timeout);
+        results = executor.watch(task, timeout);
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
           // This will only delete on success as failure throws an Exception.
-          this.deleteTaskRun(
-              task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+          this.deleteTaskRun(task);
         }
       } catch (KubernetesClientException e) {
         // KubernetesClientException handles the case where an internal admission
@@ -128,11 +90,8 @@ public class TaskService {
             1, "TASK_CREATION_TIMEOUT_ERROR", HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
       } finally {
         response.setResults(results);
-        kubeService.deleteTaskConfigMap(
-            task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
-          this.deleteTaskRun(
-              task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+          this.deleteTaskRun(task);
         }
         LOGGER.info("Task (" + task.getId() + ") has completed with code " + response.getCode());
       }
@@ -141,16 +100,12 @@ public class TaskService {
   }
 
   @Async
-  private void deleteTaskRun(
-      String workflowId,
-      String workflowActivityId,
-      String taskActivityId,
-      Map<String, String> customLabels) {
+  private void deleteTaskRun(TaskRun task) {
     try {
       Thread.sleep(1000);
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
-    tektonService.deleteTaskRun(workflowId, workflowActivityId, taskActivityId, customLabels);
+    executor.delete(task);
   }
 }

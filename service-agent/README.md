@@ -1,13 +1,39 @@
-# Boomerang Agent Service for Tekton
+# Boomerang Agent Service (Kubernetes)
 
 This service acts as a mechanism to execute tasks in a secure and highly performant way and connects to the Engine
 service to register and request a queue using a long poll mechanism.
 
-This specific agent is the Tekton agents, executing template, script, and custom tasks in a Kubernetes cluster using
-the [Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client) to interact with Kubernetes
-along with the Tekton extension to interact with the Tekton TaskRuns. When writing new integrations, it is
-recommended to look through the Kubernetes Client Docs to find the exact Client method to use and then look at the API
-code to see how it works for advance configurations such as the Watcher API.
+It executes template, script, and custom tasks in a Kubernetes cluster using the
+[Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client). The per-task runtime sits behind
+the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `agent.executor`:
+
+| `agent.executor` | Implementation | Runtime object | Notes |
+| ---------------- | -------------- | -------------- | ----- |
+| `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
+| `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. |
+
+`agent.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
+task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.
+One setting per agent deployment; run a second agent deployment for a different isolation tier.
+
+Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
+`/workspace/<type>` (or the declared mount path). Params reach the task container two ways, both usable by any image,
+Flow-aware or not:
+
+- `$(params.<name>)` references in `script`, `command`, `arguments` and `envs` are substituted by the engine before
+  dispatch.
+- `PARAM_<NAME>` environment variables, one per param (the name upper-cased, any character outside `[A-Za-z0-9_]`
+  replaced with `_`; non-string values are JSON-encoded). `PARAM_NAMES` lists the original names, comma-separated, so
+  a task library can map `PARAM_PRIVATEKEY` back to `privateKey`. Two params whose sanitised names collide fail the
+  Task rather than silently overwriting each other.
+
+There is no file channel for params; structured or large inputs belong on a workspace mount, with the param carrying
+the path or URI. Explicitly declared task env vars win on name collision with a generated var. Both executors also set
+`RESULTS_PATH`: a directory for Tekton (`/tekton/results`, one file per result) and a single file for Jobs
+(`/dev/termination-log`, one JSON object).
+
+When writing new integrations, it is recommended to look through the Kubernetes Client Docs to find the exact Client
+method to use and then look at the API code to see how it works for advance configurations such as the Watcher API.
 
 ## Development
 

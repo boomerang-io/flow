@@ -12,24 +12,50 @@ import { matchSorter as ms } from "match-sorter";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
-import { Link } from "react-router-dom";
+import { Link, useLoaderData } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import { appLink } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowWorkspace, PaginatedWorkflowResponse } from "Types";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import { PaginatedWorkflowResponse } from "Types";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./Workflows.module.scss";
 
-function Workflows({ workspace }: { workspace: FlowWorkspace }) {
+// Route module for the Workflows tab (app/routes/manageWorkspaceWorkflows.tsx). Read-only, so a
+// loader and no action. The workspace-scoped list used to be a useQuery keyed on the same URL;
+// the loader takes the `:workspace` route param directly (see
+// Features/TaskManager/WorkspaceTasks/WorkspaceTasks.tsx for the same pattern) rather than
+// reaching for the parent's context, which only exists client-side.
+export type WorkflowsLoaderData = {
+  workflows: PaginatedWorkflowResponse["content"];
+  errorLoading: boolean;
+};
+
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<WorkflowsLoaderData> {
+  try {
+    const response = await serverFetch(request).get(
+      serviceUrl.workspace.workflow.getWorkflows({ workspace: String(params.workspace) }),
+    );
+    return { workflows: response.data?.content ?? [], errorLoading: false };
+  } catch (error) {
+    // Preserves the previous behaviour exactly: the useQuery here had no error branch, so a
+    // failed fetch fell through to the empty list and rendered <EmptyState />.
+    return { workflows: [], errorLoading: true };
+  }
+}
+
+// The workspace arrives from the parent layout route's <Outlet context> rather than as a prop.
+function Workflows() {
+  const { workspace } = useWorkspaceDetailedContext();
+  const { workflows } = useLoaderData() as WorkflowsLoaderData;
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace?.name });
-  const workflowsQuery = useQuery<PaginatedWorkflowResponse, string>({
-    queryKey: getWorkflowsUrl,
-    queryFn: resolver.query(getWorkflowsUrl),
-  });
-
-  const workflows = workflowsQuery.data?.content || [];
   const filteredWorkflowsList = searchQuery ? ms(workflows, searchQuery, { keys: ["name", "description"] }) : workflows;
 
   return (
@@ -87,10 +113,8 @@ function Workflows({ workspace }: { workspace: FlowWorkspace }) {
                   <StructuredListCell>
                     <Link
                       className={styles.viewWorkflowLink}
-                      to={{
-                        pathname: appLink.editorCanvas({ workspace: workspace.name, workflow: workflow.name }),
-                        state: { fromWorkspace: workspace.name },
-                      }}
+                      to={appLink.editorCanvas({ workspace: workspace.name, workflow: workflow.name })}
+                      state={{ fromWorkspace: workspace.name }}
                     >
                       View/edit
                     </Link>
@@ -101,8 +125,8 @@ function Workflows({ workspace }: { workspace: FlowWorkspace }) {
                       to={{
                         pathname: appLink.activity({ workspace: workspace.name }),
                         search: queryString.stringify({ page: 0, size: 10, workflows: workflow.name }),
-                        state: { fromWorkspace: workspace.name },
                       }}
+                      state={{ fromWorkspace: workspace.name }}
                     >
                       Activity
                     </Link>

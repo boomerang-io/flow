@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -59,9 +60,13 @@ public class WorkflowWatcher {
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
-  // A dispatcher is treated as gone once it has not connected for this long - many multiples of
-  // its long-poll cycle, so only a genuinely dead dispatcher trips it.
-  private static final long DISPATCHER_STALE_MILLIS = 300000;
+  // A dispatcher is treated as gone once it has not connected for this long. Its queue poll
+  // refreshes lastConnectedDate every 5s, so this is twelve missed cycles - short enough that a
+  // dead dispatcher's claims are recovered promptly, long enough that a GC pause or network blip
+  // does not reap a healthy one. Recovering a claim re-dispatches the task while the original
+  // executor may still be running it, and nothing kills that executor, so this cannot be tightened
+  // further until the dispatch protocol can cancel in-flight work.
+  private static final long DISPATCHER_STALE_MILLIS = 60000;
 
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
@@ -69,6 +74,7 @@ public class WorkflowWatcher {
   private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskExecutionService taskExecutionService;
   private final WorkflowRunService workflowRunService;
+  private final WorkflowRunStateHelper workflowRunStateHelper;
   private final ActionRepository actionRepository;
   private final DispatcherRepository dispatcherRepository;
 
@@ -86,6 +92,7 @@ public class WorkflowWatcher {
       WorkflowRevisionRepository workflowRevisionRepository,
       TaskExecutionService taskExecutionService,
       WorkflowRunService workflowRunService,
+      WorkflowRunStateHelper workflowRunStateHelper,
       ActionRepository actionRepository,
       DispatcherRepository dispatcherRepository) {
     this.taskRunService = taskRunService;
@@ -94,6 +101,7 @@ public class WorkflowWatcher {
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskExecutionService = taskExecutionService;
     this.workflowRunService = workflowRunService;
+    this.workflowRunStateHelper = workflowRunStateHelper;
     this.actionRepository = actionRepository;
     this.dispatcherRepository = dispatcherRepository;
   }
@@ -115,16 +123,23 @@ public class WorkflowWatcher {
     if (!enabled) {
       return;
     }
-    reapTaskTimeouts();
-    reapWorkflowTimeouts();
-    recoverStalledRuns();
-    finalizeWorkspacelessRuns();
-    resumeDueWaitingTasks();
-    cancelDeletedWorkflowRuns();
-    pruneDeletedWorkflows();
-    reapRunsWithMissingRevision();
-    reapClaimsFromGoneDispatchers();
-    closeStrayActions();
+    // Each sweep is isolated: the paged queries carry a server-side time limit that throws rather
+    // than returning a short page, so an unisolated failure in an early sweep would stop every
+    // sweep after it - silently ending timeout reaping and stale-claim recovery.
+    SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("finalizeWorkspacelessRuns", this::finalizeWorkspacelessRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
+  }
+
+  private static void logSweepFailure(String sweep, Exception ex) {
+    LOGGER.error("Sweep {} failed; the remaining sweeps in this cycle still ran.", sweep, ex);
   }
 
   /**
@@ -165,7 +180,7 @@ public class WorkflowWatcher {
   /** Reap running WorkflowRuns past their durable {@code timeoutAt} deadline. */
   public void reapWorkflowTimeouts() {
     SweepRunner.forEachIsolated(
-        workflowRunService.findTimedOut(new Date(), PAGE_SIZE),
+        workflowRunStateHelper.findTimedOut(new Date(), PAGE_SIZE),
         wfRun -> workflowRunService.timeout(wfRun.getId(), false),
         (wfRun, ex) ->
             LOGGER.error("[{}] Workflow timeout reap failed: {}", wfRun.getId(), ex.getMessage()));
@@ -179,7 +194,7 @@ public class WorkflowWatcher {
   public void recoverStalledRuns() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
     SweepRunner.forEachIsolated(
-        workflowRunService.findRunningStartedBefore(startedBefore, PAGE_SIZE),
+        workflowRunStateHelper.findRunningStartedBefore(startedBefore, PAGE_SIZE),
         wfRun -> {
           if (!taskRunService.existsInFlightByWorkflowRunRef(wfRun.getId())) {
             LOGGER.info(
@@ -198,9 +213,9 @@ public class WorkflowWatcher {
    */
   public void finalizeWorkspacelessRuns() {
     SweepRunner.forEachIsolated(
-        workflowRunService.findFinalizableWithoutWorkspaces(PAGE_SIZE),
+        workflowRunStateHelper.findFinalizableWithoutWorkspaces(PAGE_SIZE),
         wfRun -> {
-          if (workflowRunService.tryFinalize(wfRun.getId()) != null) {
+          if (workflowRunStateHelper.tryFinalize(wfRun.getId()) != null) {
             LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
           }
         },
@@ -266,7 +281,7 @@ public class WorkflowWatcher {
    */
   public void reapRunsWithMissingRevision() {
     SweepRunner.forEachIsolated(
-        workflowRunService.findInFlight(PAGE_SIZE),
+        workflowRunStateHelper.findInFlight(PAGE_SIZE),
         wfRun -> {
           if (workflowRevisionRepository.existsById(wfRun.getWorkflowRevisionRef())) {
             return;
@@ -275,7 +290,7 @@ public class WorkflowWatcher {
               wfRun.getStartTime() != null
                   ? new Date().getTime() - wfRun.getStartTime().getTime()
                   : 0;
-          if (workflowRunService.tryComplete(
+          if (workflowRunStateHelper.tryComplete(
                   wfRun.getId(),
                   IN_FLIGHT_PHASES,
                   RunStatus.invalid,

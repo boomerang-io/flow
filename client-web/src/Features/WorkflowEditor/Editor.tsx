@@ -1,36 +1,44 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Loading, Error, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import { AxiosResponse } from "axios";
 import type { FormikProps } from "formik";
-import queryString from "query-string";
-import { useMutation, useQueryClient, UseMutationResult } from "react-query";
-import { Prompt, Route, Switch, useLocation, useParams } from "react-router-dom";
-import type { ReactFlowInstance } from "reactflow";
+import { Route, Routes, useBlocker, useFetcher, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useImmerReducer } from "use-immer";
-import { useWorkspaceContext, useQuery } from "Hooks";
+import { useWorkspaceContext } from "Hooks";
 import { EditorContextProvider } from "State/context";
 import { RevisionActionTypes, revisionReducer, initRevisionReducerState } from "State/reducers/workflowRevision";
 import { WorkflowEngineMode, WorkspaceConfigType } from "Constants";
 import { WorkflowView } from "Constants";
-import { AppPath } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
 import {
   ChangeLog as ChangeLogType,
   ConfigureWorkflowFormValues,
   DataDrivenInput,
-  PaginatedTaskResponse,
   PaginatedWorkflowResponse,
   Task,
-  Workflow,
   WorkflowCanvas,
   FlowWorkspace,
+  WorkflowReactFlowInstance,
 } from "Types";
 import ChangeLog from "./ChangeLog";
 import Configure from "./Configure";
 import Designer from "./Designer";
+import { useEditorRouteData } from "./editorRouteData";
+import type { EditorActionResult } from "./editorRoute";
 import Header from "./Header";
 import Parameters from "./Parameters";
 import Schedule from "./Schedule";
+
+/*
+ * The six useQuery calls this container used to make now live in the route's loader
+ * (editorRoute.ts, attached in app/routes/editor.tsx) and arrive through useEditorRouteData();
+ * the single useMutation is a useFetcher() submitting the "createRevision" intent to the same
+ * route's action. `queryClient.invalidateQueries` is gone with them - the fetcher's own
+ * completion revalidates the loader, which is what refreshes the workflow and its available
+ * parameters after a new version is created.
+ *
+ * Type-only import of EditorActionResult from the Node-only editorRoute.ts: erased at compile,
+ * so it never pulls Config/serverFetch into the browser bundle (same pattern as
+ * TokenSection.tsx's `import type { TokenActionResult }`).
+ */
 
 const CREATEABLE_PATHS = [
   "canvas",
@@ -46,95 +54,56 @@ const CREATEABLE_PATHS = [
 
 export default function EditorContainer() {
   const { workspace }: { workspace: FlowWorkspace } = useWorkspaceContext();
-  // Init revision number state is held here so we can easily refect the data on change via react-query
+  const rawParams = useParams<{ workflow: string }>();
+  const params = { workflow: rawParams.workflow ?? "" };
+  const editorData = useEditorRouteData();
 
-  const [revisionNumber, setRevisionNumber] = useState<string | number>("");
-  const params = useParams<{ workflow: string }>();
-
-  const getWorkflowsUrl = serviceUrl.workspace.workflow.getWorkflows({ workspace: workspace.name });
-  const getChangelogUrl = serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace: workspace.name, workflow: params.workflow });
-  const getWorkflowUrl = serviceUrl.workspace.workflow.getWorkflowCompose({
-    workspace: workspace.name,
-    workflow: params.workflow,
-    version: revisionNumber,
-  });
-
-  const getTasksUrl = serviceUrl.task.queryTasks({
-    query: queryString.stringify({ statuses: "active" }),
-  });
-  const getWorkspaceTasksUrl = serviceUrl.workspace.task.queryTasks({
-    query: queryString.stringify({ statuses: "active" }),
-    workspace: workspace.name,
-  });
-
-  const getAvailableParametersUrl = serviceUrl.workspace.workflow.getAvailableParameters({
-    workspace: workspace.name,
-    workflow: params.workflow,
-  });
-
-  /**
-   * Queries
+  /*
+   * The version being viewed was `useState` here, purely so react-query would refetch the compose
+   * on change. A loader re-runs on URL change, not on setState, so it is a `?version=` search
+   * param now - which also makes a specific version linkable. Absent means "latest", exactly as
+   * the empty-string initial state did.
    */
-  const workflowQuery = useQuery<WorkflowCanvas>(getWorkflowUrl);
-  const workflowsQuery = useQuery<PaginatedWorkflowResponse>(getWorkflowsUrl);
-  const changeLogQuery = useQuery<ChangeLogType>(getChangelogUrl);
-  const availableParametersQuery = useQuery<Array<string>>(getAvailableParametersUrl);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const revisionNumber = searchParams.get("version") ?? "";
 
-  const tasksQuery = useQuery<PaginatedTaskResponse>(getTasksUrl, {
-    refetchOnWindowFocus: false,
-  });
-  const workspaceTasksQuery = useQuery<PaginatedTaskResponse>(getWorkspaceTasksUrl, {
-    refetchOnWindowFocus: false,
-  });
+  const changeVersion = useCallback(
+    (version: string | number) => {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          next.set("version", String(version));
+          return next;
+        },
+        { replace: false },
+      );
+    },
+    [setSearchParams],
+  );
 
-  /**
-   * Mutations
-   */
-  const revisionMutator = useMutation(resolver.putApplyWorkflowCompose);
-
-  if (
-    workflowQuery.isLoading ||
-    workflowsQuery.isLoading ||
-    changeLogQuery.isLoading ||
-    tasksQuery.isLoading ||
-    workspaceTasksQuery.isLoading ||
-    availableParametersQuery.isLoading
-  ) {
+  // Undefined only when this component is rendered outside a route carrying the editor loader
+  // (which the router never does in the app itself); the previous code showed the same spinner
+  // while its queries were in flight.
+  if (!editorData) {
     return <Loading />;
   }
 
-  if (
-    workflowQuery.error ||
-    workflowsQuery.error ||
-    changeLogQuery.error ||
-    tasksQuery.error ||
-    workspaceTasksQuery.error ||
-    availableParametersQuery.error
-  ) {
+  if (editorData.errorLoading) {
     return <Error />;
   }
 
-  if (
-    workflowQuery.data &&
-    workflowsQuery.data &&
-    changeLogQuery.data &&
-    tasksQuery.data &&
-    workspaceTasksQuery.data &&
-    availableParametersQuery.data
-  ) {
-    const taskList = [...tasksQuery.data.content, ...prefixWorkspaceTask(workspaceTasksQuery.data.content, workspace)];
+  const { workflow, workflows, changeLog, availableParameters, tasks, workspaceTasks } = editorData;
+
+  if (workflow && workflows && changeLog && availableParameters && tasks && workspaceTasks) {
+    const taskList = [...tasks.content, ...prefixWorkspaceTask(workspaceTasks.content, workspace)];
     return (
       <EditorStateContainer
-        availableParametersQueryData={availableParametersQuery.data}
-        parametersUrl={getAvailableParametersUrl}
-        changeLogData={changeLogQuery.data}
-        revisionNumber={revisionNumber}
-        revisionMutator={revisionMutator}
-        workflowQueryUrl={getWorkflowUrl}
-        workflowQueryData={workflowQuery.data}
-        workflowsQueryData={workflowsQuery.data}
-        setRevisionNumber={setRevisionNumber}
+        availableParametersData={availableParameters}
+        changeLogData={changeLog}
+        changeVersion={changeVersion}
         taskList={taskList}
+        workflowData={workflow}
+        workflowsData={workflows}
         workflowRef={params.workflow}
         key={revisionNumber}
         workspace={workspace}
@@ -146,21 +115,12 @@ export default function EditorContainer() {
 }
 
 interface EditorStateContainerProps {
-  availableParametersQueryData: Array<string>;
+  availableParametersData: Array<string>;
   changeLogData: ChangeLogType;
-  parametersUrl: string;
-  revisionMutator: UseMutationResult<
-    AxiosResponse<Workflow, any>,
-    unknown,
-    { workspace: any; workflow: any; body: any },
-    unknown
-  >;
-  revisionNumber: string | number;
-  setRevisionNumber: React.Dispatch<React.SetStateAction<string | number>>;
+  changeVersion: (version: string | number) => void;
   taskList: Array<Task>;
-  workflowQueryUrl: string;
-  workflowQueryData: WorkflowCanvas;
-  workflowsQueryData: PaginatedWorkflowResponse;
+  workflowData: WorkflowCanvas;
+  workflowsData: PaginatedWorkflowResponse;
   workflowRef: string;
   workspace: FlowWorkspace;
 }
@@ -170,29 +130,33 @@ interface EditorStateContainerProps {
  * Make function calls to mutate server data
  */
 const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
-  availableParametersQueryData,
+  availableParametersData,
   changeLogData,
-  parametersUrl,
-  revisionMutator,
-  setRevisionNumber,
+  changeVersion,
   taskList,
-  workflowQueryUrl,
-  workflowQueryData,
-  workflowsQueryData,
+  workflowData,
+  workflowsData,
   workflowRef,
-  workspace,
 }) => {
   const location = useLocation();
-  const queryClient = useQueryClient();
+  // No explicit action path: a bare useFetcher() resolves to the nearest matched route, which is
+  // the editor route itself (app/routes/editor.tsx) - the same way the Configure > Tokens tab's
+  // fetcher reaches the token half of that route's one action.
+  const fetcher = useFetcher<EditorActionResult>();
 
-  const [revisionState, revisionDispatch] = useImmerReducer(
-    revisionReducer,
-    initRevisionReducerState(workflowQueryData),
-  );
+  const [revisionState, revisionDispatch] = useImmerReducer(revisionReducer, initRevisionReducerState(workflowData));
 
-  const [reactFlowInstance, setReactFlowInstance] = React.useState<ReactFlowInstance | null>(null);
-  const [availableParameters, setAvailableParameters] = React.useState(availableParametersQueryData);
+  const [reactFlowInstance, setReactFlowInstance] = React.useState<WorkflowReactFlowInstance | null>(null);
+  const [availableParameters, setAvailableParameters] = React.useState(availableParametersData);
   const settingsRef = useRef<FormikProps<any> | null>(null);
+  /*
+   * VersionCommentForm hands this component its own `closeModal` at submit time. The fetcher
+   * settles asynchronously (its result arrives on a later render), so the callback is stashed
+   * here and invoked from the effect below once the create actually succeeds - the same
+   * "stay open, close only on success" behaviour the old `await mutateAsync(...)` chain had.
+   * See GlobalParameters.tsx for the reference version of this.
+   */
+  const createRevisionCallbackRef = useRef<(() => void) | null>(null);
 
   const handleCreateRevision = async ({ reason = "Update workflow", callback }: any) => {
     const configureValues = settingsRef?.current?.values ?? {};
@@ -207,25 +171,33 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
         changelog: { reason },
       };
 
-      try {
-        const { data } = await revisionMutator.mutateAsync({ workspace: workspace.name, workflow: workflowRef, body: revision });
-        notify(
-          <ToastNotification kind="success" title="Create Version" subtitle="Successfully created workflow version" />,
-        );
-        if (typeof callback === "function") {
-          callback();
-        }
-        revisionDispatch({ type: RevisionActionTypes.Set, data });
-        setRevisionNumber(data.version);
-        queryClient.invalidateQueries(parametersUrl);
-        queryClient.invalidateQueries(workflowQueryUrl);
-      } catch (err) {
-        notify(
-          <ToastNotification kind="error" title="Something's Wrong" subtitle={`Failed to create workflow version`} />,
-        );
-      }
+      createRevisionCallbackRef.current = typeof callback === "function" ? callback : null;
+      fetcher.submit({ intent: "createRevision", revision: JSON.stringify(revision) }, { method: "post" });
     }
   };
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "createRevision") {
+      return;
+    }
+
+    if (!fetcher.data.ok) {
+      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Failed to create workflow version`} />);
+      return;
+    }
+
+    const data = fetcher.data.workflow;
+    notify(<ToastNotification kind="success" title="Create Version" subtitle="Successfully created workflow version" />);
+    createRevisionCallbackRef.current?.();
+    createRevisionCallbackRef.current = null;
+    revisionDispatch({ type: RevisionActionTypes.Set, data });
+    // The newly created revision is now the one being viewed, exactly as the old
+    // `setRevisionNumber(data.version)` did. Because the version lives in the URL, this is a
+    // navigation - react-router resolves the loader before committing it, so the `key` below and
+    // the loader data it re-initialises this reducer from change in the same commit.
+    changeVersion(data.version);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
 
   const handleUpdateNotes = useCallback(
     (markdown: string) => {
@@ -298,14 +270,6 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
     [revisionDispatch, availableParameters, setAvailableParameters],
   );
 
-  /**
-   *  Simply update the parent state to use a different revision to fetch it w/ react-query
-   * @param {string} revisionNumber
-   */
-  const handleChangeRevision = (revisionNumber: string) => {
-    return setRevisionNumber(revisionNumber);
-  };
-
   const revisionCount = changeLogData.length;
   const { markdown, version } = revisionState;
   const mode = version === revisionCount ? WorkflowEngineMode.Edit : WorkflowEngineMode.View;
@@ -315,45 +279,58 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
       mode,
       revisionDispatch,
       revisionState,
-      workflowsQueryData,
+      workflowsQueryData: workflowsData,
     };
-  }, [availableParameters, mode, revisionDispatch, revisionState, workflowsQueryData]);
+  }, [availableParameters, mode, revisionDispatch, revisionState, workflowsData]);
+
+  // Same in-app "leave without saving" guard as before, ported from v5's <Prompt> to v6/v7's
+  // useBlocker (requires the data router set up in Root.tsx). Blocks navigation away from
+  // this workflow while there are unsaved changes; switching tabs within the same workflow
+  // (nextLocation.pathname still includes workflowRef) is allowed through unprompted - as is the
+  // search-param-only navigation the version switcher now makes, for the same reason.
+  const blocker = useBlocker(
+    ({ nextLocation }) => Boolean(revisionState.hasUnsavedUpdates) && !nextLocation.pathname.includes(workflowRef),
+  );
+
+  React.useEffect(() => {
+    if (blocker.state === "blocked") {
+      if (window.confirm("Are you sure? You have unsaved changes to your workflow that will be lost.")) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker]);
+
+  const isCreatingRevision = fetcher.state !== "idle";
+  const createRevisionFailed = Boolean(
+    fetcher.data && fetcher.data.intent === "createRevision" && fetcher.data.ok === false,
+  );
 
   return (
     // Must create context to share state w/ nodes that are created by the DAG engine
     <EditorContextProvider value={store}>
       <>
-        <Prompt
-          when={Boolean(revisionState.hasUnsavedUpdates)}
-          message={(location) =>
-            //Return true to navigate if going to the same route we are currently on
-            location.pathname.includes(workflowRef)
-              ? true
-              : "Are you sure? You have unsaved changes to your workflow that will be lost."
-          }
-        />
         <Header
           changeLog={changeLogData}
-          changeRevision={handleChangeRevision}
+          changeRevision={changeVersion}
           createRevision={handleCreateRevision}
           canCreateNewVersion={CREATEABLE_PATHS.includes(location.pathname.split("/").pop() || "")}
+          createRevisionFailed={createRevisionFailed}
+          isCreatingRevision={isCreatingRevision}
           revisionState={revisionState}
           viewType={WorkflowView.Workflow}
           revisionCount={revisionCount}
-          revisionMutator={revisionMutator}
         />
-        <Switch>
-          <Route path={AppPath.EditorCanvas} />
-          <Route path={AppPath.EditorProperties}>
-            <Parameters workflow={revisionState} handleUpdateParams={handleUpdateParams} />
-          </Route>
-          <Route path={AppPath.EditorSchedule}>
-            <Schedule workflow={revisionState} />
-          </Route>
-          <Route path={AppPath.EditorChangelog}>
-            <ChangeLog changeLogData={changeLogData} />
-          </Route>
-        </Switch>
+        <Routes>
+          <Route path="canvas" element={null} />
+          <Route
+            path="parameters"
+            element={<Parameters workflow={revisionState} handleUpdateParams={handleUpdateParams} />}
+          />
+          <Route path="schedule" element={<Schedule workflow={revisionState} />} />
+          <Route path="changelog" element={<ChangeLog changeLogData={changeLogData} />} />
+        </Routes>
         {
           // Always render parent Configure component so state isn't lost when switching tabs
           // It is responsible for rendering its children, but Formik form management is always mounted

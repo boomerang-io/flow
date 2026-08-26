@@ -1,0 +1,917 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WorkflowInsights --- Snapshot > Capturing Snapshot of WorkflowInsights 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <header
+      class="cds--bmrg-feature-header _header_9aa67f"
+    >
+      <section
+        class="cds--bmrg-feature-header__content"
+      >
+        <div
+          class="cds--bmrg-feature-header__nav"
+        >
+          <nav
+            aria-label="Breadcrumb"
+          >
+            <ol
+              class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+            >
+              <li
+                class="cds--breadcrumb-item"
+              >
+                <a
+                  class="cds--link"
+                  data-discover="true"
+                  href="/home"
+                >
+                  Home
+                </a>
+              </li>
+              <li
+                class="cds--breadcrumb-item cds--breadcrumb-item--current"
+              >
+                <p
+                  class="cds--link"
+                >
+                  Tyson Workspace
+                </p>
+              </li>
+            </ol>
+          </nav>
+        </div>
+        <div
+          class="cds--bmrg-feature-header__header"
+        >
+          <h1
+            class="cds--bmrg-feature-header-title"
+          >
+            Insights
+          </h1>
+          <p
+            class="cds--bmrg-feature-header-title"
+          >
+            Gain valuable insight by digging deeper into the Workflow runs
+          </p>
+        </div>
+      </section>
+    </header>
+    <div
+      class="_container_9aa67f"
+    >
+      <div
+        class="_dataFilters_9aa67f"
+      >
+        <div
+          class="cds--multi-select__wrapper cds--multi-select--filterable__wrapper cds--list-box__wrapper"
+        >
+          <label
+            class="cds--label"
+            for="insights-workflows-select-input"
+            id="insights-workflows-select-label"
+          >
+            Filter by Workflow
+            <span
+              class="cds--visually-hidden"
+            >
+              <span
+                class="cds--visually-hidden"
+              >
+                Total items selected: 
+                : 0
+              </span>
+            </span>
+          </label>
+          <div
+            class="cds--multi-select cds--combo-box cds--multi-select--filterable cds--list-box"
+            id="insights-workflows-select"
+          >
+            <div
+              class="cds--list-box__field"
+            >
+              <input
+                aria-activedescendant=""
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                autocomplete="off"
+                class="cds--text-input cds--text-input--empty"
+                id="insights-workflows-select-input"
+                placeholder="Choose workflow(s)"
+                role="combobox"
+                value=""
+              />
+              <button
+                aria-controls="insights-workflows-select__menu"
+                aria-expanded="false"
+                aria-label="Open"
+                class="cds--list-box__menu-icon"
+                id="insights-workflows-select-toggle-button"
+                tabindex="-1"
+                title="Open"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <ul
+              aria-labelledby="insights-workflows-select-label"
+              class="cds--list-box__menu"
+              id="insights-workflows-select__menu"
+              role="listbox"
+            />
+          </div>
+        </div>
+        <div
+          class="cds--multi-select__wrapper cds--multi-select--filterable__wrapper cds--list-box__wrapper"
+        >
+          <label
+            class="cds--label"
+            for="insights-statuses-select-input"
+            id="insights-statuses-select-label"
+          >
+            Filter by status
+            <span
+              class="cds--visually-hidden"
+            >
+              <span
+                class="cds--visually-hidden"
+              >
+                Total items selected: 
+                : 0
+              </span>
+            </span>
+          </label>
+          <div
+            class="cds--multi-select cds--combo-box cds--multi-select--filterable cds--list-box"
+            id="insights-statuses-select"
+          >
+            <div
+              class="cds--list-box__field"
+            >
+              <input
+                aria-activedescendant=""
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                autocomplete="off"
+                class="cds--text-input cds--text-input--empty"
+                id="insights-statuses-select-input"
+                placeholder="Choose status(es)"
+                role="combobox"
+                value=""
+              />
+              <button
+                aria-controls="insights-statuses-select__menu"
+                aria-expanded="false"
+                aria-label="Open"
+                class="cds--list-box__menu-icon"
+                id="insights-statuses-select-toggle-button"
+                tabindex="-1"
+                title="Open"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <ul
+              aria-labelledby="insights-statuses-select-label"
+              class="cds--list-box__menu"
+              id="insights-statuses-select__menu"
+              role="listbox"
+            />
+          </div>
+        </div>
+        <div
+          class="_timeFilters_9aa67f"
+        >
+          <div
+            class="cds--form-item"
+            id="insights-date-picker"
+          >
+            <div
+              class="cds--date-picker cds--date-picker--range"
+            >
+              <div
+                class="cds--date-picker-container"
+              >
+                <label
+                  class="cds--label"
+                  dir="auto"
+                  for="insights-date-picker-start"
+                >
+                  Start date
+                </label>
+                <div
+                  class="cds--date-picker-input__wrapper"
+                >
+                  <span>
+                    <input
+                      autocomplete="off"
+                      class="cds--date-picker__input cds--date-picker__input--md flatpickr-input"
+                      id="insights-date-picker-start"
+                      pattern="\\d{1,2}\\/\\d{1,2}\\/\\d{4}"
+                      type="text"
+                      value="10/01/2019"
+                    />
+                    <svg
+                      aria-hidden="true"
+                      class="cds--date-picker__icon"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M26,4h-4V2h-2v2h-8V2h-2v2H6C4.9,4,4,4.9,4,6v20c0,1.1,0.9,2,2,2h20c1.1,0,2-0.9,2-2V6C28,4.9,27.1,4,26,4z M26,26H6V12h20 V26z M26,10H6V6h4v2h2V6h8v2h2V6h4V10z"
+                      />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+              <div
+                class="cds--date-picker-container"
+              >
+                <label
+                  class="cds--label"
+                  dir="auto"
+                  for="insights-date-picker-end"
+                >
+                  End date
+                </label>
+                <div
+                  class="cds--date-picker-input__wrapper"
+                >
+                  <span>
+                    <input
+                      autocomplete="off"
+                      class="cds--date-picker__input cds--date-picker__input--md"
+                      data-fp-omit=""
+                      id="insights-date-picker-end"
+                      pattern="\\d{1,2}\\/\\d{1,2}\\/\\d{4}"
+                      type="text"
+                      value="01/01/2020"
+                    />
+                    <svg
+                      aria-hidden="true"
+                      class="cds--date-picker__icon"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M26,4h-4V2h-2v2h-8V2h-2v2H6C4.9,4,4,4.9,4,6v20c0,1.1,0.9,2,2,2h20c1.1,0,2-0.9,2-2V6C28,4.9,27.1,4,26,4z M26,26H6V12h20 V26z M26,10H6V6h4v2h2V6h8v2h2V6h4V10z"
+                      />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="_statsWidgets_9aa67f"
+        data-testid="completed-insights"
+      >
+        <div
+          class="cds--tile _container_fe2025"
+        >
+          <div>
+            <h3
+              class="_title_fe2025"
+            >
+              Runs
+            </h3>
+            <div
+              class="_totalCountContainer_fe2025"
+            >
+              <p
+                class="_totalCount_fe2025"
+              >
+                1088
+              </p>
+              <p
+                class="_type_fe2025"
+              >
+                runs
+              </p>
+            </div>
+          </div>
+          <ul
+            class="_list_fe2025"
+          >
+            <li
+              class="_row_fe2025"
+            >
+              <p
+                class="_itemValue_fe2025"
+                style="width: 2rem;"
+              >
+                3
+              </p>
+              <p
+                class="_itemLabel_fe2025"
+              >
+                Tim Testing Slacks
+              </p>
+            </li>
+            <li
+              class="_row_fe2025"
+            >
+              <p
+                class="_itemValue_fe2025"
+                style="width: 2rem;"
+              >
+                1
+              </p>
+              <p
+                class="_itemLabel_fe2025"
+              >
+                Tim Testing Slacks
+              </p>
+            </li>
+          </ul>
+        </div>
+        <div
+          class="cds--tile _container_fe2025"
+        >
+          <div>
+            <h3
+              class="_title_fe2025"
+            >
+              Duration (median)
+            </h3>
+            <div
+              class="_totalCountContainer_fe2025"
+            >
+              <p
+                class="_totalCount_fe2025"
+              >
+                1 min 7 secs
+              </p>
+              <p
+                class="_type_fe2025"
+              />
+            </div>
+          </div>
+          <ul
+            class="_list_fe2025"
+          >
+            <li
+              class="_row_fe2025"
+            >
+              <p
+                class="_itemValue_fe2025"
+                style="width: 7rem;"
+              >
+                10 secs
+              </p>
+              <p
+                class="_itemLabel_fe2025"
+              >
+                Minimum
+              </p>
+            </li>
+            <li
+              class="_row_fe2025"
+            >
+              <p
+                class="_itemValue_fe2025"
+                style="width: 7rem;"
+              >
+                30 secs
+              </p>
+              <p
+                class="_itemLabel_fe2025"
+              >
+                Maximum
+              </p>
+            </li>
+            <li
+              class="_row_fe2025"
+            >
+              <p
+                class="_itemValue_fe2025"
+                style="width: 7rem;"
+              >
+                23 secs
+              </p>
+              <p
+                class="_itemLabel_fe2025"
+              >
+                Average
+              </p>
+            </li>
+          </ul>
+        </div>
+        <div
+          class="_donut_9aa67f"
+        >
+          <div
+            class="CarbonDonutChart"
+          >
+            <div>
+              DonutChart
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="_graphsWidgets_9aa67f"
+      >
+        <div
+          class="cds--tile _container_082b99"
+        >
+          <div>
+            LineChart
+          </div>
+        </div>
+        <div
+          class="cds--tile _container_082b99"
+        >
+          <div>
+            ScatterChart
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    aria-label="calendar-container"
+    class="flatpickr-calendar rangeMode animate cds--date-picker__calendar"
+    role="application"
+    tabindex="-1"
+  >
+    <div
+      class="flatpickr-months"
+    >
+      <span
+        class="flatpickr-prev-month"
+      >
+        <svg
+          height="16px"
+          viewBox="0 0 16 16"
+          width="16px"
+        >
+          
+  
+          <polygon
+            points="5,8 10,3 10.7,3.7 6.4,8 10.7,12.3 10,13 "
+          />
+          
+
+        </svg>
+      </span>
+      <div
+        class="flatpickr-month cds--date-picker__month"
+      >
+        <div
+          class="flatpickr-current-month"
+        >
+          <span
+            class="cur-month"
+          >
+            October
+          </span>
+          <div
+            class="numInputWrapper"
+          >
+            <input
+              aria-label="Year"
+              class="numInput cur-year"
+              max="2020"
+              tabindex="-1"
+              type="number"
+            />
+            <span
+              class="arrowUp"
+            />
+            <span
+              class="arrowDown"
+            />
+          </div>
+        </div>
+      </div>
+      <span
+        class="flatpickr-next-month flatpickr-disabled"
+      >
+        <svg
+          height="16px"
+          viewBox="0 0 16 16"
+          width="16px"
+        >
+          
+  
+          <polygon
+            points="11,8 6,13 5.3,12.3 9.6,8 5.3,3.7 6,3 "
+          />
+          
+
+        </svg>
+      </span>
+    </div>
+    <div
+      class="flatpickr-innerContainer"
+    >
+      <div
+        class="flatpickr-rContainer"
+      >
+        <div
+          class="flatpickr-weekdays cds--date-picker__weekdays"
+        >
+          <div
+            class="flatpickr-weekdaycontainer"
+          >
+            
+      
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              S
+            </span>
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              M
+            </span>
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              T
+            </span>
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              W
+            </span>
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              Th
+            </span>
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              F
+            </span>
+            <span
+              class="flatpickr-weekday cds--date-picker__weekday"
+            >
+              S
+            </span>
+            
+      
+          </div>
+        </div>
+        <div
+          class="flatpickr-days cds--date-picker__days"
+          tabindex="-1"
+        >
+          <div
+            class="dayContainer"
+          >
+            <span
+              aria-label="December 29, 2019"
+              class="flatpickr-day prevMonthDay inRange cds--date-picker__day"
+              role="button"
+              tabindex="-1"
+            >
+              29
+            </span>
+            <span
+              aria-label="December 30, 2019"
+              class="flatpickr-day prevMonthDay inRange cds--date-picker__day"
+              role="button"
+              tabindex="-1"
+            >
+              30
+            </span>
+            <span
+              aria-label="December 31, 2019"
+              class="flatpickr-day prevMonthDay inRange cds--date-picker__day"
+              role="button"
+              tabindex="-1"
+            >
+              31
+            </span>
+            <span
+              aria-current="date"
+              aria-label="January 1, 2020"
+              class="flatpickr-day today selected endRange cds--date-picker__day no-border"
+              role="button"
+              tabindex="-1"
+            >
+              1
+            </span>
+            <span
+              aria-label="January 2, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              2
+            </span>
+            <span
+              aria-label="January 3, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              3
+            </span>
+            <span
+              aria-label="January 4, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              4
+            </span>
+            <span
+              aria-label="January 5, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              5
+            </span>
+            <span
+              aria-label="January 6, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              6
+            </span>
+            <span
+              aria-label="January 7, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              7
+            </span>
+            <span
+              aria-label="January 8, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              8
+            </span>
+            <span
+              aria-label="January 9, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              9
+            </span>
+            <span
+              aria-label="January 10, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              10
+            </span>
+            <span
+              aria-label="January 11, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              11
+            </span>
+            <span
+              aria-label="January 12, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              12
+            </span>
+            <span
+              aria-label="January 13, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              13
+            </span>
+            <span
+              aria-label="January 14, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              14
+            </span>
+            <span
+              aria-label="January 15, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              15
+            </span>
+            <span
+              aria-label="January 16, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              16
+            </span>
+            <span
+              aria-label="January 17, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              17
+            </span>
+            <span
+              aria-label="January 18, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              18
+            </span>
+            <span
+              aria-label="January 19, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              19
+            </span>
+            <span
+              aria-label="January 20, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              20
+            </span>
+            <span
+              aria-label="January 21, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              21
+            </span>
+            <span
+              aria-label="January 22, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              22
+            </span>
+            <span
+              aria-label="January 23, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              23
+            </span>
+            <span
+              aria-label="January 24, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              24
+            </span>
+            <span
+              aria-label="January 25, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              25
+            </span>
+            <span
+              aria-label="January 26, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              26
+            </span>
+            <span
+              aria-label="January 27, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              27
+            </span>
+            <span
+              aria-label="January 28, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              28
+            </span>
+            <span
+              aria-label="January 29, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              29
+            </span>
+            <span
+              aria-label="January 30, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              30
+            </span>
+            <span
+              aria-label="January 31, 2020"
+              class="flatpickr-day flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              31
+            </span>
+            <span
+              aria-label="February 1, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              1
+            </span>
+            <span
+              aria-label="February 2, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              2
+            </span>
+            <span
+              aria-label="February 3, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              3
+            </span>
+            <span
+              aria-label="February 4, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              4
+            </span>
+            <span
+              aria-label="February 5, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              5
+            </span>
+            <span
+              aria-label="February 6, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              6
+            </span>
+            <span
+              aria-label="February 7, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              7
+            </span>
+            <span
+              aria-label="February 8, 2020"
+              class="flatpickr-day nextMonthDay flatpickr-disabled cds--date-picker__day"
+              role="button"
+            >
+              8
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+`;

@@ -30,25 +30,441 @@ exports[`Settings --- Snapshot > Capturing Snapshot of Settings 1`] = `
     <div
       class="_container_10f51f css-xtq108"
     >
-      <div
-        class="_skeletonPlacholderContainer_10f51f css-vurnku"
+      <ul
+        class="cds--accordion cds--accordion--end"
       >
-        <div
-          class="cds--skeleton__placeholder"
-        />
-        <div
-          class="cds--skeleton__placeholder"
-        />
-        <div
-          class="cds--skeleton__placeholder"
-        />
-        <div
-          class="cds--skeleton__placeholder"
-        />
-        <div
-          class="cds--skeleton__placeholder"
-        />
-      </div>
+        <li
+          class="cds--accordion__item cds--accordion__item--active"
+        >
+          <button
+            aria-controls="accordion-item-[generated-id]"
+            aria-expanded="true"
+            class="cds--accordion__heading"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              class="cds--accordion__arrow"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
+              />
+            </svg>
+            <div
+              class="cds--accordion__title"
+              dir="auto"
+            >
+              <div
+                class="_accordionTitle_94d483"
+                data-testid="settings-section"
+                id="controller"
+              >
+                <h2>
+                  Workers
+                </h2>
+                <p
+                  class="_accordionDescription_94d483"
+                  title="The CICD worker configuration."
+                >
+                  The CICD worker configuration.
+                </p>
+              </div>
+            </div>
+          </button>
+          <div
+            class="cds--accordion__wrapper"
+          >
+            <div
+              class="cds--accordion__content"
+              id="accordion-item-[generated-id]"
+            >
+              <div
+                class="cds--bmrg-dynamic-formik"
+              >
+                <button
+                  class="_saveButton_94d483 cds--btn cds--btn--md cds--layout--size-md cds--btn--primary cds--btn--disabled"
+                  disabled=""
+                  type="button"
+                >
+                  Save
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Save settings"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M13.9,4.6l-2.5-2.5C11.3,2.1,11.1,2,11,2H3C2.4,2,2,2.4,2,3v10c0,0.6,0.4,1,1,1h10c0.6,0,1-0.4,1-1V5 C14,4.9,13.9,4.7,13.9,4.6z M6,3h4v2H6V3z M10,13H6V9h4V13z M11,13V9c0-0.6-0.4-1-1-1H6C5.4,8,5,8.4,5,9v4H3V3h2v2c0,0.6,0.4,1,1,1 h4c0.6,0,1-0.4,1-1V3.2l2,2V13H11z"
+                    />
+                  </svg>
+                </button>
+                <div
+                  class="cds--bmrg-toggle__container"
+                >
+                  <div
+                    class="cds--bmrg-toggle --vertical"
+                  >
+                    <div
+                      class="cds--bmrg-toggle__title"
+                    >
+                      <label
+                        class="cds--label"
+                        for="['enable.tasks']"
+                        id="['enable.tasks']-label"
+                        style="margin-bottom: 0px;"
+                      >
+                        Enable Verified Tasks to be edited
+                      </label>
+                      <div
+                        class="cds--bmrg-toggle__tooltip"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 16 16"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8.5 11 8.5 6.5 6.5 6.5 6.5 7.5 7.5 7.5 7.5 11 6 11 6 12 10 12 10 11z"
+                          />
+                          <path
+                            d="M8,3.5c-0.4,0-0.8,0.3-0.8,0.8S7.6,5,8,5c0.4,0,0.8-0.3,0.8-0.8S8.4,3.5,8,3.5z"
+                          />
+                          <path
+                            d="M8,15c-3.9,0-7-3.1-7-7s3.1-7,7-7s7,3.1,7,7S11.9,15,8,15z M8,2C4.7,2,2,4.7,2,8s2.7,6,6,6s6-2.7,6-6S11.3,2,8,2z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <div
+                      class="cds--toggle"
+                    >
+                      <button
+                        aria-checked="false"
+                        aria-labelledby="['enable.tasks']-label"
+                        class="cds--toggle__button"
+                        data-testid="enable.tasks"
+                        id="['enable.tasks']"
+                        name="['enable.tasks']"
+                        role="switch"
+                        type="button"
+                      />
+                      <div
+                        class="cds--toggle__label"
+                        id="['enable.tasks']_label"
+                      >
+                        <div
+                          class="cds--toggle__appearance"
+                        >
+                          <div
+                            class="cds--toggle__switch"
+                          />
+                          <span
+                            aria-hidden="true"
+                            class="cds--toggle__text"
+                            dir="auto"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="cds--bmrg-toggle__container"
+                >
+                  <div
+                    class="cds--bmrg-toggle --vertical"
+                  >
+                    <div
+                      class="cds--bmrg-toggle__title"
+                    >
+                      <label
+                        class="cds--label"
+                        for="['enable.debug']"
+                        id="['enable.debug']-label"
+                        style="margin-bottom: 0px;"
+                      >
+                        Enable Debug
+                      </label>
+                      <div
+                        class="cds--bmrg-toggle__tooltip"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 16 16"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8.5 11 8.5 6.5 6.5 6.5 6.5 7.5 7.5 7.5 7.5 11 6 11 6 12 10 12 10 11z"
+                          />
+                          <path
+                            d="M8,3.5c-0.4,0-0.8,0.3-0.8,0.8S7.6,5,8,5c0.4,0,0.8-0.3,0.8-0.8S8.4,3.5,8,3.5z"
+                          />
+                          <path
+                            d="M8,15c-3.9,0-7-3.1-7-7s3.1-7,7-7s7,3.1,7,7S11.9,15,8,15z M8,2C4.7,2,2,4.7,2,8s2.7,6,6,6s6-2.7,6-6S11.3,2,8,2z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <div
+                      class="cds--toggle"
+                    >
+                      <button
+                        aria-checked="false"
+                        aria-labelledby="['enable.debug']-label"
+                        class="cds--toggle__button"
+                        data-testid="enable.debug"
+                        id="['enable.debug']"
+                        name="['enable.debug']"
+                        role="switch"
+                        type="button"
+                      />
+                      <div
+                        class="cds--toggle__label"
+                        id="['enable.debug']_label"
+                      >
+                        <div
+                          class="cds--toggle__appearance"
+                        >
+                          <div
+                            class="cds--toggle__switch"
+                          />
+                          <span
+                            aria-hidden="true"
+                            class="cds--toggle__text"
+                            dir="auto"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="cds--bmrg-text-input"
+                >
+                  <div
+                    class="cds--form-item cds--text-input-wrapper"
+                  >
+                    <div
+                      class="cds--text-input__label-wrapper"
+                    >
+                      <label
+                        class="cds--label"
+                        dir="auto"
+                        for="['worker.image']"
+                      >
+                        <div
+                          class="cds--bmrg-text-input__label"
+                        >
+                          <div>
+                            Default Image Path
+                          </div>
+                          <div
+                            class="cds--bmrg-text-input__tooltip"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              viewBox="0 0 16 16"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M8.5 11 8.5 6.5 6.5 6.5 6.5 7.5 7.5 7.5 7.5 11 6 11 6 12 10 12 10 11z"
+                              />
+                              <path
+                                d="M8,3.5c-0.4,0-0.8,0.3-0.8,0.8S7.6,5,8,5c0.4,0,0.8-0.3,0.8-0.8S8.4,3.5,8,3.5z"
+                              />
+                              <path
+                                d="M8,15c-3.9,0-7-3.1-7-7s3.1-7,7-7s7,3.1,7,7S11.9,15,8,15z M8,2C4.7,2,2,4.7,2,8s2.7,6,6,6s6-2.7,6-6S11.3,2,8,2z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div
+                      class="cds--text-input__field-outer-wrapper"
+                    >
+                      <div
+                        class="cds--text-input__field-wrapper"
+                      >
+                        <input
+                          class="cds--text-input"
+                          data-testid="worker.image"
+                          id="['worker.image']"
+                          name="['worker.image']"
+                          type="text"
+                          value="test-version"
+                        />
+                        <span
+                          aria-atomic="true"
+                          aria-live="assertive"
+                          class="cds--text-input__counter-alert"
+                          role="alert"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="cds--bmrg-select"
+                >
+                  <div
+                    class="cds--list-box__wrapper"
+                  >
+                    <label
+                      class="cds--label"
+                      dir="auto"
+                      for="['job.deletion.policy']"
+                      id="downshift-[generated-id]-label"
+                    >
+                      <div
+                        style="display: flex;"
+                      >
+                        <div>
+                          Defines the completion state that will lead to worker removal
+                        </div>
+                        <div
+                          class="cds--bmrg-select__tooltip"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            fill="currentColor"
+                            focusable="false"
+                            height="16"
+                            preserveAspectRatio="xMidYMid meet"
+                            viewBox="0 0 16 16"
+                            width="16"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M8.5 11 8.5 6.5 6.5 6.5 6.5 7.5 7.5 7.5 7.5 11 6 11 6 12 10 12 10 11z"
+                            />
+                            <path
+                              d="M8,3.5c-0.4,0-0.8,0.3-0.8,0.8S7.6,5,8,5c0.4,0,0.8-0.3,0.8-0.8S8.4,3.5,8,3.5z"
+                            />
+                            <path
+                              d="M8,15c-3.9,0-7-3.1-7-7s3.1-7,7-7s7,3.1,7,7S11.9,15,8,15z M8,2C4.7,2,2,4.7,2,8s2.7,6,6,6s6-2.7,6-6S11.3,2,8,2z"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    </label>
+                    <div
+                      class="cds--combo-box cds--list-box"
+                    >
+                      <div
+                        class="cds--list-box__field"
+                      >
+                        <input
+                          aria-activedescendant=""
+                          aria-autocomplete="list"
+                          aria-controls="downshift-[generated-id]-menu"
+                          aria-expanded="false"
+                          aria-haspopup="listbox"
+                          aria-labelledby="downshift-[generated-id]-label"
+                          autocomplete="off"
+                          class="cds--text-input"
+                          data-testid="job.deletion.policy"
+                          id="['job.deletion.policy']"
+                          max="128"
+                          min="0"
+                          name="['job.deletion.policy']"
+                          role="combobox"
+                          tabindex="0"
+                          title="Always"
+                          type="text"
+                          value="Always"
+                        />
+                        <button
+                          aria-label="Clear selected item"
+                          class="cds--list-box__selection"
+                          tabindex="-1"
+                          title="Clear selected item"
+                          type="button"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            fill="currentColor"
+                            focusable="false"
+                            height="16"
+                            preserveAspectRatio="xMidYMid meet"
+                            viewBox="0 0 32 32"
+                            width="16"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          aria-controls="downshift-[generated-id]-menu"
+                          aria-expanded="false"
+                          aria-label="Open"
+                          class="cds--list-box__menu-icon"
+                          id="downshift-[generated-id]-toggle-button"
+                          tabindex="-1"
+                          title="Open"
+                          type="button"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            fill="currentColor"
+                            focusable="false"
+                            height="16"
+                            preserveAspectRatio="xMidYMid meet"
+                            viewBox="0 0 16 16"
+                            width="16"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                      <ul
+                        aria-labelledby="downshift-[generated-id]-label"
+                        class="cds--list-box__menu"
+                        id="downshift-[generated-id]-menu"
+                        role="listbox"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ul>
     </div>
   </div>
 </body>

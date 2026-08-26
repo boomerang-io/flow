@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.workflow.WorkflowRunService;
 import tools.jackson.databind.ObjectMapper;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
@@ -30,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
@@ -56,11 +58,16 @@ public class TaskExecutionService {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+  @Value("${flow.engine.task.params.max-bytes:16384}")
+  private int paramsMaxBytes;
+
   @Autowired private DAGUtility dagUtility;
 
   @Autowired private WorkflowRunRepository workflowRunRepository;
 
   @Autowired private WorkflowRunService workflowRunService;
+
+  @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
 
   @Autowired private WorkflowService workflowService;
 
@@ -147,10 +154,33 @@ public class TaskExecutionService {
       // Resolve Parameter Substitutions
       paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
 
+      // Engine-enforced params cap, identical on every executor and checked BEFORE admission so
+      // an oversize task is never claimable. Substrate limits differ (128 KiB per env string,
+      // 1.5 MiB pod object, 4 KB Lambda env) - the cap makes the failure mode a clear engine
+      // message instead of a container that crashes at exec.
+      byte[] paramBytes = OBJECT_MAPPER.writeValueAsBytes(taskExecution.getParams());
+      if (paramBytes.length > paramsMaxBytes) {
+        String message =
+            "PARAMS_TOO_LARGE - resolved params total "
+                + paramBytes.length
+                + " bytes, exceeding the "
+                + paramsMaxBytes
+                + " byte cap. Pass large values by reference (workspace path or URI).";
+        if (taskRunService.tryInvalidate(taskExecutionId, message) == null) {
+          LOGGER.info("[{}] TaskRun already admitted or started. Not invalidating.", taskExecutionId);
+          return;
+        }
+        LOGGER.error("[{}] {}", taskExecutionId, message);
+        self.end(taskExecutionId);
+        return;
+      }
+
       // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
       // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
       // queued by both parents) loses here and performs no side effects.
-      if (taskRunService.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
+      if (taskRunService.tryAdmit(
+              taskExecutionId, taskExecution.getParams(), taskExecution.getSpec())
+          == null) {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }
@@ -165,9 +195,17 @@ public class TaskExecutionService {
       }
     } else {
       LOGGER.debug("[{}] Skipping task: {}", taskExecutionId, taskExecution.getName());
-      // Persist the skipped status for end() to re-read.
-      taskExecution.setStatus(RunStatus.skipped);
-      taskRunRepository.save(taskExecution);
+      // Skip Compare-And-Set: persist the skipped status for end() to re-read. A full-document
+      // save of the entry snapshot would roll back everything a concurrent caller wrote - a join
+      // queued by both parents, where the other parent already admitted, started and had the
+      // TaskRun claimed, would be reverted to ready/pending with no claim, i.e. straight back
+      // into findClaimable and a second dispatcher.
+      if (taskRunService.trySkip(taskExecutionId) == null) {
+        // Another caller admitted or started this TaskRun. Do not call end(): it only returns
+        // early on phase=completed, so a losing caller would wrongly complete a running task.
+        LOGGER.info("[{}] TaskRun already admitted or started. Not skipping.", taskExecutionId);
+        return;
+      }
       self.end(taskExecutionId);
     }
   }
@@ -582,15 +620,21 @@ public class TaskExecutionService {
             wfRunEntity.getId(), ActionStatus.submitted);
     wfRunEntity.setAwaitingApproval(existingApprovals);
     // Field-scoped write so a level-triggered recompute can never stomp concurrent run state.
-    this.workflowRunService.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
+    this.workflowRunStateHelper.setAwaitingApproval(wfRunEntity.getId(), existingApprovals);
   }
 
   private void saveWorkflowStatus(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
     String status = ParameterUtil.getValue(taskExecution.getParams(), "status").toString();
     if (!status.isBlank()) {
       RunStatus taskStatus = RunStatus.valueOf(status);
+      // Field-scoped write - statusOverride is the ONLY field setwfstatus owns. Saving
+      // wfRunEntity whole wrote back the snapshot execute() read at its entry, reverting every
+      // field a concurrent Compare-And-Set had committed since: a result pushed by a parallel
+      // setwfproperty, isAwaitingApproval, pauseRequestedAt, phase/status, duration.
+      this.workflowRunStateHelper.setStatusOverride(wfRunEntity.getId(), taskStatus);
+      // Keep the in-memory snapshot consistent with the stored document for the remainder of
+      // this execute() call; finishWorkflow re-reads the WorkflowRun for its own decision.
       wfRunEntity.setStatusOverride(taskStatus);
-      this.workflowRunRepository.save(wfRunEntity);
     }
   }
 
@@ -948,7 +992,7 @@ public class TaskExecutionService {
     taskExecution.setStatus(RunStatus.waiting);
     taskExecution = taskRunRepository.save(taskExecution);
     // Atomic single-field set - no lock, no full-document rewrite.
-    workflowRunService.setAwaitingApproval(wfRunEntity.getId(), true);
+    workflowRunStateHelper.setAwaitingApproval(wfRunEntity.getId(), true);
   }
 
   private void saveWorkflowParam(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -971,7 +1015,7 @@ public class TaskExecutionService {
     wfResult.setName(output);
     wfResult.setValue(input);
     // Atomic append - no lock, no read-modify-write, so concurrent writers cannot lose a result.
-    workflowRunService.appendResult(wfRunEntity.getId(), wfResult);
+    workflowRunStateHelper.appendResult(wfRunEntity.getId(), wfResult);
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
@@ -1003,7 +1047,7 @@ public class TaskExecutionService {
 
     // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
     // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
-    if (workflowRunService.tryComplete(
+    if (workflowRunStateHelper.tryComplete(
             wfRunEntity.getId(), List.of(RunPhase.running), status, null, duration)
         == null) {
       LOGGER.info(

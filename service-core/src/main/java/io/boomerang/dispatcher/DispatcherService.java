@@ -11,7 +11,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.engine.WorkflowRunStateHelper;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
@@ -40,17 +40,17 @@ public class DispatcherService {
   private boolean queueEnabled;
 
   private final DispatcherRepository agentRepository;
-  private final WorkflowRunService workflowRunService;
+  private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
-      WorkflowRunService workflowRunService,
+      WorkflowRunStateHelper workflowRunStateHelper,
       TaskRunService taskRunService,
       MongoTemplate mongoTemplate) {
     this.agentRepository = agentRepository;
-    this.workflowRunService = workflowRunService;
+    this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
   }
@@ -129,16 +129,16 @@ public class DispatcherService {
         // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
         // provision and start, completed to tear down and finalize.
         List<WorkflowRun> workflowRuns = new LinkedList<>();
-        for (WorkflowRunEntity candidate : workflowRunService.findClaimableForProvision(PAGE_SIZE)) {
+        for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              workflowRunService.tryClaimForProvision(candidate.getId(), agentId);
+              workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
-        for (WorkflowRunEntity candidate : workflowRunService.findClaimableForTeardown(PAGE_SIZE)) {
+        for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForTeardown(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              workflowRunService.tryClaimForTeardown(candidate.getId(), agentId);
+              workflowRunStateHelper.tryClaimForTeardown(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
@@ -161,10 +161,13 @@ public class DispatcherService {
   /**
    * Long-poll endpoint dispatching TaskRuns to the agent.
    *
-   * <p>Each cycle pages the eligible candidates (ready, pending, unclaimed, of the agent's task
-   * types) and claims each one individually via a Compare-And-Set; racing agents cannot both win
-   * a TaskRun and the response contains only the documents this agent actually claimed. Terminal
-   * runs are never redelivered.
+   * <p>Each cycle pages two sets of candidates, both restricted to the agent's registered task
+   * types: the ready/pending unclaimed runs to execute, and the runs a dispatcher still owns whose
+   * executor-side work must be terminated - either because the node finished cancelled/timedout,
+   * or because it timed out with retry budget left and is parked mid-retry until its previous pod
+   * is gone. Each candidate is claimed individually via a Compare-And-Set, so racing agents cannot
+   * both win a TaskRun and the response contains only the documents this agent actually claimed.
+   * Neither path redelivers: an execution claim takes ownership, a termination claim releases it.
    *
    * @param agentId
    * @return
@@ -203,6 +206,19 @@ public class DispatcherService {
         for (TaskRunEntity candidate :
             taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
+          if (claimed != null) {
+            taskRuns.add(new TaskRun(claimed));
+          }
+        }
+        // Second path, mirroring the WorkflowRun provision/teardown pair: a TaskRun a dispatcher
+        // still owns carries executor-side work (a Tekton TaskRun and its pod) that has to be
+        // terminated - the node either finished cancelled/timedout, or is parked mid-retry. The
+        // claim release is what makes it one agent's job, stops the run being redelivered on the
+        // next poll, and (for a retry) is what re-arms the node for its next attempt.
+        for (TaskRunEntity candidate :
+            taskRunService.findClaimableForTermination(entity.getTaskTypes(), PAGE_SIZE)) {
+          TaskRunEntity claimed =
+              taskRunService.tryClaimForTermination(candidate.getId(), agentId);
           if (claimed != null) {
             taskRuns.add(new TaskRun(claimed));
           }

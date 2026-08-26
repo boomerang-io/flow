@@ -2,20 +2,19 @@ import React from "react";
 import cx from "classnames";
 import { Helmet } from "react-helmet";
 import { useLocation, useParams } from "react-router-dom";
-import type { ReactFlowInstance } from "reactflow";
 import ReactFlow from "Features/Reactflow";
 import { groupTasksByName } from "Utils";
 import { TaskTemplateStatus, WorkflowEngineMode } from "Constants";
 import { appLink } from "Config/appConfig";
-import { Task, WorkflowEditorState } from "Types";
+import { Task, WorkflowEditorState, WorkflowReactFlowInstance } from "Types";
 import Notes from "./Notes";
 import TaskList from "./Tasks";
 import styles from "./designer.module.scss";
 
 interface DesignerContainerProps {
   notes?: string;
-  reactFlowInstance: ReactFlowInstance | null;
-  setReactFlowInstance: React.Dispatch<React.SetStateAction<ReactFlowInstance | null>>;
+  reactFlowInstance: WorkflowReactFlowInstance | null;
+  setReactFlowInstance: React.Dispatch<React.SetStateAction<WorkflowReactFlowInstance | null>>;
   tasks: Array<Task>;
   updateNotes: (markdown: string) => void;
   workflow: WorkflowEditorState;
@@ -27,7 +26,8 @@ function DesignerContainer(props: DesignerContainerProps) {
   const params = useParams<{ workspace: string; workflow: string }>();
 
   const location = useLocation();
-  const isOnDesignerPath = appLink.editorCanvas({ workspace: params.workspace, workflow: params.workflow }) === location.pathname;
+  const isOnDesignerPath =
+    appLink.editorCanvas({ workspace: params.workspace ?? "", workflow: params.workflow ?? "" }) === location.pathname;
 
   return (
     <div className={cx(styles.container, { [styles.hidden]: !isOnDesignerPath })}>

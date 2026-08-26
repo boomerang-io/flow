@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@carbon/react";
 import { Edit } from "@carbon/react/icons";
-import { useHistory, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import type { Workflow } from "Types";
 import styles from "./WorkflowActions.module.scss";
@@ -11,8 +11,8 @@ type Props = {
 };
 
 function WorkflowActions({ workflow }: Props) {
-  const { workspace } = useParams<{ workspace: string }>();
-  const history = useHistory();
+  const { workspace = "" } = useParams<{ workspace: string }>();
+  const navigate = useNavigate();
 
   return (
     <div className={styles.container}>
@@ -20,7 +20,7 @@ function WorkflowActions({ workflow }: Props) {
       <Button
         kind="ghost"
         size="md"
-        onClick={() => history.push(appLink.editorCanvas({ workspace, workflow: workflow.name }))}
+        onClick={() => navigate(appLink.editorCanvas({ workspace, workflow: workflow.name }))}
         renderIcon={Edit}
       >
         Edit Workflow

@@ -10,7 +10,7 @@ exports[`TemplateConfigModalContent --- Snapshot > Capturing Snapshot of Task Te
     >
       <div
         aria-label="inputs"
-        class="cds--modal-content _container_625b3b"
+        class="cds--layer-two cds--modal-content _container_625b3b"
       >
         <div
           class="cds--bmrg-text-input"
@@ -48,6 +48,8 @@ exports[`TemplateConfigModalContent --- Snapshot > Capturing Snapshot of Task Te
                   value="test"
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />
@@ -91,6 +93,8 @@ exports[`TemplateConfigModalContent --- Snapshot > Capturing Snapshot of Task Te
                   value="test description"
                 />
                 <span
+                  aria-atomic="true"
+                  aria-live="assertive"
                   class="cds--text-input__counter-alert"
                   role="alert"
                 />

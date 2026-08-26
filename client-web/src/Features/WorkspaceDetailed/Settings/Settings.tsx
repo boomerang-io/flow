@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Helmet } from "react-helmet";
-import { useMutation, useQueryClient } from "react-query";
-import { useHistory } from "react-router-dom";
+import { formatErrorMessage } from "@boomerang-io/utils";
+import { useFetcher, useNavigate } from "react-router-dom";
 import { InlineNotification, Button } from "@carbon/react";
 import {
   ConfirmModal,
@@ -21,30 +21,121 @@ import {
 import { Edit, Close, TrashCan, Add, Copy } from "@carbon/react/icons";
 import CopyToClipboard from "react-copy-to-clipboard";
 import sortBy from "lodash/sortBy";
-import { FlowWorkspace, ModalTriggerProps } from "Types";
+import { ModalTriggerProps } from "Types";
+import { useWorkspaceDetailedContext, WorkspaceIntent } from "../WorkspaceDetailed";
 import LabelModal from "Components/LabelModal";
 import { appLink } from "Config/appConfig";
 import styles from "./Settings.module.scss";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 
 interface Label {
   key: string;
   value: string;
 }
 
-export default function Settings({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
-  const [copyTokenText, setCopyTokenText] = useState("Copy");
-  const queryClient = useQueryClient();
-  const history = useHistory();
+// Route module for the Settings tab (app/routes/manageWorkspaceSettings.tsx). Every write on this
+// tab - label add/remove here, and the rename in ./UpdateWorkspaceName - posts to this one
+// intent-keyed action via useFetcher. Its completion revalidates both the parent Manage Workspace
+// loader (the workspace record everything here displays) and the root loader (the user profile's
+// workspace membership list, which a delete changes).
+//
+// The one call NOT here is the rename modal's name-availability probe: it runs inside a Yup
+// async validation test, which needs a promise it can await per keystroke, and fetcher.submit is
+// fire-and-forget. It stays a direct browser call - see ./UpdateWorkspaceName.
+//
+// The intent names are the workspace-scoped ones exported by ../WorkspaceDetailed
+// (`renameWorkspace`/`deleteWorkspace`/`updateWorkspaceLabels`), not bare verbs: that route's
+// shouldRevalidate keys off two of them, and the Approver Groups and Tokens tabs submit their own
+// deletes to the same matched route tree.
+export type SettingsActionResult = {
+  ok: boolean;
+  intent: (typeof WorkspaceIntent)[keyof typeof WorkspaceIntent];
+  /**
+   * "updateWorkspaceLabels": which of the two toasts to raise. "renameWorkspace": the new
+   * workspace slug to navigate to.
+   */
+  detail?: string;
+  errorMessage?: { title: string; message: string };
+};
 
-  const patchWorkspaceMutator = useMutation(resolver.patchUpdateWorkspace); 
-  const deleteWorkspaceMutator = useMutation(resolver.deleteWorkspace); 
+export async function action({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<SettingsActionResult> {
+  const workspace = String(params.workspace);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
 
-  const handleDeleteWorkspace = async () => {
+  if (intent === WorkspaceIntent.Delete) {
     try {
-      await deleteWorkspaceMutator.mutateAsync({ workspace: workspace.name });
-      queryClient.invalidateQueries(serviceUrl.getUserProfile());
-      history.push(appLink.home());
+      await serverFetch(request).delete(serviceUrl.resourceWorkspace({ workspace }));
+      return { ok: true, intent: WorkspaceIntent.Delete };
+    } catch (error) {
+      return {
+        ok: false,
+        intent: WorkspaceIntent.Delete,
+        errorMessage: formatErrorMessage({ error, defaultMessage: "Request to delete workspace failed" }),
+      };
+    }
+  }
+
+  if (intent === WorkspaceIntent.Rename) {
+    const name = String(formData.get("name"));
+    const displayName = String(formData.get("displayName"));
+    try {
+      await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { name, displayName });
+      return { ok: true, intent: WorkspaceIntent.Rename, detail: name };
+    } catch (error) {
+      return {
+        ok: false,
+        intent: WorkspaceIntent.Rename,
+        errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to update workspace settings" }),
+      };
+    }
+  }
+
+  // Labels: the whole label record is sent, add and remove alike - the caller computes it.
+  const labels = JSON.parse(String(formData.get("labels")));
+  const operation = String(formData.get("operation"));
+  try {
+    await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { labels });
+    return { ok: true, intent: WorkspaceIntent.UpdateLabels, detail: operation };
+  } catch (error) {
+    return {
+      ok: false,
+      intent: WorkspaceIntent.UpdateLabels,
+      detail: operation,
+      errorMessage: formatErrorMessage({ error, defaultMessage: "Request to update labels failed" }),
+    };
+  }
+}
+
+// Settings tab of /:workspace/manage (app/routes/manageWorkspaceSettings.tsx). The workspace and
+// `canEdit` arrive from the parent layout route's <Outlet context> rather than as props.
+export default function Settings() {
+  const { workspace, canEdit } = useWorkspaceDetailedContext();
+  const [copyTokenText, setCopyTokenText] = useState("Copy");
+  const navigate = useNavigate();
+  // Posts to this file's `action`. Settling it revalidates every matched loader - the parent
+  // Manage Workspace loader (the workspace record shown here) and the root loader (the user
+  // profile's workspace list, which a delete changes) - so neither needs a manual revalidate().
+  const fetcher = useFetcher<SettingsActionResult>();
+
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    const { ok, intent, detail } = fetcher.data;
+    if (!ok) {
+      // Matches the previous handlers, which all swallowed their errors (`// noop`).
+      return;
+    }
+    if (intent === WorkspaceIntent.Delete) {
+      navigate(appLink.home());
       notify(
         <ToastNotification
           title="Delete Workspace"
@@ -52,60 +143,53 @@ export default function Settings({ workspace, canEdit }: { workspace: FlowWorksp
           kind="success"
         />,
       );
-    } catch (error) {
-      // noop
+      return;
     }
-  };
+    if (intent === WorkspaceIntent.UpdateLabels) {
+      notify(
+        detail === "add" ? (
+          <ToastNotification
+            title="Add Label"
+            subtitle={`Added label to ${workspace.displayName} successfully`}
+            kind="success"
+          />
+        ) : (
+          <ToastNotification
+            title="Remove Workspace"
+            subtitle={`Request to close ${workspace.displayName} successful`}
+            kind="success"
+          />
+        ),
+      );
+    }
+    // The rename is handled in ./UpdateWorkspaceName, which owns its own fetcher.
+  }, [fetcher.state, fetcher.data, navigate, workspace.displayName]);
 
-  const handleAddLabel = async (value: Label) => {
-    const newLabels = [...workspaceLabels, value];
-    const newLabelsRecord = newLabels.reduce(
+  const submitLabels = (labels: Array<Label>, operation: "add" | "remove") => {
+    const labelsRecord = labels.reduce(
       (acc, label) => {
         acc[label.key] = label.value;
         return acc;
       },
       {} as Record<string, string>,
     );
-
-    try {
-      await patchWorkspaceMutator.mutateAsync({ workspace: workspace.name, body: { labels: newLabelsRecord } });
-      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspace.name }));
-      notify(
-        <ToastNotification
-          title="Add Label"
-          subtitle={`Added label to ${workspace.displayName} successfully`}
-          kind="success"
-        />,
-      );
-    } catch (error) {
-      // noop
-    }
-  };
-
-  const handleRemoveLabel = async (value: Label) => {
-    const newLabels = workspaceLabels.filter((label) => label.key !== value.key);
-    const newLabelsRecord = newLabels.reduce(
-      (acc, label) => {
-        acc[label.key] = label.value;
-        return acc;
-      },
-      {} as Record<string, string>,
+    fetcher.submit(
+      { intent: WorkspaceIntent.UpdateLabels, operation, labels: JSON.stringify(labelsRecord) },
+      { method: "post" },
     );
-
-    try {
-      await patchWorkspaceMutator.mutateAsync({ workspace: workspace.name, body: { labels: newLabelsRecord } });
-      queryClient.invalidateQueries(serviceUrl.resourceWorkspace({ workspace: workspace.name }));
-      notify(
-        <ToastNotification
-          title="Remove Workspace"
-          subtitle={`Request to close ${workspace.displayName} successful`}
-          kind="success"
-        />,
-      );
-    } catch (error) {
-      // noop
-    }
   };
+
+  const handleDeleteWorkspace = () => {
+    fetcher.submit({ intent: WorkspaceIntent.Delete }, { method: "post" });
+  };
+
+  const handleAddLabel = (value: Label) => submitLabels([...workspaceLabels, value], "add");
+
+  const handleRemoveLabel = (value: Label) =>
+    submitLabels(
+      workspaceLabels.filter((label) => label.key !== value.key),
+      "remove",
+    );
 
   // Convert Record/Map of Labels to Array of Label Object
   const workspaceLabels = workspace.labels ? Object.entries(workspace.labels).map(([key, value]) => ({ key, value })) : [];

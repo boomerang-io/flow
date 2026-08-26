@@ -3,6 +3,7 @@ package io.boomerang.dispatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.boomerang.core.TokenService;
@@ -22,6 +23,8 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
@@ -108,6 +111,39 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
         .andExpect(status().isUnauthorized());
   }
 
+  /**
+   * The agent lifecycle callbacks are part of the SAME worker protocol as the queue polls and are
+   * called with the same bearer-attaching {@code internalRestTemplate}, so they must be gated by
+   * the same filter. They previously lived on their own path roots ({@code /api/v1/taskrun/**},
+   * {@code /api/v1/workflowrun/**}), fell outside the filter's prefix and were fully
+   * unauthenticated — anyone with network reach could write terminal status and results onto any
+   * run. They now sit under {@code /api/v1/dispatcher} with the rest of the protocol, which is what
+   * collapsed the filter's prefix set back to one entry; these assertions are what prevent that
+   * consolidation from silently re-opening the hole.
+   */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "/api/v1/dispatcher/taskrun/any-run-id/start",
+        "/api/v1/dispatcher/taskrun/any-run-id/end",
+        "/api/v1/dispatcher/workflowrun/any-run-id/start",
+        "/api/v1/dispatcher/workflowrun/any-run-id/finalize"
+      })
+  void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
+    mockMvc.perform(put(path)).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void lifecycleCallbackAcceptsAValidDispatcherToken() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            put("/api/v1/dispatcher/taskrun/any-run-id/end")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().is(not(401)));
+  }
+
   @Test
   void nonFlowShapedBearerIsRejected() throws Exception {
     mockMvc
@@ -117,6 +153,35 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   }
 
   /** Pure unit coverage of the pre-DB gate {@link DispatcherAuthFilter} relies on. */
+  /**
+   * {@link DispatcherAuthFilter#shouldNotFilter} decides using the RAW {@code getRequestURI()}
+   * prefix {@code "/api/v1/dispatcher/"}, while Spring routes using a PARSED, normalised path.
+   * Wherever those two disagree a request could reach the controller with the filter skipped, so
+   * each known divergence class is probed here: path parameters ({@code ;k=v}) in an earlier
+   * segment, a traversal segment, a duplicated leading slash, and case variation.
+   *
+   * <p>None of these may produce a success status. Rejection may legitimately come from the filter
+   * (401) or from the dispatcher servlet's own normalisation (400/404) — what must never happen is
+   * a 2xx, which would mean the handler ran unauthenticated.
+   */
+  @Test
+  void pathVariantsCannotBypassTheFilter() throws Exception {
+    List<String> bypassAttempts =
+        List.of(
+            "/api;x=1/v1/dispatcher/any-agent-id/tasks",
+            "/api/v1;x=1/dispatcher/any-agent-id/tasks",
+            "/api/v1/dispatcher/../dispatcher/any-agent-id/tasks",
+            "//api/v1/dispatcher/any-agent-id/tasks",
+            "/API/V1/DISPATCHER/any-agent-id/tasks");
+
+    for (String attempt : bypassAttempts) {
+      int status = mockMvc.perform(get(attempt)).andReturn().getResponse().getStatus();
+      assertThat(status / 100)
+          .as("unauthenticated request to %s must not succeed (was %d)", attempt, status)
+          .isNotEqualTo(2);
+    }
+  }
+
   @Test
   void tokenPrefixGateRejectsNonFlowShapesBeforeAnyLookupWouldOccur() {
     assertThat(TokenTypePrefix.isFlowToken("not-a-flow-token")).isFalse();

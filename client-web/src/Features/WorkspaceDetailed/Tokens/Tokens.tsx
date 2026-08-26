@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   DataTable,
-  DataTableSkeleton,
   Pagination,
   InlineNotification,
   TableExpandHeader,
@@ -16,19 +15,19 @@ import {
 import { Help } from "@carbon/react/icons";
 import { notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
-import cx from "classnames";
 import moment from "moment";
-import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useFetcher } from "react-router-dom";
 import { Box } from "reflexbox";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import EmptyState from "Components/EmptyState";
+import { useTokenSectionData } from "Components/TokenSection/tokenRouteData";
+import type { TokenActionResult } from "Components/TokenSection/tokenRoute";
 import { arrayPagination } from "Utils/arrayHelper";
 import { TokenType } from "Constants";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import type { FlowWorkspace, Token } from "Types";
+import type { Token } from "Types";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./tokens.module.scss";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -81,58 +80,48 @@ const HEADERS = [
   },
 ];
 
-function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boolean }) {
-  const queryClient = useQueryClient();
+// Tokens tab of /:workspace/manage (app/routes/manageWorkspaceTokens.tsx). The workspace and
+// `canEdit` arrive from the parent layout route's <Outlet context> rather than as props; the
+// token list itself comes from this route's own loader (Components/TokenSection/tokenRoute.ts),
+// replacing the useQuery/useMutation pair - which also gives CreateToken/Form the action it now
+// submits to and PermissionSelector the server-driven catalog it now reads.
+function Tokens() {
+  const { workspace, canEdit } = useWorkspaceDetailedContext();
+  const routeData = useTokenSectionData();
+  const fetcher = useFetcher<TokenActionResult>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortKey, setSortKey] = useState("creationDate");
   const [sortDirection, setSortDirection] = useState("DESC");
 
-  const getTokensUrl = serviceUrl.getTokens({
-    query: queryString.stringify({ types: TokenType.Key, principals: workspace?.name }),
-  });
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "delete") {
+      return;
+    }
+    if (fetcher.data.ok) {
+      notify(<ToastNotification kind="success" title="Delete Workspace Token" subtitle={`Token successfully deleted`} />);
+    } else {
+      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
 
-  const {
-    data: tokensData,
-    error: tokensError,
-    isLoading: tokensIsLoading,
-  } = useQuery({
-    queryKey: getTokensUrl,
-    queryFn: resolver.query(getTokensUrl),
-    enabled: Boolean(workspace?.name),
-  });
-
-  const { mutateAsync: deleteTokenMutator } = useMutation(resolver.deleteToken, {
-    onSuccess: () => queryClient.invalidateQueries([getTokensUrl]),
-  });
-
-  if (tokensIsLoading) {
-    return (
-      <DataTableSkeleton
-        data-testid="token-loading-skeleton"
-        className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
-        rowCount={DEFAULT_PAGE_SIZE}
-        columnCount={HEADERS.length}
-        headers={HEADERS}
-      />
-    );
-  }
-
-  if (tokensError) {
+  // No loading branch: the loader has resolved before this renders (the DataTableSkeleton and its
+  // `token-loading-skeleton` testid go with it). A missing `tokenSection` means this route was
+  // rendered without the shared loader, which is the same "nothing safe to show" case as a
+  // failed fetch.
+  if (!routeData || routeData.errorLoading) {
     return <ErrorMessage />;
   }
 
+  const tokens = routeData.tokens;
+
   const deleteToken = async (tokenId: string) => {
-    try {
-      await deleteTokenMutator({ tokenId });
-      notify(<ToastNotification kind="success" title="Delete Workspace Token" subtitle={`Token successfully deleted`} />);
-    } catch (error) {
-      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);
-    }
+    fetcher.submit({ intent: "delete", tokenId }, { method: "post" });
   };
 
   const renderCell = (tokenItemId: string, cellIndex: number, value: string) => {
-    const tokenDetails = tokensData?.content.find((token: Token) => token.id === tokenItemId);
+    const tokenDetails = tokens.find((token: Token) => token.id === tokenItemId);
     const column = HEADERS[cellIndex];
     switch (column.key) {
       case "valid":
@@ -189,14 +178,12 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
           </section>
         ) : null}
         <div className={styles.buttonContainer}>
-          {workspace && (
-            <CreateToken type={TokenType.Key} principal={workspace.name} getTokensUrl={getTokensUrl} disabled={!canEdit} />
-          )}
+          {workspace && <CreateToken type={TokenType.Key} principal={workspace.name} disabled={!canEdit} />}
         </div>
-        {tokensData?.content?.length > 0 ? (
+        {tokens.length > 0 ? (
           <>
             <DataTable
-              rows={arrayPagination(tokensData?.content, page, pageSize, sortKey, sortDirection)}
+              rows={arrayPagination(tokens, page, pageSize, sortKey, sortDirection)}
               // rows above are already sorted/paginated externally; keep Carbon's own comparator a no-op
               sortRow={() => 0}
               headers={HEADERS}
@@ -246,11 +233,11 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
                             ))}
                           </TableExpandRow>
                           <TableExpandedRow colSpan={headers.length + 1}>
-                            {tokensData.content.find((t: Token) => t.id === row.id).permissions.length > 0 ? (
+                            {(tokens.find((t: Token) => t.id === row.id)?.permissions ?? []).length > 0 ? (
                               <TokenPermissions
-                                permissions={tokensData.content
-                                  .find((t: Token) => t.id === row.id)
-                                  .permissions.map((p: Token["permissions"][number], i: number) => ({ id: `${row.id}-${i}`, ...p }))}
+                                permissions={(tokens.find((t: Token) => t.id === row.id)?.permissions ?? []).map(
+                                  (p: Token["permissions"][number], i: number) => ({ id: `${row.id}-${i}`, ...p }),
+                                )}
                               />
                             ) : (
                               "Permissions detail unavailable"
@@ -268,7 +255,7 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
               page={page}
               pageSize={pageSize}
               pageSizes={PAGE_SIZES}
-              totalItems={tokensData?.content?.length}
+              totalItems={tokens.length}
             />
           </>
         ) : (
@@ -282,7 +269,11 @@ function Tokens({ workspace, canEdit }: { workspace: FlowWorkspace; canEdit: boo
 }
 
 interface TokenPermissionsProps {
-  permissions: [{ scope: string; principal: string; actions: string[] }];
+  // Array, not a 1-tuple - the previous annotation only typechecked because this data flowed
+  // through an untyped react-query cache; now that it comes from the typed loader (Token[]), a
+  // real multi-element permissions array no longer satisfies a 1-tuple. Same fix as
+  // Features/GlobalTokens/GlobalTokens.tsx.
+  permissions: Array<{ scope: string; principal: string; actions: string[] }>;
 }
 
 const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
@@ -302,7 +293,12 @@ const TokenPermissions: React.FC<TokenPermissionsProps> = ({ permissions }) => {
             <StructuredListCell>{principal}</StructuredListCell>
             <StructuredListCell>
               <ul>
-                {actions.map((action) => (
+                {/* Defensive: TableExpandedRow keeps this mounted (aria-hidden, not unmounted)
+                    even while collapsed, so a malformed/missing actions array on any row - not
+                    just the expanded one - would otherwise throw during the initial render.
+                    Same fix as Features/GlobalTokens/GlobalTokens.tsx; this tab had no test
+                    that ever visited it, so the crash went unnoticed. */}
+                {(actions ?? []).map((action) => (
                   <li>{action}</li>
                 ))}
               </ul>

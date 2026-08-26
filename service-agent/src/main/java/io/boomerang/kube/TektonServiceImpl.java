@@ -3,14 +3,15 @@ package io.boomerang.kube;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.boomerang.agent.WorkspaceService;
+import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.executor.TaskExecutor;
 import io.fabric8.knative.pkg.apis.Condition;
-import io.fabric8.kubernetes.api.model.ConfigMapProjection;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.Duration;
 import io.fabric8.kubernetes.api.model.EmptyDirVolumeSource;
@@ -18,12 +19,9 @@ import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.HostAlias;
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource;
-import io.fabric8.kubernetes.api.model.ProjectedVolumeSource;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
-import io.fabric8.kubernetes.api.model.VolumeProjection;
-import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
@@ -48,10 +46,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TektonServiceImpl implements TektonService {
+@ConditionalOnProperty(name = "agent.executor", havingValue = "tekton", matchIfMissing = true)
+public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   private static final Logger LOGGER = LogManager.getLogger(TektonServiceImpl.class);
 
@@ -62,6 +62,56 @@ public class TektonServiceImpl implements TektonService {
   @Autowired private WorkspaceService workspaceService;
 
   protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
+
+  @Value("${kube.timeout.waitUntil}")
+  protected long waitUntilTimeout;
+
+  @Value("${kube.timeout.watchGraceMinutes}")
+  protected long watchGraceMinutes;
+
+  @Override
+  public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
+      throws InterruptedException, ParseException {
+    createTaskRun(
+        task.getWorkflowRef(),
+        task.getWorkflowRunRef(),
+        task.getId(),
+        task.getName(),
+        task.getLabels(),
+        task.getSpec().getImage(),
+        task.getSpec().getCommand(),
+        task.getSpec().getScript(),
+        task.getSpec().getArguments(),
+        task.getParams(),
+        task.getSpec().getEnvs(),
+        task.getResults(),
+        task.getSpec().getWorkingDir(),
+        task.getWorkspaces(),
+        waitUntilTimeout,
+        timeoutMinutes,
+        task.getSpec().getDebug());
+  }
+
+  @Override
+  public List<RunResult> watch(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
+      throws InterruptedException {
+    return watchTaskRun(
+        task.getWorkflowRef(),
+        task.getWorkflowRunRef(),
+        task.getId(),
+        task.getLabels(),
+        timeoutMinutes);
+  }
+
+  @Override
+  public void cancel(io.boomerang.common.model.TaskRun task) {
+    cancelTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+  }
+
+  @Override
+  public void delete(io.boomerang.common.model.TaskRun task) {
+    deleteTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+  }
 
   @Value("${kube.image.pullPolicy}")
   protected String kubeImagePullPolicy;
@@ -105,10 +155,18 @@ public class TektonServiceImpl implements TektonService {
   @Value("${agent.tasks.tolerations}")
   private String kubeWorkerTolerations;
 
+  @Value("${agent.tasks.runtimeClassName}")
+  private String kubeWorkerRuntimeClassName;
+
   TektonClient client = null;
 
-  public TektonServiceImpl() {
-    this.client = new KubernetesClientBuilder().build().adapt(TektonClient.class);
+  public TektonServiceImpl(TektonClient client) {
+    this.client = client;
+  }
+
+  // Tests swap in the mock-server client after the context is up.
+  public void setClient(TektonClient client) {
+    this.client = client;
   }
 
   @Override
@@ -190,8 +248,7 @@ public class TektonServiceImpl implements TektonService {
             //        boolean pvcExists =
             //            kubeService.checkWorkspacePVCExists(workspaceRef, ws.getType(), false);
             //        if (pvcExists) {
-            if ("workflow".equalsIgnoreCase(ws.getType())
-                || "workflowrun".equalsIgnoreCase(ws.getType())) {
+            if (StorageType.fromLabel(ws.getType()).isPresent()) {
               WorkspaceDeclaration wsWorkspaceDeclaration = new WorkspaceDeclaration();
               wsWorkspaceDeclaration.setName(
                   helperKubeService.getPrefixVol() + "-ws-" + ws.getType());
@@ -201,7 +258,7 @@ public class TektonServiceImpl implements TektonService {
                       : "/workspace/" + ws.getType();
               wsWorkspaceDeclaration.setMountPath(mountPath);
               String description =
-                  "workflow".equals(ws.getType())
+                  (StorageType.fromLabel(ws.getType()).orElse(null) == StorageType.workflow)
                       ? "Storage for a workflow across execution"
                       : "Storage for the specific workflow execution";
               wsWorkspaceDeclaration.setDescription(description);
@@ -234,8 +291,6 @@ public class TektonServiceImpl implements TektonService {
      * https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
      *
      * Create volumes and Volume Mounts
-     * - /props for mounting config_maps @deprecated
-     * - /params for mounting taskrun params as files
      * - /data for task storage (optional - needed if using in memory storage)
      */
     List<VolumeMount> volumeMounts = new ArrayList<>();
@@ -262,30 +317,6 @@ public class TektonServiceImpl implements TektonService {
     }
     dataVolume.setEmptyDir(dataEmptyDirVolumeSource);
     volumes.add(dataVolume);
-
-    /*
-     * Creation of projected volume to mount task params
-     */
-    VolumeMount propsVolumeMount = new VolumeMount();
-    propsVolumeMount.setName(helperKubeService.getPrefixVol() + "-params");
-    propsVolumeMount.setMountPath("/params");
-    volumeMounts.add(propsVolumeMount);
-
-    Volume propsVolume = new Volume();
-    propsVolume.setName(helperKubeService.getPrefixVol() + "-params");
-    ProjectedVolumeSource projectedVolPropsSource = new ProjectedVolumeSource();
-    List<VolumeProjection> projectPropsVolumeList = new ArrayList<>();
-    VolumeProjection taskCMVolumeProjection = new VolumeProjection();
-    ConfigMapProjection projectedTaskConfigMap = new ConfigMapProjection();
-    projectedTaskConfigMap.setName(
-        kubeService.getConfigMapName(
-            helperKubeService.getTaskLabels(
-                workflowId, workflowActivityId, taskActivityId, customLabels)));
-    taskCMVolumeProjection.setConfigMap(projectedTaskConfigMap);
-    projectPropsVolumeList.add(taskCMVolumeProjection);
-    projectedVolPropsSource.setSources(projectPropsVolumeList);
-    propsVolume.setProjected(projectedVolPropsSource);
-    volumes.add(propsVolume);
 
     /*
      * Configure Node Selector and Tolerations if defined
@@ -332,31 +363,15 @@ public class TektonServiceImpl implements TektonService {
     List<LocalObjectReference> imagePullSecrets = new ArrayList<>();
     imagePullSecrets.add(imagePullSecret);
 
-    /*
-     * Define environment variables made up of
-     * - Proxy (if enabled)
-     * - Boomerang Flow
-     * - Debug and CI
-     * - Task defined
-     */
-    List<EnvVar> tknEnvVars = new ArrayList<>();
-    tknEnvVars.addAll(helperKubeService.createProxyEnvVars());
-    //    @deprecated - no need to create default params. Can be provided if needed.
-    //    tknEnvVars.addAll(helperKubeService.createEnvVars(workflowId, workflowActivityId,
-    // taskName, taskActivityId));
-    tknEnvVars.add(helperKubeService.createEnvVar("DEBUG", debug.toString()));
-    tknEnvVars.add(helperKubeService.createEnvVar("CI", "true"));
-    if (envVars != null) {
-      envVars.forEach(
-          var -> {
-            tknEnvVars.add(helperKubeService.createEnvVar(var.getName(), var.getValue()));
-          });
-    }
+    List<EnvVar> tknEnvVars =
+        helperKubeService.createTaskEnvVars(
+            debug,
+            params,
+            envVars,
+            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"));
 
     /*
      * Define Task Params and Task Spec Params
-     * Additionally default an environment variable for the Task Param prefixed with PARAM_
-     * TODO: change this to handle objects and Params easier.
      */
     List<ParamSpec> taskSpecParams = new ArrayList<>();
     List<Param> taskParams = new ArrayList<>();
@@ -368,10 +383,8 @@ public class TektonServiceImpl implements TektonService {
           taskSpecParams.add(taskSpecParam);
           Param taskParam = new Param();
           taskParam.setName(p.getName());
-          taskParam.setValue(new ParamValue((String) p.getValue()));
+          taskParam.setValue(new ParamValue(helperKubeService.paramValueAsString(p.getValue())));
           taskParams.add(taskParam);
-          //      TODO Determine if we need this.
-          //      envVars.add(helperKubeService.createEnvVar("PARAM_" + key.toUpperCase(), value));
         });
 
     /*
@@ -449,6 +462,12 @@ public class TektonServiceImpl implements TektonService {
             .withNewSpec()
             //      .withPodTemplate(taskPodTemplate)
             .withNewPodTemplate()
+            // Same deployment-wide isolation setting the Kubernetes Jobs executor honours
+            // (agent.tasks.runtimeClassName); null leaves the field off the pod template.
+            .withRuntimeClassName(
+                kubeWorkerRuntimeClassName != null && !kubeWorkerRuntimeClassName.isBlank()
+                    ? kubeWorkerRuntimeClassName
+                    : null)
             .addToNodeSelector(nodeSelectors)
             .addAllToTolerations(tolerations)
             .addAllToImagePullSecrets(imagePullSecrets)
@@ -506,10 +525,11 @@ public class TektonServiceImpl implements TektonService {
       // has moved from initial state. If its still in initial state then check PVC
       // PVC might have Event / Condition "ProvisioningFailed" with a reason.
 
-      // Timeout is 10 minutes more than the TaskRun to account for delays in provisioning etc.
-      // Note:
-      // - The TaskRun Timeout will trigger an interrupt which enters this block as well
-      boolean taskComplete = latch.await(timeout + 10, TimeUnit.MINUTES);
+      // A backstop only, for the case where Tekton's own timeout interrupt never reaches this
+      // watch. The engine owns the deadline and reaps at the task budget plus a few seconds, so it
+      // always acts first; this grace exists to release the thread and report, not to wait for
+      // provisioning. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
+      boolean taskComplete = latch.await(timeout + watchGraceMinutes, TimeUnit.MINUTES);
       if (!taskComplete) {
         throw new BoomerangException(
             BoomerangError.TASK_EXECUTION_ERROR,

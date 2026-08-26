@@ -231,6 +231,8 @@ class LoaderMigrationTest {
     assertWorkspaceQuotaSettingsKeyRenamed();
     assertWorkspaceFeatureFlagSettingsKeysRenamed();
     assertDefinitionIndexes();
+    assertRelationshipAndAuditIndexes();
+    assertSweepIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
     assertRootNodeSeeded();
@@ -388,12 +390,25 @@ class LoaderMigrationTest {
   }
 
   private void assertSettingsSeeded() {
-    assertThat(collection("settings").countDocuments()).isEqualTo(7);
+    assertThat(collection("settings").countDocuments()).isEqualTo(8);
     List<String> keys =
         collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(keys)
         .containsExactlyInAnyOrder(
-            "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
+            "auth", "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
+
+    // The trusted OIDC issuer configuration (specifications/authentication.md §1) - seeded empty.
+    Document auth = collection("settings").find(Filters.eq("key", "auth")).first();
+    assertThat(
+            auth.getList("config", Document.class).stream()
+                .map(config -> config.getString("key"))
+                .toList())
+        .containsExactlyInAnyOrder("oidc.issuer", "oidc.clientId");
+    assertThat(
+            auth.getList("config", Document.class).stream()
+                .map(config -> config.getString("value"))
+                .toList())
+        .allMatch(String::isEmpty);
 
     // The quota defaults WorkspaceService.setDefaultQuotas resolves at read time.
     Document quotas = collection("settings").find(Filters.eq("key", "workspaces")).first();
@@ -498,7 +513,7 @@ class LoaderMigrationTest {
         .isZero();
 
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(8);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
     assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
@@ -513,7 +528,7 @@ class LoaderMigrationTest {
     fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(7);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(8);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
     assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
@@ -610,12 +625,13 @@ class LoaderMigrationTest {
 
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
 
-    // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 documents in place - same count, but
-    // the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5, ungated)
-    // then inserts nothing new: its OR-guard matches every one of the 7 already-migrated
-    // documents by _id.
+    // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 v3-era documents in place - same
+    // count, but the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5,
+    // ungated) then inserts nothing new for those 7: its OR-guard matches every one of them by
+    // _id. The "auth" document (specifications/authentication.md) has no v3 predecessor to match,
+    // so _0021 inserts it fresh - bringing the total to 8.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
-    assertThat(settings.countDocuments()).isEqualTo(7);
+    assertThat(settings.countDocuments()).isEqualTo(8);
     assertThat(
             settings
                 .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
@@ -708,7 +724,7 @@ class LoaderMigrationTest {
     // reconciled on the first run already exists).
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(settings.countDocuments()).isEqualTo(7);
+    assertThat(settings.countDocuments()).isEqualTo(8);
     assertThat(tasks.countDocuments()).isEqualTo(89);
     assertThat(taskRevisions.countDocuments()).isEqualTo(131);
     Document taskRunAfterSecondRun =
@@ -945,6 +961,82 @@ class LoaderMigrationTest {
         .isNull();
   }
 
+  /**
+   * {@code _0038__NormaliseUserEmails}: {@code users.email} is lower-cased so the exact-match
+   * lookups that replaced the {@code ...IgnoreCase} derivations can seek {@code email_lookup}
+   * instead of scanning it.
+   *
+   * <p>The fixture carries the v3 changelog marker ({@code "112"}) deliberately: that is the only
+   * generation on which {@code _0019__DomainIndexes} builds the UNIQUE {@code email_unique} index,
+   * and lower-casing a case-colliding pair underneath a unique index would fail with {@code E11000}
+   * and abort the deploy. Skipping collisions is what keeps the run green — and the two accounts
+   * are LEFT IN PLACE (never merged, never deleted), because deciding which of them is the real
+   * user is not a migration's call to make.
+   */
+  @Test
+  void normalisesUserEmailsAndLeavesCaseCollisionsIntact() {
+    String uri = MONGO.getReplicaSetUrl("emailnormalise");
+    MongoDatabase emailDb = client.getDatabase("emailnormalise");
+    emailDb.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+
+    MongoCollection<Document> users = emailDb.getCollection(PREFIX + "_users");
+    ObjectId alreadyLower = insertPlainUser(users, "ada.lovelace@example.com");
+    ObjectId mixedCase = insertPlainUser(users, "Grace.Hopper@Example.COM");
+    ObjectId collidingUpper = insertPlainUser(users, "Collide@example.com");
+    ObjectId collidingLower = insertPlainUser(users, "collide@example.com");
+    ObjectId withoutEmail = new ObjectId();
+    users.insertOne(new Document("_id", withoutEmail).append("name", "no email at all"));
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    assertThat(emailOf(users, alreadyLower)).isEqualTo("ada.lovelace@example.com");
+    assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
+    assertThat(emailOf(users, collidingUpper))
+        .as("colliding accounts keep their stored value - reported, never rewritten")
+        .isEqualTo("Collide@example.com");
+    assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
+    assertThat(users.countDocuments()).as("no user row is merged or deleted").isEqualTo(5);
+    // A missing email stays missing - $toLower would otherwise coerce it to "".
+    assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
+
+    // This fixture is v3-marked, so _0019 builds the unique email_unique over {email:1} and
+    // _0036's ensureIndexKeys finds those keys already covered - email_lookup is skipped rather
+    // than creating a second index over the same field. That skip is why the colliding pair must
+    // be left un-normalised: lowercasing it underneath a unique index would fail E11000 and abort
+    // the deploy.
+    Map<String, Document> userIndexes = new java.util.HashMap<>();
+    users.listIndexes().forEach(index -> userIndexes.put(index.getString("name"), index));
+    assertThat(userIndexes.get("email_unique").getBoolean("unique"))
+        .as("the v3-gated unique index is untouched by this change")
+        .isTrue();
+    assertThat(userIndexes.get("email_lookup"))
+        .as("skipped on v3 - email_unique already covers {email:1}")
+        .isNull();
+
+    // Idempotency: the pipeline re-runs (skipped by the audit log), then every change unit re-runs
+    // against the already-normalised data with the audit log dropped. Neither changes anything.
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    emailDb.getCollection(PREFIX + "_sys_changelog_loader").drop();
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    assertThat(emailOf(users, alreadyLower)).isEqualTo("ada.lovelace@example.com");
+    assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
+    assertThat(emailOf(users, collidingUpper)).isEqualTo("Collide@example.com");
+    assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
+    assertThat(users.countDocuments()).isEqualTo(5);
+    assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
+  }
+
+  private static ObjectId insertPlainUser(MongoCollection<Document> users, String email) {
+    ObjectId id = new ObjectId();
+    users.insertOne(new Document("_id", id).append("email", email).append("type", "user"));
+    return id;
+  }
+
+  private static String emailOf(MongoCollection<Document> users, ObjectId id) {
+    return users.find(Filters.eq("_id", id)).first().getString("email");
+  }
+
   @Test
   void failsWhenMongoIsUnreachable() {
     assertThatThrownBy(
@@ -1145,6 +1237,46 @@ class LoaderMigrationTest {
     assertIndex("task_revisions", "parent_ref_version", List.of("parentRef", "version"));
     assertIndex("workflow_schedules", "fire_sweep", List.of("status", "nextFireAt"));
     assertIndex("workflow_schedules", "workflow_lookup", List.of("workflowRef"));
+  }
+
+  /**
+   * {@code _0036}: the relationship-walk, audit-trail and user-lookup indexes. The relationship
+   * pairs are asserted key-by-key (not just by name) because the {@code $or} shape {@code
+   * RelationshipNodeRepository} issues needs BOTH {@code (type, slug)} and {@code (type, ref)} — one
+   * alone leaves the query a collection scan.
+   */
+  private void assertRelationshipAndAuditIndexes() {
+    assertIndex("rel_nodes", "type_slug", List.of("type", "slug"));
+    assertIndex("rel_nodes", "type_ref", List.of("type", "ref"));
+    assertIndex("rel_edges", "from_label", List.of("from", "label"));
+    assertIndex("rel_edges", "to_label", List.of("to", "label"));
+
+    assertIndex("audit", "scope_self_ref", List.of("scope", "selfRef"));
+    assertIndex("audit", "scope_self_name", List.of("scope", "selfName"));
+    assertIndex("audit", "scope_parent", List.of("scope", "parent"));
+
+    // The seeded changelog carries neither the "112" nor the "4000" marker, so this fixture is
+    // detected as V4 (see InstallGeneration.detect) — _0019__DomainIndexes' v3-gated email_unique
+    // is therefore NOT created, which is exactly the gap email_lookup exists to close. Asserting
+    // both facts together proves the new index is the only email index a non-v3 install gets, and
+    // that it did not silently inherit uniqueness.
+    assertThat(indexesByName("users")).doesNotContainKey("email_unique");
+    assertIndex("users", "email_lookup", List.of("email"));
+    assertThat(indexesByName("users").get("email_lookup").getBoolean("unique")).isNull();
+  }
+
+  /**
+   * {@code _0037}: the WorkflowWatcher sweep and dispatcher long-poll indexes. Each of these
+   * queries filters {@code phase} (or {@code status} on {@code actions}) WITHOUT the leading key of
+   * {@code _0017__RunIndexes}' {@code claim_page} compounds, so none of them could seek an existing
+   * index.
+   */
+  private void assertSweepIndexes() {
+    assertIndex("workflow_runs", "phase_creation_sweep", List.of("phase", "creationDate"));
+    assertIndex("workflow_runs", "phase_start_sweep", List.of("phase", "startTime"));
+    assertIndex("workflow_runs", "workflow_ref_phase", List.of("workflowRef", "phase"));
+    assertIndex("task_runs", "claimed_sweep", List.of("phase", "claim.at"));
+    assertIndex("actions", "status_sweep", List.of("status", "creationDate"));
   }
 
   private void assertWorkspaceRenameApplied() {

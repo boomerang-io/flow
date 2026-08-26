@@ -1,1 +1,1 @@
-export { default } from "./Activity"
+export { default, loader } from "./Activity";

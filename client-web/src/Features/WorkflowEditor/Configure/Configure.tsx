@@ -15,15 +15,14 @@ import { useFeature } from "flagged";
 import { Formik, FormikErrors, FormikProps, FieldArray } from "formik";
 import capitalize from "lodash/capitalize";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
-import { Switch, Route, Redirect, useLocation, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
 import { useEditorContext, useWorkspaceContext } from "Hooks";
 import { TokenActorKind, TokenType, WorkspaceConfigType } from "Constants";
-import { appLink, AppPath, FeatureFlag } from "Config/appConfig";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
+import { useEditorRouteData } from "../editorRouteData";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureEventTrigger from "./ConfigureEventTrigger";
 import ConfigureStorage from "./ConfigureStorage";
@@ -70,20 +69,20 @@ interface ConfigureContainerProps {
 
 function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) {
   const { workspace } = useWorkspaceContext();
-  const params = useParams<{ workspace: string; workflow: string }>();
+  const rawParams = useParams<{ workspace: string; workflow: string }>();
+  const params = { workspace: rawParams.workspace ?? "", workflow: rawParams.workflow ?? "" };
   const workflowTriggersEnabled = useFeature(FeatureFlag.WorkflowTriggersEnabled);
   const location = useLocation();
   const { workflowsQueryData } = useEditorContext();
 
-  const getGitHubAppInstallationForWorkspace = serviceUrl.getGitHubAppInstallationForWorkspace({
-    workspace: params.workspace,
-  });
-
-  const getGitHubInstallationQuery = useQuery({
-    queryKey: getGitHubAppInstallationForWorkspace,
-    queryFn: resolver.query(getGitHubAppInstallationForWorkspace),
-    enabled: Boolean(params.workspace),
-  });
+  /*
+   * The GitHub installation lookup moved to the editor route's loader (editorRoute.ts). It is
+   * read through useMatches() rather than useLoaderData() because this component renders inside
+   * Editor.tsx's descendant <Routes> - see editorRouteData.ts. `null` when the integration is not
+   * installed or the lookup failed, which is the same falsy value the previous query's
+   * `undefined` produced: the "Integration Required" notification below covers both.
+   */
+  const githubAppInstallation = useEditorRouteData()?.githubAppInstallation ?? null;
 
   const isOnConfigurePath = location.pathname.startsWith(
     appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow }),
@@ -187,7 +186,7 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
                 workflowTriggersEnabled={workflowTriggersEnabled as boolean}
                 formikProps={formikProps}
                 workflow={workflow}
-                githubAppInstallation={getGitHubInstallationQuery.data}
+                githubAppInstallation={githubAppInstallation}
                 workspace={workspace}
               />
             </div>
@@ -210,6 +209,11 @@ interface ConfigureProps {
 
 function Configure(props: ConfigureProps) {
   const workflowTokensEnabled = useFeature(FeatureFlag.WorkflowTokensEnabled);
+  // Read off the URL rather than built from props.workflow.name: the two differ (appLink.editorCanvas
+  // builds from the name, while specs and older bookmarks address the editor by id - see
+  // editorRoute.ts), and the default-panel redirect below must not change which workflow the URL
+  // identifies.
+  const routeParams = useParams<{ workspace: string; workflow: string }>();
   const handleOnToggleChange = (value: any, id: string) => {
     props.formikProps.setFieldValue(id, value);
   };
@@ -232,8 +236,11 @@ function Configure(props: ConfigureProps) {
 
   return (
     <div aria-label="Configure" className={styles.wrapper} role="region">
-      <Switch>
-        <Route exact path={AppPath.EditorConfigureGeneral}>
+      <Routes>
+        <Route
+          path="configure/general"
+          element={
+            <>
           <Section title="Basic Information" description="The bare necessities - you gotta fill out all these fields">
             <TextInput
               id="name"
@@ -328,7 +335,6 @@ function Configure(props: ConfigureProps) {
                               filter
                               onClick={openModal}
                               onClose={() => arrayHelpers.remove(index)}
-                              selectedLabel={label}
                             >
                               {`${label.key}=${label.value}`}
                             </Tag>
@@ -344,8 +350,13 @@ function Configure(props: ConfigureProps) {
               <CustomLabel formikPropsSetFieldValue={setFieldValue} labels={values.labels} />
             </div>
           </Section>
-        </Route>
-        <Route exact path={AppPath.EditorConfigureTriggers}>
+            </>
+          }
+        />
+        <Route
+          path="configure/triggers"
+          element={
+            <>
           {props.workflowTriggersEnabled && (
             <>
               <Section
@@ -682,8 +693,10 @@ function Configure(props: ConfigureProps) {
               </Section>
             </>
           )}
-        </Route>
-        {/* <Route exact path={AppPath.EditorConfigureParams}> */}
+            </>
+          }
+        />
+        {/* <Route path="configure/parameters"> */}
         {/* <Section title="GitHub" description="Auto inject GitHub Parameters." beta>
             <div className={styles.toggleContainer}>
               <Toggle
@@ -697,7 +710,10 @@ function Configure(props: ConfigureProps) {
             </div>
           </Section> */}
         {/* </Route> */}
-        <Route exact path={AppPath.EditorConfigureRun}>
+        <Route
+          path="configure/run"
+          element={
+            <>
           <Section title="Execution" description="Customize how your Workflow behaves.">
             <div>
               <div className={styles.runOptionsSection}>
@@ -725,8 +741,13 @@ function Configure(props: ConfigureProps) {
               </div>
             </div>
           </Section>
-        </Route>
-        <Route exact path={AppPath.EditorConfigureWorkspaces}>
+            </>
+          }
+        />
+        <Route
+          path="configure/workspaces"
+          element={
+            <>
           <Section
             title="Workspaces"
             description="Declare storage options to be used at execution time. This will be
@@ -847,8 +868,13 @@ function Configure(props: ConfigureProps) {
               )}
             </div>
           </Section>
-        </Route>
-        <Route exact path={AppPath.EditorConfigureTokens}>
+            </>
+          }
+        />
+        <Route
+          path="configure/tokens"
+          element={
+            <>
           <Section
             title="Tokens"
             description="
@@ -871,9 +897,30 @@ function Configure(props: ConfigureProps) {
               </dl>
             </div>
           </Section>
-        </Route>
-        <Redirect exact from={AppPath.EditorConfigure} to={AppPath.EditorConfigureGeneral} />
-      </Switch>
+            </>
+          }
+        />
+        {/*
+          * `appLink.*` (a builder that takes the params), never `AppPath.*` (the route PATTERN):
+          * v5's <Redirect from to> interpolated ":workspace"/":workflow" from the current match,
+          * v7's <Navigate> does not, so an AppPath here navigates to the literal
+          * "/:workspace/editor/:workflow/..." URL and the editor loader fetches a workflow by
+          * that name. The editor header links to the bare `configure` path, so this redirect is
+          * the entry point to the whole Configure tab.
+          */}
+        <Route
+          path="configure"
+          element={
+            <Navigate
+              to={appLink.editorConfigureGeneral({
+                workspace: routeParams.workspace ?? "",
+                workflow: routeParams.workflow ?? "",
+              })}
+              replace
+            />
+          }
+        />
+      </Routes>
     </div>
   );
 }

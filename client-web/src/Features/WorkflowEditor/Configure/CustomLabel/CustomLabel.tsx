@@ -12,7 +12,7 @@ interface AddLabelProps {
   formikPropsSetFieldValue: Function;
   labels: ConfigureWorkflowFormValues["labels"];
   isEdit?: boolean;
-  editTrigger?: React.ReactNode;
+  editTrigger?: React.ComponentType<{ openModal: () => void }>;
   selectedLabel?: { key: string; value: string; index: number };
 }
 

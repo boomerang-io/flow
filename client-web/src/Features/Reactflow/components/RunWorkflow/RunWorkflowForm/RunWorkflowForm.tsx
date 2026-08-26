@@ -81,7 +81,7 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
         titleText="Workflow"
         placeholder="Select a Workflow"
         invalid={Boolean(error) && Boolean(touch)}
-        invalidText={error}
+        invalidText={typeof error === "string" ? error : undefined}
       />
     );
   };

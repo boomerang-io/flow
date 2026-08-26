@@ -12,22 +12,17 @@ import {
   TableHeader,
   TableRow,
 } from "@carbon/react";
-import { Loading } from "@boomerang-io/carbon-addons-boomerang-react";
-import queryString from "query-string";
-import { useQuery } from "react-query";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { useTokenSectionData } from "Components/TokenSection/tokenRouteData";
 import styles from "./permissionSelector.module.scss";
 
 /*
  * Server-driven permission catalog - resources/actions/role presets always come from
  * GET /token/catalog so this picker can never offer (or silently drop) something the
- * server doesn't actually enforce.
+ * server doesn't actually enforce. That fetch moved from a useQuery here onto the route's
+ * loader (see Components/TokenSection/tokenRoute.ts, which requests the catalog with the same
+ * scope/principal this component used to build its query from), so it now arrives already
+ * resolved and there is no loading branch left.
  */
-interface TokenCatalog {
-  resources: string[];
-  actions: string[];
-  rolePresets: Record<string, string[]>;
-}
 
 export interface PermissionSelection {
   role?: string;
@@ -35,8 +30,9 @@ export interface PermissionSelection {
 }
 
 interface PermissionSelectorProps {
-  scope: "global" | "workspace";
-  principal?: string | null;
+  // `scope`/`principal` are gone: they only ever existed to build the catalog query string, and
+  // the route loader now owns that (a route knows its own scope - global for /admin/tokens,
+  // workspace for the editor's Configure > Tokens tab).
   onChange: (selection: PermissionSelection) => void;
 }
 
@@ -79,15 +75,8 @@ function gridToPermissions(resources: string[], actions: string[], grid: Permiss
  * action vocabulary is a closed 4-value set applied uniformly across every resource, so this
  * is a grid (row/column "all" toggles) rather than a per-resource verb builder.
  */
-function PermissionSelector({ scope, principal, onChange }: PermissionSelectorProps) {
-  const catalogUrl = serviceUrl.getTokenCatalog({
-    query: queryString.stringify({ scope, principal: principal ?? undefined }),
-  });
-  const catalogQuery = useQuery<TokenCatalog>({
-    queryKey: catalogUrl,
-    queryFn: resolver.query(catalogUrl),
-  });
-  const catalog = catalogQuery.data;
+function PermissionSelector({ onChange }: PermissionSelectorProps) {
+  const catalog = useTokenSectionData()?.catalog ?? null;
 
   // "" (rather than undefined) so the role Dropdown is controlled from the very first render -
   // switching an uncontrolled Downshift prop to controlled once the catalog resolves triggers a
@@ -130,11 +119,10 @@ function PermissionSelector({ scope, principal, onChange }: PermissionSelectorPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, isCustomising, selectedRole, grid]);
 
-  if (catalogQuery.isLoading) {
-    return <Loading withOverlay={false} small />;
-  }
-
-  if (catalogQuery.isError || !catalog) {
+  // null covers both "the loader's catalog fetch failed" and "this route didn't ask for one" -
+  // either way there is nothing safe to offer, so fail closed rather than render an empty grid
+  // that would submit an empty permission set.
+  if (!catalog) {
     return <p className={styles.error}>Unable to load the permission catalog. Try again.</p>;
   }
 

@@ -1,0 +1,186 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <header
+      class="cds--bmrg-feature-header _container_268f38 --bordered"
+    >
+      <section
+        class="cds--bmrg-feature-header__content"
+      >
+        <div
+          class="cds--bmrg-feature-header__nav"
+        >
+          <div
+            class="_headerNav_268f38"
+          >
+            <nav
+              aria-label="Breadcrumb"
+            >
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+              >
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/home"
+                  >
+                    Home
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/tyson-workspace/activity"
+                  >
+                    Activity
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    test-workflow
+                  </p>
+                </li>
+              </ol>
+            </nav>
+            <button
+              class="_workflowAdvancedDetailTrigger_268f38"
+              data-testid="advanced-detail-trigger"
+            >
+              <svg
+                aria-hidden="true"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M26,2H8A2,2,0,0,0,6,4V8H4v2H6v5H4v2H6v5H4v2H6v4a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V4A2,2,0,0,0,26,2Zm0,26H8V24h2V22H8V17h2V15H8V10h2V8H8V4H26Z"
+                />
+                <path
+                  d="M14 8H22V10H14z"
+                />
+                <path
+                  d="M14 15H22V17H14z"
+                />
+                <path
+                  d="M14 22H22V24H14z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div
+          class="cds--bmrg-feature-header__header"
+        >
+          <div
+            style="display: flex;"
+          >
+            <h1
+              class="cds--bmrg-feature-header-title"
+            >
+              Activity detail
+            </h1>
+          </div>
+        </div>
+      </section>
+      <div
+        class="_content_268f38"
+      >
+        <dl
+          class="_data_268f38"
+        >
+          <dt
+            class="_dataTitle_268f38"
+          >
+            Workspace
+          </dt>
+          <dd
+            class="_dataValue_268f38"
+          >
+            Tyson Workspace
+          </dd>
+        </dl>
+        <dl
+          class="_data_268f38"
+        >
+          <dt
+            class="_dataTitle_268f38"
+          >
+            Version
+          </dt>
+          <dd
+            class="_dataValue_268f38"
+          >
+            1
+          </dd>
+        </dl>
+        <dl
+          class="_data_268f38"
+        >
+          <dt
+            class="_dataTitle_268f38"
+          >
+            Initiated by
+          </dt>
+          <dd
+            class="_dataValue_268f38"
+          >
+            Tim Bula
+          </dd>
+        </dl>
+        <dl
+          class="_data_268f38"
+        >
+          <dt
+            class="_dataTitle_268f38"
+          >
+            Trigger
+          </dt>
+          <dd
+            class="_dataValue_268f38"
+          >
+            manual
+          </dd>
+        </dl>
+        <dl
+          class="_data_268f38"
+        >
+          <dt
+            class="_dataTitle_268f38"
+          >
+            Start time
+          </dt>
+          <dd
+            class="_dataValue_268f38"
+          >
+            2019-09-03 03:00 PM
+          </dd>
+        </dl>
+        <dl
+          class="_dataButton_268f38"
+        />
+      </div>
+    </header>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

@@ -8,12 +8,12 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import { ThumbsUp, ThumbsDown } from "@carbon/react/icons";
-import { useQueryClient, useMutation } from "react-query";
-import { useWorkspaceContext } from "Hooks";
+import React from "react";
+import { useFetcher } from "react-router-dom";
 import { Formik } from "formik";
 import * as Yup from "yup";
+import type { ActionResult } from "Features/WorkflowRun/WorkflowRun";
 import styles from "./taskApprovalModal.module.scss";
-import { serviceUrl, resolver } from "Config/servicesConfig";
 
 const GateStatus = {
   Approved: "APPROVED",
@@ -23,46 +23,43 @@ const GateStatus = {
 type Props = {
   actionId?: string;
   closeModal: () => void;
-  workflowRunId: string;
 };
 
-function TaskApprovalModal({ actionId, closeModal, workflowRunId }: Props) {
-  const queryClient = useQueryClient();
-  const { workspace } = useWorkspaceContext();
+function TaskApprovalModal({ actionId, closeModal }: Props) {
+  // Submits to the run route's `action` (WorkflowRun.tsx), which revalidates the route loader
+  // on completion - that replaces the invalidateQueries(getWorkflowRun) this used to do, and is
+  // what refreshes the task list behind the modal once the approval is recorded.
+  const fetcher = useFetcher<ActionResult>();
+  const approvalsIsLoading = fetcher.state !== "idle";
+  const approvalsError = Boolean(fetcher.data && !fetcher.data.ok);
+  const approvedRef = React.useRef(false);
 
-  const {
-    mutateAsync: approvalMutator,
-    isLoading: approvalsIsLoading,
-    error: approvalsError,
-  } = useMutation(resolver.putAction, {
-    onSuccess: () => {
-      queryClient.invalidateQueries(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: workspace?.name, id: workflowRunId }));
-    },
-  });
-
-  const handleSubmit = async (values: { status: string; comment: string }) => {
-    const body = [
-      {
-        id: actionId,
-        approved: values.status === GateStatus.Approved,
-        comments: values.comment,
-      },
-    ];
-    try {
-      await approvalMutator({ workspace: workspace?.name, body });
-      notify(
-        <ToastNotification
-          kind="success"
-          title="Manual Approval"
-          subtitle={
-            body[0].approved ? "Successfully submitted approval request" : "Successfully submitted denial request"
-          }
-        />,
-      );
-      closeModal();
-    } catch (err) {
-      // noop
+  // The fetcher settles asynchronously, so the modal stays open with its spinner and closes only
+  // once the submission actually succeeds - the same behaviour the awaited mutateAsync had.
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || !fetcher.data.ok) {
+      return;
     }
+    notify(
+      <ToastNotification
+        kind="success"
+        title="Manual Approval"
+        subtitle={
+          approvedRef.current ? "Successfully submitted approval request" : "Successfully submitted denial request"
+        }
+      />,
+    );
+    closeModal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  const handleSubmit = (values: { status: string; comment: string }) => {
+    const approved = values.status === GateStatus.Approved;
+    approvedRef.current = approved;
+    fetcher.submit(
+      { intent: "action", actionId: actionId ?? "", approved: String(approved), comments: values.comment ?? "" },
+      { method: "post" },
+    );
   };
 
   const buttons = [

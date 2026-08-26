@@ -2,6 +2,7 @@ package io.boomerang.agent;
 
 import io.boomerang.agent.model.Response;
 import io.boomerang.agent.model.WorkspaceRequest;
+import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.kube.KubeService;
@@ -39,10 +40,7 @@ public class WorkflowService {
     LOGGER.info(workflow.toString());
     if (workflow.getWorkspaces() != null && !workflow.getWorkspaces().isEmpty()) {
       workflow.getWorkspaces().stream()
-          .filter(
-              ws ->
-                  "workflow".equalsIgnoreCase(ws.getType())
-                      || "workfowRun".equalsIgnoreCase(ws.getType()))
+          .filter(ws -> StorageType.fromLabel(ws.getType()).isPresent())
           .forEach(
               ws -> {
                 try {
@@ -93,7 +91,11 @@ public class WorkflowService {
             "0", "WorkflowRun (" + workflow.getId() + ") has been terminated successfully.");
     if (workflow.getWorkspaces() != null && !workflow.getWorkspaces().isEmpty()) {
       workflow.getWorkspaces().stream()
-          .filter(ws -> "workfowRun".equalsIgnoreCase(ws.getType()))
+          .filter(
+              ws ->
+                  StorageType.fromLabel(ws.getType())
+                      .filter(type -> type == StorageType.workflowRun)
+                      .isPresent())
           .forEach(
               ws -> {
                 WorkspaceRequest request = new WorkspaceRequest();

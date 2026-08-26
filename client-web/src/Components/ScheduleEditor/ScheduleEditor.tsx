@@ -2,8 +2,10 @@ import React from "react";
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { useWorkspaceContext } from "Hooks";
+import { labelStringsToRecord } from "Utils";
 import { cronDayNumberMap } from "Utils/cronHelper";
 import { resolver } from "Config/servicesConfig";
 import { ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
@@ -23,6 +25,10 @@ interface ScheduleEditorProps {
 function ScheduleEditor(props: ScheduleEditorProps) {
   const queryClient = useQueryClient();
   const { workspace } = useWorkspaceContext();
+  // See the equivalent comment in ScheduleCreator.tsx: shared with WorkflowEditor/Schedule/
+  // Schedule.tsx (unconverted), so this stays on `useMutation` + `invalidateQueries` for that
+  // consumer, with `revalidator.revalidate()` added alongside for this (loader-driven) page.
+  const revalidator = useRevalidator();
   /**
    * Update schedule
    */
@@ -41,6 +47,7 @@ function ScheduleEditor(props: ScheduleEditorProps) {
       );
       queryClient.invalidateQueries(props.getCalendarUrl);
       queryClient.invalidateQueries(props.getSchedulesUrl);
+      revalidator.revalidate();
       return;
     }
   };
@@ -61,13 +68,9 @@ function ScheduleEditor(props: ScheduleEditorProps) {
       ...parameters
     } = values;
 
-    let scheduleLabels: Record<string, string> = {};
-    // if (values.labels.length) {
-    //   scheduleLabels = values.labels.map((pair: string) => {
-    //     const [key, value] = pair.split(":");
-    //     return { key, value };
-    //   });
-    // }
+    // `labels` comes off the Creatable as an array of "key:value" strings; the API takes a
+    // Record<string, string> (backend `Map<String, String>` on WorkflowSchedule).
+    const scheduleLabels = labelStringsToRecord(labels);
 
     // Undo the namespacing of parameter keys and add to parameter object
     const resetParameters: ScheduleUnion["params"] = [];

@@ -1,10 +1,8 @@
-import React, { useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { Link, useHistory } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useFetcher, useNavigate } from "react-router-dom";
 import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import { appLink } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
 import { ArrowRight, Checkmark, Close } from "@carbon/react/icons";
 import moment from "moment";
 import { FlowWorkspaceSummary } from "Types";
@@ -14,40 +12,60 @@ interface WorkspaceCardProps {
   workspace: FlowWorkspaceSummary;
 }
 
+// Submits to Home's `action` (Features/Home/Home.tsx, intent "leave-workspace") - this card is
+// only ever rendered inside the Home route, with no route boundary in between, so a plain
+// useFetcher() submission with no explicit `action` target lands there by default.
+type LeaveWorkspaceActionResult = {
+  ok: boolean;
+  intent: "leave-workspace";
+  displayName: string;
+};
+
 const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-  const queryClient = useQueryClient();
-  const history = useHistory();
+  const navigate = useNavigate();
+  // Home has no loader of its own; the workspace list this card renders comes from
+  // useAppContext(), fed by the root loader (Features/App/App.tsx). React Router revalidates
+  // every matched loader - root included - once this fetcher's action settles, so no explicit
+  // refresh call is needed here (and queryClient.invalidateQueries would be an inert no-op
+  // against a loader-driven read - see UserLabels/ChangeRole for the bug that already caused).
+  const fetcher = useFetcher<LeaveWorkspaceActionResult>();
 
-  const leaveWorkspaceMutator = useMutation(resolver.leaveWorkspace);
-  const handleLeaveWorkspace = async () => {
-    try {
-      await leaveWorkspaceMutator.mutateAsync({ workspace: workspace.name });
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (fetcher.data.ok) {
       notify(
-        <ToastNotification kind="success" title={`Leave Workspace`} subtitle={`${workspace.displayName} successfully left`} />,
+        <ToastNotification kind="success" title={`Leave Workspace`} subtitle={`${fetcher.data.displayName} successfully left`} />,
       );
-      queryClient.invalidateQueries(serviceUrl.getUserProfile());
-    } catch {
+    } else {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Request to leave workspace failed`} />);
     }
+  }, [fetcher.state, fetcher.data]);
+
+  const handleLeaveWorkspace = () => {
+    fetcher.submit({ intent: "leave-workspace", workspace: workspace.name, displayName: workspace.displayName }, { method: "post" });
   };
+
+  const isLeaving = fetcher.state !== "idle";
 
   let menuOptions = [
     {
       itemText: "View Workflows",
-      onClick: () => history.push(appLink.workflows({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.workflows({ workspace: workspace.name })),
     },
     {
       itemText: "View Actions",
-      onClick: () => history.push(appLink.actions({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.actions({ workspace: workspace.name })),
     },
     {
       itemText: "View Activity",
-      onClick: () => history.push(appLink.activity({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.activity({ workspace: workspace.name })),
     },
     {
       itemText: "Manage Workspace",
-      onClick: () => history.push(appLink.manageWorkspace({ workspace: workspace.name })),
+      onClick: () => navigate(appLink.manageWorkspace({ workspace: workspace.name })),
     },
     {
       hasDivider: true,
@@ -60,7 +78,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
 
   return (
     <div className={styles.container}>
-      <Link to={!leaveWorkspaceMutator.isLoading ? appLink.workflows({ workspace: workspace.name }) : ""}>
+      <Link to={!isLeaving ? appLink.workflows({ workspace: workspace.name }) : ""}>
         <div className={styles.content}>
           <h1 title={workspace.displayName} className={styles.displayName} data-testid="workflow-card-title">
             {workspace.displayName}
@@ -78,7 +96,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
             <div className={styles.detailItem}>
               <div className={styles.detailLabel}>Status</div>
               <div className={styles.detailValue}>
-                {leaveWorkspaceMutator.isLoading ? (
+                {isLeaving ? (
                   <div className={styles.detailStatus}>
                     <InlineLoading description="Leaving.." style={{ width: "fit-content" }} />
                   </div>
@@ -102,7 +120,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
         </div>
         <ArrowRight size={24} className={styles.cardIcon} />
       </Link>
-      {!leaveWorkspaceMutator.isLoading ? (
+      {!isLeaving ? (
         <div style={{ position: "absolute", right: "0" }}>
           <OverflowMenu flipped ariaLabel="Overflow card menu" iconDescription="Overflow menu icon" size="sm">
             {menuOptions.map(({ onClick, itemText, ...rest }, index) => (

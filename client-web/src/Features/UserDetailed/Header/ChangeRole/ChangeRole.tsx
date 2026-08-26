@@ -1,11 +1,10 @@
-// @ts-nocheck
 import React, { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useFetcher } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, RadioButton, RadioButtonGroup, InlineNotification } from "@carbon/react";
 import { Loading, ModalFlowForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { UserType, UserTypeCopy } from "Constants";
-import { serviceUrl, resolver } from "Config/servicesConfig";
-import { FlowUser } from "Types";
+import { FlowUser, PlatformRole } from "Types";
+import type { UserDetailedActionResult } from "../../UserDetailed";
 import styles from "./ChangeRole.module.scss";
 
 interface ChangeRoleProps {
@@ -22,53 +21,69 @@ const rolesList = [
 ];
 
 const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
-  const queryClient = useQueryClient();
+  // Bare useFetcher() -> the nearest matched route's action, i.e. UserDetailed.tsx's, which
+  // targets the `:userId` route param rather than any id this component submits. That route's
+  // user-detail read is a loader, and React Router revalidates every matched loader once the
+  // action settles - so nothing refreshes it by hand (queryClient.invalidateQueries would be an
+  // inert no-op against a loader-driven read).
+  const fetcher = useFetcher<UserDetailedActionResult>();
   const role = user?.type;
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [error, setError] = useState();
+  const [selectedRole, setSelectedRole] = useState<string | undefined>(role);
+  const [error, setError] = useState<{ title: string; subtitle: string } | undefined>();
 
   useEffect(() => {
     setSelectedRole(role);
   }, [role]);
 
-  const changeUserMutator = useMutation(resolver.patchManageUser);
+  const isSubmitting = fetcher.state !== "idle";
+  const result = fetcher.data;
 
-  const handleOnSubmit = (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    changeRoleConfirmed();
-  };
-
-  const changeRoleConfirmed = async () => {
-    const { name } = user;
-    const request = {
-      type: selectedRole,
-    };
-
-    try {
-      await changeUserMutator.mutateAsync({ body: request, userId: user.id });
-      queryClient.invalidateQueries(serviceUrl.getUser({ userId: user.id }));
+  // Replaces the mutateAsync try/catch - the fetcher settles asynchronously, so success/failure
+  // is handled off the settled result.
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !result || result.intent !== "changeRole") {
+      return;
+    }
+    if (result.ok) {
       closeModal();
       notify(
         <ToastNotification
           kind="success"
           title="Role Changed"
-          subtitle={`Platform role for ${name} is updated to ${selectedRole}`}
-        />
+          subtitle={`Platform role for ${user?.name} is updated to ${selectedRole}`}
+        />,
       );
-    } catch (error) {
-      setError({ title: "Something's Wrong", subtitle: `Request to change ${name}'s platform role failed` });
+    } else {
+      setError({
+        title: "Something's Wrong",
+        subtitle: `Request to change ${user?.name}'s platform role failed`,
+      });
     }
+    // closeModal's identity is not stable; keying on the settled result is what makes this fire
+    // once per submission.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, result]);
+
+  const handleOnSubmit = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    setError(undefined);
+    // `selectedRole` is whatever the RadioButtonGroup last handed setSelectedRole. Carbon v11's
+    // RadioButtonGroup calls onChange(newSelection, name, evt), so the first argument is the
+    // newly selected RadioButton's `value` - i.e. the role actually picked, not a fixed one.
+    fetcher.submit({ intent: "changeRole", type: String(selectedRole) }, { method: "post" });
   };
 
   return (
     <ModalFlowForm onSubmit={handleOnSubmit}>
       <ModalBody>
-        {changeUserMutator.isLoading && <Loading />}
+        {isSubmitting && <Loading />}
         <div className={styles.gridContainer}>
           <RadioButtonGroup
             labelPosition="right"
             name="platform-role"
-            onChange={setSelectedRole}
+            onChange={(newSelection: string | number | undefined) =>
+              setSelectedRole(newSelection === undefined ? undefined : String(newSelection))
+            }
             orientation="vertical"
             valueSelected={selectedRole}
           >
@@ -88,8 +103,8 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
         <Button kind="secondary" onClick={closeModal}>
           Cancel
         </Button>
-        <Button type="submit" disabled={role === selectedRole || changeUserMutator.isLoading}>
-          {changeUserMutator.isLoading ? "Updating..." : error ? "Try again" : "Submit"}
+        <Button type="submit" disabled={role === (selectedRole as PlatformRole) || isSubmitting}>
+          {isSubmitting ? "Updating..." : error ? "Try again" : "Submit"}
         </Button>
       </ModalFooter>
     </ModalFlowForm>

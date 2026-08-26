@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.EnumUtils;
@@ -67,6 +68,25 @@ public class UserService {
     this.mongoTemplate = mongoTemplate;
   }
 
+  /**
+   * The single normalisation point for {@code users.email}: every read and every write of an email
+   * in this service passes through here, and this service is the only writer of {@code users.email}
+   * in the application (the loader's {@code _0038__NormaliseUserEmails} covers rows written before
+   * this rule existed).
+   *
+   * <p>Storing emails already lower-cased is what lets {@link UserRepository}'s lookups be exact
+   * equality rather than {@code ...IgnoreCase} — an {@code $options:'i'} regex has no computable
+   * index bounds, so it can only scan {@code users.email_lookup}, never seek it. {@code
+   * Locale.ROOT} is mandatory: the default locale would lower-case {@code "I"} to a dotless {@code
+   * "ı"} under a Turkish locale and silently split an account across two rows.
+   *
+   * <p>Only the case is changed — no trimming, no other rewriting — so a stored email is always
+   * byte-identical to what the identity provider supplied apart from case.
+   */
+  private static String normaliseEmail(String email) {
+    return email == null ? null : email.toLowerCase(Locale.ROOT);
+  }
+
   /*
    * If OTC matches, activate the instance
    *
@@ -107,10 +127,12 @@ public class UserService {
     Optional<UserEntity> userEntity = getUserEntityByEmail(email);
     boolean createRelationshipNode = false;
     if (externalUserUrl.isBlank()) {
+      // The one write path for users.email in the application - see normaliseEmail().
+      String normalisedEmail = normaliseEmail(email);
       if (userEntity.isEmpty() && allowUserCreation) {
         // Create new User (UserEntity is defaulted on new)
         UserEntity newUserEntity = new UserEntity();
-        newUserEntity.setEmail(email);
+        newUserEntity.setEmail(normalisedEmail);
         if (userType.isPresent()) {
           newUserEntity.setType(userType.get());
         }
@@ -140,7 +162,9 @@ public class UserService {
             RelationshipLabel.CONTAINS,
             RelationshipType.USER,
             userEntity.get().getId(),
-            email,
+            // The node slug is a copy of the user's email, so it carries the same normalisation -
+            // node.slug and users.email must never disagree for the same registration.
+            normalisedEmail,
             Optional.empty(),
             Optional.empty());
       }
@@ -182,10 +206,16 @@ public class UserService {
     return Optional.empty();
   }
 
+  /**
+   * Resolves a user by email. The internal store is queried with an exact-match equality on the
+   * normalised value (see {@link #normaliseEmail}) so the lookup seeks {@code users.email_lookup};
+   * the external-IdP branch passes the caller's value through untouched, because that email is the
+   * external directory's key (and the subject of the JWT minted for the call), not ours to rewrite.
+   */
   private Optional<UserEntity> getUserEntityByEmail(String userEmail) {
     if (externalUserUrl.isBlank()) {
       UserEntity extUser =
-          userRepository.findByEmailIgnoreCaseAndStatus(userEmail, UserStatus.active);
+          userRepository.findByEmailAndStatus(normaliseEmail(userEmail), UserStatus.active);
       if (extUser != null) {
         UserEntity userEntity = new UserEntity();
         BeanUtils.copyProperties(extUser, userEntity);
@@ -203,8 +233,20 @@ public class UserService {
     return Optional.empty();
   }
 
+  /**
+   * Retrieves the user record for the current identity, or {@code null} when that identity is not a
+   * user.
+   *
+   * <p>An identity is always established now (see {@code IdentityService}), so "no principal" is no
+   * longer a case. What remains - and is genuinely reachable - is a principal with no user record:
+   * the {@code UnauthenticatedGlobalToken} installed when {@code flow.security.enabled=false}, and
+   * equally any {@code key}/{@code global} machine token when security IS enabled. No
+   * synthetic/placeholder user is fabricated for them; callers that can gracefully render "no
+   * current user" ({@code ContextService.getHeaderNavigation}) already null-check, and {@code
+   * updateCurrentProfile} fails clearly on its own.
+   */
   public UserEntity getCurrentUser() {
-    return getUserByID(identityService.getCurrentPrincipal()).get();
+    return getUserByID(identityService.getCurrentPrincipal()).orElse(null);
   }
 
   /*
@@ -214,17 +256,27 @@ public class UserService {
    * so core cannot compose them here - the api layer's Profile composition
    * (ProfileControllerV2) calls this for the base entity, then WorkspaceService and
    * RelationshipService for the Workspace membership rollup.
+   *
+   * With no resolvable principal (e.g. security disabled), this returns the same default/empty
+   * UserEntity the method already initialises "profile" to below - an anonymous, unpersisted
+   * placeholder profile rather than a lookup failure, so the webapp's profile bootstrap call
+   * still renders instead of erroring.
    */
   public UserEntity getCurrentProfileEntity() {
     UserEntity profile = new UserEntity();
     if (externalUserUrl.isBlank()) {
-      profile = getCurrentUser();
+      UserEntity currentUser = getCurrentUser();
+      if (currentUser != null) {
+        profile = currentUser;
+      }
     } else {
-      ExternalUserProfile extUserProfile =
-          extUserService.getUserProfileById(identityService.getCurrentPrincipal());
-      if (extUserProfile != null) {
-        BeanUtils.copyProperties(extUserProfile, profile);
-        convertExternalUserType(extUserProfile, profile);
+      String principal = identityService.getCurrentPrincipal();
+      if (principal != null) {
+        ExternalUserProfile extUserProfile = extUserService.getUserProfileById(principal);
+        if (extUserProfile != null) {
+          BeanUtils.copyProperties(extUserProfile, profile);
+          convertExternalUserType(extUserProfile, profile);
+        }
       }
     }
     return profile;
@@ -240,6 +292,12 @@ public class UserService {
 
   public void updateCurrentProfile(UserRequest request) {
     String userId = identityService.getCurrentPrincipal();
+    if (userId == null) {
+      // No principal to update "my" profile for (e.g. security disabled). Fail clearly rather
+      // than letting apply() fall through to its email-lookup branch, which would let an
+      // unauthenticated caller update an arbitrary user by email in the request body.
+      throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
+    }
     request.setId(userId);
     this.apply(request);
   }
@@ -336,12 +394,12 @@ public class UserService {
   //    if (externalUserUrl.isBlank()
   //        && request != null
   //        && request.getEmail() != null
-  //        && this.userRepository.countByEmailIgnoreCaseAndStatus(
-  //                request.getEmail(), UserStatus.active)
+  //        && this.userRepository.countByEmailAndStatus(
+  //                normaliseEmail(request.getEmail()), UserStatus.active)
   //            == 0) {
   //      // Create User (UserEntity is defaulted on new)
   //      UserEntity userEntity = new UserEntity();
-  //      userEntity.setEmail(request.getEmail());
+  //      userEntity.setEmail(normaliseEmail(request.getEmail()));
   //      if (request.getName() != null && !request.getName().isBlank()) {
   //        userEntity.setName(request.getName());
   //      }
@@ -375,8 +433,8 @@ public class UserService {
       } else if (request != null && request.getEmail() != null && !request.getEmail().isBlank()) {
         userOptional =
             Optional.of(
-                this.userRepository.findByEmailIgnoreCaseAndStatus(
-                    request.getEmail(), UserStatus.active));
+                this.userRepository.findByEmailAndStatus(
+                    normaliseEmail(request.getEmail()), UserStatus.active));
       }
       if (userOptional.isPresent()) {
         UserEntity user = userOptional.get();
@@ -417,16 +475,23 @@ public class UserService {
     }
   }
 
+  /**
+   * Whether the current identity maps to a user record carrying an elevated type.
+   *
+   * <p>A machine identity (the {@code UnauthenticatedGlobalToken} installed when security is
+   * disabled, or any {@code key}/{@code global} service token) has no user record, so this answers
+   * {@code false} - privilege is never asserted for a principal that is not a user. That preserves
+   * the previous security-disabled answer exactly, and additionally stops the machine-token case
+   * throwing {@code NoSuchElementException} out of the old {@code .get()}.
+   */
   public boolean isCurrentUserAdmin() {
-    boolean isUserAdmin = false;
-    final UserEntity userEntity = getUserByID(identityService.getCurrentPrincipal()).get();
-    if (userEntity != null
-        && (userEntity.getType() == UserType.admin
-            || userEntity.getType() == UserType.operator
-            || userEntity.getType() == UserType.auditor
-            || userEntity.getType() == UserType.author)) {
-      isUserAdmin = true;
-    }
-    return isUserAdmin;
+    return getUserByID(identityService.getCurrentPrincipal())
+        .map(
+            user ->
+                user.getType() == UserType.admin
+                    || user.getType() == UserType.operator
+                    || user.getType() == UserType.auditor
+                    || user.getType() == UserType.author)
+        .orElse(false);
   }
 }

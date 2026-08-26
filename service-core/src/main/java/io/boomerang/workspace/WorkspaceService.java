@@ -2,6 +2,7 @@ package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.WorkflowCount;
 import io.boomerang.common.model.WorkflowRunInsight;
@@ -36,8 +37,7 @@ import io.boomerang.workspace.model.WorkspaceSummary;
 import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import io.boomerang.workspace.repository.WorkspaceRepository;
-import io.boomerang.api.WorkspaceTaskService;
-import io.boomerang.api.WorkspaceWorkflowService;
+import io.boomerang.workflow.TaskService;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -93,9 +93,9 @@ public class WorkspaceService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final InsightsService insightsService;
-  private final WorkspaceWorkflowService workspaceWorkflowService;
+  private final WorkflowService workflowService;
   private final TokenService tokenService;
-  private final WorkspaceTaskService workspaceTaskService;
+  private final TaskService taskService;
 
   public WorkspaceService(
       WorkspaceRepository workspaceRepository,
@@ -107,9 +107,9 @@ public class WorkspaceService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       InsightsService insightsService,
-      WorkspaceWorkflowService workspaceWorkflowService,
+      WorkflowService workflowService,
       TokenService tokenService,
-      WorkspaceTaskService workspaceTaskService) {
+      TaskService taskService) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -119,9 +119,9 @@ public class WorkspaceService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.insightsService = insightsService;
-    this.workspaceWorkflowService = workspaceWorkflowService;
+    this.workflowService = workflowService;
     this.tokenService = tokenService;
-    this.workspaceTaskService = workspaceTaskService;
+    this.taskService = taskService;
   }
 
   /*
@@ -327,7 +327,7 @@ public class WorkspaceService {
             Optional.of(List.of(team)));
     LOGGER.debug("Workspace Workflow Refs: {}", workflowRefs.toString());
     if (workflowRefs.size() > 0) {
-      workflowRefs.forEach(ref -> workspaceWorkflowService.delete(team, ref));
+      workflowRefs.forEach(ref -> workflowService.delete(team, ref));
     }
 
     // Delete all Tokens
@@ -342,7 +342,7 @@ public class WorkspaceService {
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)));
     if (templateNames.size() > 0) {
-      templateNames.forEach(name -> workspaceTaskService.delete(team, name));
+      templateNames.forEach(name -> taskService.delete(team, name));
     }
 
     // TODO - Delete Workspace Integration Installations
@@ -829,7 +829,7 @@ public class WorkspaceService {
 
     //    List<WorkflowSummary> summary = new LinkedList<>();
     //    try {
-    //      WorkflowResponsePage response = workspaceWorkflowService.query(Optional.empty(),
+    //      WorkflowResponsePage response = workflowService.query(Optional.empty(),
     // Optional.empty(), Optional.of(Direction.ASC), Optional.empty(), Optional.empty(),
     // Optional.of(List.of(workspaceEntity.getId())), Optional.empty());
     //      if (response.getContent() != null && !response.getContent().isEmpty()) {
@@ -999,7 +999,7 @@ public class WorkspaceService {
     currentQuotas.setCurrentRuns(insight.getTotalRuns().intValue());
 
     WorkflowCount count =
-        workspaceWorkflowService.count(
+        workflowService.count(
             team, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     if (count.getStatus() != null) {
       Long active = count.getStatus().get("active");

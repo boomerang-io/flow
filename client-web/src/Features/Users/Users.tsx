@@ -1,5 +1,5 @@
 import React from "react";
-import { DataTable, DataTableSkeleton, Pagination, Search } from "@carbon/react";
+import { DataTable, Pagination, Search } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import {
   ErrorMessage,
@@ -12,16 +12,25 @@ import debounce from "lodash/debounce";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useHistory, useLocation, Route, Switch } from "react-router-dom";
+import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { Box } from "reflexbox";
-import UserDetailed from "Features/UserDetailed";
 import EmptyState from "Components/EmptyState";
-import { useQuery } from "Hooks";
 import { CREATED_DATE_FORMAT } from "Constants";
-import { AppPath, appLink, queryStringOptions } from "Config/appConfig";
+import { appLink, queryStringOptions } from "Config/appConfig";
+import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import { PaginatedUserResponse } from "Types";
 import styles from "./Users.module.scss";
+
+// This used to also route ":userId/*" to UserDetailed via its own internal <Routes> - the list
+// and the detail view are now separate top-level routes (AppPath.UserList / AppPath.User in
+// AppRoutes.tsx) so UserDetailed's read can be a loader (loaders only attach to routes declared
+// in the router config, not to routes matched by a <Routes> rendered from inside a component).
+//
+// Route module: this file's `loader` is re-exported from app/routes/userList.tsx, the same split
+// GlobalParameters.tsx and UserDetailed.tsx use (see those files for the fuller rationale
+// comments on serverFetch/errorLoading/ssr:true). This route has no writes of its own (role
+// changes live in UserDetailed, a separate route not touched here), so there's no `action`.
 
 const DEFAULT_ORDER = "DESC";
 const DEFAULT_PAGE = 0;
@@ -29,20 +38,36 @@ const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "name";
 const PAGE_SIZES = [DEFAULT_LIMIT, 20, 50, 100];
 
-const UsersContainer: React.FC = () => {
-  return (
-    <Switch>
-      <Route path={AppPath.User}>
-        <UserDetailed />
-      </Route>
-      <Route path={AppPath.UserList}>
-        <UserList />
-      </Route>
-    </Switch>
-  );
+type LoaderData = {
+  users: PaginatedUserResponse | null;
+  errorLoading: boolean;
 };
 
+// Server loader (ssr:true). Mirrors the order/page/limit/sort parsing the component does off
+// `location.search` for its own display concerns (sort-header state, pagination controls) - kept
+// as parallel, not shared, logic since the loader only has `request.url` to work with. As with
+// Workspaces.tsx, `query` (the search box's debounced param) is parsed into the URL but was never
+// forwarded to the API by the pre-loader code either - preserved as-is.
+export async function loader({ request }: { request: Request }): Promise<LoaderData> {
+  const url = new URL(request.url);
+  const parsedQuery = queryString.parse(url.search, queryStringOptions);
+  const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
+  const page = parsedQuery.page ?? DEFAULT_PAGE;
+  const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
+  const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
+
+  const usersUrlQuery = queryString.stringify({ order, page, limit, sort });
+
+  try {
+    const response = await serverFetch(request).get(serviceUrl.getUsers({ query: usersUrlQuery }));
+    return { users: response.data, errorLoading: false };
+  } catch (error) {
+    return { users: null, errorLoading: true };
+  }
+}
+
 interface FeatureLayoutProps {
+  children?: React.ReactNode;
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 
@@ -73,33 +98,17 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
   );
 };
 
-const UserList: React.FC = () => {
-  const history = useHistory();
+function UserList() {
+  const navigate = useNavigate();
   const location = useLocation();
+  const { users: usersData, errorLoading } = useLoaderData() as LoaderData;
 
   const parsedQuery = queryString.parse(location.search, queryStringOptions);
   const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
-  const page = parsedQuery.page ?? DEFAULT_PAGE;
-  const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
 
-  const usersUrlQuery = queryString.stringify({
-    order,
-    page,
-    limit,
-    sort,
-  });
-
-  const usersUrl = serviceUrl.getUsers({ query: usersUrlQuery });
-
-  const {
-    data: usersData,
-    error: usersIsError,
-    isLoading: usersIsLoading,
-  } = useQuery<PaginatedUserResponse, string>(usersUrl);
-
   function handleNavigateToUser(userId: string) {
-    history.push(appLink.user({ userId }));
+    navigate(appLink.user({ userId }));
   }
 
   /**
@@ -115,7 +124,7 @@ const UserList: React.FC = () => {
     ...props
   }) {
     const queryStr = `?${queryString.stringify({ order, page, size, sort, ...props })}`;
-    history.push({ search: queryStr });
+    navigate({ search: queryStr });
   }
   // eslint-disable-next-line
   const debouncedSearch = React.useCallback(
@@ -130,15 +139,7 @@ const UserList: React.FC = () => {
     debouncedSearch(query);
   }
 
-  if (usersIsLoading) {
-    return (
-      <FeatureLayout handleSearchChange={handleSearchChange}>
-        <DataTableSkeleton />
-      </FeatureLayout>
-    );
-  }
-
-  if (usersIsError || !usersData) {
+  if (errorLoading || !usersData) {
     return (
       <FeatureLayout handleSearchChange={handleSearchChange}>
         <ErrorMessage />
@@ -157,7 +158,7 @@ const UserList: React.FC = () => {
       />
     </FeatureLayout>
   );
-};
+}
 
 const TableHeaderKey = {
   Name: "name",
@@ -322,4 +323,4 @@ function UsersTable(props: UsersTableProps) {
   );
 }
 
-export default UsersContainer;
+export default UserList;

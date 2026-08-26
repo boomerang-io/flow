@@ -1,5 +1,5 @@
 import React from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useFetcher } from "react-router-dom";
 import { Formik, FieldArray } from "formik";
 import * as Yup from "yup";
 import sortBy from "lodash/sortBy";
@@ -12,10 +12,11 @@ import {
   ToastNotification,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, Checkbox, InlineNotification, ModalBody, ModalFooter, Search } from "@carbon/react";
-import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
-import { resolver } from "Config/servicesConfig";
+import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { AddAlt, SubtractAlt } from "@carbon/react/icons";
 import { FlowWorkspace, Approver, ApproverGroup } from "Types";
+import { ApproverGroupIntent } from "../../ApproverGroups";
+import type { ApproverGroupsActionResult } from "../../ApproverGroups";
 import styles from "./createEditGroupModalContent.module.scss";
 
 type RenderMembersListProps = {
@@ -163,7 +164,6 @@ type Props = {
   approverGroup?: ApproverGroup;
   approverGroups: string[];
   workspace?: FlowWorkspace | null;
-  workspaceDetailsUrl: string;
 };
 
 function CreateEditGroupModalContent({
@@ -172,57 +172,52 @@ function CreateEditGroupModalContent({
   approverGroup,
   approverGroups,
   workspace,
-  workspaceDetailsUrl,
 }: Props) {
-  const queryClient = useQueryClient();
   const workspaceMembers = workspace?.members;
-  const approverGroupMutator = useMutation(resolver.patchWorkspace);
+  // Posts to the Approver Groups route's `action` (see ../../ApproverGroups) - no explicit action
+  // path needed, a fetcher resolves to the nearest matched route. Its completion revalidates the
+  // parent layout loader that supplies the group list, so no manual invalidation here.
+  const fetcher = useFetcher<ApproverGroupsActionResult>();
+  const isSubmitting = fetcher.state !== "idle";
+  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === ApproverGroupIntent.Save);
 
-  const { title, message: subtitle } = formatErrorMessage({
-    error: approverGroupMutator.error,
-    defaultMessage: `${!isEdit ? "Create" : "Update"} Approver Group Failed`,
-  });
+  const { title, message: subtitle } = failed
+    ? (fetcher.data?.errorMessage ?? { title: "Something's Wrong", message: undefined })
+    : { title: "", message: undefined };
 
-  const handleSubmit = async (values: any) => {
-    const mutatedApproverGroup = {
-      name: values.groupName,
-      groupId: isEdit ? approverGroup?.id : null,
-      approvers: values.approvers.map((approver: any) => approver.id),
-    };
-    try {
-      const response: any = await approverGroupMutator.mutateAsync({
-        workspace: workspace?.name,
-        body: { approverGroups: [mutatedApproverGroup] },
-      });
-      queryClient.invalidateQueries(workspaceDetailsUrl);
-      if (isEdit) {
-        notify(
-          <ToastNotification
-            kind="success"
-            title={"Approver Group Updated"}
-            subtitle={`Request to update ${response.data.name} succeeded`}
-            data-testid="create-update-approver-group-notification"
-          />,
-        );
-      } else {
-        notify(
-          <ToastNotification
-            kind="success"
-            title={"Approver Group Created"}
-            subtitle={`Request to create ${response.data.name} succeeded`}
-            data-testid="create-update-approver-group-notification"
-          />,
-        );
-      }
-      closeModal();
-    } catch (err) {
-      //noop
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== ApproverGroupIntent.Save || !fetcher.data.ok) {
+      return;
     }
+    notify(
+      <ToastNotification
+        kind="success"
+        title={fetcher.data.isEdit ? "Approver Group Updated" : "Approver Group Created"}
+        subtitle={`Request to ${fetcher.data.isEdit ? "update" : "create"} ${fetcher.data.name} succeeded`}
+        data-testid="create-update-approver-group-notification"
+      />,
+    );
+    closeModal();
+    // Failures leave the modal open and surface inline below, matching the previous
+    // mutation.isError behaviour.
+  }, [fetcher.state, fetcher.data, closeModal]);
+
+  const handleSubmit = (values: any) => {
+    fetcher.submit(
+      {
+        intent: ApproverGroupIntent.Save,
+        isEdit: String(Boolean(isEdit)),
+        groupId: isEdit ? (approverGroup?.id ?? "") : "",
+        name: values.groupName,
+        approvers: JSON.stringify(values.approvers.map((approver: any) => approver.id)),
+      },
+      { method: "post" },
+    );
   };
 
   const loadingText = isEdit ? "Saving..." : "Creating...";
   const normalText = isEdit ? "Save" : "Create group";
-  const buttonText = approverGroupMutator.isLoading ? loadingText : normalText;
+  const buttonText = isSubmitting ? loadingText : normalText;
 
   return (
     <Formik
@@ -250,7 +245,7 @@ function CreateEditGroupModalContent({
 
         return (
           <ModalFlowForm onSubmit={handleSubmit}>
-            {approverGroupMutator.isLoading && <Loading />}
+            {isSubmitting && <Loading />}
             <ModalBody className={styles.formBody}>
               <div className={styles.input}>
                 <TextInput
@@ -278,16 +273,14 @@ function CreateEditGroupModalContent({
                   setFieldValue={setFieldValue}
                 />
               )}
-              {approverGroupMutator.error && (
-                <InlineNotification lowContrast kind="error" subtitle={subtitle} title={title} />
-              )}
+              {failed && <InlineNotification lowContrast kind="error" subtitle={subtitle} title={title} />}
             </ModalBody>
             <ModalFooter>
               <Button kind="secondary" type="button" onClick={closeModal}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!isValid || approverGroupMutator.isLoading || !dirty}>
-                {approverGroupMutator.error ? "Try Again" : buttonText}
+              <Button type="submit" disabled={!isValid || isSubmitting || !dirty}>
+                {failed ? "Try Again" : buttonText}
               </Button>
             </ModalFooter>
           </ModalFlowForm>

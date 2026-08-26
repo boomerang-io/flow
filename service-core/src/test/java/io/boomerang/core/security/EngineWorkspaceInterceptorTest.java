@@ -35,7 +35,7 @@ import org.springframework.web.context.WebApplicationContext;
  * preHandle} logic is correct in isolation.
  *
  * <p>The "pass" cases target a lookup for a workflow that doesn't exist: that reaches
- * {@code WorkspaceWorkflowService.get}, which throws {@code WORKFLOW_INVALID_REF} - proving the
+ * {@code WorkflowService.get}, which throws {@code WORKFLOW_INVALID_REF} - proving the
  * request cleared the interceptor and hit real business logic, without depending on a populated
  * database or on {@code Page}/{@code WorkflowResponsePage} response-body serialization (which the
  * default content-negotiation setup in this test context doesn't cleanly support). The response

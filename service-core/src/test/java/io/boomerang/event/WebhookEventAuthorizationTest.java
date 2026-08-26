@@ -10,7 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.api.WorkspaceWorkflowService;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
@@ -20,7 +20,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.workflow.WorkflowRunService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;
@@ -45,7 +45,7 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
 
   @Autowired private RelationshipService realRelationshipService;
 
-  private WorkspaceWorkflowService workspaceWorkflowService;
+  private WorkflowService workflowService;
   private WorkflowRunService workflowRunService;
   private WebhookEventService webhookEventService;
 
@@ -69,7 +69,7 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
             BoomerangException.class,
             () -> webhookEventService.processEvent(event, Optional.of("other-workflow")));
     assertEquals("PERMISSION_DENIED", ex.getReason());
-    verify(workspaceWorkflowService, never())
+    verify(workflowService, never())
         .submit(any(), any(), any(WorkflowSubmitRequest.class), anyBoolean());
   }
 
@@ -83,14 +83,14 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
     CloudEvent event = eventFor("related-a-workflow");
     WorkflowRun expected = new WorkflowRun();
     expected.setId("run-1");
-    when(workspaceWorkflowService.submit(
+    when(workflowService.submit(
             eq("related-a-ws"), eq("related-a-workflow"), any(WorkflowSubmitRequest.class), anyBoolean()))
         .thenReturn(expected);
 
     WorkflowRun result = webhookEventService.processEvent(event, Optional.of("related-a-workflow"));
 
     assertEquals("run-1", result.getId());
-    verify(workspaceWorkflowService)
+    verify(workflowService)
         .submit(
             eq("related-a-ws"), eq("related-a-workflow"), any(WorkflowSubmitRequest.class), anyBoolean());
   }
@@ -129,11 +129,11 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
   }
 
   private void setUpService() {
-    workspaceWorkflowService = mock(WorkspaceWorkflowService.class);
+    workflowService = mock(WorkflowService.class);
     workflowRunService = mock(WorkflowRunService.class);
     webhookEventService =
         new WebhookEventService(
-            workspaceWorkflowService,
+            workflowService,
             workflowRunService,
             Optional.empty(),
             Optional.empty(),

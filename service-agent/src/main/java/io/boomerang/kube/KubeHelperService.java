@@ -1,20 +1,23 @@
 package io.boomerang.kube;
 
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.TaskEnvVar;
+import io.boomerang.error.BoomerangError;
+import io.boomerang.error.BoomerangException;
+import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.LabelSelector;
 import io.fabric8.kubernetes.api.model.PodAffinityTerm;
 import io.fabric8.kubernetes.api.model.PodAntiAffinity;
 import io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm;
-import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +27,8 @@ import org.springframework.stereotype.Component;
 public class KubeHelperService {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeHelperService.class);
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Value("${proxy.enable}")
   protected Boolean proxyEnabled;
@@ -91,6 +96,52 @@ public class KubeHelperService {
     return envVar;
   }
 
+  /*
+   * The task container environment, in increasing precedence (later entries win on a name
+   * collision): proxy vars, DEBUG/CI, executor-specific runtimeVars, one PARAM_<NAME> per Task
+   * Param plus PARAM_NAMES (the original names, comma-separated, so a task library can map
+   * PARAM_PRIVATEKEY back to privateKey; params whose sanitised names collide fail the Task
+   * rather than silently overwrite each other), then the Task-defined envVars. $(params.x)
+   * references in script/args are substituted by the engine.
+   */
+  protected List<EnvVar> createTaskEnvVars(
+      Boolean debug, List<RunParam> params, List<TaskEnvVar> envVars, EnvVar... runtimeVars) {
+    Map<String, EnvVar> byName = new LinkedHashMap<>();
+    createProxyEnvVars().forEach(var -> byName.put(var.getName(), var));
+    byName.put("DEBUG", createEnvVar("DEBUG", String.valueOf(debug)));
+    byName.put("CI", createEnvVar("CI", "true"));
+    for (EnvVar var : runtimeVars) {
+      byName.put(var.getName(), var);
+    }
+    if (params != null) {
+      byName.put(
+          "PARAM_NAMES",
+          createEnvVar(
+              "PARAM_NAMES",
+              params.stream().map(RunParam::getName).collect(Collectors.joining(","))));
+      Map<String, String> paramNameByEnvName = new HashMap<>();
+      for (RunParam p : params) {
+        String name = "PARAM_" + p.getName().toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
+        String collidingParam = paramNameByEnvName.put(name, p.getName());
+        if (collidingParam != null) {
+          throw new BoomerangException(
+              BoomerangError.TASK_EXECUTION_ERROR,
+              "PARAM_NAME_COLLISION - Params '"
+                  + collidingParam
+                  + "' and '"
+                  + p.getName()
+                  + "' both map to env var "
+                  + name);
+        }
+        byName.put(name, createEnvVar(name, paramValueAsString(p.getValue())));
+      }
+    }
+    if (envVars != null) {
+      envVars.forEach(var -> byName.put(var.getName(), createEnvVar(var.getName(), var.getValue())));
+    }
+    return new ArrayList<>(byName.values());
+  }
+
   protected List<EnvVar> createEnvVars(
       String workflowId, String workflowActivityId, String taskName, String taskActivityId) {
     List<EnvVar> envVars = new ArrayList<>();
@@ -101,81 +152,21 @@ public class KubeHelperService {
     return envVars;
   }
 
-  protected String createConfigMapProp(List<RunParam> params) {
-    LOGGER.info("Building ConfigMap Body");
-    Properties props = new Properties();
-    StringWriter propsSW = new StringWriter();
-    if (params != null && !params.isEmpty()) {
-      params.stream()
-          .forEach(
-              p -> {
-                props.setProperty(p.getName(), p.getValue().toString());
-              });
+  /**
+   * Return a param value as a String: a String value is returned unchanged, a null value
+   * becomes an empty String, and anything else (object, array, number, boolean) is
+   * JSON-serialised.
+   */
+  protected String paramValueAsString(Object value) {
+    if (value == null) {
+      return "";
     }
-
-    try {
-      props.store(propsSW, null);
-      LOGGER.info("" + propsSW.toString());
-    } catch (IOException ex) {
-      LOGGER.error(ex);
+    if (value instanceof String stringValue) {
+      return stringValue;
     }
-
-    return propsSW.toString();
+    return OBJECT_MAPPER.writeValueAsString(value);
   }
 
-  protected Map<String, String> createConfigMapData(List<RunParam> params) {
-    LOGGER.info("Building ConfigMap Data");
-    Map<String, String> data = new HashMap<>();
-    if (params != null && !params.isEmpty()) {
-      params.stream()
-          .forEach(
-              p -> {
-                data.put(p.getName(), p.getValue().toString());
-              });
-    }
-
-    return data;
-  }
-
-  protected String createConfigMapProp(Map<String, String> properties) {
-    LOGGER.info("Building ConfigMap Body");
-    Properties props = new Properties();
-    StringWriter propsSW = new StringWriter();
-    if (properties != null && !properties.isEmpty()) {
-      properties.forEach(
-          (key, value) -> {
-            String valueStr = value != null ? value : "";
-            LOGGER.info("createConfigMapProp() - " + key + "=" + valueStr);
-            props.setProperty(key, valueStr);
-          });
-    }
-
-    try {
-      props.store(propsSW, null);
-      LOGGER.info("" + propsSW.toString());
-    } catch (IOException ex) {
-      LOGGER.error(ex);
-    }
-
-    return propsSW.toString();
-  }
-
-  //
-  // protected Map<String, String> getConfigMapProp(String properties) throws IOException {
-  // LOGGER.info("Retrieving ConfigMap Properties File");
-  // Properties props = new Properties();
-  // if (properties != null && !properties.isEmpty()) {
-  // props.load(new StringReader(properties));
-  // }
-  // props.list(System.out);
-  // Map<String, String> propsMap = new HashMap<>();
-  // for (Map.Entry<Object, Object> e : props.entrySet()) {
-  // String key = (String)e.getKey();
-  // String value = (String)e.getValue();
-  // propsMap.put(key, value);
-  // }
-  // return propsMap;
-  // }
   //
   // /*
   // * Passes through optional method inputs to the sub methods which need to handle this.

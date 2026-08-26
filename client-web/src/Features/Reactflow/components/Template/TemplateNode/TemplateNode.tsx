@@ -2,7 +2,7 @@ import React from "react";
 import { Bee } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import cx from "classnames";
-import { Connection, Handle, Node, Position, useReactFlow } from "reactflow";
+import { Handle, IsValidConnection, Position, useReactFlow } from "@xyflow/react";
 import TaskUpdateModal from "Components/TaskUpdateModal";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import WorkflowEditButton from "Components/WorkflowEditButton";
@@ -10,7 +10,7 @@ import WorkflowWarningButton from "Components/WorkflowWarningButton";
 import { useEditorContext, useRunContext, useWorkflowContext } from "Hooks";
 import { taskIcons } from "Utils/taskIcons";
 import { WorkflowEngineMode } from "Constants";
-import type { DataDrivenInput, Task, WorkflowNode, WorkflowNodeProps } from "Types";
+import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
@@ -40,10 +40,10 @@ interface TaskTemplateNodeEditorProps extends TaskTemplateNodeProps {
 
 function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   const { taskTemplate, TaskForm = DefaultTaskForm } = props;
-  const reactFlowInstance = useReactFlow();
+  const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
 
   const { availableParameters } = useEditorContext();
-  const nodes = reactFlowInstance.getNodes() as Array<WorkflowNode>;
+  const nodes = reactFlowInstance.getNodes();
 
   // Get the taskNames names from the nodes on the model
   const otherTaskNames = nodes.map((node) => node.data.name).filter((name) => name !== props.data.name);
@@ -66,7 +66,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       } else {
         return node;
       }
-    }) as Array<WorkflowNode>;
+    });
 
     reactFlowInstance.setNodes(newNodes);
   };
@@ -85,7 +85,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       } else {
         return node;
       }
-    }) as unknown as Node<any>[];
+    });
 
     reactFlowInstance.setNodes(newNodes);
   };
@@ -216,7 +216,7 @@ interface BaseNodeProps {
 
 function BaseNode(props: BaseNodeProps) {
   const { isConnectable, children, className, icon, onClick, status, subtitle, title } = props;
-  const reactFlowInstance = useReactFlow();
+  const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
   let Icon = () => <Bee style={{ willChange: "auto" }} />;
 
   if (icon) {
@@ -225,6 +225,11 @@ function BaseNode(props: BaseNodeProps) {
   }
 
   const isEditor = props.mode === WorkflowEngineMode.Edit;
+  // See StartNode.tsx for why this is typed via `IsValidConnection` rather than `Connection`.
+  // Declared here (rather than after the `return`, as the pre-migration `function` declaration
+  // was) because a `const` isn't hoisted the way a `function` declaration is, and it's
+  // referenced below in the JSX this function returns.
+  const isValidHandle: IsValidConnection = (connection) => connection.source !== connection.target;
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div className={cx(styles.node, className, styles[status ?? ""], { [styles.locked]: !isEditor })} onClick={onClick}>
@@ -266,8 +271,4 @@ function BaseNode(props: BaseNodeProps) {
       {children}
     </div>
   );
-
-  function isValidHandle(connection: Connection) {
-    return connection.source !== connection.target;
-  }
 }

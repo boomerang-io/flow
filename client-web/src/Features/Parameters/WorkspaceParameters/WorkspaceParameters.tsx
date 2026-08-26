@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
   notify,
@@ -8,95 +8,185 @@ import {
   FeatureHeaderSubtitle as HeaderSubtitle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { paramCase } from "change-case";
 import { Helmet } from "react-helmet";
-import { useMutation, useQueryClient } from "react-query";
-import { useHistory, Link } from "react-router-dom";
+import { useFetcher, useLoaderData, useNavigate, Link } from "react-router-dom";
 import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
-import { resolver, serviceUrl } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 import { DataDrivenInput } from "Types";
 import ParametersTable from "../ParametersTable";
 
-function WorkspaceParameters() {
-  const history = useHistory();
-  const queryClient = useQueryClient();
-  const { workspace } = useWorkspaceContext();
+// Route module for app/routes/workspaceParameters.tsx, following
+// Features/Parameters/GlobalParameters/GlobalParameters.tsx. The route is workspace-scoped
+// (`/:workspace/parameters`), so both the loader and the action read the `:workspace` route param
+// directly rather than the (client-only) workspace context - see
+// Features/TaskManager/WorkspaceTasks/WorkspaceTasks.tsx for the same pattern.
+//
+// The loader owns the read that this page's table renders. It used to come from
+// useWorkspaceContext().workspace.parameters - WorkspaceContainer's react-query cache
+// (Features/App/App.tsx) - while the writes had already moved onto this route's action. Settling a
+// fetcher revalidates loaders, not react-query, so with no loader here a create/edit/delete raised
+// its success toast and left the table exactly as it was until the user navigated away and back
+// (the old `queryClient.invalidateQueries` was dropped in the conversion, and
+// `refetchOnWindowFocus: false` in app/root.tsx removed the last accidental refresh).
+//
+// It reads the workspace record - the same GET WorkspaceContainer makes - rather than
+// `serviceUrl.workspace.resourceWorkspaceParameters`, because there is no dedicated
+// parameter list/create route on the API (see that builder's TODO in Config/servicesConfig.ts);
+// parameters are carried on the workspace and merged in through patchWorkspace.
+type LoaderData = {
+  parameters: DataDrivenInput[];
+  errorLoading: boolean;
+};
 
-  /** Add / Update / Delete Workspace parameter */
-  const parameterMutation = useMutation(resolver.patchWorkspace);
-  const deleteParameterMutation = useMutation(resolver.deleteWorkspaceParameter);
+// A failed fetch resolves with an error flag rather than throwing, so the page chrome still
+// renders and only the table area shows the error - same contract as GlobalParameters.tsx.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  try {
+    const response = await serverFetch(request).get(
+      serviceUrl.resourceWorkspace({ workspace: String(params.workspace) }),
+    );
+    return { parameters: response.data?.parameters ?? [], errorLoading: false };
+  } catch (error) {
+    return { parameters: [], errorLoading: true };
+  }
+}
 
-  const handleSubmit = async (isEdit: boolean, parameter: DataDrivenInput, closeModal: () => void) => {
+type ActionResult = {
+  ok: boolean;
+  intent: "create" | "update" | "delete";
+  label: string;
+  errorMessage?: { title: string; message: string };
+};
+
+export async function action({
+  params,
+  request,
+}: {
+  params: { workspace?: string };
+  request: Request;
+}): Promise<ActionResult> {
+  const workspace = String(params.workspace);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
+
+  if (intent === "delete") {
+    const name = String(formData.get("name"));
+    const label = String(formData.get("label"));
     try {
-      await parameterMutation.mutateAsync({
-        workspace: workspace?.name,
-        body: { parameters: [parameter] },
-      });
-      if (isEdit) {
+      await serverFetch(request).delete(serviceUrl.workspace.deleteWorkspaceParameter({ workspace, name }));
+      return { ok: true, intent: "delete", label };
+    } catch (error) {
+      return {
+        ok: false,
+        intent: "delete",
+        label,
+        errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Configuration Failed" }),
+      };
+    }
+  }
+
+  const isEdit = intent === "update";
+  const parameter = JSON.parse(String(formData.get("parameter")));
+  try {
+    await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { parameters: [parameter] });
+    return { ok: true, intent: isEdit ? "update" : "create", label: parameter.label };
+  } catch (error) {
+    return {
+      ok: false,
+      intent: isEdit ? "update" : "create",
+      label: parameter.label,
+      // Matches the previous handleSubmit catch's (pre-existing, unchanged) default message -
+      // written for the delete path and never updated when create/update was added.
+      errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Configuration Failed" }),
+    };
+  }
+}
+
+function WorkspaceParameters() {
+  const navigate = useNavigate();
+  const fetcher = useFetcher<ActionResult>();
+  // The workspace object stays a client-side concern (header breadcrumb only); the parameters the
+  // table renders come from this route's loader, which is what a fetcher settle revalidates.
+  const { workspace } = useWorkspaceContext();
+  const { parameters, errorLoading } = useLoaderData() as LoaderData;
+  // handleSubmit hands this component a `closeModal` at submit time; the fetcher settles
+  // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked once the
+  // create/update settles (success or failure both closed the modal before, see the effect below) -
+  // matching the previous mutateAsync/then-catch behaviour.
+  const closeModalRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    const { ok, intent, label, errorMessage } = fetcher.data;
+
+    if (intent === "delete") {
+      if (ok) {
         notify(
           <ToastNotification
             kind="success"
-            title={"Parameter Updated"}
-            subtitle={`Request to update ${parameter.label} succeeded`}
-            data-testid="create-update-workspace-prop-notification"
+            title={"Parameter Deleted"}
+            subtitle={`Request to delete ${label} succeeded`}
+            data-testid="delete-workspace-param-notification"
           />,
         );
       } else {
         notify(
           <ToastNotification
-            kind="success"
-            title={"Parameter Created"}
-            subtitle={`Request to create ${parameter.label} succeeded`}
-            data-testid="create-update-workspace-prop-notification"
+            kind="error"
+            title={errorMessage?.title ?? "Something's Wrong"}
+            subtitle={errorMessage?.message}
+            data-testid="delete-workspace-param-notification"
           />,
         );
       }
-      queryClient.invalidateQueries([serviceUrl.resourceWorkspace({ workspace: workspace?.name })]);
-      closeModal();
-    } catch (err) {
-      //TODO switch this to an inline
-      const errorMessages = formatErrorMessage({ error: err, defaultMessage: "Delete Configuration Failed" });
-      notify(
-        <ToastNotification
-          kind="error"
-          title={errorMessages.title}
-          subtitle={errorMessages.message}
-          data-testid="create-param-notification"
-        />,
-      );
-      closeModal();
+      return;
     }
-  };
 
-  const handleDelete = async (parameter: DataDrivenInput) => {
-    try {
-      await deleteParameterMutation.mutateAsync({ workspace: workspace?.name, name: parameter.name });
+    if (ok) {
       notify(
         <ToastNotification
           kind="success"
-          title={"Parameter Deleted"}
-          subtitle={`Request to delete ${parameter.label} succeeded`}
-          data-testid="delete-workspace-param-notification"
+          title={intent === "update" ? "Parameter Updated" : "Parameter Created"}
+          subtitle={`Request to ${intent} ${label} succeeded`}
+          data-testid="create-update-workspace-prop-notification"
         />,
       );
-      queryClient.invalidateQueries([serviceUrl.resourceWorkspace({ workspace: workspace?.name })]);
-    } catch (err) {
-      const errorMessages = formatErrorMessage({ error: err, defaultMessage: "Delete Configuration Failed" });
+    } else {
       notify(
         <ToastNotification
           kind="error"
-          title={errorMessages.title}
-          subtitle={errorMessages.message}
-          data-testid="delete-workspace-param-notification"
+          title={errorMessage?.title ?? "Something's Wrong"}
+          subtitle={errorMessage?.message}
+          data-testid="create-param-notification"
         />,
       );
     }
+    closeModalRef.current?.();
+    closeModalRef.current = null;
+  }, [fetcher.state, fetcher.data]);
+
+  const handleSubmit = async (isEdit: boolean, parameter: DataDrivenInput, closeModal: () => void) => {
+    closeModalRef.current = closeModal;
+    fetcher.submit({ intent: isEdit ? "update" : "create", parameter: JSON.stringify(parameter) }, { method: "post" });
+  };
+
+  const handleDelete = async (parameter: DataDrivenInput) => {
+    fetcher.submit({ intent: "delete", name: parameter.name, label: parameter.label ?? "" }, { method: "post" });
   };
 
   /** Check if there is an active workspace or redirect to home */
   if (!workspace) {
-    history.push(appLink.home());
+    navigate(appLink.home());
     return null;
   }
 
@@ -112,6 +202,9 @@ function WorkspaceParameters() {
       </Breadcrumb>
     );
   };
+
+  const isSubmitting = fetcher.state !== "idle";
+  const errorSubmitting = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent !== "delete");
 
   return (
     <>
@@ -131,11 +224,11 @@ function WorkspaceParameters() {
         }
       />
       <ParametersTable
-        parameters={workspace.parameters ?? []}
+        parameters={parameters}
         isLoading={false}
-        isSubmitting={parameterMutation.isLoading}
-        errorSubmitting={parameterMutation.isError}
-        errorLoading={false}
+        isSubmitting={isSubmitting}
+        errorSubmitting={errorSubmitting}
+        errorLoading={errorLoading}
         handleDelete={handleDelete}
         handleSubmit={handleSubmit}
       />

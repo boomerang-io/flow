@@ -4,12 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.api.IntegrationControllerV2;
-import io.boomerang.api.WorkspaceControllerV2;
-import io.boomerang.api.WorkspaceScheduleControllerV2;
+import io.boomerang.integrations.IntegrationControllerV2;
+import io.boomerang.schedule.WorkspaceScheduleControllerV2;
+import io.boomerang.workspace.WorkspaceControllerV2;
 import io.boomerang.core.security.EngineWorkspaceInterceptorConfiguration;
 import io.boomerang.dispatcher.DispatcherService;
-import io.boomerang.engine.WorkflowRunService;
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.schedule.ScheduleWatcher;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;

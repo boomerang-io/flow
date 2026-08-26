@@ -1,12 +1,12 @@
 import React from "react";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import cx from "classnames";
-import { getBezierPath, EdgeLabelRenderer, useReactFlow } from "reactflow";
+import { getBezierPath, EdgeLabelRenderer, useReactFlow } from "@xyflow/react";
 import { markerTypes } from "Features/Reactflow/Reactflow";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import { useRunContext, useWorkflowContext } from "Hooks";
 import { WorkflowEngineMode } from "Constants";
-import { WorkflowEdge, WorkflowEdgeProps } from "Types";
+import { WorkflowEdge, WorkflowEdgeProps, WorkflowNode } from "Types";
 import ConfigureSwitchModal from "./ConfigureModal";
 import styles from "./DecisionEdge.module.scss";
 import ExecutionConditionButton from "./ExecutionConditionButton";
@@ -33,7 +33,7 @@ function SwitchEdgeEditor(props: WorkflowEdgeProps) {
     targetPosition,
   });
 
-  const reactFlowInstance = useReactFlow();
+  const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
 
   const mergedStyles = {
     ...style,
@@ -41,17 +41,20 @@ function SwitchEdgeEditor(props: WorkflowEdgeProps) {
   };
 
   const handleChangeCondition = (decisionCondition: string) => {
-    const edges = reactFlowInstance.getEdges() as Array<WorkflowEdge>;
-    const newEdges = edges.map((edge) => {
-      if (edge.id === props.id) {
-        return {
-          ...edge,
-          data: { ...edge.data, decisionCondition },
-        };
-      } else {
+    const edges = reactFlowInstance.getEdges();
+    // `Edge.data` is optional at the type level (unlike `Node.data`, which is required), so the
+    // early return also covers the (practically unreachable, since every edge here is created
+    // with `data` set - see `getEdgeType` in Reactflow.tsx) case of a matching edge with no data,
+    // rather than spreading `undefined` and silently dropping the required `executionCondition`.
+    const newEdges = edges.map((edge): WorkflowEdge => {
+      if (edge.id !== props.id || !edge.data) {
         return edge;
       }
-    }) as Array<WorkflowEdge>;
+      return {
+        ...edge,
+        data: { ...edge.data, decisionCondition },
+      };
+    });
 
     reactFlowInstance.setEdges(newEdges);
   };

@@ -1,6 +1,6 @@
 import React from "react";
 import cx from "classnames";
-import { getBezierPath, useReactFlow, EdgeLabelRenderer } from "reactflow";
+import { getBezierPath, useReactFlow, EdgeLabelRenderer } from "@xyflow/react";
 import { markerTypes } from "Features/Reactflow/Reactflow";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import { useWorkflowContext } from "Hooks";

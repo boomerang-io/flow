@@ -60,20 +60,18 @@ function UserWorkspaces({ user, workspaces }: UserWorkspacesProps) {
                 <StructuredListCell>
                   <Link
                     className={styles.viewWorkspaceLink}
-                    to={{
-                      pathname: appLink.manageWorkspace({ workspace: workspace.name }),
-                      state: {
-                        navList: [
-                          {
-                            to: appLink.userList(),
-                            text: "Users",
-                          },
-                          {
-                            to: appLink.user({ userId: user.id }),
-                            text: user.name,
-                          },
-                        ],
-                      },
+                    to={appLink.manageWorkspace({ workspace: workspace.name })}
+                    state={{
+                      navList: [
+                        {
+                          to: appLink.userList(),
+                          text: "Users",
+                        },
+                        {
+                          to: appLink.user({ userId: user.id }),
+                          text: user.name,
+                        },
+                      ],
                     }}
                   >
                     View workspace

@@ -148,21 +148,9 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
         !isError && (
           <section className={styles.headerActions}>
             <Tabs ariaLabel="User pages">
-              <Tab
-                exact
-                label="Workspaces"
-                to={{ pathname: appLink.user({ userId: user?.id ?? "" }), state: location.state }}
-              />
-              <Tab
-                exact
-                label="Labels"
-                to={{ pathname: appLink.userLabels({ userId: user?.id ?? "" }), state: location.state }}
-              />
-              <Tab
-                exact
-                label="Settings"
-                to={{ pathname: appLink.userSettings({ userId: user?.id ?? "" }), state: location.state }}
-              />
+              <Tab end label="Workspaces" to={appLink.user({ userId: user?.id ?? "" })} state={location.state} />
+              <Tab end label="Labels" to={appLink.userLabels({ userId: user?.id ?? "" })} state={location.state} />
+              <Tab end label="Settings" to={appLink.userSettings({ userId: user?.id ?? "" })} state={location.state} />
             </Tabs>
           </section>
         )

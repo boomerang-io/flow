@@ -2,8 +2,10 @@ import React from "react";
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment-timezone";
 import { useMutation, useQueryClient } from "react-query";
+import { useRevalidator } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { useWorkspaceContext } from "Hooks";
+import { labelStringsToRecord } from "Utils";
 import { cronDayNumberMap } from "Utils/cronHelper";
 import { resolver } from "Config/servicesConfig";
 import { ScheduleManagerFormInputs, ScheduleDate, ScheduleUnion, Workflow, DayOfWeekCronAbbreviation } from "Types";
@@ -23,6 +25,16 @@ interface CreateScheduleProps {
 export default function CreateSchedule(props: CreateScheduleProps) {
   const queryClient = useQueryClient();
   const { workspace } = useWorkspaceContext();
+  // This component is rendered by two surfaces: this Schedules page (route-loader-driven, see
+  // Features/Schedules/Schedules.tsx) and WorkflowEditor/Schedule/Schedule.tsx's Schedule tab
+  // (still react-query-driven). It stays on `useMutation` rather than moving to a
+  // useFetcher()/route-action write - ScheduleManagerForm's onSubmit awaits `handleSubmit`
+  // synchronously to decide whether to close the modal, and Schedule.tsx has no matching route
+  // action to submit to. `queryClient.invalidateQueries` below keeps that unconverted consumer's
+  // own useQuery refreshing exactly as before; `revalidator.revalidate()` is added alongside it
+  // purely so this page's loader-driven read also refreshes (a no-op invalidateQueries here, same
+  // as GlobalTokens.tsx's CreateToken).
+  const revalidator = useRevalidator();
   /**
    * Create schedule
    */
@@ -40,6 +52,7 @@ export default function CreateSchedule(props: CreateScheduleProps) {
     );
     queryClient.invalidateQueries(props.getCalendarUrl);
     queryClient.invalidateQueries(props.getSchedulesUrl);
+    revalidator.revalidate();
     return;
   };
 
@@ -60,13 +73,9 @@ export default function CreateSchedule(props: CreateScheduleProps) {
       ...parameters
     } = values;
 
-    let scheduleLabels: Record<string, string> = {};
-    // if (values.labels.length) {
-    //   scheduleLabels = values.labels.map((pair: string) => {
-    //     const [key, value] = pair.split(":");
-    //     return { key, value };
-    //   });
-    // }
+    // `labels` comes off the Creatable as an array of "key:value" strings; the API takes a
+    // Record<string, string> (backend `Map<String, String>` on WorkflowSchedule).
+    const scheduleLabels = labelStringsToRecord(labels);
 
     // Undo the namespacing of parameter keys and add to parameter object
     const resetParameters: ScheduleUnion["params"] = [];

@@ -1,13 +1,14 @@
 import React from "react";
-import { ErrorMessage, Loading } from "@boomerang-io/carbon-addons-boomerang-react";
+import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
+import { formatErrorMessage } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
-import { useQuery } from "react-query";
-import { Switch, Route, useRouteMatch } from "react-router-dom";
+import { Route, Routes, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
 import { useAppContext } from "Hooks";
-import { AppPath, FeatureFlag } from "Config/appConfig";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { FeatureFlag } from "Config/appConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
 import { FlowUser } from "Types";
 import Header from "./Header";
 import Labels from "./Labels";
@@ -15,20 +16,101 @@ import Settings from "./Settings";
 import Workspaces from "./Workspaces";
 import styles from "./UserDetailed.module.scss";
 
+// Route module: loader lives next to the component it feeds, and is attached to the route in
+// AppRoutes.tsx (path={AppPath.User}, a `:userId` URL param). By the time this component
+// renders, the router has already resolved the loader (navigation blocks on it), so there's no
+// isLoading branch here any more - only the errorLoading branch remains, for a request that
+// resolves but fails.
+type LoaderData = {
+  userDetails: FlowUser | null;
+  errorLoading: boolean;
+};
+
+// Server loader (ssr:true - see CLAUDE.md client-web SSR direction; server loaders are the
+// default now). Runs in Node, so it uses serverFetch(request) rather than the browser
+// `resolver`/`axios` instance in Config/servicesConfig.ts - see Config/serverFetch.ts for the
+// session-cookie-forwarding contract, unverified end-to-end until the auth exchange endpoint in
+// specifications/authentication.md lands.
+export async function loader({
+  params,
+  request,
+}: {
+  params: { userId?: string };
+  request: Request;
+}): Promise<LoaderData> {
+  const userDetailsUrl = serviceUrl.getUser({ userId: params.userId });
+  try {
+    const response = await serverFetch(request).get(userDetailsUrl);
+    return { userDetails: response.data, errorLoading: false };
+  } catch (error) {
+    return { userDetails: null, errorLoading: true };
+  }
+}
+
+/*
+ * One action serves both write sites under this route (Header/ChangeRole and Labels/UserLabels),
+ * keyed by an `intent` form field; each submits through a bare useFetcher(), which resolves to
+ * the nearest matched route's action - this one. (The inner <Routes> below is a plain component
+ * switch, not router route matching, so "nearest matched route" is always this one route.)
+ *
+ * SECURITY: the user being modified is taken from the `:userId` ROUTE param, never from a form
+ * field the browser supplies - a submission cannot retarget the write at a different user than
+ * the URL the caller navigated to and was authorised for. The API call itself goes through
+ * serverFetch(request), which forwards the caller's inbound session Cookie; calling the browser
+ * `resolver`/`axios` instance here instead would send no credentials at all, because
+ * axios.defaults.withCredentials (Config/axiosGlobalConfig.ts) needs a browser cookie jar that
+ * Node does not have.
+ */
+export type UserDetailedActionResult = {
+  ok: boolean;
+  intent: "changeRole" | "saveLabels";
+  errorMessage?: { title: string; message: string };
+};
+
+export async function action({
+  params,
+  request,
+}: {
+  params: { userId?: string };
+  request: Request;
+}): Promise<UserDetailedActionResult> {
+  const userId = String(params.userId);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent")) as UserDetailedActionResult["intent"];
+
+  const body =
+    intent === "changeRole"
+      ? { type: String(formData.get("type")) }
+      : { labels: JSON.parse(String(formData.get("labels"))) };
+
+  try {
+    await serverFetch(request).patch(serviceUrl.getUser({ userId }), body);
+    return { ok: true, intent };
+  } catch (error) {
+    return {
+      ok: false,
+      intent,
+      errorMessage: formatErrorMessage({
+        error,
+        defaultMessage: intent === "changeRole" ? "Request to change the platform role failed" : "Request to save labels failed.",
+      }),
+    };
+  }
+}
+
 interface FeatureLayoutProps {
   isError?: boolean;
-  isLoading?: boolean;
   user?: FlowUser;
   children: any;
 }
 
-const FeatureLayout = ({ children, isLoading, isError }: FeatureLayoutProps) => {
+const FeatureLayout = ({ children, isError }: FeatureLayoutProps) => {
   return (
     <>
       <Helmet>
         <title>User</title>
       </Helmet>
-      <Header isError={isError} isLoading={isLoading} />
+      <Header isError={isError} />
       <Box p="1rem">{children}</Box>
     </>
   );
@@ -37,53 +119,26 @@ const FeatureLayout = ({ children, isLoading, isError }: FeatureLayoutProps) => 
 function WorkspaceDetailedContainer() {
   const userManagementEnabled = useFeature(FeatureFlag.UserManagementEnabled);
   const { workspaces } = useAppContext();
-  const match: { params: { userId: string } } = useRouteMatch();
-  const userId = match?.params?.userId;
+  const { userDetails, errorLoading } = useLoaderData() as LoaderData;
 
-  const userDetailsUrl = serviceUrl.getUser({ userId });
-
-  const {
-    data: userDetailsData,
-    isError: userDetailsIsError,
-    isLoading: userDetailsIsLoading,
-  } = useQuery({
-    queryKey: userDetailsUrl,
-    queryFn: resolver.query(userDetailsUrl),
-  });
-
-  if (userDetailsIsLoading)
+  if (errorLoading || !userDetails) {
     return (
-      <FeatureLayout isLoading={userDetailsIsLoading}>
-        <Loading />
-      </FeatureLayout>
-    );
-  if (userDetailsIsError)
-    return (
-      <FeatureLayout isError={userDetailsIsError}>
+      <FeatureLayout isError>
         <ErrorMessage />
       </FeatureLayout>
     );
-
-  if (userDetailsData) {
-    return (
-      <div className={styles.container}>
-        <Header user={userDetailsData} userManagementEnabled={userManagementEnabled} />
-        <Switch>
-          <Route exact path={AppPath.User}>
-            <Workspaces user={userDetailsData} workspaces={workspaces} />
-          </Route>
-          <Route exact path={AppPath.UserLabels}>
-            <Labels user={userDetailsData} userManagementEnabled={userManagementEnabled} />
-          </Route>
-          <Route exact path={AppPath.UserSettings}>
-            <Settings user={userDetailsData} userManagementEnabled={userManagementEnabled} />
-          </Route>
-        </Switch>
-      </div>
-    );
   }
 
-  return null;
+  return (
+    <div className={styles.container}>
+      <Header user={userDetails} userManagementEnabled={userManagementEnabled} />
+      <Routes>
+        <Route path="" element={<Workspaces user={userDetails} workspaces={workspaces} />} />
+        <Route path="labels" element={<Labels user={userDetails} userManagementEnabled={userManagementEnabled} />} />
+        <Route path="settings" element={<Settings user={userDetails} userManagementEnabled={userManagementEnabled} />} />
+      </Routes>
+    </div>
+  );
 }
 
 export default WorkspaceDetailedContainer;

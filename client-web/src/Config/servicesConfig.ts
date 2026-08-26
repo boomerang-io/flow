@@ -9,15 +9,21 @@
 import axios from "axios";
 import { Envs, HttpMethod } from "Constants";
 
-// Set defaults, change them if Cypress is NOT defined
+// Set defaults; overridden below in production by the SSR-injected _SERVER_DATA.
 export let CORE_SERVICE_ENV_URL = "/api";
 
-if (import.meta.env.MODE === Envs.Prod && window._SERVER_DATA) {
+// SSR (see react-router.config.ts) runs this module in Node, where `window` doesn't exist yet -
+// same guard as Config/appConfig.ts's APP_ROOT/CORE_ENV_URL. `import.meta.env.MODE === Envs.Prod`
+// alone isn't a safe guard here: the SSR build itself runs in production mode, so that check
+// passes and the `window` read below it still executes.
+if (typeof window !== "undefined" && import.meta.env.MODE === Envs.Prod && window._SERVER_DATA) {
   CORE_SERVICE_ENV_URL = window._SERVER_DATA.CORE_SERVICE_ENV_URL;
 }
 
 export const PRODUCT_SERVICE_ENV_URL =
-  import.meta.env.MODE === Envs.Prod && window._SERVER_DATA ? window._SERVER_DATA.PRODUCT_SERVICE_ENV_URL : "/api";
+  typeof window !== "undefined" && import.meta.env.MODE === Envs.Prod && window._SERVER_DATA
+    ? window._SERVER_DATA.PRODUCT_SERVICE_ENV_URL
+    : "/api";
 
 export const BASE_URL = `${PRODUCT_SERVICE_ENV_URL}`;
 export const BASE_CORE_URL = CORE_SERVICE_ENV_URL;
@@ -57,7 +63,7 @@ export const serviceUrl = {
   getNavigation: ({ query }: QueryArg) => `${BASE_URL}/navigation${query}`,
   getGlobalParameters: () => `${BASE_URL}/parameters`,
   // No single-parameter GET exists; this is only used to build the delete-by-name URL below.
-  getGlobalParameter: ({ name }: IdArg) => `${BASE_URL}/parameters/${name}`,
+  getGlobalParameter: ({ name }: NameArg) => `${BASE_URL}/parameters/${name}`,
   getGlobalTokens: () => `${BASE_URL}/token/query?types=global`,
   getManageWorkspacesCreate: () => `${BASE_URL}/workspace`,
   // TODO: no dedicated labels route; labels are now merged in via patchWorkspace's request body.
@@ -125,6 +131,11 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/action/summary${query ? "?" + query : ""}`,
       getActions: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/action/query${query ? "?" + query : ""}`,
+      // Fetch by id only. `/action/query` filters on types/statuses/workflows/dates - NOT on
+      // taskRunRef or workflowRunRef (WorkspaceActionControllerV2.query), and the by-TaskRun
+      // route next to it is commented out server-side - so a TaskRun's approver detail is
+      // reached via the `actionRef` result it carries, resolved through this route.
+      getAction: ({ workspace, id }: WorkspaceArg & IdArg) => `${BASE_URL}/workspace/${workspace}/action/${id}`,
       putAction: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/action`,
     },
     task: {
