@@ -62,7 +62,7 @@ jobs:
       - name: Install Node.js for client-web build
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version-file: client-web/.nvmrc
           cache: 'pnpm'
           cache-dependency-path: client-web/pnpm-lock.yaml
 
@@ -81,7 +81,7 @@ jobs:
       - name: Install Node.js for Playwright
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: client-web/.nvmrc
           cache: 'npm'
           cache-dependency-path: e2e/package-lock.json
 

@@ -34,7 +34,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: client-web/.nvmrc
           cache: 'pnpm'
           cache-dependency-path: client-web/pnpm-lock.yaml
       - name: Install dependencies
@@ -64,7 +64,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: client-web/.nvmrc
           cache: 'pnpm'
           cache-dependency-path: client-web/pnpm-lock.yaml
       - name: Install dependencies

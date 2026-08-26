@@ -245,7 +245,7 @@ jobs:
           # 18 is EOL and can't even build this anymore - react-router/@react-router/dev/vite
           # all declare engines.node >=20 (see client-web/Dockerfile for the runtime-side version
           # of this same note). 22 matches the image base so build-time and run-time agree.
-          node-version: 22
+          node-version-file: client-web/.nvmrc
           cache: 'pnpm'
           cache-dependency-path: client-web/pnpm-lock.yaml
       - name: Install dependencies
