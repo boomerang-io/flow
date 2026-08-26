@@ -2,6 +2,7 @@ package io.boomerang.core;
 
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RoleEnum;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.enums.UserStatus;
 import io.boomerang.core.enums.UserType;
@@ -10,6 +11,7 @@ import io.boomerang.core.repository.UserRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -246,6 +248,13 @@ public class UserService {
    * updateCurrentProfile} fails clearly on its own.
    */
   public UserEntity getCurrentUser() {
+    // The security-off caller is synthetic (UnauthenticatedGlobalToken, never persisted), so its
+    // user is too: an in-memory admin profile, never written to Mongo and impossible to activate
+    // via an IDP email match. The token already carries global scope, so this adds no privilege -
+    // it makes the profile/context surface consistent with the authorization the caller holds.
+    if (identityService.getCurrentIdentity() instanceof UnauthenticatedGlobalToken) {
+      return UnauthenticatedGlobalToken.virtualUser();
+    }
     return getUserByID(identityService.getCurrentPrincipal()).orElse(null);
   }
 
@@ -287,6 +296,25 @@ public class UserService {
    * rollup on the Profile response (see getCurrentProfileEntity()).
    */
   public Map<String, String> getTeamRefsAndRolesForUser(String userId) {
+    // The security-off virtual user is a member of nothing but can act on everything (its token
+    // is global-scoped, and filter() anchors at ROOT for it), so its membership rollup is every
+    // workspace as owner - the profile surface stays consistent with the caller's real power.
+    if (UnauthenticatedGlobalToken.PRINCIPAL.equals(userId)
+        && identityService.getCurrentIdentity() instanceof UnauthenticatedGlobalToken) {
+      return relationshipService
+          .filter(
+              RelationshipType.WORKSPACE,
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              // The membership summary resolves each key with workspaceRepository.findById, so
+              // this must return refs (ids), not the default slugs.
+              false)
+          .stream()
+          .collect(
+              java.util.stream.Collectors.toMap(
+                  ref -> ref, ref -> RoleEnum.OWNER.getLabel(), (a, b) -> a));
+    }
     return relationshipService.roles(userId);
   }
 
@@ -485,7 +513,8 @@ public class UserService {
    * throwing {@code NoSuchElementException} out of the old {@code .get()}.
    */
   public boolean isCurrentUserAdmin() {
-    return getUserByID(identityService.getCurrentPrincipal())
+    // Routed through getCurrentUser() so the security-off virtual user resolves here too.
+    return Optional.ofNullable(getCurrentUser())
         .map(
             user ->
                 user.getType() == UserType.admin

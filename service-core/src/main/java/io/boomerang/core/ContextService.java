@@ -76,11 +76,21 @@ public class ContextService {
     }
     String email = user.getEmail();
 
-    if (platformNavigationUrl.isBlank()) {
+    if (!hasExternalPlatformNavigation()) {
       return getFlowNavigationResponse();
     } else {
       return getExternalNavigationResponse(email);
     }
+  }
+
+  /*
+   * users.base.url is blank in standalone, which composes flow.externalUrl.platformNavigation to
+   * the host-less "/users/navigation" - so "configured" means a real absolute URL, not a leftover
+   * path fragment. Calling the fragment threw "Target host is not specified" and 500'd
+   * /api/v2/context for every standalone request that resolved a user.
+   */
+  private boolean hasExternalPlatformNavigation() {
+    return platformNavigationUrl != null && platformNavigationUrl.matches("^https?://.+");
   }
 
   private HeaderNavigationResponse getFlowNavigationResponse() {
@@ -93,7 +103,7 @@ public class ContextService {
     features.setDocsEnabled(false);
     features.setSupportEnabled(false);
     features.setConsentEnabled(false);
-    features.setInternalEnabled(platformNavigationUrl.isBlank() ? true : false);
+    features.setInternalEnabled(!hasExternalPlatformNavigation());
 
     navigationResponse.setFeatures(features);
 

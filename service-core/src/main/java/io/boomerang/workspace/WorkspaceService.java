@@ -1075,10 +1075,20 @@ public class WorkspaceService {
           Optional<UserEntity> newUser =
               userService.getAndRegisterUser(
                   userSummary.getEmail(),
-                  null,
+                  Optional.empty(),
                   Optional.of(UserType.user),
                   Optional.of(UserStatus.inactive),
                   true);
+          // Honour the comment above: an unresolvable member (no email, e.g. the security-off
+          // virtual user, or registration refused) is skipped, not a 500. Previously the raw
+          // null Optional NPE'd inside getAndRegisterUser and the .get() threw on empty.
+          if (newUser.isEmpty()) {
+            LOGGER.warn(
+                "Skipping workspace member with unresolvable user (id: {}, email: {})",
+                userSummary.getId(),
+                userSummary.getEmail());
+            continue;
+          }
           userEntity = userService.getUserByID(newUser.get().getId());
         }
         // Check the provided role is valid in our system

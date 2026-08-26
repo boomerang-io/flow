@@ -90,3 +90,26 @@ behind a proxy see no change. Only the webapp gains new behaviour.
 
 **Worth fixing alongside:** the per-request `TokenEntity` mint on the proxy path. Invisible
 externally, but it writes a Mongo document per request.
+
+## Security-off identity — RULED (2026-08-26, maintainer)
+
+**The security-off caller presents as a synthetic ADMIN user that is never persisted.** With
+`flow.security.enabled=false`, every request already carries the `UnauthenticatedGlobalToken`
+(`AuthScope.global`, `**/**` grant — every authorization check passes), so the open question was
+only whether the profile/context surface tells the UI the truth about that power. Ruling:
+
+- `UserService.getCurrentUser()` detects the synthetic token and returns
+  `UnauthenticatedGlobalToken.virtualUser()` — id/principal `system`, type `admin`, in-memory only.
+  `isCurrentUserAdmin()` routes through the same chokepoint.
+- **Never seeded, never written to Mongo.** A stored default user was explicitly rejected: it would
+  appear in the member lists/exports of every secured instance, and — since users activate by IDP
+  email match — whoever registered its email at the identity provider would inherit an admin
+  record. The virtual user is impossible to activate.
+- Symmetry is the design: synthetic token ⇒ synthetic user; both exist per-request and stop
+  existing the moment `flow.security.enabled=true` puts `AuthenticationFilter` back in charge.
+- Known limitation (accepted): repository lookups by id `system` find nothing — identical to the
+  previous null-user behaviour, which was already made null-safe.
+
+This closes the "blank page under security-off" hazard: profile/context now resolve, the webapp
+renders, and the admin surfaces are visible to a caller whose token could already use every one of
+their APIs.
