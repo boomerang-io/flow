@@ -68,14 +68,17 @@ export async function action({ request }: { request: Request }): Promise<ActionR
   // Default / "create-workspace"
   const name = String(formData.get("name"));
   const displayName = String(formData.get("displayName"));
-  const email = String(formData.get("email"));
+  const email = String(formData.get("email") ?? "");
+  // No creator email (the security-off virtual user has none) means no owner member - sending a
+  // placeholder string would register a garbage user record backend-side.
+  const members = email && email !== "null" && email !== "undefined" ? [{ email, role: MemberRole.Owner }] : [];
   try {
     await serverFetch(request)({
       url: serviceUrl.postWorkspace(),
       data: {
         name: kebabcase(name.replace(`'`, "-")),
         displayName,
-        members: [{ email, role: MemberRole.Owner }],
+        members,
       },
       method: HttpMethod.Post,
     });
