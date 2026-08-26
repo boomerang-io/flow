@@ -107,6 +107,23 @@ class ParameterManagerTest {
     assertEquals("$(tasks.missing.results.x)", resolved(run, "ref"));
   }
 
+  // Matching is case-insensitive (ruled 2026-08-26): a reference resolves a param whose declared
+  // name differs only in case. Definition-side validation rejects case-variant duplicates.
+  @Test
+  void resolvesParamCaseInsensitively() {
+    WorkflowRunEntity run = run(str("MyParam", "hello"), str("ref", "$(params.myparam)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("hello", resolved(run, "ref"));
+  }
+
+  @Test
+  void resolvesScopedParamCaseInsensitively() {
+    WorkflowRunEntity run = run(str("ref", "$(GLOBAL.params.G1)"));
+    run.getAnnotations().put("boomerang.io/global-params", Map.of("g1", "gv"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("gv", resolved(run, "ref"));
+  }
+
   // A plain string with no reference is unchanged.
   @Test
   void passesThroughPlainString() {

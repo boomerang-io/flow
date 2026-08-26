@@ -55,15 +55,41 @@ public class ParameterUtil {
    * @return the parameter list
    */
   public static List<RunParam> addUniqueParam(List<RunParam> parameterList, RunParam param) {
-    if (parameterList.stream().noneMatch(p -> param.getName().equals(p.getName()))) {
+    // Case-insensitive (ruled 2026-08-26): a node param overrides the declared param it case-varies
+    // from rather than duplicating it. The existing entry keeps its name - declared casing is the
+    // display and delivery form.
+    if (parameterList.stream().noneMatch(p -> param.getName().equalsIgnoreCase(p.getName()))) {
       parameterList.add(param);
     } else {
       parameterList.stream()
-          .filter(p -> param.getName().equals(p.getName()))
+          .filter(p -> param.getName().equalsIgnoreCase(p.getName()))
           .findFirst()
           .ifPresent(p -> p.setValue(param.getValue()));
     }
     return parameterList;
+  }
+
+  /*
+   * The canonical environment-variable fold for a param name (PARAM_<NAME>): upper-cased, any
+   * character outside [A-Za-z0-9_] replaced by '_'. Two names folding identically collide as env
+   * vars and, under case-insensitive matching, as references.
+   */
+  public static String envFold(String name) {
+    return name.toUpperCase().replaceAll("[^A-Za-z0-9_]", "_");
+  }
+
+  /*
+   * Groups of names that collide under envFold (case or separator variants of each other).
+   * Empty when all names are distinct. Definition-side validation rejects these groups.
+   */
+  public static List<List<String>> paramNameCollisions(Collection<String> names) {
+    return names.stream()
+        .filter(Objects::nonNull)
+        .collect(Collectors.groupingBy(ParameterUtil::envFold, LinkedHashMap::new, Collectors.toList()))
+        .values()
+        .stream()
+        .filter(group -> group.size() > 1)
+        .collect(Collectors.toList());
   }
 
   /*

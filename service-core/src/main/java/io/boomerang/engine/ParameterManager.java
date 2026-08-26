@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -231,7 +232,11 @@ public class ParameterManager {
       String wfRunId,
       ParamLayers paramLayers,
       Map<String, Optional<TaskRunEntity>> taskRunMemo) {
-    Map<String, Object> flatParamLayers = paramLayers.getFlatMap();
+    // Case-insensitive matching (ruled 2026-08-26): $(params.myparam) resolves a param declared
+    // MyParam. The GitHub Actions model - insensitive lookup paired with the definition-side
+    // rejection of case/separator-variant duplicates (ParameterUtil.paramNameCollisions).
+    Map<String, Object> flatParamLayers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    flatParamLayers.putAll(paramLayers.getFlatMap());
     Pattern pattern = Pattern.compile(REGEX_DOT_NOTATION);
     if (Objects.isNull(originalValue)) {
       return originalValue;
@@ -244,25 +249,25 @@ public class ParameterManager {
       String[] separatedKey = foundKey.split("\\.");
       // Dispatch the reference to its shape; the per-shape extraction lives in private helpers.
       Object foundValue = null;
-      if ((separatedKey.length == 2) && "params".equals(separatedKey[0])) {
+      if ((separatedKey.length == 2) && "params".equalsIgnoreCase(separatedKey[0])) {
         // params.<name>
         foundValue = flatParamLayers.get(foundKey);
-      } else if ((separatedKey.length > 2) && "params".equals(separatedKey[0])) {
+      } else if ((separatedKey.length > 2) && "params".equalsIgnoreCase(separatedKey[0])) {
         // params.<name>.<jsonpath> - query into a child of an object param
         foundValue = objectPathValue(foundKey, 2, flatParamLayers);
       } else if ((separatedKey.length == 3)
-          && "params".equals(separatedKey[1])
+          && "params".equalsIgnoreCase(separatedKey[1])
           && isReservedScope(separatedKey[0])) {
         // <scope>.params.<name>
         foundValue = flatParamLayers.get(foundKey);
       } else if ((separatedKey.length > 3)
-          && "params".equals(separatedKey[1])
+          && "params".equalsIgnoreCase(separatedKey[1])
           && isReservedScope(separatedKey[0])) {
         // <scope>.params.<name>.<jsonpath>
         foundValue = objectPathValue(foundKey, 3, flatParamLayers);
       } else if ((separatedKey.length >= 4)
-          && "tasks".equals(separatedKey[0])
-          && "results".equals(separatedKey[2])) {
+          && "tasks".equalsIgnoreCase(separatedKey[0])
+          && "results".equalsIgnoreCase(separatedKey[2])) {
         // tasks.<name>.results.<result>[.<jsonpath>]
         foundValue = taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
       }
@@ -333,7 +338,8 @@ public class ParameterManager {
   }
 
   private boolean isReservedScope(String scope) {
-    return List.of(reservedScope).contains(scope);
+    // Case-insensitive like the rest of reference matching (ruled 2026-08-26).
+    return List.of(reservedScope).stream().anyMatch(s -> s.equalsIgnoreCase(scope));
   }
 
   private Object replaceStringInObject(Object object, Map<String, Object> replacements) {

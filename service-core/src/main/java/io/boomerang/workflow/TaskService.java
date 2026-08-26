@@ -5,6 +5,7 @@ import io.boomerang.common.entity.TaskEntity;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TaskStatus;
+import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
@@ -27,6 +28,7 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
+import io.boomerang.common.util.ParameterUtil;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -343,6 +345,28 @@ public class TaskService {
     return task;
   }
 
+  /*
+   * Declared param names must not be case/separator variants of each other: param matching is
+   * case-insensitive (ruled 2026-08-26) and every param becomes a PARAM_<NAME> env var, so such
+   * names collide. Rejected at template save, mirroring WorkflowService.validateDeclaredParams.
+   */
+  private void validateDeclaredParamNames(Task request) {
+    if (request.getSpec() == null || request.getSpec().getParams() == null) {
+      return;
+    }
+    List<List<String>> collisions =
+        ParameterUtil.paramNameCollisions(
+            request.getSpec().getParams().stream()
+                .map(AbstractParam::getName)
+                .collect(Collectors.toList()));
+    if (!collisions.isEmpty()) {
+      throw new BoomerangException(
+          BoomerangError.PARAM_NAME_COLLISION,
+          collisions.toString(),
+          ParameterUtil.envFold(collisions.get(0).get(0)));
+    }
+  }
+
   private Task internalCreate(Task request) {
     // Ignore any provided Ids as this is a create
     request.setId(null);
@@ -598,6 +622,8 @@ public class TaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
     }
 
+    validateDeclaredParamNames(request);
+
     // Unique Name Check
     if (uniqueNamesEnabled && taskRepository.existsByName(request.getName().toLowerCase())) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
@@ -633,6 +659,8 @@ public class TaskService {
     if (!request.getName().matches(NAME_REGEX)) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
     }
+
+    validateDeclaredParamNames(request);
 
     if (!uniqueNamesEnabled && request.getId().isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");

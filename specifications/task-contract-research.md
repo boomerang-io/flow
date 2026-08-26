@@ -181,9 +181,17 @@ keep `PARAM_NAMES` (JavaScript destructuring is case-sensitive regardless of wha
 does); (C) enforce lowercase names — makes the env mangle reversible and `PARAM_NAMES` droppable
 only if hyphens are also banned, and **breaks the catalogue's own camelCase params**
 (`privateKey`, `spreadsheetId`, `clientEmail` in `tasks/flow` commands) plus every existing
-workflow using them. Recommendation pending maintainer ruling: **B** — the ergonomics win
-(case-typo references resolve) without the catalogue migration; C's payoff (dropping
-`PARAM_NAMES`) does not cover its cost.
+workflow using them.
+
+**RULED (2026-08-26, maintainer): B — case-insensitive matching, SHIPPED (`feat-v5-track9`).**
+The whole reference is insensitive: param names, scope words, and the `params`/`tasks`/`results`
+literals (`ParameterManager.resolveParam` resolves over a `CASE_INSENSITIVE_ORDER` view of the
+flat layers); the merge is insensitive with declared casing winning
+(`ParameterUtil.addUniqueParam`); and the safety pair is definition-side rejection of
+case/separator-variant duplicates (`ParameterUtil.envFold`/`paramNameCollisions`, error
+`PARAM_NAME_COLLISION` 1209) at workflow save (node params) AND task-template save (declared
+params). The agent's dispatch-time env-collision check remains as the backstop for pre-existing
+definitions. `DataAdapterUtil`'s ignore-case joins are now the consistent rule, not the outlier.
 
 ## 9. Future: workspace storage sources beyond PVC
 
