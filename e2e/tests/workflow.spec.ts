@@ -12,8 +12,9 @@ import { uniqueName, createWorkspace, APP_BASENAME } from "../support/api";
  * current selector, so it fails the moment the two drift again.
  */
 test("create a workflow and find it via workspace search", async ({ page, request }) => {
-  const workspace = await createWorkspace(request, uniqueName("e2e-workflow-ws"));
-  const workflowName = uniqueName("e2e-workflow");
+  const workspace = await createWorkspace(request, uniqueName("endtoend-workflow-ws"));
+  // kebab-stable prefix - see workspace.spec.ts.
+  const workflowName = uniqueName("endtoend-workflow");
 
   await page.goto(`${APP_BASENAME}/${workspace.name}/workflows`);
 
@@ -21,6 +22,10 @@ test("create a workflow and find it via workspace search", async ({ page, reques
   await page.locator("#displayName").fill(workflowName);
   // #name auto-derives from #displayName (kebab-case) - leave it, just confirm it populated.
   await expect(page.locator("#name")).toHaveValue(workflowName.toLowerCase());
+  // Formik validates on blur here; a human's mousedown on Save blurs the field and enables the
+  // button mid-click, but Playwright's actionability check waits for enabled BEFORE dispatching
+  // any event - so blur explicitly, as a human's click implicitly would.
+  await page.locator("#displayName").blur();
   await page.getByTestId("workflows-create-workflow-submit").click();
 
   // Successful creation navigates straight into the editor canvas for the new workflow.

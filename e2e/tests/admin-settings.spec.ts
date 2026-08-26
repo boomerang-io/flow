@@ -15,21 +15,30 @@ import { uniqueName, APP_BASENAME } from "../support/api";
  * lands" note.
  */
 test("admin settings: changing a platform setting persists", async ({ page }) => {
-  const newAppName = uniqueName("e2e-app-name");
+  const newAppName = uniqueName("endtoend-app-name");
 
   await page.goto(`${APP_BASENAME}/admin/settings`);
 
   // "Configure Customizations" is not the first (auto-open) accordion group, so open it.
   await page.getByText("Configure Customizations").click();
 
-  const appNameInput = page.getByLabel("App Name");
+  // getByLabel("App Name") is ambiguous (github.appName carries the same label) - use the testid.
+  const appNameInput = page.getByTestId("appName");
   await appNameInput.fill(newAppName);
+  // Blur so Formik marks the section dirty (see workflow.spec.ts on Playwright actionability).
+  await appNameInput.blur();
 
-  await page.getByRole("button", { name: "Save" }).first().click();
+  // Every settings accordion section renders its own Save; .first() grabbed a different,
+  // untouched (still-disabled) section's button. Scope to the Customizations section.
+  await page
+    .locator(".cds--accordion__item")
+    .filter({ hasText: "Configure Customizations" })
+    .getByRole("button", { name: "Save" })
+    .click();
   await expect(page.getByText("Settings succesfully updated")).toBeVisible();
 
   // Reload to prove the value came back from the backend, not just local form state.
   await page.reload();
   await page.getByText("Configure Customizations").click();
-  await expect(page.getByLabel("App Name")).toHaveValue(newAppName);
+  await expect(page.getByTestId("appName")).toHaveValue(newAppName);
 });

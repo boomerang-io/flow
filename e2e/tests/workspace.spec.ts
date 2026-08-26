@@ -9,7 +9,9 @@ import { uniqueName, getWorkspace, APP_BASENAME } from "../support/api";
  * (the retired Cypress suite ran entirely against miragejs mocks).
  */
 test("create a workspace and see it in the workspace list", async ({ page, request }) => {
-  const displayName = uniqueName("e2e-workspace");
+  // Prefix must stay kebab-stable: the app slugifies with lodash kebabCase, which splits
+  // letter/digit boundaries ("e2e" -> "e-2-e"), so the old e2e- prefix broke the name round-trip.
+  const displayName = uniqueName("endtoend-workspace");
 
   await page.goto(`${APP_BASENAME}/home`);
 
@@ -18,7 +20,8 @@ test("create a workspace and see it in the workspace list", async ({ page, reque
   await page.getByTestId("save-workspace-name").click();
 
   // The modal closes on success; the new workspace card renders in "Your Workspaces".
-  await expect(page.getByText(displayName)).toBeVisible();
+  // The name renders twice (workspace switcher link + card title) - assert the card specifically.
+  await expect(page.getByTestId("workflow-card-title").filter({ hasText: displayName })).toBeVisible();
 
   // Cross-check against the real backend - the UI showing the card is not proof the write
   // persisted, only that the response looked like success.
