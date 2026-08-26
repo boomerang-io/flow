@@ -1,4 +1,4 @@
-package io.boomerang.agent.model;
+package io.boomerang.dispatcher.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

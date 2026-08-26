@@ -1,6 +1,6 @@
-package io.boomerang.agent;
+package io.boomerang.dispatcher;
 
-import io.boomerang.agent.model.TaskResponse;
+import io.boomerang.dispatcher.model.TaskResponse;
 import io.boomerang.common.enums.TaskDeletion;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;

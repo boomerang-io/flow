@@ -2,7 +2,7 @@
 # service-core deployable, and client-web, fronted by a small nginx gateway that gives the
 # browser a single origin (service-core has no CORS support - see docker/gateway/nginx.conf).
 #
-# service-agent is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
+# service-dispatcher is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
 # cluster (see CLAUDE.md's Technology Stack table) - there is no docker-based dispatcher yet
 # (that's Phase 4 / T7 territory). Without a cluster to talk to, an agent container here would
 # just crash-loop for zero E2E value: every journey this stack can prove (create a workspace,

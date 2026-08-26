@@ -38,7 +38,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = "agent.executor=kube-jobs")
+@TestPropertySource(properties = "dispatcher.executor=kube-jobs")
 public class KubeJobsExecutorTest {
 
   KubernetesClient client;
@@ -235,7 +235,7 @@ public class KubeJobsExecutorTest {
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = {"agent.executor=kube-jobs", "agent.tasks.runtimeClassName=gvisor"})
+@TestPropertySource(properties = {"dispatcher.executor=kube-jobs", "dispatcher.tasks.runtimeClassName=gvisor"})
 class KubeJobsExecutorRuntimeClassNamePropertyTest {
 
   KubernetesClient client;

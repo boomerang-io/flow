@@ -1,4 +1,4 @@
-package io.boomerang.agent;
+package io.boomerang.dispatcher;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -7,7 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.agent.model.TaskResponse;
+import io.boomerang.dispatcher.model.TaskResponse;
 import io.boomerang.client.EngineClient;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;

@@ -7,12 +7,12 @@ on:
     branches:
       - main
     paths:
-      - 'service-agent/**'
+      - 'service-dispatcher/**'
       - 'lib-common/**'
       - '.github/workflows/ci-agent.yml'
   pull_request:
     paths:
-      - 'service-agent/**'
+      - 'service-dispatcher/**'
       - 'lib-common/**'
       - '.github/workflows/ci-agent.yml'
 concurrency:
@@ -36,7 +36,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
         run: |
-          mvn clean test --projects service-agent --also-make --batch-mode -s settings.xml
+          mvn clean test --projects service-dispatcher --also-make --batch-mode -s settings.xml
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
@@ -62,12 +62,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
         run: |
-          mvn clean package --projects service-agent --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
+          mvn clean package --projects service-dispatcher --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
-          name: service-agent.jar
-          path: service-agent/target/service-agent.jar
+          name: service-dispatcher.jar
+          path: service-dispatcher/target/service-dispatcher.jar
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}

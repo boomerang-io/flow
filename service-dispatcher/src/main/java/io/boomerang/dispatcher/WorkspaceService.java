@@ -1,8 +1,8 @@
-package io.boomerang.agent;
+package io.boomerang.dispatcher;
 
 import tools.jackson.databind.ObjectMapper;
-import io.boomerang.agent.model.Response;
-import io.boomerang.agent.model.WorkspaceRequest;
+import io.boomerang.dispatcher.model.Response;
+import io.boomerang.dispatcher.model.WorkspaceRequest;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.WorkflowWorkspaceSpec;
 import io.boomerang.error.BoomerangError;

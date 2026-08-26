@@ -1,4 +1,4 @@
-package io.boomerang.agent;
+package io.boomerang.dispatcher;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;

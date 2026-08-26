@@ -26,7 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Full WorkflowRun lifecycle: submit, then drive to completion via exactly the callbacks a
- * registered agent makes (mirroring service-agent's QueueService): startWorkflow, startTask,
+ * registered agent makes (mirroring service-dispatcher's QueueService): startWorkflow, startTask,
  * endTask, finalizeWorkflow. Regression tripwire for DAGUtility / TaskExecutionService changes
  * (standing gate G1) - this test must stay green through the whole v5 refactor.
  */

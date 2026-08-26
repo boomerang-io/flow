@@ -11,7 +11,7 @@ between objects, authentication and authorisation, scheduling engine and so on.
 The [Engine service](./service-engine) is the backbone providing the execution of the workflows as Directed Acyclic
 Graphs (DAGs).
 
-The [Agent service](./service-agent) is the service that connects to the Engine and retrieves and executes the
+The [Dispatcher service](./service-dispatcher) is the service that connects to the Engine and retrieves and executes the
 appropriate filtered Workflows and Tasks. The Agent that comes by default is the Tekton Agent and
 executes the Tasks using Tekton on Kubernetes. Additional implementations can be added, such as IBM
 Code Engine, Azure Container Apps, etc

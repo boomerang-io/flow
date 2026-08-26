@@ -2,7 +2,7 @@ package io.boomerang.kube;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.boomerang.agent.WorkspaceService;
+import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
@@ -62,7 +62,7 @@ import org.springframework.stereotype.Component;
  * {@link #cancel}, and {@link #delete}).
  */
 @Component
-@ConditionalOnProperty(name = "agent.executor", havingValue = "kube-jobs")
+@ConditionalOnProperty(name = "dispatcher.executor", havingValue = "kube-jobs")
 public class KubeJobsExecutor implements TaskExecutor {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeJobsExecutor.class);
@@ -96,19 +96,19 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Value("${kube.task.storage.data.memory}")
   private Boolean kubeTaskStorageDataMemory;
 
-  @Value("${agent.tasks.serviceaccount}")
+  @Value("${dispatcher.tasks.serviceaccount}")
   private String kubeWorkerServiceAccount;
 
-  @Value("${agent.tasks.hostaliases}")
+  @Value("${dispatcher.tasks.hostaliases}")
   private String kubeWorkerHostAliases;
 
-  @Value("#{${agent.tasks.nodeselector}}")
+  @Value("#{${dispatcher.tasks.nodeselector}}")
   private Map<String, String> kubeWorkerNodeSelector;
 
-  @Value("${agent.tasks.tolerations}")
+  @Value("${dispatcher.tasks.tolerations}")
   private String kubeWorkerTolerations;
 
-  @Value("${agent.tasks.runtimeClassName}")
+  @Value("${dispatcher.tasks.runtimeClassName}")
   private String kubeWorkerRuntimeClassName;
 
   private KubernetesClient client;

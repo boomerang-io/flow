@@ -1,6 +1,6 @@
 package io.boomerang.client;
 
-import io.boomerang.agent.QueueService;
+import io.boomerang.dispatcher.QueueService;
 import io.boomerang.common.model.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -24,9 +24,9 @@ public class EngineClient {
 
   private static final long HEARTBEAT_INTERVAL = 5000L; // 5 seconds
 
-  private String agentHost;
+  private String dispatcherHost;
 
-  private String agentId;
+  private String dispatcherId;
 
   @Value("${flow.engine.workflowrun.start.url}")
   private String startWorkflowRunURL;
@@ -129,26 +129,26 @@ public class EngineClient {
   public void registerDispatcher() {
     try {
       // Retrieve the hostname as the machine ID
-      agentHost = InetAddress.getLocalHost().getHostName();
-      LOGGER.debug("Registering Dispatcher({})", agentHost);
+      dispatcherHost = InetAddress.getLocalHost().getHostName();
+      LOGGER.debug("Registering Dispatcher({})", dispatcherHost);
 
       DispatcherRegistrationRequest request =
-          new DispatcherRegistrationRequest(dispatcherName, agentHost, taskTypes);
+          new DispatcherRegistrationRequest(dispatcherName, dispatcherHost, taskTypes);
 
       // Send the registration request
       ResponseEntity<String> response =
           restTemplate.postForEntity(dispatcherRegisterURL, request, String.class);
       if (!response.getStatusCode().is2xxSuccessful()) {
         LOGGER.error(
-            "Failed to register Dispatcher({}). Status: {}", agentHost, response.getStatusCode());
+            "Failed to register Dispatcher({}). Status: {}", dispatcherHost, response.getStatusCode());
         throw new RuntimeException(
             "Failed to register Dispatcher: "
-                + agentHost
+                + dispatcherHost
                 + ". Status: "
                 + response.getStatusCode());
       }
-      agentId = response.getBody();
-      LOGGER.debug("Dispatcher {}({}) registered successfully.", agentId, agentHost);
+      dispatcherId = response.getBody();
+      LOGGER.debug("Dispatcher {}({}) registered successfully.", dispatcherId, dispatcherHost);
     } catch (UnknownHostException e) {
       throw new RuntimeException("Failed to retrieve hostname for machine ID", e);
     } catch (Exception e) {
@@ -158,13 +158,13 @@ public class EngineClient {
 
   @Scheduled(fixedDelay = HEARTBEAT_INTERVAL)
   public void retrieveDispatcherWorkflowQueue() {
-    String url = dispatcherQueueWorkflowURL.replace("{agentId}", agentId);
+    String url = dispatcherQueueWorkflowURL.replace("{dispatcherId}", dispatcherId);
     retrieveDispatcherQueue(url, true);
   }
 
   @Scheduled(fixedDelay = HEARTBEAT_INTERVAL)
   public void retrieveDispatcherTaskQueue() {
-    String url = dispatcherQueueTaskURL.replace("{agentId}", agentId);
+    String url = dispatcherQueueTaskURL.replace("{dispatcherId}", dispatcherId);
     retrieveDispatcherQueue(url, false);
   }
 
@@ -180,7 +180,7 @@ public class EngineClient {
    */
   private void retrieveDispatcherQueue(String url, boolean isWorkflow) {
     LOGGER.info(
-        "Retrieving {}Runs Queue for Dispatcher ({})", isWorkflow ? "Workflow" : "Task", agentId);
+        "Retrieving {}Runs Queue for Dispatcher ({})", isWorkflow ? "Workflow" : "Task", dispatcherId);
     try {
       ResponseEntity<?> response =
           restTemplate.exchange(

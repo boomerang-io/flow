@@ -11,7 +11,7 @@ This is a **Java 25 / Spring Boot 4 monorepo** (plus one pnpm/Vite frontend). Cu
 | Module           | Role                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------- |
 | `service-core`   | The merged deployable: v2 REST API, auth/authz, workspaces, workflows, AND the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Eight flat feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}` — the ninth, `api`, was dissolved (F3, 2026-08-25): every `*ControllerV2` now sits in the package owning the service it injects. |
-| `service-agent`  | Pluggable execution worker (→ `dispatcher` per DD-06). Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default, `TektonServiceImpl`) or `kube-jobs` (`KubeJobsExecutor`, plain `batch/v1` Jobs, no Tekton). |
+| `service-dispatcher` (renamed from `service-dispatcher` 2026-08-26, completing DD-06) | Pluggable execution worker. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `dispatcher.executor`: `tekton` (default, `TektonServiceImpl`) or `kube-jobs` (`KubeJobsExecutor`, plain `batch/v1` Jobs, no Tekton). |
 | `service-loader`  | Flamingock migrations + bootstrap seeding, run as a pre-deploy Job (DD-07).              |
 | `lib-common`     | Shared domain model, entities, enums, error handling. (Being dissolved per Q-202.)       |
 | `client-web`     | The React 18 + React Router 7 (framework mode, SSR) + Carbon v11 webapp (DD-04), folded in from `flow.client.web` with full history at the v4 line. Its own image; served only in `standalone` mode. |
@@ -248,7 +248,7 @@ A `docker-compose.yml` at the repo root brings up the full product: Mongo, the o
 `service-loader` migration/seed Job (gated with `service_completed_successfully` so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
 an `nginx` gateway that puts client-web and service-core behind one origin (service-core has
-no CORS support — see `docker/gateway/nginx.conf`). `service-agent` is intentionally not part
+no CORS support — see `docker/gateway/nginx.conf`). `service-dispatcher` is intentionally not part
 of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
 comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
 API — build locally instead:
@@ -295,7 +295,7 @@ the webapp's own mocked API (miragejs), was never wired into CI, and is not a su
 ## Error Response Format
 
 All API errors use `io.boomerang.common.error.RestErrorResponse` (lib-common). Note
-`io.boomerang.error.model.ErrorDetail` still exists in `service-agent` only — it is not the API shape:
+`io.boomerang.error.model.ErrorDetail` still exists in `service-dispatcher` only — it is not the API shape:
 
 ```json
 { "timestamp": "...", "code": 1001, "reason": "QUERY_INVALID_FILTERS",
@@ -306,16 +306,17 @@ Known codes: `io.boomerang.error.BoomerangError`; messages in `messages.properti
 
 ## Releasing
 
-Container images build when a tag matching **`<svc>@<semver>`** is pushed (the CI truth —
-`.github/workflows/ci-*.yml` trigger on `flow@**`, `engine@**`, `agent@**`):
+One product tag builds the whole compatible image set (DD-03 / AM-9). Tags are plain semver on
+the 5.x line — `5.x.y`, `5.x.y-beta.z`, `5.x.y-rc.z` (`.github/workflows/ci-release.yml` +
+`sbom.yml` triggers):
 
 ```
-flow@4.0.1
-engine@1.0.0-beta.111
+5.0.0
+5.0.0-beta.1
+5.0.0-rc.1
 ```
 
-Use the `/release` skill. DD-03 (unified product version) replaces this scheme when the
-merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
+Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
 
 ## Specifications Index
 

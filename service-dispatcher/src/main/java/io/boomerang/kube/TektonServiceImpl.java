@@ -2,7 +2,7 @@ package io.boomerang.kube;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.boomerang.agent.WorkspaceService;
+import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -50,7 +50,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "agent.executor", havingValue = "tekton", matchIfMissing = true)
+@ConditionalOnProperty(name = "dispatcher.executor", havingValue = "tekton", matchIfMissing = true)
 public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   private static final Logger LOGGER = LogManager.getLogger(TektonServiceImpl.class);
@@ -143,19 +143,19 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Value("${kube.task.storage.data.memory}")
   private Boolean kubeTaskStorageDataMemory;
 
-  @Value("${agent.tasks.serviceaccount}")
+  @Value("${dispatcher.tasks.serviceaccount}")
   private String kubeWorkerServiceAccount;
 
-  @Value("${agent.tasks.hostaliases}")
+  @Value("${dispatcher.tasks.hostaliases}")
   private String kubeWorkerHostAliases;
 
-  @Value("#{${agent.tasks.nodeselector}}")
+  @Value("#{${dispatcher.tasks.nodeselector}}")
   private Map<String, String> kubeWorkerNodeSelector;
 
-  @Value("${agent.tasks.tolerations}")
+  @Value("${dispatcher.tasks.tolerations}")
   private String kubeWorkerTolerations;
 
-  @Value("${agent.tasks.runtimeClassName}")
+  @Value("${dispatcher.tasks.runtimeClassName}")
   private String kubeWorkerRuntimeClassName;
 
   TektonClient client = null;
@@ -463,7 +463,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
             //      .withPodTemplate(taskPodTemplate)
             .withNewPodTemplate()
             // Same deployment-wide isolation setting the Kubernetes Jobs executor honours
-            // (agent.tasks.runtimeClassName); null leaves the field off the pod template.
+            // (dispatcher.tasks.runtimeClassName); null leaves the field off the pod template.
             .withRuntimeClassName(
                 kubeWorkerRuntimeClassName != null && !kubeWorkerRuntimeClassName.isBlank()
                     ? kubeWorkerRuntimeClassName

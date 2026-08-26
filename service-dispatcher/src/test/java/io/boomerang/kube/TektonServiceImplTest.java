@@ -22,7 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = "agent.tasks.runtimeClassName=kata-qemu")
+@TestPropertySource(properties = "dispatcher.tasks.runtimeClassName=kata-qemu")
 public class TektonServiceImplTest {
 
   KubernetesClient client;

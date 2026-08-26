@@ -30,7 +30,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p><b>Dev/test escape hatch:</b> {@code flow.dispatcher.auth.enabled} (default {@code true}) —
  * setting it {@code false} makes the filter a complete no-op, exactly like the interim filter's
  * old blank-token permit path. This replaces the old {@code flow.dispatcher.token} shared-secret
- * property, which no longer exists: {@code service-agent}'s configured bearer value
+ * property, which no longer exists: {@code service-dispatcher}'s configured bearer value
  * ({@code flow.engine.dispatcher.token}) is unchanged code-wise, it just now needs to hold a real
  * minted token instead of an arbitrary shared string.
  *
@@ -44,7 +44,7 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
    *
    * <p>History worth keeping: the filter originally matched this same single prefix while the four
    * agent lifecycle callbacks sat on {@code /api/v1/taskrun/} and {@code /api/v1/workflowrun/}, so
-   * they were fully unauthenticated even though {@code service-agent}'s {@code EngineClient} calls
+   * they were fully unauthenticated even though {@code service-dispatcher}'s {@code EngineClient} calls
    * all seven endpoints with the SAME bearer-attaching {@code internalRestTemplate} — the client was
    * presenting a credential the server never read. The E1/E2 audit fixed that by adding the two
    * extra prefixes; consolidating the routes removes the need for them. Those callbacks write

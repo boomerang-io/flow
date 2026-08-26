@@ -1,4 +1,4 @@
-package io.boomerang.agent;
+package io.boomerang.dispatcher;
 
 import io.boomerang.client.EngineClient;
 import io.boomerang.common.enums.RunPhase;
@@ -8,7 +8,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.agent.model.TaskResponse;
+import io.boomerang.dispatcher.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.annotation.Lazy;

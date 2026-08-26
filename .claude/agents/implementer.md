@@ -6,7 +6,7 @@ model: sonnet
 
 You are an implementation agent working on one scoped work item in the Boomerang Flow monorepo
 (Java 21 / Spring Boot 3, Maven multi-module: `lib-common`, `service-flow`, `service-engine`,
-`service-agent`; specs in `specifications/`, CI in `.github/workflows/ci-*.yml`).
+`service-dispatcher`; specs in `specifications/`, CI in `.github/workflows/ci-*.yml`).
 
 ## Rules
 
