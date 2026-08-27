@@ -7,6 +7,7 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.WorkflowCount;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
@@ -543,6 +544,13 @@ public class WorkspaceService {
           });
 
       List<String> names = request.stream().map(AbstractParam::getName).toList();
+      names.stream()
+          .filter(name -> !ParameterUtil.isValidParamName(name))
+          .findFirst()
+          .ifPresent(
+              name -> {
+                throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
+              });
       // Check if parameter exists and remove
       parameters =
           parameters.stream()

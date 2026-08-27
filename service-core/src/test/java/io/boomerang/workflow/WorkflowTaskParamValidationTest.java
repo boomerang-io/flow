@@ -161,6 +161,20 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
     assertEquals("PARAM_NAME_COLLISION", ex.getReason());
   }
 
+  @Test
+  void aNodeParamWithADottedNameIsRejected() {
+    String taskSlug = noParamTask("param-validation-dotted");
+    Workflow workflow =
+        workflowWithTaskParams(
+            "param-validation-dotted-wf", taskSlug, new RunParam("my.param", "x"));
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class, () -> workflowService.create(WORKSPACE, workflow));
+
+    assertEquals("PARAM_INVALID_NAME", ex.getReason());
+  }
+
   private static Workflow workflowWithTaskParams(
       String name, String taskSlug, RunParam... params) {
     Workflow workflow = new Workflow();
