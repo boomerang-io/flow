@@ -7,9 +7,10 @@ import type { APIRequestContext } from "@playwright/test";
  * a run) quickly and assert against the real, persisted result, instead of relying on
  * whatever state a previous test left behind.
  *
- * Security is disabled for this stack (flow.security.enabled=false - see docker-compose.yml),
- * so no auth header is sent. Once real authentication lands, this is where a session/token
- * would be attached.
+ * The stack is secured (FLOW_SECURITY_ENABLED=true - see docker-compose.yml). No auth header
+ * is attached here because none is needed: the login bootstrap (tests/auth.setup.ts) saves the
+ * httpOnly flow_session cookie into the shared storage state, and Playwright's `request`
+ * fixture carries that cookie on every call these helpers make.
  */
 
 export function uniqueName(prefix: string): string {
