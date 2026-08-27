@@ -49,6 +49,9 @@ public class KubeHelperService {
   @Value("${flow.instance:bmrg-flow}")
   protected String bmrgInstance;
 
+  @Value("${flow.version:0.0.0}")
+  protected String flowVersion;
+
   // Utilized by LogServiceImpl
   // @Override
   public String getPrefixTask() {
@@ -111,6 +114,9 @@ public class KubeHelperService {
     createProxyEnvVars().forEach(var -> byName.put(var.getName(), var));
     byName.put("DEBUG", createEnvVar("DEBUG", String.valueOf(debug)));
     byName.put("CI", createEnvVar("CI", "true"));
+    // Which Flow contract/platform the task is running against - part of the documented task
+    // contract, so a task (or task-core) can branch on capability by version.
+    byName.put("FLOW_VERSION", createEnvVar("FLOW_VERSION", flowVersion));
     for (EnvVar var : runtimeVars) {
       byName.put(var.getName(), var);
     }

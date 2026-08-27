@@ -74,6 +74,12 @@ public class KubeHelperServiceTest {
   }
 
   @Test
+  public void testCreateTaskEnvVarsIncludesFlowVersion() {
+    List<EnvVar> result = helperKubeService.createTaskEnvVars(false, List.of(), List.of());
+    assertTrue(findEnv(result, "FLOW_VERSION").isPresent());
+  }
+
+  @Test
   public void testCreateTaskEnvVarsIncludesRuntimeVars() {
     EnvVar runtimeVar = helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log");
 
