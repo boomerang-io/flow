@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniqueName, createWorkspace, APP_BASENAME } from "../support/api";
+import { uniqueName, uiKebabName, createWorkspace, APP_BASENAME } from "../support/api";
 
 /*
  * Create a workflow through the UI inside a fresh workspace, then confirm it shows up again
@@ -19,12 +19,18 @@ test("create a workflow and find it via workspace search", async ({ page, reques
 
   await page.getByTestId("workflows-create-workflow-button").click();
   await page.locator("#displayName").fill(workflowName);
-  // #name auto-derives from #displayName (kebab-case) - leave it, just confirm it populated.
-  await expect(page.locator("#name")).toHaveValue(workflowName.toLowerCase());
-  await page.getByTestId("workflows-create-workflow-submit").click();
+  // #name auto-derives from #displayName (lodash kebab-case, which splits digit boundaries -
+  // see uiKebabName) - leave it, just confirm it derived as the UI actually derives it.
+  await expect(page.locator("#name")).toHaveValue(uiKebabName(workflowName));
+  // Blur to let the form's async name validation settle - Create stays disabled while the
+  // display-name field is still focused mid-validation.
+  await page.locator("#displayName").blur();
+  const createButton = page.getByTestId("workflows-create-workflow-submit");
+  await expect(createButton).toBeEnabled();
+  await createButton.click();
 
   // Successful creation navigates straight into the editor canvas for the new workflow.
-  await expect(page).toHaveURL(new RegExp(`/${workspace.name}/editor/${workflowName.toLowerCase()}/canvas`));
+  await expect(page).toHaveURL(new RegExp(`/${workspace.name}/editor/${uiKebabName(workflowName)}/canvas`));
 
   // Back to the list: the workflow must be findable by its real, current search affordance.
   await page.goto(`${APP_BASENAME}/${workspace.name}/workflows`);
