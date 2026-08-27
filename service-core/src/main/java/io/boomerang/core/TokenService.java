@@ -568,8 +568,10 @@ public class TokenService {
    * The filter's header-resolved branches (forwarded email, raw JWT, Basic) call this on EVERY
    * request, so the mint is reused per identity within sessionMintReuseWindow rather than
    * persisting a new TokenEntity each time - the same throttle idea as LAST_USED_THROTTLE_MS.
-   * Within the window a permission change is not picked up on these paths; downstream only ever
-   * reads the Token off the Authentication details, so a reused instance behaves identically to a
+   * Within the window a permission change is not picked up on these paths - INCLUDING
+   * deactivating or deleting the user, whose reused token keeps authenticating for up to the 60s
+   * window because the re-mint that re-checks user status is skipped. Downstream only ever reads
+   * the Token off the Authentication details, so a reused instance behaves identically to a
    * fresh one. The exchange endpoint's mint paths never read this cache: every exchange must hand
    * a fresh raw value to the browser cookie.
    */
@@ -587,15 +589,23 @@ public class TokenService {
     // Keyed on the normalised email - the same fold UserService.normaliseEmail applies.
     String key = email.toLowerCase(Locale.ROOT);
     MintedSession reusable = mintedSessionsByEmail.get(key);
-    if (reusable != null
-        && reusable.mintedAt().plus(sessionMintReuseWindow).isAfter(Instant.now())) {
+    if (reusable != null && withinReuseWindow(reusable, Instant.now())) {
       return reusable.token();
     }
     Token minted =
         createSessionTokenWithRaw(email, firstName, lastName, allowActivation, allowUserCreation)
             .token();
-    mintedSessionsByEmail.put(key, new MintedSession(minted, Instant.now()));
+    // Sweep expired entries on each put: keys derive from caller-supplied identity
+    // (x-forwarded-email), so without eviction the map would grow with every identity ever
+    // seen. After the sweep it only ever holds identities seen within the last window.
+    Instant now = Instant.now();
+    mintedSessionsByEmail.entrySet().removeIf(entry -> !withinReuseWindow(entry.getValue(), now));
+    mintedSessionsByEmail.put(key, new MintedSession(minted, now));
     return minted;
+  }
+
+  private boolean withinReuseWindow(MintedSession session, Instant now) {
+    return session.mintedAt().plus(sessionMintReuseWindow).isAfter(now);
   }
 
   /** A filter-minted session held for reuse - see {@link #createSessionToken}. */

@@ -153,6 +153,35 @@ class TokenServiceSessionTest {
     verify(tokenRepository, times(2)).save(any(TokenEntity.class));
   }
 
+  /*
+   * The reuse map must not grow without bound: cache keys derive from caller-supplied identity
+   * (x-forwarded-email), so entries whose window has passed are swept on each put - the map only
+   * ever holds identities seen within the last window.
+   */
+  @Test
+  void aPutEvictsEntriesWhoseWindowHasPassed() {
+    UserEntity personA = new UserEntity();
+    personA.setId("user-a");
+    personA.setType(UserType.user);
+    UserEntity personB = new UserEntity();
+    personB.setId("user-b");
+    personB.setType(UserType.user);
+    when(userService.isActivated()).thenReturn(true);
+    when(userService.getAndRegisterUser(eq("a@example.test"), any(), any(), any(), eq(true)))
+        .thenReturn(Optional.of(personA));
+    when(userService.getAndRegisterUser(eq("b@example.test"), any(), any(), any(), eq(true)))
+        .thenReturn(Optional.of(personB));
+    ReflectionTestUtils.setField(tokenService, "sessionMintReuseWindow", Duration.ZERO);
+
+    tokenService.createSessionToken("a@example.test", null, null, false, true);
+    tokenService.createSessionToken("b@example.test", null, null, false, true);
+
+    @SuppressWarnings("unchecked")
+    Map<String, ?> reuseMap =
+        (Map<String, ?>) ReflectionTestUtils.getField(tokenService, "mintedSessionsByEmail");
+    assertThat(reuseMap).containsOnlyKeys("b@example.test");
+  }
+
   @Test
   void aStaleReuseEntryIsRemintedNotServed() {
     UserEntity registered = new UserEntity();
