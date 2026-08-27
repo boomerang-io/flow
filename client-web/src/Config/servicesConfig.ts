@@ -58,6 +58,13 @@ type QueryArg = {
 };
 
 export const serviceUrl = {
+  // Sign-in flow (specifications/authentication.md). getAuthConfig is unauthenticated - the
+  // signed-out page reads it to decide which sign-in surface (if any) to offer. postAuthExchange
+  // mints the httpOnly bfs_ session cookie (empty body = proxy-forwarded identity; {idToken,
+  // nonce} = direct OIDC login). postAuthLogout revokes the session and clears the cookie.
+  getAuthConfig: () => `${BASE_URL}/auth/config`,
+  postAuthExchange: () => `${BASE_URL}/auth/exchange`,
+  postAuthLogout: () => `${BASE_URL}/auth/logout`,
   deleteToken: ({ tokenId }) => `${BASE_URL}/token/${tokenId}`,
   getFeatureFlags: () => `${BASE_URL}/features`,
   getNavigation: ({ query }: QueryArg) => `${BASE_URL}/navigation${query}`,
