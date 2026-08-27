@@ -16,6 +16,12 @@ import { type RouteConfig, index, layout, route } from "@react-router/dev/routes
 // bare-alias import chain (appConfig.ts itself imports "Constants") fails to resolve there. Keep
 // these values in sync with the AppPath entries of the same name in src/Config/appConfig.ts.
 export default [
+  // Sign-in plumbing lives OUTSIDE the App layout: these routes must render without the
+  // bootstrap (the callback lands here precisely because there is no session yet), and the
+  // callback must never auto-trigger sign-in - see Features/Auth. Static two-segment paths, so
+  // they outrank the layout's "/:workspace/*" catch-all regardless of ordering.
+  route("/auth/callback", "routes/authCallback.tsx"),
+  route("/auth/logout", "routes/authLogout.tsx"),
   layout("../src/Features/App/index.tsx", [
     route("/home", "routes/home.tsx"),
     route("/profile", "routes/profile.tsx"),
