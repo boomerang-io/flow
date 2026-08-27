@@ -2,8 +2,7 @@ import React from "react";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { webcrypto } from "node:crypto";
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import { server } from "ApiServer/msw/node";
 import { APP_ROOT } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -26,13 +25,8 @@ import SignedOut from "./SignedOut";
 
 const ISSUER = "https://idp.example/realms/flow";
 
-// jsdom ships getRandomValues/randomUUID but not SubtleCrypto; the PKCE S256 challenge needs
-// crypto.subtle.digest, which Node's own webcrypto provides.
-beforeAll(() => {
-  if (!globalThis.crypto.subtle) {
-    Object.defineProperty(globalThis.crypto, "subtle", { value: webcrypto.subtle, configurable: true });
-  }
-});
+// The PKCE S256 challenge needs SubtleCrypto. jsdom's own window.crypto lacks it, but vitest's
+// jsdom environment keeps Node's webcrypto on the global (verified by probe) - so no polyfill.
 
 beforeEach(() => {
   (sessionStorage.getItem as Mock).mockReset();
