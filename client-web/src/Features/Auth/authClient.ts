@@ -12,6 +12,7 @@
  *   oidc  - browser-side PKCE (public client, no secret) against the configured issuer, then
  *           POST {idToken, nonce} to /auth/exchange (field names per AuthExchangeRequest.java).
  */
+import React from "react";
 import axios from "axios";
 import { APP_ROOT } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -54,6 +55,30 @@ export const browserNavigation = {
 
 export function fetchAuthConfig(): Promise<AuthConfig> {
   return axios.get<AuthConfig>(serviceUrl.getAuthConfig()).then((response) => response.data);
+}
+
+/*
+ * Browser-side view of GET /auth/config for components that only tune their UI by mode (the
+ * Navbar's Sign Out affordance). `null` until resolved - and stays `null` on failure, which
+ * callers must treat as "change nothing": a broken config endpoint must never add or remove
+ * chrome. Runs in useEffect only, so SSR renders the unchanged default.
+ */
+export function useAuthConfig(): AuthConfig | null {
+  const [config, setConfig] = React.useState<AuthConfig | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchAuthConfig()
+      .then((resolved) => {
+        if (!cancelled) setConfig(resolved);
+      })
+      .catch(() => {
+        // Leave null - see the contract above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return config;
 }
 
 /*

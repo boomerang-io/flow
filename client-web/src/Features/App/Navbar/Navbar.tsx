@@ -16,6 +16,7 @@ import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-r
 import { Helmet } from "react-helmet";
 import { Link, useLocation } from "react-router-dom";
 import * as navigationIcons from "Utils/navigationIcons";
+import { useAuthConfig } from "Features/Auth/authClient";
 import { APP_ROOT } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
 import { FlowNavigationItem, FlowNavigationItemChild, FlowUser, ContextConfig } from "Types";
@@ -36,6 +37,14 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
   const appTitle = getAppTitle(platform);
   const appName = platform.appName || "Boomerang Flow";
   const platformName = platform.platformName;
+  // The UIShell's built-in Sign Out profile-menu item renders whenever platform.signOutUrl is
+  // set. Under a session-based auth mode (oidc/proxy - GET /auth/config, fetched browser-side),
+  // point it at our /auth/logout route, which makes the POST a plain link cannot (revoke the
+  // session + clear the httpOnly cookie) and then hard-navigates to "/". In mode "none" - or
+  // until the config resolves - the context payload passes through untouched, exactly as before.
+  const authConfig = useAuthConfig();
+  const sessionSignOut =
+    authConfig && authConfig.mode !== "none" ? { signOutUrl: `${APP_ROOT}/auth/logout` } : undefined;
 
   return (
     <>
@@ -45,7 +54,12 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
           ...contextData,
           // The wrapper's shell now requires these two platform-version-banner fields;
           // our own context payload doesn't carry them yet, so default to "no error".
-          platform: { ...contextData.platform, platformVersion: platform.version ?? "", platformVersionError: false },
+          platform: {
+            ...contextData.platform,
+            platformVersion: platform.version ?? "",
+            platformVersionError: false,
+            ...sessionSignOut,
+          },
         }}
         leftPanel={(args) => <AppSideNav {...args} flowNavigationData={flowNavigationData} />}
         platformName={platformName}
