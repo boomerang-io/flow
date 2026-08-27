@@ -72,6 +72,18 @@ async function putTaskResponse(name: string, request: Request) {
 
 export const handlers: HttpHandler[] = [
   /**
+   * Auth (specifications/authentication.md). The default config mode is "none" so every existing
+   * spec keeps today's behaviour (no sign-in surface, no silent exchange) - auth specs override
+   * these per-test with server.use(). The real /auth/config contract is exactly
+   * { mode: "oidc" | "proxy" | "none", issuer, clientId }; /auth/exchange responds 200 with a
+   * Set-Cookie (httpOnly - invisible to JS, so nothing to mock beyond the status) and
+   * /auth/logout 204.
+   */
+  http.get(serviceUrl.getAuthConfig(), () => HttpResponse.json({ mode: "none" })),
+  http.post(serviceUrl.postAuthExchange(), () => new HttpResponse(null, { status: 200 })),
+  http.post(serviceUrl.postAuthLogout(), () => new HttpResponse(null, { status: 204 })),
+
+  /**
    * Simple GET of static data
    */
   http.get(`${BASE_URL}/info`, () => HttpResponse.json([])),
