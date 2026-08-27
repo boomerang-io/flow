@@ -51,6 +51,9 @@ class ParameterUtilTest {
     assertTrue(!ParameterUtil.isValidParamName("2fast"));
     assertTrue(!ParameterUtil.isValidParamName("has space"));
     assertTrue(!ParameterUtil.isValidParamName(null));
+    // Reserved: folds to PARAM_NAMES, the manifest env var.
+    assertTrue(!ParameterUtil.isValidParamName("names"));
+    assertTrue(!ParameterUtil.isValidParamName("Names"));
   }
 
   @Test
