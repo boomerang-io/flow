@@ -9,9 +9,11 @@ import io.boomerang.core.TokenService;
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.model.AuthConfig;
 import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.model.Token;
 import java.text.ParseException;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,16 +29,38 @@ public class AuthExchangeService {
   private final UserService userService;
   private final TokenService tokenService;
   private final OidcTokenVerifier oidcTokenVerifier;
+  private final Environment environment;
 
   public AuthExchangeService(
       IdentityService identityService,
       UserService userService,
       TokenService tokenService,
-      OidcTokenVerifier oidcTokenVerifier) {
+      OidcTokenVerifier oidcTokenVerifier,
+      Environment environment) {
     this.identityService = identityService;
     this.userService = userService;
     this.tokenService = tokenService;
     this.oidcTokenVerifier = oidcTokenVerifier;
+    this.environment = environment;
+  }
+
+  /*
+   * The pre-auth bootstrap contract of GET /api/v2/auth/config: "none" when security is disabled,
+   * "oidc" when a trusted issuer AND clientId are configured, "proxy" otherwise. The sign-in mode
+   * is derived from configuration that already exists (flow.security.enabled and the auth.oidc.*
+   * settings) rather than a second flag that could fall out of sync. issuer/clientId are only
+   * ever exposed for oidc; nothing else from the auth settings leaves the server through this
+   * shape.
+   */
+  public AuthConfig config() {
+    if (!FlowSecurityProperties.isSecurityEnabled(environment)) {
+      return AuthConfig.none();
+    }
+    String issuer = oidcTokenVerifier.configuredIssuer();
+    String clientId = oidcTokenVerifier.configuredClientId();
+    return (issuer != null && clientId != null)
+        ? AuthConfig.oidc(issuer, clientId)
+        : AuthConfig.proxy();
   }
 
   public SessionToken exchange(AuthExchangeRequest request) {

@@ -15,6 +15,8 @@ import io.boomerang.core.TokenService;
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.model.AuthConfig;
+import io.boomerang.core.model.AuthConfig.AuthMode;
 import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.env.MockEnvironment;
 
 /**
  * The unified token exchange's two identity sources (specifications/authentication.md §1) at the
@@ -36,12 +39,15 @@ class AuthExchangeServiceTest {
   @Mock private TokenService tokenService;
   @Mock private OidcTokenVerifier oidcTokenVerifier;
 
+  private final MockEnvironment environment = new MockEnvironment();
+
   private AuthExchangeService authExchangeService;
 
   @BeforeEach
   void setUp() {
     authExchangeService =
-        new AuthExchangeService(identityService, userService, tokenService, oidcTokenVerifier);
+        new AuthExchangeService(
+            identityService, userService, tokenService, oidcTokenVerifier, environment);
   }
 
   @Test
@@ -119,5 +125,57 @@ class AuthExchangeServiceTest {
     authExchangeService.logout();
 
     verify(tokenService, never()).delete(any());
+  }
+
+  /*
+   * GET /api/v2/auth/config mode derivation: "none" when security is disabled, "oidc" when a
+   * trusted issuer AND clientId are configured, "proxy" otherwise - and issuer/clientId are only
+   * ever present for oidc.
+   */
+  @Test
+  void configWithSecurityDisabledIsModeNoneAndExposesNothing() {
+    environment.setProperty("flow.security.enabled", "false");
+
+    AuthConfig config = authExchangeService.config();
+
+    assertThat(config.getMode()).isEqualTo(AuthMode.none);
+    assertThat(config.getIssuer()).isNull();
+    assertThat(config.getClientId()).isNull();
+    verify(oidcTokenVerifier, never()).configuredIssuer();
+  }
+
+  @Test
+  void configWithATrustedIssuerAndClientIdIsModeOidc() {
+    // No flow.security.enabled / flow.mode set: standalone default = security enabled.
+    when(oidcTokenVerifier.configuredIssuer()).thenReturn("https://idp.example.test");
+    when(oidcTokenVerifier.configuredClientId()).thenReturn("flow-web");
+
+    AuthConfig config = authExchangeService.config();
+
+    assertThat(config.getMode()).isEqualTo(AuthMode.oidc);
+    assertThat(config.getIssuer()).isEqualTo("https://idp.example.test");
+    assertThat(config.getClientId()).isEqualTo("flow-web");
+  }
+
+  @Test
+  void configWithoutOidcSettingsIsModeProxy() {
+    when(oidcTokenVerifier.configuredIssuer()).thenReturn(null);
+
+    AuthConfig config = authExchangeService.config();
+
+    assertThat(config.getMode()).isEqualTo(AuthMode.proxy);
+    assertThat(config.getIssuer()).isNull();
+    assertThat(config.getClientId()).isNull();
+  }
+
+  @Test
+  void configWithAnIssuerButNoClientIdIsModeProxy() {
+    when(oidcTokenVerifier.configuredIssuer()).thenReturn("https://idp.example.test");
+    when(oidcTokenVerifier.configuredClientId()).thenReturn(null);
+
+    AuthConfig config = authExchangeService.config();
+
+    assertThat(config.getMode()).isEqualTo(AuthMode.proxy);
+    assertThat(config.getIssuer()).isNull();
   }
 }

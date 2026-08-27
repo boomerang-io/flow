@@ -118,16 +118,38 @@ public class OidcTokenVerifier {
     }
   }
 
-  private String requireSetting(String key) {
+  /**
+   * The configured trusted issuer, or {@code null} when unset - the lenient read behind {@code
+   * GET /api/v2/auth/config}'s mode derivation, which must never throw just because OIDC is not
+   * configured. Verification itself uses the throwing {@code requireSetting} form.
+   */
+  public String configuredIssuer() {
+    return settingOrNull(ISSUER_CONFIG_KEY);
+  }
+
+  /**
+   * The configured relying-party clientId, or {@code null} when unset - see {@link
+   * #configuredIssuer()}.
+   */
+  public String configuredClientId() {
+    return settingOrNull(CLIENT_ID_CONFIG_KEY);
+  }
+
+  private String settingOrNull(String key) {
     try {
       String value = settingsService.getSettingConfig(SETTINGS_KEY, key).getValue();
-      if (value == null || value.isBlank()) {
-        throw new BoomerangException(BoomerangError.AUTH_NOT_CONFIGURED);
-      }
-      return value;
+      return (value != null && !value.isBlank()) ? value : null;
     } catch (IllegalArgumentException ex) {
-      throw new BoomerangException(ex, BoomerangError.AUTH_NOT_CONFIGURED);
+      return null;
     }
+  }
+
+  private String requireSetting(String key) {
+    String value = settingOrNull(key);
+    if (value == null) {
+      throw new BoomerangException(BoomerangError.AUTH_NOT_CONFIGURED);
+    }
+    return value;
   }
 
   private JWKSource<SecurityContext> keySourceFor(String issuer) {
