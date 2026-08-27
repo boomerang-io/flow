@@ -44,6 +44,11 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
   const [phase, setPhase] = React.useState<Phase>({ name: "resolving" });
   // One proxy attempt per mount, ever - even across a config refetch.
   const proxyAttempted = React.useRef(false);
+  // Read through a ref so resolveConfig has a stable identity: onSignedIn is the root
+  // revalidator's revalidate, whose identity is not documented stable across renders, and a
+  // changing identity in the mount effect's deps would refetch the config on every re-render.
+  const onSignedInRef = React.useRef(onSignedIn);
+  onSignedInRef.current = onSignedIn;
 
   const resolveConfig = React.useCallback(() => {
     let cancelled = false;
@@ -65,7 +70,7 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
               // The cookie is set; ask the bootstrap to run again. Render the plain signed-out
               // page meanwhile - on success this component unmounts before anyone reads it.
               setPhase({ name: "signed-out" });
-              onSignedIn();
+              onSignedInRef.current();
             })
             .catch(() => {
               if (!cancelled) setPhase({ name: "signed-out" });
@@ -80,7 +85,7 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
     return () => {
       cancelled = true;
     };
-  }, [onSignedIn]);
+  }, []);
 
   React.useEffect(() => resolveConfig(), [resolveConfig]);
 

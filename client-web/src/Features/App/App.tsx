@@ -13,6 +13,7 @@ import type { ShouldRevalidateFunctionArgs } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
 import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
+import SignedOut from "Features/Auth/SignedOut";
 import { APP_ROOT, FeatureFlag } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl, resolver } from "Config/servicesConfig";
@@ -258,14 +259,11 @@ export default function App() {
   // Distinguishable from the generic degraded-load path below: a 401 means this specific
   // request isn't authenticated (an expired/absent session), not that a resource failed to
   // load. Previously this was silently swallowed into `undefined` user data, which fell through
-  // every render branch to `return null` - a blank page with no signal why.
+  // every render branch to `return null` - a blank page with no signal why. SignedOut owns what
+  // happens next per GET /auth/config: nothing extra (none), one silent exchange (proxy), or a
+  // Sign in button starting the browser-side PKCE flow (oidc) - see Features/Auth.
   if (bootstrap.status === "unauthorized") {
-    return (
-      <Error403
-        title="You're not signed in"
-        message="Your session has expired or you're not signed in. Sign in again to continue."
-      />
-    );
+    return <SignedOut onSignedIn={() => revalidator.revalidate()} />;
   }
 
   if (bootstrap.errorLoading) {
