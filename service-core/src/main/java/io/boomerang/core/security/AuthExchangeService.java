@@ -58,9 +58,13 @@ public class AuthExchangeService {
     }
     String issuer = oidcTokenVerifier.configuredIssuer();
     String clientId = oidcTokenVerifier.configuredClientId();
+    // Proxy mode carries the proxy's own sign-out URL (flow.signOutUrl - long-standing; it is
+    // what the UIShell Sign Out linked to before the unified logout existed). Logout must chain
+    // there after revoking the Flow session, or the surviving proxy session signs the caller
+    // straight back in on the next request.
     return (issuer != null && clientId != null)
         ? AuthConfig.oidc(issuer, clientId)
-        : AuthConfig.proxy();
+        : AuthConfig.proxy(environment.getProperty("flow.signOutUrl"));
   }
 
   public SessionToken exchange(AuthExchangeRequest request) {

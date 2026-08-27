@@ -234,4 +234,28 @@ describe("AuthLogout", () => {
     await waitFor(() => expect(replaceSpy).toHaveBeenCalledWith(`${APP_ROOT}/`));
     expect(logoutCalls).toBe(1);
   });
+
+  test("proxy mode chains logout to the proxy's own sign-out URL", async () => {
+    // Revoking the Flow session alone is not an exit in proxy mode: the surviving proxy session
+    // signs the caller straight back in on the next 401. The config's signOutUrl is the proxy's
+    // logout, and the landing must chain there after the revoke.
+    let logoutCalls = 0;
+    server.use(
+      http.get(serviceUrl.getAuthConfig(), () =>
+        HttpResponse.json({ mode: "proxy", signOutUrl: "https://sso.example.com/pkmslogout" }),
+      ),
+      http.post(serviceUrl.postAuthLogout(), () => {
+        logoutCalls += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const replaceSpy = vi.spyOn(browserNavigation, "replace").mockImplementation(() => {});
+
+    global.rtlRouterRender(<AuthLogout />);
+
+    await waitFor(() =>
+      expect(replaceSpy).toHaveBeenCalledWith("https://sso.example.com/pkmslogout"),
+    );
+    expect(logoutCalls).toBe(1);
+  });
 });

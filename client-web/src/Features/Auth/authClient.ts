@@ -23,6 +23,10 @@ export interface AuthConfig {
   mode: AuthMode;
   issuer?: string;
   clientId?: string;
+  // Proxy mode only: the authenticating proxy's own sign-out URL (flow.signOutUrl on the
+  // backend). Logout must chain here after revoking the Flow session - revoking alone is not an
+  // exit, because the surviving proxy session silently signs the caller back in on the next 401.
+  signOutUrl?: string;
 }
 
 // One sessionStorage slot holds the whole in-flight sign-in. It is written by

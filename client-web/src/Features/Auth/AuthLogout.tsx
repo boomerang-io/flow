@@ -1,7 +1,7 @@
 import React from "react";
 import { InlineLoading } from "@carbon/react";
 import { APP_ROOT } from "Config/appConfig";
-import { browserNavigation, logout } from "./authClient";
+import { browserNavigation, fetchAuthConfig, logout } from "./authClient";
 
 /*
  * The sign-out landing (/auth/logout - registered OUTSIDE the App layout in app/routes.ts). The
@@ -18,8 +18,11 @@ export default function AuthLogout() {
   React.useEffect(() => {
     if (started.current) return;
     started.current = true;
-    logout().then(() => {
-      browserNavigation.replace(`${APP_ROOT}/`);
+    // Revoke the Flow session first, then chain to the proxy's own sign-out when one is
+    // configured (proxy mode) - otherwise the surviving proxy session signs the caller straight
+    // back in on the next 401. In oidc/none modes there is no upstream session; land on the root.
+    Promise.all([logout(), fetchAuthConfig().catch(() => null)]).then(([, config]) => {
+      browserNavigation.replace(config?.signOutUrl ?? `${APP_ROOT}/`);
     });
   }, []);
 

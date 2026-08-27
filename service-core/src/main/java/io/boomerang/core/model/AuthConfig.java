@@ -25,15 +25,26 @@ public class AuthConfig {
   private final String issuer;
   private final String clientId;
 
+  /**
+   * Proxy mode only: the authenticating proxy's own sign-out URL ({@code flow.signOutUrl}). The
+   * webapp's logout must chain here after revoking the Flow session - revoking alone is not an
+   * exit, because the surviving proxy session silently re-authenticates the very next request.
+   */
+  private final String signOutUrl;
+
   public static AuthConfig none() {
-    return new AuthConfig(AuthMode.none, null, null);
+    return new AuthConfig(AuthMode.none, null, null, null);
   }
 
-  public static AuthConfig proxy() {
-    return new AuthConfig(AuthMode.proxy, null, null);
+  public static AuthConfig proxy(String signOutUrl) {
+    return new AuthConfig(
+        AuthMode.proxy,
+        null,
+        null,
+        (signOutUrl == null || signOutUrl.isBlank()) ? null : signOutUrl);
   }
 
   public static AuthConfig oidc(String issuer, String clientId) {
-    return new AuthConfig(AuthMode.oidc, issuer, clientId);
+    return new AuthConfig(AuthMode.oidc, issuer, clientId, null);
   }
 }
