@@ -11,7 +11,7 @@
  *
  * Idempotent: a plain $set of the two config values, safe to re-run on every `docker compose up`.
  */
-const ISSUER = "http://idp.localhost:4379"; // see the idpzero service's addressing comment
+const ISSUER = "http://idp.localhost:4380"; // see the idpzero service's addressing comment
 const CLIENT_ID = "flow"; // matches docker/idpzero/server.yaml
 
 // Collection name = FLOW_MONGO_COLLECTION_PREFIX ("flow") + "_settings" (CollectionNames rule).

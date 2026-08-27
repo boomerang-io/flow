@@ -73,16 +73,19 @@ services:
   #       the id_token's iss claim == the configured issuer, byte-for-byte).
   # idpzero derives its issuer (and every endpoint in the discovery document) from the request's
   # Host header, so whichever hostname both sides share becomes the issuer. That hostname is
-  # `idp.localhost` (issuer http://idp.localhost:4379, seeded by auth-oidc-seed below):
+  # `idp.localhost` (issuer http://idp.localhost:4380, seeded by auth-oidc-seed below):
   #   - host side: macOS getaddrinfo (and Chrome/Firefox per RFC 6761) resolves *.localhost to
-  #     127.0.0.1, where the published 4379 port below lands on this container - so the browser,
+  #     127.0.0.1, where the published 4380 port below lands on this container - so the browser,
   #     curl, and Playwright all reach it with zero /etc/hosts edits;
   #   - container side: the `idp.localhost` network alias below makes Docker's DNS resolve the
   #     same name to this container for service-core.
   # ARCHIE never hits this problem (it runs idpzero as a host binary with issuer
   # http://localhost:4379, and its backend also runs on the host); containerising both sides is
-  # what forces the shared-hostname trick. The browser's discovery/token fetches are cross-origin
-  # (page origin localhost:8080 -> idp.localhost:4379) - fine, because idpzero's underlying
+  # what forces the shared-hostname trick. Port 4380 rather than idpzero's usual 4379 for the
+  # same reason: a developer with ARCHIE's host-run `idpzero serve` still up already owns
+  # *:4379, and that host process would silently shadow this container's published port.
+  # The browser's discovery/token fetches are cross-origin
+  # (page origin localhost:8080 -> idp.localhost:4380) - fine, because idpzero's underlying
   # zitadel/oidc library serves permissive CORS on the provider endpoints, and the fetches are
   # credential-less by design.
   idpzero:
@@ -90,9 +93,9 @@ services:
       context: ./docker/idpzero
       dockerfile: Dockerfile
     ports:
-      - "4379:4379"
+      - "4380:4380"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4379/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4380/healthz"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -131,6 +134,15 @@ services:
       # Secured - see the security posture note above. /health stays permitAll
       # (SecurityConfiguration), so the healthchecks here and in the gateway still pass.
       FLOW_SECURITY_ENABLED: "true"
+      # Workaround for a service-core defect (REPORTED, deliberately not fixed in this change):
+      # application.properties composes flow.externalUrl.platformNavigation as
+      # "${users.base.url}/users/navigation", so an EMPTY users.base.url yields the non-blank,
+      # host-less "/users/navigation" - ContextService.getHeaderNavigation then takes its
+      # external-navigation branch (the isBlank() gate at ContextService.java:79 misses) and the
+      # first authenticated bootstrap 500s with "Target host is not specified". Security-off
+      # stacks never hit it because getCurrentUser() is null and the method returns early.
+      # Forcing the composed property to truly-blank restores the internal-navigation branch.
+      FLOW_EXTERNALURL_PLATFORMNAVIGATION: ""
     depends_on:
       mongo:
         condition: service_healthy
@@ -157,7 +169,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      APP_ROOT: ""
+      # Matches the basename react-router.config.ts bakes into the build ("/apps/flow") - the
+      # SSR router mounts there regardless of this variable, and the browser bundle derives its
+      # own URLs (including the OIDC redirect_uri, which idpzero pins byte-for-byte - see
+      # docker/idpzero/server.yaml) from APP_ROOT. The previous "" here was falsy, so the
+      # frontend silently fell back to the same "/apps/flow" default; stating it explicitly
+      # removes the trap of reading "" as "app served at /".
+      APP_ROOT: "/apps/flow"
       PORT: "3000"
       # Relative, not absolute - the browser reaches both client-web and service-core through
       # the gateway's single origin, so this stays same-origin (see docker/gateway/nginx.conf).

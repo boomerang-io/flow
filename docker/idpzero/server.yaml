@@ -4,11 +4,11 @@
 # and to Flow's browser-side public-client PKCE flow (client-web/src/Features/Auth/authClient.ts).
 #
 # The issuer is NOT configured here - idpzero derives it per-request from the Host header, which
-# is exactly what lets one issuer string (http://idp.localhost:4379) serve both the browser and
+# is exactly what lets one issuer string (http://idp.localhost:4380) serve both the browser and
 # the service-core container. See the idpzero service in docker-compose.yml for the addressing
 # rationale.
 server:
-  port: 4379
+  port: 4380
   keyphrase: 1EFA5840-95B8-4FDA-9494-8CB5E8C692F1
 
 clients:
@@ -27,11 +27,13 @@ clients:
     response_types:
       - code
     redirect_uris:
-      # The gateway origin + client-web's callback route (client-web/app/routes.ts:
-      # route("/auth/callback", ...) with APP_ROOT="") - must be byte-identical to what
-      # authClient.ts sends at both the authorize and token steps.
-      - http://localhost:8080/auth/callback
-      - http://127.0.0.1:8080/auth/callback
+      # The gateway origin + the app basename + client-web's callback route: react-router.config.ts
+      # bakes basename "/apps/flow" into the build, and routes.ts declares route("/auth/callback")
+      # under it, so the real browser path is /apps/flow/auth/callback. authClient.ts computes the
+      # same value (origin + APP_ROOT + "/auth/callback", APP_ROOT defaulting to "/apps/flow"), and
+      # it must be byte-identical at both the authorize and token steps.
+      - http://localhost:8080/apps/flow/auth/callback
+      - http://127.0.0.1:8080/apps/flow/auth/callback
 
 # No passwords - idpzero's login page is a user picker. The FIRST user to sign in on a fresh
 # database becomes the founding admin (the exchange endpoint is a first-call bootstrap path that

@@ -28,7 +28,7 @@ RUN apk add --no-cache ca-certificates wget \
 # docker/idpzero/server.yaml therefore needs a `docker compose build idpzero` to take effect.
 COPY server.yaml /idpzero/server.yaml
 
-EXPOSE 4379
+EXPOSE 4380
 
 # /healthz comes from the underlying zitadel/oidc provider library.
 ENTRYPOINT ["idpzero", "serve", "--config", "/idpzero"]
