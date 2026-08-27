@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, InlineLoading } from "@carbon/react";
 import { Error403 } from "@boomerang-io/carbon-addons-boomerang-react";
+import { useLocation } from "react-router-dom";
 import { APP_ROOT } from "Config/appConfig";
 import { browserNavigation, completeOidcCallback } from "./authClient";
 
@@ -23,6 +24,9 @@ type CallbackState = { name: "working" } | { name: "error"; message: string };
 
 export default function AuthCallback() {
   const [state, setState] = React.useState<CallbackState>({ name: "working" });
+  // The router's search string - identical to window.location.search here (the callback always
+  // arrives via a full document load), but readable under a memory router in specs.
+  const { search } = useLocation();
   // React 18 StrictMode double-invokes effects in dev; the stash is one-shot, so the second
   // invocation must not run the exchange again.
   const started = React.useRef(false);
@@ -30,7 +34,7 @@ export default function AuthCallback() {
   React.useEffect(() => {
     if (started.current) return;
     started.current = true;
-    completeOidcCallback(window.location.search)
+    completeOidcCallback(search)
       .then(({ returnPath }) => {
         browserNavigation.replace(returnPath);
       })
@@ -40,7 +44,9 @@ export default function AuthCallback() {
           message: error instanceof Error ? error.message : "Sign-in could not be completed.",
         });
       });
-  }, []);
+    // The ref guard makes this one-shot regardless of deps: a search-string change after the
+    // exchange has started must not run a second exchange.
+  }, [search]);
 
   if (state.name === "error") {
     return (
