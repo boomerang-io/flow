@@ -107,10 +107,13 @@ externally, but it writes a Mongo document per request.
 > **Fixed (2026-08-27)**: `TokenService.createSessionToken` (the wrapper only
 > `AuthenticationFilter`'s forwarded-email / raw-JWT / Basic branches call) now reuses the mint
 > per normalised email within a 60-second in-memory window — at most one persisted `TokenEntity`
-> per identity per window per instance, and the same window bounds how stale a reused token's
-> permissions can be. The exchange endpoint's mint paths (`createSessionTokenWithRaw` /
-> `createSessionTokenForUser`) never read the cache: every exchange hands a fresh raw `bfs_`
-> value to the browser cookie. Pinned by `TokenServiceSessionTest`.
+> per identity per window per instance. The same window bounds staleness: a permission change —
+> including deactivating or deleting the user — is not picked up on these paths for up to 60s,
+> because the re-mint that re-checks user status is skipped. The map is bounded: expired entries
+> are swept on each put, so it only ever holds identities seen within the last window. The
+> exchange endpoint's mint paths (`createSessionTokenWithRaw` / `createSessionTokenForUser`)
+> never read the cache: every exchange hands a fresh raw `bfs_` value to the browser cookie.
+> Pinned by `TokenServiceSessionTest`.
 
 ## Implementation status (2026-08-27) — what is built (Evolving)
 
