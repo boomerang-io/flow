@@ -1,0 +1,56 @@
+# IDPZero configuration for the compose stack (see docker/idpzero/Dockerfile - baked into the
+# image, rebuild after editing). Follows ARCHIE's `.idpzero/server.yaml` pattern, adapted to
+# idpzero v0.3.0's schema (`auth_method` replaced the old `client_type`/`pkce_required` fields)
+# and to Flow's browser-side public-client PKCE flow (client-web/src/Features/Auth/authClient.ts).
+#
+# The issuer is NOT configured here - idpzero derives it per-request from the Host header, which
+# is exactly what lets one issuer string (http://idp.localhost:4379) serve both the browser and
+# the service-core container. See the idpzero service in docker-compose.yml for the addressing
+# rationale.
+server:
+  port: 4379
+  keyphrase: 1EFA5840-95B8-4FDA-9494-8CB5E8C692F1
+
+clients:
+  # Must match the `oidc.clientId` value seeded by docker/mongo/seed-auth-oidc.js - the backend
+  # verifies the id_token's aud claim against it (OidcTokenVerifier), and the frontend sends it
+  # as client_id on the authorize and token requests.
+  - client_id: flow
+    name: Boomerang Flow
+    application_type: web
+    # "none" = public client: the authorization-code exchange is protected by PKCE (S256), no
+    # client secret anywhere - matching authClient.ts, which sends client_id + code_verifier only.
+    auth_method: none
+    access_token_type: bearer
+    grant_types:
+      - authorization_code
+    response_types:
+      - code
+    redirect_uris:
+      # The gateway origin + client-web's callback route (client-web/app/routes.ts:
+      # route("/auth/callback", ...) with APP_ROOT="") - must be byte-identical to what
+      # authClient.ts sends at both the authorize and token steps.
+      - http://localhost:8080/auth/callback
+      - http://127.0.0.1:8080/auth/callback
+
+# No passwords - idpzero's login page is a user picker. The FIRST user to sign in on a fresh
+# database becomes the founding admin (the exchange endpoint is a first-call bootstrap path that
+# may activate the instance - AuthExchangeService.exchangeOidc); later users are auto-registered
+# as ordinary users. The e2e login bootstrap signs in as usr-flow-admin (e2e/tests/auth.setup.ts).
+users:
+  - subject: usr-flow-admin
+    login_display: Grace Hopper (Admin)
+    claims:
+      email: grace.hopper@flow.local
+      email_verified: true
+      name: Grace Hopper
+      given_name: Grace
+      family_name: Hopper
+  - subject: usr-flow-user
+    login_display: Alan Turing (User)
+    claims:
+      email: alan.turing@flow.local
+      email_verified: true
+      name: Alan Turing
+      given_name: Alan
+      family_name: Turing

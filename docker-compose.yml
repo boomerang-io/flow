@@ -1,6 +1,7 @@
 # Local/E2E stack for the merged product: Mongo, the one-shot migration/seed Job, the
-# service-core deployable, and client-web, fronted by a small nginx gateway that gives the
-# browser a single origin (service-core has no CORS support - see docker/gateway/nginx.conf).
+# service-core deployable, client-web, and a local IDPZero OIDC provider for real sign-in,
+# fronted by a small nginx gateway that gives the browser a single origin (service-core has
+# no CORS support - see docker/gateway/nginx.conf).
 #
 # service-agent is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
 # cluster (see CLAUDE.md's Technology Stack table) - there is no docker-based dispatcher yet
@@ -27,10 +28,14 @@
 # `docker compose build client-web` runs; see client-web/Dockerfile, which copies that build/
 # directory in alongside client-web/server (the Express server wrapping the SSR handler).
 #
-# Security posture: FLOW_SECURITY_ENABLED=false below is deliberate and TEMPORARY. There is no
-# login flow yet (specifications/authentication.md - the token-exchange endpoint is being built
-# in parallel), so a secured stack would just show a permanently blank page. Once that lands,
-# this must flip to a real authenticated flow - do not read "security off" as the target state.
+# Security posture: this stack runs SECURED (FLOW_SECURITY_ENABLED=true). The login flow is the
+# real product flow (specifications/authentication.md): the unauthenticated bootstrap lands on
+# the signed-out page, Sign in runs browser-side PKCE against the local IDPZero service below,
+# POST /api/v2/auth/exchange verifies the id_token via JWKS and mints the httpOnly flow_session
+# cookie, and the app renders authenticated. IDPZero's login page is a passwordless user picker
+# (docker/idpzero/server.yaml seeds the users); the first user to sign in on a fresh database
+# becomes the founding admin. The `auth-oidc-seed` one-shot below is what flips the sign-in mode
+# to `oidc` for this stack - service-loader itself seeds the OIDC settings empty on purpose.
 name: flow
 
 services:
@@ -59,6 +64,60 @@ services:
     networks: [flow]
     restart: "no"
 
+  # Local OIDC provider (see docker/idpzero/). ADDRESSING - the dual-reachability problem and
+  # its solution: the issuer URL must be ONE string that works from BOTH sides, because
+  #   (a) the browser hits it directly (discovery fetch, the authorize redirect, and the PKCE
+  #       token POST - authClient.ts), and
+  #   (b) the service-core container hits it too (OidcTokenVerifier fetches
+  #       {issuer}/.well-known/openid-configuration and the advertised jwks_uri, then enforces
+  #       the id_token's iss claim == the configured issuer, byte-for-byte).
+  # idpzero derives its issuer (and every endpoint in the discovery document) from the request's
+  # Host header, so whichever hostname both sides share becomes the issuer. That hostname is
+  # `idp.localhost` (issuer http://idp.localhost:4379, seeded by auth-oidc-seed below):
+  #   - host side: macOS getaddrinfo (and Chrome/Firefox per RFC 6761) resolves *.localhost to
+  #     127.0.0.1, where the published 4379 port below lands on this container - so the browser,
+  #     curl, and Playwright all reach it with zero /etc/hosts edits;
+  #   - container side: the `idp.localhost` network alias below makes Docker's DNS resolve the
+  #     same name to this container for service-core.
+  # ARCHIE never hits this problem (it runs idpzero as a host binary with issuer
+  # http://localhost:4379, and its backend also runs on the host); containerising both sides is
+  # what forces the shared-hostname trick. The browser's discovery/token fetches are cross-origin
+  # (page origin localhost:8080 -> idp.localhost:4379) - fine, because idpzero's underlying
+  # zitadel/oidc library serves permissive CORS on the provider endpoints, and the fetches are
+  # credential-less by design.
+  idpzero:
+    build:
+      context: ./docker/idpzero
+      dockerfile: Dockerfile
+    ports:
+      - "4379:4379"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4379/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      flow:
+        aliases:
+          - idp.localhost
+
+  # One-shot, compose-only: sets the `auth` settings document's oidc.issuer/oidc.clientId (seeded
+  # empty by service-loader - correctly so for non-compose installs) to this stack's IDPZero, so
+  # GET /api/v2/auth/config resolves mode=oidc. See docker/mongo/seed-auth-oidc.js.
+  auth-oidc-seed:
+    image: mongo:7.0
+    entrypoint:
+      ["mongosh", "--quiet", "mongodb://mongo:27017/boomerang", "/seed-auth-oidc.js"]
+    volumes:
+      - ./docker/mongo/seed-auth-oidc.js:/seed-auth-oidc.js:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+      service-loader:
+        condition: service_completed_successfully
+    networks: [flow]
+    restart: "no"
+
   service-core:
     build:
       context: ./service-core
@@ -69,13 +128,20 @@ services:
       SPRING_MONGODB_URI: mongodb://mongo:27017/boomerang
       FLOW_MONGO_COLLECTION_PREFIX: flow
       FLOW_MODE: standalone
-      # Temporary - see the security posture note above.
-      FLOW_SECURITY_ENABLED: "false"
+      # Secured - see the security posture note above. /health stays permitAll
+      # (SecurityConfiguration), so the healthchecks here and in the gateway still pass.
+      FLOW_SECURITY_ENABLED: "true"
     depends_on:
       mongo:
         condition: service_healthy
       service-loader:
         condition: service_completed_successfully
+      # Not strictly required for boot (settings are read per-request), but deterministic:
+      # the stack never serves a window where mode still resolves to `proxy`.
+      auth-oidc-seed:
+        condition: service_completed_successfully
+      idpzero:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7700/health"]
       interval: 5s
