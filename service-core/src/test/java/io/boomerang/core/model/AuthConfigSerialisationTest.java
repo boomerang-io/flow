@@ -23,8 +23,17 @@ class AuthConfigSerialisationTest {
   }
 
   @Test
-  void proxySerialisesOnlyTheMode() {
-    assertThat(mapper.writeValueAsString(AuthConfig.proxy())).isEqualTo("{\"mode\":\"proxy\"}");
+  void proxySerialisesTheModeAndItsSignOutUrl() {
+    assertThat(mapper.writeValueAsString(AuthConfig.proxy("https://sso.example.test/pkmslogout")))
+        .isEqualTo(
+            "{\"mode\":\"proxy\",\"signOutUrl\":\"https://sso.example.test/pkmslogout\"}");
+  }
+
+  @Test
+  void proxyWithoutASignOutUrlSerialisesOnlyTheMode() {
+    // Blank and null both collapse to absent - the webapp falls back to landing on the root.
+    assertThat(mapper.writeValueAsString(AuthConfig.proxy(null))).isEqualTo("{\"mode\":\"proxy\"}");
+    assertThat(mapper.writeValueAsString(AuthConfig.proxy("  "))).isEqualTo("{\"mode\":\"proxy\"}");
   }
 
   @Test
