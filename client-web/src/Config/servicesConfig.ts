@@ -1,13 +1,14 @@
 /*
  * This file contains all the service URLs and configurations.
  *
- * The model is to have a serviceUrl object that contains all the service URLs and a resolver object that holds all the queries and mutations.
+ * The model is to have a serviceUrl object that contains all the service URLs. (The browser-side
+ * `resolver` axios object died with the BFF teardown - all reads/writes go through route
+ * loaders/actions via Config/serverFetch, or the /res/* resource routes in Config/resourceRoutes.)
  *
  * This depends on the /server to mount the environment variables that are the root prefixes.
  */
 //@ts-nocheck
-import axios from "axios";
-import { Envs, HttpMethod } from "Constants";
+import { Envs } from "Constants";
 
 // Set defaults; overridden below in production by the SSR-injected _SERVER_DATA.
 export let CORE_SERVICE_ENV_URL = "/api";
@@ -26,8 +27,6 @@ export const PRODUCT_SERVICE_ENV_URL =
     : "/api";
 
 export const BASE_URL = `${PRODUCT_SERVICE_ENV_URL}`;
-export const BASE_CORE_URL = CORE_SERVICE_ENV_URL;
-export const BASE_CORE_USERS_URL = `${CORE_SERVICE_ENV_URL}/users`;
 
 type IdArg = {
   id: string;
@@ -87,7 +86,6 @@ export const serviceUrl = {
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   deleteUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserProfile: () => `${BASE_URL}/profile`,
-  getUserProfileImage: ({ userEmail }) => `${BASE_CORE_USERS_URL}/image/${userEmail}`,
   getIntegrations: ({ workspace }: WorkspaceArg) => `${BASE_URL}/integration${workspace ? "?workspace=" + workspace : ""}`,
   getTaskrunLog: ({ id }: IdArg) => `${BASE_URL}/taskrun/${id}/log`,
   postToken: () => `${BASE_URL}/token`,
@@ -216,141 +214,4 @@ export const serviceUrl = {
       postSchedule: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/schedule`,
     },
   },
-};
-
-export const resolver = {
-  query: (url) => () => axios.get(url).then((response) => response.data),
-  queryYaml: (url) => () =>
-    axios
-      .get(url, {
-        headers: {
-          accept: "application/x-yaml",
-        },
-      })
-      .then((response) => response.data),
-  postMutation: (request) => axios.post(request),
-  patchMutation: (request) => axios.patch(request),
-  putMutation: (request) => axios.put(request),
-  // Approver groups are now deleted in bulk by name, not by a /{groupId} path segment.
-  deleteApproverGroup: ({ workspace, groupId }) =>
-    axios.delete(serviceUrl.resourceApproverGroups({ workspace }), { data: [groupId] }),
-  // deleteArchiveTaskTemplate: ({ id }) => axios.delete(serviceUrl.deleteArchiveTaskTemplate({ id })),
-  putRetryWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putRetryWorkflow({ workspace, id })),
-  deleteCancelWorkflowRun: ({ workspace, id }) =>
-    axios.delete(serviceUrl.workspace.workflowrun.deleteCancelWorkflow({ workspace, id })),
-  putStartWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putStartWorkflow({ workspace, id })),
-  putPauseWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putPauseWorkflow({ workspace, id })),
-  putResumeWorkflowRun: ({ workspace, id }) => axios.put(serviceUrl.workspace.workflowrun.putResumeWorkflow({ workspace, id })),
-  putFinalizeWorkflowRun: ({ workspace, id }) =>
-    axios.put(serviceUrl.workspace.workflowrun.putFinalizeWorkflow({ workspace, id })),
-  deleteGlobalParameter: ({ name }) => axios.delete(serviceUrl.getGlobalParameter({ name })),
-  deleteWorkspaceMembers: ({ workspace, body }) =>
-    axios({ url: serviceUrl.workspace.deleteWorkspaceMembers({ workspace }), data: body, method: HttpMethod.Delete }),
-  deleteWorkspaceParameter: ({ workspace, name }) => axios.delete(serviceUrl.workspace.deleteWorkspaceParameter({ workspace, name })),
-  deleteWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
-    axios.delete(serviceUrl.workspace.workflow.getWorkflow({ workspace, workflow })),
-  deleteWorkflowTemplate: ({ name }) => axios.delete(serviceUrl.template.getWorkflowTemplate({ name })),
-  leaveWorkspace: ({ workspace }) => axios.delete(serviceUrl.workspace.leaveWorkspace({ workspace })),
-  deleteSchedule: ({ workspace, id }) => axios.delete(serviceUrl.workspace.schedule.deleteSchedule({ workspace, id })),
-  deleteWorkspace: ({ workspace }: WorkspaceArg) => axios.delete(serviceUrl.resourceWorkspace({ workspace })),
-  deleteToken: ({ tokenId }) => axios.delete(serviceUrl.deleteToken({ tokenId })),
-  deleteUser: ({ userId }) => axios.delete(serviceUrl.deleteUser({ userId })),
-  // Params are now updated in bulk via PUT (no id in the path); the request body carries the full parameter.
-  patchGlobalParameter: ({ body }) =>
-    axios({ url: serviceUrl.getGlobalParameters(), data: body, method: HttpMethod.Put }),
-  patchWorkspace: ({ workspace, body }) => axios.patch(serviceUrl.resourceWorkspace({ workspace }), body),
-  patchManageWorkspaceLabels: ({ workspace, body }) => axios.patch(serviceUrl.getManageWorkspaceLabels({ workspace }), body),
-  patchProfile: ({ body }) => axios({ url: serviceUrl.getUserProfile(), data: body, method: HttpMethod.Patch }),
-  patchManageUser: ({ body, userId }) =>
-    axios({ url: serviceUrl.getUser({ userId }), data: body, method: HttpMethod.Patch }),
-  putSchedule: ({ workspace, body }) => axios.put(serviceUrl.workspace.schedule.putSchedule({ workspace }), body),
-  postWorkspace: ({ body }) => axios.post(serviceUrl.postWorkspace(), body),
-  postWorkspaceValidateName: ({ body }) => axios.post(serviceUrl.postWorkspaceValidateName(), body),
-  postWorkflowValidateName: ({ workspace, body }) => axios.post(serviceUrl.workspace.workflow.postValidateName({ workspace }), body),
-  postValidateYaml: ({ body }) =>
-    axios({
-      method: HttpMethod.Post,
-      url: serviceUrl.task.postValidateYaml(),
-      data: body,
-      headers: {
-        "content-type": "application/x-yaml",
-      },
-    }),
-  // TODO: no dedicated parameter-update route; serviceUrl.getWorkspaceParameter was never defined (pre-existing dead
-  // reference) and the underlying capability moved to patchWorkspace's request body regardless.
-  patchWorkspaceParameter: ({ workspace, key, body }) =>
-    axios({
-      url: serviceUrl.getWorkspaceParameter({ workspace, key }),
-      data: body,
-      method: HttpMethod.Patch,
-    }),
-  // TODO: create/update approver groups no longer exist as standalone routes; use patchWorkspace.
-  postApproverGroupRequest: ({ body, workspace }) =>
-    axios({
-      url: serviceUrl.resourceApproverGroups({ workspace }),
-      data: body,
-      method: HttpMethod.Post,
-    }),
-  postCreateTemplate: ({ body }) =>
-    axios({ url: serviceUrl.template.postWorkflowTemplate(), data: body, method: HttpMethod.Post }),
-  postCreateWorkflow: ({ workspace, body }) =>
-    axios({ url: serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), data: body, method: HttpMethod.Post }),
-  postDuplicateWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
-    axios.post(serviceUrl.workspace.workflow.postDuplicateWorkflow({ workspace, workflow })),
-  // TODO: Workflow Template duplication was removed from the API; serviceUrl.postDuplicateWorkflow (top-level)
-  // was also never defined (pre-existing dead reference).
-  postTemplateWorkflow: ({ workflowId, body }) => axios.post(serviceUrl.postDuplicateWorkflow({ workflowId }), body),
-  postToken: ({ body }) => axios({ url: serviceUrl.postToken(), data: body, method: HttpMethod.Post }),
-  putApplyTaskTemplate: ({ name, replace, body }) =>
-    axios({ url: serviceUrl.task.putTask({ name, replace }), data: body, method: HttpMethod.Put }),
-  putApplyWorkspaceTaskTemplate: ({ workspace, name, replace, body }) =>
-    axios({ url: serviceUrl.workspace.task.putTask({ workspace, name, replace }), data: body, method: HttpMethod.Put }),
-  putApplyTaskTemplateYaml: ({ name, replace, body }) =>
-    axios({
-      url: serviceUrl.task.putTask({ name, replace }),
-      data: body,
-      method: HttpMethod.Put,
-      headers: { "content-type": "application/x-yaml" },
-    }),
-  putApplyWorkspaceTaskTemplateYaml: ({ workspace, name, replace, body }) =>
-    axios({
-      url: serviceUrl.workspace.task.putTask({ workspace, name, replace }),
-      data: body,
-      method: HttpMethod.Put,
-      headers: { "content-type": "application/x-yaml" },
-    }),
-  postCreateWorkspace: ({ body }) => axios({ url: serviceUrl.getManageWorkspacesCreate(), data: body, method: HttpMethod.Post }),
-  putApplyWorkflow: ({ workspace, body }) =>
-    axios.put<Workflow, Workflow>(serviceUrl.workspace.workflow.putApplyWorkflow({ workspace }), body),
-  putApplyWorkflowCompose: ({ workspace, workflow, body }) =>
-    axios.put<Workflow, Workflow>(serviceUrl.workspace.workflow.putApplyWorkflowCompose({ workspace, workflow }), body),
-  postSubmitWorkflow: ({ workspace, workflow, body }) =>
-    axios.post(serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace, workflow }), body),
-  postGlobalParameter: ({ body }) =>
-    axios({ url: serviceUrl.getGlobalParameters(), data: body, method: HttpMethod.Post }),
-  postSchedule: ({ workspace, body }) => axios.post(serviceUrl.workspace.schedule.postSchedule({ workspace }), body),
-  // TODO: no dedicated parameter-create route; use patchWorkspace.
-  postWorkspaceParameter: ({ workspace, body }) =>
-    axios({ url: serviceUrl.workspace.resourceWorkspaceParameters({ workspace }), data: body, method: HttpMethod.Post }),
-  putActivationApp: ({ body }) =>
-    axios({
-      method: HttpMethod.Put,
-      url: serviceUrl.putActivationApp(),
-      data: body,
-      validateStatus: (status) => status >= 200 && status < 300,
-    }),
-  // TODO: no PUT approver-group route; use patchWorkspace.
-  putApproverGroupRequest: ({ body, workspace }) =>
-    axios({
-      url: serviceUrl.resourceApproverGroups({ workspace }),
-      data: body,
-      method: HttpMethod.Put,
-    }),
-  putPlatformSettings: ({ body }) => axios.put(serviceUrl.resourceSettings(), body),
-  putRestoreTaskTemplate: ({ id }: IdArg) => axios.put(serviceUrl.putRestoreTaskTemplate({ id })),
-  patchUpdateWorkspace: ({ workspace, body }) => axios.patch(serviceUrl.resourceWorkspace({ workspace }), body),
-  deleteWorkspaceQuotas: ({ workspace }) => axios({ url: serviceUrl.deleteWorkspaceQuotas({ workspace }), method: HttpMethod.Delete }),
-  putAction: ({ workspace, body }) =>
-    axios({ url: serviceUrl.workspace.action.putAction({ workspace }), data: body, method: HttpMethod.Put }),
-  postGitHubAppUnlink: ({ body }) => axios.post(serviceUrl.postGitHubAppUnlink(), body),
 };

@@ -7,7 +7,6 @@ import {
 import "codemirror/addon/fold/foldgutter.css";
 import "codemirror/lib/codemirror.css";
 import "codemirror/theme/material.css";
-import "Config/axiosGlobalConfig";
 import "Styles/styles.scss";
 import ErrorBoundary from "Components/ErrorBoundary";
 import { isDevEnv, isTestEnv } from "Config/appConfig";
