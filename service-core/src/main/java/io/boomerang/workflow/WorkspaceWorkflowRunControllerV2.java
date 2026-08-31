@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
         "Submit requests to execute Workflows and provide the ability to search and retrieve"
             + " Workflow activities.")
 @SecurityRequirement(name = "BearerAuth")
+@SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowRunControllerV2 {
 
   private final WorkflowRunService workflowRunService;

@@ -47,6 +47,14 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
   private static final String X_FORWARDED_USER = "x-forwarded-user";
   private static final String X_FORWARDED_EMAIL = "x-forwarded-email";
+  // The URL param and the x-access-token header are KEPT deliberately (ruled 2026-09-01, after
+  // briefly being removed): major webhook senders offer no way to set an Authorization header -
+  // Docker Hub has no webhook auth/header configuration at all, and the industry-standard
+  // fallback for such senders is a token in the URL (capability URL). Removing them would leave
+  // header-less senders with no way to authenticate to /webhook, /event and /callback.
+  // Mitigations: HTTPS-only deployments, and tokens are scoped + revocable.
+  private static final String TOKEN_URL_PARAM_NAME = "access_token";
+  private static final String X_ACCESS_TOKEN_HEADER = "x-access-token";
   private static final String AUTHORIZATION_HEADER = "Authorization";
   //  private static final String X_SLACK_SIGNATURE = "X-Slack-Signature";
   //  private static final String X_SLACK_TIMESTAMP = "X-Slack-Request-Timestamp";
@@ -89,15 +97,19 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     try {
       Authentication authentication = null;
 
-      // Rely on Authorization header and Bearer tokens. The access_token URL-param fallback was
-      // removed (ruled 2026-09-01): tokens in URLs land in access logs and browser history, and
-      // no v4 client compatibility is required.
+      // Rely on Authorization header and Bearer tokens. Fall back on the x-access-token header
+      // and then a token in the URL param - some webhook senders can only set a URL, not
+      // headers (see the constant declarations above for why these fallbacks are kept).
       if (req.getHeader(AUTHORIZATION_HEADER) != null) {
         if (req.getHeader(AUTHORIZATION_HEADER).matches(TOKEN_PATTERN)) {
           authentication = getTokenAuthentication(req.getHeader(AUTHORIZATION_HEADER));
         } else {
           authentication = getUserSessionAuthentication(req);
         }
+      } else if (req.getHeader(X_ACCESS_TOKEN_HEADER) != null) {
+        authentication = getTokenAuthentication(req.getHeader(X_ACCESS_TOKEN_HEADER));
+      } else if (req.getParameter(TOKEN_URL_PARAM_NAME) != null) {
+        authentication = getTokenAuthentication(req.getParameter(TOKEN_URL_PARAM_NAME));
       } else if (req.getHeader(X_FORWARDED_EMAIL) != null) {
         authentication = getGithubUserAuthentication(req);
       } else if (getSessionCookieValue(req) != null) {
@@ -251,7 +263,10 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   }
 
   /*
-   * Validate and hoist Token Based Auth from the AUTHORIZATION_HEADER
+   * Validate and hoist Token Based Auth
+   *
+   * Handles the token coming from AUTHORIZATION_HEADER, X_ACCESS_TOKEN_HEADER or
+   * TOKEN_URL_PARAM_NAME in that order
    */
   private Authentication getTokenAuthentication(String accessToken) {
     if (accessToken.startsWith("Bearer ")) {

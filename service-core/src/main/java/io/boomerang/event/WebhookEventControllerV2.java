@@ -60,11 +60,14 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <p>Authenticate with an Authorization header Bearer token. The access_token URL parameter was
-   * removed (2026-09-01) - senders that cannot set headers must front this endpoint with something
-   * that can.
+   * <p>Can use an Authorization header, an x-access-token header, or the access_token URL
+   * Parameter. The URL parameter is deliberately supported (ruled 2026-09-01): senders such as
+   * Docker Hub offer no header or auth configuration at all, so a token in the URL is their only
+   * authentication channel.
    *
-   * <code>/webhook?ref={workflow}</code>
+   * <h4>Sample</h4>
+   *
+   * <code>/webhook?ref={workflow}&access_token={access_token}</code>
    */
   @PostMapping(value = "/webhook", consumes = "application/json; charset=utf-8")
   @AuthCriteria(
@@ -130,7 +133,8 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}</code>
+   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&access_token={access_token}
+   * </code>
    */
   @PostMapping(value = "/callback", consumes = "application/json; charset=utf-8")
   @AuthCriteria(
@@ -166,7 +170,8 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}</code>
+   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&access_token={access_token}
+   * </code>
    */
   @GetMapping(value = "/callback")
   @AuthCriteria(

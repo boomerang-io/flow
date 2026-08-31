@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v2/workspace/{workspace}/workflow")
 @Tag(name = "Workflows", description = "Create, list, and manage your Workflows.")
 @SecurityRequirement(name = "BearerAuth")
+@SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowControllerV2 {
 
   private final WorkflowService workflowService;
