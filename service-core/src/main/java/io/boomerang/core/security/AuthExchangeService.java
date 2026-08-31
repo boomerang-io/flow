@@ -102,14 +102,34 @@ public class AuthExchangeService {
   private SessionToken exchangeOidc(AuthExchangeRequest request) {
     JWTClaimsSet claims = oidcTokenVerifier.verify(request.getIdToken(), request.getNonce());
 
+    // Claim chain per ARCHIE's proven Azure behaviour (asdr auth/callback.tsx: email ||
+    // preferred_username), with one Flow-specific guard: users and IDP activation are keyed on
+    // EMAIL, so preferred_username is only accepted when it is email-shaped - Azure commonly
+    // puts a UPN there, which may or may not be an email address.
     String email = firstNonBlank(claimString(claims, "email"), claimString(claims, "emailAddress"));
+    if (email == null || email.isBlank()) {
+      String preferredUsername = claimString(claims, "preferred_username");
+      if (isEmailShaped(preferredUsername)) {
+        email = preferredUsername;
+      }
+    }
     if (email == null || email.isBlank()) {
       throw new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID);
     }
-    String firstName =
-        firstNonBlank(claimString(claims, "given_name"), claimString(claims, "firstName"));
-    String lastName =
-        firstNonBlank(claimString(claims, "family_name"), claimString(claims, "lastName"));
+
+    // Names follow ARCHIE too (name || given+family): prefer the composite `name` claim, split
+    // on the first space for first/last, falling back to the discrete claims and their aliases.
+    String firstName;
+    String lastName;
+    String compositeName = claimString(claims, "name");
+    if (compositeName != null && !compositeName.isBlank()) {
+      String[] parts = compositeName.trim().split("\\s+", 2);
+      firstName = parts[0];
+      lastName = parts.length > 1 ? parts[1] : null;
+    } else {
+      firstName = firstNonBlank(claimString(claims, "given_name"), claimString(claims, "firstName"));
+      lastName = firstNonBlank(claimString(claims, "family_name"), claimString(claims, "lastName"));
+    }
 
     // The exchange endpoint is a first-call bootstrap path exactly like /api/v2/profile and
     // /api/v2/activate: it may both activate the instance (first admin) and register a brand new
@@ -135,5 +155,14 @@ public class AuthExchangeService {
 
   private static String firstNonBlank(String a, String b) {
     return a != null && !a.isBlank() ? a : b;
+  }
+
+  /** A single "@" with non-empty local and domain parts - deliberately no fuller validation. */
+  private static boolean isEmailShaped(String candidate) {
+    if (candidate == null || candidate.isBlank()) {
+      return false;
+    }
+    int at = candidate.indexOf('@');
+    return at > 0 && at < candidate.length() - 1 && candidate.indexOf('@', at + 1) < 0;
   }
 }

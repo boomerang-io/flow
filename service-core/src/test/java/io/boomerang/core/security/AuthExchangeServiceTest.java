@@ -3,6 +3,7 @@ package io.boomerang.core.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -105,6 +106,75 @@ class AuthExchangeServiceTest {
 
     assertThat(result).isSameAs(minted);
     verify(identityService, never()).getCurrentIdentity();
+  }
+
+  /*
+   * Azure-compatibility claim fallbacks (maintainer-approved 2026-08-31, following ARCHIE's
+   * proven chain): email -> emailAddress -> preferred_username, the last only when email-shaped,
+   * because Flow keys users and IDP activation on email. Names prefer the composite `name` claim
+   * (split on the first space), falling back to given_name/family_name and the legacy aliases.
+   */
+  @Test
+  void idTokenWithOnlyAnEmailShapedPreferredUsernameMintsFromIt() {
+    AuthExchangeRequest request = new AuthExchangeRequest();
+    request.setIdToken("a.b.c");
+    request.setNonce("nonce-1");
+
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder()
+            .subject("idp-user-1")
+            .claim("preferred_username", "person@example.test")
+            .build();
+    when(oidcTokenVerifier.verify("a.b.c", "nonce-1")).thenReturn(claims);
+
+    SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
+    when(tokenService.createSessionTokenWithRaw("person@example.test", null, null, true, true))
+        .thenReturn(minted);
+
+    assertThat(authExchangeService.exchange(request)).isSameAs(minted);
+  }
+
+  @Test
+  void idTokenWithANonEmailPreferredUsernameAndNoEmailClaimIsRejected() {
+    AuthExchangeRequest request = new AuthExchangeRequest();
+    request.setIdToken("a.b.c");
+    request.setNonce("nonce-1");
+
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder()
+            .subject("idp-user-1")
+            .claim("preferred_username", "grace.hopper")
+            .build();
+    when(oidcTokenVerifier.verify("a.b.c", "nonce-1")).thenReturn(claims);
+
+    assertThatThrownBy(() -> authExchangeService.exchange(request))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_TOKEN_INVALID.getReason());
+
+    verify(tokenService, never()).createSessionTokenWithRaw(any(), any(), any(), anyBoolean(), anyBoolean());
+  }
+
+  @Test
+  void compositeNameClaimSplitsOnTheFirstSpaceIntoFirstAndLastName() {
+    AuthExchangeRequest request = new AuthExchangeRequest();
+    request.setIdToken("a.b.c");
+    request.setNonce("nonce-1");
+
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder()
+            .subject("idp-user-1")
+            .claim("email", "person@example.test")
+            .claim("name", "Grace Brewster Hopper")
+            .build();
+    when(oidcTokenVerifier.verify("a.b.c", "nonce-1")).thenReturn(claims);
+
+    SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
+    when(tokenService.createSessionTokenWithRaw(
+            "person@example.test", "Grace", "Brewster Hopper", true, true))
+        .thenReturn(minted);
+
+    assertThat(authExchangeService.exchange(request)).isSameAs(minted);
   }
 
   @Test

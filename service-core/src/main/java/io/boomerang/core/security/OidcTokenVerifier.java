@@ -92,8 +92,23 @@ public class OidcTokenVerifier {
     String clientId = requireSetting(CLIENT_ID_CONFIG_KEY);
 
     JWKSource<SecurityContext> keySource = keySourceFor(issuer);
+    // The standard asymmetric family - a spec-compliant IdP may sign with any of these (Azure AD
+    // uses RS256; others vary). Widened from pinned RS256 2026-08-31 (maintainer-approved,
+    // Azure-compatibility). NEVER any HMAC or "none": the JWKS is public, so a symmetric
+    // "signature" would be forgeable by anyone who can read it.
+    Set<JWSAlgorithm> acceptedAlgorithms =
+        Set.of(
+            JWSAlgorithm.RS256,
+            JWSAlgorithm.RS384,
+            JWSAlgorithm.RS512,
+            JWSAlgorithm.PS256,
+            JWSAlgorithm.PS384,
+            JWSAlgorithm.PS512,
+            JWSAlgorithm.ES256,
+            JWSAlgorithm.ES384,
+            JWSAlgorithm.ES512);
     JWSKeySelector<SecurityContext> keySelector =
-        new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, keySource);
+        new JWSVerificationKeySelector<>(acceptedAlgorithms, keySource);
 
     DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
     processor.setJWSKeySelector(keySelector);
