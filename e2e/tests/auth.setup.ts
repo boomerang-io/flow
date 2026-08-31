@@ -4,7 +4,7 @@ import { APP_BASENAME } from "../support/api";
 
 /*
  * Login bootstrap for the secured stack (FLOW_SECURITY_ENABLED=true): signs in ONCE through the
- * real product flow - signed-out page -> browser-side PKCE against the stack's IDPZero ->
+ * real product flow - signed-out page -> server-side remix-auth code flow against the stack's IDPZero ->
  * POST /api/v2/auth/exchange mints the httpOnly flow_session cookie - and saves the resulting
  * storage state for every other project to reuse (playwright.config.ts wires this file as the
  * `setup` project the `chromium` project depends on). The specs' `page` AND `request` fixtures
