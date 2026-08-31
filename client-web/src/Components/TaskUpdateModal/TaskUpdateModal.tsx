@@ -3,11 +3,10 @@ import { Button, ModalBody, ModalFooter } from "@carbon/react";
 import { WarningFilled, WarningAlt, Checkmark } from "@carbon/react/icons";
 import { DataDrivenInput, DynamicFormik, Loading, ModalForm } from "@boomerang-io/carbon-addons-boomerang-react";
 import cx from "classnames";
-import { useQuery } from "react-query";
 import EmptyState from "Components/EmptyState";
 import TextEditorModal from "Components/TextEditorModal";
 import { TEXT_AREA_TYPES } from "Constants/formInputTypes";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { resourceRoute } from "Config/resourceRoutes";
 import { DataDrivenInput as DataDrivenInputConfig, ObjectValues, Task, WorkflowNode } from "Types";
 import styles from "./taskUpdateModal.module.scss";
 
@@ -67,18 +66,44 @@ const toggleProps = () => {
   };
 };
 
+type CurrentTaskState = { status: "loading" } | { status: "error" } | { status: "ok"; task: Task };
+
 export default function TaskUpdateModal(props: TaskUpdateModalProps) {
   const { latestTaskTemplate, closeModal, availableParameters, node, onSave } = props;
 
-  const getTaskTemplateUrl = serviceUrl.task.getTask({ name: node.taskRef, version: node.taskRef });
-
-  const templateQuery = useQuery<Task>({
-    queryKey: getTaskTemplateUrl,
-    queryFn: resolver.query(getTaskTemplateUrl),
-  });
+  // On-demand read of the task at the version this node is pinned to, via the same-origin
+  // /res/task/:name resource route (Config/resourceRoutes.ts) - the SSR server makes the
+  // service-core call, so the browser never touches /api. The route folds failures into
+  // `{ ok: false }` (200) so this modal keeps its inline EmptyState instead of an error
+  // boundary. This read can't ride the editor route's loader: the pinned version is only known
+  // per-node, when the modal opens. (The previous direct useQuery passed `version: node.taskRef`
+  // - the task NAME - which service-core's `Optional<Integer> version` rejects with a 400;
+  // `node.taskVersion` is the value this comparison was always meant to fetch.)
+  const [current, setCurrent] = React.useState<CurrentTaskState>({ status: "loading" });
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(resourceRoute.task({ name: node.taskRef, version: node.taskVersion }), {
+          credentials: "same-origin",
+        });
+        const body = response.ok ? ((await response.json()) as { ok: boolean; task?: Task }) : { ok: false };
+        if (!cancelled) {
+          setCurrent(body.ok && body.task ? { status: "ok", task: body.task } : { status: "error" });
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrent({ status: "error" });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [node.taskRef, node.taskVersion]);
 
   // Handle edge case of not finding the versions for some reason
-  if (templateQuery.isLoading) {
+  if (current.status === "loading") {
     return (
       <ModalForm>
         <Loading />
@@ -87,7 +112,7 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
   }
 
   // Handle edge case of not finding the versions for some reason
-  if (templateQuery.isError) {
+  if (current.status === "error") {
     return (
       <ModalForm>
         <EmptyState
@@ -97,101 +122,97 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
       </ModalForm>
     );
   }
-  if (templateQuery.data) {
-    const currentTaskTemplate = templateQuery.data;
-    const currentTaskConfig = currentTaskTemplate.spec.params ?? [];
-    const latestTaskConfig = latestTaskTemplate.spec.params ?? [];
+  const currentTaskTemplate = current.task;
+  const currentTaskConfig = currentTaskTemplate.spec.params ?? [];
+  const latestTaskConfig = latestTaskTemplate.spec.params ?? [];
 
-    const removedInputs = currentTaskConfig
-      .filter((input) => !latestTaskConfig.find((newInput) => newInput.key === input.key))
-      .map((input) => input?.key);
+  const removedInputs = currentTaskConfig
+    .filter((input) => !latestTaskConfig.find((newInput) => newInput.key === input.key))
+    .map((input) => input?.key);
 
-    const addedInputs = latestTaskConfig
-      .filter((input) => !currentTaskConfig.find((currentInput) => currentInput.key === input.key))
-      .map((input) => `['${input?.key}']`);
+  const addedInputs = latestTaskConfig
+    .filter((input) => !currentTaskConfig.find((currentInput) => currentInput.key === input.key))
+    .map((input) => `['${input?.key}']`);
 
-    const handleSubmit = (values: Record<string, string>) => {
-      onSave({ version: latestTaskTemplate.version, inputs: values });
-      closeModal();
-    };
+  const handleSubmit = (values: Record<string, string>) => {
+    onSave({ version: latestTaskTemplate.version, inputs: values });
+    closeModal();
+  };
 
-    const initialValues: Record<string, unknown> = { taskName: node.name };
-    currentTaskConfig.forEach((input) => {
-      const inputKey = input.key ?? input.name;
-      const initialValue = node.params.find((param) => param.name === input.key)?.["value"] ?? "";
-      initialValues[inputKey] = Boolean(initialValue) ? initialValue : input.defaultValue;
-    });
+  const initialValues: Record<string, unknown> = { taskName: node.name };
+  currentTaskConfig.forEach((input) => {
+    const inputKey = input.key ?? input.name;
+    const initialValue = node.params.find((param) => param.name === input.key)?.["value"] ?? "";
+    initialValues[inputKey] = Boolean(initialValue) ? initialValue : input.defaultValue;
+  });
 
-    return (
-      <DynamicFormik
-        allowCustomPropertySyntax
-        validateOnMount
-        dataDrivenInputProps={{
-          TextEditor: TextEditorInput,
-        }}
-        initialValues={initialValues}
-        inputs={latestTaskConfig}
-        onSubmit={handleSubmit}
-        textEditorProps={textAreaProps(availableParameters)}
-        toggleProps={toggleProps}
-      >
-        {({ inputs, formikProps }) => {
-          return (
-            <ModalForm noValidate onSubmit={formikProps.handleSubmit}>
-              <ModalBody className={styles.versionsContainer}>
-                <VersionSection subtitle="Current version in this workflow" version={currentTaskTemplate.version}>
-                  {currentTaskConfig.map((input) => {
-                    const inputKey = input.key ?? input.name;
-                    return (
-                      <StateHighlighter
-                        key={inputKey}
-                        type={removedInputs.includes(input.key) ? UpdateType.Remove : UpdateType.NoChange}
-                      >
-                        <DataDrivenInput
-                          {...input}
-                          readOnly
-                          id={`${inputKey}-current`}
-                          orientation={input.type === "boolean" ? "vertical" : undefined}
-                          value={Boolean(initialValues[inputKey]) ? initialValues[inputKey] : input.defaultValue}
-                        />
-                      </StateHighlighter>
-                    );
-                  })}
-                </VersionSection>
-                <div style={{ width: "1rem" }} />
-                <VersionSection latest subtitle="Latest version available" version={latestTaskTemplate.version}>
-                  {inputs.map((input, index) => {
-                    if (!React.isValidElement<{ id?: string }>(input)) {
-                      return null;
-                    }
-                    const inputId = input.props.id ?? String(index);
-                    return (
-                      <StateHighlighter
-                        key={inputId}
-                        type={addedInputs.includes(inputId) ? UpdateType.Add : UpdateType.NoChange}
-                      >
-                        {input}
-                      </StateHighlighter>
-                    );
-                  })}
-                </VersionSection>
-              </ModalBody>
-              <ModalFooter>
-                <Button kind="secondary" onClick={closeModal}>
-                  Cancel
-                </Button>
-                <Button disabled={Boolean(Object.values(formikProps.errors).length)} type="submit">
-                  Update task
-                </Button>
-              </ModalFooter>
-            </ModalForm>
-          );
-        }}
-      </DynamicFormik>
-    );
-  }
-
-  return null;
+  return (
+    <DynamicFormik
+      allowCustomPropertySyntax
+      validateOnMount
+      dataDrivenInputProps={{
+        TextEditor: TextEditorInput,
+      }}
+      initialValues={initialValues}
+      inputs={latestTaskConfig}
+      onSubmit={handleSubmit}
+      textEditorProps={textAreaProps(availableParameters)}
+      toggleProps={toggleProps}
+    >
+      {({ inputs, formikProps }) => {
+        return (
+          <ModalForm noValidate onSubmit={formikProps.handleSubmit}>
+            <ModalBody className={styles.versionsContainer}>
+              <VersionSection subtitle="Current version in this workflow" version={currentTaskTemplate.version}>
+                {currentTaskConfig.map((input) => {
+                  const inputKey = input.key ?? input.name;
+                  return (
+                    <StateHighlighter
+                      key={inputKey}
+                      type={removedInputs.includes(input.key) ? UpdateType.Remove : UpdateType.NoChange}
+                    >
+                      <DataDrivenInput
+                        {...input}
+                        readOnly
+                        id={`${inputKey}-current`}
+                        orientation={input.type === "boolean" ? "vertical" : undefined}
+                        value={Boolean(initialValues[inputKey]) ? initialValues[inputKey] : input.defaultValue}
+                      />
+                    </StateHighlighter>
+                  );
+                })}
+              </VersionSection>
+              <div style={{ width: "1rem" }} />
+              <VersionSection latest subtitle="Latest version available" version={latestTaskTemplate.version}>
+                {inputs.map((input, index) => {
+                  if (!React.isValidElement<{ id?: string }>(input)) {
+                    return null;
+                  }
+                  const inputId = input.props.id ?? String(index);
+                  return (
+                    <StateHighlighter
+                      key={inputId}
+                      type={addedInputs.includes(inputId) ? UpdateType.Add : UpdateType.NoChange}
+                    >
+                      {input}
+                    </StateHighlighter>
+                  );
+                })}
+              </VersionSection>
+            </ModalBody>
+            <ModalFooter>
+              <Button kind="secondary" onClick={closeModal}>
+                Cancel
+              </Button>
+              <Button disabled={Boolean(Object.values(formikProps.errors).length)} type="submit">
+                Update task
+              </Button>
+            </ModalFooter>
+          </ModalForm>
+        );
+      }}
+    </DynamicFormik>
+  );
 }
 
 interface VersionSectionProps {
