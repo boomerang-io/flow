@@ -1,12 +1,11 @@
 # Local/E2E stack for the merged product: Mongo, the one-shot migration/seed Job, the
 # service-core deployable, client-web, and a local IDPZero OIDC provider for real sign-in.
-# client-web's own SSR server is the single browser-facing origin (http://localhost:3000): it
-# serves the app AND forwards /api/* to service-core (CORE_SERVICE_PROXY_TARGET below - see
-# client-web/server/index.js). The single-origin requirement is unchanged from the retired
-# nginx gateway that used to provide it: service-core has no CORS support (by design - it
-# expects a same-origin front, see specifications/authentication.md), so the browser's direct
-# API calls must arrive on the app's own origin; only the mechanism moved into the app server,
-# the way ARCHIE's vite proxy does it. No extra web servers locally.
+# client-web's own SSR server is the single browser-facing origin (http://localhost:3000), and
+# it is the ONLY thing the browser talks to (BFF end state): documents, /res/* resource routes
+# and .data requests - never /api/*. Every service-core call happens server-side via
+# CORE_SERVICE_INTERNAL_ORIGIN (Config/serverFetch.ts), so no /api forward exists anymore and
+# service-core needs no CORS. service-core's own http://localhost:7700 stays reachable for
+# integrations, the dispatcher, and direct API use. No extra web servers locally.
 #
 # service-dispatcher is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
 # cluster (see CLAUDE.md's Technology Stack table) - there is no docker-based dispatcher yet
@@ -183,17 +182,13 @@ services:
       # removes the trap of reading "" as "app served at /".
       APP_ROOT: "/apps/flow"
       PORT: "3000"
-      # Relative, not absolute - the browser reaches both the app and the API on client-web's
-      # own origin, so this stays same-origin (the SSR server forwards /api/* to service-core -
-      # see CORE_SERVICE_PROXY_TARGET below and the header comment).
+      # Injected into window._SERVER_DATA for the browser bundle's URL builders
+      # (Config/servicesConfig.ts). The browser itself no longer requests /api/* (BFF end
+      # state - the SSR server's /api forward is deleted); these remain relative because the
+      # few places that still surface an API URL (the copyable webhook/event trigger URLs)
+      # should render the deployment's own origin.
       PRODUCT_SERVICE_ENV_URL: /api/v2
       CORE_SERVICE_ENV_URL: /api/v2
-      # Where the SSR server's always-on /api forward sends the browser's API calls (see
-      # client-web/server/index.js). Direct container-to-container address on this compose
-      # network; on a bare laptop the default (http://localhost:7700) applies instead, and a
-      # real deployment whose ingress routes /api straight to service-core simply never sends
-      # those requests here.
-      CORE_SERVICE_PROXY_TARGET: http://service-core:7700
       # Server-side only (route loaders read it directly via process.env - Config/serverFetch.ts
       # - it never reaches the browser). Direct container-to-container address on this compose
       # network. NOTE: the

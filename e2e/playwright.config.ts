@@ -5,10 +5,11 @@ import { fileURLToPath } from "node:url";
 /*
  * Drives the real product (client-web UI + service-core API together), not the webapp in
  * isolation - see the compose stack at the repo root (docker-compose.yml) for the topology.
- * Points at client-web's own SSR server by default - the single browser-facing origin: it
- * serves the app AND forwards /api/* to service-core (client-web/server/index.js), so the
- * browser's direct API calls (PRODUCT_SERVICE_ENV_URL) are same-origin (service-core has no
- * CORS support). There is no separate gateway.
+ * Points at client-web's own SSR server by default - the single browser-facing origin, and the
+ * ONLY thing the browser talks to (BFF end state: documents, /res/* resource routes, .data
+ * requests - never /api/*; the old /api forward is deleted). Test setup helpers call
+ * service-core's API on its own origin instead (support/api.ts's API_ORIGIN). There is no
+ * separate gateway.
  */
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
