@@ -1,51 +1,34 @@
 import React from "react";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { server } from "ApiServer/msw/node";
 import { APP_ROOT } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { AUTH_STASH_KEY, browserNavigation, s256Challenge } from "./authClient";
+import { browserNavigation } from "./authClient";
 import AuthCallback from "./AuthCallback";
 import AuthLogout from "./AuthLogout";
 import SignedOut from "./SignedOut";
 
 /*
- * The sign-in flow (specifications/authentication.md), per auth mode as served by GET
- * /auth/config. The MSW default for that route is mode "none" (see ApiServer/msw/handlers.ts);
- * each test overrides it with server.use() for the mode under test.
+ * The sign-in surfaces, per auth mode as served by GET /auth/config. The MSW default for that
+ * route is mode "none" (see ApiServer/msw/handlers.ts); each test overrides it with server.use().
  *
- * Two harness notes:
- * - window.location is non-configurable in jsdom, so components navigate through
- *   authClient.browserNavigation - specs spy on that seam instead of the real location.
- * - setupTests.tsx replaces sessionStorage with plain vi.fn() mocks (no real storage), so the
- *   PKCE stash is asserted via setItem's recorded calls and injected via getItem's mock return.
+ * The OIDC protocol itself is no longer tested here: the dance runs server-side (see
+ * oidc.server.ts and Auth.action.node.spec.ts, where the authorize redirect, state check,
+ * {idToken, nonce} exchange and Set-Cookie relay are pinned in a Node environment). These specs
+ * cover what the browser still owns - the signed-out page's surfaces, the proxy silent exchange,
+ * the callback's error/loading rendering, and logout.
+ *
+ * Harness note: window.location is non-configurable in jsdom, so components navigate through
+ * authClient.browserNavigation - specs spy on that seam instead of the real location.
  */
 
 const ISSUER = "https://idp.example/realms/flow";
 
-// The PKCE S256 challenge needs SubtleCrypto. jsdom's own window.crypto lacks it, but vitest's
-// jsdom environment keeps Node's webcrypto on the global (verified by probe) - so no polyfill.
-
-beforeEach(() => {
-  (sessionStorage.getItem as Mock).mockReset();
-  (sessionStorage.setItem as Mock).mockReset();
-  (sessionStorage.removeItem as Mock).mockReset();
-});
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
-
-const oidcStash = {
-  state: "expected-state",
-  nonce: "expected-nonce",
-  verifier: "expected-verifier",
-  clientId: "flow-web",
-  tokenEndpoint: `${ISSUER}/token`,
-  returnPath: `${APP_ROOT}/boomerang/activity`,
-};
 
 describe("SignedOut --- mode none", () => {
   test("renders the plain signed-out page with no sign-in surface", async () => {
@@ -66,112 +49,48 @@ describe("SignedOut --- mode none", () => {
 });
 
 describe("SignedOut --- mode oidc", () => {
-  test("the sign-in action redirects to the authorize URL with an S256 challenge, state and nonce", async () => {
+  test("offers sign-in as a form POST to the server-side sign-in action, carrying the return path", async () => {
     server.use(
       http.get(serviceUrl.getAuthConfig(), () =>
         HttpResponse.json({ mode: "oidc", issuer: ISSUER, clientId: "flow-web" }),
       ),
-      http.get(`${ISSUER}/.well-known/openid-configuration`, () =>
-        HttpResponse.json({
-          authorization_endpoint: `${ISSUER}/authorize`,
-          token_endpoint: `${ISSUER}/token`,
-        }),
-      ),
     );
-    const assignSpy = vi.spyOn(browserNavigation, "assign").mockImplementation(() => {});
 
     global.rtlContextRouterRender(<SignedOut onSignedIn={vi.fn()} />);
-    fireEvent.click(await screen.findByRole("button", { name: /sign in/i }));
+    const signIn = await screen.findByRole("button", { name: /sign in/i });
 
-    await waitFor(() => expect(assignSpy).toHaveBeenCalledTimes(1));
-    const authorizeUrl = new URL(assignSpy.mock.calls[0][0]);
-    expect(`${authorizeUrl.origin}${authorizeUrl.pathname}`).toBe(`${ISSUER}/authorize`);
-    expect(authorizeUrl.searchParams.get("response_type")).toBe("code");
-    expect(authorizeUrl.searchParams.get("client_id")).toBe("flow-web");
-    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(`${window.location.origin}${APP_ROOT}/auth/callback`);
-    expect(authorizeUrl.searchParams.get("code_challenge_method")).toBe("S256");
-
-    const state = authorizeUrl.searchParams.get("state");
-    const nonce = authorizeUrl.searchParams.get("nonce");
-    const challenge = authorizeUrl.searchParams.get("code_challenge");
-    expect(state).toBeTruthy();
-    expect(nonce).toBeTruthy();
-    expect(challenge).toBeTruthy();
-
-    // The URL's state/nonce and the sessionStorage stash are the same values, and the challenge
-    // really is the S256 of the stashed verifier - not some fixed or unrelated string.
-    const stashWrite = (sessionStorage.setItem as Mock).mock.calls.find(([key]) => key === AUTH_STASH_KEY);
-    expect(stashWrite).toBeTruthy();
-    const stash = JSON.parse(stashWrite![1]);
-    expect(stash.state).toBe(state);
-    expect(stash.nonce).toBe(nonce);
-    expect(stash.tokenEndpoint).toBe(`${ISSUER}/token`);
-    await expect(s256Challenge(stash.verifier)).resolves.toBe(challenge);
+    // The OIDC dance is server-side now: the button submits a real document POST to the sign-in
+    // action (which answers with the authorize redirect) instead of building an authorize URL in
+    // the browser. reloadDocument keeps it a plain form navigation, so the transient flow
+    // cookies and the 302 to the issuer behave as ordinary browser navigation.
+    // The form element and its hidden input ARE the wire contract under test, and neither
+    // carries an accessible role to query by - hence the two targeted lint exemptions.
+    // eslint-disable-next-line testing-library/no-node-access
+    const form = signIn.closest("form");
+    expect(form).not.toBeNull();
+    expect(form).toHaveAttribute("method", "post");
+    expect(form?.getAttribute("action")).toMatch(/\/auth\/signin$/);
+    // eslint-disable-next-line testing-library/no-node-access
+    const returnPath = form?.querySelector<HTMLInputElement>('input[name="returnPath"]');
+    expect(returnPath?.value).toBe(window.location.pathname + window.location.search);
   });
 });
 
 describe("AuthCallback", () => {
-  test("refuses a callback whose state does not match the stashed sign-in", async () => {
-    (sessionStorage.getItem as Mock).mockReturnValue(JSON.stringify(oidcStash));
-    let exchangeCalls = 0;
-    server.use(
-      http.post(serviceUrl.postAuthExchange(), () => {
-        exchangeCalls += 1;
-        return new HttpResponse(null, { status: 200 });
-      }),
+  test("renders the failure surface with a way back - never an automatic retry", () => {
+    global.rtlRouterRender(
+      <AuthCallback error="The sign-in response did not match this browser's sign-in request (state mismatch)." />,
     );
-    const replaceSpy = vi.spyOn(browserNavigation, "replace").mockImplementation(() => {});
 
-    global.rtlRouterRender(<Route path="/auth/callback" element={<AuthCallback />} />, {
-      route: "/auth/callback?code=the-code&state=WRONG-state",
-    });
-
-    expect(await screen.findByText("Sign-in didn't complete")).toBeInTheDocument();
+    expect(screen.getByText("Sign-in didn't complete")).toBeInTheDocument();
     expect(screen.getByRole("alert").textContent).toMatch(/state mismatch/);
-    // Refused means refused: no token was accepted, nothing navigated, and the one-shot stash
-    // is consumed so the response cannot be replayed.
-    expect(exchangeCalls).toBe(0);
-    expect(replaceSpy).not.toHaveBeenCalled();
-    expect(sessionStorage.removeItem).toHaveBeenCalledWith(AUTH_STASH_KEY);
-    // The recovery affordance is a link back to the app - never an automatic sign-in retry.
+    // The recovery affordance is a link back to the app - the 401 page owns restarting sign-in.
     expect(screen.getByRole("link", { name: "Back to sign-in" })).toHaveAttribute("href", `${APP_ROOT}/`);
   });
 
-  test("happy path: exchanges the code with the verifier, POSTs {idToken, nonce}, redirects to the stashed path", async () => {
-    (sessionStorage.getItem as Mock).mockReturnValue(JSON.stringify(oidcStash));
-    let tokenRequestBody: string | null = null;
-    let exchangeRequestBody: unknown = null;
-    server.use(
-      http.post(`${ISSUER}/token`, async ({ request }) => {
-        tokenRequestBody = await request.text();
-        return HttpResponse.json({ id_token: "eyJ.fake-id-token.sig" });
-      }),
-      http.post(serviceUrl.postAuthExchange(), async ({ request }) => {
-        exchangeRequestBody = await request.json();
-        return new HttpResponse(null, { status: 200 });
-      }),
-    );
-    const replaceSpy = vi.spyOn(browserNavigation, "replace").mockImplementation(() => {});
-
-    global.rtlRouterRender(<Route path="/auth/callback" element={<AuthCallback />} />, {
-      route: `/auth/callback?code=the-code&state=${oidcStash.state}`,
-    });
-
-    await waitFor(() => expect(replaceSpy).toHaveBeenCalledWith(oidcStash.returnPath));
-
-    // The issuer exchange is a public-client PKCE exchange: code + verifier + client_id, no secret.
-    const tokenParams = new URLSearchParams(tokenRequestBody!);
-    expect(tokenParams.get("grant_type")).toBe("authorization_code");
-    expect(tokenParams.get("code")).toBe("the-code");
-    expect(tokenParams.get("code_verifier")).toBe(oidcStash.verifier);
-    expect(tokenParams.get("client_id")).toBe(oidcStash.clientId);
-    expect(tokenParams.get("redirect_uri")).toBe(`${window.location.origin}${APP_ROOT}/auth/callback`);
-
-    // Our own exchange gets exactly AuthExchangeRequest.java's field names.
-    expect(exchangeRequestBody).toEqual({ idToken: "eyJ.fake-id-token.sig", nonce: oidcStash.nonce });
-
-    // The stash is one-shot.
-    expect(sessionStorage.removeItem).toHaveBeenCalledWith(AUTH_STASH_KEY);
+  test("renders the working shell while the server-side flow completes", () => {
+    global.rtlRouterRender(<AuthCallback />);
+    expect(screen.getByText("Signing you in...")).toBeInTheDocument();
   });
 });
 

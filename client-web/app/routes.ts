@@ -20,6 +20,7 @@ export default [
   // bootstrap (the callback lands here precisely because there is no session yet), and the
   // callback must never auto-trigger sign-in - see Features/Auth. Static two-segment paths, so
   // they outrank the layout's "/:workspace/*" catch-all regardless of ordering.
+  route("/auth/signin", "routes/authSignin.tsx"),
   route("/auth/callback", "routes/authCallback.tsx"),
   route("/auth/logout", "routes/authLogout.tsx"),
   layout("../src/Features/App/index.tsx", [

@@ -2,13 +2,8 @@ import React from "react";
 import { Button, InlineLoading } from "@carbon/react";
 import { Login } from "@carbon/react/icons";
 import { Error403 } from "@boomerang-io/carbon-addons-boomerang-react";
-import {
-  attemptProxyExchange,
-  browserNavigation,
-  buildOidcAuthorizeRedirect,
-  fetchAuthConfig,
-  type AuthConfig,
-} from "./authClient";
+import { Form } from "react-router-dom";
+import { attemptProxyExchange, fetchAuthConfig } from "./authClient";
 
 /*
  * The signed-out page App.tsx renders when the root bootstrap comes back 401. What it offers
@@ -20,7 +15,9 @@ import {
  *           success re-runs the bootstrap via onSignedIn, failure falls through to the plain
  *           signed-out page. The single-attempt guard is the loop protection: a still-401
  *           bootstrap re-render keeps this component mounted, so the ref holds.
- *   oidc  - a Sign in button that starts the browser-side PKCE flow (see authClient).
+ *   oidc  - a Sign in button that submits a plain document POST to the server-side sign-in
+ *           action (see oidc.server.ts), which answers with the redirect to the identity
+ *           provider. The browser no longer builds any part of the OIDC request itself.
  *
  * Every failure lands on readable text with a retry - never a blank page and never an automatic
  * redirect (only the user's click navigates away).
@@ -37,7 +34,7 @@ type Phase =
   | { name: "none" }
   | { name: "proxy-attempting" }
   | { name: "signed-out" } // terminal: mode resolved, no silent path succeeded - show the page
-  | { name: "oidc"; config: AuthConfig; busy: boolean; error: string | null }
+  | { name: "oidc" }
   | { name: "config-error" };
 
 export default function SignedOut({ onSignedIn }: SignedOutProps) {
@@ -56,7 +53,7 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
       .then((config) => {
         if (cancelled) return;
         if (config.mode === "oidc") {
-          setPhase({ name: "oidc", config, busy: false, error: null });
+          setPhase({ name: "oidc" });
         } else if (config.mode === "proxy") {
           if (proxyAttempted.current) {
             setPhase({ name: "signed-out" });
@@ -88,22 +85,6 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
   }, []);
 
   React.useEffect(() => resolveConfig(), [resolveConfig]);
-
-  const handleSignIn = async () => {
-    if (phase.name !== "oidc" || phase.busy) return;
-    setPhase({ ...phase, busy: true, error: null });
-    try {
-      const returnPath = window.location.pathname + window.location.search;
-      const authorizeUrl = await buildOidcAuthorizeRedirect(phase.config, returnPath);
-      browserNavigation.assign(authorizeUrl);
-    } catch (error) {
-      setPhase({
-        ...phase,
-        busy: false,
-        error: "Sign-in could not be started - the identity provider could not be reached. Try again.",
-      });
-    }
-  };
 
   if (phase.name === "proxy-attempting") {
     return (
@@ -138,16 +119,26 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
   }
 
   if (phase.name === "oidc") {
+    // A plain document POST (reloadDocument) to the sign-in action: the action's response is a
+    // 302 to the identity provider carrying the transient flow cookies, which ordinary browser
+    // navigation handles exactly right. The oidc phase only renders after hydration (the config
+    // fetch runs in an effect), so window is available for the return path.
     return (
       <Error403
         title="You're not signed in"
         message={
           <>
             <p>Your session has expired or you're not signed in. Sign in again to continue.</p>
-            {phase.error ? <p role="alert">{phase.error}</p> : null}
-            <Button renderIcon={Login} size="md" disabled={phase.busy} onClick={handleSignIn}>
-              Sign in
-            </Button>
+            <Form method="post" action="/auth/signin" reloadDocument>
+              <input
+                type="hidden"
+                name="returnPath"
+                value={window.location.pathname + window.location.search}
+              />
+              <Button type="submit" renderIcon={Login} size="md">
+                Sign in
+              </Button>
+            </Form>
           </>
         }
       />
