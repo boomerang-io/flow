@@ -35,7 +35,8 @@
 #
 # Security posture: this stack runs SECURED (FLOW_SECURITY_ENABLED=true). The login flow is the
 # real product flow (specifications/authentication.md): the unauthenticated bootstrap lands on
-# the signed-out page, Sign in runs browser-side PKCE against the local IDPZero service below,
+# the signed-out page, Sign in POSTs to /auth/signin where the SSR server runs the remix-auth
+# code flow (PKCE) against the local IDPZero service below,
 # POST /api/v2/auth/exchange verifies the id_token via JWKS and mints the httpOnly flow_session
 # cookie, and the app renders authenticated. IDPZero's login page is a passwordless user picker
 # (docker/idpzero/server.yaml seeds the users); the first user to sign in on a fresh database
@@ -71,8 +72,8 @@ services:
 
   # Local OIDC provider (see docker/idpzero/). ADDRESSING - the dual-reachability problem and
   # its solution: the issuer URL must be ONE string that works from BOTH sides, because
-  #   (a) the browser hits it directly (discovery fetch, the authorize redirect, and the PKCE
-  #       token POST - authClient.ts), and
+  #   (a) the browser follows the authorize redirect to it, and the SSR Node server hits it
+  #       (discovery fetch + token POST - oidc.server.ts, the server-side remix-auth flow), and
   #   (b) the service-core container hits it too (OidcTokenVerifier fetches
   #       {issuer}/.well-known/openid-configuration and the advertised jwks_uri, then enforces
   #       the id_token's iss claim == the configured issuer, byte-for-byte).
