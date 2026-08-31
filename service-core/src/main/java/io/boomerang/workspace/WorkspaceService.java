@@ -222,8 +222,23 @@ public class WorkspaceService {
           Optional.empty(),
           Optional.empty());
 
-      // Create Member Relationships
-      createOrUpdateUserRelationships(workspaceEntity.getName(), request.getMembers());
+      // Create Member Relationships. The creating USER is always a member - a session caller
+      // who omits members must not create a workspace they then cannot see (the relationship
+      // filter anchors at the user and returns nothing). Machine tokens (key/global) resolve no
+      // user and skip the self-add, exactly as before.
+      List<WorkspaceMember> members =
+          new ArrayList<>(request.getMembers() != null ? request.getMembers() : List.of());
+      UserEntity creator = userService.getCurrentUser();
+      if (creator != null
+          && members.stream().noneMatch(m -> creator.getId().equals(m.getId()))) {
+        WorkspaceMember self = new WorkspaceMember();
+        self.setId(creator.getId());
+        self.setEmail(creator.getEmail());
+        // Owner, matching the webapp's own self-include (Workspaces.tsx role: Owner).
+        self.setRole(RoleEnum.OWNER.getLabel());
+        members.add(self);
+      }
+      createOrUpdateUserRelationships(workspaceEntity.getName(), members);
 
       return convertWorkspaceEntityToWorkspace(workspaceEntity);
     } else {
