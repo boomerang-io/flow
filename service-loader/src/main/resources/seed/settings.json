@@ -290,7 +290,7 @@
           "key": "default.image",
           "label": "Default Image Path",
           "type": "text",
-          "value": "boomerangio/worker-flow:2.11.15",
+          "value": "boomerangio/task-flow:3.1.0",
           "readOnly": false
         },
         {
