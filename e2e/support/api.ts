@@ -2,7 +2,8 @@ import type { APIRequestContext } from "@playwright/test";
 
 /*
  * Direct-to-backend setup/verification helpers, hitting service-core's real REST API
- * (/api/v2/...) through the same gateway origin the browser uses - see playwright.config.ts.
+ * (/api/v2/...) through the same single origin the browser uses (client-web's SSR server
+ * forwards /api/* to service-core) - see playwright.config.ts.
  * These exist so UI journeys can set up their own isolated fixtures (a workspace, a workflow,
  * a run) quickly and assert against the real, persisted result, instead of relying on
  * whatever state a previous test left behind.
@@ -30,10 +31,10 @@ export function uiKebabName(displayName: string): string {
 // react-router.config.ts: `basename: "/apps/flow"`, baked into the server build at build time -
 // it does not follow docker-compose.yml's APP_ROOT env var, which only feeds
 // window._SERVER_DATA for the browser bundle's own API/asset base URLs, not the router's
-// server-side match). The gateway (docker/gateway/nginx.conf) proxies "/" straight through with
-// no rewrite, so every UI page.goto() in this suite must include this prefix or the SSR handler
-// 404s. The REST API is unaffected - nginx proxies /api/ directly to service-core - so the
-// request calls below stay unprefixed.
+// server-side match). Every UI page.goto() in this suite must include this prefix or the SSR
+// handler 404s. The REST API is unaffected - the same server forwards /api/* straight to
+// service-core with no rewrite (client-web/server/index.js) - so the request calls below stay
+// unprefixed.
 export const APP_BASENAME = "/apps/flow";
 
 export type Workspace = { name: string; displayName: string };

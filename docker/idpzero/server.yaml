@@ -28,13 +28,14 @@ clients:
     response_types:
       - code
     redirect_uris:
-      # The gateway origin + the app basename + client-web's callback route: react-router.config.ts
-      # bakes basename "/apps/flow" into the build, and routes.ts declares route("/auth/callback")
-      # under it, so the real browser path is /apps/flow/auth/callback. authClient.ts computes the
-      # same value (origin + APP_ROOT + "/auth/callback", APP_ROOT defaulting to "/apps/flow"), and
-      # it must be byte-identical at both the authorize and token steps.
-      - http://localhost:8080/apps/flow/auth/callback
-      - http://127.0.0.1:8080/apps/flow/auth/callback
+      # The browser-facing origin (client-web's own SSR server, port 3000 - see docker-compose.yml;
+      # there is no separate gateway) + the app basename + client-web's callback route:
+      # react-router.config.ts bakes basename "/apps/flow" into the build, and routes.ts declares
+      # route("/auth/callback") under it, so the real browser path is /apps/flow/auth/callback.
+      # The app computes the same value (origin + basename + "/auth/callback"), and it must be
+      # byte-identical at both the authorize and token steps.
+      - http://localhost:3000/apps/flow/auth/callback
+      - http://127.0.0.1:3000/apps/flow/auth/callback
 
 # No passwords - idpzero's login page is a user picker. The FIRST user to sign in on a fresh
 # database becomes the founding admin (the exchange endpoint is a first-call bootstrap path that

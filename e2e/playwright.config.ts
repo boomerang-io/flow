@@ -5,11 +5,12 @@ import { fileURLToPath } from "node:url";
 /*
  * Drives the real product (client-web UI + service-core API together), not the webapp in
  * isolation - see the compose stack at the repo root (docker-compose.yml) for the topology.
- * Points at the nginx gateway by default: client-web and service-core sit behind it on one
- * origin so the browser's direct API calls (PRODUCT_SERVICE_ENV_URL) are same-origin
- * (service-core has no CORS support - see docker/gateway/nginx.conf).
+ * Points at client-web's own SSR server by default - the single browser-facing origin: it
+ * serves the app AND forwards /api/* to service-core (client-web/server/index.js), so the
+ * browser's direct API calls (PRODUCT_SERVICE_ENV_URL) are same-origin (service-core has no
+ * CORS support). There is no separate gateway.
  */
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080";
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
 /*
  * The stack is secured (FLOW_SECURITY_ENABLED=true in docker-compose.yml), so every spec runs

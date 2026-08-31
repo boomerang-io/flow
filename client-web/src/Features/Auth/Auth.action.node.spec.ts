@@ -18,7 +18,7 @@ import { server } from "ApiServer/msw/node";
 
 const INTERNAL_ORIGIN = "http://core-service.internal";
 const ISSUER = "https://idp.example/realms/flow";
-const APP_ORIGIN = "http://localhost:8080";
+const APP_ORIGIN = "http://localhost:3000";
 const SIGNIN_URL = `${APP_ORIGIN}/apps/flow/auth/signin`;
 const CALLBACK_URI = `${APP_ORIGIN}/apps/flow/auth/callback`;
 const RETURN_PATH = "/apps/flow/boomerang/activity";
