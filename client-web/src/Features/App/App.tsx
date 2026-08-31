@@ -287,8 +287,14 @@ export default function App() {
   const bootstrap = useRouteLoaderData<BootstrapData>("root");
   const revalidator = useRevalidator();
 
+  // Warn only when an actual browser is detected as unsupported. During SSR detect() reports
+  // type "node" (name "node"), and the old bare includes() check made THAT count as unsupported -
+  // so every authenticated route server-rendered UnsupportedBrowserPrompt (Error403, "deep
+  // water") instead of its content, masking the page behind a hydration mismatch. The trade-off
+  // moves to the rare case: a genuinely unsupported browser now mismatches on hydration (server
+  // renders content, client swaps in the warning) instead of the supported ones mismatching.
   const [shouldShowBrowserWarning, setShouldShowBrowserWarning] = useState(
-    !supportedBrowsers.includes(browser?.name ?? ""),
+    browser?.type === "browser" && !supportedBrowsers.includes(browser.name),
   );
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [showActivatePlatform, setShowActivatePlatform] = React.useState(bootstrap?.status === "activationRequired");
