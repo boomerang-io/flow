@@ -60,11 +60,11 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <p>Can use Authorization header or access_token URL Parameter
+   * <p>Authenticate with an Authorization header Bearer token. The access_token URL parameter was
+   * removed (2026-09-01) - senders that cannot set headers must front this endpoint with something
+   * that can.
    *
-   * <h4>Sample</h4>
-   *
-   * <code>/webhook?ref={workflow}&access_token={access_token}</code>
+   * <code>/webhook?ref={workflow}</code>
    */
   @PostMapping(value = "/webhook", consumes = "application/json; charset=utf-8")
   @AuthCriteria(
@@ -130,8 +130,7 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&access_token={access_token}
-   * </code>
+   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}</code>
    */
   @PostMapping(value = "/callback", consumes = "application/json; charset=utf-8")
   @AuthCriteria(
@@ -167,8 +166,7 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&access_token={access_token}
-   * </code>
+   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}</code>
    */
   @GetMapping(value = "/callback")
   @AuthCriteria(

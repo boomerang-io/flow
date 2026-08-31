@@ -37,22 +37,17 @@ const BuildWebhookModalContent: React.FC<BuildWebhookModalContentProps> = ({ wor
               className={styles.codeSnippet}
             >
               POST{"  "}
-              {`${resourceUrl}/webhook?workflow=${workflowRef}
-                &access_token=`}
+              {`${resourceUrl}/webhook?workflow=${workflowRef}`}
             </CodeSnippet>
           </>
           <h2 className={styles.sectionHeader}>Authentication</h2>
-          <p className={styles.sectionDetail}>There are two main ways to add authentication:</p>
-          <ul>
-            <li>Authorization header</li>
-            <li>
-              Adding{" "}
-              <CodeSnippet type="inline" hideCopyButton className={styles.codeSnippetInline}>
-                &access_token=
-              </CodeSnippet>{" "}
-              to the URL. The actual token is only shown at creation time.
-            </li>
-          </ul>
+          <p className={styles.sectionDetail}>
+            Authenticate with an{" "}
+            <CodeSnippet type="inline" hideCopyButton className={styles.codeSnippetInline}>
+              Authorization: Bearer TOKEN
+            </CodeSnippet>{" "}
+            header. The actual token is only shown at creation time.
+          </p>
           <h2 className={styles.sectionHeader}>Payload</h2>
           <p className={styles.sectionDetail}>
             The payload submitted to the Webhook will be available as a 'data' parameter which, if JSON, you can use the

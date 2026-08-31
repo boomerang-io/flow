@@ -47,7 +47,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
   private static final String X_FORWARDED_USER = "x-forwarded-user";
   private static final String X_FORWARDED_EMAIL = "x-forwarded-email";
-  private static final String TOKEN_URL_PARAM_NAME = "access_token";
   private static final String AUTHORIZATION_HEADER = "Authorization";
   //  private static final String X_SLACK_SIGNATURE = "X-Slack-Signature";
   //  private static final String X_SLACK_TIMESTAMP = "X-Slack-Request-Timestamp";
@@ -81,8 +80,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
   /*
    * Filter to ensure the user is authenticated
-   *
-   * //DEPRECATED: X_ACCESS_TOKEN in favor of AUTHORIZATION_HEADER
    */
   @Override
   protected void doFilterInternal(
@@ -92,17 +89,15 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     try {
       Authentication authentication = null;
 
-      // Rely on Authorization header and Bearer tokens
-      // Fall back on token in URL param (some integrations can only set a URL and not the
-      // headers
+      // Rely on Authorization header and Bearer tokens. The access_token URL-param fallback was
+      // removed (ruled 2026-09-01): tokens in URLs land in access logs and browser history, and
+      // no v4 client compatibility is required.
       if (req.getHeader(AUTHORIZATION_HEADER) != null) {
         if (req.getHeader(AUTHORIZATION_HEADER).matches(TOKEN_PATTERN)) {
           authentication = getTokenAuthentication(req.getHeader(AUTHORIZATION_HEADER));
         } else {
           authentication = getUserSessionAuthentication(req);
         }
-      } else if (req.getParameter(TOKEN_URL_PARAM_NAME) != null) {
-        authentication = getTokenAuthentication(req.getParameter(TOKEN_URL_PARAM_NAME));
       } else if (req.getHeader(X_FORWARDED_EMAIL) != null) {
         authentication = getGithubUserAuthentication(req);
       } else if (getSessionCookieValue(req) != null) {
@@ -256,10 +251,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   }
 
   /*
-   * Validate and hoist Token Based Auth
-   *
-   * Handles the token coming from AUTHORIZATION_HEADER or TOKEN_URL_PARAM_NAME in
-   * that order
+   * Validate and hoist Token Based Auth from the AUTHORIZATION_HEADER
    */
   private Authentication getTokenAuthentication(String accessToken) {
     if (accessToken.startsWith("Bearer ")) {

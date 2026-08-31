@@ -35,11 +35,11 @@ export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
       <ModalBody>
         <h2 className={styles.sectionHeader}>Sending Events</h2>
         <p>
-          Forward events from external systems with the following URL. Add a token to the URL using{" "}
+          Forward events from external systems with the following URL. Authenticate with an{" "}
           <CodeSnippet type="inline" hideCopyButton className={styles.codeSnippetInline}>
-            &access_token=
-          </CodeSnippet>
-          . Actual tokens are only shown at token creation time.
+            Authorization: Bearer TOKEN
+          </CodeSnippet>{" "}
+          header. Actual tokens are only shown at token creation time.
         </p>
         <CodeSnippet
           type="single"
@@ -49,7 +49,7 @@ export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
           className={styles.codeSnippet}
         >
           POST{"  "}
-          {`${resourceUrl}/event?workflow=${workflowRef}&access_token=TOKEN`}
+          {`${resourceUrl}/event?workflow=${workflowRef}`}
         </CodeSnippet>
         <h2 className={styles.sectionHeader}>Example Payload</h2>
         <p>
