@@ -11,14 +11,14 @@ This repository holds the whole product — services, migrations, and the web ap
 | [`service-dispatcher`](./service-dispatcher) | Pluggable execution worker. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default) or `kube-jobs`. Additional runtimes can be added. |
 | [`service-loader`](./service-loader) | Flamingock migrations and bootstrap seeding, run as a pre-deploy Job. |
 | [`lib-common`](./lib-common) | Shared domain model, entities, enums, error handling. |
-| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. Its own image; served only in `standalone` mode. |
+| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; served only in `standalone` mode. |
 | [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
 
 ```mermaid
 graph LR
-    U[Browser] -->|HTTP| W[client-web]
-    W -->|/api/v2| C[service-core]
-    U -->|/api/v2| C
+    U[Browser] -->|"HTTP (documents, /res/*, .data — never /api)"| W[client-web]
+    W -->|/api/v2 server-side| C[service-core]
+    I[Integrations / API clients] -->|/api/v2| C
     D1[dispatcher 1] -->|/api/v1/dispatcher| C
     D2[dispatcher n] -->|/api/v1/dispatcher| C
     D1 --> K[Kubernetes / Tekton]
@@ -46,8 +46,11 @@ calls a dispatcher.
 `docker-compose.yml` brings up MongoDB, the one-shot `service-loader` migration/seed job (gated so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and a local
 IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single browser-facing
-origin — it serves the app and forwards `/api/*` to `service-core` (`client-web/server/index.js`), so
-there is no separate gateway.
+origin — and the only thing the browser talks to (BFF end state): it serves documents, `/res/*`
+resource routes and `.data` requests, and every service-core call happens server-side via
+`CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts`). There is no `/api`
+forward and no separate gateway; `/api` remains service-core's own surface for integrations and
+the dispatcher.
 
 `service-dispatcher` is deliberately **not** in the stack — it drives Tekton on a real Kubernetes cluster.
 
@@ -62,7 +65,7 @@ docker compose up --build
 | Surface | URL |
 |---|---|
 | `client-web` — the single browser-facing origin (use this for manual testing and E2E) | http://localhost:3000 |
-| `service-core` direct (no CORS — browser calls go through the origin above) | http://localhost:7700 |
+| `service-core` direct — the `/api` surface for integrations, the dispatcher, and test setup (the webapp never uses it from the browser) | http://localhost:7700 |
 
 The stack runs secured (`FLOW_SECURITY_ENABLED=true`) with the real sign-in flow against the local
 IDPZero user picker; the first user to sign in on a fresh database becomes the founding admin.

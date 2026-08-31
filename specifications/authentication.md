@@ -33,8 +33,13 @@ of a fresh install.
 session token from that point on. Proxy deployments and local IDPZero differ only in who asserts
 identity, not in how the app behaves afterwards.
 
-- **Proxy case:** the SPA POSTs an empty body to the exchange. `AuthenticationFilter` has already
+- **Proxy case:** an empty-body POST to the exchange. `AuthenticationFilter` has already
   resolved a principal from the forwarded headers, so the controller mints the session directly.
+  *(BFF update, 2026-09-01: the browser no longer makes this POST itself. SignedOut submits a
+  fetcher to the `/auth/signin` route action, whose server side relays the inbound
+  `authorization`/`x-forwarded-user`/`x-forwarded-email` identity headers onto the exchange call
+  and relays the response's Set-Cookie verbatim onto its own response —
+  `Features/Auth/session.server.ts`. Same wire contract, different first hop.)*
 - **Direct OIDC case (ruled 2026-08-31, superseding the browser-side design below):** the PKCE
   dance runs **server-side in route actions/loaders** on the SSR server, via **remix-auth v4 +
   remix-auth-oauth2 v3** (Arctic underneath). Sign-in is a plain `<Form method="post">` to
@@ -70,6 +75,10 @@ persists permissions on `TokenEntity` rather than embedding them.
 
 **Logout must revoke.** ARCHIE's logout clears the cookie but never deletes the token, so it stays
 valid server-side until its natural expiry. Flow already has `TokenService.delete` — use it.
+*(BFF update, 2026-09-01: the logout POST also runs server-side — the `/auth/logout` route action
+calls `POST /api/v2/auth/logout` via serverFetch and relays the revoking/clearing Set-Cookie
+verbatim; it also reads `GET /auth/config` server-side for the proxy `signOutUrl` hard-navigation.
+The browser talks only to the SSR server for the whole session lifecycle.)*
 
 ## Mode selection — ruled: explicit config flag, revisit later
 

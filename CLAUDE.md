@@ -241,7 +241,7 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
 | Events              | CloudEvents inbound; outbound via the **transactional outbox** (`events_outbox` + `OutboxDispatcher`), sink off by default. In-process = Spring `ApplicationEvent`. |
 | Distributed lock    | **None — `alturkovic/distributed-lock` is deleted** (E4-F). Contended transitions use status-CAS `findAndModify`; `acquirelock`/`releaselock` tasks use the `task_locks` collection. |
 | Execution runtime   | Tekton on Kubernetes (default dispatcher); local Docker dispatcher planned (Phase 4)            |
-| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). See `specifications/design-system.md`. **File naming (measured convention, 2026-08-31)**: components = PascalCase `.tsx`; non-component modules = camelCase `.ts` (`serverFetch.ts`, `authClient.ts`); `.server.ts` marks server-only code (React Router's own suffix); route modules in `app/routes/` = camelCase; specs mirror their subject (`X.spec.tsx`, `X.action.node.spec.ts`); `index.tsx` barrels only. The case IS the signal — do not "normalise" it. |
+| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). **BFF end state (2026-09-01)**: the browser talks only to the SSR server — documents, `/res/*` resource routes (`Config/resourceRoutes.ts`), `.data` requests — never `/api/*`; all service-core calls are server-side (`Config/serverFetch.ts`), and **react-query is removed** (the `@tanstack/react-query` v5 client remains solely for the design-system UIShell). See `specifications/design-system.md`. **File naming (measured convention, 2026-08-31)**: components = PascalCase `.tsx`; non-component modules = camelCase `.ts` (`serverFetch.ts`, `authClient.ts`); `.server.ts` marks server-only code (React Router's own suffix); route modules in `app/routes/` = camelCase; specs mirror their subject (`X.spec.tsx`, `X.action.node.spec.ts`); `index.tsx` barrels only. The case IS the signal — do not "normalise" it. |
 
 ## Running Locally
 
@@ -249,9 +249,12 @@ A `docker-compose.yml` at the repo root brings up the full product: Mongo, the o
 `service-loader` migration/seed Job (gated with `service_completed_successfully` so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
 a local IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single
-browser-facing origin — it serves the app and forwards `/api/*` to service-core
-(`client-web/server/index.js`, target `CORE_SERVICE_PROXY_TARGET`), because service-core has
-no CORS support; there is no separate gateway. `service-dispatcher` is intentionally not part
+browser-facing origin — and the ONLY thing the browser talks to (BFF end state, 2026-09-01):
+documents, `/res/*` resource routes and `.data` requests, never `/api/*`. Every service-core
+call happens server-side via `CORE_SERVICE_INTERNAL_ORIGIN` (`Config/serverFetch.ts`); the SSR
+server's old `/api` forward is deleted, and `/api` remains service-core's own surface for
+integrations and the dispatcher (service-core still has no CORS support — nothing browser-side
+needs it). There is no separate gateway. `service-dispatcher` is intentionally not part
 of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
 comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
 API — build locally instead:
