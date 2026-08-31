@@ -26,8 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.method.HandlerMethod;
 
 /*
- * Verifies shadow enforcement: a permission mismatch is counted but never blocks the
- * request, while a scope mismatch still denies with a 401.
+ * Verifies enforcement: a permission mismatch is counted and denies with a 403, and a
+ * scope mismatch denies with a 401.
  */
 @ExtendWith(MockitoExtension.class)
 class SecurityInterceptorTests {
@@ -58,20 +58,22 @@ class SecurityInterceptorTests {
   }
 
   @Test
-  void testPermissionMismatchAllowsAndCountsWouldDeny() throws Exception {
+  void testPermissionMismatchDeniesAndCountsDenied() throws Exception {
     Token token = new Token(AuthScope.global);
     token.setPrincipal("test-user");
     token.setPermissions(
         List.of(
             new ResolvedPermissions(PermissionScope.global, "test-user", List.of("workflow/write"))));
     when(identityService.getCurrentIdentity()).thenReturn(token);
+    when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
 
-    assertTrue(interceptor.preHandle(request, response, handlerMethod));
+    assertFalse(interceptor.preHandle(request, response, handlerMethod));
+    verify(response).setStatus(403);
     assertEquals(
         1,
         meterRegistry
             .counter(
-                "flow.security.would.deny",
+                "flow.security.denied",
                 "resource",
                 "workflow",
                 "action",

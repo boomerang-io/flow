@@ -20,6 +20,8 @@ import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
@@ -170,9 +172,36 @@ class RelationshipServiceTest {
     edgeRepository.save(new RelationshipEdgeEntity(from, label, to, Optional.of(data)));
   }
 
+  // u1 is seeded MEMBER_OF t1 with role "owner"; u2 is seeded MEMBER_OF t2 with role "editor"
+  // (see setUp()). Real workspace-role permission shape per TokenService.resolvePermissionsForUser
+  // + seed/roles.json: "owner" -> ["**/**"], "editor" -> ["**/read","**/write","**/action"].
+  private static final Map<String, String> USER_WORKSPACE = Map.of("u1", "t1", "u2", "t2");
+
+  /**
+   * Grants a full-access ("**&#47;**") workspace-scoped permission regardless of the seeded role,
+   * i.e. both u1 (owner) and u2 (editor) get an owner-shaped grant here.
+   *
+   * <p>This is deliberately NOT what a real editor-role session token carries. It is a Rule-3
+   * finding (see the task report): {@code RelationshipService.checkPermissions()}
+   * (RelationshipService.java:425-437) only bypasses on a literal {@code "**&#47;**"} or {@code
+   * "<type>/**"} action string, or on an exact match between the grant's {@code principal} (a
+   * workspace id) and the checked {@code toList}. A real "editor"/"reader" role grant
+   * (["**&#47;read","**&#47;write","**&#47;action"], principal=workspaceId) satisfies NEITHER
+   * condition for any {@code RelationshipType} other than WORKSPACE-checking-itself, so under now
+   * -enforced {@code check()}, a real editor/reader is denied for WORKFLOW/WORKFLOWRUN/TASK/etc.
+   * checks - e.g. every {@code relationshipService.check(RelationshipType.WORKFLOW, ...)} call in
+   * {@code ActionService}/{@code WebhookEventService} and every WORKFLOWRUN check in {@code
+   * WorkflowRunService}. This suite exists to test the relationship WALK (containment/type-scoping),
+   * which is orthogonal to that gap, so it uses a full-access grant to isolate it - not to claim
+   * editor/reader tokens work today.
+   */
   private void asUser(String ref) {
     Token token = new Token(AuthScope.session);
     token.setPrincipal(ref);
+    token.setPermissions(
+        List.of(
+            new ResolvedPermissions(
+                PermissionScope.workspace, USER_WORKSPACE.get(ref), List.of("**/**"))));
     when(identityService.getCurrentIdentity()).thenReturn(token);
   }
 
@@ -372,9 +401,14 @@ class RelationshipServiceTest {
     edge("workspace:t1", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r1", Map.of());
     edge("workspace:t2", RelationshipLabel.HAS_WORKFLOWRUN, "workflowrun:r2", Map.of());
 
-    // A REAL global token, as minted for an admin/service caller with security ENABLED.
+    // A REAL global token, as minted for an admin/service caller with security ENABLED - per
+    // TokenService.resolvePermissionsForUser, an admin/operator UserType always resolves to the
+    // "global"/"admin" (or "operator") role's seeded permissions, i.e. a "**/**" grant
+    // (seed/roles.json). A grantless global token is a condition production never produces.
     Token globalToken = new Token(AuthScope.global);
     globalToken.setPrincipal("admin-1");
+    globalToken.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
     when(identityService.getCurrentIdentity()).thenReturn(globalToken);
 
     // r2 belongs to workspace t2. Asking "is r2 contained in t1?" must be false, but check()

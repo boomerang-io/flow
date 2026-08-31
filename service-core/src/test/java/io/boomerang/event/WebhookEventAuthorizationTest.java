@@ -19,12 +19,15 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.WorkflowRunService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -121,8 +124,16 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
         workspaceRef,
         Optional.empty());
 
+    // Owner-shaped grant ("**/**"), the only workspace-role shape (seed/roles.json) that
+    // satisfies RelationshipService.checkPermissions()'s coarse resource-type gate for a
+    // non-WORKSPACE RelationshipType (here WORKFLOW) - see the Rule-3 finding in the task
+    // report: a real "editor"/"reader" grant (["**/read","**/write","**/action"]) is now denied
+    // by that gate for every non-WORKSPACE check(), including WebhookEventService's.
     Token principal = new Token(AuthScope.session);
     principal.setPrincipal(userRef);
+    principal.setPermissions(
+        List.of(
+            new ResolvedPermissions(PermissionScope.workspace, workspaceRef, List.of("**/**"))));
     Authentication authentication = new UsernamePasswordAuthenticationToken(userRef, null);
     ((UsernamePasswordAuthenticationToken) authentication).setDetails(principal);
     SecurityContextHolder.getContext().setAuthentication(authentication);

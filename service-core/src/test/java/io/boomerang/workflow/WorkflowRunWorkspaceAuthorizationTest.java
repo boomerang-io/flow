@@ -11,7 +11,10 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,8 +66,16 @@ class WorkflowRunWorkspaceAuthorizationTest extends AbstractEngineIntegrationTes
     myRunId = ownedRun(MY_WORKSPACE, "wfrun-authz-mine");
     foreignRunId = ownedRun(FOREIGN_WORKSPACE, "wfrun-authz-theirs");
 
+    // Owner-shaped grant ("**/**"), the only workspace-role shape (seed/roles.json) that
+    // satisfies RelationshipService.checkPermissions()'s coarse resource-type gate for a
+    // non-WORKSPACE RelationshipType (here WORKFLOWRUN) - see the Rule-3 finding in the task
+    // report: a real "editor"/"reader" grant (["**/read","**/write","**/action"]) is now denied
+    // by that gate for every non-WORKSPACE check(), including this one.
     Token principal = new Token(AuthScope.session);
     principal.setPrincipal(MEMBER);
+    principal.setPermissions(
+        List.of(
+            new ResolvedPermissions(PermissionScope.workspace, MY_WORKSPACE, List.of("**/**"))));
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(MEMBER, null);
     authentication.setDetails(principal);

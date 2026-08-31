@@ -10,6 +10,8 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Task;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.List;
@@ -92,6 +94,11 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
   private void seedGlobalIdentity() {
     Token admin = new Token(AuthScope.global);
     admin.setPrincipal("task-uniqueness-test-principal");
+    // Enforcement is real: a global caller in production always carries a resolved grant set
+    // (TokenService.resolvePermissionsForUser's admin/operator branch, or
+    // UnauthenticatedGlobalToken's **/**) - mirrors AbstractEngineIntegrationTest.
+    admin.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
     Authentication authentication = new UsernamePasswordAuthenticationToken(admin.getPrincipal(), null);
     ((UsernamePasswordAuthenticationToken) authentication).setDetails(admin);
     SecurityContextHolder.getContext().setAuthentication(authentication);
