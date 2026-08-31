@@ -369,18 +369,17 @@ public class RelationshipService {
     Token identity = identityService.getCurrentIdentity();
     String principal = identity.getPrincipal();
     if (!checkPermissions(identity.getPermissions(), type, toList)) {
-      // Shadow enforcement: the failed permission check is recorded but not enforced -
-      // access remains relationship-based. Flip to `return false` here when permission
-      // enforcement becomes authoritative.
+      // Enforced (ruled 2026-08-31): a failed permission check IS a denial. The shadow
+      // would-deny path was retired with the v4-compat requirement.
       LOGGER.warn(
-          "RelationshipService - would deny principal: {}, token type: {}, resource: {}:{}",
+          "RelationshipService - denied principal: {}, token type: {}, resource: {}:{}",
           principal,
           identity.getType(),
           type.getLabel(),
           toList);
       meterRegistry
           .counter(
-              "flow.security.would.deny",
+              "flow.security.denied",
               "resource",
               type.getLabel(),
               "action",
@@ -390,6 +389,7 @@ public class RelationshipService {
               "layer",
               "relationship")
           .increment();
+      return false;
     }
     switch (identity.getType()) {
       case session:
@@ -424,13 +424,17 @@ public class RelationshipService {
 
   private static boolean checkPermissions(
       List<ResolvedPermissions> permissions, RelationshipType type, List<String> toList) {
-    List<String> flattenedPermissionActions =
+    // check() carries no per-request action - action granularity is SecurityInterceptor's job at
+    // the endpoint. The relationship-layer question is only "does any grant cover this resource
+    // type at all", so an editor's **/read or **/write passes here exactly like an owner's **/**.
+    // The pre-enforcement literal-string comparison ("**/**" or "<type>/**" only) silently
+    // denied every editor/reader-shaped grant once check() became load-bearing.
+    String resourceCoveredRegex = "(\\*{2}|" + type.getLabel() + ")\\/.+";
+    boolean resourceCovered =
         permissions.stream()
             .flatMap(permission -> permission.getActions().stream())
-            .collect(Collectors.toList());
-    // Full access or full access for object
-    if (flattenedPermissionActions.contains("**/**")
-        || flattenedPermissionActions.contains(type.getLabel() + "/**")) {
+            .anyMatch(action -> action.matches(resourceCoveredRegex));
+    if (resourceCovered) {
       return true;
     }
     // Check all specific resources are valid
