@@ -240,7 +240,7 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
 | Events              | CloudEvents inbound; outbound via the **transactional outbox** (`events_outbox` + `OutboxDispatcher`), sink off by default. In-process = Spring `ApplicationEvent`. |
 | Distributed lock    | **None — `alturkovic/distributed-lock` is deleted** (E4-F). Contended transitions use status-CAS `findAndModify`; `acquirelock`/`releaselock` tasks use the `task_locks` collection. |
 | Execution runtime   | Tekton on Kubernetes (default dispatcher); local Docker dispatcher planned (Phase 4)            |
-| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). See `specifications/design-system.md`. |
+| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). See `specifications/design-system.md`. **File naming (measured convention, 2026-08-31)**: components = PascalCase `.tsx`; non-component modules = camelCase `.ts` (`serverFetch.ts`, `authClient.ts`); `.server.ts` marks server-only code (React Router's own suffix); route modules in `app/routes/` = camelCase; specs mirror their subject (`X.spec.tsx`, `X.action.node.spec.ts`); `index.tsx` barrels only. The case IS the signal — do not "normalise" it. |
 
 ## Running Locally
 
