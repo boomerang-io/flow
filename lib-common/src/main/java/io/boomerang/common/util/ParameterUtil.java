@@ -74,6 +74,20 @@ public class ParameterUtil {
    * character outside [A-Za-z0-9_] replaced by '_'. Two names folding identically collide as env
    * vars and, under case-insensitive matching, as references.
    */
+  /*
+   * The canonical param-name rule, matching the webapp's PROPERTY_KEY_REGEX: letters, digits,
+   * dash, underscore, starting with a letter or underscore. '.' is deliberately excluded - it is
+   * the reference path separator in $(params.x) expressions, so a dotted name could never be
+   * referenced unambiguously.
+   */
+  public static final String PARAM_NAME_REGEX = "^[a-zA-Z_][a-zA-Z0-9_-]*$";
+
+  public static boolean isValidParamName(String name) {
+    // "names" (any casing/separator variant) is reserved: it folds to PARAM_NAMES, the env var
+    // that carries the param-name manifest itself, and would clobber it.
+    return name != null && name.matches(PARAM_NAME_REGEX) && !"NAMES".equals(envFold(name));
+  }
+
   public static String envFold(String name) {
     // Locale.ROOT: the fold must match task-core's JavaScript toUpperCase() on every JVM locale
     // (Turkish dotted-I would otherwise fold "id" to PARAM__D instead of PARAM_ID).

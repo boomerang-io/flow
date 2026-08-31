@@ -11,7 +11,7 @@ This is a **Java 25 / Spring Boot 4 monorepo** (plus one pnpm/Vite frontend). Cu
 | Module           | Role                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------- |
 | `service-core`   | The merged deployable: v2 REST API, auth/authz, workspaces, workflows, AND the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Eight flat feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}` — the ninth, `api`, was dissolved (F3, 2026-08-25): every `*ControllerV2` now sits in the package owning the service it injects. |
-| `service-agent`  | Pluggable execution worker (→ `dispatcher` per DD-06). Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default, `TektonServiceImpl`) or `kube-jobs` (`KubeJobsExecutor`, plain `batch/v1` Jobs, no Tekton). |
+| `service-dispatcher` (renamed from `service-dispatcher` 2026-08-26, completing DD-06) | Pluggable execution worker. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `dispatcher.executor`: `tekton` (default, `TektonServiceImpl`) or `kube-jobs` (`KubeJobsExecutor`, plain `batch/v1` Jobs, no Tekton). |
 | `service-loader`  | Flamingock migrations + bootstrap seeding, run as a pre-deploy Job (DD-07).              |
 | `lib-common`     | Shared domain model, entities, enums, error handling. (Being dissolved per Q-202.)       |
 | `client-web`     | The React 18 + React Router 7 (framework mode, SSR) + Carbon v11 webapp (DD-04), folded in from `flow.client.web` with full history at the v4 line. Its own image; served only in `standalone` mode. |
@@ -69,7 +69,7 @@ embedded-engine contract, 14 ruled judgement calls, migration plan — is
 | **Phase 1** | DAG semantics inventory + ARCHIE lessons + relationship review (vs CHEER).                          | ✅ **COMPLETE** — all questions answered/ruled incl. Q-117 (reconciler: materialise-all + supersede generations + placeholder-expand fan-out; reference+retention for definitions), Q-124 (timeout audit — invariant violated 4/6 classes), Q-127 (idempotency audit — the ranked Phase 3 gating list). Lessons Verdicts table filled. |
 | **Phase 2** | Consolidation analysis (2A) + scaling/locking/queueing (2B).                                        | ✅ **BOTH COMPLETE.** 2A decided (DD-02, proposal approved). 2B ruled 2026-07-23: queue design (`queue-design.md` — 4 classes, page-then-CAS, lease≠timeout, typed failureClass), multi-instance model (`multi-instance-model.md` — CAS-only/no-@Version, outbox, no broker, no partitioning, no leader), gap register + Phase 3 backlog (`gap-register.md`). Deferred to implementation: schedule-firing substrate (JobRunr vs due-work) and outbox transactions — defaults documented. |
 | **Phase 3** | Core engine implementation (claims, sweep, pause, level-triggered advance, typed queues), then the merge itself. | ✅ **COMPLETE (2026-08-21)**. E0–E11 shipped: claims/CAS + `claim.seq` fencing, ten `WorkflowWatcher` sweeps, pause as a single admission gate, transactional outbox, lock-free (alturkovic deleted), tombstone delete, JobRunr retired, relationship direct-query walk, dispatcher protocol v2, DD-02 merge into `service-core`. **Two designed items ruled out of scope rather than built**: supersede generations + a distinct reconciler component (see `reconciler-analysis.md` implementation-status section), and `transitionSeq` for the outbox creation-loss window (see `entity-diff-v4-v5.md` §7). Both follow "do not build ahead of proven need". |
-| **Phase 4** | Task runtime evolution: AgentRuntime SPI; local Docker runtime (separate agent process for now); Tekton behind the SPI. | 🔵 **STARTED (2026-08-21, `feat-v5-track8`)**: `TaskExecutor` SPI + `KubeJobsExecutor` (batch/v1 Jobs, no Tekton) + Tekton behind the SPI; agent bugfix slice (per-run PVC `"workfowRun"` typo, `(String)` param cast, `TaskWatcher` fall-through, fail-loud PVC/ConfigMap lookup, `PARAM_<NAME>` env vars). Param contract RULED + SHIPPED (2026-08-25, `runtime-contract.md` C2 + `task-contract-research.md`): engine-side `$(params.x)` substitution into spec fields at admission, `PARAM_<NAME>` + `PARAM_NAMES` env, `/params` ConfigMap and `PARAMS` JSON both removed, engine-enforced payload caps (`flow.engine.task.params.max-bytes`=16384 at admission via `tryInvalidate`, `flow.engine.task.results.max-bytes`=4096 at end). Isolation RULED 2026-08-25: one `agent.tasks.runtimeClassName` per agent deployment, NO per-task tier field (`task-contract-research.md` §6). Sensitive params: no new field — `type=password` + `DataAdapterUtil` is the marker; sensitive-upward/plain-downward trust model; the gap is that run payloads are NOT redacted (`filterRunParamValueByFieldType` has zero callers — §7). Sensitive-upward filtering CLOSED 2026-08-25 for run payloads AND the log stream (`WorkflowRunService.filterSensitiveValues` on the scoped v2 reads; `FilterValuesOutputStream` in `WorkflowRunService.streamTaskRunLog`). Declared-params validation + case-insensitive param matching RULED+SHIPPED 2026-08-26 (`task-contract-research.md` §8: insensitive resolution/merge with declared casing winning, `PARAM_NAME_COLLISION` rejection of case/separator-variant names at workflow AND task-template save). **Open**: ACA-sandbox dispatcher candidacy (maintainer 2026-08-26: likely ahead of the local Docker runtime, which is DEFERRED — both need the execution-shape manifest flag designed first, `task-contract-research.md` §4); pass-by-reference blob staging;  `@boomerang-io/task-core` env PR open (boomerang-io/tasks#13). |
+| **Phase 4** | Task runtime evolution: AgentRuntime SPI; local Docker runtime (separate agent process for now); Tekton behind the SPI. | 🔵 **STARTED (2026-08-21, `feat-v5-track8`)**: `TaskExecutor` SPI + `KubeJobsExecutor` (batch/v1 Jobs, no Tekton) + Tekton behind the SPI; agent bugfix slice (per-run PVC `"workfowRun"` typo, `(String)` param cast, `TaskWatcher` fall-through, fail-loud PVC/ConfigMap lookup, `PARAM_<NAME>` env vars). Param contract RULED + SHIPPED (2026-08-25, `runtime-contract.md` C2 + `task-contract-research.md`): engine-side `$(params.x)` substitution into spec fields at admission, `PARAM_<NAME>` + `PARAM_NAMES` env, `/params` ConfigMap and `PARAMS` JSON both removed, engine-enforced payload caps (`flow.engine.task.params.max-bytes`=16384 at admission via `tryInvalidate`, `flow.engine.task.results.max-bytes`=4096 at end). Isolation RULED 2026-08-25: one `agent.tasks.runtimeClassName` per agent deployment, NO per-task tier field (`task-contract-research.md` §6). Sensitive params: no new field — `type=password` + `DataAdapterUtil` is the marker; sensitive-upward/plain-downward trust model; the gap is that run payloads are NOT redacted (`filterRunParamValueByFieldType` has zero callers — §7). Sensitive-upward filtering CLOSED 2026-08-25 for run payloads AND the log stream (`WorkflowRunService.filterSensitiveValues` on the scoped v2 reads; `FilterValuesOutputStream` in `WorkflowRunService.streamTaskRunLog`). Declared-params validation + case-insensitive param matching RULED+SHIPPED 2026-08-26 (`task-contract-research.md` §8: insensitive resolution/merge with declared casing winning, `PARAM_NAME_COLLISION` rejection of case/separator-variant names at workflow AND task-template save). **Open**: ACA-sandbox dispatcher DEFERRED (maintainer 2026-08-27, until the artefact/contract work settles; still ahead of the also-deferred local Docker runtime); pass-by-reference artefact store DEFERRED with its design recorded in boomerang-io/flow#319 (pick up on the trigger conditions there);  `@boomerang-io/task-core` env PR open (boomerang-io/tasks#13). |
 
 ## v5 Execution-Model Direction (verified against ARCHIE/CHEER shipped code)
 
@@ -183,7 +183,8 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
   `bfd` prefix) shipped with T6-1.
-- **`flow.security.enabled=false` — NPEs FIXED, the product decision is still open.**
+- ~~`flow.security.enabled=false` blank-page / identity gap~~ **RESOLVED (2026-08-26)**: the ruled virtual admin identity (`UnauthenticatedGlobalToken.virtualUser()`, never persisted — `specifications/authentication.md` "Security-off identity") closes it; the e2e suite runs fully green against the compose stack. Historical detail follows.
+- **`flow.security.enabled=false` — NPEs FIXED, the product decision WAS open (ruled 2026-08-26, see above).**
   `IdentityService.getCurrentPrincipal()`/`getCurrentScope()` and
   `UserService.getCurrentUser()`/`isCurrentUserAdmin()` are now null-safe: they return `null` for
   the no-principal case rather than NPE-ing, mirroring `RelationshipService.check()`'s existing
@@ -248,7 +249,7 @@ A `docker-compose.yml` at the repo root brings up the full product: Mongo, the o
 `service-loader` migration/seed Job (gated with `service_completed_successfully` so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
 an `nginx` gateway that puts client-web and service-core behind one origin (service-core has
-no CORS support — see `docker/gateway/nginx.conf`). `service-agent` is intentionally not part
+no CORS support — see `docker/gateway/nginx.conf`). `service-dispatcher` is intentionally not part
 of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
 comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
 API — build locally instead:
@@ -295,7 +296,7 @@ the webapp's own mocked API (miragejs), was never wired into CI, and is not a su
 ## Error Response Format
 
 All API errors use `io.boomerang.common.error.RestErrorResponse` (lib-common). Note
-`io.boomerang.error.model.ErrorDetail` still exists in `service-agent` only — it is not the API shape:
+`io.boomerang.error.model.ErrorDetail` still exists in `service-dispatcher` only — it is not the API shape:
 
 ```json
 { "timestamp": "...", "code": 1001, "reason": "QUERY_INVALID_FILTERS",
@@ -306,16 +307,17 @@ Known codes: `io.boomerang.error.BoomerangError`; messages in `messages.properti
 
 ## Releasing
 
-Container images build when a tag matching **`<svc>@<semver>`** is pushed (the CI truth —
-`.github/workflows/ci-*.yml` trigger on `flow@**`, `engine@**`, `agent@**`):
+One product tag builds the whole compatible image set (DD-03 / AM-9). Tags are plain semver on
+the 5.x line — `5.x.y`, `5.x.y-beta.z`, `5.x.y-rc.z` (`.github/workflows/ci-release.yml` +
+`sbom.yml` triggers):
 
 ```
-flow@4.0.1
-engine@1.0.0-beta.111
+5.0.0
+5.0.0-beta.1
+5.0.0-rc.1
 ```
 
-Use the `/release` skill. DD-03 (unified product version) replaces this scheme when the
-merge ships. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
+Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
 
 ## Specifications Index
 

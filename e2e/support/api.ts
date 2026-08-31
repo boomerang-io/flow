@@ -16,6 +16,16 @@ export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10_000)}`;
 }
 
+// The webapp's SSR server always mounts the app under this basename (client-web's
+// react-router.config.ts: `basename: "/apps/flow"`, baked into the server build at build time -
+// it does not follow docker-compose.yml's APP_ROOT env var, which only feeds
+// window._SERVER_DATA for the browser bundle's own API/asset base URLs, not the router's
+// server-side match). The gateway (docker/gateway/nginx.conf) proxies "/" straight through with
+// no rewrite, so every UI page.goto() in this suite must include this prefix or the SSR handler
+// 404s. The REST API is unaffected - nginx proxies /api/ directly to service-core - so the
+// request calls below stay unprefixed.
+export const APP_BASENAME = "/apps/flow";
+
 export type Workspace = { name: string; displayName: string };
 export type Workflow = { id: string; name: string; displayName: string };
 export type WorkflowRun = { id: string; status: string; phase?: string };

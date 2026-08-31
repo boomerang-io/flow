@@ -1,5 +1,8 @@
 package io.boomerang.core.security;
 
+import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.enums.UserStatus;
+import io.boomerang.core.enums.UserType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
@@ -65,5 +68,23 @@ public class UnauthenticatedGlobalToken extends Token {
     this.setActorKind(TokenActorKind.SERVICE);
     this.setPermissions(
         List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
+  }
+
+  /**
+   * The user profile matching this token: synthetic, admin-typed, and - like the token itself -
+   * NEVER persisted. The token already holds global scope (every authorization check passes), so
+   * an admin-typed profile adds no privilege; it only makes the profile/context surface tell the
+   * UI the truth about the power the caller already has. Never seeded or written to Mongo: a
+   * stored user could be surfaced in member lists of secured instances and, worse, activated by
+   * an IDP email match. Ruled 2026-08-26 - see specifications/authentication.md.
+   */
+  public static UserEntity virtualUser() {
+    UserEntity user = new UserEntity();
+    user.setId(PRINCIPAL);
+    user.setName(PRINCIPAL);
+    user.setDisplayName("System");
+    user.setType(UserType.admin);
+    user.setStatus(UserStatus.active);
+    return user;
   }
 }

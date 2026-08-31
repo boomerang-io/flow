@@ -101,6 +101,7 @@ class LoaderMigrationTest {
     workflowRunWithAgentRef = insertWorkflowRunWithAgentRef("agent-1", EARLIER);
 
     seedV4ResidualCollections();
+    seedLegacyWorkerFlowRevision();
     seedOrphanedFieldResidue();
     seedLegacyTeamQuotaSettings();
     seedLegacyFeatureFlagSettings();
@@ -112,6 +113,17 @@ class LoaderMigrationTest {
    * users.flowTeamRefs}, {@code approver_groups.workspaceRef}) that no v5 entity declares, plus the
    * v4 engine's {@code event_queue} collection whose entity was deleted.
    */
+  private static void seedLegacyWorkerFlowRevision() {
+    collection("task_revisions")
+        .insertOne(
+            new Document("displayName", "Legacy Pin")
+                .append(
+                    "spec",
+                    new Document("image", "boomerangio/worker-flow:2.5.26")
+                        .append("command", List.of("boomerangio/worker-flow:2.5.26"))
+                        .append("arguments", List.of("mail", "sendEmail"))));
+  }
+
   private static void seedOrphanedFieldResidue() {
     collection("workflows")
         .updateOne(Filters.eq("name", "wf"), Updates.combine(Updates.set("scope", "team"), Updates.set("ownerRef", "t1")));
@@ -193,6 +205,32 @@ class LoaderMigrationTest {
    * {@code collection(String)} helper's {@code PREFIX + "_" + name} joining), plus the genuinely
    * unprefixed {@code locks} collection {@code alturkovic/distributed-lock} wrote verbatim.
    */
+  /**
+   * _0039: no task revision or default.image setting may still reference the retired
+   * worker-flow lineage after migration - the repoint covers seeded rows and this pre-seeded
+   * legacy pin alike, and clears the corrupt image-in-command shape.
+   */
+  private void assertWorkerFlowImagesRepointed() {
+    assertThat(
+            collection("task_revisions")
+                .countDocuments(new Document("spec.image", new Document("$regex", "worker-flow"))))
+        .isZero();
+    assertThat(
+            collection("task_revisions")
+                .countDocuments(new Document("spec.command", new Document("$regex", "worker-flow"))))
+        .isZero();
+    assertThat(
+            collection("settings")
+                .countDocuments(
+                    new Document(
+                        "config",
+                        new Document(
+                            "$elemMatch",
+                            new Document("key", "default.image")
+                                .append("value", new Document("$regex", "worker-flow"))))))
+        .isZero();
+  }
+
   private static void seedV4ResidualCollections() {
     db.getCollection(PREFIX + "jr_jobs").insertOne(new Document("state", "SUCCEEDED"));
     db.getCollection(PREFIX + "jr_recurring-jobs").insertOne(new Document("id", "timeout-sweep"));
@@ -235,6 +273,7 @@ class LoaderMigrationTest {
     assertSweepIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
+    assertWorkerFlowImagesRepointed();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -427,7 +466,9 @@ class LoaderMigrationTest {
 
   private void assertTaskCatalogueSeeded() {
     assertThat(collection("tasks").countDocuments()).isEqualTo(87);
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(130);
+    // 130 seeded + the pre-seeded legacy worker-flow pin from seedLegacyWorkerFlowRevision()
+    // (repointed in place by _0039, not removed).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(131);
 
     Document sleep = collection("tasks").find(Filters.eq("name", "sleep")).first();
     assertThat(sleep).isNotNull();

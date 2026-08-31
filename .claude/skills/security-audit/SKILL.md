@@ -53,7 +53,7 @@ Grep: @RestController        (confirm the class is a live controller)
 ```
 
 Cover **all three services**: `service-flow` (`core/`, `workflow/`, `integrations/`),
-`service-engine` (`engine/`), `service-agent` (`agent/`). Watch for endpoint methods declared in
+`service-engine` (`engine/`), `service-dispatcher` (`agent/`). Watch for endpoint methods declared in
 **abstract base classes** or shared controllers that a `@RestController`-keyed sweep would miss —
 grep every `*Controller*.java` for `Mapping` annotations, including non-annotated bases, and
 attribute their endpoints to each concrete subclass.
@@ -171,7 +171,7 @@ Date: <date>   |   Mode audited: full | engine | standalone
 
 ## Checklist
 
-- [ ] Every `*Controller*.java` across service-flow, service-engine, service-agent examined
+- [ ] Every `*Controller*.java` across service-flow, service-engine, service-dispatcher examined
 - [ ] Abstract/shared controller bases included
 - [ ] Every endpoint method checked for `@AuthCriteria`; missing ones classified CRITICAL vs intended-permitAll
 - [ ] `resource`/`action`/`assignableScopes` validated against the enums and the endpoint's real effect

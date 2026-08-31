@@ -13,7 +13,7 @@ import type { ShouldRevalidateFunctionArgs } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
 import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
-import { APP_ROOT, FeatureFlag } from "Config/appConfig";
+import { APP_ROOT, CORE_ENV_URL, FeatureFlag } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl, resolver } from "Config/servicesConfig";
 import {
@@ -217,6 +217,43 @@ export function ProtectedRoute({ allowed, children }: { allowed: boolean; childr
   return <>{children}</>;
 }
 
+// ContextService.getHeaderNavigation() (service-core) returns null by design whenever
+// UserService.getCurrentUser() can't resolve a real user record for the current principal - the
+// documented case being the UnauthenticatedGlobalToken installed when flow.security.enabled=false
+// (see UserService.getCurrentUser()'s Javadoc: "callers that can gracefully render 'no current
+// user' (ContextService.getHeaderNavigation) already null-check"). That 200-with-null response
+// makes contextResult.ok true but contextResult.data null, so it does NOT set errorLoading - this
+// is a legitimate degrade, not a failure. This default lets Navbar/UIShell (both of which require
+// a real ContextConfig - contextData.platform is destructured unconditionally) render the shell
+// instead of App() falling through to `return null` and leaving every route permanently blank.
+const DEFAULT_CONTEXT: ContextConfig = {
+  features: {
+    "consent.enabled": false,
+    "docs.enabled": false,
+    "metering.enabled": false,
+    "notifications.enabled": false,
+    "support.enabled": false,
+    "welcome.enabled": false,
+  },
+  navigation: [],
+  platform: {
+    baseEnvUrl: CORE_ENV_URL,
+    baseServicesUrl: CORE_ENV_URL,
+    displayLogo: false,
+    name: "Boomerang Flow",
+    platformName: "Boomerang",
+    privateWorkspaces: false,
+    sendMail: false,
+    signOutUrl: "",
+    version: "",
+  },
+  platformMessage: {
+    kind: "",
+    message: "",
+    title: "",
+  },
+};
+
 export default function App() {
   const bootstrap = useRouteLoaderData<BootstrapData>("root");
   const revalidator = useRevalidator();
@@ -272,15 +309,20 @@ export default function App() {
     return <ErrorDragon style={{ margin: "5rem 0" }} />;
   }
 
-  // Context Data needed for the app to render
-  if (bootstrap.user && bootstrap.context && bootstrap.features) {
+  // User and features are guaranteed truthy here: errorLoading (handled above) is already true
+  // whenever `!user` or `!featuresResult.ok`. Context is NOT included in that guarantee - a
+  // successful-but-null getHeaderNavigation() response (see DEFAULT_CONTEXT above) leaves
+  // errorLoading false with bootstrap.context still null, so it falls back to the default here
+  // rather than gating the whole app render.
+  if (bootstrap.user && bootstrap.features) {
     const feature = bootstrap.features.features;
+    const contextData = bootstrap.context ?? DEFAULT_CONTEXT;
     return (
       <FlagsProvider features={buildFeatureFlags(feature)}>
         <Navbar
           flowNavigationData={bootstrap.navigation}
           handleOnTutorialClick={() => setIsTutorialActive(true)}
-          contextData={bootstrap.context}
+          contextData={contextData}
           userData={bootstrap.user}
         />
         {
@@ -289,7 +331,7 @@ export default function App() {
         <ErrorBoundary>
           <Main
             isTutorialActive={isTutorialActive}
-            contextData={bootstrap.context}
+            contextData={contextData}
             setIsTutorialActive={setIsTutorialActive}
             setShouldShowBrowserWarning={setShouldShowBrowserWarning}
             shouldShowBrowserWarning={shouldShowBrowserWarning}

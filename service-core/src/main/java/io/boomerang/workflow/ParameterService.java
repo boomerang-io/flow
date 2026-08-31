@@ -1,6 +1,7 @@
 package io.boomerang.workflow;
 
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.error.BoomerangError;
@@ -78,6 +79,9 @@ public class ParameterService {
 
   public AbstractParam create(AbstractParam request) {
     if (!Objects.isNull(request) && request.getName() != null) {
+      if (!ParameterUtil.isValidParamName(request.getName())) {
+        throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, request.getName());
+      }
 
       // Ensure Name is unique
       if (paramRepository.countByName(request.getName()) > 0) {

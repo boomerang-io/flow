@@ -81,16 +81,17 @@ public class WorkflowExecutionService {
         return;
       }
     }
+    // The run IS the record of this outcome: it is persisted as invalid/completed and the
+    // submit response carries that status truthfully. Throwing here as well turned a
+    // half-persisted result into a 500 for the caller. Starting an invalid run still fails
+    // loudly - start() rejects any phase other than pending/queued.
     updateStatusAndSaveWorkflow(
         wfRunEntity,
         RunStatus.invalid,
         RunPhase.completed,
         Optional.of("Failed to run workflow: incomplete, or invalid, workflow"));
-    throw new BoomerangException(
-        1000,
-        "WORKFLOW_RUNTIME_EXCEPTION",
-        "[{0}] Failed to run workflow: incomplete, or invalid, workflow",
-        HttpStatus.INTERNAL_SERVER_ERROR,
+    LOGGER.error(
+        "[{}] Failed to run workflow: incomplete, or invalid, workflow. Run marked invalid.",
         wfRunEntity.getId());
   }
 
