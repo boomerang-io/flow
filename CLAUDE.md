@@ -148,11 +148,13 @@ the two un-struck entries: the `SecurityInterceptor` soft-fail flip, and the sec
 decision.** Two accepted limitations sit outside this list: the outbox creation-loss window
 (`entity-diff-v4-v5.md` §7) and worker leases (AM-3) — both deliberately deferred, not hazards.
 
-- `SecurityInterceptor` **soft-fails permission checks** (logs and returns `true`) — only
-  token-scope mismatch is enforced. Enforcement flips via shadow-logging → token backfill →
-  flag → default-on at the major. The riskiest flip in v5. **Shadow telemetry is LIVE
-  (E1/E6, 2026-07-23)**: `flow.security.would.deny` counts both the interceptor layer and
-  the relationship layer (`layer=relationship` tag) — watch these before the A2 flip.
+- ~~`SecurityInterceptor` soft-fails permission checks~~ **ENFORCED (2026-08-31, ruled — no
+  v4 compatibility requirement, so the staged shadow rollout was retired)**: permission
+  mismatch is a real 403 and `RelationshipService.check()` returns false on failed
+  permission checks; the metric is `flow.security.denied` (`flow.security.would.deny` is
+  gone). `checkPermissions()` now matches resource coverage by regex so editor/reader
+  grants (`**/read` etc.) pass the relationship layer — action granularity stays with
+  `SecurityInterceptor` at the endpoint.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
 - **`check()` ignores the workspace path segment for `global`-scope tokens — NOT an authz hole**
@@ -368,8 +370,8 @@ If you have no other instruction, the open work is, in order:
    loaders for reads and react-query for writes. Then merge T8 into `feat-v5`.
 2. **Phase 4** — task runtime evolution: AgentRuntime/dispatcher SPI, local Docker runtime,
    Tekton behind the SPI. Nothing blocks it.
-3. **The `SecurityInterceptor` enforcement flip** (shadow telemetry has been live since
-   2026-07-23 — read `flow.security.would.deny` before flipping). The riskiest change in v5.
+3. ~~The `SecurityInterceptor` enforcement flip~~ **DONE (2026-08-31, feat-v5-track10)** —
+   permission checks enforce for real; `flow.security.denied` replaces the shadow metric.
 4. **DD-03 unified product versioning** — the last unshipped v5 DD.
 
 **Do not re-open** the two accepted limitations unless the trigger conditions in their specs are
@@ -422,11 +424,10 @@ naive sweep breaks them); and two open frontend defects — schedule labels cann
 (`ScheduleCreator`/`ScheduleEditor`, the submit-side block is commented out and would not work if
 uncommented) and `WorkflowAdvancedDetail` rendering `boomerang.io/workflow-ref=undefined`.
 
-**Two decisions are queued for the maintainer**, neither blocking: the `SecurityInterceptor`
-enforcement flip (shadow telemetry live since 2026-07-23 — read `flow.security.would.deny` first),
-and whether `flow.security.enabled=false` should present an anonymous identity (the NPEs are fixed;
-the product decision is still propose→confirm in `specifications/authentication.md`). Separately,
-`PATCH`/`DELETE /user/{userId}` are gated only on global `user/write`/`user/delete` with **no
-self-scoping** — a backend authz gap relevant to the E1 flip.
+The `SecurityInterceptor` enforcement flip is **DONE (2026-08-31, feat-v5-track10)** and the
+security-off identity is **RULED** (synthetic virtual admin, never persisted — see
+`specifications/authentication.md`). Still open: `PATCH`/`DELETE /user/{userId}` are gated only
+on global `user/write`/`user/delete` with **no self-scoping** — a backend authz gap now live
+under real enforcement.
 
 Item-level detail + dispositions: `specifications/e4-review-findings.md`.
