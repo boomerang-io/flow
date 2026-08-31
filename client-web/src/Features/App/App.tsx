@@ -14,6 +14,7 @@ import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
 import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
 import SignedOut from "Features/Auth/SignedOut";
+import type { AuthConfig } from "Features/Auth/authClient";
 import { APP_ROOT, CORE_ENV_URL, FeatureFlag } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl, resolver } from "Config/servicesConfig";
@@ -36,6 +37,7 @@ const AppActivation = lazy(() => import("./AppActivation"));
 
 const getUserUrl = serviceUrl.getUserProfile();
 const getContextUrl = serviceUrl.getContext();
+const getAuthConfigUrl = serviceUrl.getAuthConfig();
 const featureFlagsUrl = serviceUrl.getFeatureFlags();
 const workflowTemplatesUrl = serviceUrl.template.getWorkflowTemplates();
 const browser = detect();
@@ -64,6 +66,13 @@ export type BootstrapData = {
   features: FlowFeatures | null;
   navigation: Array<FlowNavigationItem>;
   workflowTemplates: Array<WorkflowTemplate>;
+  // GET /auth/config, fetched server-side in the same pass (unauthenticated by design). On a
+  // 401 bootstrap it tells SignedOut which sign-in surface to render - server-side, so the
+  // real mode is in the SSR HTML; on an authenticated bootstrap the Navbar reads it to decide
+  // the Sign Out affordance. `null` means the config could not be loaded, which consumers must
+  // treat as "change nothing" (Navbar) or a readable retry surface (SignedOut) - it deliberately
+  // does NOT set errorLoading: a broken config endpoint must never take the whole app down.
+  authConfig: AuthConfig | null;
   // True when one or more of the resources above failed to load non-fatally - e.g.
   // CORE_SERVICE_INTERNAL_ORIGIN is unconfigured/unreachable (see Config/serverFetch.ts), the
   // common case today. Kept distinct from `status`, which only tracks the profile fetch itself.
@@ -78,6 +87,7 @@ function emptyBootstrap(status: BootstrapStatus): BootstrapData {
     features: null,
     navigation: [],
     workflowTemplates: [],
+    authConfig: null,
     errorLoading: false,
   };
 }
@@ -125,6 +135,15 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
    */
   const featuresPromise = settle(api.get<FlowFeatures>(featureFlagsUrl));
   const templatesPromise = settle(api.get<PaginatedResponse<WorkflowTemplate>>(workflowTemplatesUrl));
+  // Unconditional like the two above, and needed on BOTH outcomes of the profile fetch: a 401
+  // hands it to SignedOut (which sign-in surface to server-render), an authenticated bootstrap
+  // hands it to the Navbar (the Sign Out affordance). This replaced the browser-side
+  // GET /auth/config (the retired useAuthConfig hook) - the BFF direction, 2026-09-01.
+  const authConfigPromise = settle(api.get<AuthConfig>(getAuthConfigUrl));
+  const resolveAuthConfig = async () => {
+    const result = await authConfigPromise;
+    return result.ok ? result.data : null;
+  };
 
   let user: FlowUser | null = null;
   try {
@@ -132,10 +151,10 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
     user = response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 423) {
-      return emptyBootstrap("activationRequired");
+      return { ...emptyBootstrap("activationRequired"), authConfig: await resolveAuthConfig() };
     }
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return emptyBootstrap("unauthorized");
+      return { ...emptyBootstrap("unauthorized"), authConfig: await resolveAuthConfig() };
     }
     // Any other failure - including an unconfigured/unreachable CORE_SERVICE_INTERNAL_ORIGIN,
     // the common case today - degrades below (errorLoading) rather than failing the render.
@@ -167,7 +186,16 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
     Boolean(contextResult && !contextResult.ok) ||
     Boolean(navigationResult && !navigationResult.ok);
 
-  return { status: "ok", user, context, features, navigation, workflowTemplates, errorLoading };
+  return {
+    status: "ok",
+    user,
+    context,
+    features,
+    navigation,
+    workflowTemplates,
+    authConfig: await resolveAuthConfig(),
+    errorLoading,
+  };
 }
 
 // Re-run the whole bootstrap when the workspace segment of the path changes. The old navigation
@@ -297,10 +325,12 @@ export default function App() {
   // request isn't authenticated (an expired/absent session), not that a resource failed to
   // load. Previously this was silently swallowed into `undefined` user data, which fell through
   // every render branch to `return null` - a blank page with no signal why. SignedOut owns what
-  // happens next per GET /auth/config: nothing extra (none), one silent exchange (proxy), or a
-  // Sign in button starting the browser-side PKCE flow (oidc) - see Features/Auth.
+  // happens next per the authConfig this loader fetched in the same pass: nothing extra (none),
+  // one silent exchange via the /auth/signin action (proxy), or a Sign in button starting the
+  // server-side PKCE flow (oidc) - see Features/Auth. onReloadConfig re-runs this loader, which
+  // owns the config fetch now.
   if (bootstrap.status === "unauthorized") {
-    return <SignedOut onSignedIn={() => revalidator.revalidate()} />;
+    return <SignedOut config={bootstrap.authConfig} onReloadConfig={() => revalidator.revalidate()} />;
   }
 
   if (bootstrap.errorLoading) {

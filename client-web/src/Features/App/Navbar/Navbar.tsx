@@ -14,9 +14,9 @@ import {
 import { FlowData, ArrowsHorizontal, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Helmet } from "react-helmet";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useRouteLoaderData } from "react-router-dom";
 import * as navigationIcons from "Utils/navigationIcons";
-import { useAuthConfig } from "Features/Auth/authClient";
+import type { BootstrapData } from "Features/App/App";
 import { APP_ROOT } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
 import { FlowNavigationItem, FlowNavigationItemChild, FlowUser, ContextConfig } from "Types";
@@ -38,11 +38,12 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
   const appName = platform.appName || "Boomerang Flow";
   const platformName = platform.platformName;
   // The UIShell's built-in Sign Out profile-menu item renders whenever platform.signOutUrl is
-  // set. Under a session-based auth mode (oidc/proxy - GET /auth/config, fetched browser-side),
-  // point it at our /auth/logout route, which makes the POST a plain link cannot (revoke the
-  // session + clear the httpOnly cookie) and then hard-navigates to "/". In mode "none" - or
-  // until the config resolves - the context payload passes through untouched, exactly as before.
-  const authConfig = useAuthConfig();
+  // set. Under a session-based auth mode (oidc/proxy - authConfig, fetched server-side by the
+  // root loader alongside the bootstrap), point it at our /auth/logout route, which makes the
+  // POST a plain link cannot (revoke the session + clear the httpOnly cookie) and then
+  // hard-navigates onward. In mode "none" - or when the config could not be loaded (null, which
+  // means "change nothing") - the context payload passes through untouched, exactly as before.
+  const authConfig = useRouteLoaderData<BootstrapData>("root")?.authConfig ?? null;
   const sessionSignOut =
     authConfig && authConfig.mode !== "none" ? { signOutUrl: `${APP_ROOT}/auth/logout` } : undefined;
 

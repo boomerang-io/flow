@@ -2,107 +2,56 @@ import React from "react";
 import { Button, InlineLoading } from "@carbon/react";
 import { Login } from "@carbon/react/icons";
 import { Error403 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { Form } from "react-router-dom";
-import { attemptProxyExchange, fetchAuthConfig } from "./authClient";
+import { Form, useFetcher, useHref, useLocation } from "react-router-dom";
+import type { AuthConfig } from "./authClient";
 
 /*
  * The signed-out page App.tsx renders when the root bootstrap comes back 401. What it offers
- * depends on GET /auth/config, fetched browser-side on mount (this component SSR-renders the
- * bare 403 shell; the sign-in surface only ever appears after hydration): none - the plain 403
- * page; proxy - ONE silent empty-body POST to /auth/exchange (single-attempt guard = the loop
- * protection: a still-401 bootstrap re-render keeps this component mounted, so the ref holds);
- * oidc - a Sign in button submitting a document POST to the server-side sign-in action
- * (oidc.server.ts). Every failure lands on readable text with a retry - never a blank page and
- * never an automatic redirect (only the user's click navigates away).
+ * depends on GET /auth/config, which the ROOT LOADER fetched server-side in the same pass as the
+ * 401 and handed down as the `config` prop - no browser fetch, no resolving phase, and the real
+ * mode renders server-side (view-source on a 401 shows the actual sign-in surface): none - the
+ * plain 403 page; proxy - ONE silent fetcher submission to the /auth/signin action
+ * (intent=proxy-exchange, session.server.ts - the action forwards the proxy's identity headers
+ * and relays the session Set-Cookie; the single-attempt ref is the loop protection, and it holds
+ * because a still-401 bootstrap revalidation keeps this component mounted); oidc - a Sign in
+ * button submitting a document POST to the server-side sign-in action (oidc.server.ts). Every
+ * failure lands on readable text - never a blank page and never an automatic redirect (only the
+ * user's click navigates away).
  */
 
 interface SignedOutProps {
-  // Re-runs the root bootstrap (App.tsx passes the root revalidator) after a successful silent
-  // proxy exchange - the new session cookie makes the same loader calls succeed this time.
-  onSignedIn: () => void;
+  // GET /auth/config as resolved by the root loader; null when it could not be loaded.
+  config: AuthConfig | null;
+  // Re-runs the root loader (which owns the config fetch) - the Retry affordance when it failed.
+  onReloadConfig: () => void;
 }
 
-type Phase =
-  | { name: "resolving" }
-  | { name: "none" }
-  | { name: "proxy-attempting" }
-  | { name: "signed-out" } // terminal: mode resolved, no silent path succeeded - show the page
-  | { name: "oidc" }
-  | { name: "config-error" };
-
-export default function SignedOut({ onSignedIn }: SignedOutProps) {
-  const [phase, setPhase] = React.useState<Phase>({ name: "resolving" });
-  // One proxy attempt per mount, ever - even across a config refetch.
+export default function SignedOut({ config, onReloadConfig }: SignedOutProps) {
+  const fetcher = useFetcher<{ ok: boolean }>();
+  // One proxy attempt per mount, ever - even across bootstrap revalidations.
   const proxyAttempted = React.useRef(false);
-  // Read through a ref so resolveConfig has a stable identity: onSignedIn is the root
-  // revalidator's revalidate, whose identity is not documented stable across renders, and a
-  // changing identity in the mount effect's deps would refetch the config on every re-render.
-  const onSignedInRef = React.useRef(onSignedIn);
-  onSignedInRef.current = onSignedIn;
+  // The return path derives from the router location (basename-aware via useHref, SSR-safe),
+  // not window.location, which does not exist during the server render.
+  const location = useLocation();
+  const returnPath = useHref({ pathname: location.pathname, search: location.search });
 
-  const resolveConfig = React.useCallback(() => {
-    let cancelled = false;
-    fetchAuthConfig()
-      .then((config) => {
-        if (cancelled) return;
-        if (config.mode === "oidc") {
-          setPhase({ name: "oidc" });
-        } else if (config.mode === "proxy") {
-          if (proxyAttempted.current) {
-            setPhase({ name: "signed-out" });
-            return;
-          }
-          proxyAttempted.current = true;
-          setPhase({ name: "proxy-attempting" });
-          attemptProxyExchange()
-            .then(() => {
-              if (cancelled) return;
-              // The cookie is set; ask the bootstrap to run again. Render the plain signed-out
-              // page meanwhile - on success this component unmounts before anyone reads it.
-              setPhase({ name: "signed-out" });
-              onSignedInRef.current();
-            })
-            .catch(() => {
-              if (!cancelled) setPhase({ name: "signed-out" });
-            });
-        } else {
-          setPhase({ name: "none" });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setPhase({ name: "config-error" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const mode = config?.mode ?? null;
 
-  React.useEffect(() => resolveConfig(), [resolveConfig]);
+  React.useEffect(() => {
+    if (mode === "proxy" && !proxyAttempted.current) {
+      proxyAttempted.current = true;
+      fetcher.submit({ intent: "proxy-exchange" }, { method: "post", action: "/auth/signin" });
+    }
+  }, [mode, fetcher]);
 
-  if (phase.name === "proxy-attempting") {
-    return (
-      <Error403
-        title="Signing you in"
-        message={<InlineLoading description="Completing sign-in with your identity provider..." />}
-      />
-    );
-  }
-
-  if (phase.name === "config-error") {
+  if (config === null) {
     return (
       <Error403
         title="You're not signed in"
         message={
           <>
             <p>The sign-in configuration could not be loaded.</p>
-            <Button
-              kind="tertiary"
-              size="md"
-              onClick={() => {
-                setPhase({ name: "resolving" });
-                resolveConfig();
-              }}
-            >
+            <Button kind="tertiary" size="md" onClick={onReloadConfig}>
               Retry
             </Button>
           </>
@@ -111,11 +60,10 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
     );
   }
 
-  if (phase.name === "oidc") {
+  if (mode === "oidc") {
     // A plain document POST (reloadDocument) to the sign-in action: the action's response is a
     // 302 to the identity provider carrying the transient flow cookies, which ordinary browser
-    // navigation handles exactly right. The oidc phase only renders after hydration (the config
-    // fetch runs in an effect), so window is available for the return path.
+    // navigation handles exactly right.
     return (
       <Error403
         title="You're not signed in"
@@ -123,11 +71,7 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
           <>
             <p>Your session has expired or you're not signed in. Sign in again to continue.</p>
             <Form method="post" action="/auth/signin" reloadDocument>
-              <input
-                type="hidden"
-                name="returnPath"
-                value={window.location.pathname + window.location.search}
-              />
+              <input type="hidden" name="returnPath" value={returnPath} />
               <Button type="submit" renderIcon={Login} size="md">
                 Sign in
               </Button>
@@ -138,7 +82,20 @@ export default function SignedOut({ onSignedIn }: SignedOutProps) {
     );
   }
 
-  // resolving / none / signed-out: exactly the page the app showed before this feature existed.
+  // The silent exchange either hasn't failed yet (about to submit, in flight, or succeeded - on
+  // success the relayed Set-Cookie is in the browser and the post-action revalidation re-runs
+  // the bootstrap, which unmounts this page) - keep the working shell up rather than flashing
+  // the terminal page. Only a failed attempt falls through.
+  if (mode === "proxy" && !(fetcher.data && !fetcher.data.ok)) {
+    return (
+      <Error403
+        title="Signing you in"
+        message={<InlineLoading description="Completing sign-in with your identity provider..." />}
+      />
+    );
+  }
+
+  // none, or a failed proxy attempt: exactly the page the app showed before this feature existed.
   return (
     <Error403
       title="You're not signed in"
