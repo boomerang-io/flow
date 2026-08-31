@@ -1,6 +1,5 @@
 import { Route } from "react-router-dom";
 import { waitFor } from "@testing-library/react";
-import { WorkspaceContainer } from "Features/App/App";
 import { appLink } from "Config/appConfig";
 import Actions, { loader } from "./Actions";
 
@@ -14,11 +13,7 @@ function renderActions(route: string = appLink.actions({ workspace: WORKSPACE })
     <Route
       path="/:workspace/actions/*"
       loader={loader}
-      element={
-        <WorkspaceContainer>
-          <Actions />
-        </WorkspaceContainer>
-      }
+      element={<Actions />}
     />,
     { route },
   );

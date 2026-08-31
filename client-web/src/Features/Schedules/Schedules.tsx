@@ -243,8 +243,8 @@ export default function Schedules() {
     return sortByProp(workflowsList, "name", "ASC");
   }
 
-  // The workspace object itself is a client-side concern - until WorkspaceContainer resolves it,
-  // there is nothing to render.
+  // The workspace object comes from the workspace layout route's context
+  // (app/routes/workspaceLayout.tsx) - until it resolves, there is nothing to render.
   if (!workspace) {
     return null;
   }

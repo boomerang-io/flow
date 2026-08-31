@@ -7,21 +7,19 @@ import { detect } from "detect-browser";
 import { FlagsProvider, useFeature } from "flagged";
 import { sortBy } from "lodash";
 import Joyride, { CallBackProps, TooltipRenderProps, STATUS } from "react-joyride";
-import { useQuery } from "react-query";
-import { Outlet, useParams, useRevalidator, useRouteLoaderData } from "react-router-dom";
+import { Outlet, useRevalidator, useRouteLoaderData } from "react-router-dom";
 import type { ShouldRevalidateFunctionArgs } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
-import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
+import { AppContextProvider, useAppContext } from "State/context";
 import SignedOut from "Features/Auth/SignedOut";
 import type { AuthConfig } from "Features/Auth/authClient";
 import { APP_ROOT, CORE_ENV_URL, FeatureFlag } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
 import {
   FlowFeatures,
   FlowNavigationItem,
-  FlowWorkspace,
   FlowUser,
   ContextConfig,
   PaginatedResponse,
@@ -477,42 +475,6 @@ const AppFeatures = React.memo(function AppFeatures() {
     </main>
   );
 });
-
-// SPEC-ONLY - no production route renders this anymore (BFF wave 2): the workspace-scoped
-// routes sit under app/routes/workspaceLayout.tsx, whose server loader resolves the
-// `:workspace` record and feeds the same WorkspaceContextProvider. This browser-side
-// react-query version survives solely because a handful of component specs
-// (Activity/Insights/Actions/Schedules/WorkspaceTasks/WorkspaceParameters .spec.tsx) mount it
-// against MSW to supply the context; the teardown slice deletes it with those specs' migration.
-// Do NOT reintroduce it into a route - it is a direct browser /api call, returns null while
-// loading (blank SSR) and null on error (permanently blank content area).
-export function WorkspaceContainer(props: { children: React.ReactNode }) {
-  const { workspace = "" } = useParams<{ workspace: string }>();
-  const getWorkspaceUrl = serviceUrl.resourceWorkspace({ workspace });
-
-  const workspaceQuery = useQuery<FlowWorkspace>({
-    queryKey: getWorkspaceUrl,
-    queryFn: resolver.query(getWorkspaceUrl),
-  });
-
-  if (workspaceQuery.isLoading || workspaceQuery.error) {
-    return null;
-  }
-
-  if (workspaceQuery.data) {
-    return (
-      <WorkspaceContextProvider
-        value={{
-          workspace: workspaceQuery.data,
-        }}
-      >
-        {props.children}
-      </WorkspaceContextProvider>
-    );
-  }
-
-  return null;
-}
 
 /**
  * TODO: MOVE THIS TO OWN COMPONENT

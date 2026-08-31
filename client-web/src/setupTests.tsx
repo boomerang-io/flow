@@ -205,8 +205,8 @@ const defaultContextValue = {
   userWorkflows: userWorkflowsFixture,
 };
 
-// Production always reaches workspace-scoped screens through WorkspaceContainer, which supplies
-// this once its workspace query resolves - specs render those components directly, so supply it here.
+// Production always reaches workspace-scoped screens under app/routes/workspaceLayout.tsx, whose
+// loader supplies this context - specs render those components directly, so supply it here.
 const defaultWorkspaceValue = { workspace: workspacesFixture.content[0] };
 
 const feature = featureFlagsFixture.features;

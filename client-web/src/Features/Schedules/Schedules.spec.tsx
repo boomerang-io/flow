@@ -7,29 +7,25 @@ import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
-import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
 import { scheduleAction } from "./scheduleRoute";
 import Schedules, { loader } from "./Schedules";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
 
-// Route-module test pattern - see GlobalParameters.spec.tsx/WorkspaceTasks.spec.tsx. Wraps
-// WorkspaceContainer the same way app/routes/schedules.tsx does, since Schedules reads the active
-// workspace off its context for the header/breadcrumb (unrelated to the loader migration).
+// Route-module test pattern - see GlobalParameters.spec.tsx/WorkspaceTasks.spec.tsx. Schedules
+// reads the active workspace off its context for the header/breadcrumb, so the harness's
+// WorkspaceContextProvider is overridden with the full workspace fixture this route's WORKSPACE
+// constant names - production supplies it from app/routes/workspaceLayout.tsx's loader.
 function renderSchedules(route: string = `/${WORKSPACE}/schedules`) {
   return global.rtlContextRouterRender(
     <Route
       path="/:workspace/schedules"
       loader={loader}
       action={scheduleAction}
-      element={
-        <WorkspaceContainer>
-          <Schedules />
-        </WorkspaceContainer>
-      }
+      element={<Schedules />}
     />,
-    { route },
+    { route, workspaceValue: { workspace: workspaceFixture } },
   );
 }
 
@@ -42,13 +38,6 @@ beforeAll(() => {
   if (typeof document.elementFromPoint !== "function") {
     document.elementFromPoint = () => null;
   }
-});
-
-// WorkspaceContainer resolves the active workspace via `resourceWorkspace`, a real lookup by name
-// (handlers.ts's `findWorkspace`) - seed the fixture the WORKSPACE constant names, same as
-// WorkspaceTasks.spec.tsx.
-beforeEach(() => {
-  db.workspaces.push(structuredClone(workspaceFixture));
 });
 
 describe("Schedules --- loader", () => {
