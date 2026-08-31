@@ -14,9 +14,11 @@ import TaskUpdateModal from "./TaskUpdateModal";
 const taskName = "execute-advanced-http-call";
 
 function findFixtureTask(): Task {
-  const task = db.tasks.find((t: Task) => t.name === taskName);
+  // db.ts seeds its collections as loosely-typed records off the fixtures; narrow through
+  // unknown for the component's prop type, the same shape the real /res/task loader serves.
+  const task = db.tasks.find((t: { name?: string }) => t.name === taskName);
   if (!task) throw new Error(`fixture task ${taskName} missing`);
-  return task;
+  return task as unknown as Task;
 }
 
 const node = {
