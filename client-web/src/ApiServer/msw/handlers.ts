@@ -526,6 +526,9 @@ export const handlers: HttpHandler[] = [
   http.get(resourceRoute.scheduleValidateCron({ workspace: ":workspace", cron: "" }).split("?")[0], () =>
     HttpResponse.json({ valid: true }),
   ),
+  // Mirrors app/routes/resUsers.tsx's contract ({ ok: true, users } | { ok: false }) around the
+  // same single-page envelope the getUsers /api handler above builds.
+  http.get(resourceRoute.users(), () => HttpResponse.json({ ok: true, users: paginatedResponse(db.users) })),
   http.get(resourceRoute.task({ name: ":name" }), ({ params }) => {
     const task = db.tasks.find((t) => t.name === params.name);
     return HttpResponse.json(task ? { ok: true, task } : { ok: false });

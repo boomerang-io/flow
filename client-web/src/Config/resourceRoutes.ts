@@ -24,6 +24,7 @@ export const resourceRoute = {
     `${APP_ROOT}/res/workspace/validate-name?name=${encodeURIComponent(name)}`,
   scheduleValidateCron: ({ workspace, cron }: { workspace: string; cron: string }) =>
     `${APP_ROOT}/res/workspace/${workspace}/schedule/validate-cron?cron=${encodeURIComponent(cron)}`,
+  users: ({ query }: { query?: string } = {}) => `${APP_ROOT}/res/users${query ? "?" + query : ""}`,
   task: ({ name, version }: { name: string; version?: string | number }) =>
     `${APP_ROOT}/res/task/${name}${version !== undefined && version !== null ? `?version=${version}` : ""}`,
   taskrunLog: ({ id }: { id: string }) => `${APP_ROOT}/res/taskrun/${id}/log`,

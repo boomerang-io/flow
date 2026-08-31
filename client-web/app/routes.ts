@@ -34,6 +34,7 @@ export default [
   route("/res/workspace/validate-name", "routes/resWorkspaceValidateName.tsx"),
   route("/res/workspace/:workspace/schedule/validate-cron", "routes/resScheduleValidateCron.tsx"),
   route("/res/task/:name", "routes/resTask.tsx"),
+  route("/res/users", "routes/resUsers.tsx"),
   route("/res/activate", "routes/resActivate.tsx"),
   route("/res/taskrun/:id/log", "routes/resTaskrunLog.tsx"),
   layout("../src/Features/App/index.tsx", [
