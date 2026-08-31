@@ -23,6 +23,18 @@ export default [
   route("/auth/signin", "routes/authSignin.tsx"),
   route("/auth/callback", "routes/authCallback.tsx"),
   route("/auth/logout", "routes/authLogout.tsx"),
+  // BFF resource routes (loader/action-only modules, no UI - see Config/resourceRoutes.ts):
+  // same-origin endpoints the browser calls where a route loader/action cannot fit (the Yup
+  // async name-availability probes, TaskUpdateModal's on-demand read, LazyLog's log stream,
+  // the pre-bootstrap activation submit); their server-side code calls service-core via
+  // Config/serverFetch. Outside the App layout on purpose: none of them wants the root
+  // bootstrap, and /res/activate must work while that bootstrap reports activationRequired.
+  // The static "/res" first segment outranks "/:workspace/*" under route ranking (a workspace
+  // slug literally named "res" is shadowed - same accepted class as "auth"/"admin" above).
+  route("/res/workspace/validate-name", "routes/resWorkspaceValidateName.tsx"),
+  route("/res/task/:name", "routes/resTask.tsx"),
+  route("/res/activate", "routes/resActivate.tsx"),
+  route("/res/taskrun/:id/log", "routes/resTaskrunLog.tsx"),
   layout("../src/Features/App/index.tsx", [
     route("/home", "routes/home.tsx"),
     route("/profile", "routes/profile.tsx"),

@@ -16,6 +16,7 @@
 // optional/list argument is irrelevant to matching; and the query is used directly in the
 // matched requests
 import { http, HttpResponse, type HttpHandler } from "msw";
+import { resourceRoute } from "Config/resourceRoutes";
 import { serviceUrl, BASE_URL } from "Config/servicesConfig";
 import * as fixtures from "ApiServer/fixtures";
 import { db } from "./db";
@@ -508,6 +509,33 @@ export const handlers: HttpHandler[] = [
    */
   http.get(serviceUrl.getIntegrations({ workspace: "" }), () => HttpResponse.json(fixtures.integrations)),
   http.get(serviceUrl.getGitHubAppInstallation({ id: "" }), () => HttpResponse.json(fixtures.installations)),
+
+  /**
+   * BFF resource routes (app/routes/res*.tsx - see Config/resourceRoutes.ts).
+   *
+   * These are NOT `/api` surface mocks: they mimic the app's own same-origin resource routes,
+   * whose loaders/actions never run inside a jsdom component spec (the components fetch these
+   * URLs directly, and only the SSR-loader-in-Node specs exercise the real loader modules).
+   * Patterns are built off the same `resourceRoute` builders the components call - the same
+   * drift-proofing rationale as `serviceUrl` above - with `:param` tokens where needed. Each
+   * handler reproduces its route module's documented JSON contract against the shared db,
+   * mirroring the equivalent `/api` handler's semantics (e.g. validate-name's
+   * collision-only rejection becomes `available: false` here).
+   */
+  http.get(resourceRoute.workspaceValidateName({ name: "" }).split("?")[0], ({ request }) => {
+    const name = new URL(request.url).searchParams.get("name");
+    const available = Boolean(name) && !db.workspaces.some((workspace) => workspace.name === name);
+    return HttpResponse.json({ available }, { status: name ? 200 : 400 });
+  }),
+  http.get(resourceRoute.task({ name: ":name" }), ({ params }) => {
+    const task = db.tasks.find((t) => t.name === params.name);
+    return HttpResponse.json(task ? { ok: true, task } : { ok: false });
+  }),
+  // No handler for resourceRoute.activateAction(): a fetcher.submit in a jsdom spec invokes the
+  // route's action function in-process (specs attach app/routes/resActivate.tsx's real action to
+  // the test router), so no HTTP request to /res/activate ever exists for MSW to match - the
+  // action's own serverFetch PUT hits the putActivationApp handler above instead.
+  http.get(resourceRoute.taskrunLog({ id: ":id" }), () => HttpResponse.text("line one\nline two\n")),
 ];
 
 // The shared fixtures for list endpoints (e.g. `fixtures.users`, `fixtures.workspaces`) are

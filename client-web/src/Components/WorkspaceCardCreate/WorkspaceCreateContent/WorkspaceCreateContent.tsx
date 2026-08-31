@@ -3,9 +3,8 @@ import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/reac
 import { ModalForm, TextInput, Loading } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
 import kebabcase from "lodash/kebabCase";
-import { useMutation } from "react-query";
 import * as Yup from "yup";
-import { resolver } from "Config/servicesConfig";
+import { checkWorkspaceNameAvailable } from "Config/resourceRoutes";
 import styles from "./WorkspaceCreateContent.module.scss";
 
 interface WorkspaceCreateContentProps {
@@ -16,14 +15,20 @@ interface WorkspaceCreateContentProps {
 }
 
 export default function WorkspaceCreateContent({ closeModal, createWorkspace, isLoading, isError }: WorkspaceCreateContentProps) {
-  const validateWorkspaceNameMutator = useMutation(resolver.postWorkspaceValidateName);
+  // The name-availability probe runs inside Yup's async `test` below, which needs an awaitable
+  // promise per change - a fetcher cannot provide one, so it is a same-origin fetch of the
+  // /res/workspace/validate-name resource route (Config/resourceRoutes.ts), the SSR server
+  // making the actual service-core call. A counter rather than a boolean because rapid changes
+  // overlap probes; the button reads "Validating..." until the last one settles.
+  const [pendingProbes, setPendingProbes] = React.useState(0);
+  const isValidating = pendingProbes > 0;
 
   let buttonText = "Create";
   if (isLoading) {
     buttonText = "Creating...";
   } else if (isError) {
     buttonText = "Try again";
-  } else if (validateWorkspaceNameMutator.isLoading) {
+  } else if (isValidating) {
     buttonText = "Validating...";
   }
 
@@ -38,17 +43,16 @@ export default function WorkspaceCreateContent({ closeModal, createWorkspace, is
           .required("Enter a workspace name")
           .max(100, "Enter workspace name that is at most 100 characters in length")
           .test("isUnique", "TAKEN", async (value) => {
-            let isValid = true;
-            if (value) {
-              try {
-                await validateWorkspaceNameMutator.mutateAsync({ body: { name: kebabcase(value.replace(`'`, "-")) } });
-              } catch (e) {
-                console.error(e);
-                isValid = false;
-              }
+            if (!value) {
+              return true;
             }
-            // Need to return promise for yup to do async validation
-            return Promise.resolve(isValid);
+            setPendingProbes((count) => count + 1);
+            try {
+              // Never rejects: unavailable/unreachable both read as `false` -> TAKEN.
+              return await checkWorkspaceNameAvailable(kebabcase(value.replace(`'`, "-")));
+            } finally {
+              setPendingProbes((count) => count - 1);
+            }
           }),
       })}
     >
@@ -101,7 +105,7 @@ export default function WorkspaceCreateContent({ closeModal, createWorkspace, is
                 Cancel
               </Button>
               <Button
-                disabled={!dirty || Boolean(errors.name) || isLoading || validateWorkspaceNameMutator.isLoading}
+                disabled={!dirty || Boolean(errors.name) || isLoading || isValidating}
                 onClick={() => handleSubmit()}
                 data-testid="save-workspace-name"
               >
