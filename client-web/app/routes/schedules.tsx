@@ -1,11 +1,10 @@
 import Schedules, { loader } from "Features/Schedules/Schedules";
 import { scheduleAction as action } from "Features/Schedules/scheduleRoute";
-import { WorkspaceContainer } from "Features/App/App";
 
 // See app/routes/globalParameters.tsx - ssr:true means this runs server-side now. No `Protected`
 // wrapper: there's no dedicated schedules permission in RoutePermissions (see
-// Features/App/AppRoutes.tsx) - this route was gated only by WorkspaceContainer before this
-// conversion too.
+// Features/App/AppRoutes.tsx). useWorkspaceContext() is supplied by the parent layout route
+// (routes/workspaceLayout.tsx), whose loader resolves the `:workspace` record server-side.
 //
 // The action is the shared scheduleAction (Features/Schedules/scheduleRoute.ts): every write on
 // this page - ScheduleCreator's create, ScheduleEditor's update, SchedulePanelList's
@@ -13,9 +12,5 @@ import { WorkspaceContainer } from "Features/App/App";
 export { loader, action };
 
 export default function SchedulesRoute() {
-  return (
-    <WorkspaceContainer>
-      <Schedules />
-    </WorkspaceContainer>
-  );
+  return <Schedules />;
 }

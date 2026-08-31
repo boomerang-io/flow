@@ -46,33 +46,41 @@ export default [
     route("/admin/workspaces", "routes/workspaceList.tsx"),
     route("/admin/users", "routes/userList.tsx"),
     route("/admin/users/:userId/*", "routes/userDetailed.tsx"),
-    route("/:workspace/activity/:runId", "routes/run.tsx"),
-    route("/:workspace/activity", "routes/activity.tsx"),
-    route("/:workspace/insights", "routes/insights.tsx"),
-    route("/:workspace/parameters", "routes/workspaceParameters.tsx"),
-    // The Manage Workspace tabs are real nested routes, not an inner <Routes> switch inside one
-    // "/*" splat route (which is what routes/manageWorkspace.tsx used to render): the parent is a
-    // layout route whose loader fetches the workspace record the header and every tab reads, and
-    // each tab below owns the loader/action for its own data. Same URLs as before -
-    // AppPath.ManageWorkspace* / appLink.manageWorkspace* are unchanged, and Members stays the
-    // index route at bare `/:workspace/manage`.
-    route("/:workspace/manage", "routes/manageWorkspace.tsx", [
-      index("routes/manageWorkspaceMembers.tsx"),
-      route("workflows", "routes/manageWorkspaceWorkflows.tsx"),
-      route("approver-groups", "routes/manageWorkspaceApproverGroups.tsx"),
-      route("quotas", "routes/manageWorkspaceQuotas.tsx"),
-      route("tokens", "routes/manageWorkspaceTokens.tsx"),
-      route("settings", "routes/manageWorkspaceSettings.tsx"),
+    // Every workspace-scoped route sits under one pathless layout route (BFF wave 2): its loader
+    // resolves the `:workspace` param to the workspace record server-side and its element renders
+    // the app-wide WorkspaceContextProvider - replacing the per-route <WorkspaceContainer> wrapper
+    // that fetched it browser-side with react-query and returned null while loading/on error.
+    // Being pathless, it doesn't affect route ranking; `:workspace` reaches its loader from the
+    // matched child's params.
+    layout("routes/workspaceLayout.tsx", [
+      route("/:workspace/activity/:runId", "routes/run.tsx"),
+      route("/:workspace/activity", "routes/activity.tsx"),
+      route("/:workspace/insights", "routes/insights.tsx"),
+      route("/:workspace/parameters", "routes/workspaceParameters.tsx"),
+      // The Manage Workspace tabs are real nested routes, not an inner <Routes> switch inside one
+      // "/*" splat route (which is what routes/manageWorkspace.tsx used to render): the parent is a
+      // layout route whose loader fetches the workspace record the header and every tab reads, and
+      // each tab below owns the loader/action for its own data. Same URLs as before -
+      // AppPath.ManageWorkspace* / appLink.manageWorkspace* are unchanged, and Members stays the
+      // index route at bare `/:workspace/manage`.
+      route("/:workspace/manage", "routes/manageWorkspace.tsx", [
+        index("routes/manageWorkspaceMembers.tsx"),
+        route("workflows", "routes/manageWorkspaceWorkflows.tsx"),
+        route("approver-groups", "routes/manageWorkspaceApproverGroups.tsx"),
+        route("quotas", "routes/manageWorkspaceQuotas.tsx"),
+        route("tokens", "routes/manageWorkspaceTokens.tsx"),
+        route("settings", "routes/manageWorkspaceSettings.tsx"),
+      ]),
+      route("/:workspace/actions/*", "routes/actions.tsx"),
+      route("/:workspace/editor/:workflow/*", "routes/editor.tsx"),
+      route("/:workspace/schedules", "routes/schedules.tsx"),
+      route("/:workspace/workflows", "routes/workflows.tsx"),
+      route("/:workspace/integrations", "routes/integrations.tsx"),
+      route("/:workspace/task-manager/*", "routes/manageTasks.tsx"),
+      // Any other single-segment path is treated as a workspace slug (matching the
+      // pre-migration behaviour); deeper unmatched sub-paths 404 inside that workspace.
+      route("/:workspace/*", "routes/workspaceCatchAll.tsx"),
     ]),
-    route("/:workspace/actions/*", "routes/actions.tsx"),
-    route("/:workspace/editor/:workflow/*", "routes/editor.tsx"),
-    route("/:workspace/schedules", "routes/schedules.tsx"),
-    route("/:workspace/workflows", "routes/workflows.tsx"),
-    route("/:workspace/integrations", "routes/integrations.tsx"),
-    route("/:workspace/task-manager/*", "routes/manageTasks.tsx"),
     route("/", "routes/rootRedirect.tsx"),
-    // Any other single-segment path is treated as a workspace slug (matching the
-    // pre-migration behaviour); deeper unmatched sub-paths 404 inside that workspace.
-    route("/:workspace/*", "routes/workspaceCatchAll.tsx"),
   ]),
 ] satisfies RouteConfig;

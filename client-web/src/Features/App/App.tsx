@@ -472,9 +472,14 @@ const AppFeatures = React.memo(function AppFeatures() {
   );
 });
 
-// Used both directly by App's own layout gating above and by route elements defined in
-// AppRoutes.tsx (imported from there) to resolve the active workspace from the `:workspace`
-// path param before rendering a workspace-scoped feature.
+// SPEC-ONLY - no production route renders this anymore (BFF wave 2): the workspace-scoped
+// routes sit under app/routes/workspaceLayout.tsx, whose server loader resolves the
+// `:workspace` record and feeds the same WorkspaceContextProvider. This browser-side
+// react-query version survives solely because a handful of component specs
+// (Activity/Insights/Actions/Schedules/WorkspaceTasks/WorkspaceParameters .spec.tsx) mount it
+// against MSW to supply the context; the teardown slice deletes it with those specs' migration.
+// Do NOT reintroduce it into a route - it is a direct browser /api call, returns null while
+// loading (blank SSR) and null on error (permanently blank content area).
 export function WorkspaceContainer(props: { children: React.ReactNode }) {
   const { workspace = "" } = useParams<{ workspace: string }>();
   const getWorkspaceUrl = serviceUrl.resourceWorkspace({ workspace });
