@@ -1,9 +1,11 @@
 # Authentication — unified token exchange (IDPZero + OAuth2-proxy)
 
-**Status: 🟢 BACKEND IMPLEMENTED (2026-08-27, `feat-v5-track10-auth`).** The design below was
-ruled 2026-08-18 and the backend half is now built — see the implementation-status section at the
-end for what exists, where, and what remains (the webapp sign-in flow is the open half). The
-ruling sections in this document are kept verbatim.
+**Status: 🟢 IMPLEMENTED END-TO-END (2026-08-31, `feat-v5-track10-auth`).** The design below was
+ruled 2026-08-18 and the backend half built 2026-08-27; the webapp sign-in flow shipped 2026-08-31
+under a superseding maintainer ruling — **server-side OIDC via remix-auth v4** rather than the
+browser-side PKCE originally ruled (see the Direction section for the ruling and the hybrid trust
+model). The ruling sections in this document are kept verbatim, with superseded text struck
+through in place.
 
 ## The problem
 
@@ -33,9 +35,28 @@ identity, not in how the app behaves afterwards.
 
 - **Proxy case:** the SPA POSTs an empty body to the exchange. `AuthenticationFilter` has already
   resolved a principal from the forwarded headers, so the controller mints the session directly.
-- **Local IDPZero case:** browser-side PKCE against IDPZero (**public client, no secret** — ARCHIE
-  uses a confidential client only because its SSR process can hold one), then POST `{idToken}`. The
-  backend verifies signature via JWKS plus issuer/audience/nonce/expiry.
+- **Direct OIDC case (ruled 2026-08-31, superseding the browser-side design below):** the PKCE
+  dance runs **server-side in route actions/loaders** on the SSR server, via **remix-auth v4 +
+  remix-auth-oauth2 v3** (Arctic underneath). Sign-in is a plain `<Form method="post">` to
+  `/auth/signin`, whose action builds the strategy per request from `GET /api/v2/auth/config`
+  (settings-backed — never frozen at module scope) plus standard OIDC discovery, and answers with
+  the authorize redirect (S256 + state + nonce). The `/auth/callback` loader completes the code
+  exchange as a public client and POSTs `{idToken, nonce}` to the exchange.
+  **The trust model is a hybrid**: Node is only the dance orchestrator — it holds nothing beyond
+  two seconds-lived httpOnly transient flow cookies (state+verifier, nonce+returnPath, both
+  expired on the callback response) — while **Java stays the verifier and session authority**
+  (JWKS signature, issuer, audience, expiry, exact-match nonce), and its `bfs_` Set-Cookie is
+  relayed **verbatim** onto the callback's redirect. Why: the id_token never reaches the browser
+  at all; no hand-maintained protocol code (discovery/S256/authorize-URL/token exchange all come
+  from the framework); and the mechanism is native to React Router 7's action/loader model. The
+  flow is **provider-agnostic by construction** — standard discovery, standard authorize/token
+  parameters, `openid profile email` — with IDPZero only the compose-stack test IdP (Azure AD is
+  the named production example).
+  - ~~**Local IDPZero case:** browser-side PKCE against IDPZero (**public client, no secret** —
+    ARCHIE uses a confidential client only because its SSR process can hold one), then POST
+    `{idToken}`. The backend verifies signature via JWKS plus issuer/audience/nonce/expiry.~~
+    *(Superseded 2026-08-31 — built first as ruled, then replaced by the server-side flow above;
+    the "public client, no secret" property and the backend verification are unchanged.)*
 
 **Verify the id_token properly.** ARCHIE base64-decodes it and trusts transport; CHEER does full
 JWKS verification. Flow's exchange endpoint is reachable directly by the browser — it has no
@@ -130,5 +151,7 @@ All in `service-core` unless noted; every endpoint below is standalone-mode only
 | `POST /api/v2/auth/logout` | Clears the cookie AND revokes via `TokenService.delete` | ✅ Built |
 | `GET /api/v2/auth/config` | Public pre-auth bootstrap: `{"mode": "oidc"\|"proxy"\|"none", "issuer"?, "clientId"?}`; mode derivation per the ruling note above; exempted like the GitHub callback (permitAll + `shouldNotFilter`); wire shape pinned by `AuthConfigSerialisationTest` | ✅ Built |
 | Per-request mint fix | 60s reuse window in `TokenService.createSessionToken` (see the note above) | ✅ Built |
-| Webapp sign-in flow | `client-web`: sign-in route, PKCE against IDPZero, 401 handling, calling the endpoints above | 🔴 The open half |
+| Webapp sign-in flow | `client-web`: **server-side** per the 2026-08-31 ruling — `Features/Auth/oidc.server.ts` (remix-auth v4 + remix-auth-oauth2 3.4.1) drives `/auth/signin` (action) and `/auth/callback` (loader); the nonce rides the strategy's documented `authorizationParams` extension point, so the backend's exact-match nonce check is kept as-is; SignedOut/proxy/logout surfaces unchanged. Wire pinned by `Auth.action.node.spec.ts`; proven end-to-end on the secured compose stack (e2e 5/5) | ✅ Built |
+| Azure-compat: claim fallback chain | `AuthExchangeService.exchangeOidc` follows ARCHIE's proven chain (asdr `auth/callback.tsx`: `email \|\| preferred_username`): `email` → `emailAddress` → `preferred_username` **only when email-shaped** (Flow keys users/activation on email; Azure often carries a UPN there). Names prefer the composite `name` claim (split on first space), falling back to `given_name`/`family_name` + legacy aliases | ✅ Built (2026-08-31) |
+| Azure-compat: signature algorithms | `OidcTokenVerifier` accepts the standard asymmetric family (RS/PS/ES × 256/384/512) instead of pinned RS256; HMAC/none rejected always (public JWKS ⇒ symmetric signatures are forgeable). Pinned by ES256-accepted + HS256-rejected tests | ✅ Built (2026-08-31) |
 | Installer-verification question | See Open decisions | 🔴 Open |
