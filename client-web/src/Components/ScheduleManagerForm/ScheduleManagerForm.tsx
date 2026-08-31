@@ -43,7 +43,14 @@ import {
 import styles from "./ScheduleManagerForm.module.scss";
 
 interface CreateEditFormProps {
-  handleSubmit: (args: ScheduleManagerFormInputs) => void;
+  // Called with the form values AND the modal's own closeModal. The parent
+  // (ScheduleCreator/ScheduleEditor) submits a useFetcher() and stashes closeModal in a ref,
+  // closing only from its fetcher-settle effect on success - the fetcher's result arrives by
+  // re-render, not as an awaitable promise, so the old `await handleSubmit(); closeModal()`
+  // contract cannot hold. Same shape as CreateWorkflow.tsx's handleImportWorkflow(workflow,
+  // closeModal). On failure the modal stays open and `isError` renders the inline notification,
+  // exactly as before.
+  handleSubmit: (args: ScheduleManagerFormInputs, closeModal: () => void) => void;
   includeWorkflowDropdown?: boolean;
   isError: boolean;
   isLoading: boolean;
@@ -160,14 +167,7 @@ export default function CreateEditForm(props: CreateEditFormProps) {
       validateOnMount
       initialValues={initFormValues}
       inputs={workflowParams ?? []}
-      onSubmit={async (args: ScheduleManagerFormInputs) => {
-        try {
-          await props.handleSubmit(args);
-          props.modalProps.closeModal();
-        } catch (e) {
-          //no-op
-        }
-      }}
+      onSubmit={(args: ScheduleManagerFormInputs) => props.handleSubmit(args, props.modalProps.closeModal)}
       validationSchemaExtension={Yup.object().shape({
         name: Yup.string().required("Name is required").max(200, "Enter less than 200 characters"),
         description: Yup.string().max(500, "Enter less than 500 characters"),
