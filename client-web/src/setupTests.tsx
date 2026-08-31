@@ -9,7 +9,6 @@ import {
   getConfig as getTestingLibraryConfig,
   render as rtlRender,
 } from "@testing-library/react";
-import { QueryClient, QueryClientProvider, setLogger } from "react-query";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { AppContextProvider, WorkspaceContextProvider } from "State/context";
 import {
@@ -147,19 +146,12 @@ function routerHistory(router) {
   };
 }
 
-setLogger({
-  log: () => {},
-  warn: () => {},
-  error: () => {},
-});
-
 declare global {
   namespace NodeJS {
     interface Global {
       rtlContextRouterRender: any;
       rtlRouterRender: any;
       rtlRender: any;
-      rtlQueryRender: any;
     }
   }
 
@@ -172,21 +164,6 @@ declare global {
   var rtlRouterRender: typeof rtlRouterRender;
   // eslint-disable-next-line no-var
   var rtlRender: typeof rtlRender;
-  // eslint-disable-next-line no-var
-  var rtlQueryRender: typeof rtlQueryRender;
-}
-
-function rtlQueryRender(ui, { queryConfig = {} } = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: 0 },
-      mutations: { throwOnError: true },
-      ...queryConfig,
-    },
-  });
-  return {
-    ...rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
-  };
 }
 
 function rtlRouterRender(ui, { route = "/", ...options } = {}) {
@@ -227,24 +204,15 @@ const defaultFeatures = {
 
 function rtlContextRouterRender(
   ui,
-  { contextValue = {}, workspaceValue = {}, initialState = {}, route = "/", queryConfig = {}, ...options } = {}
+  { contextValue = {}, workspaceValue = {}, initialState = {}, route = "/", ...options } = {}
 ) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: 0 },
-      mutations: { throwOnError: true },
-      ...queryConfig,
-    },
-  });
   const router = createMemoryRouter(buildRoutes(ui), { initialEntries: [route] });
   return {
     ...rtlRender(
       <FlagsProvider features={defaultFeatures}>
         <AppContextProvider value={{ ...defaultContextValue, ...contextValue }}>
           <WorkspaceContextProvider value={{ ...defaultWorkspaceValue, ...workspaceValue }}>
-            <QueryClientProvider client={queryClient}>
-              <RouterProvider router={router} />
-            </QueryClientProvider>
+            <RouterProvider router={router} />
           </WorkspaceContextProvider>
         </AppContextProvider>
       </FlagsProvider>,
@@ -298,7 +266,6 @@ console.warn = (message, ...rest) => {
 global.rtlRender = rtlRender;
 global.rtlRouterRender = rtlRouterRender;
 global.rtlContextRouterRender = rtlContextRouterRender;
-global.rtlQueryRender = rtlQueryRender;
 
 const localStorageMock = {
   getItem: vi.fn(),

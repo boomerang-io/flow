@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 import { Links, Meta, Outlet, ScrollRestoration, Scripts } from "react-router";
-import { QueryClient, QueryClientProvider } from "react-query";
-import { ReactQueryDevtools } from "react-query/devtools";
 import {
   QueryClient as TanstackQueryClient,
   QueryClientProvider as TanstackQueryClientProvider,
@@ -23,19 +21,9 @@ import { isDevEnv, isTestEnv } from "Config/appConfig";
 // any of them render.
 export { loader, shouldRevalidate } from "Features/App/App";
 
-// react-query v3 - all existing app data fetching (useQuery/useMutation call sites).
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: isDevEnv || isTestEnv ? 0 : 3,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
-// @tanstack/react-query v5 - required by the design-system wrapper's UIShell/Header.
-// The app's own data fetching stays on react-query v3 above; the two are separate
-// packages that coexist without conflict.
+// @tanstack/react-query v5 - required by the design-system wrapper's UIShell/Header ONLY.
+// The app's own data fetching runs entirely through route loaders/actions and the /res/*
+// resource routes (react-query v3 was removed with the last useQuery call site).
 const tanstackQueryClient = new TanstackQueryClient({
   defaultOptions: {
     queries: {
@@ -91,17 +79,14 @@ export function Layout({ children }: { children: ReactNode }) {
 // `route()` entry in routes.ts is its own lazily-loaded chunk), so the previous manual
 // `createBrowserRouter`/`RouterProvider` wiring from src/Root.tsx is gone - `<Outlet />` is
 // where the matched route (ultimately Features/App via routes.ts's layout() wrap) renders.
-// Everything else here - the two query client providers, the devtools gate, ErrorBoundary - is
-// carried over unchanged from src/Root.tsx.
+// Everything else here - the design-system query client provider, ErrorBoundary - is carried
+// over from src/Root.tsx.
 export default function AppRoot() {
   return (
     <TanstackQueryClientProvider client={tanstackQueryClient}>
-      <QueryClientProvider client={queryClient}>
-        <ErrorBoundary>
-          {isDevEnv && <ReactQueryDevtools initialIsOpen={false} />}
-          <Outlet />
-        </ErrorBoundary>
-      </QueryClientProvider>
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
     </TanstackQueryClientProvider>
   );
 }
