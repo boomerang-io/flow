@@ -2,6 +2,8 @@ import moment from "moment-timezone";
 import queryString from "query-string";
 import { tokenAction, workflowTokensLoader, TOKEN_INTENTS } from "Components/TokenSection/tokenRoute";
 import type { TokenActionResult } from "Components/TokenSection/tokenRoute";
+import { scheduleAction, SCHEDULE_INTENTS } from "Features/Schedules/scheduleRoute";
+import type { ScheduleActionResult } from "Features/Schedules/scheduleRoute";
 import type { TokenSectionRouteData } from "Components/TokenSection/tokenRouteData";
 import { HttpMethod, scheduleStatusOptions } from "Constants";
 import { queryStringOptions } from "Config/appConfig";
@@ -205,15 +207,20 @@ export async function editorLoader({
 export type EditorActionResult =
   | { ok: true; intent: "createRevision"; workflow: WorkflowCanvas }
   | { ok: false; intent: "createRevision" }
-  | TokenActionResult;
+  | TokenActionResult
+  | ScheduleActionResult;
 
 /*
- * A route has exactly one action, and this one serves two independent groups of write sites that
- * both submit through a bare useFetcher() (which resolves to the nearest matched route - this
- * one): the Configure > Tokens tab's create/delete, and the header's "create new version". They
- * are dispatched on `intent`, the same way app/routes/profile.tsx composes tokenAction with the
- * profile's own action - and for the same reason (tokenAction must not be handed an intent it
- * does not own).
+ * A route has exactly one action, and this one serves three independent groups of write sites
+ * that all submit through a bare useFetcher() (which resolves to the nearest matched route -
+ * this one): the Configure > Tokens tab's create/delete, the header's "create new version", and
+ * the Schedule tab's create/update/toggle/delete (the shared ScheduleCreator/ScheduleEditor/
+ * SchedulePanelList components, whose other consumer is the Schedules page - see
+ * Features/Schedules/scheduleRoute.ts). They are dispatched on `intent`, the same way
+ * app/routes/profile.tsx composes tokenAction with the profile's own action - and for the same
+ * reason (a delegate action must not be handed an intent it does not own; the schedule intents
+ * are namespaced `createSchedule`/`deleteSchedule`/... precisely because TOKEN_INTENTS already
+ * claims the bare "create"/"delete" in this route's namespace).
  *
  * The body of a Request can only be read once, so the intent is peeked off a clone and the
  * untouched original handed to whichever branch owns it.
@@ -230,6 +237,10 @@ export async function editorAction({
 
   if ((TOKEN_INTENTS as readonly string[]).includes(intent)) {
     return tokenAction({ request });
+  }
+
+  if ((SCHEDULE_INTENTS as readonly string[]).includes(intent)) {
+    return scheduleAction({ params, request });
   }
 
   /*
