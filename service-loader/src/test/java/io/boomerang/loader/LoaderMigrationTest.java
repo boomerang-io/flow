@@ -466,7 +466,9 @@ class LoaderMigrationTest {
 
   private void assertTaskCatalogueSeeded() {
     assertThat(collection("tasks").countDocuments()).isEqualTo(87);
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(130);
+    // 130 seeded + the pre-seeded legacy worker-flow pin from seedLegacyWorkerFlowRevision()
+    // (repointed in place by _0039, not removed).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(131);
 
     Document sleep = collection("tasks").find(Filters.eq("name", "sleep")).first();
     assertThat(sleep).isNotNull();
