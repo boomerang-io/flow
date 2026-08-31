@@ -139,15 +139,6 @@ services:
       # Secured - see the security posture note above. /health stays permitAll
       # (SecurityConfiguration), so the healthcheck below still passes.
       FLOW_SECURITY_ENABLED: "true"
-      # Workaround for a service-core defect (REPORTED, deliberately not fixed in this change):
-      # application.properties composes flow.externalUrl.platformNavigation as
-      # "${users.base.url}/users/navigation", so an EMPTY users.base.url yields the non-blank,
-      # host-less "/users/navigation" - ContextService.getHeaderNavigation then takes its
-      # external-navigation branch (the isBlank() gate at ContextService.java:79 misses) and the
-      # first authenticated bootstrap 500s with "Target host is not specified". Security-off
-      # stacks never hit it because getCurrentUser() is null and the method returns early.
-      # Forcing the composed property to truly-blank restores the internal-navigation branch.
-      FLOW_EXTERNALURL_PLATFORMNAVIGATION: ""
     depends_on:
       mongo:
         condition: service_healthy

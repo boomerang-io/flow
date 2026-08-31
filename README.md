@@ -84,6 +84,14 @@ mvn -pl service-core -am spring-boot:run            # run the API + engine
 cd client-web && pnpm start                         # run the webapp with hot reload
 ```
 
+## Deploying behind a reverse proxy
+
+Any proxy or ingress fronting `client-web` MUST forward the `Host` header **including the port**
+(nginx: `proxy_set_header Host $http_host;`, not `$host`). React Router 7's CSRF protection
+compares each action POST's `Origin` against the server-reconstructed request host; a proxy that
+strips the port makes the two differ and every form submission fails with HTTP 400. The REST API
+(`/api/**`) is unaffected - this applies only to the webapp.
+
 ## Packaging and releases
 
 One product tag builds the whole compatible image set — there is no per-service version line. Tags match
