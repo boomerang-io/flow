@@ -22,6 +22,8 @@ export const resourceRoute = {
   // Browser-space (raw fetch / LazyLog)
   workspaceValidateName: ({ name }: { name: string }) =>
     `${APP_ROOT}/res/workspace/validate-name?name=${encodeURIComponent(name)}`,
+  scheduleValidateCron: ({ workspace, cron }: { workspace: string; cron: string }) =>
+    `${APP_ROOT}/res/workspace/${workspace}/schedule/validate-cron?cron=${encodeURIComponent(cron)}`,
   task: ({ name, version }: { name: string; version?: string | number }) =>
     `${APP_ROOT}/res/task/${name}${version !== undefined && version !== null ? `?version=${version}` : ""}`,
   taskrunLog: ({ id }: { id: string }) => `${APP_ROOT}/res/taskrun/${id}/log`,
@@ -35,6 +37,34 @@ export const resourceRoute = {
  * network failure included - reads as unavailable, preserving the previous behaviour where a
  * thrown validate-name POST marked the name TAKEN.
  */
+/*
+ * The cron-expression probe ScheduleManagerForm runs inside Yup's async `test` for the
+ * advancedCron schedule type. Same shape as checkWorkspaceNameAvailable below: Yup needs a plain
+ * awaitable promise per validation pass, so this is a raw same-origin fetch of the resource
+ * route. Contract (see app/routes/resScheduleValidateCron.tsx): 200
+ * `{ valid: boolean, message?: string }`; any transport failure folds into an invalid verdict
+ * with a retry message so Yup's test never sees an unhandled rejection.
+ */
+export async function validateCronExpression({
+  workspace,
+  cron,
+}: {
+  workspace: string;
+  cron: string;
+}): Promise<{ valid: boolean; message?: string }> {
+  try {
+    const response = await fetch(resourceRoute.scheduleValidateCron({ workspace, cron }), {
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      return { valid: false, message: "Unable to validate the cron expression. Please try again." };
+    }
+    return (await response.json()) as { valid: boolean; message?: string };
+  } catch {
+    return { valid: false, message: "Unable to validate the cron expression. Please try again." };
+  }
+}
+
 export async function checkWorkspaceNameAvailable(name: string): Promise<boolean> {
   try {
     const response = await fetch(resourceRoute.workspaceValidateName({ name }), { credentials: "same-origin" });

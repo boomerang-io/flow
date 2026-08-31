@@ -24,7 +24,6 @@ import {
   TextArea,
   TextInput,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import axios from "axios";
 import cronstrue from "cronstrue";
 import moment from "moment-timezone";
 import * as Yup from "yup";
@@ -32,7 +31,7 @@ import { useWorkspaceContext } from "Hooks";
 import { cronToDateTime, daysOfWeekCronList } from "Utils/cronHelper";
 import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone } from "Utils/dateHelper";
 import { scheduleTypeLabelMap } from "Constants";
-import { serviceUrl } from "Config/servicesConfig";
+import { validateCronExpression } from "Config/resourceRoutes";
 import {
   DataDrivenInput,
   DayOfWeekKey,
@@ -188,17 +187,14 @@ export default function CreateEditForm(props: CreateEditFormProps) {
             .test({
               name: "isValidCron",
               test: async (value: string | undefined, { createError, path }) => {
-                const response = await axios.get(
-                  serviceUrl.schedule.getCronValidation({ workspace: workspace.name, expression: value }),
-                );
-                if (response.data.valid) {
+                const result = await validateCronExpression({ workspace: workspace.name, cron: value ?? "" });
+                if (result.valid) {
                   return true;
                 } else {
                   return createError({
                     path,
                     message:
-                      response.data.message ??
-                      "Cron Expression is invalid and couldn't be converted. Please, try again.",
+                      result.message ?? "Cron Expression is invalid and couldn't be converted. Please, try again.",
                   });
                 }
               },

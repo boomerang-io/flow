@@ -273,13 +273,6 @@ export const handlers: HttpHandler[] = [
   // The real endpoint has no dedicated workflow-level validate-name route (see
   // servicesConfig.ts's TODO on workspace.workflow.postValidateName) - Mirage never mocked one
   // either, so this stays unmocked here too.
-  //
-  // getCronValidation always appends "?cron=..." unconditionally, same as putTask's "?replace="
-  // above - strip it for the same reason (a clean path pattern; the query has no bearing on
-  // matching).
-  http.get(serviceUrl.schedule.getCronValidation({ workspace: ":workspace", expression: ":expression" }).split("?")[0], () =>
-    HttpResponse.json({ valid: true }),
-  ),
 
   /**
    * Workflow Runs
@@ -527,6 +520,12 @@ export const handlers: HttpHandler[] = [
     const available = Boolean(name) && !db.workspaces.some((workspace) => workspace.name === name);
     return HttpResponse.json({ available }, { status: name ? 200 : 400 });
   }),
+  // scheduleValidateCron always appends "?cron=..." unconditionally - strip it for a clean path
+  // pattern (the query has no bearing on matching). Mirrors app/routes/resScheduleValidateCron.tsx's
+  // contract: 200 { valid: boolean, message?: string }.
+  http.get(resourceRoute.scheduleValidateCron({ workspace: ":workspace", cron: "" }).split("?")[0], () =>
+    HttpResponse.json({ valid: true }),
+  ),
   http.get(resourceRoute.task({ name: ":name" }), ({ params }) => {
     const task = db.tasks.find((t) => t.name === params.name);
     return HttpResponse.json(task ? { ok: true, task } : { ok: false });
