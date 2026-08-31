@@ -248,8 +248,10 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
 A `docker-compose.yml` at the repo root brings up the full product: Mongo, the one-shot
 `service-loader` migration/seed Job (gated with `service_completed_successfully` so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
-an `nginx` gateway that puts client-web and service-core behind one origin (service-core has
-no CORS support — see `docker/gateway/nginx.conf`). `service-dispatcher` is intentionally not part
+a local IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single
+browser-facing origin — it serves the app and forwards `/api/*` to service-core
+(`client-web/server/index.js`, target `CORE_SERVICE_PROXY_TARGET`), because service-core has
+no CORS support; there is no separate gateway. `service-dispatcher` is intentionally not part
 of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
 comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
 API — build locally instead:
@@ -273,19 +275,14 @@ cd client-web && pnpm install && pnpm run build && cd ..
 docker compose up --build
 ```
 
-`service-core` is on `http://localhost:7700` directly, `client-web` on `http://localhost:3000`
-directly, and the unified browser-facing origin (what E2E and manual UI testing should use) is
-`http://localhost:8080`.
+`client-web` on `http://localhost:3000` is the single browser-facing origin (what E2E and
+manual UI testing should use — it forwards `/api/*` to service-core); `service-core` is on
+`http://localhost:7700` directly for API-only calls.
 
-Security is off for this stack (`FLOW_SECURITY_ENABLED=false` in `docker-compose.yml`). This
-is **deliberate and temporary**, not the target state: there is no login flow yet
-(`specifications/authentication.md`), so a secured stack would just show a blank page. The
-property still derives from `flow.mode` and defaults on for `standalone`, so it must be set
-explicitly to disable it:
-
-```properties
-flow.security.enabled=false
-```
+The stack runs secured (`FLOW_SECURITY_ENABLED=true` in `docker-compose.yml`): the real
+sign-in flow (`specifications/authentication.md`) against the local IDPZero user picker, and
+the first user to sign in on a fresh database becomes the founding admin. The property
+derives from `flow.mode` (on for `standalone`) unless set explicitly.
 
 **E2E**: `e2e/` (repo root, not under `client-web/` — it drives the real UI against a real
 backend together, not the webapp in isolation) is a small Playwright suite. `cd e2e && npm ci

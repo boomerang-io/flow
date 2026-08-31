@@ -44,8 +44,10 @@ calls a dispatcher.
 ## Running the whole product locally
 
 `docker-compose.yml` brings up MongoDB, the one-shot `service-loader` migration/seed job (gated so
-`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and an nginx
-gateway that puts the webapp and the API behind one origin.
+`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and a local
+IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single browser-facing
+origin — it serves the app and forwards `/api/*` to `service-core` (`client-web/server/index.js`), so
+there is no separate gateway.
 
 `service-dispatcher` is deliberately **not** in the stack — it drives Tekton on a real Kubernetes cluster.
 
@@ -59,12 +61,11 @@ docker compose up --build
 
 | Surface | URL |
 |---|---|
-| Unified origin (use this for manual testing and E2E) | http://localhost:8080 |
-| `service-core` direct | http://localhost:7700 |
-| `client-web` direct | http://localhost:3000 |
+| `client-web` — the single browser-facing origin (use this for manual testing and E2E) | http://localhost:3000 |
+| `service-core` direct (no CORS — browser calls go through the origin above) | http://localhost:7700 |
 
-Security is off in this stack (`FLOW_SECURITY_ENABLED=false`). That is deliberate and temporary — there is
-no login flow yet, so a secured stack would show a blank page.
+The stack runs secured (`FLOW_SECURITY_ENABLED=true`) with the real sign-in flow against the local
+IDPZero user picker; the first user to sign in on a fresh database becomes the founding admin.
 
 ### End-to-end tests
 
