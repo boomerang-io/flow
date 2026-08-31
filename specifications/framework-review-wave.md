@@ -35,7 +35,7 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 | A15 | 3 JSON libraries / 2 Jackson majors / ad-hoc `new ObjectMapper()` | event models, `WebhookEventService`, `GenericStatusEvent`, dispatcher Gson sites | Fix | 🟡 IN PROGRESS |
 | A16 | Reflective `ConvertUtil` + 47 `BeanUtils.copyProperties` | `workflow/ConvertUtil.java:35-52` | Show before/after | 📝 PROPOSED |
 | A17 | `Watcher` + `CountDownLatch` per task; `System.exit(1)` on watch close | `TektonServiceImpl.java:509-537`, `KubeJobsExecutor.java:348-356`, `TaskWatcher.java:109-114` | Defer → **Threads** | ⏸️ DEFERRED |
-| A18 | Loki client bypasses `RestConfig`; raw `HttpClients.createDefault()` | `service-dispatcher/.../dispatcher/LogService.java:68-153` | GitHub issue, low priority | 🐙 GITHUB ISSUE (pending) |
+| A18 | Loki client bypasses `RestConfig`; raw `HttpClients.createDefault()` | `service-dispatcher/.../dispatcher/LogService.java:68-153` | GitHub issue, low priority | 🐙 GITHUB ISSUE boomerang-io/flow#322 |
 | A19 | Unencoded query string | `engine/LogClient.java:51-54` | Fix | 🟡 IN PROGRESS |
 | A20 | `java.util.Calendar` + `Calendar.HOUR` (12-hour) | `engine/TaskExecutionService.java:856-882` | Fix (G1: one method, own commit) | 🟡 IN PROGRESS |
 | A21 | `@Async` on a private self-called method | `service-dispatcher/.../dispatcher/TaskService.java:102-109` | Defer → **Threads** | ⏸️ DEFERRED |
@@ -67,4 +67,5 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 
 ## 4. Log
 
+- 2026-09-01 — A18 raised as boomerang-io/flow#322.
 - 2026-09-01 — wave opened; dispositions recorded; worktree `../flow.service.workflow-framework-wave` on `feat-v5-framework-wave`.
