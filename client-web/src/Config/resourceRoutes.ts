@@ -28,6 +28,15 @@ export const resourceRoute = {
   task: ({ name, version }: { name: string; version?: string | number }) =>
     `${APP_ROOT}/res/task/${name}${version !== undefined && version !== null ? `?version=${version}` : ""}`,
   taskrunLog: ({ id }: { id: string }) => `${APP_ROOT}/res/taskrun/${id}/log`,
+  taskYaml: ({ name, version, workspace }: { name: string; version?: string | number; workspace?: string }) => {
+    const params = new URLSearchParams();
+    if (version !== undefined && version !== null) params.set("version", String(version));
+    if (workspace) params.set("workspace", workspace);
+    const query = params.toString();
+    return `${APP_ROOT}/res/task/${name}/yaml${query ? "?" + query : ""}`;
+  },
+  workflowExport: ({ workspace, workflow }: { workspace: string; workflow: string }) =>
+    `${APP_ROOT}/res/workspace/${workspace}/workflow/${workflow}/export`,
 };
 
 /*

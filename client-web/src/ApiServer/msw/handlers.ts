@@ -538,6 +538,14 @@ export const handlers: HttpHandler[] = [
   // the test router), so no HTTP request to /res/activate ever exists for MSW to match - the
   // action's own serverFetch PUT hits the putActivationApp handler above instead.
   http.get(resourceRoute.taskrunLog({ id: ":id" }), () => HttpResponse.text("line one\nline two\n")),
+  // Streaming relays in production (app/routes/resTaskYaml.tsx / resWorkflowExport.tsx); in a
+  // jsdom spec a plain body is all their consumers (fileDownload) ever read.
+  http.get(resourceRoute.taskYaml({ name: ":name" }), () =>
+    HttpResponse.text("apiVersion: v1\nkind: Task\n", { headers: { "content-type": "application/x-yaml" } }),
+  ),
+  http.get(resourceRoute.workflowExport({ workspace: ":workspace", workflow: ":workflow" }), () =>
+    HttpResponse.json({ name: "exported-workflow", tasks: [] }),
+  ),
 ];
 
 // The shared fixtures for list endpoints (e.g. `fixtures.users`, `fixtures.workspaces`) are
