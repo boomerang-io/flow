@@ -1571,6 +1571,14 @@ public class WorkflowService {
    */
   private void validateDeclaredParams(WorkflowTask wfTask, Task taskTemplate) {
     if (wfTask.getParams() != null) {
+      wfTask.getParams().stream()
+          .map(RunParam::getName)
+          .filter(name -> !ParameterUtil.isValidParamName(name))
+          .findFirst()
+          .ifPresent(
+              name -> {
+                throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
+              });
       // Case/separator-variant duplicates collide as PARAM_<NAME> env vars and, under
       // case-insensitive matching, as references - rejected here rather than at dispatch.
       List<List<String>> collisions =

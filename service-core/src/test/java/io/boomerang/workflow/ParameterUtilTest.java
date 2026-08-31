@@ -42,6 +42,21 @@ class ParameterUtilTest {
   }
 
   @Test
+  void paramNameValidityMatchesTheWebappRule() {
+    assertTrue(ParameterUtil.isValidParamName("githubToken"));
+    assertTrue(ParameterUtil.isValidParamName("my-param_2"));
+    assertTrue(ParameterUtil.isValidParamName("_private"));
+    // '.' is the reference path separator; digits can't lead; no spaces.
+    assertTrue(!ParameterUtil.isValidParamName("my.param"));
+    assertTrue(!ParameterUtil.isValidParamName("2fast"));
+    assertTrue(!ParameterUtil.isValidParamName("has space"));
+    assertTrue(!ParameterUtil.isValidParamName(null));
+    // Reserved: folds to PARAM_NAMES, the manifest env var.
+    assertTrue(!ParameterUtil.isValidParamName("names"));
+    assertTrue(!ParameterUtil.isValidParamName("Names"));
+  }
+
+  @Test
   void paramNameCollisionsIsEmptyForDistinctNames() {
     assertTrue(ParameterUtil.paramNameCollisions(List.of("alpha", "beta-name", "gamma")).isEmpty());
   }

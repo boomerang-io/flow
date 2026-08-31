@@ -354,6 +354,14 @@ public class TaskService {
     if (request.getSpec() == null || request.getSpec().getParams() == null) {
       return;
     }
+    request.getSpec().getParams().stream()
+        .map(AbstractParam::getName)
+        .filter(name -> !ParameterUtil.isValidParamName(name))
+        .findFirst()
+        .ifPresent(
+            name -> {
+              throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
+            });
     List<List<String>> collisions =
         ParameterUtil.paramNameCollisions(
             request.getSpec().getParams().stream()

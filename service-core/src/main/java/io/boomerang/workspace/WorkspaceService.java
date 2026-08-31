@@ -7,6 +7,7 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.WorkflowCount;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
@@ -543,6 +544,13 @@ public class WorkspaceService {
           });
 
       List<String> names = request.stream().map(AbstractParam::getName).toList();
+      names.stream()
+          .filter(name -> !ParameterUtil.isValidParamName(name))
+          .findFirst()
+          .ifPresent(
+              name -> {
+                throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
+              });
       // Check if parameter exists and remove
       parameters =
           parameters.stream()
@@ -1075,10 +1083,20 @@ public class WorkspaceService {
           Optional<UserEntity> newUser =
               userService.getAndRegisterUser(
                   userSummary.getEmail(),
-                  null,
+                  Optional.empty(),
                   Optional.of(UserType.user),
                   Optional.of(UserStatus.inactive),
                   true);
+          // Honour the comment above: an unresolvable member (no email, e.g. the security-off
+          // virtual user, or registration refused) is skipped, not a 500. Previously the raw
+          // null Optional NPE'd inside getAndRegisterUser and the .get() threw on empty.
+          if (newUser.isEmpty()) {
+            LOGGER.warn(
+                "Skipping workspace member with unresolvable user (id: {}, email: {})",
+                userSummary.getId(),
+                userSummary.getEmail());
+            continue;
+          }
           userEntity = userService.getUserByID(newUser.get().getId());
         }
         // Check the provided role is valid in our system

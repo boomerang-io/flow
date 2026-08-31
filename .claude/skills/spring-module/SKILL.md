@@ -1,6 +1,6 @@
 ---
 name: spring-module
-description: Spring Boot patterns for the Boomerang Flow backend (Java 21 / Spring Boot 3, MongoDB). Use this skill when creating or modifying any backend Java class — entities, repositories, services, controllers, config — in service-flow, service-engine, service-agent, or lib-common. Triggers on any Java backend work. If you're writing Java here, read this skill first.
+description: Spring Boot patterns for the Boomerang Flow backend (Java 21 / Spring Boot 3, MongoDB). Use this skill when creating or modifying any backend Java class — entities, repositories, services, controllers, config — in service-flow, service-engine, service-dispatcher, or lib-common. Triggers on any Java backend work. If you're writing Java here, read this skill first.
 ---
 
 # Spring Boot Module Patterns — Boomerang Flow
@@ -18,7 +18,7 @@ Four Maven modules under the parent `pom.xml`:
 | `lib-common`     | shared domain model / enums / error                                | **Shared domain model only** — no service logic. |
 | `service-flow`   | `core`, `workflow`, `integrations`, `security`, `client`, `config`, `common`, `error` | v2 REST API, auth/authz, teams, tokens.          |
 | `service-engine` | `engine`, `audit`, `aspect`, `client`, `config`, `util`, `error`   | DAG execution, WorkflowRun/TaskRun lifecycle.    |
-| `service-agent`  | `agent`, `kube`, `client`, `config`, `error`                       | Pluggable execution worker (Tekton default).     |
+| `service-dispatcher`  | `agent`, `kube`, `client`, `config`, `error`                       | Pluggable execution worker (Tekton default).     |
 
 Within a domain area, code is grouped by role: `entity/`, `model/`, `service`, controller,
 `repository` — not a deep per-feature module tree. Follow the layout of the package you are

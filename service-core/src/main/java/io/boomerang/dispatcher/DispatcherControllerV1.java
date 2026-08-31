@@ -27,8 +27,8 @@ import org.springframework.web.bind.annotation.*;
  * when the engine was a separate deployable with its own platform-facing v1 surface. That surface
  * was removed at the merge (ruling J1: "the engine's noauth V1 controllers are scrapped at the
  * merge; the agent wire protocol is the only additional surface"), leaving three path roots for one
- * protocol with exactly one consumer, {@code service-agent}. Consolidating them here is a
- * maintainer-approved wire change; {@code service-agent}'s {@code flow.engine.*.url} properties move
+ * protocol with exactly one consumer, {@code service-dispatcher}. Consolidating them here is a
+ * maintainer-approved wire change; {@code service-dispatcher}'s {@code flow.engine.*.url} properties move
  * with it. Embedders/hosts use the v2 surface ({@link
  * io.boomerang.workflow.WorkspaceWorkflowRunControllerV2}, {@link io.boomerang.workflow.TaskRunControllerV2}).
  *

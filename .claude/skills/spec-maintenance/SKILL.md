@@ -115,7 +115,7 @@ Add implementation notes as blockquotes at the end of the relevant section:
 | v5 §4 DAG Semantics / Lessons                   | `service-engine/**/engine/`, `service-engine/**/aspect/`                               |
 | v5 §5.2A Consolidation                          | `service-consolidation.md`, module boundaries, `client/` (flow↔engine calls)           |
 | v5 §5.2B Scaling / Locking / Queueing           | `scaling.md`, claiming/recovery code in `service-engine/**/engine/`                    |
-| v5 §7 Task Runtime Evolution                    | `service-agent/**/agent/`, `service-agent/**/kube/`, agent SPI                          |
+| v5 §7 Task Runtime Evolution                    | `service-dispatcher/**/agent/`, `service-dispatcher/**/kube/`, agent SPI                          |
 | Data models / entities                          | `**/entity/` in each module, `lib-common/**` shared model                              |
 | API design                                      | `service-flow/**/*ControllerV2.java`, `service-engine/**/*ControllerV1.java`           |
 | Auth / permissions / audit                      | `service-flow/**/security/`, `service-engine/**/audit/`, `AuditControllerV2.java`      |

@@ -37,7 +37,7 @@ extracted in Phase 1.
 
 Tell the Explore agent to:
 - Find backend files across the relevant modules: `lib-common/`, `service-flow/`,
-  `service-engine/`, `service-agent/` — entities (`**/entity/`), services, controllers
+  `service-engine/`, `service-dispatcher/` — entities (`**/entity/`), services, controllers
   (`*ControllerV1.java` / `*ControllerV2.java`), repositories, config.
 - Find spec files in `specifications/` that cover the same area, and the relevant
   Q-register items / Living Sections in `v5-enhancemnet.md`.
