@@ -1,18 +1,13 @@
 /*
- * Server-side OIDC sign-in (specifications/authentication.md - maintainer ruling 2026-08-31).
- * The PKCE dance runs HERE, in route action/loader halves on the SSR server, via remix-auth v4 +
- * remix-auth-oauth2 v3 (Arctic underneath) - the browser only ever sees the authorize redirect
- * and the final Set-Cookie relay, so the id_token and code_verifier never reach it.
- *
- * The trust model is a hybrid and Java stays the session authority: this process orchestrates the
- * dance and holds NOTHING beyond two seconds-lived transient flow cookies (the strategy's
- * state+verifier cookie and our nonce+returnPath stash). The verify callback hands the id_token to
- * POST /api/v2/auth/exchange - field names per AuthExchangeRequest.java - where OidcTokenVerifier
- * re-verifies everything (JWKS signature, issuer, audience, expiry, exact-match nonce) and mints
- * the httpOnly bfs_ session cookie, which the callback loader relays VERBATIM onto its redirect.
- *
- * The `.server.ts` suffix makes the bundler enforce what the comment says: none of this - nor
- * remix-auth/arctic - may enter build/client (verified by grep at the migration gates).
+ * Server-side OIDC sign-in (specifications/authentication.md, maintainer ruling 2026-08-31): the
+ * PKCE dance runs here in route action/loader halves via remix-auth v4 + remix-auth-oauth2 v3
+ * (Arctic underneath) - the browser only ever sees the authorize redirect and the final
+ * Set-Cookie relay, so the id_token and code_verifier never reach it. Java stays the verifier
+ * and session authority: the verify callback POSTs {idToken, nonce} (field names per
+ * AuthExchangeRequest.java) to POST /api/v2/auth/exchange, and the bfs_ Set-Cookie it mints is
+ * relayed VERBATIM onto the redirect. This process holds nothing beyond the two five-minute
+ * httpOnly flow cookies below. Standard OIDC only - nothing keyed to any particular provider.
+ * The `.server.ts` suffix keeps all of this (and remix-auth/arctic) out of build/client.
  */
 import { Cookie, SetCookie } from "@mjackson/headers";
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
@@ -27,24 +22,16 @@ interface SessionRelay {
   setCookies: string[];
 }
 
-// One transient cookie holds the in-flight sign-in's nonce + returnPath (the state and PKCE
-// verifier live in the strategy's own "flow_oauth2:<id>" cookie). Both are httpOnly, five-minute,
-// SameSite=Lax - Lax because the callback arrives as a top-level GET navigation from the issuer.
+// The strategy's own cookie holds state + PKCE verifier; ours holds nonce + returnPath. Both are
+// httpOnly, SameSite=Lax (the callback arrives as a top-level GET navigation from the issuer),
+// Secure (same posture as the Java SessionCookie; browsers allow Secure on localhost).
 const SIGNIN_STASH_COOKIE = "flow_auth_signin";
 const STRATEGY_COOKIE = "flow_oauth2";
-const TRANSIENT_COOKIE = {
-  httpOnly: true,
-  secure: true, // same posture as the Java SessionCookie; browsers allow Secure on localhost
-  sameSite: "Lax",
-  path: "/",
-  maxAge: 60 * 5,
-} as const;
+const TRANSIENT_COOKIE = { httpOnly: true, secure: true, sameSite: "Lax", path: "/", maxAge: 60 * 5 } as const;
 
-/*
- * remix-auth-oauth2 sends state + PKCE but not the OIDC nonce; authorizationParams() is its
- * documented extension point for exactly this kind of provider-required extra parameter. The
- * nonce is set per instance - safe because a strategy is built per request (see buildStrategy).
- */
+// remix-auth-oauth2 sends state + PKCE but not the OIDC nonce; authorizationParams() is its
+// documented extension point for provider-required extras. Per-instance is safe: a strategy is
+// built per request (see buildStrategy).
 class FlowOidcStrategy extends OAuth2Strategy<SessionRelay> {
   name = "flow-oidc";
   nonce: string | null = null;
@@ -56,26 +43,22 @@ class FlowOidcStrategy extends OAuth2Strategy<SessionRelay> {
   }
 }
 
-// 32 random bytes -> 43 base64url chars, same entropy the browser-side flow used for its nonce.
-// (Spelled out via base64 because the pinned @types/node predates the "base64url" encoding name.)
+// 32 random bytes -> 43 base64url chars (spelled out via base64: the pinned @types/node
+// predates the "base64url" encoding name).
 function randomNonce(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/*
- * The redirect_uri must be byte-identical at the authorize and token steps (RFC 6749 §4.1.3) and
- * must match what the IDP registered (docker/idpzero/server.yaml: {origin}/apps/flow/auth/callback).
- * Both are derived from the request's own URL - origin included, which is correct behind proxies
- * because server/index.js builds the Request from the forwarded Host (trust proxy) - so this works
- * for any basename without a config knob. `.data` is stripped defensively; both legs are document
- * navigations, so it should never appear.
- */
+// The redirect_uri must be byte-identical at the authorize and token steps (RFC 6749 §4.1.3)
+// and match the IdP's registration. Both derive from the request's own URL - origin included,
+// which holds behind proxies because server/index.js builds the Request from the forwarded Host
+// - so any basename works without a config knob. `.data` stripped defensively (both legs are
+// document navigations).
 function callbackUriFor(request: Request): string {
   const url = new URL(request.url);
-  const pathname = url.pathname.replace(/\.data$/, "").replace(/\/auth\/signin$/, "/auth/callback");
-  return `${url.origin}${pathname}`;
+  return `${url.origin}${url.pathname.replace(/\.data$/, "").replace(/\/auth\/signin$/, "/auth/callback")}`;
 }
 
 /** The app root for this deployment, derived the same way: strip the auth route's own segments. */
@@ -102,31 +85,22 @@ function readSigninStash(request: Request): { nonce: string; returnPath: string 
   if (!raw) return null;
   const value = new URLSearchParams(raw);
   const nonce = value.get("nonce");
-  if (!nonce) return null;
-  return { nonce, returnPath: value.get("returnPath") ?? "" };
+  return nonce ? { nonce, returnPath: value.get("returnPath") ?? "" } : null;
 }
 
-/*
- * Expires every transient flow cookie the browser sent - the flow is one-shot either way.
- * Epoch `Expires` rather than `Max-Age=0` because SetCookie drops a falsy maxAge from its
- * serialisation.
- */
+// Expires every transient flow cookie the browser sent - the flow is one-shot either way. Epoch
+// `Expires` rather than `Max-Age=0` because SetCookie drops a falsy maxAge from serialisation.
 function expiredTransientCookies(request: Request): string[] {
-  const cookie = new Cookie(request.headers.get("cookie") ?? "");
-  return cookie.names
+  return new Cookie(request.headers.get("cookie") ?? "").names
     .filter((name) => name === SIGNIN_STASH_COOKIE || name.startsWith(STRATEGY_COOKIE))
     .map((name) =>
       new SetCookie({ name, value: "", ...TRANSIENT_COOKIE, maxAge: undefined, expires: new Date(0) }).toString(),
     );
 }
 
-/*
- * Builds the strategy PER REQUEST: the issuer/clientId come from GET /auth/config, which is
- * settings-backed and may change at runtime - freezing it at module scope is the bug this repo
- * already shipped once with moment() defaults. The config endpoint is unauthenticated, so the
- * serverFetch cookie forwarding is incidental. OAuth2Strategy.discover then resolves the issuer's
- * own discovery document (authorize/token endpoints) fresh on every call for the same reason.
- */
+// Builds the strategy PER REQUEST: issuer/clientId come from GET /auth/config, settings-backed
+// and changeable at runtime - freezing it at module scope is the bug this repo already shipped
+// once with moment() defaults. discover() re-resolves the OIDC discovery document likewise.
 async function buildStrategy(request: Request): Promise<FlowOidcStrategy> {
   const { data: config } = await serverFetch(request).get<AuthConfig>(serviceUrl.getAuthConfig());
   if (config.mode !== "oidc" || !config.issuer || !config.clientId) {
@@ -142,44 +116,32 @@ async function buildStrategy(request: Request): Promise<FlowOidcStrategy> {
       cookie: { name: STRATEGY_COOKIE, ...TRANSIENT_COOKIE },
     },
     async ({ request: callbackRequest, tokens }) => {
-      // Java is the verifier and the session authority: hand it the id_token + the nonce we sent
-      // on the authorize request, and relay back whatever Set-Cookie it minted. axios throws on a
-      // non-2xx exchange, which surfaces as the loader's readable error - never a minted session.
-      const nonce = readSigninStash(callbackRequest)?.nonce ?? "";
+      // Java verifies (JWKS, iss/aud/exp, exact-match nonce) and mints; axios throws on a non-2xx
+      // exchange, which surfaces as the loader's readable error - never a minted session.
       const exchange = await serverFetch(callbackRequest).post(serviceUrl.postAuthExchange(), {
         idToken: tokens.idToken(),
-        nonce,
+        nonce: readSigninStash(callbackRequest)?.nonce ?? "",
       });
       const setCookies = exchange.headers["set-cookie"] ?? [];
-      if (setCookies.length === 0) {
-        throw new Error("The sign-in exchange returned no session cookie.");
-      }
+      if (setCookies.length === 0) throw new Error("The sign-in exchange returned no session cookie.");
       return { setCookies };
     },
   );
 }
 
-/*
- * The sign-in leg: the SignedOut page's <Form method="post"> lands here. The strategy throws its
- * authorize redirect (state + S256 challenge + our nonce), and this action appends the stash
- * cookie to it. Any failure redirects to this route's own GET surface with a readable error -
- * never a silent blank page, and never an automatic retry loop.
- */
+// The sign-in leg: the SignedOut page's <Form method="post"> lands here; the strategy throws
+// its authorize redirect (state + S256 challenge + our nonce) and the stash cookie is appended.
+// Any failure redirects to this route's own GET surface with a readable error - never a silent
+// blank page, never an automatic retry loop.
 export async function signinAction({ request }: ActionFunctionArgs): Promise<Response> {
   const formData = await request.clone().formData();
   const returnPath = safeReturnPath(formData.get("returnPath"), request);
   const errorPath = `${new URL(request.url).pathname}?error=start`;
-  let authenticator: Authenticator<SessionRelay>;
   const nonce = randomNonce();
   try {
     const strategy = await buildStrategy(request);
     strategy.nonce = nonce;
-    authenticator = new Authenticator<SessionRelay>().use(strategy, "oidc");
-  } catch {
-    return redirect(errorPath);
-  }
-  try {
-    await authenticator.authenticate("oidc", request);
+    await new Authenticator<SessionRelay>().use(strategy, "oidc").authenticate("oidc", request);
   } catch (thrown) {
     if (thrown instanceof Response && thrown.headers.has("location")) {
       thrown.headers.append("Set-Cookie", writeSigninStash(nonce, returnPath));
@@ -199,14 +161,11 @@ export async function signinLoader({ request }: LoaderFunctionArgs) {
   return redirect(appRootPathFor(request));
 }
 
-/*
- * The callback leg: the issuer redirects back here with ?code&state (a top-level GET, so this
- * always runs server-side as a document load). The strategy checks state against its cookie and
- * exchanges the code; the verify callback above does the Java exchange. On success: redirect to
- * the stashed return path carrying the relayed session Set-Cookie, transient cookies expired. On
- * ANY failure: readable error data for the route component - deliberately NO automatic sign-in
- * retry from here, which is exactly how redirect loops are built.
- */
+// The callback leg: the issuer redirects back with ?code&state (a top-level GET document load,
+// so this always runs server-side). The strategy checks state and exchanges the code; the verify
+// callback above does the Java exchange. Success: redirect to the stashed return path carrying
+// the relayed session Set-Cookie, transients expired. ANY failure: readable error data for the
+// route component - deliberately NO automatic retry, which is how redirect loops are built.
 export async function callbackLoader({ request }: LoaderFunctionArgs) {
   const params = new URL(request.url).searchParams;
   const providerError = params.get("error");

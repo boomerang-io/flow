@@ -8,19 +8,12 @@ import { attemptProxyExchange, fetchAuthConfig } from "./authClient";
 /*
  * The signed-out page App.tsx renders when the root bootstrap comes back 401. What it offers
  * depends on GET /auth/config, fetched browser-side on mount (this component SSR-renders the
- * bare 403 shell; the sign-in surface only ever appears after hydration):
- *
- *   none  - nothing extra: exactly the 403 page the app showed before this feature (dev stack).
- *   proxy - ONE silent empty-body POST to /auth/exchange (the proxy already asserted identity);
- *           success re-runs the bootstrap via onSignedIn, failure falls through to the plain
- *           signed-out page. The single-attempt guard is the loop protection: a still-401
- *           bootstrap re-render keeps this component mounted, so the ref holds.
- *   oidc  - a Sign in button that submits a plain document POST to the server-side sign-in
- *           action (see oidc.server.ts), which answers with the redirect to the identity
- *           provider. The browser no longer builds any part of the OIDC request itself.
- *
- * Every failure lands on readable text with a retry - never a blank page and never an automatic
- * redirect (only the user's click navigates away).
+ * bare 403 shell; the sign-in surface only ever appears after hydration): none - the plain 403
+ * page; proxy - ONE silent empty-body POST to /auth/exchange (single-attempt guard = the loop
+ * protection: a still-401 bootstrap re-render keeps this component mounted, so the ref holds);
+ * oidc - a Sign in button submitting a document POST to the server-side sign-in action
+ * (oidc.server.ts). Every failure lands on readable text with a retry - never a blank page and
+ * never an automatic redirect (only the user's click navigates away).
  */
 
 interface SignedOutProps {

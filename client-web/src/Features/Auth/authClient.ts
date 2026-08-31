@@ -1,19 +1,12 @@
 /*
  * Browser-side half of the sign-in flow (specifications/authentication.md). Since the 2026-08-31
- * ruling the OIDC protocol itself - discovery, PKCE, the code exchange, the {idToken, nonce} POST
- * - runs server-side in route actions/loaders (see oidc.server.ts); the id_token never reaches
- * the browser at all. What remains here is what the browser still legitimately owns:
- *
- *   - GET /auth/config consumption (mode selection for the signed-out page and the navbar);
- *   - proxy mode's single silent exchange (the proxy asserts identity on the browser's own
- *     request via forwarded headers, so the empty-body POST must come from the browser);
- *   - logout (the response's Set-Cookie clearing the httpOnly session must reach the browser).
- *
- * Three modes, served by GET /auth/config (unauthenticated):
- *   none  - security-off dev stack: no sign-in surface at all.
- *   proxy - an authenticating reverse proxy asserts identity via forwarded headers; a single
- *           empty-body POST to /auth/exchange converts that into a session cookie.
- *   oidc  - a form POST to the server-side sign-in action starts the PKCE flow (oidc.server.ts).
+ * ruling the OIDC protocol itself runs server-side in route actions/loaders (oidc.server.ts);
+ * the id_token never reaches the browser. What remains here is what the browser still owns:
+ * GET /auth/config consumption (mode selection: none = no sign-in surface, proxy = silent
+ * exchange, oidc = a form POST to the server-side sign-in action); proxy mode's single silent
+ * exchange (the proxy asserts identity on the browser's own request via forwarded headers, so
+ * the empty-body POST must come from the browser); and logout (the response's Set-Cookie
+ * clearing the httpOnly session must reach the browser).
  */
 import React from "react";
 import axios from "axios";
@@ -32,14 +25,11 @@ export interface AuthConfig {
 }
 
 /*
- * Thin indirection over the two hard-navigation primitives, because jsdom's window.location is
- * non-configurable and cannot be spied on directly. Production behaviour is identical to calling
- * window.location.assign/replace; specs spy on these properties instead.
+ * Thin indirection over the hard-navigation primitive (only `replace` remains - `assign` left
+ * with the browser-side authorize redirect), because jsdom's window.location is non-configurable
+ * and cannot be spied on directly; specs spy on this property instead.
  */
 export const browserNavigation = {
-  assign(url: string) {
-    window.location.assign(url);
-  },
   replace(url: string) {
     window.location.replace(url);
   },
