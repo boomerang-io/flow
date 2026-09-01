@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, CodeSnippet } from "@carbon/react";
+import { Button, CodeSnippet, Tag } from "@carbon/react";
 import { TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import SlidingPane from "react-sliding-pane";
 import cronstrue from "cronstrue";
@@ -36,14 +36,13 @@ export default function SchedulePanelDetail(props: SchedulePanelDetailProps) {
     );
 
     const labels: React.ReactNode[] = [];
-    //TODO: fix labels
-    // for (const entry of schedule?.labels || []) {
-    //   labels.push(
-    //     <Tag key={entry.key} style={{ marginLeft: 0 }} type="teal">
-    //       {entry.key}:{entry.value}
-    //     </Tag>
-    //   );
-    // }
+    Object.entries(schedule.labels ?? {}).forEach(([key, value]) => {
+      labels.push(
+        <Tag key={key} style={{ marginLeft: 0 }} type="teal">
+          {`${key}=${value}`}
+        </Tag>,
+      );
+    });
 
     return (
       <>
