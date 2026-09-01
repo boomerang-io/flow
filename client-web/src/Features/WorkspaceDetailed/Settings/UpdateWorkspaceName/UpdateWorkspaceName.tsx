@@ -18,6 +18,7 @@ import styles from "./UpdateWorkspaceName.module.scss";
 import { FlowWorkspace } from "Types";
 import type { SettingsActionResult } from "../Settings";
 import { WorkspaceIntent } from "../../WorkspaceDetailed";
+import { isActionError } from "Utils/actionResult";
 
 interface UpdateWorkspaceNameProps {
   closeModal: () => void;
@@ -29,7 +30,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
   // The rename itself posts to the Settings tab's route action (see ../Settings).
   const fetcher = useFetcher<SettingsActionResult>();
   const isSubmitting = fetcher.state !== "idle";
-  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === WorkspaceIntent.Rename);
+  const failed = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === WorkspaceIntent.Rename);
 
   // The name-availability probe stays a direct browser call rather than moving to the route
   // action: it runs inside Yup's async `test`, which needs a promise to await per keystroke, and
@@ -41,7 +42,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== WorkspaceIntent.Rename) {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       // The slug is part of the URL, so a rename has to move the router to the new one; the
       // parent loader then re-fetches under the new :workspace param.
       navigate(appLink.manageWorkspaceSettings({ workspace: String(fetcher.data.detail) }));

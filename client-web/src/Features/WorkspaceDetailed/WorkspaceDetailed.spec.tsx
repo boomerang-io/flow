@@ -22,6 +22,7 @@ import Tokens from "./Tokens";
 // feature's own route module.
 import { workspaceTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
 import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
+import { isActionError } from "Utils/actionResult";
 
 // Mirrors App.tsx's WorkspaceContainer: resolves the active workspace from the `:workspace`
 // route param and re-fetches (and re-provides fresh context) whenever navigation changes it -
@@ -214,17 +215,17 @@ describe("WorkspaceDetailed --- settings action", () => {
 
   test("updates labels", async () => {
     const result = await submit({ intent: "updateWorkspaceLabels", operation: "add", labels: JSON.stringify({ a: "b" }) });
-    expect(result).toEqual({ ok: true, intent: "updateWorkspaceLabels", detail: "add" });
+    expect(result).toEqual({ intent: "updateWorkspaceLabels", detail: "add" });
   });
 
   test("renames the workspace and returns the new slug", async () => {
     const result = await submit({ intent: "renameWorkspace", name: "renamed-workspace", displayName: "Renamed Workspace" });
-    expect(result).toEqual({ ok: true, intent: "renameWorkspace", detail: "renamed-workspace" });
+    expect(result).toEqual({ intent: "renameWorkspace", detail: "renamed-workspace" });
   });
 
   test("deletes the workspace", async () => {
     const result = await submit({ intent: "deleteWorkspace" });
-    expect(result).toEqual({ ok: true, intent: "deleteWorkspace" });
+    expect(result).toEqual({ intent: "deleteWorkspace" });
   });
 });
 
@@ -249,12 +250,12 @@ describe("WorkspaceDetailed --- quotas loader/action", () => {
 
   test("updates a single quota through the workspace PATCH", async () => {
     const result = await submit({ intent: "update", quotaProperty: "maxWorkflowCount", quotaValue: "42" });
-    expect(result).toEqual({ ok: true, intent: "update" });
+    expect(result).toEqual({ intent: "update" });
   });
 
   test("restores default quotas", async () => {
     const result = await submit({ intent: "restore" });
-    expect(result).toEqual({ ok: true, intent: "restore" });
+    expect(result).toEqual({ intent: "restore" });
   });
 });
 
@@ -276,7 +277,7 @@ describe("WorkspaceDetailed --- members action", () => {
       intent: "add",
       members: JSON.stringify([{ email: "a@b.com", role: "Editor" }]),
     });
-    expect(result).toEqual({ ok: true, intent: "add", emails: ["a@b.com"] });
+    expect(result).toEqual({ intent: "add", emails: ["a@b.com"] });
   });
 
   test("surfaces a failed add without throwing", async () => {
@@ -285,14 +286,19 @@ describe("WorkspaceDetailed --- members action", () => {
         HttpResponse.json({}, { status: 500 }),
       ),
     );
-    const result = await submit({ intent: "add", members: JSON.stringify([{ email: "a@b.com" }]) });
-    expect(result.ok).toBe(false);
-    expect(result.errorMessage).toBeDefined();
+    // Calling the action directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await submit({ intent: "add", members: JSON.stringify([{ email: "a@b.com" }]) })) as unknown as {
+      data: { error: unknown };
+    };
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.error).toBeDefined();
   });
 
   test("removes a member", async () => {
     const result = await submit({ intent: "remove", memberId: "61d38d133aa9034ded32cae6" });
-    expect(result).toEqual({ ok: true, intent: "remove" });
+    expect(result).toEqual({ intent: "remove" });
   });
 });
 
@@ -311,18 +317,18 @@ describe("WorkspaceDetailed --- approver groups action", () => {
 
   test("deletes an approver group", async () => {
     const result = await submit({ intent: "deleteApproverGroup", groupId: "some-group-id", name: "Some Group" });
-    expect(result).toEqual({ ok: true, intent: "deleteApproverGroup", name: "Some Group" });
+    expect(result).toEqual({ intent: "deleteApproverGroup", name: "Some Group" });
   });
 
   test("creates an approver group through the workspace PATCH", async () => {
-    const result = await submit({
+    const result = (await submit({
       intent: "saveApproverGroup",
       isEdit: "false",
       groupId: "",
       name: "New Group",
       approvers: JSON.stringify(["user-1", "user-2"]),
-    });
-    expect(result.ok).toBe(true);
+    })) as unknown as { intent: string; isEdit: boolean };
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("saveApproverGroup");
     expect(result.isEdit).toBe(false);
   });
@@ -333,15 +339,18 @@ describe("WorkspaceDetailed --- approver groups action", () => {
         HttpResponse.json({}, { status: 500 }),
       ),
     );
-    const result = await submit({
+    // Calling the action directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await submit({
       intent: "saveApproverGroup",
       isEdit: "true",
       groupId: "some-group-id",
       name: "Some Group",
       approvers: JSON.stringify([]),
-    });
-    expect(result.ok).toBe(false);
-    expect(result.name).toBe("Some Group");
-    expect(result.errorMessage).toBeDefined();
+    })) as unknown as { data: { name: string; error: unknown } };
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.name).toBe("Some Group");
+    expect(result.data.error).toBeDefined();
   });
 });
