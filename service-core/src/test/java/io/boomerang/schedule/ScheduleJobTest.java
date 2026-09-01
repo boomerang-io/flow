@@ -10,8 +10,10 @@ import static org.mockito.Mockito.when;
 
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import java.util.List;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
@@ -89,6 +91,33 @@ class ScheduleJobTest {
   private static WorkflowSubmitRequest argThatTriggerIsSchedule() {
     return org.mockito.ArgumentMatchers.argThat(
         request -> request != null && TriggerEnum.schedule.equals(request.getTrigger()));
+  }
+
+  @Test
+  void firingASchedulePassesTheSchedulesStoredParams() {
+    // The submit request carried an empty params list from the v4 rewrite (ef760f016) until
+    // 2026-09-01: request.setParams(request.getParams()) was a self-assignment, so the params
+    // users configure on a Schedule never reached the run.
+    WorkflowSchedule schedule = new WorkflowSchedule();
+    schedule.setId("schedule-params");
+    schedule.setWorkflowRef("wf-4");
+    schedule.setType(WorkflowScheduleType.cron);
+    schedule.setParams(List.of(new RunParam("greeting", "hello")));
+    when(workflowScheduleService.internalGet("schedule-params")).thenReturn(schedule);
+
+    scheduleJob.execute("team-1", "wf-4", "schedule-params");
+
+    verify(workflowService)
+        .submit(
+            eq("team-1"),
+            eq("wf-4"),
+            org.mockito.ArgumentMatchers.<WorkflowSubmitRequest>argThat(
+                request ->
+                    request.getParams().size() == 1
+                        && "greeting".equals(request.getParams().get(0).getName())
+                        && "hello".equals(request.getParams().get(0).getValue())),
+            eq(false),
+            eq("schedule-params"));
   }
 
   @Test

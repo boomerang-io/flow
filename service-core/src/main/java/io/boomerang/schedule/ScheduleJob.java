@@ -61,7 +61,7 @@ public class ScheduleJob {
     if (schedule != null) {
       WorkflowSubmitRequest request = new WorkflowSubmitRequest();
       request.setLabels(schedule.getLabels());
-      request.setParams(request.getParams());
+      request.setParams(schedule.getParams());
       request.setTrigger(TriggerEnum.schedule);
 
       // Hoist token to ThreadLocal SecurityContext - this AuthN/AuthZ allows the WorkflowRun to be
