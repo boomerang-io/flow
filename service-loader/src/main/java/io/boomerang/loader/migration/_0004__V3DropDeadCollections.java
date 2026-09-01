@@ -19,8 +19,7 @@ import org.slf4j.LoggerFactory;
  * _0001__BaselineAndGenerationDetect} captured before any prior unit in this chain could mutate the
  * database) rather than a live {@link InstallGeneration#detect} — see that unit's javadoc.
  *
- * <p>Classification (see "v3 → v5 migration consolidation" in {@code
- * specifications/merge-execution-plan.md}), verified against a real v3 dump (23 collections,
+ * <p>Classification, verified against a real v3 dump (23 collections,
  * {@code flowabl-live-dump-20231106}):
  *
  * <ul>

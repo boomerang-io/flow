@@ -13,7 +13,7 @@ import org.bson.Document;
 /**
  * Seeds the {@code auth} settings document ({@code oidc.issuer}, {@code oidc.clientId}) - the
  * trusted-issuer configuration surface for the direct OIDC login path of {@code POST
- * /api/v2/auth/exchange} (specifications/authentication.md §1/§5). Both values seed empty; an
+ * /api/v2/auth/exchange}. Both values seed empty; an
  * operator fills them in to enable local IDPZero (or any single trusted OIDC issuer) login. This
  * is new attack surface - every value configured here is an issuer Flow will trust to mint
  * identities - so it seeds empty rather than defaulting to anything live.

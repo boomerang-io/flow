@@ -12,9 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * V3-only. Final cleanup pass of the v3→v5 migration chain (see "v3 → v5 migration
- * consolidation" in {@code specifications/merge-execution-plan.md}): asserts/drops two different
- * classes of leftover collection a v3 install should never carry by this point.
+ * V3-only. Final cleanup pass of the v3→v5 migration chain: asserts/drops two different classes
+ * of leftover collection a v3 install should never carry by this point.
  *
  * <p><b>Class 1 — v4-era relationship-model/lock/scheduler intermediates.</b> These have no v5
  * use whatsoever (v5's relationship model is {@code rel_nodes}/{@code rel_edges}, built fresh by

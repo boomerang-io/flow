@@ -22,7 +22,7 @@
           "readOnly": false
         }
       ],
-      "description": "Configure the single trusted OIDC issuer accepted for direct browser login via the unified token exchange (specifications/authentication.md).",
+      "description": "Configure the single trusted OIDC issuer accepted for direct browser login via the unified token exchange.",
       "key": "auth",
       "lastModiifed": {
         "$date": "2026-08-20T00:00:00.000Z"

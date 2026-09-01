@@ -35,8 +35,7 @@ type LoaderData = {
 // Server loader (see CLAUDE.md client-web SSR direction: server loaders are the default now
 // that ssr:true is on) - runs in Node, so it uses serverFetch(request) rather than the browser
 // `resolver`/`axios` instance in Config/servicesConfig.ts (no browser cookie jar server-side;
-// see Config/serverFetch.ts for the session-cookie-forwarding contract, which is unverified
-// end-to-end until the auth exchange endpoint in specifications/authentication.md lands).
+// see Config/serverFetch.ts for the session-cookie-forwarding contract).
 export async function loader({ request }: { request: Request }): Promise<LoaderData> {
   try {
     const response = await serverFetch(request).get(serviceUrl.getGlobalParameters());

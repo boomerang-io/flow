@@ -108,7 +108,7 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
   /*
    * Renders Spring Security's AuthenticationException (raised via the delegatedAuthenticationEntryPoint
    * bean - see DelegatedAuthenticationEntryPoint/AuthenticationFilter) as the platform's standard
-   * RestErrorResponse body instead of the framework's default error page (specifications/authentication.md §5),
+   * RestErrorResponse body instead of the framework's default error page,
    * with a distinguishing code/reason and a WWW-Authenticate header. FlowAuthenticationException carries the
    * specific BoomerangError; any other AuthenticationException (e.g. thrown directly by Spring Security
    * machinery) falls back to the generic AUTH_REQUIRED shape.

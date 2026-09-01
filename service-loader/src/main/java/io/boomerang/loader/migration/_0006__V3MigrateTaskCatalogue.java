@@ -33,8 +33,7 @@ import org.slf4j.LoggerFactory;
  * gap there). {@code _0034}'s own global-task-graph step is likewise subsumed: {@code
  * _0012__V3BuildRelationshipGraph} (Phase 2, runs before the Phase 5 seed) already writes a {@code
  * task:<id>} node + {@code root--hasTask-->} edge for every row this unit leaves in {@code tasks},
- * and the seed's own graph step covers anything it inserts afterwards. See "Post-G consolidation
- * review" in {@code specifications/merge-execution-plan.md} for the redundancy analysis.
+ * and the seed's own graph step covers anything it inserts afterwards.
  *
  * <h2>Task catalogue</h2>
  *

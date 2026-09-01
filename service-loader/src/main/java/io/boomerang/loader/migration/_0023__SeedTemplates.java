@@ -50,8 +50,7 @@ import org.slf4j.LoggerFactory;
  * documents would insert, while their source workflows ({@code _id} {@code 62be6a32…e7} and
  * {@code 62be6a3e…e9}, {@code scope="template"}) still live in {@code workflows} — {@code
  * _0010__V3ExtractWorkflowTemplates} (Phase 2) extracts those into {@code workflow_templates}
- * too, duplicating the content. See "Post-G consolidation review" in {@code
- * specifications/merge-execution-plan.md}.
+ * too, duplicating the content.
  *
  * <p>Gate reads the durable marker ({@link LegacyGenerationMarker#read}), not a live {@link
  * InstallGeneration#detect} — consistent with every other generation-gated unit in this chain now

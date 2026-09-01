@@ -6,7 +6,7 @@ import DateHelper, {
   timeSecondsToTimeUnit,
 } from "./dateHelper";
 
-// Characterisation spec (see specifications/framework-review-wave.md item C3): pins the CURRENT
+// Characterisation spec: pins the CURRENT
 // hand-rolled output of dateHelper/timeHelper/timeSecondsToTimeUnit before they are re-implemented
 // on moment/moment.duration(), so the refactor is provably output-preserving. These values were
 // captured by hand-tracing the pre-refactor implementations - do not "fix" a value here to match

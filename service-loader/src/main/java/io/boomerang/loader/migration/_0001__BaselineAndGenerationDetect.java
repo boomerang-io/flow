@@ -10,10 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * FIRST unit of the whole chain — must run before any other change unit mutates the database (see
- * "v3 → v5 migration consolidation" in {@code specifications/merge-execution-plan.md}, "Post-G
- * consolidation review"). Merges the two units that previously ran at opposite ends of the chain
- * ({@code _0001__BaselineExistingInstall}, which only ever logged, and {@code
+ * FIRST unit of the whole chain — must run before any other change unit mutates the database (the
+ * chain's ordering and the in-place v3 upgrade path are described in {@code
+ * specifications/data-model.md}). Merges the two units that previously ran at opposite ends of
+ * the chain ({@code _0001__BaselineExistingInstall}, which only ever logged, and {@code
  * _0019__LegacyGenerationDetect}, which recorded the durable generation marker after 18 other
  * units had already run) — both are detect-and-record-only, and nothing gates on the first half's
  * output, so combining them costs nothing and buys every later unit a STABLE generation answer
