@@ -346,7 +346,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         && !"null".equalsIgnoreCase(kubeWorkerTolerations)) {
       LOGGER.info(kubeWorkerTolerations.toString());
       tolerations =
-          Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
+          helperKubeService.withData(
+              Serialization.unmarshal(
+                  kubeWorkerTolerations, new TypeReference<List<Toleration>>() {}));
 
       //      kubeWorkerTolerations.forEach(t -> {
       //        LOGGER.info("Adding toleration: " + t);
@@ -361,7 +363,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     List<HostAlias> hostAliases = new ArrayList<>();
     if (!kubeWorkerHostAliases.isEmpty()) {
       hostAliases =
-          Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
+          helperKubeService.withHostData(
+              Serialization.unmarshal(
+                  kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {}));
     }
 
     /*

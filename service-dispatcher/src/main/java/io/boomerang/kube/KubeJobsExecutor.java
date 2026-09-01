@@ -340,14 +340,18 @@ public class KubeJobsExecutor implements TaskExecutor {
         || "null".equalsIgnoreCase(kubeWorkerTolerations)) {
       return List.of();
     }
-    return Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
+    List<Toleration> tolerations =
+        Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
+    return helperKubeService.withData(tolerations);
   }
 
   private List<HostAlias> hostAliases() {
     if (kubeWorkerHostAliases == null || kubeWorkerHostAliases.isEmpty()) {
       return List.of();
     }
-    return Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
+    List<HostAlias> hostAliases =
+        Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
+    return helperKubeService.withHostData(hostAliases);
   }
 
   private List<LocalObjectReference> imagePullSecrets() {

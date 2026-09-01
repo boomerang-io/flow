@@ -10,11 +10,13 @@ import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.ContainerState;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.kubernetes.api.model.HostAlias;
 import io.fabric8.kubernetes.api.model.LabelSelector;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodAffinityTerm;
 import io.fabric8.kubernetes.api.model.PodAntiAffinity;
 import io.fabric8.kubernetes.api.model.PodStatus;
+import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.util.ArrayList;
@@ -29,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class KubeHelperService {
@@ -230,6 +233,23 @@ public class KubeHelperService {
     podAntiAffinity.setPreferredDuringSchedulingIgnoredDuringExecution(weightedPodAffinityTerms);
     affinity.setPodAntiAffinity(podAntiAffinity);
     return affinity;
+  }
+
+  // A Toleration with no key, operator, or effect matches nothing and Kubernetes rejects the
+  // empty operator outright, so a legacy "[{}]"-shaped property value must become a no-op here.
+  protected List<Toleration> withData(List<Toleration> tolerations) {
+    return tolerations.stream()
+        .filter(
+            t ->
+                StringUtils.hasText(t.getKey())
+                    || StringUtils.hasText(t.getOperator())
+                    || StringUtils.hasText(t.getEffect()))
+        .toList();
+  }
+
+  // A HostAlias with no ip has nothing to alias; drop it the same way.
+  protected List<HostAlias> withHostData(List<HostAlias> hostAliases) {
+    return hostAliases.stream().filter(h -> StringUtils.hasText(h.getIp())).toList();
   }
 
   protected Map<String, String> createAntiAffinityLabels(String tier) {

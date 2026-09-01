@@ -502,3 +502,67 @@ class KubeJobsExecutorTolerationsHostAliasesTest {
     assertEquals(List.of("foo.local", "bar.local"), hostAlias.getHostnames());
   }
 }
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "dispatcher.tasks.tolerations=[{}]",
+      "dispatcher.tasks.hostaliases=[{}]"
+    })
+class KubeJobsExecutorEmptyTolerationsHostAliasesTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private EngineClient engineClient;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  // A legacy "[{}]" property value carries no toleration/hostAlias data, so it must not reach
+  // the API server as one - Kubernetes rejects a Toleration with an empty operator outright.
+  @Test
+  public void testCreateDropsEmptyTolerationAndHostAliasEntries() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-empty-tolerations-hostaliases");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<Job> jobs =
+        client
+            .batch()
+            .v1()
+            .jobs()
+            .withLabels(Map.of("boomerang.io/taskrun-ref", task.getId()))
+            .list()
+            .getItems();
+    assertEquals(1, jobs.size());
+
+    List<Toleration> tolerations = jobs.get(0).getSpec().getTemplate().getSpec().getTolerations();
+    assertTrue(tolerations == null || tolerations.isEmpty());
+
+    List<HostAlias> hostAliases = jobs.get(0).getSpec().getTemplate().getSpec().getHostAliases();
+    assertTrue(hostAliases == null || hostAliases.isEmpty());
+  }
+}

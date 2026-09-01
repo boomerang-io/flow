@@ -2,6 +2,7 @@ package io.boomerang.kube;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.client.EngineClient;
 import io.boomerang.common.model.RunParam;
@@ -222,5 +223,62 @@ class TektonServiceImplTolerationsHostAliasesTest {
     HostAlias hostAlias = hostAliases.get(0);
     assertEquals("127.0.0.1", hostAlias.getIp());
     assertEquals(List.of("foo.local", "bar.local"), hostAlias.getHostnames());
+  }
+}
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.tasks.tolerations=[{}]",
+      "dispatcher.tasks.hostaliases=[{}]"
+    })
+class TektonServiceImplEmptyTolerationsHostAliasesTest {
+
+  KubernetesClient client;
+
+  @Autowired private TektonServiceImpl tektonService;
+
+  @MockitoBean private EngineClient engineClient;
+
+  private TektonClient tektonClient;
+
+  @BeforeEach
+  public void setUp() {
+    tektonClient = client.adapt(TektonClient.class);
+    tektonService.setClient(tektonClient);
+  }
+
+  // A legacy "[{}]" property value carries no toleration/hostAlias data, so it must not reach
+  // the API server as one - Kubernetes rejects a Toleration with an empty operator outright.
+  @Test
+  public void testCreateTaskRunDropsEmptyTolerationAndHostAliasEntries() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-empty-tolerations-hostaliases");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of(new RunParam("greeting", "hello")));
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+
+    List<io.fabric8.tekton.v1.TaskRun> taskRuns =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(1, taskRuns.size());
+
+    List<Toleration> tolerations = taskRuns.get(0).getSpec().getPodTemplate().getTolerations();
+    assertTrue(tolerations == null || tolerations.isEmpty());
+
+    List<HostAlias> hostAliases = taskRuns.get(0).getSpec().getPodTemplate().getHostAliases();
+    assertTrue(hostAliases == null || hostAliases.isEmpty());
   }
 }
