@@ -7,7 +7,7 @@ public class Action extends ActionEntity {
 
   private String taskName;
   private String workflowName;
-  private String teamName;
+  private String workspaceName;
   private long numberOfApprovals;
   private long approvalsRequired;
 
@@ -33,12 +33,12 @@ public class Action extends ActionEntity {
     this.workflowName = workflowName;
   }
 
-  public String getTeamName() {
-    return teamName;
+  public String getWorkspaceName() {
+    return workspaceName;
   }
 
-  public void setTeamName(String teamName) {
-    this.teamName = teamName;
+  public void setWorkspaceName(String workspaceName) {
+    this.workspaceName = workspaceName;
   }
 
   public long getApprovalsRequired() {

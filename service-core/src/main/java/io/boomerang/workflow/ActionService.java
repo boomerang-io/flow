@@ -14,6 +14,7 @@ import io.boomerang.core.UserService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.User;
 import io.boomerang.common.error.BoomerangError;
@@ -225,6 +226,17 @@ public class ActionService {
     String displayName = workflow.getDisplayName();
     action.setWorkflowName(
         displayName != null && !displayName.isBlank() ? displayName : workflow.getName());
+    // The owning Workspace is resolved fresh from the relationship graph (never stored on
+    // ActionEntity); its slug is the name the webapp displays and routes on.
+    String workspaceRef =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW,
+            RelationshipType.WORKFLOW,
+            actionEntity.getWorkflowRef());
+    if (workspaceRef != null && !workspaceRef.isBlank()) {
+      action.setWorkspaceName(
+          relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspaceRef));
+    }
     try {
       TaskRun taskRun = engineTaskRunService.get(actionEntity.getTaskRunRef()).getBody();
       action.setTaskName(taskRun.getName());
