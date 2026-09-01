@@ -34,8 +34,8 @@ import styles from "./WorkflowRun.module.scss";
 // conversions: reads move to a server `loader` using serverFetch(request), writes move to a
 // route `action` driven by useFetcher, and react-query leaves this feature entirely.
 //
-// `params.workspace` is the same value WorkspaceContainer resolves its workspace from
-// (App.tsx: useParams().workspace -> serviceUrl.resourceWorkspace), so it is interchangeable
+// `params.workspace` is the same value app/routes/workspaceLayout.tsx's loader resolves its
+// workspace from (params.workspace -> serviceUrl.resourceWorkspace), so it is interchangeable
 // with the `workspace.name` the old browser-side queries used - but it is available to the
 // loader, which useWorkspaceContext() is not.
 

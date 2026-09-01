@@ -5,7 +5,6 @@ import {
   configure as configureTestingLibrary,
   getConfig as getTestingLibraryConfig,
 } from "@testing-library/react";
-import { setLogger } from "react-query";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "ApiServer/msw/node";
 import { resetDb } from "ApiServer/msw/db";
@@ -112,12 +111,6 @@ configureTestingLibrary({
     });
     return result;
   },
-});
-
-setLogger({
-  log: () => {},
-  warn: () => {},
-  error: () => {},
 });
 
 // React's useId() counter is per-worker, so a component's generated ids depend on how many other

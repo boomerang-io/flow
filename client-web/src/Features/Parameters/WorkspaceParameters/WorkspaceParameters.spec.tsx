@@ -2,14 +2,14 @@ import { Route, useFetcher } from "react-router-dom";
 import { screen, fireEvent, waitForElementToBeRemoved } from "@testing-library/react";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
-import { WorkspaceContainer } from "Features/App/App";
 import { renderWithContext } from "Utils/testing/render";
 import WorkspaceParameters, { action, loader } from "./WorkspaceParameters";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
 
-// WorkspaceContainer resolves the active workspace by name (handlers.ts's `findWorkspace`), so the
-// fixture the WORKSPACE constant names has to be seeded - same as WorkspaceTasks.spec.tsx.
+// This route's own loader reads the workspace record via `resourceWorkspace` (a real lookup by
+// name - handlers.ts's `findWorkspace`), so the fixture the WORKSPACE constant names has to be
+// seeded. The context workspace comes from the harness's WorkspaceContextProvider override below.
 beforeEach(() => {
   db.workspaces.push(structuredClone(workspaceFixture));
 });
@@ -40,13 +40,13 @@ function renderWorkspaceParameters() {
       loader={loader}
       action={action}
       element={
-        <WorkspaceContainer>
+        <>
           <DeleteFirstParameter />
           <WorkspaceParameters />
-        </WorkspaceContainer>
+        </>
       }
     />,
-    { route: `/${WORKSPACE}/parameters` },
+    { route: `/${WORKSPACE}/parameters`, workspaceValue: { workspace: workspaceFixture } },
   );
 }
 

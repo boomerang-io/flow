@@ -1,8 +1,14 @@
+import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { server } from "ApiServer/msw/node";
+import { serviceUrl } from "Config/servicesConfig";
+import { scheduleAction } from "Features/Schedules/scheduleRoute";
 import type { PaginatedSchedulesResponse } from "Types";
 import { renderWithContext } from "Utils/testing/render";
 import SchedulePanelList from "./SchedulePanelList";
+
+const WORKSPACE = "test-workspace";
 
 function buildSchedulesData(): PaginatedSchedulesResponse {
   return {
@@ -42,16 +48,12 @@ function buildSchedulesData(): PaginatedSchedulesResponse {
   };
 }
 
-// SchedulePanelList is rendered as a bare component (no Route needed) - `renderWithContext`
-// wraps anything that isn't itself a <Route>/<Fragment> in a catch-all route (see
-// Utils/testing/render.tsx's buildStubRoutes), which is enough router context for the
-// component's `useRevalidator()` call and its shared react-query mutations (see the rationale
-// comment on ScheduledListItem in SchedulePanelList.tsx for why those stay on react-query).
+// Route-module test pattern (see ScheduleCreator.spec.tsx): the delete/toggle writes submit
+// through bare useFetcher() calls, which resolve against the route in context - the same
+// `/:workspace/schedules` + scheduleAction shape app/routes/schedules.tsx wires up.
 function renderList(overrides: Partial<React.ComponentProps<typeof SchedulePanelList>> = {}) {
   return renderWithContext(
     <SchedulePanelList
-      getCalendarUrl="http://localhost/calendar"
-      getSchedulesUrl="http://localhost/schedules"
       includeStatusFilter
       schedulesIsLoading={false}
       schedulesData={buildSchedulesData()}
@@ -60,6 +62,7 @@ function renderList(overrides: Partial<React.ComponentProps<typeof SchedulePanel
       setIsEditorOpen={() => {}}
       {...overrides}
     />,
+    { path: "/:workspace/schedules", action: scheduleAction, route: `/${WORKSPACE}/schedules` },
   );
 }
 
@@ -103,5 +106,57 @@ describe("SchedulePanelList", () => {
     await userEvent.type(screen.getByPlaceholderText("Search Schedules"), "no such schedule");
 
     expect(await screen.findByText("No matching schedules found")).toBeInTheDocument();
+  });
+
+  // The two writes, migrated off react-query: each submits its intent through its own
+  // useFetcher() to the route action (no revalidator.revalidate()/invalidateQueries left - the
+  // fetcher settle revalidates the owning route's loader on its own).
+  test("deleting from the confirm modal DELETEs the schedule through the route action", async () => {
+    let deletedId: string | undefined;
+    server.use(
+      http.delete(serviceUrl.workspace.schedule.deleteSchedule({ workspace: ":workspace", id: ":id" }), ({ params }) => {
+        deletedId = String(params.id);
+        return HttpResponse.json({});
+      }),
+    );
+
+    renderList();
+
+    // Two cards render, one overflow menu each (accessible name = the iconDescription tooltip,
+    // not the ariaLabel prop); list is name-sorted so index 0 = "Nightly Backup" (id "1").
+    await userEvent.click(screen.getAllByRole("button", { name: "Schedule menu icon" })[0]);
+    await userEvent.click(await screen.findByText("Delete"));
+
+    expect(await screen.findByText("Delete Schedule?")).toBeInTheDocument();
+    // The affirmative button is kind="danger", and Carbon's danger buttons prepend a hidden
+    // "danger" description span - the accessible name is "danger Delete", so a regex, not the
+    // literal. `hidden: true`: react-modal's ariaHideApp puts aria-hidden on #app while the
+    // modal is open (see ScheduleEditor.spec.tsx for the same quirk).
+    await userEvent.click(screen.getByRole("button", { name: /danger Delete/, hidden: true }));
+
+    await waitFor(() => expect(deletedId).toBe("1"));
+  });
+
+  test("disabling from the confirm modal PUTs the flipped status through the route action", async () => {
+    let updatedBody: any;
+    server.use(
+      http.put(serviceUrl.workspace.schedule.putSchedule({ workspace: ":workspace" }), async ({ request }) => {
+        updatedBody = await request.json();
+        return HttpResponse.json(updatedBody);
+      }),
+    );
+
+    renderList();
+
+    // "Nightly Backup" (id "1") is active, so its menu offers "Disable".
+    await userEvent.click(screen.getAllByRole("button", { name: "Schedule menu icon" })[0]);
+    await userEvent.click(await screen.findByText("Disable"));
+
+    expect(await screen.findByText("Disable Schedule?")).toBeInTheDocument();
+    // Same last-match click as the delete test above.
+    const disableButtons = screen.getAllByRole("button", { name: "Disable", hidden: true });
+    await userEvent.click(disableButtons[disableButtons.length - 1]);
+
+    await waitFor(() => expect(updatedBody).toMatchObject({ id: "1", status: "inactive" }));
   });
 });

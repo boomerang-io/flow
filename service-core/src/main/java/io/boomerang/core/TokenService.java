@@ -25,7 +25,10 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -60,6 +63,13 @@ public class TokenService {
   // Throttle window for lastUsedAt writes so a hot auth path (e.g. the dispatcher filter) doesn't
   // write per request (T6-1, ARCHIE pattern).
   private static final long LAST_USED_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Reuse window for filter-minted session tokens (see createSessionToken): bounds the
+  // header-authenticated paths to at most one persisted TokenEntity per identity per window,
+  // and equally bounds how stale a reused token's permissions can be.
+  private Duration sessionMintReuseWindow = Duration.ofSeconds(60);
+
+  private final Map<String, MintedSession> mintedSessionsByEmail = new ConcurrentHashMap<>();
 
   private final TokenRepository tokenRepository;
   private final UserService userService;
@@ -544,9 +554,19 @@ public class TokenService {
    * dynamic)
    *
    * Discards the raw bfs_ value - historically nothing needed it, since no browser-visible
-   * credential existed before the unified token exchange. Kept, byte-identical, for the existing
+   * credential existed before the unified token exchange. Kept for the existing
    * AuthenticationFilter call sites; new callers that need the raw value (the exchange endpoint,
    * to set the session cookie) use {@link #createSessionTokenWithRaw} below.
+   *
+   * The filter's header-resolved branches (forwarded email, raw JWT, Basic) call this on EVERY
+   * request, so the mint is reused per identity within sessionMintReuseWindow rather than
+   * persisting a new TokenEntity each time - the same throttle idea as LAST_USED_THROTTLE_MS.
+   * Within the window a permission change is not picked up on these paths - INCLUDING
+   * deactivating or deleting the user, whose reused token keeps authenticating for up to the 60s
+   * window because the re-mint that re-checks user status is skipped. Downstream only ever reads
+   * the Token off the Authentication details, so a reused instance behaves identically to a
+   * fresh one. The exchange endpoint's mint paths never read this cache: every exchange must hand
+   * a fresh raw value to the browser cookie.
    */
   public Token createSessionToken(
       String email,
@@ -554,9 +574,35 @@ public class TokenService {
       String lastName,
       boolean allowActivation,
       boolean allowUserCreation) {
-    return createSessionTokenWithRaw(email, firstName, lastName, allowActivation, allowUserCreation)
-        .token();
+    if (email == null || email.isBlank()) {
+      return createSessionTokenWithRaw(
+              email, firstName, lastName, allowActivation, allowUserCreation)
+          .token();
+    }
+    // Keyed on the normalised email - the same fold UserService.normaliseEmail applies.
+    String key = email.toLowerCase(Locale.ROOT);
+    MintedSession reusable = mintedSessionsByEmail.get(key);
+    if (reusable != null && withinReuseWindow(reusable, Instant.now())) {
+      return reusable.token();
+    }
+    Token minted =
+        createSessionTokenWithRaw(email, firstName, lastName, allowActivation, allowUserCreation)
+            .token();
+    // Sweep expired entries on each put: keys derive from caller-supplied identity
+    // (x-forwarded-email), so without eviction the map would grow with every identity ever
+    // seen. After the sweep it only ever holds identities seen within the last window.
+    Instant now = Instant.now();
+    mintedSessionsByEmail.entrySet().removeIf(entry -> !withinReuseWindow(entry.getValue(), now));
+    mintedSessionsByEmail.put(key, new MintedSession(minted, now));
+    return minted;
   }
+
+  private boolean withinReuseWindow(MintedSession session, Instant now) {
+    return session.mintedAt().plus(sessionMintReuseWindow).isAfter(now);
+  }
+
+  /** A filter-minted session held for reuse - see {@link #createSessionToken}. */
+  private record MintedSession(Token token, Instant mintedAt) {}
 
   /**
    * Same resolve-or-create-user + mint flow as {@link #createSessionToken}, but also returns the

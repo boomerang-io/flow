@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
   Layer,
@@ -15,18 +15,14 @@ import { ConfirmModal, TooltipHover, ToastNotification, notify } from "@boomeran
 import cronstrue from "cronstrue";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
-import { useMutation, useQueryClient } from "react-query";
-import { useRevalidator } from "react-router-dom";
-import { useWorkspaceContext } from "Hooks";
+import { useFetcher } from "react-router-dom";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { scheduleStatusOptions, scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
-import { resolver } from "Config/servicesConfig";
 import { ScheduleStatus, ScheduleUnion, PaginatedSchedulesResponse } from "Types";
 import styles from "./SchedulePanelList.module.scss";
 
 interface SchedulePanelListProps {
-  getCalendarUrl: string;
-  getSchedulesUrl: string;
   includeStatusFilter: boolean;
   setActiveSchedule:
     | React.Dispatch<React.SetStateAction<ScheduleUnion | undefined>>
@@ -86,8 +82,6 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
           {selectedSchedules.map((schedule: ScheduleUnion) => (
             <ScheduledListItem
               key={schedule.id}
-              getCalendarUrl={props.getCalendarUrl}
-              getSchedulesUrl={props.getSchedulesUrl}
               schedule={schedule}
               setActiveSchedule={props.setActiveSchedule}
               setIsEditorOpen={props.setIsEditorOpen}
@@ -147,19 +141,87 @@ interface ScheduledListItemProps {
     | React.Dispatch<React.SetStateAction<ScheduleUnion | undefined>>
     | ((schedule: ScheduleUnion) => void);
   setIsEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  getSchedulesUrl: string;
-  getCalendarUrl: string;
 }
 
+// Matches only the fields this component reads off the owning route's action result - the real
+// union lives in Features/Schedules/scheduleRoute.ts (Node-only; components re-declare it, see
+// CreateWorkflow.tsx). Both routes that render this list serve the deleteSchedule/toggleSchedule
+// intents, so the bare useFetcher() submits resolve from either surface.
+type ActionResult = { intent: string } | ({ intent: string } & ActionError);
+
 function ScheduledListItem(props: ScheduledListItemProps) {
-  const { workspace } = useWorkspaceContext();
-  const queryClient = useQueryClient();
-  // SchedulePanelList is shared with WorkflowEditor/Schedule/Schedule.tsx (unconverted) - see the
-  // rationale comment in ScheduleCreator.tsx. Keeps `useMutation` + `invalidateQueries` for that
-  // consumer, adds `revalidator.revalidate()` for the loader-driven Schedules page.
-  const revalidator = useRevalidator();
-  const [isToggleStatusModalOpen, setIsToggleStatusModalOpen] = React.useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
+  const deleteFetcher = useFetcher<ActionResult>();
+  const toggleFetcher = useFetcher<ActionResult>();
+  const [isToggleStatusModalOpen, setIsToggleStatusModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  // The toast wording is decided at submit time ("Disable"/"Enable"), not at settle time: by the
+  // time the fetcher settles, the revalidated loader data has already flipped `isActive`, so
+  // reading it in the effect would announce the opposite of what the user did.
+  const toggleVerbRef = useRef<"disable" | "enable">("disable");
+  // Toasts fire when the action RESULT first arrives (fetcher.data changes), not on the
+  // CreateWorkflow.tsx `state === "idle"` gate: a successful delete removes this row from the
+  // revalidated loader data, and React Router commits "fetcher idle" and the new loader data
+  // together - this component unmounts in that same commit, so an idle-gated effect would never
+  // run for exactly the success it should announce. The data arrives one commit earlier (action
+  // settled, revalidation still in flight), while this row is still mounted; the refs stop the
+  // effect double-firing on later re-renders with the same result object.
+  const handledDeleteResultRef = useRef<ActionResult | undefined>(undefined);
+  const handledToggleResultRef = useRef<ActionResult | undefined>(undefined);
+
+  useEffect(() => {
+    if (!deleteFetcher.data || deleteFetcher.data === handledDeleteResultRef.current) {
+      return;
+    }
+    handledDeleteResultRef.current = deleteFetcher.data;
+    if (deleteFetcher.data.intent !== "deleteSchedule") {
+      return;
+    }
+    if (!isActionError(deleteFetcher.data)) {
+      notify(
+        <ToastNotification
+          kind="success"
+          title={`Delete Schedule`}
+          subtitle={`Successfully deleted schedule ${props.schedule.name}`}
+        />,
+      );
+    } else {
+      notify(
+        <ToastNotification
+          kind="error"
+          title="Something's Wrong"
+          subtitle={`Request to delete schedule ${props.schedule.name} failed`}
+        />,
+      );
+    }
+  }, [deleteFetcher.data]);
+
+  useEffect(() => {
+    if (!toggleFetcher.data || toggleFetcher.data === handledToggleResultRef.current) {
+      return;
+    }
+    handledToggleResultRef.current = toggleFetcher.data;
+    if (toggleFetcher.data.intent !== "toggleSchedule") {
+      return;
+    }
+    const verb = toggleVerbRef.current;
+    if (!isActionError(toggleFetcher.data)) {
+      notify(
+        <ToastNotification
+          kind="success"
+          title={`${verb === "disable" ? "Disable" : "Enable"} Schedule`}
+          subtitle={`Successfully ${verb}d schedule ${props.schedule.name} `}
+        />,
+      );
+    } else {
+      notify(
+        <ToastNotification
+          kind="error"
+          title="Something's Wrong"
+          subtitle={`Request to ${verb} schedule ${props.schedule.name} failed`}
+        />,
+      );
+    }
+  }, [toggleFetcher.data]);
 
   // Determine some things for rendering
   const isActive = props.schedule.status === "active";
@@ -184,62 +246,17 @@ function ScheduledListItem(props: ScheduledListItemProps) {
   /**
    * Delete schedule
    */
-  const { mutateAsync: deleteScheduleMutator, ...deleteScheduleMutation } = useMutation(resolver.deleteSchedule, {});
-
-  const handleDeleteSchedule = async () => {
-    try {
-      await deleteScheduleMutator({ workspace: workspace.name, id: props.schedule.id });
-      notify(
-        <ToastNotification
-          kind="success"
-          title={`Delete Schedule`}
-          subtitle={`Successfully deleted schedule ${props.schedule.name}`}
-        />,
-      );
-      queryClient.invalidateQueries(props.getSchedulesUrl);
-      queryClient.invalidateQueries(props.getCalendarUrl);
-      revalidator.revalidate();
-    } catch (e) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title="Something's Wrong"
-          subtitle={`Request to delete schedule ${props.schedule.name} failed`}
-        />,
-      );
-      return;
-    }
+  const handleDeleteSchedule = () => {
+    deleteFetcher.submit({ intent: "deleteSchedule", id: props.schedule.id }, { method: "post" });
   };
 
   /**
-   * Disable schedule
+   * Disable/enable schedule - a full-body PUT with `status` flipped, same as before.
    */
-  const { mutateAsync: toggleScheduleStatusMutator, ...toggleStatusMutation } = useMutation(resolver.putSchedule, {});
-
-  const handleToggleStatus = async () => {
+  const handleToggleStatus = () => {
+    toggleVerbRef.current = isActive ? "disable" : "enable";
     const body = { ...props.schedule, status: isActive ? "inactive" : "active" };
-    try {
-      await toggleScheduleStatusMutator({ workspace: workspace.name, body });
-      notify(
-        <ToastNotification
-          kind="success"
-          title={`${isActive ? "Disable" : "Enable"} Schedule`}
-          subtitle={`Successfully ${isActive ? "disabled" : "enabled"} schedule ${props.schedule.name} `}
-        />,
-      );
-      queryClient.invalidateQueries(props.getSchedulesUrl);
-      queryClient.invalidateQueries(props.getCalendarUrl);
-      revalidator.revalidate();
-    } catch (e) {
-      notify(
-        <ToastNotification
-          kind="error"
-          title="Something's Wrong"
-          subtitle={`Request to ${isActive ? "disable" : "enable"} schedule ${props.schedule.name} failed`}
-        />,
-      );
-      return;
-    }
+    toggleFetcher.submit({ intent: "toggleSchedule", schedule: JSON.stringify(body) }, { method: "post" });
   };
 
   // Set up the Oveflow menu options
@@ -324,7 +341,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
       {isToggleStatusModalOpen && (
         <ConfirmModal
           affirmativeAction={handleToggleStatus}
-          affirmativeButtonProps={{ disabled: toggleStatusMutation.isLoading }}
+          affirmativeButtonProps={{ disabled: toggleFetcher.state !== "idle" }}
           affirmativeText={isActive ? "Disable" : "Enable"}
           isOpen={isToggleStatusModalOpen}
           negativeAction={() => {
@@ -344,7 +361,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
       {isDeleteModalOpen && (
         <ConfirmModal
           affirmativeAction={handleDeleteSchedule}
-          affirmativeButtonProps={{ kind: "danger", disabled: deleteScheduleMutation.isLoading }}
+          affirmativeButtonProps={{ kind: "danger", disabled: deleteFetcher.state !== "idle" }}
           affirmativeText="Delete"
           isOpen={isDeleteModalOpen}
           negativeAction={() => {

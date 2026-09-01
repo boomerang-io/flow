@@ -50,8 +50,8 @@ separate deployables. **v5 reverses that split — see the confirmed decisions b
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DD-01 | **Rename Team → Workspace** at the v5 major (API paths aliased for deprecation; module named `workspace`; loader migration for RelationshipType/AuthScope values).                  |
 | DD-02 | **MERGE `service-flow` + `service-engine`** into ONE deployable with **`flow.mode = standalone \| engine`** (AM-7, 2026-08-15: FULL collapsed into STANDALONE — "standalone" = the complete self-contained product and the default; "engine" = embedded headless; the laptop case = the product with security off). Agent stays separate. Falsifiability F1–F5 stays live. **AM-1 (2026-08-14): no Spring Modulith, no ArchUnit — boundaries by convention (ARCHIE flat-feature-package style). See `specifications/merge-execution-plan.md`.** |
-| DD-03 | **Unified product versioning** — one tag builds the compatible image set; no independent engine version line (`engine@` alias tags during the embedder deprecation window).         |
-| DD-04 | **Frontend (`flow.client.web`) joins this monorepo** — after the merged image ships; continues from the **v4 line** (`main`, at tag `4.0.0`+3; the `3.12.0` in package.json is a stale field — releases are tag-driven, as on the backend), joining the DD-03 unified product version at 5.x; webapp served only in `standalone` mode (AM-7).           |
+| DD-03 | **Unified product versioning** — one tag builds the compatible image set; no independent engine version line. SHIPPED: `ci-release.yml` builds all four images off one `5.x.y` tag; `:latest` moves on stable tags only. The `engine@` alias tags were **ruled OUT (2026-09-01)** — v5 has never shipped, so no v5 embedder exists to deprecate; v4 embedders stay on the v4 image tags. Reopen only if a v5 embedder appears needing an engine-only pull line. |
+| DD-04 | **Frontend (`flow.client.web`) joins this monorepo** — after the merged image ships; continues from the **v4 line** (`main`, at tag `4.0.0`+3; the package.json version field is cosmetic, pinned `5.0.0` — releases are tag-driven, as on the backend), joining the DD-03 unified product version at 5.x; webapp served only in `standalone` mode (AM-7).           |
 | DD-05 | **Merged deployable module = `service-core`** (executed at E8; ARCHIE/CHEER convention; "engine" stays an internal module + mode name only).                                        |
 | DD-06 | **Worker tier renamed `agent` → `dispatcher` at E7/E8** (`DispatcherProtocol`, `dispatcherRef`, `dispatcher-tekton`/`dispatcher-docker`; v1 wire keeps `/agent/` until retirement). "Agent" is reserved for the AI task types. |
 | DD-07 | **Migrations = `service-loader` module in this monorepo on Flamingock**, run as a pre-deploy Job (one execution per deploy); baseline changeunit covers live instances; E3's schema ships as its first changeunits. In-app-at-boot re-decided after the merge. |
@@ -141,11 +141,14 @@ behaviour, never "simplify" onto framework defaults.
 
 ## Known Current-State Hazards
 
-**Post-Phase-3 (2026-08-21).** Most entries below are struck through — E2/E4/E7 fixed them. They are
-kept rather than deleted because the strike-throughs record *how* each was fixed, and a fresh session
-that reads a v4-era description as current will chase a bug that no longer exists. **Live hazards are
-the two un-struck entries: the `SecurityInterceptor` soft-fail flip, and the security-off identity
-decision.** Two accepted limitations sit outside this list: the outbox creation-loss window
+**Post-Phase-3 (2026-08-21).** Most entries below are struck through — E2/E4/E7 fixed them, and the
+feat-v5-authz slice closed the four enforcement-era authz gaps (Action get scoping, Workflow create
+guard, engine-retry ownership, `/user/{userId}` self-vs-admin). Entries are kept rather than deleted
+because the strike-throughs record *how* each was fixed, and a fresh session that reads a stale
+description as current will chase a bug that no longer exists. **Still open: the
+`WorkspaceWorkflowService.submit` path-team edge (benign-leaning, see the retry entry) and the
+machine-token approval item (see the Action entry) — the latter awaits a product ruling.** Two
+accepted limitations sit outside this list: the outbox creation-loss window
 (`entity-diff-v4-v5.md` §7) and worker leases (AM-3) — both deliberately deferred, not hazards.
 
 - ~~`SecurityInterceptor` soft-fails permission checks~~ **ENFORCED (2026-08-31, ruled — no
@@ -157,6 +160,19 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   `SecurityInterceptor` at the endpoint.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
+- ~~`ActionService.get(team, id)` had no relationship call~~ **FIXED (feat-v5-authz)**: it was
+  `findById → convert → return`, so any authenticated caller could read any workspace's approval
+  by id. It now applies the same `check(WORKFLOW, workflowRef)` the mutation path (`action`, :103)
+  already used, refusing with the same `ACTION_INVALID_REF` as not-found (no existence oracle);
+  `query`/`summary` already narrowed through `filter()` and are unchanged. Pinned by
+  `ActionWorkspaceAuthorizationTest`. (The separate machine-token approval item — only users can
+  process Actions, per the TODO on `ActionService.action` — stays OPEN awaiting a product ruling.)
+- ~~`WorkflowService.create(team, …)` wrote the `HAS_WORKFLOW` ownership edge before any workspace
+  check~~ **FIXED (feat-v5-authz)**: `check(WORKSPACE, team)` → `PERMISSION_DENIED` now sits at the
+  top of `create`, mirroring the sibling `TaskService.create`, before the entity save and
+  `createNodeAndEdge`. Every create-shaped route funnels through this one method — `apply` and
+  `composeApply` (when the Workflow does not exist yet) and `duplicate` — so the single guard
+  covers all four. Pinned by `WorkflowCreateAuthorizationTest`.
 - **`check()` ignores the workspace path segment for `global`-scope tokens — NOT an authz hole**
   (raised 2026-08-21 as a security finding; **corrected by the maintainer 2026-08-24 — a global
   token doing everything is what global scope is for, so this is not a privilege escalation**).
@@ -172,15 +188,22 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   the Workflow's `HAS_WORKFLOW` parent) **before** the retried run is created, so an unresolvable
   owner refuses with `TEAM_INVALID_REF` rather than throwing after the clone is already queued. The
   other six call sites read or mutate the run and write no ownership, so they were unaffected.
-  **Two same-shaped items remain open, both pre-existing (confirmed against `feat-v5-track8`)**:
-  `WorkspaceWorkflowService.submit` still writes the edge from the path team, and the engine's
-  auto-retry (`WorkflowExecutionService:265`) writes no ownership edge at all — so an auto-retried
-  run appears in `/query` (which filters on `workflowRef`) but fails `check()` on `GET /{id}`.
+  ~~The engine's auto-retry (`WorkflowExecutionService:265`) writes no ownership edge at all~~
+  **FIXED (feat-v5-authz)**: the ownership-edge write moved down into the unscoped
+  `WorkflowRunService.retry(workflowRunId, start, retryCount)` itself — resolved via the existing
+  `owningWorkspace` fallback BEFORE the clone is created, written before it is queued — so user
+  retries and engine auto-retries produce identically-owned runs through one path. Deliberate
+  asymmetry, pinned by `WorkflowRunRetryOwnerTest`: the scoped `retry(team, id)` keeps refuse-first
+  (`TEAM_INVALID_REF` before anything is created), while the engine path logs and retries
+  ownerless when no workspace owns the run or its Workflow — recovery is never failed over graph
+  bookkeeping. **Still open, same-shaped and pre-existing**: `WorkspaceWorkflowService.submit`
+  writes the edge from the path team — benign-leaning because `submit` resolves through
+  `filter()`, which applies workspace containment even for global scope (pinned in
+  `WorkflowWorkspaceAuthorizationTest`), so the path team always actually contains the Workflow.
   **Historical note on why it waited**: these were pass-through guards in
   `api/WorkspaceWorkflowRunService`
   over `engine/WorkflowRunService`, and the F1/F2/F3 merge-cleanup collapses the two into one
-  service — at which point `team` either becomes authoritative or disappears. Fix the edge-owner
-  bug as part of that work rather than patching a line about to be deleted.
+  service — at which point `team` either becomes authoritative or disappears.
 - ~~Agent endpoints (`AgentControllerV1`) are unauthenticated~~ **FIXED (E7-4)**: `/api/v1/agent`
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
@@ -243,15 +266,20 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
 | Events              | CloudEvents inbound; outbound via the **transactional outbox** (`events_outbox` + `OutboxDispatcher`), sink off by default. In-process = Spring `ApplicationEvent`. |
 | Distributed lock    | **None — `alturkovic/distributed-lock` is deleted** (E4-F). Contended transitions use status-CAS `findAndModify`; `acquirelock`/`releaselock` tasks use the `task_locks` collection. |
 | Execution runtime   | Tekton on Kubernetes (default dispatcher); local Docker dispatcher planned (Phase 4)            |
-| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). See `specifications/design-system.md`. |
+| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). **BFF end state (2026-09-01)**: the browser talks only to the SSR server — documents, `/res/*` resource routes (`Config/resourceRoutes.ts`), `.data` requests — never `/api/*`; all service-core calls are server-side (`Config/serverFetch.ts`), and **react-query is removed** (the `@tanstack/react-query` v5 client remains solely for the design-system UIShell). See `specifications/design-system.md`. **File naming (measured convention, 2026-08-31)**: components = PascalCase `.tsx`; non-component modules = camelCase `.ts` (`serverFetch.ts`, `authClient.ts`); `.server.ts` marks server-only code (React Router's own suffix); route modules in `app/routes/` = camelCase; specs mirror their subject (`X.spec.tsx`, `X.action.node.spec.ts`); `index.tsx` barrels only. The case IS the signal — do not "normalise" it. |
 
 ## Running Locally
 
 A `docker-compose.yml` at the repo root brings up the full product: Mongo, the one-shot
 `service-loader` migration/seed Job (gated with `service_completed_successfully` so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
-an `nginx` gateway that puts client-web and service-core behind one origin (service-core has
-no CORS support — see `docker/gateway/nginx.conf`). `service-dispatcher` is intentionally not part
+a local IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single
+browser-facing origin — and the ONLY thing the browser talks to (BFF end state, 2026-09-01):
+documents, `/res/*` resource routes and `.data` requests, never `/api/*`. Every service-core
+call happens server-side via `CORE_SERVICE_INTERNAL_ORIGIN` (`Config/serverFetch.ts`); the SSR
+server's old `/api` forward is deleted, and `/api` remains service-core's own surface for
+integrations and the dispatcher (service-core still has no CORS support — nothing browser-side
+needs it). There is no separate gateway. `service-dispatcher` is intentionally not part
 of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
 comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
 API — build locally instead:
@@ -275,19 +303,14 @@ cd client-web && pnpm install && pnpm run build && cd ..
 docker compose up --build
 ```
 
-`service-core` is on `http://localhost:7700` directly, `client-web` on `http://localhost:3000`
-directly, and the unified browser-facing origin (what E2E and manual UI testing should use) is
-`http://localhost:8080`.
+`client-web` on `http://localhost:3000` is the single browser-facing origin (what E2E and
+manual UI testing should use — it forwards `/api/*` to service-core); `service-core` is on
+`http://localhost:7700` directly for API-only calls.
 
-Security is off for this stack (`FLOW_SECURITY_ENABLED=false` in `docker-compose.yml`). This
-is **deliberate and temporary**, not the target state: there is no login flow yet
-(`specifications/authentication.md`), so a secured stack would just show a blank page. The
-property still derives from `flow.mode` and defaults on for `standalone`, so it must be set
-explicitly to disable it:
-
-```properties
-flow.security.enabled=false
-```
+The stack runs secured (`FLOW_SECURITY_ENABLED=true` in `docker-compose.yml`): the real
+sign-in flow (`specifications/authentication.md`) against the local IDPZero user picker, and
+the first user to sign in on a fresh database becomes the founding admin. The property
+derives from `flow.mode` (on for `standalone`) unless set explicitly.
 
 **E2E**: `e2e/` (repo root, not under `client-web/` — it drives the real UI against a real
 backend together, not the webapp in isolation) is a small Playwright suite. `cd e2e && npm ci
@@ -340,7 +363,7 @@ Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.y
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
 | `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
 | `specifications/merge-execution-plan.md`  | 🔵 **ACTIVE (2026-08-14)**   | T4 execution sequence for the DD-02 merge: E8–E11 slices, gate pre-fills, and the 5 amendments (AM-1 no-Modulith/no-ArchUnit boundaries-by-convention, AM-2 H3 moot, AM-3 leases deferred, AM-4 E9 G2 lineage via `initiatedByRef`, AM-5 dispatcher token reuse). |
-| `specifications/authentication.md`         | 🔵 Proposed (2026-08-18)     | Unified token exchange for IDPZero + OAuth2-proxy: one convergence point, session token thereafter, ARCHIE's httpOnly-cookie model (sequences after the SSR migration). Mode selection ruled to a config flag — revisit per issue #314. |
+| `specifications/authentication.md`         | 🟢 Implemented (2026-08-31)  | Unified token exchange for IDPZero + OAuth2-proxy, shipped end-to-end on `feat-v5-track10-auth` (PR #320): server-side OIDC via remix-auth v4 (superseding the browser-PKCE ruling), proxy exchange, secured local compose stack, founding-admin bootstrap. Also holds the ruled KEEP for the `access_token` URL param / `x-access-token` header and the security-off virtual-admin identity. |
 | `specifications/entity-diff-v4-v5.md`      | ✅ Reviewed + actioned (2026-08-21) | Field-level v4→v5 entity diff (why each element was added, migration-written residue, anomaly dispositions). **§7 documents the accepted outbox creation-loss window** — no open G2 items remain. |
 | `specifications/api-contract-trace.md`     | 🔵 **ACTIVE (2026-08-18)**   | End-to-end webapp↔service-core contract trace (call site → route → service → serialised fields). Live defects, blocked capability, the permissions/auth findings that gate the frontend work, and the maintainer decisions outstanding. |
 | `specifications/task-contract-research.md` | 📎 Research record (2026-08-22) | Params-in/results-out across Tekton, Argo, GitHub Actions, GitLab, Airflow, KFP, Conductor, Dagger; executor side-by-side (Tekton/Jobs/Docker/ACA/Lambda); the channel options A–E debated. Inputs to `runtime-contract.md` C2/C3. |
@@ -366,21 +389,28 @@ for discussion BEFORE implementing them.**
 
 If you have no other instruction, the open work is, in order:
 
-1. **Finish Track 8** (`feat-v5-track8`, unmerged): Wave 5 — `Editor.tsx`'s query cluster is the
-   last unconverted surface and the blocker for the schedules cluster, which currently runs
-   loaders for reads and react-query for writes. Then merge T8 into `feat-v5`.
-2. **Phase 4** — task runtime evolution: AgentRuntime/dispatcher SPI, local Docker runtime,
-   Tekton behind the SPI. Nothing blocks it.
-3. ~~The `SecurityInterceptor` enforcement flip~~ **DONE (2026-08-31, feat-v5-track10)** —
-   permission checks enforce for real; `flow.security.denied` replaces the shadow metric.
-4. **DD-03 unified product versioning** — the last unshipped v5 DD.
+1. **Cut the first 5.x release** (e.g. `5.0.0-beta.1` via the `/release` skill). DD-03's
+   mechanism is SHIPPED — `.github/workflows/ci-release.yml` builds the whole image set from
+   one `5.x.y` tag (landed with T9's DD-06 rename, PR #318) — but no 5.x tag has ever been
+   pushed. Before tagging, weigh the untested v3→v5 upgrade path (next item).
+2. **Test the v3→v5 in-place upgrade against a real v3 database dump** — ruled a requirement
+   (2026-09-01), never exercised end-to-end. The loader changeunit chain is load-bearing
+   production upgrade code.
+3. **Phase 4 continuation** — task runtime evolution. The TaskExecutor SPI, KubeJobsExecutor
+   and the param contract shipped; ACA-sandbox dispatcher, pass-by-reference artefact store
+   (flow#319) and the local Docker runtime are all DEFERRED with recorded triggers.
+4. ~~Finish Track 8~~ **DONE** — T8 merged as PR #316 (2026-08-26); Wave 5, the revalidator
+   sweep and both frontend defects closed on `feat-v5` (see track status below).
+5. ~~The `SecurityInterceptor` enforcement flip~~ **DONE (2026-08-31, feat-v5-track10, PR
+   #321)** — permission checks enforce for real; `flow.security.denied` replaces the shadow
+   metric.
 
 **Do not re-open** the two accepted limitations unless the trigger conditions in their specs are
 met: the outbox creation-loss window (`entity-diff-v4-v5.md` §7) and worker leases (AM-3).
 Likewise `reconciler-analysis.md`'s supersede generations describe a capability the product does
 not have — build them only if in-place partial re-run becomes a requirement.
 
-**Current state (2026-08-21) — the "where are we" a fresh session should read first:**
+**Current state (2026-09-01) — the "where are we" a fresh session should read first:**
 
 **Phase 3 is COMPLETE.** Epics E0–E11 all shipped on `feat-v5`: Phase 0 baseline (Java 25 / Boot
 4.1.0), E1 security shadow telemetry, E2 hazard stopgaps, E3 schema/indexes, **E4** execution-model
@@ -404,28 +434,40 @@ ahead of proven need" precedent already applied to the retry classes and leases 
   also records the design to build and the triggers that would reopen it.
 
 **Track status.** T1 (review-refactor), T2 (D5 + D7 single admission gate), T3/E7 (dispatcher),
-T4 (DD-02 merge, E9 egress), T6 (post-merge cleanups) and T7 (DD-04 frontend fold-in) are all
-merged to `feat-v5`. **T5 is partial**: DD-01 Team→Workspace and DD-04 shipped; **DD-03 unified
-product versioning is the last unshipped v5 DD**. F1 (the `TaskExecutionService` god-class split,
-still 1136 lines) was **ruled out of Phase 3 scope** — a large move-only refactor of the most
-sensitive class right after the execution model was rebuilt and pinned by new tests.
+T4 (DD-02 merge, E9 egress), T6 (post-merge cleanups), T7 (DD-04 frontend fold-in),
+**T8 (frontend SSR migration + F3 api-package dissolution, PR #316, 2026-08-26)**,
+**T9 (case-insensitive params + DD-06 `service-dispatcher` rename + 5.x release tags, PRs
+#317/#318)** and **T10 (sign-in flow PR #320, enforcement flip PR #321, authz fixes PR #323 —
+all merged 2026-09-01)** are all merged to `feat-v5`. **T5 is complete**: DD-01 Team→Workspace,
+DD-04, and DD-03's release mechanism (`ci-release.yml`, one 5.x tag → the whole image set) have
+all shipped — **the first 5.x tag itself has never been cut**. F1 (the `TaskExecutionService`
+god-class split, still 1136 lines) was **ruled out of Phase 3 scope** — a large move-only
+refactor of the most sensitive class right after the execution model was rebuilt and pinned by
+new tests.
 
-**T8 (`feat-v5-track8`) is IN PROGRESS and unmerged** — 81 commits ahead of `feat-v5`. The frontend
-refactor: React Router 7 framework mode + SSR, MSW replacing MirageJS, Cypress deleted,
-`@xyflow/react` v12, and ~10 route clusters moved from react-query onto server `loader`/`action`.
-Gates on a quiet tree: **vitest 172 passed / 0 failed (51 files)** — up from 96 passed / 8 failed —
-**tsc 27** (from 37), `pnpm build` exit 0, and the SSR bundle boundary verified
-(`CORE_SERVICE_INTERNAL_ORIGIN` in `build/server/`, absent from `build/client/`).
+**T8's former debt list is fully closed on `feat-v5`** (verified 2026-09-01): `Editor.tsx`'s
+Wave 5 conversion lives in `Features/WorkflowEditor/editorRoute.ts`; react-query v3 was removed
+with the last useQuery call site (`5dc4642ea` — `@tanstack/react-query` v5 remains in
+`app/root.tsx` ONLY because the design-system's UIShell/Header requires it; do not remove it);
+the redundant `revalidator.revalidate()` sweep is done (the survivors in `Features/App/App.tsx`
+are legitimate root-loader re-runs); schedule labels submit via `labelStringsToRecord` in
+`ScheduleCreator`/`ScheduleEditor`; and the `boomerang.io/workflow-ref=undefined` defect is
+fixed in `Features/WorkflowRun/RunHeader/RunHeader.tsx` (an absent ref drops its label).
 
-**T8 still owes**: Wave 5 (`Editor.tsx`'s query cluster — the blocker for the schedules cluster,
-which currently runs loaders for reads and react-query for writes); the `revalidator.revalidate()` sweep is DONE (2026-09-01 check on `feat-v5-track9`: 6 call sites remain, 5 in the react-query-backed schedules cluster + 1 poll, each justified in-file); and two open frontend defects — schedule labels cannot be set
-(`ScheduleCreator`/`ScheduleEditor`, the submit-side block is commented out and would not work if
-uncommented) and `WorkflowAdvancedDetail` rendering `boomerang.io/workflow-ref=undefined`.
+**The webapp is signed-in now**: the compose stack runs SECURED, sign-in is server-side OIDC via
+remix-auth v4 against local IDPZero or a proxy exchange, the browser never calls `/api` directly
+(BFF end state — the SSR server's `/api` proxy was deleted), and the first user on a fresh
+database becomes the founding admin. See `specifications/authentication.md` (🟢 implemented).
 
 The `SecurityInterceptor` enforcement flip is **DONE (2026-08-31, feat-v5-track10)** and the
 security-off identity is **RULED** (synthetic virtual admin, never persisted — see
-`specifications/authentication.md`). Still open: `PATCH`/`DELETE /user/{userId}` are gated only
-on global `user/write`/`user/delete` with **no self-scoping** — a backend authz gap now live
-under real enforcement.
+`specifications/authentication.md`). ~~Still open: `PATCH`/`DELETE /user/{userId}` are gated only
+on global `user/write`/`user/delete` with **no self-scoping**~~ **FIXED (feat-v5-authz)**:
+`UserService.apply`/`delete` permit self on principal equality and otherwise require a
+**global-scoped** `user/<action>` grant — the interceptor's `@AuthCriteria` match is scope-blind,
+so a workspace editor/owner's `**/write`/`**/**` used to reach ANY user's account; now only the
+platform admin/operator roles (the only global-scope shapes `resolvePermissionsForUser` issues)
+and explicitly minted `global` tokens do. Pinned by `UserSelfServiceAuthorizationTest`, which also
+pins the `Optional.of(null)` NPE fix (update-by-email of a non-existent user is `USER_NOT_FOUND`).
 
 Item-level detail + dispositions: `specifications/e4-review-findings.md`.

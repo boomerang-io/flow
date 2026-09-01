@@ -7,19 +7,19 @@ import { detect } from "detect-browser";
 import { FlagsProvider, useFeature } from "flagged";
 import { sortBy } from "lodash";
 import Joyride, { CallBackProps, TooltipRenderProps, STATUS } from "react-joyride";
-import { useQuery } from "react-query";
-import { Outlet, useParams, useRevalidator, useRouteLoaderData } from "react-router-dom";
+import { Outlet, useRevalidator, useRouteLoaderData } from "react-router-dom";
 import type { ShouldRevalidateFunctionArgs } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
 import ErrorDragon from "Components/ErrorDragon";
-import { AppContextProvider, WorkspaceContextProvider, useAppContext } from "State/context";
+import { AppContextProvider, useAppContext } from "State/context";
+import SignedOut from "Features/Auth/SignedOut";
+import type { AuthConfig } from "Features/Auth/authClient";
 import { APP_ROOT, CORE_ENV_URL, FeatureFlag } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
-import { serviceUrl, resolver } from "Config/servicesConfig";
+import { serviceUrl } from "Config/servicesConfig";
 import {
   FlowFeatures,
   FlowNavigationItem,
-  FlowWorkspace,
   FlowUser,
   ContextConfig,
   PaginatedResponse,
@@ -35,6 +35,7 @@ const AppActivation = lazy(() => import("./AppActivation"));
 
 const getUserUrl = serviceUrl.getUserProfile();
 const getContextUrl = serviceUrl.getContext();
+const getAuthConfigUrl = serviceUrl.getAuthConfig();
 const featureFlagsUrl = serviceUrl.getFeatureFlags();
 const workflowTemplatesUrl = serviceUrl.template.getWorkflowTemplates();
 const browser = detect();
@@ -63,6 +64,13 @@ export type BootstrapData = {
   features: FlowFeatures | null;
   navigation: Array<FlowNavigationItem>;
   workflowTemplates: Array<WorkflowTemplate>;
+  // GET /auth/config, fetched server-side in the same pass (unauthenticated by design). On a
+  // 401 bootstrap it tells SignedOut which sign-in surface to render - server-side, so the
+  // real mode is in the SSR HTML; on an authenticated bootstrap the Navbar reads it to decide
+  // the Sign Out affordance. `null` means the config could not be loaded, which consumers must
+  // treat as "change nothing" (Navbar) or a readable retry surface (SignedOut) - it deliberately
+  // does NOT set errorLoading: a broken config endpoint must never take the whole app down.
+  authConfig: AuthConfig | null;
   // True when one or more of the resources above failed to load non-fatally - e.g.
   // CORE_SERVICE_INTERNAL_ORIGIN is unconfigured/unreachable (see Config/serverFetch.ts), the
   // common case today. Kept distinct from `status`, which only tracks the profile fetch itself.
@@ -77,6 +85,7 @@ function emptyBootstrap(status: BootstrapStatus): BootstrapData {
     features: null,
     navigation: [],
     workflowTemplates: [],
+    authConfig: null,
     errorLoading: false,
   };
 }
@@ -124,6 +133,15 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
    */
   const featuresPromise = settle(api.get<FlowFeatures>(featureFlagsUrl));
   const templatesPromise = settle(api.get<PaginatedResponse<WorkflowTemplate>>(workflowTemplatesUrl));
+  // Unconditional like the two above, and needed on BOTH outcomes of the profile fetch: a 401
+  // hands it to SignedOut (which sign-in surface to server-render), an authenticated bootstrap
+  // hands it to the Navbar (the Sign Out affordance). This replaced the browser-side
+  // GET /auth/config (the retired useAuthConfig hook) - the BFF direction, 2026-09-01.
+  const authConfigPromise = settle(api.get<AuthConfig>(getAuthConfigUrl));
+  const resolveAuthConfig = async () => {
+    const result = await authConfigPromise;
+    return result.ok ? result.data : null;
+  };
 
   let user: FlowUser | null = null;
   try {
@@ -131,10 +149,10 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
     user = response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 423) {
-      return emptyBootstrap("activationRequired");
+      return { ...emptyBootstrap("activationRequired"), authConfig: await resolveAuthConfig() };
     }
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return emptyBootstrap("unauthorized");
+      return { ...emptyBootstrap("unauthorized"), authConfig: await resolveAuthConfig() };
     }
     // Any other failure - including an unconfigured/unreachable CORE_SERVICE_INTERNAL_ORIGIN,
     // the common case today - degrades below (errorLoading) rather than failing the render.
@@ -166,7 +184,16 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
     Boolean(contextResult && !contextResult.ok) ||
     Boolean(navigationResult && !navigationResult.ok);
 
-  return { status: "ok", user, context, features, navigation, workflowTemplates, errorLoading };
+  return {
+    status: "ok",
+    user,
+    context,
+    features,
+    navigation,
+    workflowTemplates,
+    authConfig: await resolveAuthConfig(),
+    errorLoading,
+  };
 }
 
 // Re-run the whole bootstrap when the workspace segment of the path changes. The old navigation
@@ -258,8 +285,14 @@ export default function App() {
   const bootstrap = useRouteLoaderData<BootstrapData>("root");
   const revalidator = useRevalidator();
 
+  // Warn only when an actual browser is detected as unsupported. During SSR detect() reports
+  // type "node" (name "node"), and the old bare includes() check made THAT count as unsupported -
+  // so every authenticated route server-rendered UnsupportedBrowserPrompt (Error403, "deep
+  // water") instead of its content, masking the page behind a hydration mismatch. The trade-off
+  // moves to the rare case: a genuinely unsupported browser now mismatches on hydration (server
+  // renders content, client swaps in the warning) instead of the supported ones mismatching.
   const [shouldShowBrowserWarning, setShouldShowBrowserWarning] = useState(
-    !supportedBrowsers.includes(browser?.name ?? ""),
+    browser?.type === "browser" && !supportedBrowsers.includes(browser.name),
   );
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [showActivatePlatform, setShowActivatePlatform] = React.useState(bootstrap?.status === "activationRequired");
@@ -295,14 +328,13 @@ export default function App() {
   // Distinguishable from the generic degraded-load path below: a 401 means this specific
   // request isn't authenticated (an expired/absent session), not that a resource failed to
   // load. Previously this was silently swallowed into `undefined` user data, which fell through
-  // every render branch to `return null` - a blank page with no signal why.
+  // every render branch to `return null` - a blank page with no signal why. SignedOut owns what
+  // happens next per the authConfig this loader fetched in the same pass: nothing extra (none),
+  // one silent exchange via the /auth/signin action (proxy), or a Sign in button starting the
+  // server-side PKCE flow (oidc) - see Features/Auth. onReloadConfig re-runs this loader, which
+  // owns the config fetch now.
   if (bootstrap.status === "unauthorized") {
-    return (
-      <Error403
-        title="You're not signed in"
-        message="Your session has expired or you're not signed in. Sign in again to continue."
-      />
-    );
+    return <SignedOut config={bootstrap.authConfig} onReloadConfig={() => revalidator.revalidate()} />;
   }
 
   if (bootstrap.errorLoading) {
@@ -443,37 +475,6 @@ const AppFeatures = React.memo(function AppFeatures() {
     </main>
   );
 });
-
-// Used both directly by App's own layout gating above and by route elements defined in
-// AppRoutes.tsx (imported from there) to resolve the active workspace from the `:workspace`
-// path param before rendering a workspace-scoped feature.
-export function WorkspaceContainer(props: { children: React.ReactNode }) {
-  const { workspace = "" } = useParams<{ workspace: string }>();
-  const getWorkspaceUrl = serviceUrl.resourceWorkspace({ workspace });
-
-  const workspaceQuery = useQuery<FlowWorkspace>({
-    queryKey: getWorkspaceUrl,
-    queryFn: resolver.query(getWorkspaceUrl),
-  });
-
-  if (workspaceQuery.isLoading || workspaceQuery.error) {
-    return null;
-  }
-
-  if (workspaceQuery.data) {
-    return (
-      <WorkspaceContextProvider
-        value={{
-          workspace: workspaceQuery.data,
-        }}
-      >
-        {props.children}
-      </WorkspaceContextProvider>
-    );
-  }
-
-  return null;
-}
 
 /**
  * TODO: MOVE THIS TO OWN COMPONENT

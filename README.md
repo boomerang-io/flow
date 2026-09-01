@@ -11,14 +11,14 @@ This repository holds the whole product — services, migrations, and the web ap
 | [`service-dispatcher`](./service-dispatcher) | Pluggable execution worker. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default) or `kube-jobs`. Additional runtimes can be added. |
 | [`service-loader`](./service-loader) | Flamingock migrations and bootstrap seeding, run as a pre-deploy Job. |
 | [`lib-common`](./lib-common) | Shared domain model, entities, enums, error handling. |
-| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. Its own image; served only in `standalone` mode. |
+| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; served only in `standalone` mode. |
 | [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
 
 ```mermaid
 graph LR
-    U[Browser] -->|HTTP| W[client-web]
-    W -->|/api/v2| C[service-core]
-    U -->|/api/v2| C
+    U[Browser] -->|"HTTP (documents, /res/*, .data — never /api)"| W[client-web]
+    W -->|/api/v2 server-side| C[service-core]
+    I[Integrations / API clients] -->|/api/v2| C
     D1[dispatcher 1] -->|/api/v1/dispatcher| C
     D2[dispatcher n] -->|/api/v1/dispatcher| C
     D1 --> K[Kubernetes / Tekton]
@@ -44,8 +44,13 @@ calls a dispatcher.
 ## Running the whole product locally
 
 `docker-compose.yml` brings up MongoDB, the one-shot `service-loader` migration/seed job (gated so
-`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and an nginx
-gateway that puts the webapp and the API behind one origin.
+`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and a local
+IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single browser-facing
+origin — and the only thing the browser talks to (BFF end state): it serves documents, `/res/*`
+resource routes and `.data` requests, and every service-core call happens server-side via
+`CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts`). There is no `/api`
+forward and no separate gateway; `/api` remains service-core's own surface for integrations and
+the dispatcher.
 
 `service-dispatcher` is deliberately **not** in the stack — it drives Tekton on a real Kubernetes cluster.
 
@@ -59,12 +64,11 @@ docker compose up --build
 
 | Surface | URL |
 |---|---|
-| Unified origin (use this for manual testing and E2E) | http://localhost:8080 |
-| `service-core` direct | http://localhost:7700 |
-| `client-web` direct | http://localhost:3000 |
+| `client-web` — the single browser-facing origin (use this for manual testing and E2E) | http://localhost:3000 |
+| `service-core` direct — the `/api` surface for integrations, the dispatcher, and test setup (the webapp never uses it from the browser) | http://localhost:7700 |
 
-Security is off in this stack (`FLOW_SECURITY_ENABLED=false`). That is deliberate and temporary — there is
-no login flow yet, so a secured stack would show a blank page.
+The stack runs secured (`FLOW_SECURITY_ENABLED=true`) with the real sign-in flow against the local
+IDPZero user picker; the first user to sign in on a fresh database becomes the founding admin.
 
 ### End-to-end tests
 
@@ -79,6 +83,14 @@ mvn clean install                                   # build everything
 mvn -pl service-core -am spring-boot:run            # run the API + engine
 cd client-web && pnpm start                         # run the webapp with hot reload
 ```
+
+## Deploying behind a reverse proxy
+
+Any proxy or ingress fronting `client-web` MUST forward the `Host` header **including the port**
+(nginx: `proxy_set_header Host $http_host;`, not `$host`). React Router 7's CSRF protection
+compares each action POST's `Origin` against the server-reconstructed request host; a proxy that
+strips the port makes the two differ and every form submission fails with HTTP 400. The REST API
+(`/api/**`) is unaffected - this applies only to the webapp.
 
 ## Packaging and releases
 

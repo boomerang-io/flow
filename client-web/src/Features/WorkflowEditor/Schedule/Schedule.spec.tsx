@@ -1,9 +1,15 @@
-import { screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import userEvent from "@testing-library/user-event";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import moment from "moment-timezone";
 import { Route } from "react-router-dom";
+import { server } from "ApiServer/msw/node";
 import { workspaces } from "ApiServer/fixtures";
 import { appLink } from "Config/appConfig";
+import { serviceUrl } from "Config/servicesConfig";
+import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type WorkflowCanvas } from "Types";
-import { editorLoader } from "../editorRoute";
+import { editorLoader, editorAction } from "../editorRoute";
 import { renderWithContext } from "Utils/testing/render";
 import Schedule from "./index";
 
@@ -61,9 +67,25 @@ const workflow: WorkflowCanvas = {
 const LOADER_WAIT = { timeout: 15000 };
 const TEST_TIMEOUT = 30000;
 
+// react-big-calendar registers a document-level mousedown listener (Selection.js) that calls
+// document.elementFromPoint on EVERY click while the calendar is mounted. jsdom doesn't
+// implement it, and each resulting uncaught TypeError is an unhandled error that fails the file
+// (vitest exits non-zero) even with every test green. The calendar's drag-selection is not under
+// test here, so stub it for the create-flow test's clicks.
+beforeAll(() => {
+  if (typeof document.elementFromPoint !== "function") {
+    document.elementFromPoint = () => null;
+  }
+});
+
 function renderSchedule() {
   return renderWithContext(
-    <Route path="/:workspace/editor/:workflow/*" loader={editorLoader} element={<Schedule workflow={workflow} />} />,
+    <Route
+      path="/:workspace/editor/:workflow/*"
+      loader={editorLoader}
+      action={editorAction}
+      element={<Schedule workflow={workflow} />}
+    />,
     { route: appLink.editorSchedule({ workspace: WORKSPACE, workflow: WORKFLOW }) },
   );
 }
@@ -92,6 +114,47 @@ describe("Schedule", () => {
       // frozen to 2020-01-01 (setupTests.tsx), so the month label is deterministic.
       expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
       expect(screen.getByText("January 2020")).toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
+
+  // The second consumer of ScheduleCreator: a schedule created from the workflow editor's
+  // Schedule tab submits through the EDITOR route's action (editorAction dispatches the
+  // SCHEDULE_INTENTS to the shared scheduleAction), not the Schedules page's. This is the
+  // wiring test for that dispatch - without it, editorAction refuses the intent as "unknown"
+  // and no POST ever reaches the API.
+  it(
+    "creates a schedule from the editor tab through the editor route's action",
+    async () => {
+      let createdBody: any;
+      server.use(
+        http.post(serviceUrl.workspace.schedule.postSchedule({ workspace: ":workspace" }), async ({ request }) => {
+          createdBody = await request.json();
+          return HttpResponse.json({ ...createdBody, id: "new-schedule" }, { status: 201 });
+        }),
+      );
+
+      renderSchedule();
+
+      await screen.findByText("Trigger", undefined, LOADER_WAIT);
+      await userEvent.click(screen.getByRole("button", { name: "Create a Schedule" }));
+
+      // The creator modal is open once its form renders (the page's own "Create a Schedule"
+      // button shares the modal title's text, so wait on the form field instead).
+      await userEvent.type(await screen.findByLabelText("Name"), "Editor Tab Schedule");
+      fireEvent.change(screen.getByLabelText("Date and Time"), {
+        target: { value: moment().add(1, "day").format(DATETIME_LOCAL_INPUT_FORMAT) },
+      });
+
+      const createButton = await screen.findByRole("button", { name: "Create", hidden: true }, LOADER_WAIT);
+      await waitFor(() => expect(createButton).toBeEnabled());
+      await userEvent.click(createButton);
+
+      // workflowRef proves the editor-tab wiring end to end: ScheduleCreator received this tab's
+      // workflow prop and the POST went through editorAction -> scheduleAction to the API.
+      await waitFor(() =>
+        expect(createdBody).toMatchObject({ name: "Editor Tab Schedule", workflowRef: "schedule-me" }),
+      );
     },
     TEST_TIMEOUT,
   );

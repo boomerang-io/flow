@@ -1,9 +1,10 @@
 import Editor from "Features/WorkflowEditor";
-import { WorkspaceContainer } from "Features/App/App";
 import { editorLoader, editorAction } from "Features/WorkflowEditor/editorRoute";
 
 // ssr:true (react-router.config.ts) means loader/action run server-side in Node - see
-// app/routes/globalParameters.tsx for the fuller rationale comment.
+// app/routes/globalParameters.tsx for the fuller rationale comment. useWorkspaceContext() is
+// supplied by the parent layout route (routes/workspaceLayout.tsx), whose loader resolves the
+// `:workspace` record server-side.
 //
 // One loader/action pair now covers the whole editor: the workflow compose, the workspace's
 // other workflows, the changelog, the available parameters, both task catalogues, Configure's
@@ -17,9 +18,5 @@ export const loader = editorLoader;
 export const action = editorAction;
 
 export default function EditorRoute() {
-  return (
-    <WorkspaceContainer>
-      <Editor />
-    </WorkspaceContainer>
-  );
+  return <Editor />;
 }

@@ -11,10 +11,7 @@ import ScheduleCreator from "Components/ScheduleCreator";
 import ScheduleEditor from "Components/ScheduleEditor";
 import SchedulePanelDetail from "Components/SchedulePanelDetail";
 import SchedulePanelList from "Components/SchedulePanelList";
-import { useWorkspaceContext } from "Hooks";
-import { scheduleStatusOptions } from "Constants";
 import { queryStringOptions } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
 import type {
   CalendarDateRange,
   CalendarEvent,
@@ -32,13 +29,13 @@ import styles from "./Schedule.module.scss";
  * mounted" behaviour the two useQuery calls gave. They are read back through useMatches()
  * (editorRouteData.ts) because this component renders inside Editor.tsx's descendant <Routes>.
  *
- * The four writes stay on react-query, in Components/ScheduleCreator, Components/ScheduleEditor
- * and Components/SchedulePanelList: ScheduleManagerForm's onSubmit contract is a synchronous
- * promise the caller awaits to decide whether to close its modal, which useFetcher's
- * re-render-delivered result cannot satisfy. Those three already call `revalidator.revalidate()`
- * alongside their `queryClient.invalidateQueries` (added when Features/Schedules converted), and
- * that revalidate is what refreshes this page now - the invalidateQueries calls are inert here,
- * because this component no longer holds a react-query cache entry at those keys.
+ * The four writes live in Components/ScheduleCreator, Components/ScheduleEditor and
+ * Components/SchedulePanelList, which submit their namespaced intents through bare useFetcher()
+ * calls - resolved against THIS route's editorAction, which dispatches SCHEDULE_INTENTS to the
+ * shared scheduleAction (Features/Schedules/scheduleRoute.ts). The fetcher settle re-runs this
+ * route's loader, which is what refreshes this page after a write (the old ScheduleManagerForm
+ * await-contract that kept these on react-query was reworked to the closeModalRef/fetcher-settle
+ * pattern - see ScheduleCreator.tsx).
  *
  * The calendar's visible window is `fromDate`/`toDate` search params rather than useState, for
  * the same reason the version switcher is: a loader re-runs on URL change, not on setState. This
@@ -50,7 +47,6 @@ interface ScheduleProps {
 }
 
 export default function ScheduleView(props: ScheduleProps) {
-  const { workspace } = useWorkspaceContext();
   const location = useLocation();
   const navigate = useNavigate();
   const scheduleData = useEditorRouteData()?.schedule;
@@ -59,44 +55,6 @@ export default function ScheduleView(props: ScheduleProps) {
   const [isPanelOpen, setIsPanelOpen] = React.useState(false);
   const [isEditorOpen, setIsEditorOpen] = React.useState(false);
   const [isCreatorOpen, setIsCreatorOpen] = React.useState(false);
-
-  /*
-   * URLs for the shared Schedule* components below - still computed client-side, exactly as
-   * Features/Schedules/Schedules.tsx does after its own conversion. They no longer key a read on
-   * this page (the loader owns that); the three write components still take them as props and
-   * pass them to `queryClient.invalidateQueries`.
-   */
-  const schedulesUrlQuery = queryString.stringify(
-    {
-      statuses: scheduleStatusOptions.map((statusObj) => statusObj.value),
-      workflows: props.workflow.name,
-    },
-    queryStringOptions,
-  );
-  const getSchedulesUrl = serviceUrl.workspace.schedule.getSchedules({
-    workspace: workspace?.name,
-    query: schedulesUrlQuery,
-  });
-
-  const { fromDate = moment().startOf("month").unix(), toDate = moment().endOf("month").unix() } = queryString.parse(
-    location.search,
-    queryStringOptions,
-  );
-
-  const scheduleIds = (scheduleData?.schedulesData?.content ?? []).map((schedule) => schedule.id);
-
-  const calendarUrlQuery = queryString.stringify(
-    {
-      schedules: scheduleIds,
-      fromDate,
-      toDate,
-    },
-    queryStringOptions,
-  );
-  const getCalendarUrl = serviceUrl.workspace.schedule.getSchedulesCalendars({
-    workspace: workspace?.name,
-    query: calendarUrlQuery,
-  });
 
   /**
    * Component functions
@@ -134,8 +92,6 @@ export default function ScheduleView(props: ScheduleProps) {
     <>
       <div className={styles.container}>
         <SchedulePanelList
-          getCalendarUrl={getCalendarUrl}
-          getSchedulesUrl={getSchedulesUrl}
           includeStatusFilter={true}
           schedulesIsLoading={false}
           schedulesData={scheduleData.schedulesData}
@@ -162,16 +118,12 @@ export default function ScheduleView(props: ScheduleProps) {
         setIsEditorOpen={setIsEditorOpen}
       />
       <ScheduleCreator
-        getCalendarUrl={getCalendarUrl}
-        getSchedulesUrl={getSchedulesUrl}
         isModalOpen={isCreatorOpen}
         onCloseModal={() => setIsCreatorOpen(false)}
         schedule={newSchedule}
         workflow={props.workflow}
       />
       <ScheduleEditor
-        getCalendarUrl={getCalendarUrl}
-        getSchedulesUrl={getSchedulesUrl}
         isModalOpen={isEditorOpen}
         onCloseModal={() => setIsEditorOpen(false)}
         schedule={activeSchedule}

@@ -1,5 +1,4 @@
 import React from "react";
-import { useMutation } from "react-query";
 import { Formik } from "formik";
 import { useFetcher, useNavigate } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
@@ -10,7 +9,7 @@ import {
   TextInput,
   Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { resolver } from "Config/servicesConfig";
+import { checkWorkspaceNameAvailable } from "Config/resourceRoutes";
 import kebabcase from "lodash/kebabCase";
 import * as Yup from "yup";
 import { appLink } from "Config/appConfig";
@@ -32,11 +31,13 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
   const isSubmitting = fetcher.state !== "idle";
   const failed = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === WorkspaceIntent.Rename);
 
-  // The name-availability probe stays a direct browser call rather than moving to the route
-  // action: it runs inside Yup's async `test`, which needs a promise to await per keystroke, and
-  // fetcher.submit is fire-and-forget with no awaitable result. It is a validation probe, not the
-  // mutation - the mutation above is what moved.
-  const validateWorkspaceNameMutator = useMutation(resolver.postWorkspaceValidateName);
+  // The name-availability probe cannot move to the route action: it runs inside Yup's async
+  // `test`, which needs a promise to await per keystroke, and fetcher.submit is fire-and-forget
+  // with no awaitable result. So it fetches the same-origin /res/workspace/validate-name
+  // resource route (Config/resourceRoutes.ts) instead of calling /api directly - the SSR server
+  // makes the service-core call. Counter, not boolean: rapid keystrokes overlap probes.
+  const [pendingProbes, setPendingProbes] = React.useState(0);
+  const isValidating = pendingProbes > 0;
 
   React.useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== WorkspaceIntent.Rename) {
@@ -71,7 +72,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
     buttonText = "Saving...";
   } else if (failed) {
     buttonText = "Try again";
-  } else if (validateWorkspaceNameMutator.isLoading) {
+  } else if (isValidating) {
     buttonText = "Validating...";
   }
 
@@ -88,17 +89,16 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
           .required("Enter a workspace name")
           .max(100, "Enter workspace name that is at most 100 characters in length")
           .test("isUnique", "TAKEN", async (value) => {
-            let isValid = true;
-            if (value) {
-              try {
-                await validateWorkspaceNameMutator.mutateAsync({ body: { name: kebabcase(value.replace(`'`, "-")) } });
-              } catch (e) {
-                console.error(e);
-                isValid = false;
-              }
+            if (!value) {
+              return true;
             }
-            // Need to return promise for yup to do async validation
-            return Promise.resolve(isValid);
+            setPendingProbes((count) => count + 1);
+            try {
+              // Never rejects: unavailable/unreachable both read as `false` -> TAKEN.
+              return await checkWorkspaceNameAvailable(kebabcase(value.replace(`'`, "-")));
+            } finally {
+              setPendingProbes((count) => count - 1);
+            }
           }),
       })}
     >
@@ -153,12 +153,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
                 Cancel
               </Button>
               <Button
-                disabled={Boolean(
-                  errors.name ||
-                    isSubmitting ||
-                    validateWorkspaceNameMutator.error ||
-                    validateWorkspaceNameMutator.isLoading,
-                )}
+                disabled={Boolean(errors.name || isSubmitting || isValidating)}
                 onClick={() => handleSubmit()}
                 data-testid="save-workspace-name"
               >

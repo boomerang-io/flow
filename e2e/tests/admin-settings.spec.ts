@@ -6,35 +6,31 @@ import { uniqueName, APP_BASENAME } from "../support/api";
  * (service-loader/src/main/resources/seed/settings.json - "customizations"."appName") and
  * confirm it round-trips through the real backend and Mongo, not just local component state.
  *
- * This stack runs with flow.security.enabled=false (see docker-compose.yml), so it cannot
- * exercise real authorization - there is no login flow yet (specifications/authentication.md)
- * and every request is implicitly "whoever hits the endpoint". That is a real gap: this test
- * proves the settings screen and its API wiring work, it does NOT prove an unprivileged user
- * is denied. Once real authentication lands, extend this with a negative case (non-admin
- * session gets 403 / the UI hides the save action) - see the report's "what changes once auth
- * lands" note.
+ * The stack is secured (FLOW_SECURITY_ENABLED=true) and this runs as the founding admin (the
+ * login bootstrap's first sign-in - tests/auth.setup.ts). It proves the settings screen and its
+ * API wiring work for an ADMIN; it does NOT yet prove an unprivileged user is denied - the
+ * SecurityInterceptor still soft-fails permission checks (see CLAUDE.md's enforcement-flip
+ * hazard), so a meaningful negative case (non-admin session gets 403 / the UI hides the save
+ * action) only becomes testable once that flip lands. Extend this spec then.
  */
 test("admin settings: changing a platform setting persists", async ({ page }) => {
-  const newAppName = uniqueName("endtoend-app-name");
+  const newAppName = uniqueName("e2e-app-name");
 
   await page.goto(`${APP_BASENAME}/admin/settings`);
 
   // "Configure Customizations" is not the first (auto-open) accordion group, so open it.
   await page.getByText("Configure Customizations").click();
 
-  // getByLabel("App Name") is ambiguous (github.appName carries the same label) - use the testid.
+  // By testid, not label: two settings render the label "App Name" (customizations' appName and
+  // the GitHub integration's github.appName), so getByLabel trips strict mode.
   const appNameInput = page.getByTestId("appName");
   await appNameInput.fill(newAppName);
-  // Blur so Formik marks the section dirty (see workflow.spec.ts on Playwright actionability).
-  await appNameInput.blur();
 
-  // Every settings accordion section renders its own Save; .first() grabbed a different,
-  // untouched (still-disabled) section's button. Scope to the Customizations section.
-  await page
-    .locator(".cds--accordion__item")
-    .filter({ hasText: "Configure Customizations" })
-    .getByRole("button", { name: "Save" })
-    .click();
+  // Every settings group renders its own Save (this branch's new Authentication Configuration
+  // section sits ABOVE Customizations, and its Save stays disabled - a bare .first() clicks
+  // that one and times out), so scope the click to the accordion item that holds this group.
+  const customizations = page.locator("li.cds--accordion__item", { has: page.locator("#customizations") });
+  await customizations.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Settings succesfully updated")).toBeVisible();
 
   // Reload to prove the value came back from the backend, not just local form state.

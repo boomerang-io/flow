@@ -365,6 +365,14 @@ public class WorkflowService {
    */
   //  @Audit(scope = PermissionScope.WORKFLOW)
   public Workflow create(String team, Workflow request) {
+    // Validate Access - same guard as TaskService.create: the caller must reach the workspace the
+    // ownership edge below is written into. Guards every create-shaped route: create, apply and
+    // composeApply (when the Workflow does not exist yet) and duplicate all funnel here.
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
+
     // Ensure name is in slug format
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));

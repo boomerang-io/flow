@@ -57,9 +57,9 @@ export async function loader({
  * SECURITY: the user being modified is taken from the `:userId` ROUTE param, never from a form
  * field the browser supplies - a submission cannot retarget the write at a different user than
  * the URL the caller navigated to and was authorised for. The API call itself goes through
- * serverFetch(request), which forwards the caller's inbound session Cookie; calling the browser
- * `resolver`/`axios` instance here instead would send no credentials at all, because
- * axios.defaults.withCredentials (Config/axiosGlobalConfig.ts) needs a browser cookie jar that
+ * serverFetch(request), which forwards the caller's inbound session Cookie; a bare browser
+ * axios instance here instead would send no credentials at all, because a `withCredentials`
+ * default (how the deleted `resolver` object authenticated) needs a browser cookie jar that
  * Node does not have.
  */
 export type UserDetailedActionResult =

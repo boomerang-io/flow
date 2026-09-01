@@ -6,7 +6,6 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
-import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
 import { renderWithContext } from "Utils/testing/render";
 import WorkflowActivity, { loader } from "./Activity";
@@ -14,20 +13,18 @@ import WorkflowActivity, { loader } from "./Activity";
 const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skipEmptyString: true };
 const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js content[0] (setupTests.tsx's default workspace).
 
-// Route-module test pattern - see GlobalParameters.spec.tsx/WorkspaceTasks.spec.tsx. Wraps the
-// same WorkspaceContainer app/routes/activity.tsx does, since the header's workspace object
-// (displayName/breadcrumb) is still a client-side context concern - the loader itself only ever
-// needs the `:workspace` URL param (see Activity.tsx's module doc).
+// Route-module test pattern - see GlobalParameters.spec.tsx/WorkspaceTasks.spec.tsx. The
+// header's workspace object (displayName/breadcrumb) comes from the harness's own
+// WorkspaceContextProvider default (setupTests.tsx: workspacesFixture.content[0], the same
+// "tyson-workspace" this route matches) - production supplies it from
+// app/routes/workspaceLayout.tsx's loader. The loader itself only ever needs the `:workspace`
+// URL param (see Activity.tsx's module doc).
 function renderActivity(route: string = `/${WORKSPACE}/activity`) {
   return renderWithContext(
     <Route
       path="/:workspace/activity"
       loader={loader}
-      element={
-        <WorkspaceContainer>
-          <WorkflowActivity />
-        </WorkspaceContainer>
-      }
+      element={<WorkflowActivity />}
     />,
     { route },
   );

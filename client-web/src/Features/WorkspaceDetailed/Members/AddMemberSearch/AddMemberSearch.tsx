@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { useQuery } from "Hooks";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Add } from "@carbon/react/icons";
 import { Button, InlineNotification, ModalBody, ModalFooter, Search } from "@carbon/react";
 import { Error, Loading, ModalForm } from "@boomerang-io/carbon-addons-boomerang-react";
-import { serviceUrl } from "Config/servicesConfig";
+import { resourceRoute } from "Config/resourceRoutes";
 import { Member, MemberRole, PaginatedUserResponse } from "Types";
+import type { ResUsersResult } from "../../../../../app/routes/resUsers";
 import MemberBar from "./MemberBar";
 import styles from "./AddMemberSearch.module.scss";
 import { Locked } from "Utils/navigationIcons";
@@ -66,8 +66,31 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
   const [selectedUsers, setSelectedUsers] = useState<Member[]>([]);
   const [usersListOpen, setUsersListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const usersUrl = serviceUrl.getUsers({ query: "" });
-  const userQuery = useQuery<PaginatedUserResponse, string>(usersUrl);
+  // One on-mount read of the user list through the /res/users BFF resource route (see
+  // app/routes/resUsers.tsx) - this content only mounts when the modal opens, so the read stays
+  // on-demand exactly as the old react-query call was. The search box filters the fetched page
+  // client-side; it never re-queries the server (unchanged behaviour).
+  const [userQuery, setUserQuery] = useState<
+    { status: "loading" } | { status: "error" } | { status: "ok"; data: PaginatedUserResponse }
+  >({ status: "loading" });
+  useEffect(() => {
+    let cancelled = false;
+    fetch(resourceRoute.users(), { credentials: "same-origin" })
+      .then((response) => (response.ok ? (response.json() as Promise<ResUsersResult>) : Promise.reject()))
+      .then((result) => {
+        if (!cancelled) {
+          setUserQuery(result.ok ? { status: "ok", data: result.users } : { status: "error" });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUserQuery({ status: "error" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const searchRef = React.useRef<HTMLDivElement | null>();
 
@@ -88,7 +111,7 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
     const searchQuery = e.target?.value;
 
     if (searchQuery) {
-      setUserList(userQuery.data?.content || []);
+      setUserList(userQuery.status === "ok" ? userQuery.data.content || [] : []);
       setSearchQuery(searchQuery);
       setUsersListOpen(true);
     } else {
@@ -125,7 +148,7 @@ function AddMemberContent({ closeModal, memberList, handleSubmit, isSubmitting, 
     handleSubmit(addMemberRequestData, closeModal);
   };
 
-  if (userQuery.error) {
+  if (userQuery.status === "error") {
     return <Error />;
   }
 

@@ -1,19 +1,15 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment-timezone";
-import { useMutation, useQueryClient } from "react-query";
-import { useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
-import { useWorkspaceContext } from "Hooks";
 import { labelStringsToRecord } from "Utils";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import { cronDayNumberMap } from "Utils/cronHelper";
-import { resolver } from "Config/servicesConfig";
 import { ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
 import styles from "./ScheduleEditor.module.scss";
 
 interface ScheduleEditorProps {
-  getCalendarUrl: string;
-  getSchedulesUrl: string;
   includeWorkflowDropdown?: boolean;
   isModalOpen: boolean;
   onCloseModal: () => void;
@@ -22,37 +18,40 @@ interface ScheduleEditorProps {
   workflowOptions?: Array<Workflow>;
 }
 
-function ScheduleEditor(props: ScheduleEditorProps) {
-  const queryClient = useQueryClient();
-  const { workspace } = useWorkspaceContext();
-  // See the equivalent comment in ScheduleCreator.tsx: shared with WorkflowEditor/Schedule/
-  // Schedule.tsx (unconverted), so this stays on `useMutation` + `invalidateQueries` for that
-  // consumer, with `revalidator.revalidate()` added alongside for this (loader-driven) page.
-  const revalidator = useRevalidator();
-  /**
-   * Update schedule
-   */
-  const { mutateAsync: updateScheduleMutator, ...editScheduleMutation } = useMutation(resolver.putSchedule, {});
+// Matches only the fields this component reads off the owning route's action result - see the
+// equivalent comment in ScheduleCreator.tsx (both routes that render this serve the
+// "updateSchedule" intent through Features/Schedules/scheduleRoute.ts).
+type ActionResult = { intent: string } | ({ intent: string } & ActionError);
 
-  const handleUpdateSchedule = async (updatedSchedule: ScheduleUnion) => {
-    if (props.schedule) {
-      // intentionally don't catch error so it can be done by the ScheduleManagerForm
-      await updateScheduleMutator({ workspace: workspace.name, body: updatedSchedule });
+function ScheduleEditor(props: ScheduleEditorProps) {
+  const fetcher = useFetcher<ActionResult>();
+  // Fetcher-settle close, same as ScheduleCreator.tsx: closeModal is stashed at submit time and
+  // invoked only once the update succeeds; on failure the modal stays open with
+  // ScheduleManagerForm's inline error. The old invalidateQueries + revalidator.revalidate()
+  // pair is gone - the fetcher settle auto-revalidates the active loaders.
+  const closeModalRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (!isActionError(fetcher.data) && fetcher.data.intent === "updateSchedule") {
       notify(
         <ToastNotification
           kind="success"
           title={`Update Schedule`}
-          subtitle={`Successfully updated schedule ${props.schedule.name} `}
+          subtitle={`Successfully updated schedule ${props.schedule?.name} `}
         />,
       );
-      queryClient.invalidateQueries(props.getCalendarUrl);
-      queryClient.invalidateQueries(props.getSchedulesUrl);
-      revalidator.revalidate();
+      closeModalRef.current?.();
+      closeModalRef.current = null;
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  const handleSubmit = (values: ScheduleManagerFormInputs, closeModal: () => void) => {
+    if (!props.schedule) {
       return;
     }
-  };
-
-  const handleSubmit = async (values: ScheduleManagerFormInputs) => {
     const {
       id,
       name,
@@ -114,7 +113,8 @@ function ScheduleEditor(props: ScheduleEditorProps) {
       schedule["cronSchedule"] = cronSchedule;
     }
 
-    return await handleUpdateSchedule(schedule as ScheduleUnion);
+    closeModalRef.current = closeModal;
+    fetcher.submit({ intent: "updateSchedule", schedule: JSON.stringify(schedule) }, { method: "post" });
   };
 
   return (
@@ -131,8 +131,8 @@ function ScheduleEditor(props: ScheduleEditorProps) {
       {(modalProps) => (
         <ScheduleManagerForm
           handleSubmit={handleSubmit}
-          isError={editScheduleMutation.isError}
-          isLoading={editScheduleMutation.isLoading}
+          isError={Boolean(fetcher.data && isActionError(fetcher.data))}
+          isLoading={fetcher.state !== "idle"}
           includeWorkflowDropdown={props.includeWorkflowDropdown}
           modalProps={modalProps}
           schedule={props.schedule}

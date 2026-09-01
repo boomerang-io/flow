@@ -11,7 +11,6 @@ import {
 } from "react-router-dom";
 import { render as rtlRender, type RenderOptions } from "@testing-library/react";
 import { FlagsProvider } from "flagged";
-import { QueryClient, QueryClientProvider, type MutationObserverOptions } from "react-query";
 import { AppContextProvider, WorkspaceContextProvider } from "State/context";
 import {
   featureFlags as featureFlagsFixture,
@@ -181,26 +180,30 @@ export interface RenderContextOptions extends RenderRouteOptions, Omit<RenderOpt
   // webapp/API type alignment noted in CLAUDE.md. Same laxity the old `rtlContextRouterRender`'s
   // untyped/`//@ts-nocheck`'d `contextValue` param had.
   contextValue?: Record<string, unknown>;
+  // Overrides `defaultWorkspaceValue` (the paginated-list's first entry) - specs whose route
+  // resolves the workspace by name (e.g. WorkspaceParameters/WorkspaceTasks, which look it up
+  // via `resourceWorkspace`) need the full single-workspace fixture the route's own `WORKSPACE`
+  // constant names, not just whichever workspace happens to be first in the list fixture.
+  workspaceValue?: Record<string, unknown>;
 }
 
 /** Replaces `global.rtlContextRouterRender` - the router render above, plus the app-wide
- * providers a workspace-scoped feature needs: feature flags, AppContext, WorkspaceContext, and a
- * fresh react-query v3 QueryClient per render (retries off, mutation errors thrown so a spec's
- * `await expect(...).rejects` sees them). */
+ * providers a workspace-scoped feature needs: feature flags, AppContext, WorkspaceContext.
+ * react-query v3 is gone entirely (dropped with the last `useQuery` call site) - the
+ * `QueryClientProvider` this used to wrap every render in went with it. */
 export function renderWithContext(ui: React.ReactElement, options: RenderContextOptions = {}) {
-  const { contextValue, path, route, initialEntries, initialIndex, loader, action, routes, ...renderOptions } =
-    options;
-  const queryClient = new QueryClient({
-    // `throwOnError` (not a real react-query v3 `MutationObserverOptions` key - the type only
-    // has `useErrorBoundary`) is carried over unchanged from the old harness's identical
-    // `rtlContextRouterRender`, itself `//@ts-nocheck`d, so this was already a silent no-op
-    // there; kept as-is (cast) rather than "fixed" to `useErrorBoundary`, which has different
-    // render-time-throw semantics and is out of this migration's scope to change.
-    defaultOptions: {
-      queries: { retry: 0 },
-      mutations: { throwOnError: true } as MutationObserverOptions<unknown, unknown, unknown, unknown>,
-    },
-  });
+  const {
+    contextValue,
+    workspaceValue,
+    path,
+    route,
+    initialEntries,
+    initialIndex,
+    loader,
+    action,
+    routes,
+    ...renderOptions
+  } = options;
   const { HistoryProbe, history } = createHistoryHandle();
   const Stub = createRoutesStub(buildStubRoutes(ui, { path, route, initialEntries, loader, action, routes }, HistoryProbe));
   return {
@@ -214,11 +217,13 @@ export function renderWithContext(ui: React.ReactElement, options: RenderContext
           value={{ ...defaultContextValue, ...contextValue } as unknown as Parameters<typeof AppContextProvider>[0]["value"]}
         >
           <WorkspaceContextProvider
-            value={defaultWorkspaceValue as unknown as Parameters<typeof WorkspaceContextProvider>[0]["value"]}
+            value={
+              { ...defaultWorkspaceValue, ...workspaceValue } as unknown as Parameters<
+                typeof WorkspaceContextProvider
+              >[0]["value"]
+            }
           >
-            <QueryClientProvider client={queryClient}>
-              <Stub initialEntries={initialEntriesFor({ route, initialEntries })} initialIndex={initialIndex} />
-            </QueryClientProvider>
+            <Stub initialEntries={initialEntriesFor({ route, initialEntries })} initialIndex={initialIndex} />
           </WorkspaceContextProvider>
         </AppContextProvider>
       </FlagsProvider>,

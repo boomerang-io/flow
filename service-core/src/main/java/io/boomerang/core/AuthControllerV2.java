@@ -3,6 +3,7 @@ package io.boomerang.core;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.core.TokenService.SessionToken;
+import io.boomerang.core.model.AuthConfig;
 import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.AuthExchangeService;
@@ -19,6 +20,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +44,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthControllerV2 {
 
   @Autowired private AuthExchangeService authExchangeService;
+
+  /*
+   * The pre-auth bootstrap: the SPA must learn HOW to sign in before it holds any session, so this
+   * endpoint is deliberately public - @AuthCriteria is absent on purpose (not an oversight), and
+   * the path is exempted from the security layer (permitAll + shouldNotFilter) exactly like the
+   * GitHub callback. It exposes only the sign-in mode and, for oidc, the issuer/clientId the
+   * browser needs for its authorize request - never anything else from the auth settings.
+   */
+  @GetMapping("/config")
+  @Operation(summary = "How to sign in - the pre-auth bootstrap contract for the webapp")
+  public AuthConfig config() {
+    return authExchangeService.config();
+  }
 
   /*
    * Empty body: the caller is behind an authenticating proxy and AuthenticationFilter has already

@@ -68,9 +68,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Get the version
+      - name: Compute image tags
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          TAGS="boomerangio/flow-service-core:${VERSION}"
+          case "$VERSION" in
+            *-beta.*|*-rc.*) ;;
+            *) TAGS="${TAGS},boomerangio/flow-service-core:latest" ;;
+          esac
+          echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v6
@@ -78,7 +86,7 @@ jobs:
           context: .
           file: service-core/Dockerfile
           push: true
-          tags: boomerangio/flow-service-core:latest,boomerangio/flow-service-core:${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.get_version.outputs.TAGS }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
       - name: Slack
@@ -140,9 +148,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Get the version
+      - name: Compute image tags
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          TAGS="boomerangio/flow-service-dispatcher:${VERSION}"
+          case "$VERSION" in
+            *-beta.*|*-rc.*) ;;
+            *) TAGS="${TAGS},boomerangio/flow-service-dispatcher:latest" ;;
+          esac
+          echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v6
@@ -150,7 +166,7 @@ jobs:
           context: .
           file: service-dispatcher/Dockerfile
           push: true
-          tags: boomerangio/flow-service-dispatcher:latest,boomerangio/flow-service-dispatcher:${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.get_version.outputs.TAGS }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
       - name: Slack
@@ -208,9 +224,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Get the version
+      - name: Compute image tags
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          TAGS="boomerangio/flow-service-loader:${VERSION}"
+          case "$VERSION" in
+            *-beta.*|*-rc.*) ;;
+            *) TAGS="${TAGS},boomerangio/flow-service-loader:latest" ;;
+          esac
+          echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v6
@@ -218,7 +242,7 @@ jobs:
           context: .
           file: service-loader/Dockerfile
           push: true
-          tags: boomerangio/flow-service-loader:latest,boomerangio/flow-service-loader:${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.get_version.outputs.TAGS }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
       - name: Slack
@@ -291,9 +315,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Get the version
+      - name: Compute image tags
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          TAGS="boomerangio/flow-client-web:${VERSION}"
+          case "$VERSION" in
+            *-beta.*|*-rc.*) ;;
+            *) TAGS="${TAGS},boomerangio/flow-client-web:latest" ;;
+          esac
+          echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v6
@@ -301,7 +333,7 @@ jobs:
           context: client-web
           file: client-web/Dockerfile
           push: true
-          tags: boomerangio/flow-client-web:latest,boomerangio/flow-client-web:${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.get_version.outputs.TAGS }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
       - name: Slack

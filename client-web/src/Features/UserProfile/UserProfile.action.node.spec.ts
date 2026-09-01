@@ -2,8 +2,9 @@
 //
 // Runs the /profile route action in a REAL Node environment (no jsdom, no window, no browser
 // cookie jar) - the environment it actually executes in under ssr:true. That is the whole point:
-// the previous implementation issued its writes with the browser `resolver`/`axios` instance,
-// which authenticates purely via `axios.defaults.withCredentials` (Config/axiosGlobalConfig.ts).
+// the previous implementation issued its writes with the browser `resolver`/`axios` instance
+// (both deleted with the BFF teardown), which authenticated purely via a global
+// `axios.defaults.withCredentials`.
 // `withCredentials` needs a browser cookie jar to have anything to send, so the same call made
 // from a server action goes out with NO credentials at all. These tests pin the replacement
 // behaviour: every outbound call carries the caller's inbound session cookie, and neither write

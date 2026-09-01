@@ -1,19 +1,15 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment-timezone";
-import { useMutation, useQueryClient } from "react-query";
-import { useRevalidator } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
-import { useWorkspaceContext } from "Hooks";
 import { labelStringsToRecord } from "Utils";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import { cronDayNumberMap } from "Utils/cronHelper";
-import { resolver } from "Config/servicesConfig";
 import { ScheduleManagerFormInputs, ScheduleDate, ScheduleUnion, Workflow, DayOfWeekCronAbbreviation } from "Types";
 import styles from "./ScheduleCreator.module.scss";
 
 interface CreateScheduleProps {
-  getCalendarUrl: string;
-  getSchedulesUrl: string;
   includeWorkflowDropdown?: boolean;
   isModalOpen: boolean;
   onCloseModal: () => void;
@@ -22,41 +18,47 @@ interface CreateScheduleProps {
   workflowOptions?: Array<Workflow>;
 }
 
+// Matches only the fields this component reads off the owning route's action result - the real
+// union lives in Features/Schedules/scheduleRoute.ts (Node-only, so components re-declare rather
+// than import it; see CreateWorkflow.tsx for the precedent). This component is rendered by two
+// routes - the Schedules page and the workflow editor's Schedule tab - and both route actions
+// serve the "createSchedule" intent (app/routes/schedules.tsx exports scheduleAction directly;
+// editorRoute.ts's editorAction dispatches SCHEDULE_INTENTS to it), so the bare useFetcher()
+// resolves correctly from either surface.
+type ActionResult = { intent: string } | ({ intent: string } & ActionError);
+
 export default function CreateSchedule(props: CreateScheduleProps) {
-  const queryClient = useQueryClient();
-  const { workspace } = useWorkspaceContext();
-  // This component is rendered by two surfaces: this Schedules page (route-loader-driven, see
-  // Features/Schedules/Schedules.tsx) and WorkflowEditor/Schedule/Schedule.tsx's Schedule tab
-  // (still react-query-driven). It stays on `useMutation` rather than moving to a
-  // useFetcher()/route-action write - ScheduleManagerForm's onSubmit awaits `handleSubmit`
-  // synchronously to decide whether to close the modal, and Schedule.tsx has no matching route
-  // action to submit to. `queryClient.invalidateQueries` below keeps that unconverted consumer's
-  // own useQuery refreshing exactly as before; `revalidator.revalidate()` is added alongside it
-  // purely so this page's loader-driven read also refreshes (a no-op invalidateQueries here, same
-  // as GlobalTokens.tsx's CreateToken).
-  const revalidator = useRevalidator();
-  /**
-   * Create schedule
-   */
-  const { mutateAsync: createScheduleMutator, ...createScheduleMutation } = useMutation(resolver.postSchedule, {});
+  const fetcher = useFetcher<ActionResult>();
+  // ScheduleManagerForm hands this component the modal's closeModal at submit time; the fetcher
+  // settles asynchronously (fetcher.state -> "idle"), so it's stashed here with the submitted
+  // schedule's name and invoked from the effect below only once the create actually succeeds -
+  // the modal stays open (with ScheduleManagerForm's inline error off `isError`) on failure,
+  // matching the previous mutateAsync/try-catch behaviour. Same pattern as CreateWorkflow.tsx's
+  // handleImportWorkflow. The old `queryClient.invalidateQueries` + `revalidator.revalidate()`
+  // pair is gone entirely: the fetcher's settle revalidates every active loader on its own.
+  const closeModalRef = useRef<(() => void) | null>(null);
+  const submittedNameRef = useRef<string>("");
 
-  const handleCreateSchedule = async (schedule: ScheduleUnion) => {
-    // intentionally don't handle error so it can be done by the ScheduleManagerForm
-    await createScheduleMutator({ workspace: workspace?.name, body: schedule });
-    notify(
-      <ToastNotification
-        kind="success"
-        title={`Create Schedule`}
-        subtitle={`Successfully created schedule ${schedule.name} `}
-      />,
-    );
-    queryClient.invalidateQueries(props.getCalendarUrl);
-    queryClient.invalidateQueries(props.getSchedulesUrl);
-    revalidator.revalidate();
-    return;
-  };
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (!isActionError(fetcher.data) && fetcher.data.intent === "createSchedule") {
+      notify(
+        <ToastNotification
+          kind="success"
+          title={`Create Schedule`}
+          subtitle={`Successfully created schedule ${submittedNameRef.current} `}
+        />,
+      );
+      closeModalRef.current?.();
+      closeModalRef.current = null;
+    }
+    // Failure is inline-only (no toast), as before: ScheduleManagerForm renders its
+    // "Something's Wrong" InlineNotification off the isError prop below.
+  }, [fetcher.state, fetcher.data]);
 
-  const handleSubmit = async (values: ScheduleManagerFormInputs) => {
+  const handleSubmit = (values: ScheduleManagerFormInputs, closeModal: () => void) => {
     const {
       advancedCron,
       cronSchedule,
@@ -117,7 +119,9 @@ export default function CreateSchedule(props: CreateScheduleProps) {
       schedule["cronSchedule"] = cronSchedule;
     }
 
-    return await handleCreateSchedule(schedule as ScheduleUnion);
+    closeModalRef.current = closeModal;
+    submittedNameRef.current = String(schedule.name ?? "");
+    fetcher.submit({ intent: "createSchedule", schedule: JSON.stringify(schedule) }, { method: "post" });
   };
 
   return (
@@ -135,8 +139,8 @@ export default function CreateSchedule(props: CreateScheduleProps) {
         <ScheduleManagerForm
           handleSubmit={handleSubmit}
           includeWorkflowDropdown={props.includeWorkflowDropdown}
-          isError={createScheduleMutation.isError}
-          isLoading={createScheduleMutation.isLoading}
+          isError={Boolean(fetcher.data && isActionError(fetcher.data))}
+          isLoading={fetcher.state !== "idle"}
           modalProps={modalProps}
           schedule={props.schedule as ScheduleUnion}
           type="create"

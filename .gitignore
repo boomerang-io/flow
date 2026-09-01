@@ -941,3 +941,6 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/git,osx,java,linux,macos,maven,eclipse,windows,intellij,jetbrains,jdeveloper,sublimetext,intellij+all,intellij+iml,visualstudio,visualstudiocode
+# The Visual Studio [Rr]elease/ build-output pattern above must not swallow the release skill.
+!.claude/skills/release/
+!.claude/skills/release/**

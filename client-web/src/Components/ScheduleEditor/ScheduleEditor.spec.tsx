@@ -3,9 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
+import { scheduleAction } from "Features/Schedules/scheduleRoute";
 import { WorkflowStatus, type ScheduleUnion, type Workflow } from "Types";
 import { renderWithContext } from "Utils/testing/render";
 import ScheduleEditor from "./ScheduleEditor";
+
+const WORKSPACE = "test-workspace";
 
 // Built by hand for the same reason ScheduleCreator.spec.tsx does it - see the comment there.
 const workflow: Workflow = {
@@ -44,20 +47,13 @@ const schedule: ScheduleUnion = {
   labels: { env: "prod", team: "core" },
 };
 
-// ScheduleEditor stays on react-query's useMutation (see the rationale comment at the top of its
-// component) - it's shared with WorkflowEditor/Schedule/Schedule.tsx, which this batch must not
-// touch. `useRevalidator()` was added alongside the existing mutation/invalidateQueries flow.
+// Route-module test pattern (see ScheduleCreator.spec.tsx): ScheduleEditor submits its update
+// through a bare useFetcher(), so it renders under the same `/:workspace/schedules` +
+// scheduleAction shape app/routes/schedules.tsx wires up.
 function renderEditor(overrides: Partial<React.ComponentProps<typeof ScheduleEditor>> = {}) {
   return renderWithContext(
-    <ScheduleEditor
-      getCalendarUrl="http://localhost/calendar"
-      getSchedulesUrl="http://localhost/schedules"
-      includeWorkflowDropdown={false}
-      isModalOpen
-      onCloseModal={() => {}}
-      schedule={schedule}
-      {...overrides}
-    />,
+    <ScheduleEditor includeWorkflowDropdown={false} isModalOpen onCloseModal={() => {}} schedule={schedule} {...overrides} />,
+    { path: "/:workspace/schedules", action: scheduleAction, route: `/${WORKSPACE}/schedules` },
   );
 }
 
@@ -101,7 +97,8 @@ describe("ScheduleEditor", () => {
 
     // `workflow` is required for a save: handleSubmit reads `workflow.name` off the form values,
     // which ScheduleManagerForm seeds from this prop.
-    renderEditor({ workflow });
+    const onCloseModal = vi.fn();
+    renderEditor({ workflow, onCloseModal });
     await screen.findByText("Edit a Schedule");
 
     await userEvent.type(screen.getByLabelText("Label key"), "tier");
@@ -120,5 +117,8 @@ describe("ScheduleEditor", () => {
     await waitFor(() =>
       expect(updatedBody).toMatchObject({ labels: { env: "prod", team: "core", tier: "gold" } }),
     );
+    // Fetcher-settle close (the await-contract rework): the modal closes only once the update
+    // actually succeeded - see ScheduleCreator.spec.tsx for the failure half of the contract.
+    await waitFor(() => expect(onCloseModal).toHaveBeenCalled());
   });
 });

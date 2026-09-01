@@ -12,6 +12,9 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.UnauthenticatedGlobalToken;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -454,15 +457,22 @@ public class UserService {
 
   /*
    * Update User
+   *
+   * Self-service or admin-grade only. The update-by-email shape carries no target id, so it is
+   * never treated as self - only a global-grade caller can use it.
    */
   public User apply(UserRequest request) {
+    requireSelfOrGlobalGrant(
+        (request != null) ? request.getId() : null, PermissionAction.WRITE);
     if (externalUserUrl.isBlank()) {
       Optional<UserEntity> userOptional = Optional.empty();
       if (request != null && request.getId() != null && !request.getId().isBlank()) {
         userOptional = this.userRepository.findByIdAndStatus(request.getId(), UserStatus.active);
       } else if (request != null && request.getEmail() != null && !request.getEmail().isBlank()) {
+        // ofNullable: findByEmailAndStatus answers null for an unknown email, which must surface
+        // as USER_NOT_FOUND below rather than an NPE here.
         userOptional =
-            Optional.of(
+            Optional.ofNullable(
                 this.userRepository.findByEmailAndStatus(
                     normaliseEmail(request.getEmail()), UserStatus.active));
       }
@@ -494,6 +504,7 @@ public class UserService {
    */
   // TODO - determine if the user needs to be removed from ApproverGroups, and anything else
   public void delete(String userId) {
+    requireSelfOrGlobalGrant(userId, PermissionAction.DELETE);
     Optional<UserEntity> user = userRepository.findById(userId);
     Map<String, String> teamRefsAndRoles = relationshipService.roles(userId);
     if (!teamRefsAndRoles.isEmpty()) {
@@ -502,6 +513,38 @@ public class UserService {
     if (user.isPresent()) {
       userRepository.deleteById(userId);
       relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.USER, userId);
+    }
+  }
+
+  /**
+   * Permit self-service, otherwise require a global-scoped {@code user/<action>} grant.
+   *
+   * <p>The route-level {@code @AuthCriteria(resource = USER)} match is scope-blind:
+   * SecurityInterceptor matches the required action against every grant's action strings without
+   * looking at the grant's scope, so a workspace editor/owner's {@code **}/{@code write} grant
+   * satisfies it - yet that grant is authority over the workspace's resources, not over other
+   * users' accounts. Only a global-scoped grant reaches past the caller's own record: the platform
+   * admin/operator roles (the only shapes {@code TokenService.resolvePermissionsForUser} issues at
+   * global scope), an explicitly minted {@code global} token, or the security-off {@code
+   * UnauthenticatedGlobalToken}.
+   */
+  private void requireSelfOrGlobalGrant(String targetUserId, PermissionAction action) {
+    Token identity = identityService.getCurrentIdentity();
+    if (identity != null && targetUserId != null && targetUserId.equals(identity.getPrincipal())) {
+      return;
+    }
+    String requiredRegex =
+        "(\\*{2}|"
+            + PermissionResource.USER.getLabel()
+            + ")\\/(\\*{2}|"
+            + action.getLabel()
+            + ")";
+    if (identity == null
+        || identity.getPermissions().stream()
+            .filter(p -> PermissionScope.global.equals(p.getScope()))
+            .flatMap(p -> p.getActions().stream())
+            .noneMatch(a -> a.matches(requiredRegex))) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
   }
 

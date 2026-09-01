@@ -23,8 +23,8 @@ import ActivityTable from "./ActivityTable";
 // the pattern this follows.
 //
 // The active `workspace` object (needed for the header's displayName/breadcrumb) still comes
-// from `useWorkspaceContext()` - it's resolved client-side by `WorkspaceContainer`
-// (Features/App/App.tsx), which wraps this route same as it always has. That's unrelated to this
+// from `useWorkspaceContext()` - it's supplied by app/routes/workspaceLayout.tsx's loader,
+// whose layout route wraps this one. That's unrelated to this
 // loader/data-fetching migration (see Features/TaskManager/WorkspaceTasks/WorkspaceTasks.tsx for
 // the same split: `params.workspace` - the URL slug - drives every server fetch below, while the
 // full workspace object stays a client-side concern).
@@ -214,8 +214,8 @@ function WorkflowActivity() {
   /** End input handlers */
 
   /** Start Render Logic */
-  // The workspace object itself is a client-side concern (see the module doc above) - until
-  // WorkspaceContainer resolves it, there's nothing to render yet.
+  // The workspace object comes from the workspace layout route's context (see the module doc
+  // above) - until it resolves, there's nothing to render yet.
   if (!workspace) {
     return null;
   }

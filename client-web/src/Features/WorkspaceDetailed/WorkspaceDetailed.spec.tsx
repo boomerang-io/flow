@@ -1,16 +1,17 @@
 import React from "react";
 import { http, HttpResponse } from "msw";
-import { Route, useParams } from "react-router-dom";
+import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AppPath, appLink } from "Config/appConfig";
+import { appLink } from "Config/appConfig";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { db } from "ApiServer/msw/db";
-import { WorkspaceContextProvider } from "State/context";
-import { useQuery } from "Hooks";
 import { serviceUrl } from "Config/servicesConfig";
-import { FlowWorkspace } from "Types";
+import WorkspaceLayoutRoute, {
+  loader as workspaceLayoutLoader,
+  shouldRevalidate as workspaceLayoutShouldRevalidate,
+} from "../../../app/routes/workspaceLayout";
 import WorkspaceDetailed, { loader, shouldRevalidate } from "./WorkspaceDetailed";
 import ApproverGroups, { action as approverGroupsAction } from "./ApproverGroups/ApproverGroups";
 import Members, { action as membersAction } from "./Members/Members";
@@ -25,18 +26,6 @@ import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 
-// Mirrors App.tsx's WorkspaceContainer: resolves the active workspace from the `:workspace`
-// route param and re-fetches (and re-provides fresh context) whenever navigation changes it -
-// e.g. after a rename that pushes to a new `:workspace` slug.
-function WorkspaceContainer({ children }: { children: React.ReactNode }) {
-  const { workspace = "" } = useParams<{ workspace: string }>();
-  const workspaceQuery = useQuery<FlowWorkspace>(serviceUrl.resourceWorkspace({ workspace }));
-
-  if (!workspaceQuery.data) return null;
-
-  return <WorkspaceContextProvider value={{ workspace: workspaceQuery.data }}>{children}</WorkspaceContextProvider>;
-}
-
 // `workspace.js` is a standalone fixture, not one of the records in `workspaces.js`'s list (the
 // one `ApiServer/msw/db`'s `workspaces` collection seeds from) - Mirage's `resourceWorkspace` GET
 // handler ignored its `:workspace` param and always served this fixture regardless of what was
@@ -49,26 +38,32 @@ beforeEach(() => {
 });
 
 // The Manage Workspace tabs are real nested routes now (see app/routes.ts), so the spec builds
-// the same tree: a layout route carrying the loader that fetches the workspace record, with one
-// child route per tab. Members stays the index route at the bare `/:workspace/manage` path.
+// the same tree PRODUCTION runs: the real app/routes/workspaceLayout.tsx layout route (its
+// loader resolves `:workspace` to the workspace record and feeds WorkspaceContextProvider,
+// re-running when a rename navigates to the new slug), then the manage layout route carrying
+// the loader that fetches the workspace record, with one child route per tab. Members stays the
+// index route at the bare `/:workspace/manage` path.
 function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ workspace: workspaceFixture.name })) {
   return renderWithContext(
     <Route
-      path={AppPath.ManageWorkspace}
-      loader={loader}
-      shouldRevalidate={shouldRevalidate}
-      element={
-        <WorkspaceContainer>
-          <WorkspaceDetailed />
-        </WorkspaceContainer>
-      }
+      path="/:workspace"
+      loader={workspaceLayoutLoader}
+      shouldRevalidate={workspaceLayoutShouldRevalidate}
+      element={<WorkspaceLayoutRoute />}
     >
-      <Route index action={membersAction} element={<Members />} />
-      <Route path="workflows" loader={workflowsLoader} element={<Workflows />} />
-      <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
-      <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
-      <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
-      <Route path="settings" action={settingsAction} element={<Settings />} />
+      <Route
+        path="manage"
+        loader={loader}
+        shouldRevalidate={shouldRevalidate}
+        element={<WorkspaceDetailed />}
+      >
+        <Route index action={membersAction} element={<Members />} />
+        <Route path="workflows" loader={workflowsLoader} element={<Workflows />} />
+        <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
+        <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
+        <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
+        <Route path="settings" action={settingsAction} element={<Settings />} />
+      </Route>
     </Route>,
     { route },
   );

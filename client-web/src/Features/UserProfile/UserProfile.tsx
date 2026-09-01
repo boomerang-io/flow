@@ -36,11 +36,11 @@ const PROFILE_INTENTS = ["updateProfile", "deleteAccount"] as const;
  * call (see Config/serverFetch.ts); that cookie is the caller's session, so the API resolves
  * WHICH user this is server-side. Two consequences that must not be regressed:
  *
- *  1. Never call the API from a loader/action with the bare `axios`/`resolver` instance in
- *     Config/servicesConfig.ts. Those rely on `axios.defaults.withCredentials` (set in
- *     Config/axiosGlobalConfig.ts), which only does anything in a browser with a cookie jar -
- *     in Node there is none, so the request goes out with no credentials at all and the API
- *     sees an anonymous caller.
+ *  1. Never call the API from a loader/action with a bare browser `axios` instance (the old
+ *     `resolver` object, deleted with the BFF teardown, relied on a global
+ *     `axios.defaults.withCredentials`, which only does anything in a browser with a cookie
+ *     jar) - in Node there is none, so the request goes out with no credentials at all and the
+ *     API sees an anonymous caller.
  *  2. The basic-details update targets `PATCH /profile`, NOT `PATCH /user/{userId}`. The
  *     profile route derives the subject from the session
  *     (ProfileControllerV2.updateProfile -> UserService.updateCurrentProfile), so there is no

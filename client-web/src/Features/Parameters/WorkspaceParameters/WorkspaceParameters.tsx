@@ -25,14 +25,15 @@ import ParametersTable from "../ParametersTable";
 // Features/TaskManager/WorkspaceTasks/WorkspaceTasks.tsx for the same pattern.
 //
 // The loader owns the read that this page's table renders. It used to come from
-// useWorkspaceContext().workspace.parameters - WorkspaceContainer's react-query cache
-// (Features/App/App.tsx) - while the writes had already moved onto this route's action. Settling a
+// useWorkspaceContext().workspace.parameters - the deleted WorkspaceContainer's react-query
+// cache - while the writes had already moved onto this route's action. Settling a
 // fetcher revalidates loaders, not react-query, so with no loader here a create/edit/delete raised
 // its success toast and left the table exactly as it was until the user navigated away and back
 // (the old `queryClient.invalidateQueries` was dropped in the conversion, and
 // `refetchOnWindowFocus: false` in app/root.tsx removed the last accidental refresh).
 //
-// It reads the workspace record - the same GET WorkspaceContainer makes - rather than
+// It reads the workspace record - the same GET app/routes/workspaceLayout.tsx's loader makes -
+// rather than
 // `serviceUrl.workspace.resourceWorkspaceParameters`, because there is no dedicated
 // parameter list/create route on the API (see that builder's TODO in Config/servicesConfig.ts);
 // parameters are carried on the workspace and merged in through patchWorkspace.

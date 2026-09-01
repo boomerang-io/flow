@@ -89,6 +89,20 @@ class AuthenticationFilterTest {
   }
 
   @Test
+  void theAuthConfigEndpointIsNeverFiltered() throws Exception {
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("GET", SecurityConfiguration.AUTH_CONFIG);
+    request.setServletPath(SecurityConfiguration.AUTH_CONFIG);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    verify(authEntryPoint, never()).commence(any(), any(), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
   void theExchangeEndpointIsLetThroughUnauthenticated() throws Exception {
     MockHttpServletRequest request =
         new MockHttpServletRequest("POST", AuthenticationFilter.PATH_AUTH_EXCHANGE);

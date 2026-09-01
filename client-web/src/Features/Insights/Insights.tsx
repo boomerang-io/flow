@@ -36,7 +36,7 @@ import { parseChartsData } from "./utils/formatData";
 // (path "/:workspace/insights"). See Features/Activity/Activity.tsx's module doc for the same
 // split this follows: `params.workspace` (the URL slug) drives every server fetch below, while
 // the full workspace object (for the header's displayName/breadcrumb) stays a client-side
-// concern, resolved by `WorkspaceContainer` same as it always has been.
+// concern, supplied by app/routes/workspaceLayout.tsx's loader through WorkspaceContextProvider.
 
 export interface InsightsRuns {
   creationDate: string;
@@ -169,8 +169,8 @@ export default function Insights() {
     return;
   }
 
-  // The workspace object itself is a client-side concern (see the module doc above) - until
-  // WorkspaceContainer resolves it, there's nothing to render yet.
+  // The workspace object comes from the workspace layout route's context (see the module doc
+  // above) - until it resolves, there's nothing to render yet.
   if (!workspace) {
     return null;
   }
