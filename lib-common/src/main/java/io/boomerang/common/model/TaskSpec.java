@@ -3,6 +3,7 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -14,7 +15,7 @@ public class TaskSpec {
 
   private List<String> arguments;
   private List<String> command;
-  private List<AbstractParam> params = new LinkedList<>();
+  private List<@Valid AbstractParam> params = new LinkedList<>();
   private List<TaskEnvVar> envs = new LinkedList<>();
   private String image;
   private List<ResultSpec> results = new LinkedList<>();

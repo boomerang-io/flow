@@ -411,7 +411,9 @@ public class UserService {
     }
     Page<User> pages =
         PageableExecutionUtils.getPage(
-            users, pageable, () -> mongoTemplate.count(query, UserEntity.class));
+            users,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), UserEntity.class));
 
     return pages;
   }

@@ -90,7 +90,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class WorkflowRunService {
 
   private static final Logger LOGGER = LogManager.getLogger();
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final WorkflowRepository workflowRepository;
   private final WorkflowRevisionRepository workflowRevisionRepository;
@@ -104,6 +103,7 @@ public class WorkflowRunService {
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
+  private final ObjectMapper objectMapper;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -117,7 +117,8 @@ public class WorkflowRunService {
       EventInboxRepository eventInboxRepository,
       WorkflowRunStateHelper workflowRunStateHelper,
       RelationshipService relationshipService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      ObjectMapper objectMapper) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
@@ -130,6 +131,7 @@ public class WorkflowRunService {
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
+    this.objectMapper = objectMapper;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -577,7 +579,11 @@ public class WorkflowRunService {
           wfRuns.add(wfRun);
         });
 
-    Page<WorkflowRun> pages = PageableExecutionUtils.getPage(wfRuns, pageable, () -> wfRuns.size());
+    Page<WorkflowRun> pages =
+        PageableExecutionUtils.getPage(
+            wfRuns,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowRunEntity.class));
 
     return pages;
   }
@@ -1095,7 +1101,7 @@ public class WorkflowRunService {
 
   private void logPayload(WorkflowRunRequest request) {
     try {
-      String payload = OBJECT_MAPPER.writeValueAsString(request);
+      String payload = objectMapper.writeValueAsString(request);
       LOGGER.info("Received Request Payload: ");
       LOGGER.info(payload);
     } catch (JacksonException e) {

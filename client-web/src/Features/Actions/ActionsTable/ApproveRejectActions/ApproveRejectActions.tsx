@@ -24,6 +24,7 @@ import {
 } from "@carbon/react";
 import type { ActionResult } from "Features/Actions/Actions";
 import { Action, ApprovalStatus } from "Types";
+import { isActionError } from "Utils/actionResult";
 import dateHelper from "Utils/dateHelper";
 import styles from "./ApproveRejectActions.module.scss";
 
@@ -114,7 +115,7 @@ function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalReje
     }
     setApproveLoading(false);
     setRejectLoading(false);
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       onSuccessfulApprovalRejection();
       if (pendingNotificationRef.current) {
         notify(
@@ -133,7 +134,7 @@ function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalReje
   }, [fetcher.state, fetcher.data]);
 
   const actionsIsLoading = fetcher.state !== "idle";
-  const actionsPutError = Boolean(fetcher.data && !fetcher.data.ok);
+  const actionsPutError = Boolean(fetcher.data && isActionError(fetcher.data));
 
   const handleActions =
     ({ approved, notificationSubtitle, notificationTitle, setLoading, values }: any) =>

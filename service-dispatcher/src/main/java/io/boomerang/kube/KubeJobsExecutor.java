@@ -1,7 +1,6 @@
 package io.boomerang.kube;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -10,6 +9,7 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TerminationMessageParser;
@@ -37,7 +37,7 @@ import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
-import java.lang.reflect.Type;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -321,16 +321,14 @@ public class KubeJobsExecutor implements TaskExecutor {
         || "null".equalsIgnoreCase(kubeWorkerTolerations)) {
       return List.of();
     }
-    Type listType = new TypeToken<List<Toleration>>() {}.getType();
-    return new Gson().fromJson(kubeWorkerTolerations, listType);
+    return Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
   }
 
   private List<HostAlias> hostAliases() {
     if (kubeWorkerHostAliases == null || kubeWorkerHostAliases.isEmpty()) {
       return List.of();
     }
-    Type listType = new TypeToken<List<HostAlias>>() {}.getType();
-    return new Gson().fromJson(kubeWorkerHostAliases, listType);
+    return Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
   }
 
   private List<LocalObjectReference> imagePullSecrets() {
@@ -369,10 +367,13 @@ public class KubeJobsExecutor implements TaskExecutor {
       String reason = condition != null ? condition.getReason() : "Unknown";
       String message = condition != null ? condition.getMessage() : "Job did not report a terminal condition.";
       LOGGER.info("Task execution error. " + reason + " - " + message);
+      // The container may have written its Result Parameters to the termination log before it
+      // exited non-zero; carry them so a failed Task's output still reaches the Engine.
+      List<RunResult> failureResults = readResults(taskLabels, task.getResults());
       if ("DeadlineExceeded".equals(reason)) {
-        throw new BoomerangException(BoomerangError.TASK_EXECUTION_ERROR, "DeadlineExceeded - " + message);
+        throw new TaskExecutionException(failureResults, "DeadlineExceeded - " + message);
       }
-      throw new BoomerangException(BoomerangError.TASK_EXECUTION_ERROR, reason + " - " + message);
+      throw new TaskExecutionException(failureResults, reason + " - " + message);
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;

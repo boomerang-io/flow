@@ -12,6 +12,7 @@ import { sortKeyDirection } from "Utils/arrayHelper";
 import { ApproverGroup, Approver } from "Types";
 import { TrashCan } from "@carbon/react/icons";
 import { useFetcher } from "react-router-dom";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./approverGroups.module.scss";
 
@@ -31,23 +32,21 @@ export const ApproverGroupIntent = {
   Save: "saveApproverGroup",
 } as const;
 
-export type ApproverGroupsActionResult = {
-  ok: boolean;
-  intent: (typeof ApproverGroupIntent)[keyof typeof ApproverGroupIntent];
-  /** Present for "save": distinguishes the created/updated toast. */
-  isEdit?: boolean;
-  /** The name shown in the resulting toast. */
-  name: string;
-  errorMessage?: { title: string; message: string };
-};
+export type ApproverGroupsActionResult =
+  | {
+      intent: (typeof ApproverGroupIntent)[keyof typeof ApproverGroupIntent];
+      /** Present for "save": distinguishes the created/updated toast. */
+      isEdit?: boolean;
+      /** The name shown in the resulting toast. */
+      name: string;
+    }
+  | ({
+      intent: (typeof ApproverGroupIntent)[keyof typeof ApproverGroupIntent];
+      isEdit?: boolean;
+      name: string;
+    } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<ApproverGroupsActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -58,14 +57,13 @@ export async function action({
     try {
       // DELETE with a request body, matching the previous resolver.deleteApproverGroup.
       await serverFetch(request).delete(serviceUrl.resourceApproverGroups({ workspace }), { data: [groupId] });
-      return { ok: true, intent: ApproverGroupIntent.Delete, name };
+      return { intent: ApproverGroupIntent.Delete, name };
     } catch (error) {
-      return {
-        ok: false,
+      return actionError({
         intent: ApproverGroupIntent.Delete,
         name,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Approver Group Failed" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Delete Approver Group Failed" }),
+      });
     }
   }
 
@@ -82,18 +80,17 @@ export async function action({
     });
     // Pre-existing quirk preserved: patchWorkspace returns the *workspace*, so the toast has
     // always echoed the workspace name here rather than the group name.
-    return { ok: true, intent: ApproverGroupIntent.Save, isEdit, name: response.data.name };
+    return { intent: ApproverGroupIntent.Save, isEdit, name: response.data.name };
   } catch (error) {
-    return {
-      ok: false,
+    return actionError({
       intent: ApproverGroupIntent.Save,
       isEdit,
       name: approverGroup.name,
-      errorMessage: formatErrorMessage({
+      error: formatErrorMessage({
         error,
         defaultMessage: `${!isEdit ? "Create" : "Update"} Approver Group Failed`,
       }),
-    };
+    });
   }
 }
 
@@ -135,9 +132,10 @@ function ApproverGroups() {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== ApproverGroupIntent.Delete) {
       return;
     }
-    const { ok, name, errorMessage } = fetcher.data;
+    const data = fetcher.data;
+    const { name } = data;
     notify(
-      ok ? (
+      !isActionError(data) ? (
         <ToastNotification
           kind="success"
           title={"Approver Group Deleted"}
@@ -147,8 +145,8 @@ function ApproverGroups() {
       ) : (
         <ToastNotification
           kind="error"
-          title={errorMessage?.title ?? "Something's Wrong"}
-          subtitle={errorMessage?.message}
+          title={data.error.title ?? "Something's Wrong"}
+          subtitle={data.error.message}
           data-testid="delete-approver-group-notification"
         />
       ),

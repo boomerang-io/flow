@@ -3,7 +3,7 @@ import { Button } from "@carbon/react";
 import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
-import { getSimplifiedDuration } from "Utils/timeHelper";
+import { getSimplifiedDuration } from "Utils/dateHelper";
 import { ExecutionStatusCopy, executionStatusIcon, NodeType } from "Constants";
 import { Action, RunStatus, WorkflowRun } from "Types";
 import TaskRunItem from "./TaskRunItem";
@@ -60,6 +60,17 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
   const { duration, status, tasks } = workflowRun;
   const Icon = executionStatusIcon[status];
 
+  // START/END are synthetic graph markers the engine adds to every run, not executed tasks -
+  // they always bookend the log (START first, END last) and never take part in the start-time
+  // sort applied to the rest.
+  const startTask = tasks.find((taskRun) => taskRun.type === NodeType.Start);
+  const endTask = tasks.find((taskRun) => taskRun.type === NodeType.End);
+  const sortedTasks = orderBy(
+    tasks.filter((taskRun) => taskRun.type !== NodeType.Start && taskRun.type !== NodeType.End),
+    ["startTime"],
+    [tasksSort],
+  );
+
   return (
     <aside className={`${styles.container} ${isCollapsed ? styles.collapsed : ""}`}>
       <section className={`${styles.statusBlock} ${styles[status]}`}>
@@ -95,16 +106,32 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
         )}
       </section>
       <ul className={styles.tasklog}>
-        {orderBy(tasks, ["startTime"], [tasksSort]).map((taskRun) =>
-          taskRun.type !== NodeType.Start && taskRun.type !== NodeType.End ? (
-            <TaskRunItem
-              key={taskRun.id}
-              taskRun={taskRun}
-              workflowRun={workflowRun}
-              action={actions?.[taskRun.id]}
-              executionViewRedirect={executionViewRedirect}
-            />
-          ) : null,
+        {startTask && (
+          <TaskRunItem
+            key={startTask.id}
+            taskRun={startTask}
+            workflowRun={workflowRun}
+            action={actions?.[startTask.id]}
+            executionViewRedirect={executionViewRedirect}
+          />
+        )}
+        {sortedTasks.map((taskRun) => (
+          <TaskRunItem
+            key={taskRun.id}
+            taskRun={taskRun}
+            workflowRun={workflowRun}
+            action={actions?.[taskRun.id]}
+            executionViewRedirect={executionViewRedirect}
+          />
+        ))}
+        {endTask && (
+          <TaskRunItem
+            key={endTask.id}
+            taskRun={endTask}
+            workflowRun={workflowRun}
+            action={actions?.[endTask.id]}
+            executionViewRedirect={executionViewRedirect}
+          />
         )}
       </ul>
     </aside>

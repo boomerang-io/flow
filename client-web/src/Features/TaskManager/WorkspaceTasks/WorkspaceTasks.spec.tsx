@@ -5,6 +5,8 @@ import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { serviceUrl } from "Config/servicesConfig";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import WorkspaceTasks, { action, loader } from "./WorkspaceTasks";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
@@ -14,7 +16,7 @@ const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/
 // overridden with the full workspace fixture the WORKSPACE constant names - production supplies
 // it from app/routes/workspaceLayout.tsx's loader.
 function renderWorkspaceTasks(route: string = `/${WORKSPACE}/task-manager`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/task-manager/*"
       loader={loader}
@@ -95,7 +97,6 @@ describe("WorkspaceTasks --- action", () => {
     });
 
     expect(result).toEqual({
-      ok: true,
       intent: "apply",
       task: { name: "execute-advanced-http-call", displayName: "Updated Task", version: 5 },
     });
@@ -110,7 +111,6 @@ describe("WorkspaceTasks --- action", () => {
     });
 
     expect(result).toEqual({
-      ok: true,
       intent: "applyYaml",
       task: { name: "execute-advanced-http-call", displayName: "YAML Task", version: 9 },
     });
@@ -131,14 +131,18 @@ describe("WorkspaceTasks --- action", () => {
       body: JSON.stringify({ name: "execute-advanced-http-call" }),
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("apply");
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const errorResult = result as unknown as { data: { intent: string } };
+    expect(isActionError(errorResult.data)).toBe(true);
+    expect(errorResult.data.intent).toBe("apply");
   });
 
   test("validates an uploaded file through the mocked API", async () => {
     const result = await submit({ intent: "validateYaml", body: "name: some-task\n" });
 
-    expect(result).toEqual({ ok: true, intent: "validateYaml" });
+    expect(result).toEqual({ intent: "validateYaml" });
   });
 
   test("surfaces a failed validation without throwing", async () => {
@@ -148,9 +152,11 @@ describe("WorkspaceTasks --- action", () => {
       ),
     );
 
-    const result = await submit({ intent: "validateYaml", body: "not: valid: yaml: at all" });
+    const result = (await submit({ intent: "validateYaml", body: "not: valid: yaml: at all" })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("validateYaml");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("validateYaml");
   });
 });

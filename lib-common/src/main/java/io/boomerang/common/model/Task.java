@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.common.enums.TaskStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.validation.ResourceName;
+import jakarta.validation.Valid;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,7 +17,7 @@ import org.springframework.data.annotation.Id;
 public class Task {
 
   @Id private String id;
-  private String name;
+  @ResourceName private String name;
   private String displayName;
   private TaskType type;
   private Integer version;
@@ -27,7 +29,7 @@ public class Task {
   private Map<String, Object> annotations = new HashMap<>();
   private ChangeLog changelog;
   private String category;
-  private TaskSpec spec = new TaskSpec();
+  @Valid private TaskSpec spec = new TaskSpec();
   private String icon;
 
   @Override

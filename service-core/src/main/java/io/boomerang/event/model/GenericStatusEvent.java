@@ -5,24 +5,25 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.MediaType;
-import com.google.gson.JsonObject;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 public class GenericStatusEvent extends Event {
+
+  private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
   private String initiatorContext;
   private Map<String, String> additionalData;
 
   @Override
   public CloudEvent toCloudEvent() throws IOException {
-    JsonObject jsonData = new JsonObject();
+    ObjectNode jsonData = MAPPER.createObjectNode();
 
     // Add additional data to JSON data
     if (additionalData != null && !additionalData.isEmpty()) {
-      additionalData
-          .entrySet()
-          .forEach(entry -> jsonData.addProperty(entry.getKey(), entry.getValue()));
+      additionalData.forEach(jsonData::put);
     }
 
     // @formatter:off

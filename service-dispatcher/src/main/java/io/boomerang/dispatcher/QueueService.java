@@ -8,6 +8,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.dispatcher.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -103,6 +104,10 @@ public class QueueService {
       TaskRunEndRequest endRequest = new TaskRunEndRequest();
       endRequest.setStatus(RunStatus.failed);
       endRequest.setStatusMessage(e.getMessage());
+      // Carries any Result Parameters the Task wrote before it failed.
+      if (e instanceof TaskExecutionException taskExecutionException) {
+        endRequest.setResults(taskExecutionException.getResults());
+      }
       engineClient.endTask(request.getId(), endRequest);
     } catch (Exception e) {
       LOGGER.fatal("A fatal error has occurred while processing the message!", e);

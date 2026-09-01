@@ -206,6 +206,28 @@ class TokenServiceTest {
   }
 
   // =====================================================================================
+  // A22 — hashString's manual Integer.toHexString loop was replaced with HexFormat.formatHex.
+  // Pinned against the well-known SHA-256("abc") test vector (FIPS 180-2) to prove the output
+  // stays byte-for-byte identical: lower-case, zero-padded, 64 hex chars.
+  // =====================================================================================
+
+  @Test
+  void hashStringMatchesKnownSha256Vector() {
+    assertThat(tokenService.hashString("abc"))
+        .isEqualTo("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  }
+
+  @Test
+  void hashStringIsLowerCaseAndZeroPadded() {
+    // A value whose SHA-256 digest happens to contain a leading-zero byte would previously rely
+    // on the manual "if (hex.length() == 1) hexString.append('0')" padding - confirm the output
+    // is still always exactly 64 lower-case hex characters.
+    String hash = tokenService.hashString("boomerang-flow-a22");
+    assertThat(hash).hasSize(64);
+    assertThat(hash).matches("[0-9a-f]{64}");
+  }
+
+  // =====================================================================================
   // Helpers
   // =====================================================================================
 

@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { renderWithRouter } from "Utils/testing/render";
 import ActivityTable from "./index";
 
 const props = {
@@ -14,7 +15,7 @@ const props = {
 
 describe("ActivityTable --- Snapshot", () => {
   it("Capturing Snapshot of ActivityTable", () => {
-    const { baseElement } = global.rtlRouterRender(<ActivityTable {...props} />);
+    const { baseElement } = renderWithRouter(<ActivityTable {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });

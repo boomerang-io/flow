@@ -4,6 +4,8 @@ import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import AdminTasks, { action, loader } from "./AdminTasks";
 
 // Route-module test pattern - see GlobalParameters.spec.tsx. The real route ("/admin/task-manager/*"
@@ -11,7 +13,7 @@ import AdminTasks, { action, loader } from "./AdminTasks";
 // which task-template sub-page (if any) is being requested, so the test route below has to use
 // the same "/*" pattern rather than a bare catch-all for the splat value to line up.
 function renderAdminTasks(route: string = "/admin/task-manager") {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/admin/task-manager/*" loader={loader} action={action} element={<AdminTasks />} />,
     { route },
   );
@@ -70,7 +72,6 @@ describe("AdminTasks --- action", () => {
     const result = await action({ request });
 
     expect(result).toEqual({
-      ok: true,
       intent: "apply",
       task: { name: "execute-advanced-http-call", displayName: "Updated Task", version: 5 },
     });
@@ -89,7 +90,7 @@ describe("AdminTasks --- action", () => {
 
     const result = await action({ request });
 
-    expect(result).toEqual({ ok: true, intent: "applyYaml", task: { name: "execute-advanced-http-call", displayName: "YAML Task", version: 9 } });
+    expect(result).toEqual({ intent: "applyYaml", task: { name: "execute-advanced-http-call", displayName: "YAML Task", version: 9 } });
   });
 
   test("surfaces a failed apply without throwing", async () => {
@@ -104,10 +105,13 @@ describe("AdminTasks --- action", () => {
       }),
     });
 
-    const result = await action({ request });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request })) as unknown as { data: { intent: string } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("apply");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("apply");
   });
 
   test("validates an uploaded file through the mocked API", async () => {
@@ -118,7 +122,7 @@ describe("AdminTasks --- action", () => {
 
     const result = await action({ request });
 
-    expect(result).toEqual({ ok: true, intent: "validateYaml" });
+    expect(result).toEqual({ intent: "validateYaml" });
   });
 
   test("surfaces a failed validation without throwing", async () => {
@@ -128,9 +132,9 @@ describe("AdminTasks --- action", () => {
       body: new URLSearchParams({ intent: "validateYaml", body: "not: valid: yaml: at all" }),
     });
 
-    const result = await action({ request });
+    const result = (await action({ request })) as unknown as { data: { intent: string } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("validateYaml");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("validateYaml");
   });
 });

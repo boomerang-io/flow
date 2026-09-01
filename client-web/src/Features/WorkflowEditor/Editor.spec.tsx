@@ -3,6 +3,8 @@ import { workspaces } from "ApiServer/fixtures";
 import { Route } from "react-router-dom";
 import { vi } from "vitest";
 import { AppPath, appLink } from "Config/appConfig";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import { editorAction, editorLoader } from "./editorRoute";
 import Editor from "./index";
 
@@ -36,7 +38,7 @@ beforeEach(() => {
  * Route-module test pattern (see GlobalParameters.spec.tsx / Workflows.spec.jsx): build the same
  * shape app/routes/editor.tsx registers - a route carrying loader/action alongside its element,
  * matched on the real "/:workspace/editor/:workflow/*" path so the loader's params resolve - and
- * hand it to rtlContextRouterRender, which uses a <Route> element as-is instead of wrapping it in
+ * hand it to renderWithContext, which uses a <Route> element as-is instead of wrapping it in
  * its usual catch-all, so the loader actually runs. Everything the editor renders now reads that
  * loader's data, so without it the page renders nothing at all.
  */
@@ -52,7 +54,7 @@ const LOADER_WAIT = { timeout: 15000 };
 const TEST_TIMEOUT = 30000;
 
 function renderEditor(route: string) {
-  return rtlContextRouterRender(
+  return renderWithContext(
     <Route path={`${AppPath.Editor}/*`} loader={editorLoader} action={editorAction} element={<Editor />} />,
     { route },
   );
@@ -140,9 +142,12 @@ describe("Editor --- action", () => {
       }),
     });
 
-    const result = await editorAction({ request, params: { workspace, workflow } });
+    // Success is returned as the plain payload, not wrapped in data() - see actionResult.ts.
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      intent: string;
+    };
 
-    expect(result.ok).toBe(true);
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("createRevision");
   });
 
@@ -154,9 +159,13 @@ describe("Editor --- action", () => {
       body: new URLSearchParams({ intent: "delete" }),
     });
 
-    const result = await editorAction({ request, params: { workspace, workflow } });
+    // No tokenId in the body, so the token action's own delete branch fails - this test only
+    // cares that the token action ran at all (rather than the revision branch), not the outcome.
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result.intent).toBe("delete");
+    expect(result.data.intent).toBe("delete");
   });
 
   // An intent neither half owns must not fall through to the revision branch: that branch would
@@ -167,8 +176,11 @@ describe("Editor --- action", () => {
       body: new URLSearchParams({ intent: "updateProfile", name: "someone" }),
     });
 
-    const result = await editorAction({ request, params: { workspace, workflow } });
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result).toMatchObject({ ok: false, intent: "unknown" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data).toMatchObject({ intent: "unknown" });
   });
 });

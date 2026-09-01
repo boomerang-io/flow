@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { renderWithContext } from "Utils/testing/render";
 import TemplateConfigModalContent from "./index";
 
 const mockfn = vi.fn();
@@ -21,7 +22,7 @@ const props = {
 
 describe("TemplateConfigModalContent --- Snapshot", () => {
   it("Capturing Snapshot of Task Templates", async () => {
-    const { baseElement } = rtlContextRouterRender(<TemplateConfigModalContent {...props} />);
+    const { baseElement } = renderWithContext(<TemplateConfigModalContent {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });

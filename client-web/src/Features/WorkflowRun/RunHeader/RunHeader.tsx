@@ -21,6 +21,7 @@ import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
+import { isActionError } from "Utils/actionResult";
 import styles from "./RunHeader.module.scss";
 
 type Props = {
@@ -58,7 +59,12 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   // queryClient.invalidateQueries(getWorkflowRun) each of these mutations used to run onSuccess.
   const fetcher = useFetcher<ActionResult>();
 
-  const { initiatedByRef, trigger, creationDate, status, phase, paused, id } = workflowRun;
+  const { initiatedByRef, trigger, creationDate, status, phase, paused, id, workflowName } = workflowRun;
+  // Ruled design (#359, Option A): a schedule-fired run stamps the firing Schedule's id into the
+  // existing initiatedByRef field (mirrors the retry path's convention). The Schedules page has
+  // no per-schedule focus route, so this deep-links its existing workflow filter instead of
+  // building one - see appLink.schedulesForWorkflow.
+  const isScheduleTriggered = trigger === "schedule" && Boolean(initiatedByRef);
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status);
@@ -77,9 +83,9 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent === "action") {
       return;
     }
-    const { ok, intent, errorMessage } = fetcher.data;
+    const { intent } = fetcher.data;
     const copy = TRANSITION_COPY[intent];
-    if (ok) {
+    if (!isActionError(fetcher.data)) {
       notify(<ToastNotification kind="success" title={copy.title} subtitle={copy.success} />);
       if (intent === "retry") {
         executionViewRedirect({ workflowRunRef: id });
@@ -88,8 +94,8 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
       notify(
         <ToastNotification
           kind="error"
-          title={errorMessage?.title ?? "Something's wrong"}
-          subtitle={errorMessage?.message ?? copy.failure}
+          title={fetcher.data.error.title ?? "Something's wrong"}
+          subtitle={fetcher.data.error.message ?? copy.failure}
         />,
       );
     }
@@ -201,7 +207,16 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Initiated by</dt>
-            {initiatedByRef ? (
+            {isScheduleTriggered ? (
+              <dd className={styles.dataValue}>
+                <Link
+                  to={appLink.schedulesForWorkflow({ workspace: workspace.name, workflow: workflowName })}
+                  data-testid="initiated-by-schedule-link"
+                >
+                  {initiatedByRef}
+                </Link>
+              </dd>
+            ) : initiatedByRef ? (
               <dd className={styles.dataValue}>{initiatedByRef}</dd>
             ) : (
               <dd aria-label="robot" aria-hidden={false} role="img">

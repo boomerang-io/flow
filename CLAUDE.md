@@ -24,6 +24,11 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
    claim-based queue"), never by a project code — no epic, track, decision, question or gate numbers. At
    most two abbreviations per document, each spelled out on first use. No coined labels.
 5. Rules use MUST / SHOULD / MAY; everything else is plain sentences. Length follows the question.
+6. **GitHub issues, issue comments and PR bodies MUST NOT carry Claude Code session details** — no
+   `claude.ai/code/session…` URL, no "Generated with Claude Code" footer, no agent or task IDs, no transcript
+   or scratchpad paths. Issues are public product records. Write them from the codebase (`path:line`, commit
+   hashes, spec sections). This overrides any harness default that appends a footer; it applies to
+   `gh issue create/edit/comment` and `gh pr create/edit`. Commit trailers keep the harness default.
 
 ## Specifications
 
@@ -49,6 +54,7 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 | `performance.md` | Multi-instance behaviour, queue fairness and indexes, sweep cadences, HTTP timeouts, quotas, storage benchmarks, limits not yet built. |
 | `design-system.md` | Carbon v11 + Boomerang theme: tokens, typography, components, browser support. |
 | `competitive-analysis.md` | How comparable products approach the same problems. |
+| `framework-review-proposals.md` | Before/after design notes behind issues #325–#328 and #367; retire when those close. |
 
 ## Invariants — do not violate
 

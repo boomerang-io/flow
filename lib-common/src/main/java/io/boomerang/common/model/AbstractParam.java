@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.boomerang.common.validation.ParamName;
 import java.util.List;
 import lombok.Data;
 
@@ -13,7 +14,7 @@ import lombok.Data;
 public class AbstractParam {
 
   //  private String key;
-  private String name;
+  @ParamName private String name;
   private String description;
 
   @JsonProperty("default")

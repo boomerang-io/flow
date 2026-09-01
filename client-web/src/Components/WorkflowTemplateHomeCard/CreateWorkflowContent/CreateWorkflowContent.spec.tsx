@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { render } from "@testing-library/react";
 import { FlowWorkspaceStatus } from "Constants";
 import CreateWorkflowContent from ".";
 
@@ -34,7 +35,7 @@ const props = {
 
 describe("CreateWorkflowContent --- Snapshot Test", () => {
   test("Capturing Snapshot of CreateWorkflowContent", () => {
-    const { baseElement } = global.rtlRender(<CreateWorkflowContent {...props} />);
+    const { baseElement } = render(<CreateWorkflowContent {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });

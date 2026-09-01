@@ -37,9 +37,12 @@ public class WebhookEventControllerV2 {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private WebhookEventService webhookEventService;
+  private final ObjectMapper objectMapper;
 
-  public WebhookEventControllerV2(WebhookEventService webhookEventService) {
+  public WebhookEventControllerV2(
+      WebhookEventService webhookEventService, ObjectMapper objectMapper) {
     this.webhookEventService = webhookEventService;
+    this.objectMapper = objectMapper;
   }
 
   /**
@@ -96,7 +99,8 @@ public class WebhookEventControllerV2 {
             headerName ->
                 LOGGER.debug(
                     "Webhook Header::" + headerName + ": " + request.getHeader(headerName)));
-    JsonNode payload = rawBody == null || rawBody.isBlank() ? null : new ObjectMapper().readTree(rawBody);
+    JsonNode payload =
+        rawBody == null || rawBody.isBlank() ? null : objectMapper.readTree(rawBody);
     if (slackSignature.isPresent()) {
       if (payload != null) {
         final String slackType = payload.get("type").asText();

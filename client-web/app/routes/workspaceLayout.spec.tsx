@@ -5,6 +5,7 @@ import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { useWorkspaceContext } from "State/context";
+import { renderWithContext } from "Utils/testing/render";
 import WorkspaceLayoutRoute, { loader } from "./workspaceLayout";
 
 // Matches ApiServer/fixtures/workspaces.js content[0] (setupTests.tsx's default workspace).
@@ -22,7 +23,7 @@ function WorkspaceProbe() {
 // its real loader and a child route stands in for the 12 workspace-scoped screens. The loader
 // resolves against the shared MSW handlers (resourceWorkspace GET), same as production.
 function renderLayout(route: string = `/${WORKSPACE}/probe`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/:workspace" loader={loader} element={<WorkspaceLayoutRoute />}>
       <Route path="probe" element={<WorkspaceProbe />} />
     </Route>,

@@ -219,7 +219,12 @@ public class ActionService {
         workflowService
             .get(actionEntity.getWorkflowRef(), Optional.empty(), false)
             .getBody();
-    action.setWorkflowName(workflow.getName());
+    // #378: the Actions table must show the Workflow's display name, resolved fresh at
+    // retrieval (never stored on ActionEntity) because it can change after the Action is
+    // created. Fall back to the slug-like name when displayName is blank.
+    String displayName = workflow.getDisplayName();
+    action.setWorkflowName(
+        displayName != null && !displayName.isBlank() ? displayName : workflow.getName());
     try {
       TaskRun taskRun = engineTaskRunService.get(actionEntity.getTaskRunRef()).getBody();
       action.setTaskName(taskRun.getName());
@@ -286,7 +291,9 @@ public class ActionService {
 
     Page<Action> pages =
         PageableExecutionUtils.getPage(
-            actions, pageable, () -> mongoTemplate.count(query, ActionEntity.class));
+            actions,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), ActionEntity.class));
 
     return pages;
   }

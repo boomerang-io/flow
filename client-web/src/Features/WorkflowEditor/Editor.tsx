@@ -18,6 +18,7 @@ import {
   FlowWorkspace,
   WorkflowReactFlowInstance,
 } from "Types";
+import { isActionError } from "Utils/actionResult";
 import ChangeLog from "./ChangeLog";
 import Configure from "./Configure";
 import Designer from "./Designer";
@@ -181,7 +182,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
       return;
     }
 
-    if (!fetcher.data.ok) {
+    if (isActionError(fetcher.data)) {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Failed to create workflow version`} />);
       return;
     }
@@ -304,7 +305,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
 
   const isCreatingRevision = fetcher.state !== "idle";
   const createRevisionFailed = Boolean(
-    fetcher.data && fetcher.data.intent === "createRevision" && fetcher.data.ok === false,
+    fetcher.data && fetcher.data.intent === "createRevision" && isActionError(fetcher.data),
   );
 
   return (

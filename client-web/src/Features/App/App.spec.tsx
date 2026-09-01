@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
+import { renderWithRouter } from "Utils/testing/render";
 import { buildFeatureFlags, loader, ProtectedRoute } from "./App";
 import { featureFlags as featureFlagsFixture } from "ApiServer/fixtures";
 
@@ -30,7 +31,7 @@ describe("App --- buildFeatureFlags", () => {
 // otherwise the same Error403 the wrapper rendered - didn't change in the swap.
 describe("App --- ProtectedRoute", () => {
   test("renders the guarded element when allowed", () => {
-    global.rtlRouterRender(
+    renderWithRouter(
       <ProtectedRoute allowed={true}>
         <div data-testid="guarded-content">Settings</div>
       </ProtectedRoute>
@@ -39,7 +40,7 @@ describe("App --- ProtectedRoute", () => {
   });
 
   test("renders Error403 instead of the guarded element when not allowed", () => {
-    global.rtlRouterRender(
+    renderWithRouter(
       <ProtectedRoute allowed={false}>
         <div data-testid="guarded-content">Settings</div>
       </ProtectedRoute>

@@ -3,6 +3,7 @@ import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
 import { ChangeLog as ChangeLogType } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import ChangeLog from ".";
 
 const changeLogData: ChangeLogType = [
@@ -14,7 +15,7 @@ const props = { changeLogData };
 
 describe("ChangeLog --- Snapshot Test", () => {
   it("Capturing Snapshot of ChangeLog", async () => {
-    const { baseElement } = global.rtlContextRouterRender(
+    const { baseElement } = renderWithContext(
       <Route path={AppPath.EditorChangelog} element={<ChangeLog {...props} />} />,
       { route: appLink.editorChangelog({ workspace: "tyson-workspace", workflow: "test-workflow" }) },
     );

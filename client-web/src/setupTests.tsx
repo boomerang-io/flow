@@ -1,22 +1,11 @@
 //@ts-nocheck
-import React from "react";
-import { createMemoryRouter, createRoutesFromElements, Route, RouterProvider } from "react-router-dom";
-import { FlagsProvider } from "flagged";
 import {
   act,
   cleanup,
   configure as configureTestingLibrary,
   getConfig as getTestingLibraryConfig,
-  render as rtlRender,
 } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
-import { AppContextProvider, WorkspaceContextProvider } from "State/context";
-import {
-  featureFlags as featureFlagsFixture,
-  workspaces as workspacesFixture,
-  profile as userFixture,
-  userWorkflows as userWorkflowsFixture,
-} from "ApiServer/fixtures";
 import { server } from "ApiServer/msw/node";
 import { resetDb } from "ApiServer/msw/db";
 import "@testing-library/jest-dom/extend-expect";
@@ -124,104 +113,6 @@ configureTestingLibrary({
   },
 });
 
-// Specs render `ui` as a bare component/tree, as an explicit <Route path=... element={...} />
-// (when a param/nested route needs to be matched), or as a <>...</> of several sibling <Route>s
-// (when a test needs to navigate between two real routes - e.g. a list route to a loader-backed
-// detail route, mirroring how they're actually nested in AppRoutes.tsx) - build a route tree
-// that works for all three: wrap anything else in a catch-all Route, otherwise hand it straight
-// to the router as-is.
-function buildRoutes(ui) {
-  const isRouteElement = React.isValidElement(ui) && (ui.type === Route || ui.type === React.Fragment);
-  return createRoutesFromElements(isRouteElement ? ui : <Route path="*" element={ui} />);
-}
-
-// v7's data router owns its history internally (no more passing a `history` instance to
-// <Router>), so expose a `history`-shaped object for the handful of specs that read
-// `history.location` back out after a navigation.
-function routerHistory(router) {
-  return {
-    get location() {
-      return router.state.location;
-    },
-  };
-}
-
-declare global {
-  namespace NodeJS {
-    interface Global {
-      rtlContextRouterRender: any;
-      rtlRouterRender: any;
-      rtlRender: any;
-    }
-  }
-
-  // Some specs call these as bare identifiers (relying on the `global.rtlX = rtlX`
-  // assignment below making them ambient), others go through `global.rtlX`
-  // explicitly — both need a type here.
-  // eslint-disable-next-line no-var
-  var rtlContextRouterRender: typeof rtlContextRouterRender;
-  // eslint-disable-next-line no-var
-  var rtlRouterRender: typeof rtlRouterRender;
-  // eslint-disable-next-line no-var
-  var rtlRender: typeof rtlRender;
-}
-
-function rtlRouterRender(ui, { route = "/", ...options } = {}) {
-  const router = createMemoryRouter(buildRoutes(ui), { initialEntries: [route] });
-  return {
-    ...rtlRender(<RouterProvider router={router} />, options),
-    history: routerHistory(router),
-  };
-}
-
-const defaultContextValue = {
-  user: userFixture,
-  // AppContext.workspaces is FlowWorkspaceSummary[] (App.tsx: sortBy(userData.teams, "name")) -
-  // the fixture module holds the paginated wire response, so unwrap it to the flat array here.
-  workspaces: workspacesFixture.content,
-  userWorkflows: userWorkflowsFixture,
-};
-
-// Production always reaches workspace-scoped screens under app/routes/workspaceLayout.tsx, whose
-// loader supplies this context - specs render those components directly, so supply it here.
-const defaultWorkspaceValue = { workspace: workspacesFixture.content[0] };
-
-const feature = featureFlagsFixture.features;
-
-const defaultFeatures = {
-  ActivityEnabled: feature["activity"],
-  EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
-  GlobalParametersEnabled: feature["global.parameters"],
-  InsightsEnabled: feature["insights"],
-  WorkspaceManagementEnabled: feature["workspace.management"],
-  WorkspaceParametersEnabled: feature["workspace.parameters"],
-  WorkspaceTasksEnabled: feature["workspace.tasks"],
-  UserManagementEnabled: feature["user.management"],
-  WorkspaceQuotasEnabled: feature["workspace.quotas"],
-  WorkflowTokensEnabled: feature["workflow.tokens"],
-  WorkflowTriggersEnabled: feature["workflow.triggers"],
-};
-
-function rtlContextRouterRender(
-  ui,
-  { contextValue = {}, workspaceValue = {}, initialState = {}, route = "/", ...options } = {}
-) {
-  const router = createMemoryRouter(buildRoutes(ui), { initialEntries: [route] });
-  return {
-    ...rtlRender(
-      <FlagsProvider features={defaultFeatures}>
-        <AppContextProvider value={{ ...defaultContextValue, ...contextValue }}>
-          <WorkspaceContextProvider value={{ ...defaultWorkspaceValue, ...workspaceValue }}>
-            <RouterProvider router={router} />
-          </WorkspaceContextProvider>
-        </AppContextProvider>
-      </FlagsProvider>,
-      options
-    ),
-    history: routerHistory(router),
-  };
-}
-
 // React's useId() counter is per-worker, so a component's generated ids depend on how many other
 // trees mounted before it in the same run. Normalise them so snapshots compare on structure.
 // The placeholder deliberately contains no colon, so a normalised value cannot match again and
@@ -260,12 +151,6 @@ console.warn = (message, ...rest) => {
     originalConsoleWarn(message, ...rest);
   }
 };
-
-// RTL globals
-// Open question if we want to attach these to the global or required users to import
-global.rtlRender = rtlRender;
-global.rtlRouterRender = rtlRouterRender;
-global.rtlContextRouterRender = rtlContextRouterRender;
 
 const localStorageMock = {
   getItem: vi.fn(),

@@ -1,6 +1,6 @@
 import React from "react";
 import { http, HttpResponse } from "msw";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { resourceRoute } from "Config/resourceRoutes";
 import { serviceUrl } from "Config/servicesConfig";
@@ -34,7 +34,7 @@ beforeEach(() => {
 
 describe("TaskRunLog --- RTL", () => {
   it("streams the log from the resource route (direct /api blocked) once the modal is opened", async () => {
-    global.rtlRender(<TaskExecutionLog {...props} />);
+    render(<TaskExecutionLog {...props} />);
 
     fireEvent.click(screen.getByText("View Log"));
 

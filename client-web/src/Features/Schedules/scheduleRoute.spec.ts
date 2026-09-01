@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "ApiServer/msw/node";
 import { db } from "ApiServer/msw/db";
 import { serviceUrl } from "Config/servicesConfig";
+import { isActionError } from "Utils/actionResult";
 import { scheduleAction, SCHEDULE_INTENTS } from "./scheduleRoute";
 
 const WORKSPACE = "ibm-services-engineering";
@@ -42,7 +43,8 @@ describe("scheduleRoute --- scheduleAction", () => {
       params: { workspace: WORKSPACE },
     });
 
-    expect(result).toEqual({ ok: true, intent: "createSchedule" });
+    expect(isActionError(result)).toBe(false);
+    expect(result).toEqual({ intent: "createSchedule" });
     // The labels Record survives the formData JSON round trip - the labelStringsToRecord
     // behaviour pinned in the component specs must still reach the wire through the action.
     expect(createdBody).toMatchObject({ name: "Nightly Backup", labels: { level: "important" } });
@@ -65,7 +67,8 @@ describe("scheduleRoute --- scheduleAction", () => {
       params: { workspace: WORKSPACE },
     });
 
-    expect(result).toEqual({ ok: true, intent: "updateSchedule" });
+    expect(isActionError(result)).toBe(false);
+    expect(result).toEqual({ intent: "updateSchedule" });
     expect(updatedBody).toMatchObject({ id: "sched-1", description: "edited" });
   });
 
@@ -86,7 +89,8 @@ describe("scheduleRoute --- scheduleAction", () => {
       params: { workspace: WORKSPACE },
     });
 
-    expect(result).toEqual({ ok: true, intent: "toggleSchedule" });
+    expect(isActionError(result)).toBe(false);
+    expect(result).toEqual({ intent: "toggleSchedule" });
     expect(updatedBody).toMatchObject({ id: "sched-1", status: "inactive" });
   });
 
@@ -101,24 +105,29 @@ describe("scheduleRoute --- scheduleAction", () => {
       params: { workspace: WORKSPACE },
     });
 
-    expect(result).toEqual({ ok: true, intent: "deleteSchedule" });
+    expect(isActionError(result)).toBe(false);
+    expect(result).toEqual({ intent: "deleteSchedule" });
     expect(db.schedules.length).toBe(before - 1);
     expect(db.schedules.some((s) => s.id === "61d6286bc570b75ec2b47884")).toBe(false);
   });
 
-  test("a failed write surfaces as ok:false with its own intent, not a throw", async () => {
+  test("a failed write surfaces as an action error with its own intent, not a throw", async () => {
     server.use(
       http.post(serviceUrl.workspace.schedule.postSchedule({ workspace: ":workspace" }), () =>
         HttpResponse.json({}, { status: 500 }),
       ),
     );
 
-    const result = await scheduleAction({
+    // Calling scheduleAction directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use (see CreateWorkflow.spec.tsx's "--- action" block).
+    const result = (await scheduleAction({
       request: buildRequest({ intent: "createSchedule", schedule: JSON.stringify(schedule) }),
       params: { workspace: WORKSPACE },
-    });
+    })) as unknown as { data: { intent: string } };
 
-    expect(result).toEqual({ ok: false, intent: "createSchedule" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("createSchedule");
   });
 
   // Load-bearing guard, not tidiness - same trap editorRoute.ts/tokenRoute.ts document: an
@@ -137,12 +146,13 @@ describe("scheduleRoute --- scheduleAction", () => {
       }),
     );
 
-    const result = await scheduleAction({
+    const result = (await scheduleAction({
       request: buildRequest({ intent: "create" }), // a TOKEN_INTENTS value, not a schedule one
       params: { workspace: WORKSPACE },
-    });
+    })) as unknown as { data: { intent: string } };
 
-    expect(result).toMatchObject({ ok: false, intent: "unknown" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("unknown");
     expect(called).toBe(0);
   });
 
