@@ -30,6 +30,7 @@ Q-126.
 >   the requesting agent's registered task types. The kill switch does not exist either.
 >   **Disposition: correct the doc.** Load testing is what should reopen this.
 > - **§1.7 Leases.** `leaseExpiresAt` is declared and indexed (`lease_sweep`) but **written
+>   **Update 2026-09-01**: written now — `renewLeases` on the batched dispatcher heartbeat, reaped by the eleventh sweep `reapExpiredLeases` (`WorkflowWatcher`), `statusReason=LeaseExpired`. See `competitive-analysis.md` §15.
 >   nowhere** — only ever `unset` — so that index is permanently empty. There is no renew endpoint.
 >   Crash recovery relies entirely on the durable `timeoutAt` deadline. Safe, but slower than the
 >   designed 180s lease + 60s renewal.
