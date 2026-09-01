@@ -61,7 +61,7 @@ Key conventions:
 - The prevailing timestamp type in existing entities is `java.util.Date`. Match the neighbours
   you're editing; do not mix `Date` and `Instant` within one entity.
 - `@Indexed` on fields used in filters/lookups. For the engine's claim query, the index is
-  correctness-critical — coordinate index changes with `scaling.md`.
+  correctness-critical — coordinate index changes with `specifications/performance.md` and `data-model.md`.
 - `@Version` (optimistic locking) on entities with concurrent state transitions — this is how
   v5 does workflow-level transition safety instead of a distributed lock (ARCHIE lesson).
 
@@ -84,7 +84,7 @@ public interface TokenRepository extends MongoRepository<TokenEntity, String> {
   complex ones. Return `List<>` for collections, `Optional<>` for single lookups.
 - **Atomic claiming** (engine pollers) uses a single `findAndModify` (MongoTemplate
   `findAndModify` with the claim predicate + ownership update) — not a distributed lock and not
-  read-then-write. This is the v5 concurrency backbone; see `scaling.md`.
+  read-then-write. This is the concurrency backbone; see `specifications/execution-model.md`.
 
 ## Service Pattern
 

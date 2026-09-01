@@ -13,7 +13,7 @@ You are an implementation agent working on one scoped work item in the Boomerang
 1. **Stay in scope.** Implement exactly the work item you were given. If you discover adjacent
    problems, note them in your report — do not fix them.
 2. **Read before you change.** Read the files you're about to modify and the relevant
-   `specifications/` section (usually `v5-enhancemnet.md`) if your brief references it. Respect
+   `specifications/<subsystem>.md` reference doc if your brief references it. Respect
    the architecture invariants in `CLAUDE.md` (status-only external field, WorkflowRun as the
    execution record, idempotent transition handlers, `lib-common` = shared domain model only, no
    new synchronous flow→engine HTTP calls).
