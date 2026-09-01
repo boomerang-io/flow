@@ -32,15 +32,15 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 | A12 | Non-thread-safe `HashMap` cache | `core/audit/AuditInterceptor.java:34,167,187` | Defer → **Cache** | ⏸️ DEFERRED |
 | A13 | JWKS cache without TTL/rotation | `core/security/OidcTokenVerifier.java:60-62,133-153` | Defer → **Cache** | ⏸️ DEFERRED |
 | A14 | Two hardcoded 200-thread pools beside virtual threads | `core/config/AsyncConfiguration.java`, `engine/config/AsyncConfig.java` | Defer → **Threads** | ⏸️ DEFERRED |
-| A15 | 3 JSON libraries / 2 Jackson majors / ad-hoc `new ObjectMapper()` | event models, `WebhookEventService`, `GenericStatusEvent`, dispatcher Gson sites | Fix | 🟡 dispatcher half ✅ `92e6bc35d` `db5a2815b` (gson removed from dispatcher pom); core half in progress |
+| A15 | 3 JSON libraries / 2 Jackson majors / ad-hoc `new ObjectMapper()` | event models, `WebhookEventService`, `GenericStatusEvent`, dispatcher Gson sites | Fix — Jackson-2 stragglers → Jackson 3 `47ed94372`; Gson → Jackson 3 `b78d5a60c` (gson removed from `service-core` pom); 13 ad-hoc `new ObjectMapper()` → injected bean / one static `JsonMapper` `eb51020cc`; dispatcher Gson → fabric8 `Serialization`/Jackson `92e6bc35d` `db5a2815b` (gson removed from dispatcher pom). **Residue**: `jackson-databind` 2.x stays on `service-core` — `cloudevents-json-jackson:4.0.2` (`PojoCloudEventDataMapper`) and `json-path` (`JacksonMappingProvider`) expose Jackson-2-only APIs; `TaskExecutionService:69` mapper untouched (G1). | ✅ DONE |
 | A16 | Reflective `ConvertUtil` + 47 `BeanUtils.copyProperties` | `workflow/ConvertUtil.java:35-52` | Show before/after | 📝 PROPOSED (`framework-review-proposals.md` §A16) |
 | A17 | `Watcher` + `CountDownLatch` per task; `System.exit(1)` on watch close | `TektonServiceImpl.java:509-537`, `KubeJobsExecutor.java:348-356`, `TaskWatcher.java:109-114` | Defer → **Threads** | ⏸️ DEFERRED |
 | A18 | Loki client bypasses `RestConfig`; raw `HttpClients.createDefault()` | `service-dispatcher/.../dispatcher/LogService.java:68-153` | GitHub issue, low priority | 🐙 boomerang-io/flow#322 |
-| A19 | Unencoded query string | `engine/LogClient.java:51-54` | Fix | 🟡 IN PROGRESS |
-| A20 | `java.util.Calendar` + `Calendar.HOUR` (12-hour) | `engine/TaskExecutionService.java:856-882` | Fix (G1: one method, own commit) | 🟡 IN PROGRESS |
+| A19 | Unencoded query string | `engine/LogClient.java:51-54` | Fix — `UriComponentsBuilder` + `LogClientTest` | ✅ DONE `5e927e792` |
+| A20 | `java.util.Calendar` + `Calendar.HOUR` (12-hour) | `engine/TaskExecutionService.java:856-882` | Fix (G1: `runScheduledWorkflow(TaskRunEntity, WorkflowRunEntity)` only, own commit). Semantics preserved except the 12h→24h fix; invalid zone id falls back to UTC as before | ✅ DONE `c2e7255cc` |
 | A21 | `@Async` on a private self-called method | `service-dispatcher/.../dispatcher/TaskService.java:102-109` | Defer → **Threads** | ⏸️ DEFERRED |
-| A22 | Manual stream-copy loops; manual hex | `KubeLogService.java:96-119`, `LogClient.java:88-93`, `TokenService.java:374-392` | Fix | 🟡 `KubeLogService` ✅ `ef77e1bef` (also fixed the `> 0` zero-read early-stop); core half in progress |
-| A23 | Unused `spring-retry` dependency | `service-core/pom.xml:193-197` | Fix | 🟡 IN PROGRESS |
+| A22 | Manual stream-copy loops; manual hex | `KubeLogService.java:96-119`, `LogClient.java:88-93`, `TokenService.java:374-392` | Fix — `transferTo` in `LogClient` + `KubeLogService` (also fixed the `> 0` zero-read early-stop), `HexFormat` in `TokenService` pinned to SHA-256("abc") | ✅ DONE `82905d44b` `ef77e1bef` |
+| A23 | Unused `spring-retry` dependency | `service-core/pom.xml:193-197` | Fix | ✅ DONE `2aca8ca53` |
 
 ## 2. Web client (section C of the review)
 
@@ -72,3 +72,4 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 - 2026-09-01 — batch 1 landed: dispatcher (3 commits, 30/30 tests), client-web C1/C2/C3/C8/C9 (gates: vitest 273 passed / 8 pre-existing TZ snapshot failures, tsc 27 unchanged, build exit 0). Hygiene note: `92e6bc35d` (dispatcher) swept up 4 staged client-web deletions belonging to C3/C8 via a broad `git add`; tree state is correct, attribution is not. Not rewritten (agents live on the branch).
 - 2026-09-01 — C4 answer: `yup` is a **peer dependency of `@boomerang-io/carbon-addons-boomerang-react`** (`formik ^2.4.6`, `yup >=0.32.11`), so it is pinned by the forms/add-ons stack, not a free choice; no spec records a move to another validator.
 - 2026-09-01 — `framework-review-proposals.md` complete: A7/A8/A11 (`bbd2fd5fd`) + A9/A10/A16. Two new live bugs surfaced by the before/after passes and NOT yet fixed (awaiting the maintainer's call on A10/A11): `UserService.java:386` (`ids=` filter inert) and `TokenService.java:507` (counts `ActionEntity`).
+- 2026-09-01 — backend fix set complete: service-core 303 tests / 0 failures (full module), dispatcher 30/0. Pre-existing quirk noted, not touched: `runScheduledWorkflow` removes param `workflowId` but reads `workflowRef`.
