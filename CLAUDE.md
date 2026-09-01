@@ -363,7 +363,7 @@ Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.y
 | `specifications/design-system.md`         | 📎 Reference                 | IBM Carbon + Boomerang theme design system (source of truth: `flow.client.web`). |
 | `specifications/e4-review-findings.md`    | 📋 Captured (2026-07-25)     | Four-way critical review of the E4 code (perf/structure/duplication/maintenance + correctness bugs). **Not actioned:** sequenced E5 → critical re-review → fixes. |
 | `specifications/merge-execution-plan.md`  | 🔵 **ACTIVE (2026-08-14)**   | T4 execution sequence for the DD-02 merge: E8–E11 slices, gate pre-fills, and the 5 amendments (AM-1 no-Modulith/no-ArchUnit boundaries-by-convention, AM-2 H3 moot, AM-3 leases deferred, AM-4 E9 G2 lineage via `initiatedByRef`, AM-5 dispatcher token reuse). |
-| `specifications/authentication.md`         | 🔵 Proposed (2026-08-18)     | Unified token exchange for IDPZero + OAuth2-proxy: one convergence point, session token thereafter, ARCHIE's httpOnly-cookie model (sequences after the SSR migration). Mode selection ruled to a config flag — revisit per issue #314. |
+| `specifications/authentication.md`         | 🟢 Implemented (2026-08-31)  | Unified token exchange for IDPZero + OAuth2-proxy, shipped end-to-end on `feat-v5-track10-auth` (PR #320): server-side OIDC via remix-auth v4 (superseding the browser-PKCE ruling), proxy exchange, secured local compose stack, founding-admin bootstrap. Also holds the ruled KEEP for the `access_token` URL param / `x-access-token` header and the security-off virtual-admin identity. |
 | `specifications/entity-diff-v4-v5.md`      | ✅ Reviewed + actioned (2026-08-21) | Field-level v4→v5 entity diff (why each element was added, migration-written residue, anomaly dispositions). **§7 documents the accepted outbox creation-loss window** — no open G2 items remain. |
 | `specifications/api-contract-trace.md`     | 🔵 **ACTIVE (2026-08-18)**   | End-to-end webapp↔service-core contract trace (call site → route → service → serialised fields). Live defects, blocked capability, the permissions/auth findings that gate the frontend work, and the maintainer decisions outstanding. |
 | `specifications/task-contract-research.md` | 📎 Research record (2026-08-22) | Params-in/results-out across Tekton, Argo, GitHub Actions, GitLab, Airflow, KFP, Conductor, Dagger; executor side-by-side (Tekton/Jobs/Docker/ACA/Lambda); the channel options A–E debated. Inputs to `runtime-contract.md` C2/C3. |
@@ -388,21 +388,28 @@ for discussion BEFORE implementing them.**
 
 If you have no other instruction, the open work is, in order:
 
-1. **Finish Track 8** (`feat-v5-track8`, unmerged): Wave 5 — `Editor.tsx`'s query cluster is the
-   last unconverted surface and the blocker for the schedules cluster, which currently runs
-   loaders for reads and react-query for writes. Then merge T8 into `feat-v5`.
-2. **Phase 4** — task runtime evolution: AgentRuntime/dispatcher SPI, local Docker runtime,
-   Tekton behind the SPI. Nothing blocks it.
-3. ~~The `SecurityInterceptor` enforcement flip~~ **DONE (2026-08-31, feat-v5-track10)** —
-   permission checks enforce for real; `flow.security.denied` replaces the shadow metric.
-4. **DD-03 unified product versioning** — the last unshipped v5 DD.
+1. **Cut the first 5.x release** (e.g. `5.0.0-beta.1` via the `/release` skill). DD-03's
+   mechanism is SHIPPED — `.github/workflows/ci-release.yml` builds the whole image set from
+   one `5.x.y` tag (landed with T9's DD-06 rename, PR #318) — but no 5.x tag has ever been
+   pushed. Before tagging, weigh the untested v3→v5 upgrade path (next item).
+2. **Test the v3→v5 in-place upgrade against a real v3 database dump** — ruled a requirement
+   (2026-09-01), never exercised end-to-end. The loader changeunit chain is load-bearing
+   production upgrade code.
+3. **Phase 4 continuation** — task runtime evolution. The TaskExecutor SPI, KubeJobsExecutor
+   and the param contract shipped; ACA-sandbox dispatcher, pass-by-reference artefact store
+   (flow#319) and the local Docker runtime are all DEFERRED with recorded triggers.
+4. ~~Finish Track 8~~ **DONE** — T8 merged as PR #316 (2026-08-26); Wave 5, the revalidator
+   sweep and both frontend defects closed on `feat-v5` (see track status below).
+5. ~~The `SecurityInterceptor` enforcement flip~~ **DONE (2026-08-31, feat-v5-track10, PR
+   #321)** — permission checks enforce for real; `flow.security.denied` replaces the shadow
+   metric.
 
 **Do not re-open** the two accepted limitations unless the trigger conditions in their specs are
 met: the outbox creation-loss window (`entity-diff-v4-v5.md` §7) and worker leases (AM-3).
 Likewise `reconciler-analysis.md`'s supersede generations describe a capability the product does
 not have — build them only if in-place partial re-run becomes a requirement.
 
-**Current state (2026-08-21) — the "where are we" a fresh session should read first:**
+**Current state (2026-09-01) — the "where are we" a fresh session should read first:**
 
 **Phase 3 is COMPLETE.** Epics E0–E11 all shipped on `feat-v5`: Phase 0 baseline (Java 25 / Boot
 4.1.0), E1 security shadow telemetry, E2 hazard stopgaps, E3 schema/indexes, **E4** execution-model
@@ -426,26 +433,30 @@ ahead of proven need" precedent already applied to the retry classes and leases 
   also records the design to build and the triggers that would reopen it.
 
 **Track status.** T1 (review-refactor), T2 (D5 + D7 single admission gate), T3/E7 (dispatcher),
-T4 (DD-02 merge, E9 egress), T6 (post-merge cleanups) and T7 (DD-04 frontend fold-in) are all
-merged to `feat-v5`. **T5 is partial**: DD-01 Team→Workspace and DD-04 shipped; **DD-03 unified
-product versioning is the last unshipped v5 DD**. F1 (the `TaskExecutionService` god-class split,
-still 1136 lines) was **ruled out of Phase 3 scope** — a large move-only refactor of the most
-sensitive class right after the execution model was rebuilt and pinned by new tests.
+T4 (DD-02 merge, E9 egress), T6 (post-merge cleanups), T7 (DD-04 frontend fold-in),
+**T8 (frontend SSR migration + F3 api-package dissolution, PR #316, 2026-08-26)**,
+**T9 (case-insensitive params + DD-06 `service-dispatcher` rename + 5.x release tags, PRs
+#317/#318)** and **T10 (sign-in flow PR #320, enforcement flip PR #321, authz fixes PR #323 —
+all merged 2026-09-01)** are all merged to `feat-v5`. **T5 is complete**: DD-01 Team→Workspace,
+DD-04, and DD-03's release mechanism (`ci-release.yml`, one 5.x tag → the whole image set) have
+all shipped — **the first 5.x tag itself has never been cut**. F1 (the `TaskExecutionService`
+god-class split, still 1136 lines) was **ruled out of Phase 3 scope** — a large move-only
+refactor of the most sensitive class right after the execution model was rebuilt and pinned by
+new tests.
 
-**T8 (`feat-v5-track8`) is IN PROGRESS and unmerged** — 81 commits ahead of `feat-v5`. The frontend
-refactor: React Router 7 framework mode + SSR, MSW replacing MirageJS, Cypress deleted,
-`@xyflow/react` v12, and ~10 route clusters moved from react-query onto server `loader`/`action`.
-Gates on a quiet tree: **vitest 172 passed / 0 failed (51 files)** — up from 96 passed / 8 failed —
-**tsc 27** (from 37), `pnpm build` exit 0, and the SSR bundle boundary verified
-(`CORE_SERVICE_INTERNAL_ORIGIN` in `build/server/`, absent from `build/client/`).
+**T8's former debt list is fully closed on `feat-v5`** (verified 2026-09-01): `Editor.tsx`'s
+Wave 5 conversion lives in `Features/WorkflowEditor/editorRoute.ts`; react-query v3 was removed
+with the last useQuery call site (`5dc4642ea` — `@tanstack/react-query` v5 remains in
+`app/root.tsx` ONLY because the design-system's UIShell/Header requires it; do not remove it);
+the redundant `revalidator.revalidate()` sweep is done (the survivors in `Features/App/App.tsx`
+are legitimate root-loader re-runs); schedule labels submit via `labelStringsToRecord` in
+`ScheduleCreator`/`ScheduleEditor`; and the `boomerang.io/workflow-ref=undefined` defect is
+fixed in `Features/WorkflowRun/RunHeader/RunHeader.tsx` (an absent ref drops its label).
 
-**T8 still owes**: Wave 5 (`Editor.tsx`'s query cluster — the blocker for the schedules cluster,
-which currently runs loaders for reads and react-query for writes); a sweep of **21 redundant
-`revalidator.revalidate()` calls** (React Router already revalidates after a `useFetcher` action —
-but exactly 4 of the 25 call sites genuinely need it because they are still on react-query, so a
-naive sweep breaks them); and two open frontend defects — schedule labels cannot be set
-(`ScheduleCreator`/`ScheduleEditor`, the submit-side block is commented out and would not work if
-uncommented) and `WorkflowAdvancedDetail` rendering `boomerang.io/workflow-ref=undefined`.
+**The webapp is signed-in now**: the compose stack runs SECURED, sign-in is server-side OIDC via
+remix-auth v4 against local IDPZero or a proxy exchange, the browser never calls `/api` directly
+(BFF end state — the SSR server's `/api` proxy was deleted), and the first user on a fresh
+database becomes the founding admin. See `specifications/authentication.md` (🟢 implemented).
 
 The `SecurityInterceptor` enforcement flip is **DONE (2026-08-31, feat-v5-track10)** and the
 security-off identity is **RULED** (synthetic virtual admin, never persisted — see
