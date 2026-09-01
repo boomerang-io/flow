@@ -1,6 +1,6 @@
 import React from "react";
 import { http, HttpResponse } from "msw";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import TaskExecutionLog from "./index";
@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe("TaskRunLog --- RTL", () => {
   it("renders the log surface for a taskrun once the modal is opened", async () => {
-    global.rtlRender(<TaskExecutionLog {...props} />);
+    render(<TaskExecutionLog {...props} />);
 
     fireEvent.click(screen.getByText("View Log"));
 

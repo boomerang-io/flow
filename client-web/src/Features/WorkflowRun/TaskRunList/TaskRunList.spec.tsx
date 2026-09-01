@@ -1,6 +1,7 @@
 import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import { renderWithRouter } from "Utils/testing/render";
 import ExecutionTaskLog from "./index";
 
 const baseTaskRun = {
@@ -89,14 +90,14 @@ const props = {
 
 describe("ExecutionTaskLog --- Snapshot", () => {
   it("Capturing Snapshot of ExecutionTaskLog", () => {
-    const { baseElement } = global.rtlRouterRender(<ExecutionTaskLog {...props} />);
+    const { baseElement } = renderWithRouter(<ExecutionTaskLog {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });
 
 describe("ExecutionTaskLog --- RTL", () => {
   it("Sort tasks", () => {
-    global.rtlRouterRender(<ExecutionTaskLog {...props} />);
+    renderWithRouter(<ExecutionTaskLog {...props} />);
 
     const sortButton = screen.getByTestId("taskbar-button");
     let taskItems = screen.getAllByTestId("taskitem-name");

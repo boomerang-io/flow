@@ -1,4 +1,5 @@
 import React from "react";
+import { render } from "@testing-library/react";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import TaskItem from "./index";
 
@@ -76,7 +77,7 @@ const props = {
 
 describe("TaskItem --- Snapshot", () => {
   it("Capturing Snapshot of TaskItem", () => {
-    const { baseElement } = global.rtlRender(<TaskItem {...props} />);
+    const { baseElement } = render(<TaskItem {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });
