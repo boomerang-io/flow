@@ -4,6 +4,7 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
+import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
@@ -14,6 +15,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.GraphProcessor;
 import io.boomerang.engine.ResultUtil;
 import io.boomerang.workflow.TaskService;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -238,6 +240,12 @@ public class DAGUtility {
                 .getAdditionalProperties()
                 .putAll(task.getSpec().getAdditionalProperties());
           }
+          // Custom tasks carry their runtime spec as declared params rather than a catalogue
+          // Task Spec - map them onto the TaskRun spec the dispatcher reads, before param
+          // resolution runs so $(params.x) references inside them still substitute.
+          if (TaskType.custom.equals(wfRevisionTask.getType())) {
+            applyCustomTaskSpecFromParams(taskRunEntity);
+          }
           TaskDeletion taskDeletion = TaskDeletion.Never;
           if (wfRunEntity.getAnnotations() != null
               && !wfRunEntity.getAnnotations().isEmpty()
@@ -283,6 +291,48 @@ public class DAGUtility {
 
   public TaskRunEntity getTaskByType(List<TaskRunEntity> tasks, TaskType type) {
     return tasks.stream().filter(tsk -> type.equals(tsk.getType())).findAny().orElse(null);
+  }
+
+  /*
+   * A custom task's image/command/arguments/script are declared params (image, command,
+   * arguments, shellScript), not a catalogue Task Spec - matched by name case-insensitively. A
+   * blank or absent image leaves spec.image untouched so the dispatcher's NO_TASK_IMAGE guard
+   * still fires; a blank or absent param otherwise leaves the catalogue spec value in place.
+   */
+  private void applyCustomTaskSpecFromParams(TaskRunEntity taskRunEntity) {
+    String image = findParamValueByName(taskRunEntity.getParams(), "image");
+    if (image != null && !image.isBlank()) {
+      taskRunEntity.getSpec().setImage(image);
+    }
+    String command = findParamValueByName(taskRunEntity.getParams(), "command");
+    if (command != null && !command.isBlank()) {
+      taskRunEntity.getSpec().setCommand(splitParamLines(command));
+    }
+    String arguments = findParamValueByName(taskRunEntity.getParams(), "arguments");
+    if (arguments != null && !arguments.isBlank()) {
+      taskRunEntity.getSpec().setArguments(splitParamLines(arguments));
+    }
+    String shellScript = findParamValueByName(taskRunEntity.getParams(), "shellScript");
+    if (shellScript != null && !shellScript.isBlank()) {
+      taskRunEntity.getSpec().setScript(shellScript);
+    }
+  }
+
+  private String findParamValueByName(List<RunParam> params, String name) {
+    return params.stream()
+        .filter(p -> name.equalsIgnoreCase(p.getName()))
+        .map(RunParam::getValue)
+        .filter(Objects::nonNull)
+        .map(Object::toString)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private List<String> splitParamLines(String value) {
+    return Arrays.stream(value.split("\\R"))
+        .map(String::trim)
+        .filter(line -> !line.isEmpty())
+        .collect(Collectors.toList());
   }
 
   // Implement an AND check - all dependencies are met (all paths exist)
