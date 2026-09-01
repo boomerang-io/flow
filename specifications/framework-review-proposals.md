@@ -165,7 +165,7 @@ public final class ParamNameValidator implements ConstraintValidator<ParamName, 
 Models (`lib-common/.../model/Task.java:18`, `WorkflowTemplate.java:48`, `AbstractParam.java:16`, `TaskSpec.params`)
 ```java
   @ResourceName private String name;                 // Task, WorkflowTemplate
-  @ParamName private String name;                    // AbstractParam (RunParam/ParamSpec inherit)
+  @ParamName private String name;                    // AbstractParam (RunParam/ParamSpec are standalone classes with their own name field — not covered)
   @Valid private TaskSpec spec = new TaskSpec();     // Task - cascade into spec.params
 ```
 Controllers — 6 `@RequestBody` parameters gain `@Valid`:
