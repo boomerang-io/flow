@@ -28,7 +28,7 @@ type Props = {
 
 export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
   const resourceUrl = serviceUrl.resourceTrigger();
-  const webhookURL = `${resourceUrl}/event?workflow=${workflowRef}`;
+  const webhookURL = `${resourceUrl}/event?ref=${workflowRef}`;
 
   return (
     <ModalForm>
@@ -49,7 +49,7 @@ export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
           className={styles.codeSnippet}
         >
           POST{"  "}
-          {`${resourceUrl}/event?workflow=${workflowRef}&access_token=TOKEN`}
+          {`${resourceUrl}/event?ref=${workflowRef}&access_token=TOKEN`}
         </CodeSnippet>
         <h2 className={styles.sectionHeader}>Example Payload</h2>
         <p>
