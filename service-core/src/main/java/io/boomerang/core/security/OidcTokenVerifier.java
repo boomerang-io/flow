@@ -31,8 +31,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * Verifies id_tokens for the direct OIDC login path of {@code POST /api/v2/auth/exchange}
- * (specifications/authentication.md §1/§5): fetches the configured issuer's JWKS (via standard
+ * Verifies id_tokens for the direct OIDC login path of {@code POST /api/v2/auth/exchange}:
+ * fetches the configured issuer's JWKS (via standard
  * OIDC discovery), verifies the JWS signature, and checks {@code iss}, {@code aud}, {@code exp}
  * and {@code nonce} - the reference implementation this design is modelled on base64-decodes and
  * trusts transport instead; this endpoint is reachable directly by a browser, so it earns trust

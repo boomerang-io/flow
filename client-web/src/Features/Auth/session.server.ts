@@ -1,5 +1,5 @@
 /*
- * Session lifecycle actions (specifications/authentication.md - BFF slice, 2026-09-01): the
+ * Session lifecycle actions: the
  * browser no longer POSTs /api/v2/auth/exchange or /api/v2/auth/logout itself. Both were
  * browser-side precisely because their responses' Set-Cookie must reach the browser - and the
  * server-side sign-in flow (oidc.server.ts) already proved the alternative mechanic: run the

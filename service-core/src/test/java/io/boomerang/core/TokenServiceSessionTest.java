@@ -30,8 +30,8 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * The session-minting core behind {@code POST /api/v2/auth/exchange} (specifications/authentication.md
- * §1): the raw {@code bfs_<uuid>} value must be recoverable by a caller that needs to hand it to a
+ * The session-minting core behind {@code POST /api/v2/auth/exchange}: the raw {@code bfs_<uuid>}
+ * value must be recoverable by a caller that needs to hand it to a
  * browser (the exchange endpoint's cookie), while the entity only ever persists its hash - and
  * {@code createSessionTokenForUser} must skip get-or-register entirely for an already-resolved user
  * (the proxy-exchange path, where AuthenticationFilter resolved/registered the user moments earlier).
@@ -108,7 +108,7 @@ class TokenServiceSessionTest {
   /*
    * AuthenticationFilter's header-resolved branches (forwarded email, raw JWT, Basic) call
    * createSessionToken on EVERY request - without reuse, each request persists a brand-new
-   * TokenEntity (specifications/authentication.md flags this write amplification).
+   * TokenEntity, which is pure write amplification.
    */
   @Test
   void repeatedFilterAuthenticationReusesTheMintedSessionToken() {

@@ -6,8 +6,8 @@ import org.springframework.http.ResponseCookie;
 /**
  * The single definition of the session cookie's name and attributes - minted by {@code POST
  * /api/v2/auth/exchange}, cleared by {@code POST /api/v2/auth/logout}, read by {@link
- * AuthenticationFilter}. httpOnly, {@code Secure}, {@code SameSite=Lax} (follows ARCHIE's model,
- * specifications/authentication.md §1); carries only the opaque {@code bfs_<uuid>} value -
+ * AuthenticationFilter}. httpOnly, {@code Secure}, {@code SameSite=Lax} (follows ARCHIE's
+ * model); carries only the opaque {@code bfs_<uuid>} value -
  * permissions are never embedded, they stay server-side on the persisted {@code TokenEntity} that
  * value hashes to, which is what makes this structurally immune to the 5KB cookie overflow the
  * embedded-permissions reference implementation hit.

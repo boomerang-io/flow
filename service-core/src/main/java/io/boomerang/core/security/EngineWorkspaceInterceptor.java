@@ -11,7 +11,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 /*
- * Engine-mode workspace guard (AM-10, specifications/merge-execution-plan.md): in engine mode the
+ * Engine-mode workspace guard: in engine mode the
  * `system` workspace IS the workspace - "engine basically runs in what the admins use". It is
  * seeded by changeunit _0014__SeedSystemWorkspace (unlimited-quota, undeletable) and `system` is
  * in WorkspaceService.RESERVED_WORKSPACE_NAMES, so no user workspace can ever shadow it.

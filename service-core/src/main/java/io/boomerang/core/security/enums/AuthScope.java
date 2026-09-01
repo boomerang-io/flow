@@ -6,11 +6,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /*
- * T6-3: the TOKEN CLASS (actor/ceiling-typed, not resource-scope-typed) - who/what a token
+ * The TOKEN CLASS (actor/ceiling-typed, not resource-scope-typed) - who/what a token
  * represents and the ceiling of what it can ever be granted. This is deliberately NOT the same
- * concept as a permission grant's scope (see {@link PermissionScope}) - see this track's ruling
- * (specifications/merge-execution-plan.md, T6-3) for why the two were split out of what used to be
- * a single overloaded enum.
+ * concept as a permission grant's scope (see {@link PermissionScope}); the two were split out of
+ * what used to be a single overloaded enum (see specifications/authorization.md).
  *
  * <ul>
  *   <li>{@code session} - human, short-lived, permissions re-resolved on login/exchange.

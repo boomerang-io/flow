@@ -607,7 +607,7 @@ public class TokenService {
   /**
    * Same resolve-or-create-user + mint flow as {@link #createSessionToken}, but also returns the
    * raw {@code bfs_<uuid>} value - needed by {@code POST /api/v2/auth/exchange} to set the
-   * httpOnly session cookie (specifications/authentication.md §1). The entity only ever persists
+   * httpOnly session cookie. The entity only ever persists
    * the SHA-256 hash (see {@link #mintSessionToken}), so the raw value only ever exists on the
    * stack of the request that minted it.
    */

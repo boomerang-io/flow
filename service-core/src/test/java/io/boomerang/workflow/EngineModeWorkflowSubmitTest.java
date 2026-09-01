@@ -31,7 +31,7 @@ import org.springframework.test.context.TestPropertySource;
  * NoSuchBeanDefinitionException at request time. Boot still succeeded, which is exactly why no
  * mode-gating boot test caught it.
  *
- * <p>Engine mode serves the single {@code system} workspace (AM-10, EngineWorkspaceInterceptor),
+ * <p>Engine mode serves the single {@code system} workspace (see EngineWorkspaceInterceptor),
  * so this drives the real service against it.
  */
 @TestPropertySource(properties = "flow.mode=engine")

@@ -29,8 +29,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * The unified token exchange's two identity sources (specifications/authentication.md §1) at the
- * service layer - both converge on {@code TokenService}'s session-minting, and logout must revoke.
+ * The unified token exchange's two identity sources at the service layer - both converge on
+ * {@code TokenService}'s session-minting, and logout must revoke.
  */
 @ExtendWith(MockitoExtension.class)
 class AuthExchangeServiceTest {
