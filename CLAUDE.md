@@ -141,11 +141,14 @@ behaviour, never "simplify" onto framework defaults.
 
 ## Known Current-State Hazards
 
-**Post-Phase-3 (2026-08-21).** Most entries below are struck through — E2/E4/E7 fixed them. They are
-kept rather than deleted because the strike-throughs record *how* each was fixed, and a fresh session
-that reads a v4-era description as current will chase a bug that no longer exists. **Live hazards are
-the two un-struck entries: the `SecurityInterceptor` soft-fail flip, and the security-off identity
-decision.** Two accepted limitations sit outside this list: the outbox creation-loss window
+**Post-Phase-3 (2026-08-21).** Most entries below are struck through — E2/E4/E7 fixed them, and the
+feat-v5-authz slice closed the four enforcement-era authz gaps (Action get scoping, Workflow create
+guard, engine-retry ownership, `/user/{userId}` self-vs-admin). Entries are kept rather than deleted
+because the strike-throughs record *how* each was fixed, and a fresh session that reads a stale
+description as current will chase a bug that no longer exists. **Still open: the
+`WorkspaceWorkflowService.submit` path-team edge (benign-leaning, see the retry entry) and the
+machine-token approval item (see the Action entry) — the latter awaits a product ruling.** Two
+accepted limitations sit outside this list: the outbox creation-loss window
 (`entity-diff-v4-v5.md` §7) and worker leases (AM-3) — both deliberately deferred, not hazards.
 
 - ~~`SecurityInterceptor` soft-fails permission checks~~ **ENFORCED (2026-08-31, ruled — no
@@ -157,6 +160,19 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   `SecurityInterceptor` at the endpoint.
 - ~~The relationship JGraphT singleton (authz bug under N instances)~~ **FIXED (E6,
   2026-07-23)**: direct-query anchored walk, replica-parity proven by test.
+- ~~`ActionService.get(team, id)` had no relationship call~~ **FIXED (feat-v5-authz)**: it was
+  `findById → convert → return`, so any authenticated caller could read any workspace's approval
+  by id. It now applies the same `check(WORKFLOW, workflowRef)` the mutation path (`action`, :103)
+  already used, refusing with the same `ACTION_INVALID_REF` as not-found (no existence oracle);
+  `query`/`summary` already narrowed through `filter()` and are unchanged. Pinned by
+  `ActionWorkspaceAuthorizationTest`. (The separate machine-token approval item — only users can
+  process Actions, per the TODO on `ActionService.action` — stays OPEN awaiting a product ruling.)
+- ~~`WorkflowService.create(team, …)` wrote the `HAS_WORKFLOW` ownership edge before any workspace
+  check~~ **FIXED (feat-v5-authz)**: `check(WORKSPACE, team)` → `PERMISSION_DENIED` now sits at the
+  top of `create`, mirroring the sibling `TaskService.create`, before the entity save and
+  `createNodeAndEdge`. Every create-shaped route funnels through this one method — `apply` and
+  `composeApply` (when the Workflow does not exist yet) and `duplicate` — so the single guard
+  covers all four. Pinned by `WorkflowCreateAuthorizationTest`.
 - **`check()` ignores the workspace path segment for `global`-scope tokens — NOT an authz hole**
   (raised 2026-08-21 as a security finding; **corrected by the maintainer 2026-08-24 — a global
   token doing everything is what global scope is for, so this is not a privilege escalation**).
@@ -172,15 +188,22 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
   the Workflow's `HAS_WORKFLOW` parent) **before** the retried run is created, so an unresolvable
   owner refuses with `TEAM_INVALID_REF` rather than throwing after the clone is already queued. The
   other six call sites read or mutate the run and write no ownership, so they were unaffected.
-  **Two same-shaped items remain open, both pre-existing (confirmed against `feat-v5-track8`)**:
-  `WorkspaceWorkflowService.submit` still writes the edge from the path team, and the engine's
-  auto-retry (`WorkflowExecutionService:265`) writes no ownership edge at all — so an auto-retried
-  run appears in `/query` (which filters on `workflowRef`) but fails `check()` on `GET /{id}`.
+  ~~The engine's auto-retry (`WorkflowExecutionService:265`) writes no ownership edge at all~~
+  **FIXED (feat-v5-authz)**: the ownership-edge write moved down into the unscoped
+  `WorkflowRunService.retry(workflowRunId, start, retryCount)` itself — resolved via the existing
+  `owningWorkspace` fallback BEFORE the clone is created, written before it is queued — so user
+  retries and engine auto-retries produce identically-owned runs through one path. Deliberate
+  asymmetry, pinned by `WorkflowRunRetryOwnerTest`: the scoped `retry(team, id)` keeps refuse-first
+  (`TEAM_INVALID_REF` before anything is created), while the engine path logs and retries
+  ownerless when no workspace owns the run or its Workflow — recovery is never failed over graph
+  bookkeeping. **Still open, same-shaped and pre-existing**: `WorkspaceWorkflowService.submit`
+  writes the edge from the path team — benign-leaning because `submit` resolves through
+  `filter()`, which applies workspace containment even for global scope (pinned in
+  `WorkflowWorkspaceAuthorizationTest`), so the path team always actually contains the Workflow.
   **Historical note on why it waited**: these were pass-through guards in
   `api/WorkspaceWorkflowRunService`
   over `engine/WorkflowRunService`, and the F1/F2/F3 merge-cleanup collapses the two into one
-  service — at which point `team` either becomes authoritative or disappears. Fix the edge-owner
-  bug as part of that work rather than patching a line about to be deleted.
+  service — at which point `team` either becomes authoritative or disappears.
 - ~~Agent endpoints (`AgentControllerV1`) are unauthenticated~~ **FIXED (E7-4)**: `/api/v1/agent`
   was replaced by `/api/v1/dispatcher` (no dual-serve) behind `DispatcherAuthFilter` — interim
   static bearer token. The first-class Flow dispatcher token (`AuthScope`/`TokenActorKind`,
@@ -426,8 +449,13 @@ uncommented) and `WorkflowAdvancedDetail` rendering `boomerang.io/workflow-ref=u
 
 The `SecurityInterceptor` enforcement flip is **DONE (2026-08-31, feat-v5-track10)** and the
 security-off identity is **RULED** (synthetic virtual admin, never persisted — see
-`specifications/authentication.md`). Still open: `PATCH`/`DELETE /user/{userId}` are gated only
-on global `user/write`/`user/delete` with **no self-scoping** — a backend authz gap now live
-under real enforcement.
+`specifications/authentication.md`). ~~Still open: `PATCH`/`DELETE /user/{userId}` are gated only
+on global `user/write`/`user/delete` with **no self-scoping**~~ **FIXED (feat-v5-authz)**:
+`UserService.apply`/`delete` permit self on principal equality and otherwise require a
+**global-scoped** `user/<action>` grant — the interceptor's `@AuthCriteria` match is scope-blind,
+so a workspace editor/owner's `**/write`/`**/**` used to reach ANY user's account; now only the
+platform admin/operator roles (the only global-scope shapes `resolvePermissionsForUser` issues)
+and explicitly minted `global` tokens do. Pinned by `UserSelfServiceAuthorizationTest`, which also
+pins the `Optional.of(null)` NPE fix (update-by-email of a non-existent user is `USER_NOT_FOUND`).
 
 Item-level detail + dispositions: `specifications/e4-review-findings.md`.

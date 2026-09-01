@@ -569,6 +569,17 @@ evidence (file/class or measurement).
     Modulith interface (the `RelationshipService` API), not internals — `core` must not
     become a god-module; and the mode-loading matrix (Q-205/Q-206) needs sub-`core`
     granularity so `engine` mode can exclude or no-op the relationship layer.
+- **RULED (2026-09-02, maintainer): Actions and TaskRuns stay OUTSIDE the relationship graph.**
+  The graph holds durable organisational structure only — workspaces, users, workflows,
+  approver groups, and WORKFLOWRUN as the tenancy anchor. Everything beneath a run (TaskRuns,
+  Actions) scopes through its parent by reference (`workflowRunRef`/`workflowRef` + one
+  `check()` hop), never by its own node. Rationale: scoping is already complete via the parent
+  hop; these are engine-created execution artefacts on the hot path, so per-object nodes would
+  add graph writes for no authz gain; and the entity's ref is the single source of truth — a
+  parallel edge is a second copy that can drift (the exact class of bug the retry edge-owner
+  fix cleaned up). The one condition that reopens this: direct per-action grants (assigning an
+  approval to a user outside the workspace, external sharing of a single gate) — that cannot
+  be expressed as a parent hop.
 - **Q-133** Does the CHEER model sharpen or blur the engine-mode seam (where relationships don't exist and workspace resolves to `default`)?
   - ✅ **Answered (2026-07-22): sharpens it.** Access-as-anchored-reachability means
     `engine` mode simply doesn't load (or no-ops) the relationship layer and anchors at the

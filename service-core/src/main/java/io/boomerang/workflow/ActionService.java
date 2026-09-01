@@ -218,6 +218,8 @@ public class ActionService {
     }
     // Same scoping as action(): the caller must reach the Action's Workflow. The refusal is the
     // same error as not-found, so the response does not disclose whether the id exists.
+    // Ruled (2026-09-02): Actions stay OUTSIDE the relationship graph - they scope through
+    // their parent by reference (workflowRef + this one check() hop), never by their own node.
     if (!relationshipService.check(
         RelationshipType.WORKFLOW,
         actionEntity.get().getWorkflowRef(),
