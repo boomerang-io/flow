@@ -78,15 +78,19 @@ public class SecurityInterceptor implements HandlerInterceptor {
           "(\\*{2}|" + requiredScope.getLabel() + ")\\/(\\*{2}|" + requiredAccess.getLabel() + ")";
       if (!accessToken.getPermissions().stream()
           .anyMatch(p -> (p.getActions().stream().anyMatch(a -> (a.matches(requiredRegex)))))) {
-        // Shadow enforcement: record the would-be denial but allow the request through
+        // Enforced (ruled 2026-08-31): v5 ships with permission enforcement ON. The staged
+        // shadow-telemetry rollout existed for upgrading live v4 installs; with no v4
+        // compatibility requirement it was retired, and flow.security.would.deny with it.
         LOGGER.warn(
-            "SecurityInterceptor - would deny principal: {}, token type: {}, required: {}/{}",
+            "SecurityInterceptor - denied principal: {}, token type: {}, required: {}/{}",
             accessToken.getPrincipal(),
             accessToken.getType(),
             requiredScope.getLabel(),
             requiredAccess.getLabel());
-        count("flow.security.would.deny", authCriteria, accessToken);
-        return true;
+        count("flow.security.denied", authCriteria, accessToken);
+        response.getWriter().write("");
+        response.setStatus(403);
+        return false;
       }
       return true;
     } else {

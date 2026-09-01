@@ -134,6 +134,25 @@ behind a proxy see no change. Only the webapp gains new behaviour.
 **Worth fixing alongside:** the per-request `TokenEntity` mint on the proxy path. Invisible
 externally, but it writes a Mongo document per request.
 
+## URL-param and x-access-token fallbacks — RULED KEEP (2026-09-01, maintainer)
+
+The `access_token` URL parameter and the `x-access-token` header in `AuthenticationFilter` are
+**deliberate product features, not v4 leftovers** — they were briefly removed in the 2026-09-01
+v4-compat sweep and restored the same day. Do not remove them again.
+
+**Why they MUST stay:** webhook senders frequently cannot set an `Authorization` header. Docker
+Hub — a sender `WebhookEventControllerV2` explicitly documents — offers no webhook auth, header,
+or payload configuration at all, so a token in the URL (a capability URL) is its *only*
+authentication channel; the same holds for many SaaS/legacy webhook configs that accept just a
+URL. Industry guidance treats a secret query parameter as the standard fallback for exactly this
+case (HMAC signatures being per-vendor work Flow does not implement generically). Without the
+URL param, `/webhook`, `/event` and `/callback` are unreachable for header-less senders;
+`x-access-token` rides along for senders that can set custom-named headers but not
+`Authorization` (some proxies consume/overwrite it).
+
+**Mitigations that make this acceptable:** deployments are HTTPS-only; tokens are scoped and
+revocable, and the webapp only ever shows a token at creation time. The residual risk (tokens in
+access logs / referrer leakage) is the accepted trade for webhook reachability.
 > **Fixed (2026-08-27)**: `TokenService.createSessionToken` (the wrapper only
 > `AuthenticationFilter`'s forwarded-email / raw-JWT / Basic branches call) now reuses the mint
 > per normalised email within a 60-second in-memory window — at most one persisted `TokenEntity`

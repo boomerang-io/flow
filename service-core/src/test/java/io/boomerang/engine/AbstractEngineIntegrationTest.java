@@ -87,6 +87,15 @@ public abstract class AbstractEngineIntegrationTest {
   void establishTestIdentity() {
     Token principal = new Token(AuthScope.global);
     principal.setPrincipal("integration-test-principal");
+    // Enforcement is real (no shadow mode): a global caller in production always carries a
+    // resolved grant set - UnauthenticatedGlobalToken's **/** or a minted token's resolution -
+    // so a grantless token here would be a condition production never produces.
+    principal.setPermissions(
+        java.util.List.of(
+            new io.boomerang.core.security.model.ResolvedPermissions(
+                io.boomerang.core.security.enums.PermissionScope.global,
+                "**",
+                java.util.List.of("**/**"))));
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(principal.getPrincipal(), null);
     authentication.setDetails(principal);

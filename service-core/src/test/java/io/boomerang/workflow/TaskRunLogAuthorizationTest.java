@@ -24,6 +24,8 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.LogClient;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
@@ -103,8 +105,16 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
         out -> out.write(("connected as " + SECRET + "\n").getBytes(StandardCharsets.UTF_8));
     when(logClient.streamLog(any(), any(), any())).thenReturn(rawLog);
 
+    // Owner-shaped grant ("**/**"), the only workspace-role shape (seed/roles.json) that
+    // satisfies RelationshipService.checkPermissions()'s coarse resource-type gate for a
+    // non-WORKSPACE RelationshipType (here WORKFLOWRUN) - see the Rule-3 finding in the task
+    // report: a real "editor"/"reader" grant (["**/read","**/write","**/action"]) is now denied
+    // by that gate for every non-WORKSPACE check(), including this one.
     Token principal = new Token(AuthScope.session);
     principal.setPrincipal(MEMBER);
+    principal.setPermissions(
+        List.of(
+            new ResolvedPermissions(PermissionScope.workspace, MY_WORKSPACE, List.of("**/**"))));
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(MEMBER, null);
     authentication.setDetails(principal);
@@ -167,6 +177,10 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
   private void installGlobalIdentity() {
     Token global = new Token(AuthScope.global);
     global.setPrincipal("trlog-authz-global");
+    // A real global caller always carries a resolved "**/**" grant (admin/operator role, or
+    // UnauthenticatedGlobalToken) - mirrors AbstractEngineIntegrationTest.
+    global.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(global.getPrincipal(), null);
     authentication.setDetails(global);

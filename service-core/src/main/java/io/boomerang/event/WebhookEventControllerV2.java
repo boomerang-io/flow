@@ -60,7 +60,10 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <p>Can use Authorization header or access_token URL Parameter
+   * <p>Can use an Authorization header, an x-access-token header, or the access_token URL
+   * Parameter. The URL parameter is deliberately supported (ruled 2026-09-01): senders such as
+   * Docker Hub offer no header or auth configuration at all, so a token in the URL is their only
+   * authentication channel.
    *
    * <h4>Sample</h4>
    *

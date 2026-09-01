@@ -4,9 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 // DD-01 (Team -> Workspace rename): TEAM's label became "workspace"; the stored rel_nodes/
-// rel_edges "type" values are migrated by loader changeunit _0016__WorkspaceRename. "team"
-// stays accepted as an input alias (BY_LABEL below) so any not-yet-migrated/legacy caller still
-// resolves, but the label emitted (getLabel(), and therefore any *new* write) is "workspace".
+// rel_edges "type" values are migrated by loader changeunit _0016__WorkspaceRename, so no "team"
+// value survives migration and the input alias was removed (ruled 2026-09-01: no v4 client
+// compatibility).
 // TEAMTASK ("teamtask") is left as-is - it is not itself a Team/Workspace node type, it is the
 // Task-scoped-to-a-workspace relationship type and is not in DD-01's declared rename scope.
 public enum RelationshipType {
@@ -39,8 +39,6 @@ public enum RelationshipType {
     for (RelationshipType e : values()) {
       BY_LABEL.put(e.label, e);
     }
-    // DD-01 deprecation alias: "team" input resolves to the renamed WORKSPACE type.
-    BY_LABEL.put("team", WORKSPACE);
   }
 
   public static RelationshipType valueOfLabel(String label) {

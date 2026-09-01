@@ -50,7 +50,7 @@ const BuildWebhookModalContent: React.FC<BuildWebhookModalContentProps> = ({ wor
               <CodeSnippet type="inline" hideCopyButton className={styles.codeSnippetInline}>
                 &access_token=
               </CodeSnippet>{" "}
-              to the URL. The actual token is only shown at creation time.
+              to the URL — for senders that cannot set headers. The actual token is only shown at creation time.
             </li>
           </ul>
           <h2 className={styles.sectionHeader}>Payload</h2>

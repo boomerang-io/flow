@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
       type = SecuritySchemeType.HTTP,
       scheme = "bearer",
       bearerFormat = "JWT"),
+  // Kept for webhook senders that cannot set an Authorization header - see AuthenticationFilter.
   @SecurityScheme(
       name = "x-access-token",
       type = SecuritySchemeType.APIKEY,
