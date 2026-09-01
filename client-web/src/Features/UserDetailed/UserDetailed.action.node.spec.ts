@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "ApiServer/msw/node";
+import { isActionError } from "Utils/actionResult";
 
 const INTERNAL_ORIGIN = "http://core-service.internal";
 const SESSION_COOKIE = "bfs_session=abc123";
@@ -57,7 +58,7 @@ describe("UserDetailed action --- Node SSR", () => {
       request: actionRequest({ intent: "changeRole", type: "admin" }),
     });
 
-    expect(result).toEqual({ ok: true, intent: "changeRole" });
+    expect(result).toEqual({ intent: "changeRole" });
     expect(calls).toHaveLength(1);
     expect(calls[0].userId).toBe("user-in-url");
     expect(calls[0].body).toEqual({ type: "admin" });
@@ -86,7 +87,7 @@ describe("UserDetailed action --- Node SSR", () => {
       request: actionRequest({ intent: "saveLabels", labels: JSON.stringify({ team: "platform" }) }),
     });
 
-    expect(result).toEqual({ ok: true, intent: "saveLabels" });
+    expect(result).toEqual({ intent: "saveLabels" });
     expect(calls[0].body).toEqual({ labels: { team: "platform" } });
   });
 
@@ -94,13 +95,16 @@ describe("UserDetailed action --- Node SSR", () => {
     server.use(http.patch(`${INTERNAL_ORIGIN}/api/user/:userId`, () => new HttpResponse(null, { status: 403 })));
 
     const { action } = await import("./UserDetailed");
-    const result = await action({
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({
       params: { userId: "user-in-url" },
       request: actionRequest({ intent: "changeRole", type: "admin" }),
-    });
+    })) as unknown as { data: { intent: string; error: unknown } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("changeRole");
-    expect(result.errorMessage).toBeDefined();
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("changeRole");
+    expect(result.data.error).toBeDefined();
   });
 });

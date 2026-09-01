@@ -1,5 +1,7 @@
+import { formatErrorMessage } from "@boomerang-io/utils";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
+import { actionError, type ActionError } from "Utils/actionResult";
 
 /*
  * Shared server half of the schedule writes - the action bodies that replaced the react-query
@@ -28,9 +30,9 @@ export const SCHEDULE_INTENTS = ["createSchedule", "updateSchedule", "toggleSche
 export type ScheduleIntent = (typeof SCHEDULE_INTENTS)[number];
 
 export type ScheduleActionResult =
-  | { ok: true; intent: ScheduleIntent }
-  | { ok: false; intent: ScheduleIntent }
-  | { ok: false; intent: "unknown"; errorMessage: { title: string; message: string } };
+  | { intent: ScheduleIntent }
+  | ({ intent: ScheduleIntent } & ActionError)
+  | ({ intent: "unknown" } & ActionError);
 
 export async function scheduleAction({
   params,
@@ -38,7 +40,7 @@ export async function scheduleAction({
 }: {
   params: { workspace?: string };
   request: Request;
-}): Promise<ScheduleActionResult> {
+}) {
   const workspace = String(params.workspace ?? "");
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -48,9 +50,12 @@ export async function scheduleAction({
     const id = String(formData.get("id"));
     try {
       await api.delete(serviceUrl.workspace.schedule.deleteSchedule({ workspace, id }));
-      return { ok: true, intent: "deleteSchedule" };
+      return { intent: "deleteSchedule" as const };
     } catch (error) {
-      return { ok: false, intent: "deleteSchedule" };
+      return actionError({
+        intent: "deleteSchedule" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Delete Schedule Failed" }),
+      });
     }
   }
 
@@ -61,14 +66,13 @@ export async function scheduleAction({
    * on `intent`, so an "unknown" result is inert for them.
    */
   if (intent !== "createSchedule" && intent !== "updateSchedule" && intent !== "toggleSchedule") {
-    return {
-      ok: false,
-      intent: "unknown",
-      errorMessage: {
+    return actionError({
+      intent: "unknown" as const,
+      error: {
         title: "Unsupported Schedule Action",
         message: `The schedule action does not handle the "${intent}" intent.`,
       },
-    };
+    });
   }
 
   // JSON in a form field rather than encType:"application/json", matching the editorRoute and
@@ -84,8 +88,14 @@ export async function scheduleAction({
       // settle effect can tell its own result apart for toasts/modal handling.
       await api.put(serviceUrl.workspace.schedule.putSchedule({ workspace }), body);
     }
-    return { ok: true, intent };
+    return { intent };
   } catch (error) {
-    return { ok: false, intent };
+    return actionError({
+      intent,
+      error: formatErrorMessage({
+        error,
+        defaultMessage: intent === "createSchedule" ? "Create Schedule Failed" : "Update Schedule Failed",
+      }),
+    });
   }
 }

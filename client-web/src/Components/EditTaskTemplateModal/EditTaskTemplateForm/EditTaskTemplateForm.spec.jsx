@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { renderWithContext } from "Utils/testing/render";
 import EditTaskTemplateForm from "./index";
 
 const mockfn = vi.fn();
@@ -43,7 +44,7 @@ const props = {
 
 describe("EditTaskTemplateForm --- Snapshot", () => {
   it("Capturing Snapshot of Task Templates", async () => {
-    const { baseElement } = rtlContextRouterRender(<EditTaskTemplateForm {...props} />);
+    const { baseElement } = renderWithContext(<EditTaskTemplateForm {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });

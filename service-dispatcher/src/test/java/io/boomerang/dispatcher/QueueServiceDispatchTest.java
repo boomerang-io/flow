@@ -17,10 +17,12 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.executor.TaskExecutionException;
+import io.boomerang.error.TaskExecutionException;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import io.boomerang.common.model.RunResult;
+import java.util.List;
 
 /**
  * Pins the dispatch half of the claim contract. The engine hands the agent a run whose phase is
@@ -64,6 +66,24 @@ class QueueServiceDispatchTest {
 
     verify(engineClient).startTask("task-1");
     verify(engineClient).endTask(eq("task-1"), any(TaskRunEndRequest.class));
+  }
+
+  @Test
+  void failedTaskStillCarriesResultsWrittenBeforeFailure() {
+    // A Task can write its Result Parameters and still exit non-zero (e.g. an HTTP Task hitting a
+    // 404 that records the status code before failing) - the executor reports that as a
+    // TaskExecutionException carrying the Results, not a plain failure with none.
+    List<RunResult> results = List.of(new RunResult("statusCode", "404"));
+    when(taskService.execute(any()))
+        .thenThrow(new TaskExecutionException(results, "TaskExecutionError - exited with code 1"));
+
+    queueService.processTaskRun(taskRun(RunPhase.queued));
+
+    ArgumentCaptor<TaskRunEndRequest> endRequestCaptor =
+        ArgumentCaptor.forClass(TaskRunEndRequest.class);
+    verify(engineClient).endTask(eq("task-1"), endRequestCaptor.capture());
+    assertEquals(RunStatus.failed, endRequestCaptor.getValue().getStatus());
+    assertEquals(results, endRequestCaptor.getValue().getResults());
   }
 
   @Test

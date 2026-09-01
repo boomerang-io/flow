@@ -1,5 +1,4 @@
 import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import moment from "moment-timezone";
@@ -8,6 +7,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { scheduleAction } from "Features/Schedules/scheduleRoute";
 import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type Workflow } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import ScheduleCreator from "./ScheduleCreator";
 
 const WORKSPACE = "test-workspace";
@@ -50,21 +50,15 @@ const workflow: Workflow = {
 // no picker) - `handleSubmit` reads `workflow.name` unconditionally, so a workflow must be
 // supplied one way or the other.
 function renderCreator(overrides: Partial<React.ComponentProps<typeof ScheduleCreator>> = {}) {
-  return global.rtlContextRouterRender(
-    <Route
-      path="/:workspace/schedules"
-      action={scheduleAction}
-      element={
-        <ScheduleCreator
-          includeWorkflowDropdown={false}
-          isModalOpen
-          onCloseModal={() => {}}
-          workflow={workflow}
-          {...overrides}
-        />
-      }
+  return renderWithContext(
+    <ScheduleCreator
+      includeWorkflowDropdown={false}
+      isModalOpen
+      onCloseModal={() => {}}
+      workflow={workflow}
+      {...overrides}
     />,
-    { route: `/${WORKSPACE}/schedules` },
+    { path: "/:workspace/schedules", action: scheduleAction, route: `/${WORKSPACE}/schedules` },
   );
 }
 

@@ -3,14 +3,16 @@ import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import GlobalParameters, { action, loader } from "./GlobalParameters";
 
 // Route-module test pattern: build the same shape the real router config uses in
 // AppRoutes.tsx (a <Route> carrying loader/action alongside its element) and hand it to
-// rtlContextRouterRender - the helper detects a <Route> element and uses it as-is instead of
+// renderWithContext - it detects a <Route> element and uses it as-is instead of
 // wrapping it in its usual catch-all, so the loader/action actually run.
 function renderGlobalParameters() {
-  return global.rtlContextRouterRender(<Route path="*" loader={loader} action={action} element={<GlobalParameters />} />);
+  return renderWithContext(<Route path="*" loader={loader} action={action} element={<GlobalParameters />} />);
 }
 
 describe("GlobalParameters --- loader", () => {
@@ -35,7 +37,7 @@ describe("GlobalParameters --- action", () => {
 
     const result = await action({ request });
 
-    expect(result).toEqual({ ok: true, intent: "delete", label: "test global label" });
+    expect(result).toEqual({ intent: "delete", label: "test global label" });
   });
 
   test("surfaces a failed create/update without throwing", async () => {
@@ -48,9 +50,12 @@ describe("GlobalParameters --- action", () => {
     });
     server.use(http.post(serviceUrl.getGlobalParameters(), () => HttpResponse.json({}, { status: 500 })));
 
-    const result = await action({ request });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request })) as unknown as { data: { intent: string } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("create");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("create");
   });
 });

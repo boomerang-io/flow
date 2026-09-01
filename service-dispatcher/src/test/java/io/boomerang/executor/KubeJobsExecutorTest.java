@@ -13,7 +13,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.executor.TaskExecutionException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.kube.KubeJobsExecutor;
 import io.boomerang.kube.KubeServiceImpl;
 import io.fabric8.kubernetes.api.model.ConfigMap;
@@ -42,6 +42,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import io.fabric8.kubernetes.api.model.HostAlias;
+import io.fabric8.kubernetes.api.model.Toleration;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -290,6 +292,23 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
     assertEquals(1, jobs.size());
     assertEquals("gvisor", jobs.get(0).getSpec().getTemplate().getSpec().getRuntimeClassName());
   }
+  @Test
+  public void testParseTerminationMessageHandlesOversizedMessage() {
+    // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
+    // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
+    // — it should fall back to no Results, exactly like any other malformed message.
+    String truncated = "{\"greeting\": \"" + "x".repeat(5000);
+    assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
+
+    // A large but well-formed message (bigger than the 4096-byte Kubernetes cap would ever allow
+    // in practice) still parses correctly — the parser itself imposes no size limit.
+    String largeValue = "y".repeat(5000);
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of());
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+    assertEquals(largeValue, results.get(0).getValue());
+  }
 }
 
 /**
@@ -409,5 +428,77 @@ class KubeJobsExecutorReconcileTest {
     kubeJobsExecutor.create(task, 30L);
 
     assertEquals(1, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
+  }
+}
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "dispatcher.tasks.tolerations=[{\"key\":\"dedicated\",\"operator\":\"Equal\",\"value\":\"worker\",\"effect\":\"NoSchedule\"}]",
+      "dispatcher.tasks.hostaliases=[{\"ip\":\"127.0.0.1\",\"hostnames\":[\"foo.local\",\"bar.local\"]}]"
+    })
+class KubeJobsExecutorTolerationsHostAliasesTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private EngineClient engineClient;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  // Proves the fabric8 Serialization.unmarshal replacement for Gson parses
+  // dispatcher.tasks.tolerations / dispatcher.tasks.hostaliases identically to before.
+  @Test
+  public void testCreateAppliesConfiguredTolerationsAndHostAliases() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tolerations-hostaliases");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<Job> jobs =
+        client
+            .batch()
+            .v1()
+            .jobs()
+            .withLabels(Map.of("boomerang.io/taskrun-ref", task.getId()))
+            .list()
+            .getItems();
+    assertEquals(1, jobs.size());
+
+    List<Toleration> tolerations = jobs.get(0).getSpec().getTemplate().getSpec().getTolerations();
+    assertEquals(1, tolerations.size());
+    Toleration toleration = tolerations.get(0);
+    assertEquals("dedicated", toleration.getKey());
+    assertEquals("Equal", toleration.getOperator());
+    assertEquals("worker", toleration.getValue());
+    assertEquals("NoSchedule", toleration.getEffect());
+
+    List<HostAlias> hostAliases = jobs.get(0).getSpec().getTemplate().getSpec().getHostAliases();
+    assertEquals(1, hostAliases.size());
+    HostAlias hostAlias = hostAliases.get(0);
+    assertEquals("127.0.0.1", hostAlias.getIp());
+    assertEquals(List.of("foo.local", "bar.local"), hostAlias.getHostnames());
   }
 }

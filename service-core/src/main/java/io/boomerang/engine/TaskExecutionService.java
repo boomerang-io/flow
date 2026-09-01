@@ -18,13 +18,18 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.workflow.WorkflowService;
-import java.util.Calendar;
+import java.time.DateTimeException;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.TimeZone;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -55,6 +60,11 @@ public class TaskExecutionService {
 
   // Backoff between acquirelock re-attempts while a lock is held by another task.
   private static final long LOCK_RETRY_BACKOFF_MILLIS = 5000;
+
+  // runscheduledworkflow's "time" param (A20): tolerant of both "H:mm" and "HH:mm" - single
+  // digit hours parsed the same way String.split(":") + Integer.valueOf(...) already did.
+  private static final DateTimeFormatter RUN_SCHEDULED_TIME_FORMATTER =
+      DateTimeFormatter.ofPattern("H:mm");
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -853,39 +863,42 @@ public class TaskExecutionService {
           && StringUtils.indexOfAny(
                   futurePeriod, new String[] {"minutes", "hours", "days", "weeks", "months"})
               >= 0) {
-        Calendar executionCal = Calendar.getInstance();
-        executionCal.setTime(executionDate);
-        Integer calField = Calendar.MINUTE;
-        switch (futurePeriod) {
-          case "hours":
-            calField = Calendar.HOUR;
-            break;
-          case "days":
-            calField = Calendar.DATE;
-            break;
-          case "weeks":
-            futureIn = futureIn * 7;
-            calField = Calendar.DATE;
-            break;
-          case "months":
-            calField = Calendar.MONTH;
-            break;
-        }
-        executionCal.add(calField, futureIn);
+        // Same two-stage dance as the old Calendar version: the futureIn/futurePeriod addition
+        // happens in the JVM's default zone (matching Calendar.getInstance()'s default), then -
+        // only for days/weeks/months - the clock time-of-day is overwritten in the target
+        // timezone. For minutes/hours periods the "timezone" param is read but never applied,
+        // same as before.
+        ZonedDateTime executionZdt = executionDate.toInstant().atZone(ZoneId.systemDefault());
+        ChronoUnit unit =
+            switch (futurePeriod) {
+              case "hours" -> ChronoUnit.HOURS;
+              case "days" -> ChronoUnit.DAYS;
+              case "weeks" -> ChronoUnit.WEEKS;
+              case "months" -> ChronoUnit.MONTHS;
+              default -> ChronoUnit.MINUTES;
+            };
+        executionZdt = executionZdt.plus(futureIn, unit);
 
         if (!futurePeriod.equals("minutes") && !futurePeriod.equals("hours")) {
-          String[] hoursTime = time.split(":");
-          Integer hours = Integer.valueOf(hoursTime[0]);
-          Integer minutes = Integer.valueOf(hoursTime[1]);
+          // 24-hour parse (fixes the v4 bug: Calendar.HOUR is the 0-11 field, so time=14:30 was
+          // silently read back as 02:30) - still tolerant of a single-digit hour ("9:30").
+          LocalTime clockTime = LocalTime.parse(time, RUN_SCHEDULED_TIME_FORMATTER);
+          ZoneId targetZone;
+          try {
+            targetZone = ZoneId.of(timezone);
+          } catch (DateTimeException ex) {
+            // TimeZone.getTimeZone(invalid) silently fell back to GMT rather than throwing.
+            targetZone = ZoneOffset.UTC;
+          }
           LOGGER.debug("With time to be set to: " + time + " in " + timezone);
-          executionCal.setTimeZone(TimeZone.getTimeZone(timezone));
-          executionCal.set(Calendar.HOUR, hours);
-          executionCal.set(Calendar.MINUTE, minutes);
-          LOGGER.debug(
-              "With execution set to: " + executionCal.getTime().toString() + " in " + timezone);
-          executionCal.setTimeZone(TimeZone.getTimeZone("UTC"));
+          executionZdt =
+              executionZdt
+                  .withZoneSameInstant(targetZone)
+                  .withHour(clockTime.getHour())
+                  .withMinute(clockTime.getMinute());
+          LOGGER.debug("With execution set to: " + executionZdt + " in " + timezone);
         }
-        LOGGER.debug("With execution set to: " + executionCal.getTime().toString() + " in UTC");
+        LOGGER.debug("With execution set to: " + executionZdt + " in UTC");
 
         // Define new properties removing the System Task specific properties
         // TODO - determine if we need to resolve any param layers before executing new workflow
@@ -903,7 +916,7 @@ public class TaskExecutionService {
         schedule.setDescription(
             "This schedule was generated through a Run Scheduled Workflow task.");
         schedule.setParams(newParamList);
-        schedule.setDateSchedule(executionCal.getTime());
+        schedule.setDateSchedule(Date.from(executionZdt.toInstant()));
         schedule.setTimezone(timezone);
         schedule.setType(WorkflowScheduleType.runOnce);
         try {

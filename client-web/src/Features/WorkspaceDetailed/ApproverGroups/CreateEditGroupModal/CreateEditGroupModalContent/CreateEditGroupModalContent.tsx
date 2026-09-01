@@ -17,6 +17,7 @@ import { AddAlt, SubtractAlt } from "@carbon/react/icons";
 import { FlowWorkspace, Approver, ApproverGroup } from "Types";
 import { ApproverGroupIntent } from "../../ApproverGroups";
 import type { ApproverGroupsActionResult } from "../../ApproverGroups";
+import { isActionError } from "Utils/actionResult";
 import styles from "./createEditGroupModalContent.module.scss";
 
 type RenderMembersListProps = {
@@ -179,14 +180,20 @@ function CreateEditGroupModalContent({
   // parent layout loader that supplies the group list, so no manual invalidation here.
   const fetcher = useFetcher<ApproverGroupsActionResult>();
   const isSubmitting = fetcher.state !== "idle";
-  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === ApproverGroupIntent.Save);
+  const failed = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === ApproverGroupIntent.Save);
 
-  const { title, message: subtitle } = failed
-    ? (fetcher.data?.errorMessage ?? { title: "Something's Wrong", message: undefined })
-    : { title: "", message: undefined };
+  const { title, message: subtitle } =
+    failed && fetcher.data && isActionError(fetcher.data)
+      ? (fetcher.data.error ?? { title: "Something's Wrong", message: undefined })
+      : { title: "", message: undefined };
 
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== ApproverGroupIntent.Save || !fetcher.data.ok) {
+    if (
+      fetcher.state !== "idle" ||
+      !fetcher.data ||
+      fetcher.data.intent !== ApproverGroupIntent.Save ||
+      isActionError(fetcher.data)
+    ) {
       return;
     }
     notify(

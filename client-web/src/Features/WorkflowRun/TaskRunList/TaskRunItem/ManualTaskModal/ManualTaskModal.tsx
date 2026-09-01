@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import { useFetcher } from "react-router-dom";
 import "Styles/markdown.css";
 import type { ActionResult } from "Features/WorkflowRun/WorkflowRun";
+import { isActionError } from "Utils/actionResult";
 
 type Props = {
   actionId?: string;
@@ -17,10 +18,10 @@ function TaskApprovalModal({ actionId, closeModal, instructions }: Props) {
   // loader, replacing the invalidateQueries(getWorkflowRun) this used to do onSuccess.
   const fetcher = useFetcher<ActionResult>();
   const approvalsIsLoading = fetcher.state !== "idle";
-  const approvalsError = Boolean(fetcher.data && !fetcher.data.ok);
+  const approvalsError = Boolean(fetcher.data && isActionError(fetcher.data));
 
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || !fetcher.data.ok) {
+    if (fetcher.state !== "idle" || !fetcher.data || isActionError(fetcher.data)) {
       return;
     }
     notify(

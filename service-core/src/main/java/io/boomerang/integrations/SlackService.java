@@ -86,12 +86,15 @@ public class SlackService {
   private final SettingsService settingsService;
   private final IntegrationsRepository extensionsRepository;
   private final WorkflowService workflowService;
+  private final ObjectMapper objectMapper;
 
   public SlackService(
       SettingsService settingsService,
       WorkflowService workflowService,
-      IntegrationsRepository extensionsRepository) {
+      IntegrationsRepository extensionsRepository,
+      ObjectMapper objectMapper) {
     this.settingsService = settingsService;
+    this.objectMapper = objectMapper;
     this.workflowService = workflowService;
     this.extensionsRepository = extensionsRepository;
   }
@@ -547,9 +550,8 @@ public class SlackService {
    */
   private void saveSlackAuthToken(OAuthV2AccessResponse authResponse) {
     IntegrationsEntity authExtension = new IntegrationsEntity();
-    ObjectMapper mapper = new ObjectMapper();
     Map<String, Object> payload =
-        mapper.convertValue(authResponse, new TypeReference<Map<String, Object>>() {});
+        objectMapper.convertValue(authResponse, new TypeReference<Map<String, Object>>() {});
 
     // Optional<IntegrationEntity> origAuthExtension =
     // extensionsRepository.findByType(EXTENSION_TYPE).stream()

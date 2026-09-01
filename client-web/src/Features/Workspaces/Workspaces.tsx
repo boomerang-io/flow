@@ -27,6 +27,7 @@ import { appLink, queryStringOptions, FeatureFlag } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace, MemberRole, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 
 // Route module: this file's `loader`/`action` are re-exported from app/routes/workspaceList.tsx,
 // the same split GlobalParameters.tsx and UserDetailed.tsx use (see those files for the fuller
@@ -101,14 +102,11 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
   }
 }
 
-type ActionResult = {
-  ok: boolean;
-  errorMessage?: { title: string; message: string };
-};
+type ActionResult = Record<string, never> | ActionError;
 
 // Only one intent today (create) - kept intent-keyed anyway to match the established
 // GlobalParameters.tsx action shape/signature for any writes this route grows later.
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
@@ -116,13 +114,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
     const body = JSON.parse(String(formData.get("body")));
     try {
       await serverFetch(request).post(serviceUrl.postWorkspace(), body);
-      return { ok: true };
+      return {};
     } catch (error) {
-      return { ok: false, errorMessage: formatErrorMessage({ error }) };
+      return actionError({ error: formatErrorMessage({ error }) });
     }
   }
 
-  return { ok: false };
+  return actionError({ error: { title: "Something's Wrong", message: "Unknown action" } });
 }
 
 const WorkspaceList: React.FC = () => {
@@ -151,8 +149,7 @@ const WorkspaceList: React.FC = () => {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    const { ok, errorMessage } = fetcher.data;
-    if (ok) {
+    if (!isActionError(fetcher.data)) {
       // The list is loader-driven and React Router revalidates every matched loader once this
       // fetcher's action settles - queryClient.invalidateQueries would be an inert no-op against
       // a loader-driven read (see CLAUDE.md), and an explicit revalidate() would just double
@@ -161,9 +158,7 @@ const WorkspaceList: React.FC = () => {
       closeModalRef.current?.();
       closeModalRef.current = null;
     } else {
-      notify(
-        <ToastNotification kind="error" title="Something went wrong" subtitle={errorMessage?.message} />,
-      );
+      notify(<ToastNotification kind="error" title="Something went wrong" subtitle={fetcher.data.error.message} />);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -188,7 +183,7 @@ const WorkspaceList: React.FC = () => {
   };
 
   const isCreatingWorkspace = fetcher.state !== "idle";
-  const isCreateWorkspaceError = Boolean(fetcher.data && !fetcher.data.ok);
+  const isCreateWorkspaceError = Boolean(fetcher.data && isActionError(fetcher.data));
 
   /**
    * Function that updates url search history to persist state

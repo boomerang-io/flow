@@ -8,6 +8,7 @@ import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { serviceUrl } from "Config/servicesConfig";
+import { renderWithContext } from "Utils/testing/render";
 import { scheduleAction } from "./scheduleRoute";
 import Schedules, { loader } from "./Schedules";
 
@@ -18,7 +19,7 @@ const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/
 // WorkspaceContextProvider is overridden with the full workspace fixture this route's WORKSPACE
 // constant names - production supplies it from app/routes/workspaceLayout.tsx's loader.
 function renderSchedules(route: string = `/${WORKSPACE}/schedules`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/schedules"
       loader={loader}

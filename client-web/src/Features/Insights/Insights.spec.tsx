@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
+import { renderWithContext } from "Utils/testing/render";
 import WorkflowInsights, { loader } from "./Insights";
 
 vi.mock("@carbon/charts-react", () => ({
@@ -31,7 +32,7 @@ const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js
 // app/routes/workspaceLayout.tsx's loader. The loader itself only ever needs the `:workspace`
 // URL param (see Insights.tsx's module doc).
 function renderInsights(route: string = `/${WORKSPACE}/insights`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/insights"
       loader={loader}

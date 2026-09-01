@@ -15,6 +15,7 @@ import * as Yup from "yup";
 import { TokenType, TokenActorKind } from "Constants";
 import { TokenScopeType } from "Types";
 import type { TokenActionResult } from "Components/TokenSection/tokenRoute";
+import { isActionError } from "Utils/actionResult";
 import PermissionSelector, { PermissionSelection } from "./PermissionSelector";
 import styles from "./form.module.scss";
 
@@ -53,13 +54,18 @@ function CreateServiceTokenForm({
   // route needed is gone.
   const fetcher = useFetcher<TokenActionResult>();
   const isCreating = fetcher.state !== "idle";
-  const createFailed = Boolean(fetcher.data && fetcher.data.intent === "create" && !fetcher.data.ok);
+  const createFailed = Boolean(fetcher.data && fetcher.data.intent === "create" && isActionError(fetcher.data));
 
   // The fetcher settles asynchronously, so the "advance the modal to the Result step" work that
   // used to sit after `await mutateAsync` runs here once the action actually succeeds. The token
   // secret is only ever present on this response, so it is handed straight to saveValues.
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "create" || !fetcher.data.ok) {
+    if (
+      fetcher.state !== "idle" ||
+      !fetcher.data ||
+      fetcher.data.intent !== "create" ||
+      isActionError(fetcher.data)
+    ) {
       return;
     }
     saveValues?.(fetcher.data.token);

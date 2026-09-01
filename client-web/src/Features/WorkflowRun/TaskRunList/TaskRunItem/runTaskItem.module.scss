@@ -69,6 +69,11 @@
   &:last-of-type {
     border-bottom: 0.0625rem solid #d5d9e0;
   }
+
+  // START/END markers skip the time/duration section, so they only need room for the header.
+  &.slim {
+    height: 4.5rem;
+  }
 }
 
 .header {

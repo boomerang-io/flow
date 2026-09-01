@@ -10,6 +10,8 @@ import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 
 const workspace = workspaces.content[0];
 
@@ -26,7 +28,7 @@ const props = {
 // `<Route path="/:workspace/workflows" action={action}>` shape the real route tree wires up
 // (app/routes/workflows.tsx), so the action's `params.workspace` read behaves as it does live.
 function renderCreateWorkflow() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/workflows"
       action={action}
@@ -66,9 +68,12 @@ describe("CreateWorkflow --- action", () => {
       }),
     });
 
-    const result = await action({ request, params: { workspace: workspace.name } });
+    // Success is returned as the plain payload, not wrapped in data() - see actionResult.ts.
+    const result = (await action({ request, params: { workspace: workspace.name } })) as unknown as {
+      intent: string;
+    };
 
-    expect(result.ok).toBe(true);
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("create");
   });
 
@@ -88,9 +93,14 @@ describe("CreateWorkflow --- action", () => {
       }),
     });
 
-    const result = await action({ request, params: { workspace: workspace.name } });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request, params: { workspace: workspace.name } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("create");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("create");
   });
 });

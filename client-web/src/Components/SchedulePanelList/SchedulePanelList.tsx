@@ -16,6 +16,7 @@ import cronstrue from "cronstrue";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
 import { useFetcher } from "react-router-dom";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { scheduleStatusOptions, scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
 import { ScheduleStatus, ScheduleUnion, PaginatedSchedulesResponse } from "Types";
@@ -146,7 +147,7 @@ interface ScheduledListItemProps {
 // union lives in Features/Schedules/scheduleRoute.ts (Node-only; components re-declare it, see
 // CreateWorkflow.tsx). Both routes that render this list serve the deleteSchedule/toggleSchedule
 // intents, so the bare useFetcher() submits resolve from either surface.
-type ActionResult = { ok: boolean; intent: string };
+type ActionResult = { intent: string } | ({ intent: string } & ActionError);
 
 function ScheduledListItem(props: ScheduledListItemProps) {
   const deleteFetcher = useFetcher<ActionResult>();
@@ -175,7 +176,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
     if (deleteFetcher.data.intent !== "deleteSchedule") {
       return;
     }
-    if (deleteFetcher.data.ok) {
+    if (!isActionError(deleteFetcher.data)) {
       notify(
         <ToastNotification
           kind="success"
@@ -203,7 +204,7 @@ function ScheduledListItem(props: ScheduledListItemProps) {
       return;
     }
     const verb = toggleVerbRef.current;
-    if (toggleFetcher.data.ok) {
+    if (!isActionError(toggleFetcher.data)) {
       notify(
         <ToastNotification
           kind="success"

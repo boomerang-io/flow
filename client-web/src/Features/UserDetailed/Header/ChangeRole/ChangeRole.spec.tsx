@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { profile as userFixture } from "ApiServer/fixtures";
 import { PlatformRole } from "Types";
 import type { FlowUser } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import ChangeRole from ".";
 
 // Starts as Admin so that picking "User" is an actual change (the Submit button is disabled while
@@ -24,9 +25,9 @@ function renderWithAction() {
   const action = vi.fn(async ({ request }: { request: Request }) => {
     const formData = await request.formData();
     submitted.push(Object.fromEntries(formData) as Record<string, string>);
-    return { ok: true, intent: "changeRole" };
+    return { intent: "changeRole" };
   });
-  const view = global.rtlContextRouterRender(
+  const view = renderWithContext(
     <Route path="*" element={<ChangeRole user={user} closeModal={() => vi.fn()} />} action={action} />,
   );
   return { ...view, submitted };

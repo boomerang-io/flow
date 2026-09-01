@@ -43,7 +43,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @Service
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Value("${flow.engine.task.results.max-bytes:4096}")
   private int resultsMaxBytes;
@@ -56,18 +55,21 @@ public class TaskRunService {
   private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
   private final ApplicationEventPublisher eventPublisher;
+  private final ObjectMapper objectMapper;
 
   public TaskRunService(
       @Lazy TaskExecutionService taskExecutionService,
       @Lazy LogClient logClient,
       TaskRunRepository taskRunRepository,
       MongoTemplate mongoTemplate,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher,
+      ObjectMapper objectMapper) {
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
     this.taskRunRepository = taskRunRepository;
     this.mongoTemplate = mongoTemplate;
     this.eventPublisher = eventPublisher;
+    this.objectMapper = objectMapper;
   }
 
   // Return the page of TaskRuns eligible for claiming by an executor of the given types: ready,
@@ -801,7 +803,7 @@ public class TaskRunService {
           // Engine-enforced results cap, identical on every executor (4096 bytes is the portable
           // Kubernetes termination-message ceiling). Oversize fails the task and keeps the
           // pre-merge results rather than persisting a payload every downstream reader re-reads.
-          byte[] resultBytes = OBJECT_MAPPER.writeValueAsBytes(taskRunEntity.getResults());
+          byte[] resultBytes = objectMapper.writeValueAsBytes(taskRunEntity.getResults());
           if (resultBytes.length > resultsMaxBytes) {
             taskRunEntity.setResults(priorResults);
             taskRunEntity.setStatus(RunStatus.failed);

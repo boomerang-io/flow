@@ -1,7 +1,6 @@
 package io.boomerang.kube;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.model.RunParam;
@@ -11,8 +10,9 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
-import io.boomerang.executor.TaskExecutionException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TerminationMessageParser;
 import io.fabric8.kubernetes.api.model.ConfigMap;
@@ -39,7 +39,7 @@ import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
-import java.lang.reflect.Type;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import java.text.ParseException;
 import java.time.Duration;
 import java.time.Instant;
@@ -340,16 +340,14 @@ public class KubeJobsExecutor implements TaskExecutor {
         || "null".equalsIgnoreCase(kubeWorkerTolerations)) {
       return List.of();
     }
-    Type listType = new TypeToken<List<Toleration>>() {}.getType();
-    return new Gson().fromJson(kubeWorkerTolerations, listType);
+    return Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
   }
 
   private List<HostAlias> hostAliases() {
     if (kubeWorkerHostAliases == null || kubeWorkerHostAliases.isEmpty()) {
       return List.of();
     }
-    Type listType = new TypeToken<List<HostAlias>>() {}.getType();
-    return new Gson().fromJson(kubeWorkerHostAliases, listType);
+    return Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
   }
 
   private List<LocalObjectReference> imagePullSecrets() {
@@ -406,7 +404,10 @@ public class KubeJobsExecutor implements TaskExecutor {
       String reason = condition != null ? condition.getReason() : "Unknown";
       String message = condition != null ? condition.getMessage() : "Job did not report a terminal condition.";
       LOGGER.info("Task execution error. " + reason + " - " + message);
-      throw failureFor(reason, message, taskLabels);
+      // The container may have written its Result Parameters to the termination log before it
+      // exited non-zero; carry them so a failed Task's output still reaches the Engine.
+      List<RunResult> failureResults = readResults(taskLabels, task.getResults());
+      throw failureFor(reason, message, taskLabels, failureResults);
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
@@ -417,21 +418,22 @@ public class KubeJobsExecutor implements TaskExecutor {
     }
   }
 
-  private TaskExecutionException failureFor(String reason, String message, Map<String, String> taskLabels) {
+  private TaskExecutionException failureFor(
+      String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
     if ("DeadlineExceeded".equals(reason)) {
-      return new TaskExecutionException("DeadlineExceeded", reason + " - " + message);
+      return new TaskExecutionException("DeadlineExceeded", results, reason + " - " + message);
     }
     if ("JobDeleted".equals(reason)) {
-      return new TaskExecutionException("JobDeleted", reason + " - " + message);
+      return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
     }
     String podReason = helperKubeService.getPodFailureReason(client, taskLabels);
     if ("OOMKilled".equals(podReason)) {
-      return new TaskExecutionException("OOMKilled", reason + " - " + message);
+      return new TaskExecutionException("OOMKilled", results, reason + " - " + message);
     }
     if ("ImagePull".equals(podReason)) {
-      return new TaskExecutionException("ImagePull", reason + " - " + message);
+      return new TaskExecutionException("ImagePull", results, reason + " - " + message);
     }
-    return new TaskExecutionException("JobFailed", reason + " - " + message);
+    return new TaskExecutionException("JobFailed", results, reason + " - " + message);
   }
 
   /**
@@ -468,6 +470,7 @@ public class KubeJobsExecutor implements TaskExecutor {
             .map(ContainerState::getTerminated)
             .filter(Objects::nonNull)
             .map(ContainerStateTerminated::getMessage)
+            .filter(Objects::nonNull)
             .findFirst()
             .orElse(null)
         : null;

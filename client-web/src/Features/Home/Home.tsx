@@ -19,6 +19,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
 import { MemberRole } from "Types";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import styles from "./home.module.scss";
 
 // Home has no read of its own - workspaces/user/workflowTemplates come from useAppContext(),
@@ -31,11 +32,14 @@ import styles from "./home.module.scss";
 // so their own `useFetcher()` calls submit here by default without needing an explicit `action`
 // target.
 type ActionResult =
-  | { ok: boolean; intent: "create-workspace"; displayName: string; errorMessage?: { title: string; message: string } }
-  | { ok: boolean; intent: "leave-workspace"; displayName: string }
-  | { ok: boolean; intent: "create-workflow-from-template"; workspace: string; workflow?: { name: string } };
+  | { intent: "create-workspace"; displayName: string }
+  | ({ intent: "create-workspace"; displayName: string } & ActionError)
+  | { intent: "leave-workspace"; displayName: string }
+  | ({ intent: "leave-workspace"; displayName: string } & ActionError)
+  | { intent: "create-workflow-from-template"; workspace: string; workflow?: { name: string } }
+  | ({ intent: "create-workflow-from-template"; workspace: string } & ActionError);
 
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
@@ -44,9 +48,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
     const displayName = String(formData.get("displayName"));
     try {
       await serverFetch(request).delete(serviceUrl.workspace.leaveWorkspace({ workspace }));
-      return { ok: true, intent: "leave-workspace", displayName };
+      return { intent: "leave-workspace" as const, displayName };
     } catch (error) {
-      return { ok: false, intent: "leave-workspace", displayName };
+      return actionError({
+        intent: "leave-workspace" as const,
+        displayName,
+        error: { title: "Something's Wrong", message: "Request to leave workspace failed" },
+      });
     }
   }
 
@@ -59,9 +67,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
         data: body,
         method: HttpMethod.Post,
       });
-      return { ok: true, intent: "create-workflow-from-template", workspace, workflow: response.data };
+      return { intent: "create-workflow-from-template" as const, workspace, workflow: response.data };
     } catch (error) {
-      return { ok: false, intent: "create-workflow-from-template", workspace };
+      return actionError({
+        intent: "create-workflow-from-template" as const,
+        workspace,
+        error: { title: "Something's Wrong", message: "Request to create workflow from template failed" },
+      });
     }
   }
 
@@ -82,14 +94,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
       },
       method: HttpMethod.Post,
     });
-    return { ok: true, intent: "create-workspace", displayName };
+    return { intent: "create-workspace" as const, displayName };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "create-workspace",
+    return actionError({
+      intent: "create-workspace" as const,
       displayName,
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Something went wrong" }),
-    };
+      error: formatErrorMessage({ error, defaultMessage: "Something went wrong" }),
+    });
   }
 }
 
@@ -118,14 +129,12 @@ export default function Home() {
     if (result.intent !== "create-workspace") {
       return;
     }
-    if (result.ok) {
+    if (!isActionError(result)) {
       notify(<ToastNotification kind="success" title="Create Workspace" subtitle="Workspace created successfully" />);
       successFnRef.current?.();
       successFnRef.current = null;
     } else {
-      notify(
-        <ToastNotification kind="error" title={"Something went wrong"} subtitle={result.errorMessage?.message} />,
-      );
+      notify(<ToastNotification kind="error" title={"Something went wrong"} subtitle={result.error.message} />);
     }
   }, [createWorkspaceFetcher.state, createWorkspaceFetcher.data]);
 
@@ -149,7 +158,7 @@ export default function Home() {
 
   const sortedWorkspaces = useMemo(() => sortBy(workspaces, ["name"]), [workspaces]);
 
-  const isCreateWorkspaceError = Boolean(createWorkspaceFetcher.data && !createWorkspaceFetcher.data.ok);
+  const isCreateWorkspaceError = Boolean(createWorkspaceFetcher.data && isActionError(createWorkspaceFetcher.data));
   const isCreateWorkspaceLoading = createWorkspaceFetcher.state !== "idle";
 
   return (

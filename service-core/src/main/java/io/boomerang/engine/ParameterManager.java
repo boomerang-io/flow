@@ -43,18 +43,21 @@ import org.springframework.stereotype.Service;
 @Service
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private static final String REGEX_DOT_NOTATION = "(?<=\\$\\().+?(?=\\))";
   private final String[] reservedScope = {"global", "team", "workflow", "context"};
 
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
+  private final ObjectMapper objectMapper;
 
   public ParameterManager(
-      WorkflowRunRepository workflowRunRepository, TaskRunRepository taskRunRepository) {
+      WorkflowRunRepository workflowRunRepository,
+      TaskRunRepository taskRunRepository,
+      ObjectMapper objectMapper) {
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
+    this.objectMapper = objectMapper;
   }
 
   /*
@@ -344,7 +347,7 @@ public class ParameterManager {
 
   private Object replaceStringInObject(Object object, Map<String, Object> replacements) {
     try {
-      String objectString = OBJECT_MAPPER.writeValueAsString(object);
+      String objectString = objectMapper.writeValueAsString(object);
       // objectString.replaceAll(replaceKey, replaceValueString);
       final StringSubstitutor substitutor = new StringSubstitutor(replacements, "$(", ")");
       substitutor.setEnableSubstitutionInVariables(true);
@@ -352,7 +355,7 @@ public class ParameterManager {
       // return substitutor.replace(objectString);
       String replacedObjectString = substitutor.replace(objectString);
       LOGGER.debug("Substitutor: " + replacedObjectString);
-      return OBJECT_MAPPER.readValue(replacedObjectString, Object.class);
+      return objectMapper.readValue(replacedObjectString, Object.class);
     } catch (Exception e) {
       // Log and drop exception. We want the workflow to continue execution.
       LOGGER.error(e.toString());

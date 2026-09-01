@@ -28,6 +28,7 @@ import EmptyState from "Components/EmptyState";
 import { globalTokensLoader, tokenAction, type TokenActionResult } from "Components/TokenSection/tokenRoute";
 import type { TokenSectionRouteData } from "Components/TokenSection/tokenRouteData";
 import { arrayPagination } from "Utils/arrayHelper";
+import { isActionError } from "Utils/actionResult";
 import { TokenType } from "Constants";
 import { Token } from "Types";
 import styles from "./GlobalTokens.module.scss";
@@ -131,10 +132,11 @@ function Tokens() {
     if (fetcher.data.intent !== "delete") {
       return;
     }
-    const ok = fetcher.data.ok;
-    const errorMessage = fetcher.data.ok ? undefined : fetcher.data.errorMessage;
+    const data = fetcher.data;
+    const isError = isActionError(data);
+    const errorMessage = isActionError(data) ? data.error : undefined;
     notify(
-      ok ? (
+      !isError ? (
         <ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />
       ) : (
         <ToastNotification

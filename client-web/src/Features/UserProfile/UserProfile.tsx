@@ -8,6 +8,7 @@ import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
+import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./UserProfile.module.scss";
 
 // Route module for app/routes/profile.tsx. There is no `loader` here: the profile record this
@@ -20,14 +21,11 @@ import styles from "./UserProfile.module.scss";
 // resolves to the nearest matched route's action - this one.
 
 type ActionResult =
-  | {
-      ok: boolean;
-      intent: "updateProfile" | "deleteAccount";
-      errorMessage?: { title: string; message: string };
-    }
+  | { intent: "updateProfile" | "deleteAccount" }
+  | ({ intent: "updateProfile" | "deleteAccount" } & ActionError)
   // Consumers narrow on `intent`, so an "unknown" result is inert for them - the same shape
   // tokenAction and editorAction return for an intent they do not own.
-  | { ok: false; intent: "unknown"; errorMessage: { title: string; message: string } };
+  | ({ intent: "unknown" } & ActionError);
 
 const PROFILE_INTENTS = ["updateProfile", "deleteAccount"] as const;
 
@@ -51,7 +49,7 @@ const PROFILE_INTENTS = ["updateProfile", "deleteAccount"] as const;
  *     `DELETE /user/{userId}`), so the id is resolved here from `GET /profile` - i.e. from the
  *     session - rather than trusted from the submitted form.
  */
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   const api = serverFetch(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -63,27 +61,25 @@ export async function action({ request }: { request: Request }): Promise<ActionR
    * malformed submission sent `displayName: ""` and blanked the user's display name.
    */
   if (!(PROFILE_INTENTS as readonly string[]).includes(intent)) {
-    return {
-      ok: false,
-      intent: "unknown",
-      errorMessage: {
+    return actionError({
+      intent: "unknown" as const,
+      error: {
         title: "Unsupported Profile Action",
         message: `The profile action does not handle the "${intent}" intent.`,
       },
-    };
+    });
   }
 
   if (intent === "deleteAccount") {
     try {
       const profile = await api.get(serviceUrl.getUserProfile());
       await api.delete(serviceUrl.deleteUser({ userId: profile.data.id }));
-      return { ok: true, intent: "deleteAccount" };
+      return { intent: "deleteAccount" as const };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "deleteAccount",
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Unable to close the account." }),
-      };
+      return actionError({
+        intent: "deleteAccount" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Unable to close the account." }),
+      });
     }
   }
 
@@ -91,13 +87,12 @@ export async function action({ request }: { request: Request }): Promise<ActionR
   const displayName = String(formData.get("displayName") ?? "");
   try {
     await api({ url: serviceUrl.getUserProfile(), data: { displayName }, method: HttpMethod.Patch });
-    return { ok: true, intent: "updateProfile" };
+    return { intent: "updateProfile" as const };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "updateProfile",
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to update profile" }),
-    };
+    return actionError({
+      intent: "updateProfile" as const,
+      error: formatErrorMessage({ error, defaultMessage: "Failed to update profile" }),
+    });
   }
 }
 

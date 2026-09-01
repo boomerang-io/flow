@@ -4,7 +4,7 @@ import io.boomerang.dispatcher.model.TaskResponse;
 import io.boomerang.common.enums.TaskDeletion;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.executor.TaskExecutionException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;

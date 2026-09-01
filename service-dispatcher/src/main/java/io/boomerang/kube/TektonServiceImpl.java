@@ -1,7 +1,6 @@
 package io.boomerang.kube;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.enums.StorageType;
@@ -11,7 +10,7 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.executor.TaskExecutionException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
@@ -26,6 +25,7 @@ import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
 import io.fabric8.tekton.v1.ParamSpec;
@@ -36,7 +36,6 @@ import io.fabric8.tekton.v1.TaskRunBuilder;
 import io.fabric8.tekton.v1.TaskRunResult;
 import io.fabric8.tekton.v1.WorkspaceBinding;
 import io.fabric8.tekton.v1.WorkspaceDeclaration;
-import java.lang.reflect.Type;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -346,8 +345,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         && !kubeWorkerTolerations.isEmpty()
         && !"null".equalsIgnoreCase(kubeWorkerTolerations)) {
       LOGGER.info(kubeWorkerTolerations.toString());
-      Type listTolerationsType = new TypeToken<List<Toleration>>() {}.getType();
-      tolerations = new Gson().fromJson(kubeWorkerTolerations, listTolerationsType);
+      tolerations =
+          Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
 
       //      kubeWorkerTolerations.forEach(t -> {
       //        LOGGER.info("Adding toleration: " + t);
@@ -361,8 +360,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
      */
     List<HostAlias> hostAliases = new ArrayList<>();
     if (!kubeWorkerHostAliases.isEmpty()) {
-      Type listHostAliasType = new TypeToken<List<HostAlias>>() {}.getType();
-      hostAliases = new Gson().fromJson(kubeWorkerHostAliases, listHostAliasType);
+      hostAliases =
+          Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
     }
 
     /*
@@ -560,14 +559,16 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
       if (condition != null && "True".equals(condition.getStatus())) {
         LOGGER.info("Task completed successfully");
-      } else {
-        String reason = condition != null ? condition.getReason() : "Unknown";
-        String message =
-            condition != null ? condition.getMessage() : "TaskRun did not report a terminal condition.";
-        LOGGER.info("Task execution error. " + reason + " - " + message);
-        throw failureFor(reason, message, taskLabels);
+        return toRunResults(tknResults);
       }
 
+      String reason = condition != null ? condition.getReason() : "Unknown";
+      String message =
+          condition != null ? condition.getMessage() : "TaskRun did not report a terminal condition.";
+      LOGGER.info("Task execution error. " + reason + " - " + message);
+      // The Step may have written its Result Parameters to the termination message before the
+      // container exited non-zero; carry them so a failed Task's output still reaches the Engine.
+      throw failureFor(reason, message, taskLabels, toRunResults(tknResults));
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
@@ -575,7 +576,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       watch.close();
       leaseRegistry.remove(taskActivityId);
     }
+  }
 
+  // Package-private so TektonServiceImplTest can pin the conversion directly.
+  static List<RunResult> toRunResults(List<TaskRunResult> tknResults) {
     List<RunResult> results = new ArrayList<>();
     tknResults.forEach(
         tr -> {
@@ -584,30 +588,28 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
               new RunResult(
                   tr.getName(), (tr.getValue() != null) ? tr.getValue().getStringVal() : null));
         });
-
     return results;
   }
 
-  private TaskExecutionException failureFor(String reason, String message, Map<String, String> taskLabels) {
+  private TaskExecutionException failureFor(
+      String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
     if ("DeadlineExceeded".equals(reason) || "TaskRunTimeout".equals(reason)) {
-      return new TaskExecutionException("DeadlineExceeded", reason + " - " + message);
+      return new TaskExecutionException("DeadlineExceeded", results, reason + " - " + message);
     }
     if ("JobDeleted".equals(reason)) {
-      return new TaskExecutionException("JobDeleted", reason + " - " + message);
+      return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
     }
     if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-      return new TaskExecutionException(
-          "ResultsTooLarge",
-          "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
+      return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
     }
     String podReason = helperKubeService.getPodFailureReason(client.adapt(KubernetesClient.class), taskLabels);
     if ("OOMKilled".equals(podReason)) {
-      return new TaskExecutionException("OOMKilled", reason + " - " + message);
+      return new TaskExecutionException("OOMKilled", results, reason + " - " + message);
     }
     if ("ImagePull".equals(podReason)) {
-      return new TaskExecutionException("ImagePull", reason + " - " + message);
+      return new TaskExecutionException("ImagePull", results, reason + " - " + message);
     }
-    return new TaskExecutionException("JobFailed", reason + " - " + message);
+    return new TaskExecutionException("JobFailed", results, reason + " - " + message);
   }
 
   @Override

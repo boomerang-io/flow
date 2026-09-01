@@ -2,6 +2,7 @@ import { vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import { DataDrivenInput } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import Inputs from ".";
 
 const mockfn = vi.fn();
@@ -28,7 +29,7 @@ const props = {
 
 describe("Inputs --- Snapshot Test", () => {
   it("Capturing Snapshot of Inputs", async () => {
-    const { baseElement } = global.rtlContextRouterRender(<Inputs {...props} />);
+    const { baseElement } = renderWithContext(<Inputs {...props} />);
 
     expect(baseElement).toMatchSnapshot();
   });
@@ -36,7 +37,7 @@ describe("Inputs --- Snapshot Test", () => {
 
 describe("Inputs --- RTL", () => {
   it("Change default value by type correctly", async () => {
-    global.rtlContextRouterRender(<Inputs {...props} />);
+    renderWithContext(<Inputs {...props} />);
     expect(screen.getByTestId("text-input")).toBeInTheDocument();
 
     const typeSelect = screen.getByRole("combobox", { name: /type/i });
@@ -64,7 +65,7 @@ describe("Inputs --- RTL", () => {
   });
 
   it("Shouldn't save parameter without key, label and type defined", async () => {
-    global.rtlContextRouterRender(<Inputs {...props} isEdit={false} property={undefined} />);
+    renderWithContext(<Inputs {...props} isEdit={false} property={undefined} />);
 
     const nameInput = screen.getByLabelText("Name");
     const labelInput = screen.getByLabelText("Label");

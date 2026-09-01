@@ -1,8 +1,10 @@
 package io.boomerang.workflow.tekton;
 
-import java.util.List;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.model.TaskEnvVar;
+import java.util.List;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Step {
 
   private String name;

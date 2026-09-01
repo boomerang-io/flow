@@ -28,6 +28,7 @@ import { appLink } from "Config/appConfig";
 import styles from "./Settings.module.scss";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 
 interface Label {
   key: string;
@@ -48,24 +49,18 @@ interface Label {
 // (`renameWorkspace`/`deleteWorkspace`/`updateWorkspaceLabels`), not bare verbs: that route's
 // shouldRevalidate keys off two of them, and the Approver Groups and Tokens tabs submit their own
 // deletes to the same matched route tree.
-export type SettingsActionResult = {
-  ok: boolean;
-  intent: (typeof WorkspaceIntent)[keyof typeof WorkspaceIntent];
-  /**
-   * "updateWorkspaceLabels": which of the two toasts to raise. "renameWorkspace": the new
-   * workspace slug to navigate to.
-   */
-  detail?: string;
-  errorMessage?: { title: string; message: string };
-};
+export type SettingsActionResult =
+  | {
+      intent: (typeof WorkspaceIntent)[keyof typeof WorkspaceIntent];
+      /**
+       * "updateWorkspaceLabels": which of the two toasts to raise. "renameWorkspace": the new
+       * workspace slug to navigate to.
+       */
+      detail?: string;
+    }
+  | ({ intent: (typeof WorkspaceIntent)[keyof typeof WorkspaceIntent]; detail?: string } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<SettingsActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -73,13 +68,12 @@ export async function action({
   if (intent === WorkspaceIntent.Delete) {
     try {
       await serverFetch(request).delete(serviceUrl.resourceWorkspace({ workspace }));
-      return { ok: true, intent: WorkspaceIntent.Delete };
+      return { intent: WorkspaceIntent.Delete };
     } catch (error) {
-      return {
-        ok: false,
+      return actionError({
         intent: WorkspaceIntent.Delete,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Request to delete workspace failed" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Request to delete workspace failed" }),
+      });
     }
   }
 
@@ -88,13 +82,12 @@ export async function action({
     const displayName = String(formData.get("displayName"));
     try {
       await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { name, displayName });
-      return { ok: true, intent: WorkspaceIntent.Rename, detail: name };
+      return { intent: WorkspaceIntent.Rename, detail: name };
     } catch (error) {
-      return {
-        ok: false,
+      return actionError({
         intent: WorkspaceIntent.Rename,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to update workspace settings" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Failed to update workspace settings" }),
+      });
     }
   }
 
@@ -103,14 +96,13 @@ export async function action({
   const operation = String(formData.get("operation"));
   try {
     await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { labels });
-    return { ok: true, intent: WorkspaceIntent.UpdateLabels, detail: operation };
+    return { intent: WorkspaceIntent.UpdateLabels, detail: operation };
   } catch (error) {
-    return {
-      ok: false,
+    return actionError({
       intent: WorkspaceIntent.UpdateLabels,
       detail: operation,
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Request to update labels failed" }),
-    };
+      error: formatErrorMessage({ error, defaultMessage: "Request to update labels failed" }),
+    });
   }
 }
 
@@ -129,11 +121,11 @@ export default function Settings() {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    const { ok, intent, detail } = fetcher.data;
-    if (!ok) {
+    if (isActionError(fetcher.data)) {
       // Matches the previous handlers, which all swallowed their errors (`// noop`).
       return;
     }
+    const { intent, detail } = fetcher.data;
     if (intent === WorkspaceIntent.Delete) {
       navigate(appLink.home());
       notify(

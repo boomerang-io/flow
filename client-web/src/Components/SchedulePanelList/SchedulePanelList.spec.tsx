@@ -1,11 +1,11 @@
 import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { scheduleAction } from "Features/Schedules/scheduleRoute";
 import type { PaginatedSchedulesResponse } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import SchedulePanelList from "./SchedulePanelList";
 
 const WORKSPACE = "test-workspace";
@@ -52,23 +52,17 @@ function buildSchedulesData(): PaginatedSchedulesResponse {
 // through bare useFetcher() calls, which resolve against the route in context - the same
 // `/:workspace/schedules` + scheduleAction shape app/routes/schedules.tsx wires up.
 function renderList(overrides: Partial<React.ComponentProps<typeof SchedulePanelList>> = {}) {
-  return global.rtlContextRouterRender(
-    <Route
-      path="/:workspace/schedules"
-      action={scheduleAction}
-      element={
-        <SchedulePanelList
-          includeStatusFilter
-          schedulesIsLoading={false}
-          schedulesData={buildSchedulesData()}
-          setActiveSchedule={() => {}}
-          setIsCreatorOpen={() => {}}
-          setIsEditorOpen={() => {}}
-          {...overrides}
-        />
-      }
+  return renderWithContext(
+    <SchedulePanelList
+      includeStatusFilter
+      schedulesIsLoading={false}
+      schedulesData={buildSchedulesData()}
+      setActiveSchedule={() => {}}
+      setIsCreatorOpen={() => {}}
+      setIsEditorOpen={() => {}}
+      {...overrides}
     />,
-    { route: `/${WORKSPACE}/schedules` },
+    { path: "/:workspace/schedules", action: scheduleAction, route: `/${WORKSPACE}/schedules` },
   );
 }
 
