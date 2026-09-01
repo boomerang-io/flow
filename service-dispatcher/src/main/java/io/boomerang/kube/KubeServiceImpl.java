@@ -169,17 +169,27 @@ public class KubeServiceImpl implements KubeService {
       long waitSeconds)
       throws KubernetesClientException, InterruptedException {
 
-    LOGGER.debug("Creating PersistentVolumeClaim object");
+    // A blank class MUST leave storageClassName unset: an empty string tells Kubernetes "no
+    // dynamic provisioning, static volumes only" and the claim never binds, whereas an absent
+    // field selects the cluster's default StorageClass.
+    boolean useDefaultClass = className == null || className.isBlank();
+    LOGGER.info(
+        "Creating PersistentVolumeClaim (size={}, class={}, accessMode={})",
+        size,
+        useDefaultClass ? "<cluster default>" : className,
+        accessMode);
 
-    PersistentVolumeClaim persistentVolumeClaim =
+    PersistentVolumeClaimBuilder builder =
         new PersistentVolumeClaimBuilder()
             .withNewMetadata()
             .withGenerateName(helperKubeService.getPrefixPVC() + "-")
             .withLabels(labels)
             .withAnnotations(annotations)
-            .endMetadata()
-            .withNewSpec()
-            .withStorageClassName(className)
+            .endMetadata();
+    PersistentVolumeClaim persistentVolumeClaim =
+        (useDefaultClass
+                ? builder.withNewSpec()
+                : builder.withNewSpec().withStorageClassName(className))
             .withAccessModes(accessMode)
             .withNewResources()
             .addToRequests("storage", new Quantity(size))
@@ -194,8 +204,9 @@ public class KubeServiceImpl implements KubeService {
         .resource(result)
         .waitUntilCondition(
             r ->
-                "Bound".equals(r.getStatus().getPhase())
-                    || "Pending".equals(r.getStatus().getPhase()),
+                r.getStatus() != null
+                    && ("Bound".equals(r.getStatus().getPhase())
+                        || "Pending".equals(r.getStatus().getPhase())),
             waitSeconds,
             TimeUnit.SECONDS);
 
