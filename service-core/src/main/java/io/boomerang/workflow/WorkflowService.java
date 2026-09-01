@@ -1607,6 +1607,10 @@ public class WorkflowService {
    * task types (e.g. runworkflow/runscheduledworkflow's "workflowRef") take node params their
    * Template spec leaves undeclared, so a Template with an empty declared set is left unchecked
    * rather than treated as "no params allowed".
+   *
+   * <p>A null-valued param is rejected regardless of that carve-out: a name-only placeholder
+   * (the caller never supplied a value) is never a legitimate save - it silently starves a
+   * required input (e.g. runworkflow's "workflowRef") until the run itself fails.
    */
   private void validateDeclaredParams(WorkflowTask wfTask, Task taskTemplate) {
     if (wfTask.getParams() != null) {
@@ -1617,6 +1621,16 @@ public class WorkflowService {
           .ifPresent(
               name -> {
                 throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
+              });
+      wfTask.getParams().stream()
+          .filter(param -> param.getValue() == null)
+          .findFirst()
+          .ifPresent(
+              param -> {
+                throw new BoomerangException(
+                    BoomerangError.WORKFLOW_TASK_PARAM_MISSING_VALUE,
+                    wfTask.getName(),
+                    param.getName());
               });
       // Case/separator-variant duplicates collide as PARAM_<NAME> env vars and, under
       // case-insensitive matching, as references - rejected here rather than at dispatch.

@@ -102,6 +102,7 @@ class LoaderMigrationTest {
 
     seedV4ResidualCollections();
     seedLegacyWorkerFlowRevision();
+    seedLegacyRunWorkflowCatalogue();
     seedOrphanedFieldResidue();
     seedLegacyTeamQuotaSettings();
     seedLegacyFeatureFlagSettings();
@@ -122,6 +123,29 @@ class LoaderMigrationTest {
                     new Document("image", "boomerangio/worker-flow:2.5.26")
                         .append("command", List.of("boomerangio/worker-flow:2.5.26"))
                         .append("arguments", List.of("mail", "sendEmail"))));
+  }
+
+  /**
+   * A pre-{@code _0040} install: the catalogue's {@code run-workflow} Task and its version-1
+   * revision already exist (matched by name and by parentRef+version respectively), so {@code
+   * _0022__SeedTaskCatalogue} skips both and this empty-{@code spec.params} shape survives to
+   * where {@code _0040__DeclareRunWorkflowParams} must fix it.
+   */
+  private static final ObjectId LEGACY_RUN_WORKFLOW_TASK_ID =
+      new ObjectId("603591f5c267b8ce33782571");
+
+  private static void seedLegacyRunWorkflowCatalogue() {
+    collection("tasks")
+        .insertOne(
+            new Document("_id", LEGACY_RUN_WORKFLOW_TASK_ID)
+                .append("name", "run-workflow")
+                .append("status", "active"));
+    collection("task_revisions")
+        .insertOne(
+            new Document("displayName", "Run Workflow")
+                .append("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString())
+                .append("version", 1)
+                .append("spec", new Document("params", List.of()).append("arguments", List.of("runworkflow"))));
   }
 
   private static void seedOrphanedFieldResidue() {
@@ -231,6 +255,38 @@ class LoaderMigrationTest {
         .isZero();
   }
 
+  /**
+   * _0040: the latest {@code run-workflow} revision - here the pre-existing legacy one {@code
+   * seedLegacyRunWorkflowCatalogue} left with an empty {@code spec.params} - must end up declaring
+   * {@code workflowRef}, the param {@code TaskExecutionService.runWorkflow} actually reads. A
+   * fresh-install {@code run-scheduled-workflow} (seeded straight from the updated {@code
+   * seed/task-revisions.json}, no legacy fixture needed) must declare all five params {@code
+   * runScheduledWorkflow} reads.
+   */
+  private void assertRunWorkflowParamsDeclared() {
+    Document runWorkflowRevision =
+        collection("task_revisions")
+            .find(Filters.eq("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString()))
+            .first();
+    assertThat(runWorkflowRevision).isNotNull();
+    assertThat(paramNames(runWorkflowRevision)).contains("workflowRef");
+
+    Document runScheduledWorkflowRevision =
+        collection("task_revisions")
+            .find(Filters.eq("parentRef", "61dcb509c570b75ec2c432f8"))
+            .first();
+    assertThat(runScheduledWorkflowRevision).isNotNull();
+    assertThat(paramNames(runScheduledWorkflowRevision))
+        .contains("workflowRef", "futureIn", "futurePeriod", "timezone", "time");
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<String> paramNames(Document revision) {
+    Document spec = revision.get("spec", Document.class);
+    List<Document> params = (List<Document>) spec.get("params");
+    return params.stream().map(p -> p.getString("name")).collect(Collectors.toList());
+  }
+
   private static void seedV4ResidualCollections() {
     db.getCollection(PREFIX + "jr_jobs").insertOne(new Document("state", "SUCCEEDED"));
     db.getCollection(PREFIX + "jr_recurring-jobs").insertOne(new Document("id", "timeout-sweep"));
@@ -274,6 +330,7 @@ class LoaderMigrationTest {
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
     assertWorkerFlowImagesRepointed();
+    assertRunWorkflowParamsDeclared();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();

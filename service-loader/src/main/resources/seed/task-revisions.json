@@ -8826,7 +8826,58 @@
     "author": "5e8a6c6cd0827100011c2a35"
    },
    "spec": {
-    "params": [],
+    "params": [
+     {
+      "description": "",
+      "label": "Workflow Reference",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The reference (or slug) of the Workflow to schedule.",
+      "readOnly": false,
+      "name": "workflowRef"
+     },
+     {
+      "description": "",
+      "label": "Future In",
+      "type": "number",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "How many futurePeriod units from now the Workflow should run.",
+      "readOnly": false,
+      "name": "futureIn"
+     },
+     {
+      "description": "",
+      "label": "Future Period",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The unit futureIn is measured in: minutes, hours, days, weeks, or months.",
+      "readOnly": false,
+      "name": "futurePeriod"
+     },
+     {
+      "description": "",
+      "label": "Timezone",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The timezone time is set in (e.g. America/New_York). Only applied for days, weeks, and months.",
+      "readOnly": false,
+      "name": "timezone"
+     },
+     {
+      "description": "",
+      "label": "Time",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The 24-hour clock time (e.g. 14:30) to run at. Only applied for days, weeks, and months.",
+      "readOnly": false,
+      "name": "time"
+     }
+    ],
     "arguments": [
      "runscheduledworkflow"
     ],
@@ -8856,7 +8907,18 @@
     "author": "5e8a6c6cd0827100011c2a35"
    },
    "spec": {
-    "params": [],
+    "params": [
+     {
+      "description": "",
+      "label": "Workflow Reference",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The reference (or slug) of the Workflow to run.",
+      "readOnly": false,
+      "name": "workflowRef"
+     }
+    ],
     "arguments": [
      "runworkflow"
     ],
