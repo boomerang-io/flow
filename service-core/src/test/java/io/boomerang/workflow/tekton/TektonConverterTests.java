@@ -1,9 +1,12 @@
 package io.boomerang.workflow.tekton;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
 import io.boomerang.common.model.ParamSpec;
 import io.boomerang.common.model.Task;
 import java.io.IOException;
@@ -80,6 +83,37 @@ class TektonConverterTests {
     assertEquals("Task", exported.getKind());
     assertEquals("example-task-name", exported.getMetadata().getName());
     assertEquals("Worker", exported.getMetadata().getAnnotations().get("boomerang.io/category"));
+  }
+
+  @Test
+  void testYamlExportOmitsUnsetStepFields() {
+    Step step = new Step();
+    step.setName("run");
+    step.setImage("alpine:3");
+    step.setScript("#!/bin/sh\necho one\necho two\n");
+
+    TektonSpec spec = new TektonSpec();
+    spec.setSteps(List.of(step));
+    TektonMetadata metadata = new TektonMetadata();
+    metadata.setName("script-only");
+    TektonTask task = new TektonTask();
+    task.setApiVersion("tekton.dev/v1beta1");
+    task.setKind("Task");
+    task.setMetadata(metadata);
+    task.setSpec(spec);
+
+    // Same write features as YamlJacksonHttpMessageConverter, the mapper behind Accept: x-yaml.
+    YAMLMapper mapper =
+        YAMLMapper.builder()
+            .enable(YAMLWriteFeature.LITERAL_BLOCK_STYLE)
+            .enable(YAMLWriteFeature.MINIMIZE_QUOTES)
+            .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
+            .build();
+    String yaml = mapper.writeValueAsString(task);
+
+    assertFalse(yaml.contains(": null"), yaml);
+    assertTrue(yaml.contains("script: |"), yaml);
+    assertTrue(yaml.contains("image: alpine:3"), yaml);
   }
 
   private TektonTask loadTektonTask(String file) throws IOException {
