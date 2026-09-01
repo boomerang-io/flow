@@ -17,8 +17,6 @@ public class KubeLogService {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeLogService.class);
 
-  private static final int BYTE_SIZE = 1024;
-
   private final KubeHelperService helperKubeService;
 
   KubernetesClient client = null;
@@ -93,25 +91,25 @@ public class KubeLogService {
     return responseBody;
   }
 
+  // Note: the loop this replaced never flushed per-chunk either (only once, in its finally block,
+  // after the whole read loop finished) — so a live log tail was already only as timely as the
+  // JDK's own I/O buffering, not the byte-at-a-time reads here. transferTo preserves that: it
+  // writes straight through to outputStream, and this method's own flush() below still runs once,
+  // after all bytes are copied. It also drops the old `> 0` read-loop condition, which stopped
+  // early on any legal zero-length read; transferTo loops correctly until end-of-stream (-1).
   protected StreamingResponseBody getPodLog(InputStream inputStream, String podName) {
     return outputStream -> {
-      byte[] data = new byte[BYTE_SIZE];
-      int nRead = 0;
-      int nReadSum = 0;
       LOGGER.info("Log stream started for pod " + podName + "...");
       try {
-        while ((nRead = inputStream.read(data)) > 0) {
-          outputStream.write(data, 0, nRead);
-          nReadSum += nRead;
-        }
-      } finally {
-        outputStream.flush();
+        long bytesStreamed = inputStream.transferTo(outputStream);
         LOGGER.info(
             "Log stream completed for pod "
                 + podName
                 + ", total bytes streamed="
-                + nReadSum
+                + bytesStreamed
                 + "...");
+      } finally {
+        outputStream.flush();
         inputStream.close();
         LOGGER.info("Log stream closed for pod " + podName + "...");
       }
