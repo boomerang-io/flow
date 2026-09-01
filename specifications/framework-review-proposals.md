@@ -726,12 +726,367 @@ rules on `lte` vs `lt`. Biggest risk: a client that today relies on the `a=b=c` 
 
 ## A9 — Spring Data auditing feasibility (single-instance MongoDB / DocumentDB)
 
-_(pending — filled by a separate pass)_
+**BLUF.** `@EnableMongoAuditing` works on (a) a single-instance free-tier MongoDB and (b) DocumentDB / Cosmos DB
+for MongoDB, because auditing is entirely client-side: `AuditingEntityCallback implements BeforeConvertCallback`
+(`spring-data-mongodb-5.1.0-sources.jar`, `core/mapping/event/AuditingEntityCallback.java:onBeforeConvert` →
+`IsNewAwareAuditingHandler.markAudited`) stamps the Java object before `MongoTemplate` converts it — no replica
+set, transaction, change stream or `$currentDate` is involved. The finding that matters for THIS codebase is
+narrower: the callback fires only from `MongoTemplate.doSave` (`:1600,1630`), `doInsertBatch` (`:1529`),
+`findAndReplace` (`:1234`) and `replace` (`:2201`); `doUpdate` (`:1800-1811`) runs
+`increaseVersionForUpdateIfNecessary` and nothing else. The engine mutates runs through **36 `Update`-based
+writes** (23 `findAndModify`, 13 `updateFirst` — `WorkflowRunStateHelper` 12, `TaskRunService` 14,
+`OutboxDispatcher` 3, `ScheduleService` 4, `DispatcherService` 1, `TaskExecutionService` 1, `WorkflowService` 1),
+so `@CreatedDate` is safe (all 6 hand-stamped creation sites end in `repository.save`) but `@LastModifiedDate`
+would be wrong on every CAS-mutated entity. `AuditEntity` (`core/audit`) is the audit-log feature
+(`AuditInterceptor`/`AuditQueryService`), not Spring Data auditing — unrelated to this section.
+
+### Before (verbatim)
+
+`service-core/src/main/java/io/boomerang/core/TokenService.java:622-634`
+```java
+    TokenEntity tokenEntity = new TokenEntity();
+    tokenEntity.setCreationDate(new Date());
+    tokenEntity.setDescription("Generated User Session Token");
+    ...
+    tokenEntity = tokenRepository.save(tokenEntity);
+```
+`service-core/src/main/java/io/boomerang/core/entity/TokenEntity.java:28` (same initialiser on 10 more entities)
+```java
+  private Date creationDate = new Date();
+```
+The one creation path that goes through an `Update` — `service-core/src/main/java/io/boomerang/dispatcher/DispatcherService.java:78-86`
+```java
+        mongoTemplate.findAndModify(
+            Query.query(
+                Criteria.where("name").is(request.getName()).and("host").is(request.getHost())),
+            new Update()
+                ...
+                .setOnInsert("creationDate", new Date()),
+            new FindAndModifyOptions().upsert(true).returnNew(true),
+            DispatcherEntity.class);
+```
+
+| Hand-stamped creation site | Entity | Write that follows | `@CreatedDate` covers it? |
+| --- | --- | --- | --- |
+| `core/TokenService.java:623` | `TokenEntity` | `tokenRepository.save` `:634` | Yes (id null → `isNew`) |
+| `workflow/WorkflowService.java:1740` | `WorkflowRunEntity` | `workflowRunService.run` `:1787` → `workflowRunRepository.save` (`WorkflowRunService.java:755`) | Yes |
+| `workflow/WorkflowRunService.java:910` (retry clone) | `WorkflowRunEntity` | `setId(null)` `:913`, `save` `:931` | Yes — the clone is new |
+| `engine/TaskExecutionService.java:973` | `ActionEntity` | `actionRepository.save` `:1003` | Yes |
+| `engine/DAGUtility.java:127` | `TaskRunEntity` | `taskRunRepository.save` `:254` | Yes |
+| `workflow/WorkflowTemplateService.java:255` | `WorkflowTemplateEntity` | `setId(null)` only when `!replace` (`:249`); `save` `:304` | **Partly** — with `replace=true` the id is kept, the entity is not new, and `creationDate` is NOT re-stamped (today it is) |
+| `dispatcher/DispatcherService.java:83` (`setOnInsert`) | `DispatcherEntity` | `findAndModify(upsert)` | **No** — callbacks never fire on `Update` |
+
+### After
+
+`service-core/src/main/java/io/boomerang/core/config/MongoAuditingConfiguration.java` (new)
+```java
+package io.boomerang.core.config;
+
+import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.model.Token;
+import java.util.Optional;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.AuditorAware;
+import org.springframework.data.mongodb.config.EnableMongoAuditing;
+
+@Configuration
+@EnableMongoAuditing(auditorAwareRef = "flowAuditorAware")
+public class MongoAuditingConfiguration {
+
+  /** Null-safe on purpose: getCurrentPrincipal() dereferences the identity (IdentityService.java:40-41). */
+  @Bean
+  AuditorAware<String> flowAuditorAware(IdentityService identityService) {
+    return () -> Optional.ofNullable(identityService.getCurrentIdentity()).map(Token::getPrincipal);
+  }
+}
+```
+`TokenEntity.java:28` → `@CreatedDate private Date creationDate;` and delete `TokenService.java:623`. `Date` is a
+supported target: `CurrentDateTimeProvider` yields `LocalDateTime` and `DefaultAuditableBeanWrapperFactory:56`
+registers `Jsr310Converters` (`LocalDateTime` → `Date`), so no entity field changes type and the stored BSON
+`date` is identical to today's. Under `flow.security.enabled=false` no `AuthenticationFilter` runs, so
+`getCurrentIdentity()` returns `null` (`IdentityService.java:55-57`), the auditor is `Optional.empty()`, and
+`AuditingHandlerSupport.touchAuditor` returns without writing (`:155-158`): a `@CreatedBy` field stays `null`.
+To record the ruled virtual admin instead, `.or(() -> Optional.of(UnauthenticatedGlobalToken.PRINCIPAL))`.
+
+### Blast radius
+
+| Change | Files | Notes |
+| --- | --- | --- |
+| `@CreatedDate` on `creationDate` | 15 entities (8 `service-core`, 7 `lib-common`) | 11 drop a `= new Date()` initialiser; 4 (`ActionEntity`, `TaskRunEntity`, `WorkflowRunEntity`, `WorkflowTemplateEntity`) gain the annotation only |
+| Delete hand stamps | 6 service lines | `DispatcherService.java:83` `setOnInsert` MUST stay |
+| Config | 1 new class | No `MongoTemplate` bean exists to conflict (`MongoConfiguration.java` only sets `MapKeyDotReplacement`) |
+| `$currentDate` / `.currentDate(` | 0 uses repo-wide | Nothing server-side changes for DocumentDB/Cosmos |
+| `service-loader` seeds | 48 `creationDate` writes, 0 via `MongoTemplate` | Flamingock writes through the driver — unaffected, still hand-stamped |
+
+### Behavioural differences and risks
+
+| Item | Today | With auditing | Risk |
+| --- | --- | --- | --- |
+| `WorkflowTemplateService.apply(replace=true)` | re-stamps `creationDate` `:255` | keeps the original (entity not new) | Behaviour change; arguably the correct one — MUST be ruled, not slipped in |
+| `@LastModifiedDate` on `WorkflowRunEntity`/`TaskRunEntity`/`WorkflowScheduleEntity`/`WorkflowEntity` | n/a | stamped on `save` only; the 36 CAS writes leave it stale | MUST NOT add unless every `Update` also `.currentDate("lastModified")` — 0 do today |
+| `@CreatedBy` under security-off | n/a | `null` (or the virtual admin if mapped) | Decide before the `SecurityInterceptor` flip; otherwise rows minted now carry no actor |
+| Free-tier / DocumentDB / Cosmos | works | works — no server feature used | None |
+
+### Recommendation
+MAY apply `@CreatedDate` (6 stamps + 11 initialisers removed, 1 config class); MUST NOT add `@LastModifiedDate`
+to any CAS-mutated entity; `@CreatedBy` SHOULD wait for the security-off identity ruling. Biggest risk: the
+`WorkflowTemplateService.apply(replace=true)` re-stamp silently stops.
 
 ## A10 — Pageable + correct totals
 
-_(pending — filled by a separate pass)_
+**BLUF.** All 9 `PageableExecutionUtils.getPage` sites (not 8) report a wrong `totalElements` whenever a page is
+full — 4 pass `list.size()` and 5 pass `mongoTemplate.count(query, …)` on the SAME `query.with(pageable)`, and
+`MongoTemplate.count` applies the query's `limit`/`skip` to the count (`QueryOperations.CountContext.getCountOptions`,
+`spring-data-mongodb-5.1.0-sources.jar` `QueryOperations.java:633-638`). Both variants therefore cap the total at
+`limit`: 100 matching runs, `?page=0&limit=10` → `totalElements=10`, `totalPages=1`. `PageableExecutionUtils.getPage`
+only masks this on partial pages (`spring-data-commons-4.1.0` `PageableExecutionUtils.java:60-68`: a short page
+derives the total itself and never calls the supplier). The fix is the pattern spring-data-mongodb's own repository
+executor uses (`MongoQueryExecution.PagedExecution`, `:152-156`): `Query.of(query).skip(-1).limit(-1)`. Adopting
+the `Pageable` argument resolver is a separate, wire-visible change: `limit` → `size` is one property, but
+`order=ASC|DESC` has no Spring equivalent.
+
+### Before (verbatim)
+
+`service-core/src/main/java/io/boomerang/workflow/WorkspaceWorkflowRunControllerV2.java:105-117`
+```java
+      @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
+          @RequestParam(required = false)
+          Optional<Integer> limit,
+      @Parameter(name = "page", description = "Page Number", example = "0", required = true)
+          @RequestParam(defaultValue = "0")
+          Optional<Integer> page,
+      @Parameter(
+              name = "order",
+              description = "Ascending (ASC) or Descending (DESC) sort order on creationDate",
+              example = "ASC",
+              required = true)
+          @RequestParam(defaultValue = "ASC")
+          Optional<Direction> order,
+```
+`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:489-493` and `:567-585`
+```java
+    Pageable pageable = Pageable.unpaged();
+    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
+    if (queryLimit.isPresent()) {
+      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
+    }
+```
+```java
+    Query query = new Query(allCriteria);
+    if (queryLimit.isPresent()) {
+      query.with(pageable);
+    } else {
+      query.with(sort);
+    }
+
+    List<WorkflowRunEntity> wfRunEntities = mongoTemplate.find(query, WorkflowRunEntity.class);
+    ...
+    Page<WorkflowRun> pages = PageableExecutionUtils.getPage(wfRuns, pageable, () -> wfRuns.size());
+```
+
+| Site | `query.with(pageable)`? | Total supplier today | Wrong when |
+| --- | --- | --- | --- |
+| `workflow/WorkflowRunService.java:585` | `:569` | `wfRuns.size()` | page full |
+| `workflow/WorkflowService.java:1384` | `:1360` | `workflows.size()` | page full |
+| `workflow/WorkflowTemplateService.java:142` | `:130` + again in `find` | `wfTemplates.size()` | page full |
+| `workflow/TaskService.java:844` | `:825` + again in `find` | `tasks.size()` | page full |
+| `schedule/ScheduleService.java:164` | `:152` + again in `find` | `mongoTemplate.count(query, …)` — limited/skipped | page full |
+| `core/UserService.java:410` | `:397` | `mongoTemplate.count(query, …)` — limited/skipped | page full |
+| `core/TokenService.java:506` | `:490` | `mongoTemplate.count(query, ActionEntity.class)` — **wrong entity class too** (counts `actions`, not `tokens`) | always |
+| `workspace/WorkspaceService.java:463` | `:449` | `mongoTemplate.count(query, …)` — limited/skipped | page full |
+| `workflow/ActionService.java:257` | `:245` + again in `find` | `mongoTemplate.count(query, …)` — limited/skipped | page full |
+
+### After
+
+(1) Minimal fix, one line per site, no contract change — `WorkflowRunService.java:585`:
+```java
+    Page<WorkflowRun> pages =
+        PageableExecutionUtils.getPage(
+            wfRuns,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowRunEntity.class));
+```
+Semantics verified in `Query.java`: `of()` copies `skip` and `limit` from the source (`:760-761`), so the reset is
+required; `limit(int)` maps `<= 0` to `Limit.unlimited()` (`:177-178`); `skip(-1)` is stored raw and `CountContext`
+applies skip only `if (query.getSkip() > 0)` (`QueryOperations.java:637`). `TokenService.java:507` MUST also change
+`ActionEntity.class` → `TokenEntity.class`. The A11 shared Criteria builder could carry a `countAll(Query, Class)`
+helper so the 9 sites do not each repeat the reset.
+
+(2) Framework form — `Pageable` argument resolver. `DataWebAutoConfiguration`
+(`spring-boot-data-commons-4.1.0.jar`, `org.springframework.boot.data.autoconfigure.web`) is active today:
+`@ConditionalOnWebApplication(SERVLET)` + `@ConditionalOnClass(PageableHandlerMethodArgumentResolver, WebMvcConfigurer)`
++ `@ConditionalOnMissingBean`, pulled in by `spring-boot-starter-data-mongodb` → `spring-boot-data-mongodb` →
+`spring-boot-data-commons` (`spring-boot-data-mongodb-4.1.0.pom:46`), and `application.properties:9` excludes only
+`ServletWebSecurityAutoConfiguration`. A `Pageable` parameter therefore already resolves; nothing to register.
+```java
+  // WorkspaceWorkflowRunControllerV2.query(...) — replaces limit/page/order
+  @PageableDefault(size = 20, sort = "creationDate", direction = Sort.Direction.DESC) Pageable pageable,
+```
+```properties
+# application.properties — keep the existing parameter name; Spring's default is `size`
+spring.data.web.pageable.size-parameter=limit
+spring.data.web.pageable.max-page-size=2000
+```
+Wire mapping for `client-web` (`client-web/src/Features/Activity/Activity.tsx:114` builds
+`{ order, page, limit, sort, … }` with `DEFAULT_ORDER = "DESC"` `:32`, `DEFAULT_SORT = "creationDate"` `:35`;
+`ActivityTable.tsx:83-88` toggles `order`):
+
+| Today | Spring `Pageable` | Change owner |
+| --- | --- | --- |
+| `page=0` | `page=0` (`one-indexed-parameters=false`) | none |
+| `limit=10` | `size=10`, or `limit=10` via `size-parameter=limit` | property |
+| `sort=creationDate&order=DESC` | `sort=creationDate,desc` (`SortHandlerMethodArgumentResolverSupport`, delimiter `,` `:53`) | **client-web** — 15 files reference `order`; 9 `*ControllerV2` declare `Optional<Direction> order` |
+| `limit` absent → `Pageable.unpaged()` (all rows) | `default-page-size=20` | **client-web** — every caller that omits `limit` and expects all rows |
+
+### Blast radius
+
+| Change | Sites | Contract |
+| --- | --- | --- |
+| Count fix | 9 `getPage` suppliers + 1 entity-class fix | none — `totalElements`/`totalPages` become correct; `client-web` reads both (25 references, e.g. `ActivityTable.tsx:111`) |
+| `Pageable` adoption | 9 controllers, 9 services, `client-web` 15 files | `order` param retired; `sort=field,dir` |
+
+### Behavioural differences and risks
+
+| Item | Today | With `Pageable` resolver | Risk |
+| --- | --- | --- | --- |
+| Missing `limit` | unpaged — full result | 20 rows | Silent truncation for every "give me everything" call |
+| `limit=100000` | honoured | clamped to `max-page-size` (2000 default) | Acceptable; document it |
+| `sort` | ignored — hard-coded `creationDate` (`WorkflowRunService.java:490`) | any property honoured | Unindexed sorts on `workflow_runs`; the only compound indexes are `status_phase*` |
+| `page=-1` | `PageRequest.of` throws → 500 | clamped to 0 | Improvement |
+| OpenAPI | 3 explicit params | springdoc renders `Pageable` only with `@ParameterObject` | Docs regress if forgotten |
+
+### Recommendation
+MUST fix the 9 counts now (plus `TokenService.java:507`'s entity class) — no wire change. `Pageable` adoption
+SHOULD wait for a coordinated `client-web` change that sends `sort=creationDate,desc` and always sends `limit`.
+Biggest risk: absent-`limit` = "all rows" today, 20 rows after.
 
 ## A16 — Entity↔model mapping
 
-_(pending — filled by a separate pass)_
+**BLUF.** 47 `BeanUtils.copyProperties` sites (39 `service-core`, 8 `lib-common`, 0 elsewhere). The public run
+models exclude execution state ONLY because the model classes do not declare the properties — `copyProperties`
+matches getter/setter by name and type and silently skips the rest. Nothing checks the diff: a renamed field on
+either side becomes a `null` on the wire with no compile or test failure. `PublicRunModelSerialisationTest`
+(`service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java`) serialises an EMPTY
+`new WorkflowRun()` and asserts 11 forbidden names are absent — it pins what the model declares, not what the copy
+does. A MapStruct mapper with `unmappedSourcePolicy = ERROR` makes the entity-only set an explicit, reviewed list
+that fails compilation when a new execution-state field appears on the entity; `unmappedTargetPolicy = ERROR`
+catches the rename direction.
+
+### Before (verbatim)
+
+`service-core/src/main/java/io/boomerang/workflow/ConvertUtil.java:35-52`
+```java
+  public static <E, M> M entityToModel(E entity, Class<M> modelClass) {
+    if (Objects.isNull(entity) || Objects.isNull(modelClass)) {
+      throw new BoomerangException(BoomerangError.DATA_CONVERSION_FAILED);
+    }
+
+    try {
+      M model = modelClass.getDeclaredConstructor().newInstance();
+      BeanUtils.copyProperties(entity, model);
+      return model;
+    } catch (NoSuchMethodException
+        ...
+```
+`lib-common/src/main/java/io/boomerang/common/model/TaskRun.java:55-57`
+```java
+  public TaskRun(TaskRunEntity entity) {
+    BeanUtils.copyProperties(entity, this);
+  }
+```
+
+| Group | Sites | Examples |
+| --- | --- | --- |
+| Model constructor `copyProperties(entity, this)` | 20 | `Token.java:39`, `User.java:16,20`, `WorkspaceSummary.java:24,29`, `TaskRun.java:56`, `WorkflowTemplate.java:85`, `WorkflowSchedule.java:50,54`, `Action.java:17` |
+| Service-side entity → model | 10 | `ConvertUtil.java:27,28,42`, `TaskService.java:901,902`, `TokenService.java:519`, `ParameterService.java:49,65,114`, `IntegrationService.java:66` |
+| Request/model → entity | 8 | `ScheduleService.java:212,359`, `ParameterService.java:93`, `TaskEntity.java:39`, `TaskRevisionEntity.java:41`, `UserService.java:223,230`, `WorkspaceService.java:179` |
+| Model ↔ model / external | 9 | `TektonConverter.java:75,170,180`, `WorkflowService.java:455,479,1112`, `WorkflowCanvas.java:38`, `UserService.java:195,286` |
+
+`ConvertUtil.entityToModel` is generic in signature but has exactly 2 target types across its 14 call sites:
+`WorkflowRun` × 13 (`WorkflowRunService` × 10, `DispatcherService.java:136,143`, `EventFactory.java:64`) and
+`WorkflowRunSummary` × 1 (`WorkflowRunService.java:668`). `new TaskRun(entity)` has 7 sites
+(`DispatcherService.java:210,223`, `EventFactory.java:86`, `TaskRunService.java:692,725,784`, `WorkflowRunService.java:1040`).
+
+Field-set diff today (`lib-common/.../entity/WorkflowRunEntity.java:32-81` vs `model/WorkflowRun.java:40-68`;
+`TaskRunEntity.java:37-81` vs `TaskRun.java:30-52`):
+
+| Pair | Entity-only (dropped by the copy) | Model-only (never populated by the copy) |
+| --- | --- | --- |
+| `WorkflowRunEntity → WorkflowRun` | `statusOverride`, `claim`, `timeoutAt`, `pauseRequestedAt`, `retryCount` (5) | `workflowName`, `workflowDisplayName`, `tasks` (3) — set afterwards by `updateWorkflowDetails` `:947-954`; `paused` IS copied, via the entity's derived getter `isPaused()` `:66-68` |
+| `TaskRunEntity → TaskRun` | `preApproved`, `decisionValue`, `dependencies`, `claim`, `timeoutAt`, `retry`, `waitUntil` (7) | `workflowName` (1) |
+
+### After
+
+| Option | Fits when | Cost/risk | Recommend |
+| --- | --- | --- | --- |
+| (a) Keep `BeanUtils`; add one test pinning the exact entity-only / model-only sets via `BeanUtils.getPropertyDescriptors` | Now — zero runtime change | Guards drift only at test time; 1 file | **Yes, now** |
+| (b) MapStruct `1.6.3` (`org.mapstruct:mapstruct` + `mapstruct-processor`; latest GA — `1.7.0.Beta2` 2026-06-27 is beta) with `lombok-mapstruct-binding:0.2.0`; Lombok `1.18.46` is Boot-managed (`spring-boot-dependencies-4.1.0.pom:130`) | After Q-202 decides where entities live | New `annotationProcessorPaths` block in `lib-common`/`service-core` poms (only `service-loader/pom.xml:77` has one today); MapStruct has no published Java 25 statement — MUST prove with one compile | Later, for the 2 run pairs only |
+| (c) Hand-written `Converter<Entity, Model>` beans | Never for 47 sites | Same silent-drift problem as (a) with more code | No |
+
+(b) — `service-core/src/main/java/io/boomerang/workflow/WorkflowRunMapper.java` (new; both policies ERROR):
+```java
+package io.boomerang.workflow;
+
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.model.WorkflowRun;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
+
+@Mapper(
+    componentModel = "spring",
+    unmappedTargetPolicy = ReportingPolicy.ERROR,
+    unmappedSourcePolicy = ReportingPolicy.ERROR)
+public interface WorkflowRunMapper {
+
+  /** Execution state stays on the entity - every name here is asserted absent by PublicRunModelSerialisationTest. */
+  @BeanMapping(
+      ignoreUnmappedSourceProperties = {
+        "claim", "timeoutAt", "pauseRequestedAt", "retryCount", "statusOverride"
+      })
+  @Mapping(target = "workflowName", ignore = true) // set by WorkflowRunService.updateWorkflowDetails
+  @Mapping(target = "workflowDisplayName", ignore = true)
+  @Mapping(target = "tasks", ignore = true)
+  WorkflowRun toModel(WorkflowRunEntity entity);
+}
+```
+`paused` maps automatically (`isPaused()` → `setPaused`). Call sites: `WorkflowRunService.java:580`
+`ConvertUtil.entityToModel(e, WorkflowRun.class)` → `workflowRunMapper.toModel(e)` (10 in that class, 2 in
+`DispatcherService`, 1 in `EventFactory` — the mapper is injected, so `EventFactory` and `DispatcherService` gain a
+constructor dependency). A `TaskRunMapper` with the 7-name source list replaces `new TaskRun(entity)` at 7 sites;
+the `TaskRun(TaskRunEntity)` constructor is deleted so `lib-common` no longer depends on `BeanUtils`.
+
+(a) — `service-core/src/test/java/io/boomerang/common/RunModelFieldSetTest.java` (new)
+```java
+  @Test
+  void workflowRunEntityOnlyPropertiesAreExactlyTheExecutionState() {
+    Set<String> entityOnly = readable(WorkflowRunEntity.class);
+    entityOnly.removeAll(writable(WorkflowRun.class));
+    assertThat(entityOnly)
+        .containsExactlyInAnyOrder("statusOverride", "claim", "timeoutAt", "pauseRequestedAt", "retryCount");
+  }
+  // readable()/writable() = BeanUtils.getPropertyDescriptors(...) filtered on getReadMethod()/getWriteMethod(), minus "class"
+```
+
+### Blast radius
+
+| Change | Files | Notes |
+| --- | --- | --- |
+| (a) | 1 new test | none at runtime |
+| (b) | 2 mappers, 3 poms, 21 call sites (14 + 7), `ConvertUtil.entityToModel` deleted, `TaskRun(TaskRunEntity)` deleted | The other 33 `copyProperties` sites are untouched |
+
+### Behavioural differences and risks
+
+| Item | `BeanUtils` today | MapStruct | Risk |
+| --- | --- | --- | --- |
+| Collections/maps | reference copy — model and entity share `params`, `results`, `labels`, `annotations` | new `LinkedList`/`HashMap` per call | `updateWorkflowDetails` `:957-959` removes 3 `boomerang.io/*-params` annotations from `wfRun.getAnnotations()`, which today ALSO strips them from the in-memory entity; after MapStruct the entity is untouched. No save follows, so today's aliasing is harmless — but every mutate-the-model site MUST be audited before switching |
+| Unknown field on either side | silent `null` | compile error | The intended gain |
+| Build | Lombok from classpath | ordered `annotationProcessorPaths` (lombok → binding → mapstruct) | Misorder = "unknown property" compile errors — loud, not silent |
+| `PublicRunModelSerialisationTest` | pins model declarations | unchanged and still needed — MapStruct checks the mapping, not Jackson | none |
+
+### Recommendation
+SHOULD do (a) now — one test, no runtime change, closes the silent-drift gap for both run pairs. (b) MAY follow for
+`WorkflowRun`/`TaskRun` only, after Q-202 settles the entity package. Biggest risk of (b): the collection
+reference-aliasing change — callers that mutate a model list or map today also mutate the entity.
