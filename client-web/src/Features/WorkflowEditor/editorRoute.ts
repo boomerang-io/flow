@@ -15,6 +15,7 @@ import type {
   PaginatedWorkflowResponse,
   WorkflowCanvas,
 } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import type { EditorData, EditorRouteData, EditorScheduleData } from "./editorRouteData";
 
 /*
@@ -203,8 +204,8 @@ export async function editorLoader({
 }
 
 export type EditorActionResult =
-  | { ok: true; intent: "createRevision"; workflow: WorkflowCanvas }
-  | { ok: false; intent: "createRevision" }
+  | { intent: "createRevision"; workflow: WorkflowCanvas }
+  | ({ intent: "createRevision" } & ActionError)
   | TokenActionResult;
 
 /*
@@ -224,7 +225,7 @@ export async function editorAction({
 }: {
   params: { workspace?: string; workflow?: string };
   request: Request;
-}): Promise<EditorActionResult> {
+}) {
   const formData = await request.clone().formData();
   const intent = String(formData.get("intent"));
 
@@ -239,14 +240,13 @@ export async function editorAction({
    * destroying it. Consumers narrow on `intent`, so an "unknown" result is inert for them.
    */
   if (intent !== "createRevision") {
-    return {
-      ok: false,
-      intent: "unknown",
-      errorMessage: {
+    return actionError({
+      intent: "unknown" as const,
+      error: {
         title: "Unsupported Editor Action",
         message: `The workflow editor action does not handle the "${intent}" intent.`,
       },
-    };
+    });
   }
 
   // JSON in a form field rather than encType:"application/json", matching the GlobalParameters
@@ -261,8 +261,11 @@ export async function editorAction({
       data: body,
       method: HttpMethod.Put,
     });
-    return { ok: true, intent: "createRevision", workflow: response.data };
+    return { intent: "createRevision" as const, workflow: response.data };
   } catch (error) {
-    return { ok: false, intent: "createRevision" };
+    return actionError({
+      intent: "createRevision" as const,
+      error: { title: "Something's Wrong", message: "Failed to create workflow version" },
+    });
   }
 }

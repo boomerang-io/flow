@@ -6,6 +6,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { TokenActorKind, TokenType } from "Constants";
 import TokenSection from "./TokenSection";
 import { workflowTokensLoader, tokenAction } from "./tokenRoute";
+import { isActionError } from "Utils/actionResult";
 
 // Route-module test pattern (see GlobalTokens.spec.tsx / GlobalParameters.spec.tsx): build the
 // same shape the real router config uses - a <Route> carrying loader/action alongside its
@@ -96,7 +97,7 @@ describe("TokenSection --- action", () => {
 
     const result = await tokenAction({ request });
 
-    expect(result).toEqual({ ok: true, intent: "delete" });
+    expect(result).toEqual({ intent: "delete" });
   });
 
   test("creates a token through the mocked API", async () => {
@@ -108,9 +109,10 @@ describe("TokenSection --- action", () => {
       }),
     });
 
-    const result = await tokenAction({ request });
+    // Success is returned as the plain payload, not wrapped in data() - see actionResult.ts.
+    const result = (await tokenAction({ request })) as unknown as { intent: string };
 
-    expect(result.ok).toBe(true);
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("create");
   });
 
@@ -123,10 +125,13 @@ describe("TokenSection --- action", () => {
       body: new URLSearchParams({ intent: "delete", tokenId: "60e3a0b4e4b0c9b6e0b0b0b0" }),
     });
 
-    const result = await tokenAction({ request });
+    // Calling `tokenAction` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await tokenAction({ request })) as unknown as { data: { intent: string } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("delete");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("delete");
   });
 });
 
@@ -143,17 +148,16 @@ describe("TokenSection --- action intent guard", () => {
       }),
     );
 
-    const result = await tokenAction({
+    const result = (await tokenAction({
       request: new Request(`http://localhost${ROUTE}`, {
         method: "post",
         body: new URLSearchParams({ intent: "updateProfile", name: "someone" }),
       }),
-    });
+    })) as unknown as { data: { intent: string; error: { title: string; message: string } } };
 
-    expect(result).toEqual({
-      ok: false,
+    expect(result.data).toEqual({
       intent: "unknown",
-      errorMessage: {
+      error: {
         title: "Unsupported Token Action",
         message: 'The token action does not handle the "updateProfile" intent.',
       },
@@ -170,14 +174,14 @@ describe("TokenSection --- action intent guard", () => {
       }),
     );
 
-    const result = await tokenAction({
+    const result = (await tokenAction({
       request: new Request(`http://localhost${ROUTE}`, {
         method: "post",
         body: new URLSearchParams({ intent: "delete" }),
       }),
-    });
+    })) as unknown as { data: unknown };
 
-    expect(result.ok).toBe(false);
+    expect(isActionError(result.data)).toBe(true);
     expect(deleteCalled).toBe(false);
   });
 });

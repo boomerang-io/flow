@@ -3,6 +3,7 @@ import { workspaces } from "ApiServer/fixtures";
 import { Route } from "react-router-dom";
 import { vi } from "vitest";
 import { AppPath, appLink } from "Config/appConfig";
+import { isActionError } from "Utils/actionResult";
 import { editorAction, editorLoader } from "./editorRoute";
 import Editor from "./index";
 
@@ -140,9 +141,12 @@ describe("Editor --- action", () => {
       }),
     });
 
-    const result = await editorAction({ request, params: { workspace, workflow } });
+    // Success is returned as the plain payload, not wrapped in data() - see actionResult.ts.
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      intent: string;
+    };
 
-    expect(result.ok).toBe(true);
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("createRevision");
   });
 
@@ -154,9 +158,13 @@ describe("Editor --- action", () => {
       body: new URLSearchParams({ intent: "delete" }),
     });
 
-    const result = await editorAction({ request, params: { workspace, workflow } });
+    // No tokenId in the body, so the token action's own delete branch fails - this test only
+    // cares that the token action ran at all (rather than the revision branch), not the outcome.
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result.intent).toBe("delete");
+    expect(result.data.intent).toBe("delete");
   });
 
   // An intent neither half owns must not fall through to the revision branch: that branch would
@@ -167,8 +175,11 @@ describe("Editor --- action", () => {
       body: new URLSearchParams({ intent: "updateProfile", name: "someone" }),
     });
 
-    const result = await editorAction({ request, params: { workspace, workflow } });
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result).toMatchObject({ ok: false, intent: "unknown" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data).toMatchObject({ intent: "unknown" });
   });
 });
