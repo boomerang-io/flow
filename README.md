@@ -169,3 +169,11 @@ The following classes are conditionally loaded based on this flag
 | SecurityConfiguration                                      | true      |
 | SecurityDisabledConfiguration                              | false     |
 
+## Community and contributing
+
+- Bugs and features: [open an issue](https://github.com/boomerang-io/flow/issues/new/choose) — see [CONTRIBUTING.md](CONTRIBUTING.md).
+- Questions: the [Boomerang Slack](https://join.slack.com/t/boomerang-io/shared_invite/zt-pxo2yw2o-c3~6YvWkKNrKIwhIBAKhaw) — see [SUPPORT.md](SUPPORT.md).
+- Security: [SECURITY.md](SECURITY.md). Maintainers: [MAINTAINERS.md](MAINTAINERS.md). Roadmap: [ROADMAP.md](ROADMAP.md).
+
+The former central tracker, [`boomerang-io/community`](https://github.com/boomerang-io/community), is archived; its
+open issues were triaged into this repository on 2026-09-01 and its old URLs redirect.
