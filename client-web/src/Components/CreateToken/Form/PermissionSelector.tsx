@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@carbon/react";
 import { useTokenSectionData } from "Components/TokenSection/tokenRouteData";
+import { actionMatches } from "Utils/permissionHelper";
 import styles from "./permissionSelector.module.scss";
 
 /*
@@ -47,11 +48,7 @@ function buildGrid(resources: string[], actions: string[], permissions: string[]
   resources.forEach((resource) => {
     grid[resource] = {};
     actions.forEach((action) => {
-      grid[resource][action] =
-        permissions.includes(`${resource}/${action}`) ||
-        permissions.includes(`${resource}/**`) ||
-        permissions.includes(`**/${action}`) ||
-        permissions.includes("**/**");
+      grid[resource][action] = permissions.some((entry) => actionMatches(entry, resource, action));
     });
   });
   return grid;

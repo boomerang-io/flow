@@ -33,7 +33,13 @@ function grantAllows(grant: ResolvedPermissions, resource: string, action: strin
   return grant.actions.some((entry) => actionMatches(entry, resource, action));
 }
 
-function actionMatches(entry: string, resource: string, action: string): boolean {
+/**
+ * True when a single permission entry ("resource/action", "resource/**", "**\/action", "**\/**",
+ * or the bare "**") covers resource/action. Exported so PermissionSelector's catalog grid (a flat
+ * string[] of granted "resource/action" pairs, not a ResolvedPermissions grant) can share the
+ * same "**" wildcard rules instead of re-implementing them - see PermissionSelector.spec.tsx.
+ */
+export function actionMatches(entry: string, resource: string, action: string): boolean {
   if (entry === WILDCARD) {
     return true;
   }
