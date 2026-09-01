@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "ApiServer/msw/node";
+import { isActionError } from "Utils/actionResult";
 
 const INTERNAL_ORIGIN = "http://core-service.internal";
 const SESSION_COOKIE = "bfs_session=abc123";
@@ -55,7 +56,7 @@ describe("UserProfile action --- Node SSR", () => {
       request: actionRequest({ intent: "updateProfile", displayName: "Ada" }),
     });
 
-    expect(result).toEqual({ ok: true, intent: "updateProfile" });
+    expect(result).toEqual({ intent: "updateProfile" });
     // The credential the API authenticates on. Without this the request is anonymous.
     expect(seen.cookie).toBe(SESSION_COOKIE);
     expect(seen.body).toEqual({ displayName: "Ada" });
@@ -100,7 +101,7 @@ describe("UserProfile action --- Node SSR", () => {
       request: actionRequest({ intent: "deleteAccount", userId: "victim-user-id" }),
     });
 
-    expect(result).toEqual({ ok: true, intent: "deleteAccount" });
+    expect(result).toEqual({ intent: "deleteAccount" });
     expect(deleted).toEqual([CURRENT_USER_ID]);
     expect(deleted).not.toContain("victim-user-id");
   });
@@ -120,20 +121,27 @@ describe("UserProfile action --- Node SSR", () => {
     );
 
     const { action } = await import("./UserProfile");
-    const result = await action({ request: actionRequest({ intent: "notAnIntent" }) });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request: actionRequest({ intent: "notAnIntent" }) })) as unknown as {
+      data: { intent: string };
+    };
 
     expect(patched).toBe(false);
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("unknown");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("unknown");
   });
 
   it("reports failure rather than throwing when the API rejects the update", async () => {
     server.use(http.patch(`${INTERNAL_ORIGIN}/api/profile`, () => new HttpResponse(null, { status: 401 })));
 
     const { action } = await import("./UserProfile");
-    const result = await action({ request: actionRequest({ intent: "updateProfile", displayName: "Ada" }) });
+    const result = (await action({
+      request: actionRequest({ intent: "updateProfile", displayName: "Ada" }),
+    })) as unknown as { data: { intent: string } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("updateProfile");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("updateProfile");
   });
 });

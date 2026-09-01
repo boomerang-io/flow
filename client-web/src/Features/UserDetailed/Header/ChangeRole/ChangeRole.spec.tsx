@@ -24,7 +24,7 @@ function renderWithAction() {
   const action = vi.fn(async ({ request }: { request: Request }) => {
     const formData = await request.formData();
     submitted.push(Object.fromEntries(formData) as Record<string, string>);
-    return { ok: true, intent: "changeRole" };
+    return { intent: "changeRole" };
   });
   const view = global.rtlContextRouterRender(
     <Route path="*" element={<ChangeRole user={user} closeModal={() => vi.fn()} />} action={action} />,

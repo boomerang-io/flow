@@ -10,6 +10,7 @@ import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { FlowUser } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import Header from "./Header";
 import Labels from "./Labels";
 import Settings from "./Settings";
@@ -61,22 +62,14 @@ export async function loader({
  * axios.defaults.withCredentials (Config/axiosGlobalConfig.ts) needs a browser cookie jar that
  * Node does not have.
  */
-export type UserDetailedActionResult = {
-  ok: boolean;
-  intent: "changeRole" | "saveLabels";
-  errorMessage?: { title: string; message: string };
-};
+export type UserDetailedActionResult =
+  | { intent: "changeRole" | "saveLabels" }
+  | ({ intent: "changeRole" | "saveLabels" } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { userId?: string };
-  request: Request;
-}): Promise<UserDetailedActionResult> {
+export async function action({ params, request }: { params: { userId?: string }; request: Request }) {
   const userId = String(params.userId);
   const formData = await request.formData();
-  const intent = String(formData.get("intent")) as UserDetailedActionResult["intent"];
+  const intent = String(formData.get("intent")) as "changeRole" | "saveLabels";
 
   const body =
     intent === "changeRole"
@@ -85,16 +78,15 @@ export async function action({
 
   try {
     await serverFetch(request).patch(serviceUrl.getUser({ userId }), body);
-    return { ok: true, intent };
+    return { intent };
   } catch (error) {
-    return {
-      ok: false,
+    return actionError({
       intent,
-      errorMessage: formatErrorMessage({
+      error: formatErrorMessage({
         error,
         defaultMessage: intent === "changeRole" ? "Request to change the platform role failed" : "Request to save labels failed.",
       }),
-    };
+    });
   }
 }
 
