@@ -34,7 +34,7 @@ public class SecurityConfiguration {
   // AuthenticationFilter below, since that filter runs ahead of this authorization decision.
   static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
 
-  // The unified token exchange's direct OIDC login path (specifications/authentication.md §1) is
+  // The unified token exchange's direct OIDC login path is
   // reached by the browser with no prior credential - AuthenticationFilter still RUNS for this
   // path (so proxy-forwarded identity is picked up when present), it just no longer 401s when it
   // resolves nothing; permitAll here is what lets that unauthenticated request continue to the

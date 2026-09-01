@@ -60,7 +60,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   //  private static final String X_SLACK_TIMESTAMP = "X-Slack-Request-Timestamp";
   private static final String PATH_ACTIVATE = "/api/v2/activate";
   private static final String PATH_PROFILE = "/api/v2/profile";
-  // The unified token exchange (specifications/authentication.md §1) is now, alongside
+  // The unified token exchange (PATH_AUTH_EXCHANGE) is now, alongside
   // PATH_PROFILE/PATH_ACTIVATE, a valid first call for a brand-new proxy-identified caller - so it
   // gets the same allowActivation/allowUserCreation treatment below. It is ALSO the one path this
   // filter must not reject with a 401 when it resolves no identity at all: the direct OIDC login
@@ -142,8 +142,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
   /*
    * Extracts the opaque bfs_ value from the session cookie (SessionCookie.NAME), if present - the
-   * additional identity source minted by POST /api/v2/auth/exchange (specifications/authentication.md
-   * §1), added alongside the existing branches above, never in place of them.
+   * additional identity source minted by POST /api/v2/auth/exchange, added alongside the existing
+   * branches above, never in place of them.
    */
   private String getSessionCookieValue(HttpServletRequest request) {
     Cookie[] cookies = request.getCookies();

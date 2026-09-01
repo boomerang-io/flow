@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseCookie;
 
 /**
- * The session cookie's attributes are ruled, not incidental (specifications/authentication.md
- * §1): httpOnly + Secure + SameSite=Lax, carrying only the opaque value - never permissions.
+ * The session cookie's attributes are part of the contract, not incidental: httpOnly + Secure +
+ * SameSite=Lax, carrying only the opaque value - never permissions.
  */
 class SessionCookieTest {
 

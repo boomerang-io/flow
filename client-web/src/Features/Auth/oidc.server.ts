@@ -1,5 +1,5 @@
 /*
- * Server-side OIDC sign-in (specifications/authentication.md, maintainer ruling 2026-08-31): the
+ * Server-side OIDC sign-in: the
  * PKCE dance runs here in route action/loader halves via remix-auth v4 + remix-auth-oauth2 v3
  * (Arctic underneath) - the browser only ever sees the authorize redirect and the final
  * Set-Cookie relay, so the id_token and code_verifier never reach it. Java stays the verifier

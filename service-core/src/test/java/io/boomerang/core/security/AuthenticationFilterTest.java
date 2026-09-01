@@ -27,8 +27,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 
 /**
- * The session cookie as an identity source, and the structured-401 fix (specifications/authentication.md
- * §1/§5): AuthenticationFilter must not disturb its existing header-based branches, must accept
+ * The session cookie as an identity source, and the structured 401: AuthenticationFilter must
+ * not disturb its existing header-based branches, must accept
  * SessionCookie.NAME as an additional source, and must route an unresolved identity through the
  * delegated entry point EXCEPT on the exchange endpoint's own path, which it must let through
  * unauthenticated (the OIDC login body verifies itself).

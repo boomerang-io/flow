@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /*
- * The unified token exchange (specifications/authentication.md §1/§2/§5): a single endpoint, two
+ * The unified token exchange (see specifications/authorization.md): a single endpoint, two
  * identity sources (an authenticating proxy's already-resolved principal, or a direct OIDC
  * id_token), converging on the same session-minting path. Delivered as an httpOnly, Secure,
  * SameSite=Lax cookie carrying only the opaque bfs_<uuid> value - never permissions, which stay
