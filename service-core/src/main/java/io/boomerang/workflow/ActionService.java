@@ -216,6 +216,15 @@ public class ActionService {
     if (actionEntity.isEmpty()) {
       throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
     }
+    // Same scoping as action(): the caller must reach the Action's Workflow. The refusal is the
+    // same error as not-found, so the response does not disclose whether the id exists.
+    if (!relationshipService.check(
+        RelationshipType.WORKFLOW,
+        actionEntity.get().getWorkflowRef(),
+        Optional.empty(),
+        Optional.empty())) {
+      throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
+    }
     return this.convertToAction(actionEntity.get());
   }
 
