@@ -1,6 +1,6 @@
 # Framework-vs-Rolled-Own Review — Fix Wave and Follow-On Wave
 
-**Status: 🔵 ACTIVE (opened 2026-09-01, branch `feat-v5-framework-wave`, worktree off `feat-v5-track10`).**
+**Status: 🟢 FIX WAVE COMPLETE (2026-09-01, branch `feat-v5-framework-wave`, worktree off `feat-v5-track10`, unmerged, not pushed). Follow-on wave (§3) not started; A7/A8/A10/A11/A16 await the maintainer’s decision on the proposals; C4 awaits an answer.**
 
 Source: the 2026-08-31 review of industry frameworks vs hand-rolled implementations. Every item below
 is dispositioned by the maintainer (2026-09-01). This file is the single tracker — update the Status
@@ -52,7 +52,7 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 | C4 | Duplicated validation regexes / vendored `isUrl` | `LabelModal.tsx`, `CustomLabel.tsx`, `Utils/isUrl.ts`, `Constants/index.ts:22` | Maintainer question: yup vs another validator? | ❓ AWAITING DECISION |
 | C5 | Two parallel route tables; unencoded query string | `Config/appConfig.ts:80,162,210` | Defer → **Web follow-on** | ⏸️ DEFERRED |
 | C6 | Ad-hoc `{ok, errorMessage}` action envelope (47 reads / 30 files) | route `action`s + call sites | Fix — new `Utils/actionResult.ts` (`ActionError`, `isActionError`, `actionError` over React Router `data()`); success returns the payload, failure returns `data(..., {status:400})` so the route stays mounted; 11 cluster commits `3cbb77be0`…`84cf1740f`. Out of scope: schedules cluster (still react-query `useMutation`), `Settled`/`settle` loader helper (not an action envelope) | ✅ DONE |
-| C7 | Global `rtl*Render` test wrappers instead of `createRoutesStub` | `src/setupTests.tsx:134-137,192,228,298-301` | Fix | 🟡 IN PROGRESS |
+| C7 | Global `rtl*Render` test wrappers instead of `createRoutesStub` | `src/setupTests.tsx:134-137,192,228,298-301` | Fix — `Utils/testing/render.tsx` (`renderWithRouter`/`renderWithContext` on `createRoutesStub`); 49 specs migrated, `setupTests.tsx` −143 lines, ESLint globals removed; 6 commits `5985a7563`…`982613c8b` | ✅ DONE |
 | C8 | `MutationObserver` modal detection | `src/Hooks/useIsModalOpen.ts`, `useMutationObserver.ts` | Fix — hook had 0 consumers and nothing ever set the class; deleted | ✅ DONE `5c49727a5` |
 | C9 | Permission wildcard matcher written twice | `Utils/permissionHelper.tsx:36-45`, `CreateToken/Form/PermissionSelector.tsx:45-58` | Fix | ✅ DONE `f7e50effd` |
 
@@ -74,3 +74,4 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 - 2026-09-01 — `framework-review-proposals.md` complete: A7/A8/A11 (`bbd2fd5fd`) + A9/A10/A16. Two new live bugs surfaced by the before/after passes and NOT yet fixed (awaiting the maintainer's call on A10/A11): `UserService.java:386` (`ids=` filter inert) and `TokenService.java:507` (counts `ActionEntity`).
 - 2026-09-01 — backend fix set complete: service-core 303 tests / 0 failures (full module), dispatcher 30/0. Pre-existing quirk noted, not touched: `runScheduledWorkflow` removes param `workflowId` but reads `workflowRef`.
 - 2026-09-01 — C6 landed (11 commits; `ok:` literals 206 → 21 residue, all out-of-scope; TZ=UTC vitest 281/281, tsc 27, build 0). C7 started.
+- 2026-09-01 — C7 landed; fix wave complete. Final gates: service-core 303/0, service-dispatcher 30/0, client-web TZ=UTC vitest 281/281, tsc 27 (baseline), build exit 0. Stale doc noted: CLAUDE.md’s T8 note “21 redundant `revalidate()` of 25” — 6 call sites remain on this branch, each justified in-file.
