@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.validation.ResourceName;
 import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.entity.TaskEntity;
 import io.boomerang.common.entity.TaskRevisionEntity;
@@ -87,7 +88,7 @@ public class TaskService {
 
   private static final String CHANGELOG_INITIAL = "Initial Task Template";
   private static final String CHANGELOG_UPDATE = "Updated Task Template";
-  private static final String NAME_REGEX = "^([0-9a-zA-Z\\-]+)$";
+  private static final String NAME_REGEX = ResourceName.REGEX;
   private static final String ANNOTATION_GENERATION = "4";
   private static final String ANNOTATION_KIND = "Task";
 
