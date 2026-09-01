@@ -9,6 +9,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { RunPhase, RunStatus, TaskRun, WorkflowCanvas, WorkflowRun as WorkflowRunType, WorkflowStatus } from "Types";
 import { HttpMethod } from "Constants";
 import WorkflowExecutionContainer, { action, loader, type RunActionIntent } from "./WorkflowRun";
+import { isActionError } from "Utils/actionResult";
 
 const workspace = "tyson-workspace";
 const workflowName = "test-workflow";
@@ -222,7 +223,7 @@ describe("WorkflowRun --- action", () => {
 
       const result = await submit({ intent });
 
-      expect(result).toEqual({ ok: true, intent });
+      expect(result).toEqual({ intent });
       expect(captured).toEqual([{ path, method, body: "" }]);
     });
   });
@@ -237,7 +238,7 @@ describe("WorkflowRun --- action", () => {
       comments: "Looks good to me",
     });
 
-    expect(result).toEqual({ ok: true, intent: "action" });
+    expect(result).toEqual({ intent: "action" });
     expect(captured).toHaveLength(1);
     expect(captured[0].path).toBe(serviceUrl.workspace.action.putAction({ workspace }));
     expect(captured[0].method).toBe(HttpMethod.Put);
@@ -259,12 +260,14 @@ describe("WorkflowRun --- action", () => {
   it("rejects an unrecognised intent without issuing any request", async () => {
     const captured = captureRequests();
 
-    const result = await submit({ intent: "explode" });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await submit({ intent: "explode" })) as unknown as { data: { intent: string; error: unknown } };
 
-    expect(result).toEqual({
-      ok: false,
+    expect(result.data).toEqual({
       intent: "explode",
-      errorMessage: { title: "Something's wrong", message: "Unrecognised request" },
+      error: { title: "Something's wrong", message: "Unrecognised request" },
     });
     expect(captured).toHaveLength(0);
   });
@@ -276,12 +279,14 @@ describe("WorkflowRun --- action", () => {
       ),
     );
 
-    const result = await submit({ intent: "retry" });
+    const result = (await submit({ intent: "retry" })) as unknown as {
+      data: { intent: string; error: { title: string; message: string } };
+    };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("retry");
-    expect(result.errorMessage?.title).toEqual(expect.any(String));
-    expect(result.errorMessage?.message).toEqual(expect.any(String));
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("retry");
+    expect(result.data.error.title).toEqual(expect.any(String));
+    expect(result.data.error.message).toEqual(expect.any(String));
   });
 
   it("returns a formatted error rather than throwing when the action submission fails", async () => {
@@ -291,10 +296,12 @@ describe("WorkflowRun --- action", () => {
       ),
     );
 
-    const result = await submit({ intent: "action", actionId: "action-abc", approved: "true" });
+    const result = (await submit({ intent: "action", actionId: "action-abc", approved: "true" })) as unknown as {
+      data: { intent: string; error: { message: string } };
+    };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("action");
-    expect(result.errorMessage?.message).toEqual(expect.any(String));
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("action");
+    expect(result.data.error.message).toEqual(expect.any(String));
   });
 });

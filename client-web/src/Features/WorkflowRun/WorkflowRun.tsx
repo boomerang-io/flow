@@ -23,6 +23,7 @@ import {
   WorkflowReactFlowInstance,
   WorkflowRun,
 } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
 import WorkflowActions from "./WorkflowActions";
@@ -170,11 +171,7 @@ export async function loader({
 
 export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "finalize" | "action";
 
-export type ActionResult = {
-  ok: boolean;
-  intent: RunActionIntent;
-  errorMessage?: { title: string; message: string };
-};
+export type ActionResult = { intent: RunActionIntent } | ({ intent: RunActionIntent } & ActionError);
 
 const RUN_INTENT_REQUESTS: Record<
   Exclude<RunActionIntent, "action">,
@@ -200,7 +197,7 @@ export async function action({
 }: {
   params: { workspace?: string; runId?: string };
   request: Request;
-}): Promise<ActionResult> {
+}) {
   const workspace = String(params.workspace);
   const id = String(params.runId);
   const formData = await request.formData();
@@ -218,30 +215,28 @@ export async function action({
     ];
     try {
       await api({ url: serviceUrl.workspace.action.putAction({ workspace }), data: body, method: HttpMethod.Put });
-      return { ok: true, intent };
+      return { intent };
     } catch (error) {
-      return {
-        ok: false,
+      return actionError({
         intent,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Request to submit the action failed" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Request to submit the action failed" }),
+      });
     }
   }
 
   const requestConfig = RUN_INTENT_REQUESTS[intent as Exclude<RunActionIntent, "action">];
   if (!requestConfig) {
-    return { ok: false, intent, errorMessage: { title: "Something's wrong", message: "Unrecognised request" } };
+    return actionError({ intent, error: { title: "Something's wrong", message: "Unrecognised request" } });
   }
 
   try {
     await api({ url: requestConfig.url({ workspace, id }), method: requestConfig.method });
-    return { ok: true, intent };
+    return { intent };
   } catch (error) {
-    return {
-      ok: false,
+    return actionError({
       intent,
-      errorMessage: formatErrorMessage({ error, defaultMessage: `Failed to ${intent} this run` }),
-    };
+      error: formatErrorMessage({ error, defaultMessage: `Failed to ${intent} this run` }),
+    });
   }
 }
 
