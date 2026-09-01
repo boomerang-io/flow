@@ -28,12 +28,17 @@ import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
+import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobStatus;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -315,11 +320,18 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
  * Pins the reconcile loop: the watch never delivers a terminating event in these tests (the
  * terminal state is written to the mock server before the watch is opened), so every case is
  * resolved by the label-list poll on a one-second {@code kube.timeout.reconcileSeconds}.
+ * {@code kube.timeout.failedConditionGraceSeconds} is likewise cut down to two seconds so the
+ * JobFailed-fallback test doesn't wait out the sixty-second production default.
  */
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = {"dispatcher.executor=kube-jobs", "kube.timeout.reconcileSeconds=1"})
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "kube.timeout.reconcileSeconds=1",
+      "kube.timeout.failedConditionGraceSeconds=2"
+    })
 class KubeJobsExecutorReconcileTest {
 
   KubernetesClient client;
@@ -355,7 +367,10 @@ class KubeJobsExecutorReconcileTest {
   }
 
   @Test
-  public void testWatchReconcilesAGenericJobFailureAsJobFailed() throws Exception {
+  public void testWatchFallsBackToJobFailedAfterGraceElapsesWithNoCondition() throws Exception {
+    // status.failed=1 with no Failed condition ever showing up (the Job controller crashed
+    // before writing one, say) - after kube.timeout.failedConditionGraceSeconds the watch must
+    // stop waiting and report the generic JobFailed rather than hang forever.
     TaskRun task = task("taskrun-reconcile-failed");
     kubeJobsExecutor.create(task, 30L);
 
@@ -368,6 +383,48 @@ class KubeJobsExecutorReconcileTest {
     TaskExecutionException ex =
         assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
     assertEquals("JobFailed", ex.getStatusReason());
+  }
+
+  @Test
+  public void testWatchWaitsForFailedConditionThenReportsDeadlineExceeded() throws Exception {
+    // status.failed=1 alone must NOT be terminal: the Job controller writes that count before it
+    // writes the Failed condition and its real reason. The watch must still be waiting after one
+    // reconcile interval, and only resolve - as DeadlineExceeded, not the generic JobFailed - once
+    // the condition arrives.
+    TaskRun task = task("taskrun-reconcile-deadline");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<TaskExecutionException> future =
+          executor.submit(
+              () -> assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L)));
+
+      // Longer than one reconcile interval (1s), shorter than the grace (2s): the count alone
+      // must not have resolved the watch yet.
+      Thread.sleep(1500);
+      assertFalse(future.isDone());
+
+      JobCondition failedCondition = new JobCondition();
+      failedCondition.setType("Failed");
+      failedCondition.setStatus("True");
+      failedCondition.setReason("DeadlineExceeded");
+      failedCondition.setMessage("Job was active longer than specified deadline");
+      status.setConditions(List.of(failedCondition));
+      created.setStatus(status);
+      client.batch().v1().jobs().resource(created).updateStatus();
+
+      TaskExecutionException ex = future.get(10, TimeUnit.SECONDS);
+      assertEquals("DeadlineExceeded", ex.getStatusReason());
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   @Test

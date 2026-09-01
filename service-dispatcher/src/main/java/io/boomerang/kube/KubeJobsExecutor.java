@@ -85,6 +85,9 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Value("${kube.timeout.reconcileSeconds}")
   private long reconcileSeconds;
 
+  @Value("${kube.timeout.failedConditionGraceSeconds}")
+  private long failedConditionGraceSeconds;
+
   @Value("${kube.image.pullPolicy}")
   private String kubeImagePullPolicy;
 
@@ -367,7 +370,7 @@ public class KubeJobsExecutor implements TaskExecutor {
             task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
 
     final CountDownLatch latch = new CountDownLatch(1);
-    JobWatcher jobWatcher = new JobWatcher(latch);
+    JobWatcher jobWatcher = new JobWatcher(latch, Duration.ofSeconds(failedConditionGraceSeconds));
     Watch watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
 
     try {
