@@ -8,12 +8,12 @@
 # integrations, the dispatcher, and direct API use. No extra web servers locally.
 #
 # service-dispatcher is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
-# cluster (see CLAUDE.md's Technology Stack table) - there is no docker-based dispatcher yet
-# (that's Phase 4 / T7 territory). Without a cluster to talk to, an agent container here would
+# cluster (see specifications/task-runtime.md) - there is no docker-based dispatcher yet
+# (a local runtime is planned but not built). Without a cluster to talk to, an agent container here would
 # just crash-loop for zero E2E value: every journey this stack can prove (create a workspace,
 # create a workflow, submit a run and see it reach a real `ready`/`invalid` status, exercise an
 # admin screen) resolves entirely inside service-core. Only reaching `running`/`succeeded` on a
-# run needs a connected agent - out of scope until Phase 4 ships a local runtime.
+# run needs a connected agent - out of scope until a local runtime exists.
 #
 # service-core and service-loader are Java services built by Maven, NOT by this compose file.
 # Build the jars first, then build/run the stack:
@@ -33,7 +33,7 @@
 # directory in alongside client-web/server (the Express server wrapping the SSR handler).
 #
 # Security posture: this stack runs SECURED (FLOW_SECURITY_ENABLED=true). The login flow is the
-# real product flow (specifications/authentication.md): the unauthenticated bootstrap lands on
+# real product flow (specifications/authorization.md): the unauthenticated bootstrap lands on
 # the signed-out page, Sign in POSTs to /auth/signin where the SSR server runs the remix-auth
 # code flow (PKCE) against the local IDPZero service below,
 # POST /api/v2/auth/exchange verifies the id_token via JWKS and mints the httpOnly flow_session
@@ -84,10 +84,10 @@ services:
   #     curl, and Playwright all reach it with zero /etc/hosts edits;
   #   - container side: the `idp.localhost` network alias below makes Docker's DNS resolve the
   #     same name to this container for service-core.
-  # ARCHIE never hits this problem (it runs idpzero as a host binary with issuer
+  # A reference codebase never hits this problem (it runs idpzero as a host binary with issuer
   # http://localhost:4379, and its backend also runs on the host); containerising both sides is
   # what forces the shared-hostname trick. Port 4380 rather than idpzero's usual 4379 for the
-  # same reason: a developer with ARCHIE's host-run `idpzero serve` still up already owns
+  # same reason: a developer with that codebase's host-run `idpzero serve` still up already owns
   # *:4379, and that host process would silently shadow this container's published port.
   # The browser's discovery/token fetches are cross-origin
   # (page origin localhost:3000 -> idp.localhost:4380) - fine, because idpzero's underlying
