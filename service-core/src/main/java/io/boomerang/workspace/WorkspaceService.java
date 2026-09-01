@@ -276,6 +276,9 @@ public class WorkspaceService {
       if (request.getStatus() != null) {
         workspaceEntity.setStatus(request.getStatus());
       }
+      if (request.getType() != null) {
+        workspaceEntity.setType(request.getType());
+      }
       if (request.getExternalRef() != null && !request.getExternalRef().isBlank()) {
         workspaceEntity.setExternalRef(request.getExternalRef());
       }
