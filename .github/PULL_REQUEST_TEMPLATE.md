@@ -8,7 +8,7 @@ Closes #
 
 #### Testing / reviewing
 
-{{ how a reviewer can verify this — commands, screens, or the test that pins it }}
+{{ how a reviewer can verify this — commands, screens, or the test steps }}
 
 #### AI assistance
 
