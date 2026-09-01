@@ -1,27 +1,12 @@
-# Boomerang Flow — Design System Specification
+# Design system
 
 **Status**: 📎 Reference (Stable core, Evolving token/component inventory)
 **Basis**: IBM Carbon Design System v11 + the Boomerang theme + Boomerang Carbon add-ons.
 
-> This is different from ARCHIE (EY Motif) and cheer.dev. Boomerang Flow's design system is
+> This is not the design system of either reference codebase (EY Motif, cheer.dev). Boomerang Flow's design system is
 > **IBM Carbon** with the **Boomerang theme** layered on top and the **Boomerang Carbon
 > add-ons** component library. Do not import EY Motif or cheer.dev design tokens/components here.
 
-## Why this spec lives in a backend repo
-
-`flow.service.workflow` is the backend (Java/Spring). It ships **no** frontend today. The
-Boomerang Flow **UI lives in a separate repo, `flow.client.web`** (`boomerang.app.flow`), which
-is the authoritative implementation this spec is derived from.
-
-This document exists here so that:
-1. Any UI surface this project ever grows (an admin/console page, generated docs, an embedded
-   view) is consistent with Boomerang from the first line — not re-invented.
-2. The design system is a documented architectural reference alongside the other v5 specs.
-3. The `design-system` skill has a source of truth to enforce.
-
-**Source of truth for values**: the installed packages in `flow.client.web`
-(`@boomerang-io/styles`, `@boomerang-io/carbon-addons-boomerang-react`, `@carbon/react`). The
-ramps and tokens below are transcribed from there — when in doubt, read the package, not this file.
 
 ## Package stack (verified from `flow.client.web`)
 
@@ -190,7 +175,7 @@ Carbon's categorical palette.
 - Hand-roll navigation/modals/forms that the add-ons already provide.
 - Add a second UI or charting framework.
 
-## Browser support (AD004, 2020 — retained; moved here 2026-09-01 from the archived community decisions table)
+## Browser support
 
 Supported: Chrome, Firefox and Edge — the current version and the two previous versions. Safari
 has limited support. No version of Internet Explorer is supported. The build encodes a looser
@@ -199,9 +184,3 @@ rule than the words: `client-web/package.json:138-149` sets `browserslist` produ
 dead") and development to the last Chrome/Firefox/Safari version. Any narrowing SHOULD change
 that field, not this paragraph.
 
-## Open items (fill when UI work actually lands here)
-
-- Confirm the current `@boomerang-io/*` and `@carbon/react` versions at the time of use (the table
-  above is a point-in-time transcription from `flow.client.web` v3.12.0).
-- If this repo adds a UI, port `styles.scss` / `_carbon-components.scss` / `_variables.scss` from
-  `flow.client.web` rather than re-deriving them.
