@@ -117,6 +117,33 @@ describe("RunHeader --- RTL", () => {
   });
 });
 
+// #359: a schedule-fired run stamps the firing Schedule's id into initiatedByRef (Option A -
+// mirrors the retry path's convention, WorkflowRunService.java:930-936). The Schedules page has
+// no per-schedule focus route, so this deep-links its existing "workflows" filter instead.
+describe("RunHeader --- Initiated by", () => {
+  it("links a schedule-triggered run's initiatedByRef to its workflow's schedules", () => {
+    renderRunHeader({ trigger: "schedule", initiatedByRef: "651e4789ab1cb56bc8976af0" });
+
+    const link = screen.getByTestId("initiated-by-schedule-link");
+    expect(link).toHaveTextContent("651e4789ab1cb56bc8976af0");
+    expect(link).toHaveAttribute("href", `/${workspace}/schedules?workflows=${workflowName}`);
+  });
+
+  it("keeps a retried run's initiatedByRef as plain text, not a link", () => {
+    renderRunHeader({ trigger: "retry", initiatedByRef: "651e4789ab1cb56bc8976ae9" });
+
+    expect(screen.getByText("651e4789ab1cb56bc8976ae9")).toBeInTheDocument();
+    expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the robot glyph for a schedule-triggered run with no recorded initiatedByRef", () => {
+    renderRunHeader({ trigger: "schedule", initiatedByRef: undefined as unknown as string });
+
+    expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "robot" })).toBeInTheDocument();
+  });
+});
+
 // The Advanced detail modal builds the `kubectl`/`tkn` label selectors the user is invited to
 // paste into a terminal, so every value in them has to be real. workflow-ref came from a
 // `:workflow` route param that AppPath.Run (/:workspace/activity/:runId) does not supply, so the

@@ -9,6 +9,7 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TerminationMessageParser;
@@ -366,10 +367,13 @@ public class KubeJobsExecutor implements TaskExecutor {
       String reason = condition != null ? condition.getReason() : "Unknown";
       String message = condition != null ? condition.getMessage() : "Job did not report a terminal condition.";
       LOGGER.info("Task execution error. " + reason + " - " + message);
+      // The container may have written its Result Parameters to the termination log before it
+      // exited non-zero; carry them so a failed Task's output still reaches the Engine.
+      List<RunResult> failureResults = readResults(taskLabels, task.getResults());
       if ("DeadlineExceeded".equals(reason)) {
-        throw new BoomerangException(BoomerangError.TASK_EXECUTION_ERROR, "DeadlineExceeded - " + message);
+        throw new TaskExecutionException(failureResults, "DeadlineExceeded - " + message);
       }
-      throw new BoomerangException(BoomerangError.TASK_EXECUTION_ERROR, reason + " - " + message);
+      throw new TaskExecutionException(failureResults, reason + " - " + message);
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;

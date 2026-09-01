@@ -8,11 +8,14 @@ import static org.mockito.Mockito.when;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionType;
 import io.boomerang.common.model.Actioner;
+import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.Workflow;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.http.ResponseEntity;
 
 /**
  * With no current USER, actioning a manual/approval task must not NPE on the approver identity -
@@ -144,5 +148,41 @@ class ActionServiceTest {
     actionService.action("team1", List.of(request));
 
     assertThat(entity.getActioners()).isEmpty();
+  }
+
+  // #378: the Actions table must show the Workflow's display name, resolved fresh at
+  // retrieval (never stored on ActionEntity) since it can change after the Action is created.
+  @Test
+  void getResolvesWorkflowNameFromDisplayName() {
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("my-workflow-slug");
+    workflow.setDisplayName("My Workflow");
+    when(workflowService.get("w1", Optional.empty(), false))
+        .thenReturn(ResponseEntity.ok(workflow));
+    when(engineTaskRunService.get(any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+
+    Action action = actionService.get("team1", "a1");
+
+    assertThat(action.getWorkflowName()).isEqualTo("My Workflow");
+  }
+
+  @Test
+  void getFallsBackToNameWhenDisplayNameIsBlank() {
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("my-workflow-slug");
+    workflow.setDisplayName(" ");
+    when(workflowService.get("w1", Optional.empty(), false))
+        .thenReturn(ResponseEntity.ok(workflow));
+    when(engineTaskRunService.get(any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+
+    Action action = actionService.get("team1", "a1");
+
+    assertThat(action.getWorkflowName()).isEqualTo("my-workflow-slug");
   }
 }

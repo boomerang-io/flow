@@ -562,6 +562,20 @@ public class WorkflowService {
    */
   public WorkflowRun submit(
       String team, String name, WorkflowSubmitRequest request, boolean start) {
+    return submit(team, name, request, start, null);
+  }
+
+  /*
+   * Submit Workflow to Run, internally stamping lineage
+   *
+   * initiatedByRef is NOT sourced from the request - WorkflowSubmitRequest is a public API model
+   * and lineage must not be spoofable by API callers. Callers that need it (e.g. ScheduleJob,
+   * with the firing Schedule's id) pass it directly; every other caller goes through the 4-arg
+   * overload above and gets null, matching prior behaviour.
+   */
+  public WorkflowRun submit(
+      String team, String name, WorkflowSubmitRequest request, boolean start,
+      String initiatedByRef) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -574,7 +588,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      return this.internalSubmit(team, refs.get(0), request, start);
+      return this.internalSubmit(team, refs.get(0), request, start, initiatedByRef);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -609,6 +623,17 @@ public class WorkflowService {
    */
   public WorkflowRun internalSubmit(
       String team, String workflowId, WorkflowSubmitRequest request, boolean start) {
+    return internalSubmit(team, workflowId, request, start, null);
+  }
+
+  /*
+   * Submit WorkflowRun Internally, internally stamping lineage - see submit(..., initiatedByRef)
+   *
+   * Caution: bypasses the authN and authZ and Relationship checks
+   */
+  public WorkflowRun internalSubmit(
+      String team, String workflowId, WorkflowSubmitRequest request, boolean start,
+      String initiatedByRef) {
     // Check if Workflow exists and is active. Then check triggers are enabled.
     // Presumed workflow exists as relationship was valid to get to this point.
     Workflow workflow = get(workflowId, Optional.empty(), false).getBody();
@@ -656,7 +681,7 @@ public class WorkflowService {
     executionAnnotations.put("boomerang.io/workspace-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
-    WorkflowRun wfRun = submit(workflowId, request, start);
+    WorkflowRun wfRun = submit(workflowId, request, start, initiatedByRef);
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -1713,6 +1738,17 @@ public class WorkflowService {
    * Trigger will be set to 'Engine' if empty
    */
   public WorkflowRun submit(String workflowId, WorkflowSubmitRequest request, boolean start) {
+    return submit(workflowId, request, start, null);
+  }
+
+  /*
+   * Queues the Workflow to be executed (and optionally starts the execution), internally
+   * stamping lineage - see submit(String, String, WorkflowSubmitRequest, boolean, String)
+   *
+   * Trigger will be set to 'Engine' if empty
+   */
+  public WorkflowRun submit(
+      String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {
     if (workflowId == null || workflowId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -1789,6 +1825,11 @@ public class WorkflowService {
       wfRunEntity.setTrigger("engine");
     } else {
       wfRunEntity.setTrigger(request.getTrigger().getTrigger());
+    }
+    // Lineage on the typed field: mirrors the retry path's convention (initiatedByRef + trigger
+    // together identify what caused this run). Internal-only - never sourced from the request.
+    if (initiatedByRef != null) {
+      wfRunEntity.setInitiatedByRef(initiatedByRef);
     }
     // Add System Generated Annotations
     Map<String, Object> annotations = new HashMap<>();
