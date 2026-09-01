@@ -32,29 +32,29 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 | A12 | Non-thread-safe `HashMap` cache | `core/audit/AuditInterceptor.java:34,167,187` | Defer → **Cache** | ⏸️ DEFERRED |
 | A13 | JWKS cache without TTL/rotation | `core/security/OidcTokenVerifier.java:60-62,133-153` | Defer → **Cache** | ⏸️ DEFERRED |
 | A14 | Two hardcoded 200-thread pools beside virtual threads | `core/config/AsyncConfiguration.java`, `engine/config/AsyncConfig.java` | Defer → **Threads** | ⏸️ DEFERRED |
-| A15 | 3 JSON libraries / 2 Jackson majors / ad-hoc `new ObjectMapper()` | event models, `WebhookEventService`, `GenericStatusEvent`, dispatcher Gson sites | Fix | 🟡 IN PROGRESS |
+| A15 | 3 JSON libraries / 2 Jackson majors / ad-hoc `new ObjectMapper()` | event models, `WebhookEventService`, `GenericStatusEvent`, dispatcher Gson sites | Fix | 🟡 dispatcher half ✅ `92e6bc35d` `db5a2815b` (gson removed from dispatcher pom); core half in progress |
 | A16 | Reflective `ConvertUtil` + 47 `BeanUtils.copyProperties` | `workflow/ConvertUtil.java:35-52` | Show before/after | 📝 PROPOSED |
 | A17 | `Watcher` + `CountDownLatch` per task; `System.exit(1)` on watch close | `TektonServiceImpl.java:509-537`, `KubeJobsExecutor.java:348-356`, `TaskWatcher.java:109-114` | Defer → **Threads** | ⏸️ DEFERRED |
-| A18 | Loki client bypasses `RestConfig`; raw `HttpClients.createDefault()` | `service-dispatcher/.../dispatcher/LogService.java:68-153` | GitHub issue, low priority | 🐙 GITHUB ISSUE boomerang-io/flow#322 |
+| A18 | Loki client bypasses `RestConfig`; raw `HttpClients.createDefault()` | `service-dispatcher/.../dispatcher/LogService.java:68-153` | GitHub issue, low priority | 🐙 boomerang-io/flow#322 |
 | A19 | Unencoded query string | `engine/LogClient.java:51-54` | Fix | 🟡 IN PROGRESS |
 | A20 | `java.util.Calendar` + `Calendar.HOUR` (12-hour) | `engine/TaskExecutionService.java:856-882` | Fix (G1: one method, own commit) | 🟡 IN PROGRESS |
 | A21 | `@Async` on a private self-called method | `service-dispatcher/.../dispatcher/TaskService.java:102-109` | Defer → **Threads** | ⏸️ DEFERRED |
-| A22 | Manual stream-copy loops; manual hex | `KubeLogService.java:96-119`, `LogClient.java:88-93`, `TokenService.java:374-392` | Fix | 🟡 IN PROGRESS |
+| A22 | Manual stream-copy loops; manual hex | `KubeLogService.java:96-119`, `LogClient.java:88-93`, `TokenService.java:374-392` | Fix | 🟡 `KubeLogService` ✅ `ef77e1bef` (also fixed the `> 0` zero-read early-stop); core half in progress |
 | A23 | Unused `spring-retry` dependency | `service-core/pom.xml:193-197` | Fix | 🟡 IN PROGRESS |
 
 ## 2. Web client (section C of the review)
 
 | # | Concern | Where | Disposition | Status |
 |---|---|---|---|---|
-| C1 | `lodash` imported at 36 sites, undeclared | `client-web/package.json` | Fix | 🟡 IN PROGRESS |
-| C2 | Dead imports of uninstalled packages (`react-tracked`, `axios-mock-adapter`) | `src/State/reducers/{app,editor}.ts`, `src/Utils/{mocks,testing}/axios.ts`, `src/Utils/testing/context.tsx` | Fix | 🟡 IN PROGRESS |
-| C3 | Four hand-written duration/date formatters beside `moment` | `src/Utils/dateHelper.ts`, `timeHelper.ts`, `timeSecondsToTimeUnit.ts` | Fix | 🟡 IN PROGRESS |
+| C1 | `lodash` imported at 36 sites, undeclared | `client-web/package.json` | Fix | ✅ DONE `b3db7f304` |
+| C2 | Dead imports of uninstalled packages (`react-tracked`, `axios-mock-adapter`) | `src/State/reducers/{app,editor}.ts`, `src/Utils/{mocks,testing}/axios.ts`, `src/Utils/testing/context.tsx` | Fix (`Utils/index.ts` kept — 7 live importers via the `Utils` vite alias) | ✅ DONE `03c4978e3` |
+| C3 | Four hand-written duration/date formatters beside `moment` | `src/Utils/dateHelper.ts`, `timeHelper.ts`, `timeSecondsToTimeUnit.ts` | Fix — characterisation spec (44 cases) pinned outputs before and after | ✅ DONE `6369ba9b0` |
 | C4 | Duplicated validation regexes / vendored `isUrl` | `LabelModal.tsx`, `CustomLabel.tsx`, `Utils/isUrl.ts`, `Constants/index.ts:22` | Maintainer question: yup vs another validator? | ❓ AWAITING DECISION |
 | C5 | Two parallel route tables; unencoded query string | `Config/appConfig.ts:80,162,210` | Defer → **Web follow-on** | ⏸️ DEFERRED |
 | C6 | Ad-hoc `{ok, errorMessage}` action envelope (47 reads / 30 files) | route `action`s + call sites | Fix | 🟡 IN PROGRESS |
 | C7 | Global `rtl*Render` test wrappers instead of `createRoutesStub` | `src/setupTests.tsx:134-137,192,228,298-301` | Fix | 🟡 IN PROGRESS |
-| C8 | `MutationObserver` modal detection | `src/Hooks/useIsModalOpen.ts`, `useMutationObserver.ts` | Fix | 🟡 IN PROGRESS |
-| C9 | Permission wildcard matcher written twice | `Utils/permissionHelper.tsx:36-45`, `CreateToken/Form/PermissionSelector.tsx:45-58` | Fix | 🟡 IN PROGRESS |
+| C8 | `MutationObserver` modal detection | `src/Hooks/useIsModalOpen.ts`, `useMutationObserver.ts` | Fix — hook had 0 consumers and nothing ever set the class; deleted | ✅ DONE `5c49727a5` |
+| C9 | Permission wildcard matcher written twice | `Utils/permissionHelper.tsx:36-45`, `CreateToken/Form/PermissionSelector.tsx:45-58` | Fix | ✅ DONE `f7e50effd` |
 
 ## 3. Follow-on wave (deferred, grouped)
 
@@ -69,3 +69,5 @@ Gates: **G1** — this wave touches `TaskExecutionService` in exactly one method
 
 - 2026-09-01 — A18 raised as boomerang-io/flow#322.
 - 2026-09-01 — wave opened; dispositions recorded; worktree `../flow.service.workflow-framework-wave` on `feat-v5-framework-wave`.
+- 2026-09-01 — batch 1 landed: dispatcher (3 commits, 30/30 tests), client-web C1/C2/C3/C8/C9 (gates: vitest 273 passed / 8 pre-existing TZ snapshot failures, tsc 27 unchanged, build exit 0). Hygiene note: `92e6bc35d` (dispatcher) swept up 4 staged client-web deletions belonging to C3/C8 via a broad `git add`; tree state is correct, attribution is not. Not rewritten (agents live on the branch).
+- 2026-09-01 — C4 answer: `yup` is a **peer dependency of `@boomerang-io/carbon-addons-boomerang-react`** (`formik ^2.4.6`, `yup >=0.32.11`), so it is pinned by the forms/add-ons stack, not a free choice; no spec records a move to another validator.
