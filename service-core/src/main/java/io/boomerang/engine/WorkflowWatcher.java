@@ -135,6 +135,7 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
   }
 
@@ -331,33 +332,58 @@ public class WorkflowWatcher {
           if (dispatcherRef == null || isDispatcherLive(dispatcherRef)) {
             return;
           }
-          Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
-          int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
-          if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
-            if (taskRunService.tryRequeue(
-                    taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
-                != null) {
-              LOGGER.info(
-                  "[{}] Claimant {} is gone. Requeued as attempt {}.",
-                  taskRun.getId(),
-                  dispatcherRef,
-                  attempts + 1);
-            }
-          } else if (taskRunService.tryAbandon(
-                  taskRun.getId(),
-                  observedSeq,
-                  MessageFormatter.format(
-                          "The claimant {} is no longer registered.", dispatcherRef)
-                      .getMessage())
-              != null) {
-            LOGGER.info(
-                "[{}] Claimant {} is gone. Retry budget exhausted.", taskRun.getId(), dispatcherRef);
-            taskExecutionService.end(taskRun.getId());
-          }
+          requeueOrAbandon(
+              taskRun,
+              MessageFormatter.format("The claimant {} is no longer registered.", dispatcherRef)
+                  .getMessage(),
+              "DispatcherGone");
         },
         (taskRun, ex) ->
             LOGGER.error(
                 "[{}] Stale-dispatcher reap failed: {}", taskRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * Reap TaskRuns whose lease has expired - a dispatcher that heartbeated at least once and then
+   * went quiet without its registration itself going stale (that case is {@link
+   * #reapClaimsFromGoneDispatchers}). Same crash-recovery treatment: a requeueable task with
+   * retry budget left is requeued; otherwise it is abandoned and driven through the normal end
+   * path.
+   */
+  public void reapExpiredLeases() {
+    SweepRunner.forEachIsolated(
+        taskRunService.findLeaseExpired(PAGE_SIZE),
+        taskRun ->
+            requeueOrAbandon(
+                taskRun,
+                MessageFormatter.format(
+                        "The claimant {}'s lease expired.",
+                        taskRun.getClaim() != null ? taskRun.getClaim().getBy() : null)
+                    .getMessage(),
+                "LeaseExpired"),
+        (taskRun, ex) ->
+            LOGGER.error("[{}] Lease-expiry reap failed: {}", taskRun.getId(), ex.getMessage()));
+  }
+
+  // Shared crash-recovery treatment for a TaskRun whose claimant is confirmed gone (dispatcher
+  // deregistered/stale, or its lease lapsed): a requeueable task with retry budget left is
+  // requeued for another attempt; otherwise it is abandoned (terminal timedout) and driven
+  // through the normal end path. statusReason records which of the two triggered the reap.
+  private void requeueOrAbandon(TaskRunEntity taskRun, String statusMessage, String statusReason) {
+    Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
+    int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
+    if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
+      if (taskRunService.tryRequeue(
+              taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+          != null) {
+        LOGGER.info(
+            "[{}] {} Requeued as attempt {}.", taskRun.getId(), statusMessage, attempts + 1);
+      }
+    } else if (taskRunService.tryAbandon(taskRun.getId(), observedSeq, statusMessage, statusReason)
+        != null) {
+      LOGGER.info("[{}] {} Retry budget exhausted.", taskRun.getId(), statusMessage);
+      taskExecutionService.end(taskRun.getId());
+    }
   }
 
   private boolean isDispatcherLive(String dispatcherRef) {

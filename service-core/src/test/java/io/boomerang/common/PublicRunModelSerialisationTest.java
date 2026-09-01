@@ -39,6 +39,10 @@ class PublicRunModelSerialisationTest {
   /**
    * Internal execution-state fields that live on the entities and MUST NOT appear on either public
    * model. A regression here is a genuine contract break, not a judgement call.
+   *
+   * <p>{@code statusReason} is deliberately NOT in this set: like {@code statusMessage}, it is a
+   * public field (the closed-set typed cause paired with the human-readable message), not
+   * execution state - so it is expected to serialise on both models.
    */
   private static final Set<String> FORBIDDEN_EXECUTION_STATE =
       Set.of(

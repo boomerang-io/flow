@@ -100,6 +100,10 @@ class PayloadCapTest extends AbstractEngineIntegrationTest {
     assertTrue(
         after.getResults() == null || after.getResults().isEmpty(),
         "the oversize results must not be persisted; got: " + after.getResults());
+    assertEquals(
+        "ResultsTooLarge",
+        after.getStatusReason(),
+        "the typed cause must record why the task failed, alongside the human message");
   }
 
   private TaskRunEntity current(String id) {

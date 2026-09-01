@@ -455,6 +455,39 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
+  // Renew the lease on the ids this dispatcher still owns, fenced on claim.by so ids the caller
+  // does not own are silently skipped. A dispatcher's first heartbeat for a TaskRun CREATES its
+  // lease - tryClaim never sets one - opting the dispatcher into lease-based reaping.
+  public long renewLeases(List<String> ids, String by, Date until) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .in(ids)
+                .and("claim.by")
+                .is(by)
+                .and("phase")
+                .in(RunPhase.queued, RunPhase.running));
+    Update update = new Update().set("claim.leaseExpiresAt", until);
+    return mongoTemplate.updateMulti(query, update, TaskRunEntity.class).getModifiedCount();
+  }
+
+  // Return the page of TaskRuns whose lease has expired - a dispatcher that heartbeated at least
+  // once and then went quiet without deregistering (reapClaimsFromGoneDispatchers only catches a
+  // dispatcher whose registration itself is gone/stale). Oldest lease first.
+  public List<TaskRunEntity> findLeaseExpired(int limit) {
+    Criteria criteria =
+        Criteria.where("claim.leaseExpiresAt")
+            .lte(new Date())
+            .and("phase")
+            .in(RunPhase.queued, RunPhase.running);
+    Query query =
+        Query.query(criteria)
+            .with(Sort.by(Sort.Direction.ASC, "claim.leaseExpiresAt"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
   // Return the page of currently-claimed TaskRuns, oldest claim first - the orphan backstop
   // checks each against dispatcher liveness directly, since a claimant that has disappeared is
   // invisible to the deadline-driven timeout reap until (or unless) its deadline arrives.
@@ -495,6 +528,7 @@ public class TaskRunService {
         new Update()
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
+            .set("statusReason", "DeadlineExceeded")
             .unset("timeoutAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
@@ -508,7 +542,8 @@ public class TaskRunService {
   // deadline reap (status timedout, deadline cleared) without requiring timeoutAt to have
   // elapsed - for a claimant confirmed gone ahead of (or absent) its own deadline. Fenced on the
   // observed claim seq. Returns the pre-image, or null when fenced out or already transitioned.
-  public TaskRunEntity tryAbandon(String id, Long observedClaimSeq, String statusMessage) {
+  public TaskRunEntity tryAbandon(
+      String id, Long observedClaimSeq, String statusMessage, String statusReason) {
     Criteria criteria =
         Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
     fence(criteria, observedClaimSeq);
@@ -516,6 +551,7 @@ public class TaskRunService {
         new Update()
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
+            .set("statusReason", statusReason)
             .unset("timeoutAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
@@ -740,6 +776,10 @@ public class TaskRunService {
               && !optRunRequest.get().getStatusMessage().isEmpty()) {
             taskRunEntity.setStatusMessage(optRunRequest.get().getStatusMessage());
           }
+          if (optRunRequest.get().getStatusReason() != null
+              && !optRunRequest.get().getStatusReason().isBlank()) {
+            taskRunEntity.setStatusReason(optRunRequest.get().getStatusReason());
+          }
           // addUniqueResults mutates the entity's list, so the pre-merge state must be copied for
           // the payload-cap rollback below.
           List<RunResult> priorResults =
@@ -771,6 +811,7 @@ public class TaskRunService {
                     + " bytes, exceeding the "
                     + resultsMaxBytes
                     + " byte cap. Pass large outputs by reference (workspace path or URI).");
+            taskRunEntity.setStatusReason("ResultsTooLarge");
           }
         }
         // Persist the request merge for the handler to re-read. The handler ignores an end

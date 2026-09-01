@@ -1,6 +1,7 @@
 package io.boomerang.dispatcher;
 
 import io.boomerang.common.model.DispatcherRegistrationRequest;
+import io.boomerang.common.model.HeartbeatRequest;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -94,6 +96,21 @@ public class DispatcherControllerV1 {
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id) {
     return dispatcherService.getTaskQueue(id);
+  }
+
+  @PutMapping(value = "/{id}/heartbeat")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @Operation(summary = "Renew the lease on the dispatcher's still-owned TaskRuns")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "No Content"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public void heartbeat(
+      @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
+          String id,
+      @RequestBody HeartbeatRequest request) {
+    dispatcherService.heartbeat(id, request.ids());
   }
 
   @PutMapping(value = "/workflowrun/{workflowRunId}/start")
