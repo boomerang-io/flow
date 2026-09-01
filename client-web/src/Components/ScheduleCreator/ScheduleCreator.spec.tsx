@@ -1,12 +1,16 @@
 import { http, HttpResponse } from "msw";
+import { Route } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import moment from "moment-timezone";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
+import { scheduleAction } from "Features/Schedules/scheduleRoute";
 import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type Workflow } from "Types";
 import ScheduleCreator from "./ScheduleCreator";
+
+const WORKSPACE = "test-workspace";
 
 // Built by hand rather than spreading the `workflows` ApiServer fixture: that fixture (untyped
 // .js, predating the webapp/API type alignment noted in CLAUDE.md) has several fields that don't
@@ -36,10 +40,10 @@ const workflow: Workflow = {
   workspaces: [],
 };
 
-// ScheduleCreator stays on react-query's useMutation (see the rationale comment at the top of its
-// component) - it's shared with WorkflowEditor/Schedule/Schedule.tsx, which this batch must not
-// touch. `useRevalidator()` was added alongside the existing mutation/invalidateQueries flow; these
-// tests exercise that the create flow still works end to end with both in place.
+// Route-module test pattern (see CreateWorkflow.spec.tsx): ScheduleCreator submits its create
+// through a bare useFetcher(), which resolves against whichever route is in context - here the
+// same `/:workspace/schedules` + scheduleAction shape app/routes/schedules.tsx wires up, so the
+// action's `params.workspace` read behaves as it does live.
 //
 // `includeWorkflowDropdown=false` with an explicit `workflow` prop mirrors how
 // WorkflowEditor/Schedule/Schedule.tsx renders this component (a single, already-known workflow,
@@ -47,25 +51,37 @@ const workflow: Workflow = {
 // supplied one way or the other.
 function renderCreator(overrides: Partial<React.ComponentProps<typeof ScheduleCreator>> = {}) {
   return global.rtlContextRouterRender(
-    <ScheduleCreator
-      getCalendarUrl="http://localhost/calendar"
-      getSchedulesUrl="http://localhost/schedules"
-      includeWorkflowDropdown={false}
-      isModalOpen
-      onCloseModal={() => {}}
-      workflow={workflow}
-      {...overrides}
+    <Route
+      path="/:workspace/schedules"
+      action={scheduleAction}
+      element={
+        <ScheduleCreator
+          includeWorkflowDropdown={false}
+          isModalOpen
+          onCloseModal={() => {}}
+          workflow={workflow}
+          {...overrides}
+        />
+      }
     />,
+    { route: `/${WORKSPACE}/schedules` },
   );
 }
 
+async function fillMinimumRunOnceForm() {
+  await userEvent.type(screen.getByLabelText("Name"), "Nightly Backup");
+  fireEvent.change(screen.getByLabelText("Date and Time"), {
+    target: { value: moment().add(1, "day").format(DATETIME_LOCAL_INPUT_FORMAT) },
+  });
+}
+
 describe("ScheduleCreator", () => {
-  // One test, not two: rendering the modal a second time in a fresh `test()` in this file
-  // reliably leaves ComposedModal/Carbon's Modal in a state where nothing (including the
-  // "Create"-schedule form and buttons) renders the second time round - a pre-existing quirk of
-  // this shared modal plumbing under jsdom, unrelated to the useRevalidator() addition being
-  // verified here. Covering both the initial render and the submit flow in one test sidesteps it.
-  test("renders the create-schedule modal and submits a new runOnce schedule", async () => {
+  // One flow per render, not one assertion per test: rendering the modal a second time in a
+  // fresh `test()` in this file reliably leaves ComposedModal/Carbon's Modal in a state where
+  // nothing renders the second time round - a pre-existing quirk of this shared modal plumbing
+  // under jsdom (see the `hidden: true` notes in ScheduleEditor.spec.tsx for the related
+  // aria-hidden symptom). Each test below therefore covers a whole submit flow.
+  test("submits a new runOnce schedule through the route action and closes on success", async () => {
     let createdBody: any;
     server.use(
       http.post(serviceUrl.workspace.schedule.postSchedule({ workspace: ":workspace" }), async ({ request }) => {
@@ -74,19 +90,18 @@ describe("ScheduleCreator", () => {
       }),
     );
 
-    renderCreator();
+    const onCloseModal = vi.fn();
+    renderCreator({ onCloseModal });
 
     expect(await screen.findByText("Create a Schedule")).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText("Name"), "Nightly Backup");
-    fireEvent.change(screen.getByLabelText("Date and Time"), {
-      target: { value: moment().add(1, "day").format(DATETIME_LOCAL_INPUT_FORMAT) },
-    });
+    await fillMinimumRunOnceForm();
 
     // Labels: the Creatable emits "key:value" strings, which handleSubmit converts to the
     // Record<string, string> the API takes. This block was commented out in the v4 import (and
     // the dead code inside called .length/.map on a Record), so labels silently never reached
-    // the API - the `labels` assertion below is what proves that fixed.
+    // the API - the `labels` assertion below is what proves that fixed (pinned behaviour, must
+    // survive the fetcher migration).
     await userEvent.type(screen.getByLabelText("Label key"), "level");
     await userEvent.type(screen.getByLabelText("Label value"), "important");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -95,10 +110,6 @@ describe("ScheduleCreator", () => {
     await waitFor(() => expect(createButton).toBeEnabled());
     await userEvent.click(createButton);
 
-    // notify() renders via react-toastify's `toast()`, which needs a <ToastContainer/> mounted
-    // somewhere in the tree to actually paint anything - none is wired up in this test harness
-    // (see setupTests.tsx), so toast content isn't observable here. `createdBody` is the
-    // meaningful assertion: it proves the mutation fired with the right payload.
     await waitFor(() =>
       expect(createdBody).toMatchObject({
         name: "Nightly Backup",
@@ -106,5 +117,47 @@ describe("ScheduleCreator", () => {
         labels: { level: "important" },
       }),
     );
+
+    // The await-contract rework's user-visible half: the modal closes only once the fetcher
+    // settles ok (ComposedModal's closeModal chains to onCloseModal). notify()'s toast isn't
+    // observable here (no ToastContainer in the harness - see setupTests.tsx).
+    await waitFor(() => expect(onCloseModal).toHaveBeenCalled());
+  });
+
+  test("keeps the modal open with the inline error on failure, then Try again succeeds", async () => {
+    let createdBody: any;
+    server.use(
+      http.post(serviceUrl.workspace.schedule.postSchedule({ workspace: ":workspace" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    const onCloseModal = vi.fn();
+    renderCreator({ onCloseModal });
+
+    expect(await screen.findByText("Create a Schedule")).toBeInTheDocument();
+
+    await fillMinimumRunOnceForm();
+
+    const createButton = await screen.findByRole("button", { name: "Create", hidden: true }, { timeout: 3000 });
+    await waitFor(() => expect(createButton).toBeEnabled());
+    await userEvent.click(createButton);
+
+    // Failure: inline notification, modal still open, button flips to "Try again" - the exact
+    // behaviour the old `await handleSubmit()` try/catch gave.
+    expect(await screen.findByText("Something's Wrong")).toBeInTheDocument();
+    expect(onCloseModal).not.toHaveBeenCalled();
+
+    server.use(
+      http.post(serviceUrl.workspace.schedule.postSchedule({ workspace: ":workspace" }), async ({ request }) => {
+        createdBody = await request.json();
+        return HttpResponse.json({ ...createdBody, id: "new-schedule" }, { status: 201 });
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Try again", hidden: true }));
+
+    await waitFor(() => expect(createdBody).toMatchObject({ name: "Nightly Backup", type: "runOnce" }));
+    await waitFor(() => expect(onCloseModal).toHaveBeenCalled());
   });
 });

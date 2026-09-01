@@ -16,6 +16,7 @@
 // optional/list argument is irrelevant to matching; and the query is used directly in the
 // matched requests
 import { http, HttpResponse, type HttpHandler } from "msw";
+import { resourceRoute } from "Config/resourceRoutes";
 import { serviceUrl, BASE_URL } from "Config/servicesConfig";
 import * as fixtures from "ApiServer/fixtures";
 import { db } from "./db";
@@ -71,6 +72,18 @@ async function putTaskResponse(name: string, request: Request) {
 }
 
 export const handlers: HttpHandler[] = [
+  /**
+   * Auth (specifications/authentication.md). The default config mode is "none" so every existing
+   * spec keeps today's behaviour (no sign-in surface, no silent exchange) - auth specs override
+   * these per-test with server.use(). The real /auth/config contract is exactly
+   * { mode: "oidc" | "proxy" | "none", issuer, clientId }; /auth/exchange responds 200 with a
+   * Set-Cookie (httpOnly - invisible to JS, so nothing to mock beyond the status) and
+   * /auth/logout 204.
+   */
+  http.get(serviceUrl.getAuthConfig(), () => HttpResponse.json({ mode: "none" })),
+  http.post(serviceUrl.postAuthExchange(), () => new HttpResponse(null, { status: 200 })),
+  http.post(serviceUrl.postAuthLogout(), () => new HttpResponse(null, { status: 204 })),
+
   /**
    * Simple GET of static data
    */
@@ -260,13 +273,6 @@ export const handlers: HttpHandler[] = [
   // The real endpoint has no dedicated workflow-level validate-name route (see
   // servicesConfig.ts's TODO on workspace.workflow.postValidateName) - Mirage never mocked one
   // either, so this stays unmocked here too.
-  //
-  // getCronValidation always appends "?cron=..." unconditionally, same as putTask's "?replace="
-  // above - strip it for the same reason (a clean path pattern; the query has no bearing on
-  // matching).
-  http.get(serviceUrl.schedule.getCronValidation({ workspace: ":workspace", expression: ":expression" }).split("?")[0], () =>
-    HttpResponse.json({ valid: true }),
-  ),
 
   /**
    * Workflow Runs
@@ -496,6 +502,50 @@ export const handlers: HttpHandler[] = [
    */
   http.get(serviceUrl.getIntegrations({ workspace: "" }), () => HttpResponse.json(fixtures.integrations)),
   http.get(serviceUrl.getGitHubAppInstallation({ id: "" }), () => HttpResponse.json(fixtures.installations)),
+
+  /**
+   * BFF resource routes (app/routes/res*.tsx - see Config/resourceRoutes.ts).
+   *
+   * These are NOT `/api` surface mocks: they mimic the app's own same-origin resource routes,
+   * whose loaders/actions never run inside a jsdom component spec (the components fetch these
+   * URLs directly, and only the SSR-loader-in-Node specs exercise the real loader modules).
+   * Patterns are built off the same `resourceRoute` builders the components call - the same
+   * drift-proofing rationale as `serviceUrl` above - with `:param` tokens where needed. Each
+   * handler reproduces its route module's documented JSON contract against the shared db,
+   * mirroring the equivalent `/api` handler's semantics (e.g. validate-name's
+   * collision-only rejection becomes `available: false` here).
+   */
+  http.get(resourceRoute.workspaceValidateName({ name: "" }).split("?")[0], ({ request }) => {
+    const name = new URL(request.url).searchParams.get("name");
+    const available = Boolean(name) && !db.workspaces.some((workspace) => workspace.name === name);
+    return HttpResponse.json({ available }, { status: name ? 200 : 400 });
+  }),
+  // scheduleValidateCron always appends "?cron=..." unconditionally - strip it for a clean path
+  // pattern (the query has no bearing on matching). Mirrors app/routes/resScheduleValidateCron.tsx's
+  // contract: 200 { valid: boolean, message?: string }.
+  http.get(resourceRoute.scheduleValidateCron({ workspace: ":workspace", cron: "" }).split("?")[0], () =>
+    HttpResponse.json({ valid: true }),
+  ),
+  // Mirrors app/routes/resUsers.tsx's contract ({ ok: true, users } | { ok: false }) around the
+  // same single-page envelope the getUsers /api handler above builds.
+  http.get(resourceRoute.users(), () => HttpResponse.json({ ok: true, users: paginatedResponse(db.users) })),
+  http.get(resourceRoute.task({ name: ":name" }), ({ params }) => {
+    const task = db.tasks.find((t) => t.name === params.name);
+    return HttpResponse.json(task ? { ok: true, task } : { ok: false });
+  }),
+  // No handler for resourceRoute.activateAction(): a fetcher.submit in a jsdom spec invokes the
+  // route's action function in-process (specs attach app/routes/resActivate.tsx's real action to
+  // the test router), so no HTTP request to /res/activate ever exists for MSW to match - the
+  // action's own serverFetch PUT hits the putActivationApp handler above instead.
+  http.get(resourceRoute.taskrunLog({ id: ":id" }), () => HttpResponse.text("line one\nline two\n")),
+  // Streaming relays in production (app/routes/resTaskYaml.tsx / resWorkflowExport.tsx); in a
+  // jsdom spec a plain body is all their consumers (fileDownload) ever read.
+  http.get(resourceRoute.taskYaml({ name: ":name" }), () =>
+    HttpResponse.text("apiVersion: v1\nkind: Task\n", { headers: { "content-type": "application/x-yaml" } }),
+  ),
+  http.get(resourceRoute.workflowExport({ workspace: ":workspace", workflow: ":workflow" }), () =>
+    HttpResponse.json({ name: "exported-workflow", tasks: [] }),
+  ),
 ];
 
 // The shared fixtures for list endpoints (e.g. `fixtures.users`, `fixtures.workspaces`) are

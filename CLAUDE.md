@@ -243,15 +243,20 @@ decision.** Two accepted limitations sit outside this list: the outbox creation-
 | Events              | CloudEvents inbound; outbound via the **transactional outbox** (`events_outbox` + `OutboxDispatcher`), sink off by default. In-process = Spring `ApplicationEvent`. |
 | Distributed lock    | **None — `alturkovic/distributed-lock` is deleted** (E4-F). Contended transitions use status-CAS `findAndModify`; `acquirelock`/`releaselock` tasks use the `task_locks` collection. |
 | Execution runtime   | Tekton on Kubernetes (default dispatcher); local Docker dispatcher planned (Phase 4)            |
-| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). See `specifications/design-system.md`. |
+| Frontend (in this monorepo, DD-04) | `client-web` — **React 18 + React Router 7.18 (framework mode, SSR)** + IBM Carbon v11 (`@carbon/react` 1.75) + `@boomerang-io/carbon-addons-boomerang-react`. Tests: vitest + MSW (Mirage and Cypress both deleted). **BFF end state (2026-09-01)**: the browser talks only to the SSR server — documents, `/res/*` resource routes (`Config/resourceRoutes.ts`), `.data` requests — never `/api/*`; all service-core calls are server-side (`Config/serverFetch.ts`), and **react-query is removed** (the `@tanstack/react-query` v5 client remains solely for the design-system UIShell). See `specifications/design-system.md`. **File naming (measured convention, 2026-08-31)**: components = PascalCase `.tsx`; non-component modules = camelCase `.ts` (`serverFetch.ts`, `authClient.ts`); `.server.ts` marks server-only code (React Router's own suffix); route modules in `app/routes/` = camelCase; specs mirror their subject (`X.spec.tsx`, `X.action.node.spec.ts`); `index.tsx` barrels only. The case IS the signal — do not "normalise" it. |
 
 ## Running Locally
 
 A `docker-compose.yml` at the repo root brings up the full product: Mongo, the one-shot
 `service-loader` migration/seed Job (gated with `service_completed_successfully` so
 `service-core` never boots against an unmigrated database), `service-core`, `client-web`, and
-an `nginx` gateway that puts client-web and service-core behind one origin (service-core has
-no CORS support — see `docker/gateway/nginx.conf`). `service-dispatcher` is intentionally not part
+a local IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single
+browser-facing origin — and the ONLY thing the browser talks to (BFF end state, 2026-09-01):
+documents, `/res/*` resource routes and `.data` requests, never `/api/*`. Every service-core
+call happens server-side via `CORE_SERVICE_INTERNAL_ORIGIN` (`Config/serverFetch.ts`); the SSR
+server's old `/api` forward is deleted, and `/api` remains service-core's own surface for
+integrations and the dispatcher (service-core still has no CORS support — nothing browser-side
+needs it). There is no separate gateway. `service-dispatcher` is intentionally not part
 of this stack — it drives Tekton on a real Kubernetes cluster; see the compose file's header
 comment. Published `boomerangio/*` images are the v4 line and will not match this branch's
 API — build locally instead:
@@ -275,19 +280,14 @@ cd client-web && pnpm install && pnpm run build && cd ..
 docker compose up --build
 ```
 
-`service-core` is on `http://localhost:7700` directly, `client-web` on `http://localhost:3000`
-directly, and the unified browser-facing origin (what E2E and manual UI testing should use) is
-`http://localhost:8080`.
+`client-web` on `http://localhost:3000` is the single browser-facing origin (what E2E and
+manual UI testing should use — it forwards `/api/*` to service-core); `service-core` is on
+`http://localhost:7700` directly for API-only calls.
 
-Security is off for this stack (`FLOW_SECURITY_ENABLED=false` in `docker-compose.yml`). This
-is **deliberate and temporary**, not the target state: there is no login flow yet
-(`specifications/authentication.md`), so a secured stack would just show a blank page. The
-property still derives from `flow.mode` and defaults on for `standalone`, so it must be set
-explicitly to disable it:
-
-```properties
-flow.security.enabled=false
-```
+The stack runs secured (`FLOW_SECURITY_ENABLED=true` in `docker-compose.yml`): the real
+sign-in flow (`specifications/authentication.md`) against the local IDPZero user picker, and
+the first user to sign in on a fresh database becomes the founding admin. The property
+derives from `flow.mode` (on for `standalone`) unless set explicitly.
 
 **E2E**: `e2e/` (repo root, not under `client-web/` — it drives the real UI against a real
 backend together, not the webapp in isolation) is a small Playwright suite. `cd e2e && npm ci

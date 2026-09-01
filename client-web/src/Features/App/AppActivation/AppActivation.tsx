@@ -1,9 +1,10 @@
 import React from "react";
-import { useMutation } from "react-query";
+import { useFetcher } from "react-router-dom";
 import { ComposedModal, ModalForm, Loading } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, ModalBody, ModalFooter, TextInput, InlineNotification } from "@carbon/react";
-import { resolver } from "Config/servicesConfig";
+import { resourceRoute } from "Config/resourceRoutes";
 import { formatErrorMessage } from "@boomerang-io/utils";
+import type { ActivateActionResult } from "../../../../app/routes/resActivate";
 import styles from "./AppActivation.module.scss";
 
 interface PlatformActivationProps {
@@ -42,22 +43,35 @@ export default AppActivation;
 
 const Form: React.FC<PlatformActivationProps> = ({ setActivationCode }) => {
   const [code, setCode] = React.useState("");
-  const { mutateAsync: validateActivationCodeMutator, isLoading, error } = useMutation(resolver.putActivationApp);
+  // The submit goes through the /res/activate route action (app/routes/resActivate.tsx), which
+  // makes the service-core PUT with the inbound cookie forwarded - this can run unauthenticated
+  // pre-first-admin, and the action carries exactly what the browser's previous direct
+  // PUT /api/activate carried. The action returns upstream failures as data (never throws), so
+  // the modal keeps its inline error notification.
+  const fetcher = useFetcher<ActivateActionResult>();
+  const isLoading = fetcher.state !== "idle";
+  const failedResult = !isLoading && fetcher.data && !fetcher.data.ok ? fetcher.data : undefined;
 
-  const handleValidateCode = async (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    try {
-      await validateActivationCodeMutator({ body: { otc: code } });
+  React.useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.ok) {
       setActivationCode(code);
-    } catch (err) {
-      // no-op
     }
+  }, [fetcher.state, fetcher.data, setActivationCode, code]);
+
+  const handleValidateCode = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    fetcher.submit(
+      { otc: code },
+      { method: "post", action: resourceRoute.activateAction(), encType: "application/json" },
+    );
   };
 
   let errorMessage;
-  if (error) {
+  if (failedResult) {
     errorMessage = formatErrorMessage({
-      error,
+      // formatErrorMessage reads error.response.data; the action passes the upstream body
+      // through as `data`, so rebuild the axios-error shape it expects.
+      error: { response: { data: failedResult.data } },
       defaultTitle: "Invalid Code",
       defaultMessage: "That doesn't match what we have saved",
     });
@@ -73,13 +87,13 @@ const Form: React.FC<PlatformActivationProps> = ({ setActivationCode }) => {
           helperText="Look for it in your shell"
           onChange={(e) => setCode(e.target.value)}
         />
-        {Boolean(error) && (
+        {Boolean(errorMessage) && (
           <InlineNotification lowContrast kind="error" title={errorMessage.title} subtitle={errorMessage.message} />
         )}
       </ModalBody>
       <ModalFooter>
         <Button disabled={!code || isLoading} type="submit">
-          {isLoading ? "Validating..." : error ? "Try again?" : "Submit"}
+          {isLoading ? "Validating..." : failedResult ? "Try again?" : "Submit"}
         </Button>
       </ModalFooter>
     </ModalForm>

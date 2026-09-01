@@ -1,40 +1,43 @@
 import { vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
-import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
+import { scheduleAction } from "./scheduleRoute";
 import Schedules, { loader } from "./Schedules";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
 
-// Route-module test pattern - see GlobalParameters.spec.tsx/WorkspaceTasks.spec.tsx. Wraps
-// WorkspaceContainer the same way app/routes/schedules.tsx does, since Schedules reads the active
-// workspace off its context for the header/breadcrumb (unrelated to the loader migration).
+// Route-module test pattern - see GlobalParameters.spec.tsx/WorkspaceTasks.spec.tsx. Schedules
+// reads the active workspace off its context for the header/breadcrumb, so the harness's
+// WorkspaceContextProvider is overridden with the full workspace fixture this route's WORKSPACE
+// constant names - production supplies it from app/routes/workspaceLayout.tsx's loader.
 function renderSchedules(route: string = `/${WORKSPACE}/schedules`) {
   return global.rtlContextRouterRender(
     <Route
       path="/:workspace/schedules"
       loader={loader}
-      element={
-        <WorkspaceContainer>
-          <Schedules />
-        </WorkspaceContainer>
-      }
+      action={scheduleAction}
+      element={<Schedules />}
     />,
-    { route },
+    { route, workspaceValue: { workspace: workspaceFixture } },
   );
 }
 
-// WorkspaceContainer resolves the active workspace via `resourceWorkspace`, a real lookup by name
-// (handlers.ts's `findWorkspace`) - seed the fixture the WORKSPACE constant names, same as
-// WorkspaceTasks.spec.tsx.
-beforeEach(() => {
-  db.workspaces.push(structuredClone(workspaceFixture));
+// react-big-calendar registers a document-level mousedown listener (Selection.js) that calls
+// document.elementFromPoint on EVERY click while the calendar is mounted. jsdom doesn't
+// implement it, and each resulting uncaught TypeError is an unhandled error that fails the file
+// (vitest exits non-zero) even with every test green - see the same stub in
+// WorkflowEditor/Schedule/Schedule.spec.tsx.
+beforeAll(() => {
+  if (typeof document.elementFromPoint !== "function") {
+    document.elementFromPoint = () => null;
+  }
 });
 
 describe("Schedules --- loader", () => {
@@ -212,5 +215,47 @@ describe("Schedules --- loader", () => {
 
     expect(data.errorLoadingSchedules).toBe(true);
     expect(data.schedulesData).toBeUndefined();
+  });
+
+  // The write path from THIS page (the other consumer of the shared components is exercised in
+  // WorkflowEditor/Schedule/Schedule.spec.tsx): disabling a schedule submits the toggleSchedule
+  // intent to this route's action, and the fetcher's settle re-runs the loader on its own -
+  // pinning that the removed revalidator.revalidate() calls were genuinely redundant.
+  test("disabling a schedule PUTs through the route action and auto-revalidates the loader", async () => {
+    let schedulesRequests = 0;
+    server.use(
+      http.get(serviceUrl.workspace.schedule.getSchedules({ workspace: ":workspace" }), () => {
+        schedulesRequests += 1;
+        return HttpResponse.json({ content: db.schedules });
+      }),
+      http.put(serviceUrl.workspace.schedule.putSchedule({ workspace: ":workspace" }), async ({ request }) => {
+        const body = (await request.json()) as { id: string } & Record<string, unknown>;
+        const index = db.schedules.findIndex((s) => s.id === body.id);
+        db.schedules[index] = { ...db.schedules[index], ...body };
+        return HttpResponse.json(db.schedules[index]);
+      }),
+    );
+
+    renderSchedules();
+
+    await screen.findByText("Trigger");
+    const initialSchedulesRequests = schedulesRequests;
+
+    // Cards sort by name (Daily event, Deleted Daily event, Trigger) - index 2 is "Trigger",
+    // the one active schedule, whose menu therefore offers "Disable". The menu button's
+    // accessible name is its iconDescription tooltip (see SchedulePanelList.spec.tsx).
+    await userEvent.click(screen.getAllByRole("button", { name: "Schedule menu icon" })[2]);
+    await userEvent.click(await screen.findByText("Disable"));
+
+    expect(await screen.findByText("Disable Schedule?")).toBeInTheDocument();
+    const disableButtons = screen.getAllByRole("button", { name: "Disable", hidden: true });
+    await userEvent.click(disableButtons[disableButtons.length - 1]);
+
+    // The PUT landed (fixture flipped in the mock db)...
+    await waitFor(() =>
+      expect(db.schedules.find((s) => s.id === "61d6286bc570b75ec2b47884")?.status).toBe("inactive"),
+    );
+    // ...and the loader re-ran without any manual revalidate call.
+    await waitFor(() => expect(schedulesRequests).toBeGreaterThan(initialSchedulesRequests));
   });
 });

@@ -39,11 +39,13 @@ import styles from "./Schedules.module.scss";
 // Route module: this file's `loader` is attached to the route in app/routes/schedules.tsx (path
 // "/:workspace/schedules") rather than being defined inline there, following the
 // GlobalParameters.tsx reference conversion (see that file for the fuller rationale comment).
-// Only reads move here - the three writes (create/update/delete/toggle-status) live in
-// ScheduleCreator/ScheduleEditor/SchedulePanelList, which stay on their existing react-query
-// mutations (see the comment on each) because those components are also rendered by
-// WorkflowEditor/Schedule/Schedule.tsx, a second, not-yet-converted consumer this batch must not
-// break.
+// The route's `action` is the shared scheduleAction (./scheduleRoute.ts, exported from
+// app/routes/schedules.tsx): the four writes (create/update/delete/toggle-status) live in
+// ScheduleCreator/ScheduleEditor/SchedulePanelList, which submit their namespaced intents
+// through bare useFetcher() calls - resolved against this route here and against editorAction's
+// SCHEDULE_INTENTS dispatch when the same components render in WorkflowEditor/Schedule/
+// Schedule.tsx. The fetcher settle re-runs this loader, which is what refreshes the page after
+// a write.
 
 // FilterableMultiSelect's item type requires an (optional) `disabled` field;
 // carry it alongside our domain types rather than widening them.
@@ -186,40 +188,6 @@ export default function Schedules() {
   const [isCreatorOpen, setIsCreatorOpen] = React.useState(false);
 
   /**
-   * URLs for the shared Schedule* components below - still computed client-side from the current
-   * filters (same as before conversion). They're no longer used to key a react-query read on this
-   * page (the loader above owns that), but ScheduleCreator/ScheduleEditor/SchedulePanelList still
-   * take them as props: those components are shared with WorkflowEditor/Schedule/Schedule.tsx
-   * (unconverted) and still call `queryClient.invalidateQueries(getSchedulesUrl/getCalendarUrl)`
-   * for that consumer's benefit - a no-op here, since this page has no react-query cache entry at
-   * that key, which is fine (see GlobalTokens.tsx for the same pattern).
-   */
-  const { statuses = defaultStatusArray, workflows } = queryString.parse(location.search, queryStringOptions);
-
-  const schedulesUrlQuery = queryString.stringify(
-    {
-      statuses,
-      workflows,
-    },
-    queryStringOptions,
-  );
-  const getSchedulesUrl = serviceUrl.workspace.schedule.getSchedules({ workspace: workspace?.name, query: schedulesUrlQuery });
-
-  const { fromDate = defaultFromDate(), toDate = defaultToDate() } = queryString.parse(location.search, queryStringOptions);
-
-  const userScheduleIds = (schedulesData?.content ?? []).map((schedule) => schedule.id);
-
-  const calendarUrlQuery = queryString.stringify(
-    {
-      schedules: userScheduleIds,
-      fromDate,
-      toDate,
-    },
-    queryStringOptions,
-  );
-  const getCalendarUrl = serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace: workspace?.name, query: calendarUrlQuery });
-
-  /**
    * Component functions
    */
   function handleDateRangeChange(range: CalendarDateRange) {
@@ -275,8 +243,8 @@ export default function Schedules() {
     return sortByProp(workflowsList, "name", "ASC");
   }
 
-  // The workspace object itself is a client-side concern - until WorkspaceContainer resolves it,
-  // there is nothing to render.
+  // The workspace object comes from the workspace layout route's context
+  // (app/routes/workspaceLayout.tsx) - until it resolves, there is nothing to render.
   if (!workspace) {
     return null;
   }
@@ -386,8 +354,6 @@ export default function Schedules() {
         <div className={styles.content}>
           <div className={styles.contentContainer}>
             <SchedulePanelList
-              getCalendarUrl={getCalendarUrl}
-              getSchedulesUrl={getSchedulesUrl}
               includeStatusFilter={false}
               schedulesIsLoading={false}
               schedulesData={schedulesData}
@@ -415,8 +381,6 @@ export default function Schedules() {
               setIsEditorOpen={setIsEditorOpen}
             />
             <ScheduleCreator
-              getCalendarUrl={getCalendarUrl}
-              getSchedulesUrl={getSchedulesUrl}
               includeWorkflowDropdown={true}
               isModalOpen={isCreatorOpen}
               onCloseModal={() => setIsCreatorOpen(false)}
@@ -424,8 +388,6 @@ export default function Schedules() {
               workflowOptions={getWorkflowFilter()}
             />
             <ScheduleEditor
-              getCalendarUrl={getCalendarUrl}
-              getSchedulesUrl={getSchedulesUrl}
               includeWorkflowDropdown={true}
               isModalOpen={isEditorOpen}
               onCloseModal={() => setIsEditorOpen(false)}

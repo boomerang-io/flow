@@ -7,9 +7,14 @@ import static org.mockito.Mockito.lenient;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.ECDSASigner;
+import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
@@ -118,6 +123,46 @@ class OidcTokenVerifierTest {
     assertThatThrownBy(() -> verifier.verify(token, NONCE)).isInstanceOf(BoomerangException.class);
   }
 
+  /*
+   * Azure-compatibility (maintainer-approved 2026-08-31): the accepted signature algorithms are
+   * the standard asymmetric family (RS/PS/ES x 256/384/512), not just RS256 - a spec-compliant
+   * IdP may sign with any of them. Symmetric algorithms stay rejected: with a public JWKS an
+   * HMAC "signature" is forgeable by anyone.
+   */
+  @Test
+  void acceptsAnEs256SignedToken() throws Exception {
+    ECKey ecKey = new ECKeyGenerator(Curve.P_256).keyID("ec-key").generate();
+    lenient()
+        .when(restTemplate.getForObject(eq(URI.create(JWKS_URI)), eq(String.class)))
+        .thenReturn(new JWKSet(ecKey.toPublicJWK()).toString());
+
+    JWTClaimsSet claimsIn = claimsFor(ISSUER, CLIENT_ID, NONCE, futureDate());
+    SignedJWT jwt =
+        new SignedJWT(
+            new JWSHeader.Builder(JWSAlgorithm.ES256).keyID(ecKey.getKeyID()).build(), claimsIn);
+    jwt.sign(new ECDSASigner(ecKey));
+
+    JWTClaimsSet claims = verifier.verify(jwt.serialize(), NONCE);
+
+    assertThat(claims.getSubject()).isEqualTo("user-1");
+  }
+
+  @Test
+  void rejectsAnHmacSignedToken() throws Exception {
+    byte[] secret = new byte[32];
+    new java.security.SecureRandom().nextBytes(secret);
+    SignedJWT jwt =
+        new SignedJWT(
+            new JWSHeader.Builder(JWSAlgorithm.HS256).build(),
+            claimsFor(ISSUER, CLIENT_ID, NONCE, futureDate()));
+    jwt.sign(new MACSigner(secret));
+
+    assertThatThrownBy(() -> verifier.verify(jwt.serialize(), NONCE))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_TOKEN_INVALID.getReason());
+  }
+
   @Test
   void rejectsAMismatchedNonce() throws Exception {
     String token = signedToken(rsaKey, ISSUER, CLIENT_ID, NONCE, futureDate());
@@ -144,24 +189,27 @@ class OidcTokenVerifierTest {
     return config;
   }
 
+  private static JWTClaimsSet claimsFor(String issuer, String audience, String nonce, Date expiry) {
+    return new JWTClaimsSet.Builder()
+        .subject("user-1")
+        .issuer(issuer)
+        .audience(audience)
+        .claim("email", "person@example.test")
+        .claim("given_name", "Person")
+        .claim("family_name", "Example")
+        .claim("nonce", nonce)
+        .issueTime(new Date())
+        .expirationTime(expiry)
+        .build();
+  }
+
   private static String signedToken(
       RSAKey signingKey, String issuer, String audience, String nonce, Date expiry)
       throws Exception {
-    JWTClaimsSet claims =
-        new JWTClaimsSet.Builder()
-            .subject("user-1")
-            .issuer(issuer)
-            .audience(audience)
-            .claim("email", "person@example.test")
-            .claim("given_name", "Person")
-            .claim("family_name", "Example")
-            .claim("nonce", nonce)
-            .issueTime(new Date())
-            .expirationTime(expiry)
-            .build();
     SignedJWT jwt =
         new SignedJWT(
-            new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKey.getKeyID()).build(), claims);
+            new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKey.getKeyID()).build(),
+            claimsFor(issuer, audience, nonce, expiry));
     jwt.sign(new RSASSASigner(signingKey));
     return jwt.serialize();
   }

@@ -4,8 +4,7 @@ import { Toggle } from "@carbon/react";
 import { ModalBody } from "@carbon/react";
 import React, { Suspense, lazy } from "react";
 import styles from "./taskRunLog.module.scss";
-import { serviceUrl } from "Config/servicesConfig";
-import { PRODUCT_SERVICE_ENV_URL } from "Config/servicesConfig";
+import { resourceRoute } from "Config/resourceRoutes";
 
 // react-lazylog's ANSI-parsing polyfill touches `self` at module scope, which doesn't exist in
 // Node (see CLAUDE.md client-web SSR rules) - genuinely SSR-infeasible, and there's no SSR value
@@ -15,9 +14,6 @@ import { PRODUCT_SERVICE_ENV_URL } from "Config/servicesConfig";
 // fires server-side because the component is never rendered there.
 const LazyLog = lazy(() => import("react-lazylog").then((mod) => ({ default: mod.LazyLog })));
 const ScrollFollow = lazy(() => import("react-lazylog").then((mod) => ({ default: mod.ScrollFollow })));
-
-const DEV_STREAM_URL =
-  "https://gist.githubusercontent.com/helfi92/96d4444aa0ed46c5f9060a789d316100/raw/ba0d30a9877ea5cc23c7afcd44505dbc2bab1538/typical-live_backing.log";
 
 type Props = {
   taskrunId: string;
@@ -65,21 +61,24 @@ export default function TaskRunLog({ taskrunId, taskName }: Props) {
                       size="sm"
                     />
                   </Theme>
+                  {/*
+                   * Streams the same-origin /res/taskrun/:id/log resource route
+                   * (app/routes/resTaskrunLog.tsx pipes the service-core log through without
+                   * buffering) instead of GET /api/v2/taskrun/{id}/log from the browser.
+                   * Same-origin by construction, so the session cookie rides along with plain
+                   * same-origin credentials - which also retires the old localhost special case
+                   * (credentials:omit plus a public gist as a stand-in stream): the resource
+                   * route works wherever the SSR server runs, dev included.
+                   */}
                   <LazyLog
                     enableSearch={true}
-                    fetchOptions={
-                      PRODUCT_SERVICE_ENV_URL.includes("localhost") ? { credentials: "omit" } : { credentials: "include" }
-                    }
+                    fetchOptions={{ credentials: "same-origin" }}
                     follow={follow}
                     onScroll={onScroll}
                     onError={(err: boolean) => setError(err)}
                     selectableLines={true}
                     stream={true}
-                    url={
-                      PRODUCT_SERVICE_ENV_URL.includes("localhost")
-                        ? DEV_STREAM_URL
-                        : serviceUrl.getTaskrunLog({ id: taskrunId })
-                    }
+                    url={resourceRoute.taskrunLog({ id: taskrunId })}
                   />
                 </>
               )}

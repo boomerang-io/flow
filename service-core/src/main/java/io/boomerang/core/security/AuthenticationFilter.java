@@ -341,6 +341,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     return path.startsWith("/error")
         || path.startsWith("/health")
         || path.startsWith("/api/docs")
-        || path.equals(SecurityConfiguration.GITHUB_CALLBACK);
+        || path.equals(SecurityConfiguration.GITHUB_CALLBACK)
+        || path.equals(SecurityConfiguration.AUTH_CONFIG);
   }
 }

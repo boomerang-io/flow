@@ -94,7 +94,7 @@ jobs:
       - name: Run E2E suite
         working-directory: e2e
         env:
-          E2E_BASE_URL: http://localhost:8080
+          E2E_BASE_URL: http://localhost:3000
         run: npx playwright test
 
       - name: Upload Playwright report
