@@ -54,7 +54,6 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 | `performance.md` | Multi-instance behaviour, queue fairness and indexes, sweep cadences, HTTP timeouts, quotas, storage benchmarks, limits not yet built. |
 | `design-system.md` | Carbon v11 + Boomerang theme: tokens, typography, components, browser support. |
 | `competitive-analysis.md` | How comparable products approach the same problems. |
-| `framework-review-proposals.md` | Before/after design notes behind issues #325–#328 and #367; retire when those close. |
 
 ## Invariants — do not violate
 
