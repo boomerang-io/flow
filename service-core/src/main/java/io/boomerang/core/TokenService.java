@@ -382,19 +382,10 @@ public class TokenService {
   }
 
   public String hashString(String originalString) {
-    MessageDigest digest;
     try {
-      digest = MessageDigest.getInstance("SHA-256");
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
       byte[] hash = digest.digest(originalString.getBytes(StandardCharsets.UTF_8));
-      StringBuilder hexString = new StringBuilder();
-      for (byte element : hash) {
-        String hex = Integer.toHexString(0xff & element);
-        if (hex.length() == 1) {
-          hexString.append('0');
-        }
-        hexString.append(hex);
-      }
-      return hexString.toString();
+      return HexFormat.of().formatHex(hash);
     } catch (NoSuchAlgorithmException e) {
       return null;
     }
@@ -523,7 +514,9 @@ public class TokenService {
 
     Page<Token> pages =
         PageableExecutionUtils.getPage(
-            response, pageable, () -> mongoTemplate.count(query, ActionEntity.class));
+            response,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), TokenEntity.class));
 
     return pages;
   }

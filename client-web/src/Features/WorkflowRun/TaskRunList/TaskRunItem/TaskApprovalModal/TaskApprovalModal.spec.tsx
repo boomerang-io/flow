@@ -6,6 +6,7 @@ import { server } from "ApiServer/msw/node";
 import { AppPath, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/WorkflowRun/WorkflowRun";
+import { renderWithRouter } from "Utils/testing/render";
 import TaskApprovalModal from "./TaskApprovalModal";
 
 // Replaces TaskApprovalModal.spec.jsx, which passed props the component never accepted
@@ -23,7 +24,7 @@ const runId = "5ec51eca5a92d80001a2005d";
 const actionId = "action-abc";
 
 function renderModal(closeModal: () => void = () => {}) {
-  global.rtlRouterRender(
+  renderWithRouter(
     <Route
       path={AppPath.Run}
       action={action}
@@ -47,7 +48,7 @@ function captureDecisions() {
 
 describe("TaskApprovalModal --- Snapshot", () => {
   it("Capturing Snapshot of TaskApprovalModal", () => {
-    const { baseElement } = global.rtlRouterRender(
+    const { baseElement } = renderWithRouter(
       <Route
         path={AppPath.Run}
         action={action}

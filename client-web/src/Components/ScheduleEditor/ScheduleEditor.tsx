@@ -4,6 +4,7 @@ import moment from "moment-timezone";
 import { useFetcher } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { labelStringsToRecord } from "Utils";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import { cronDayNumberMap } from "Utils/cronHelper";
 import { ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
 import styles from "./ScheduleEditor.module.scss";
@@ -20,7 +21,7 @@ interface ScheduleEditorProps {
 // Matches only the fields this component reads off the owning route's action result - see the
 // equivalent comment in ScheduleCreator.tsx (both routes that render this serve the
 // "updateSchedule" intent through Features/Schedules/scheduleRoute.ts).
-type ActionResult = { ok: boolean; intent: string };
+type ActionResult = { intent: string } | ({ intent: string } & ActionError);
 
 function ScheduleEditor(props: ScheduleEditorProps) {
   const fetcher = useFetcher<ActionResult>();
@@ -34,7 +35,7 @@ function ScheduleEditor(props: ScheduleEditorProps) {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    if (fetcher.data.ok && fetcher.data.intent === "updateSchedule") {
+    if (!isActionError(fetcher.data) && fetcher.data.intent === "updateSchedule") {
       notify(
         <ToastNotification
           kind="success"
@@ -130,7 +131,7 @@ function ScheduleEditor(props: ScheduleEditorProps) {
       {(modalProps) => (
         <ScheduleManagerForm
           handleSubmit={handleSubmit}
-          isError={Boolean(fetcher.data && !fetcher.data.ok)}
+          isError={Boolean(fetcher.data && isActionError(fetcher.data))}
           isLoading={fetcher.state !== "idle"}
           includeWorkflowDropdown={props.includeWorkflowDropdown}
           modalProps={modalProps}

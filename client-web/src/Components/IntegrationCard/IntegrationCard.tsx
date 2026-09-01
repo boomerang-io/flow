@@ -5,6 +5,7 @@ import { ComposedModal, ToastNotification, notify, TooltipHover } from "@boomera
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { Link, useFetcher } from "react-router-dom";
 import type { ActionResult } from "Features/Integrations/Integrations";
+import { isActionError } from "Utils/actionResult";
 import { ModalTriggerProps } from "Types";
 import ModalContent from "./ModalContent";
 import styles from "./integrationCard.module.scss";
@@ -31,7 +32,7 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(
         <ToastNotification
           kind="success"
@@ -73,8 +74,8 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
   };
 
   const isDisabling = fetcher.state !== "idle";
-  const disableError = Boolean(fetcher.data && !fetcher.data.ok);
-  const disableErrorMessage = fetcher.data && !fetcher.data.ok ? fetcher.data.errorMessage : null;
+  const disableError = Boolean(fetcher.data && isActionError(fetcher.data));
+  const disableErrorMessage = fetcher.data && isActionError(fetcher.data) ? fetcher.data.error : null;
 
   return (
     <ComposedModal

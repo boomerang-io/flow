@@ -1,7 +1,6 @@
 package io.boomerang.kube;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.RunParam;
@@ -23,6 +22,7 @@ import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.client.Watch;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
 import io.fabric8.tekton.v1.ParamSpec;
@@ -33,7 +33,6 @@ import io.fabric8.tekton.v1.TaskRunBuilder;
 import io.fabric8.tekton.v1.TaskRunResult;
 import io.fabric8.tekton.v1.WorkspaceBinding;
 import io.fabric8.tekton.v1.WorkspaceDeclaration;
-import java.lang.reflect.Type;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -336,8 +335,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         && !kubeWorkerTolerations.isEmpty()
         && !"null".equalsIgnoreCase(kubeWorkerTolerations)) {
       LOGGER.info(kubeWorkerTolerations.toString());
-      Type listTolerationsType = new TypeToken<List<Toleration>>() {}.getType();
-      tolerations = new Gson().fromJson(kubeWorkerTolerations, listTolerationsType);
+      tolerations =
+          Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
 
       //      kubeWorkerTolerations.forEach(t -> {
       //        LOGGER.info("Adding toleration: " + t);
@@ -351,8 +350,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
      */
     List<HostAlias> hostAliases = new ArrayList<>();
     if (!kubeWorkerHostAliases.isEmpty()) {
-      Type listHostAliasType = new TypeToken<List<HostAlias>>() {}.getType();
-      hostAliases = new Gson().fromJson(kubeWorkerHostAliases, listHostAliasType);
+      hostAliases =
+          Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
     }
 
     /*

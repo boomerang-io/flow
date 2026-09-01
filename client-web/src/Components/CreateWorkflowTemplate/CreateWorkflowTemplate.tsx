@@ -3,6 +3,7 @@ import { Add } from "@carbon/react/icons";
 import { ComposedModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFetcher } from "react-router-dom";
 import { ModalTriggerProps, Workflow } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import ImportWorkflowContainer from "./ImportWorkflowContainer";
 import styles from "./createWorkflowTemplate.module.scss";
 
@@ -13,11 +14,7 @@ interface CreateWorkflowProps {
 // Matches only the fields this component reads off TemplateWorkflows.tsx's action result for a
 // "create" intent - see that file for the actual action, and GlobalParameters.tsx for the
 // closeModalRef-style pattern this modal's submit-then-close-on-success flow follows.
-type CreateResult = {
-  ok: boolean;
-  intent: "create" | "delete";
-  errorMessage?: { title: string; message: string };
-};
+type CreateResult = { intent: "create" | "delete" } | ({ intent: "create" | "delete" } & ActionError);
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
   const fetcher = useFetcher<CreateResult>();
@@ -31,21 +28,15 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "create") {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(
         <ToastNotification kind="success" title={`Import Workflow Template`} subtitle={`Template successfully imported`} />,
       );
       closeModalRef.current?.();
       closeModalRef.current = null;
     } else {
-      const errorMessage = fetcher.data.errorMessage;
-      notify(
-        <ToastNotification
-          kind="error"
-          title={errorMessage?.title ?? "Something's Wrong"}
-          subtitle={errorMessage?.message}
-        />,
-      );
+      const error = fetcher.data.error;
+      notify(<ToastNotification kind="error" title={error.title ?? "Something's Wrong"} subtitle={error.message} />);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -55,7 +46,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workflows }) => {
   };
 
   const isLoading = fetcher.state !== "idle";
-  const importError = Boolean(fetcher.data && fetcher.data.intent === "create" && !fetcher.data.ok);
+  const importError = Boolean(fetcher.data && fetcher.data.intent === "create" && isActionError(fetcher.data));
 
   return (
     <ComposedModal

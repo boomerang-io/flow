@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -124,7 +125,7 @@ public class WorkflowTemplateControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public WorkflowTemplate create(@RequestBody WorkflowTemplate request) {
+  public WorkflowTemplate create(@Valid @RequestBody WorkflowTemplate request) {
     return workflowTemplateService.create(request);
   }
 
@@ -140,7 +141,7 @@ public class WorkflowTemplateControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public WorkflowTemplate apply(
-      @RequestBody WorkflowTemplate request,
+      @Valid @RequestBody WorkflowTemplate request,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {

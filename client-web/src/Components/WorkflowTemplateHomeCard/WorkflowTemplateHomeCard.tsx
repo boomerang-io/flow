@@ -7,6 +7,7 @@ import workflowIcons from "Assets/workflowIcons";
 import { Link, useFetcher, useNavigate } from "react-router-dom";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { FlowWorkspaceSummary, ModalTriggerProps, WorkflowTemplate } from "Types";
+import { isActionError } from "Utils/actionResult";
 import CreateWorkflowContent from "./CreateWorkflowContent";
 import styles from "./workflowTemplateHomeCard.module.scss";
 
@@ -18,12 +19,9 @@ interface WorkflowTemplateCardProps {
 // Submits to Home's `action` (Features/Home/Home.tsx, intent "create-workflow-from-template") -
 // this card is only ever rendered inside the Home route, with no route boundary in between, so a
 // plain useFetcher() submission with no explicit `action` target lands there by default.
-type CreateWorkflowActionResult = {
-  ok: boolean;
-  intent: "create-workflow-from-template";
-  workspace: string;
-  workflow?: { name: string };
-};
+type CreateWorkflowActionResult =
+  | { intent: "create-workflow-from-template"; workspace: string; workflow?: { name: string } }
+  | { intent: "create-workflow-from-template"; workspace: string; error: { title: string; message: string } };
 
 const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, workspaces }) => {
   const navigate = useNavigate();
@@ -35,7 +33,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, w
     }
     // A failed create is silently swallowed here, matching the previous mutateAsync/catch
     // behaviour - CreateWorkflowContent surfaces it inline via createError instead of a toast.
-    if (fetcher.data.ok && fetcher.data.workflow) {
+    if (!isActionError(fetcher.data) && fetcher.data.workflow) {
       navigate(appLink.editorCanvas({ workspace: fetcher.data.workspace, workflow: fetcher.data.workflow.name }));
       notify(
         <ToastNotification
@@ -55,7 +53,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, w
     fetcher.submit({ intent: "create-workflow-from-template", workspace, body: JSON.stringify(body) }, { method: "post" });
   };
   const isLoading = fetcher.state !== "idle";
-  const createTemplateWorkflowError = Boolean(fetcher.data && !fetcher.data.ok);
+  const createTemplateWorkflowError = Boolean(fetcher.data && isActionError(fetcher.data));
   const { name, Icon = Bee } = workflowIcons.find((icon) => icon.name === template.icon) ?? {};
 
   let loadingText = "";

@@ -60,6 +60,8 @@ public class IntegrationControllerV2 {
 
   @Autowired private GitHubService githubService;
 
+  @Autowired private ObjectMapper objectMapper;
+
   @GetMapping(value = "")
   @AuthCriteria(
       action = PermissionAction.READ,
@@ -143,10 +145,9 @@ public class IntegrationControllerV2 {
       // @RequestParam MultiValueMap<String, String> slackEvent
       ) {
     // LOGGER.debug(slackEvent);
-    ObjectMapper mapper = new ObjectMapper();
-    // JsonNode payload = mapper.readTree(slackEvent.get("payload").get(0));
+    // JsonNode payload = objectMapper.readTree(slackEvent.get("payload").get(0));
     Map<String, String> slackEvent = requestValueMapper(request);
-    JsonNode payload = mapper.readTree(slackEvent.get("payload"));
+    JsonNode payload = objectMapper.readTree(slackEvent.get("payload"));
     if (payload.has("type") && "view_submission".equals(payload.get("type").asText())) {
       CompletableFuture.supplyAsync(slackService.executeRunModal(payload));
     } else if (payload.has("type")) {

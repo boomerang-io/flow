@@ -1,5 +1,6 @@
 import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
+import { renderWithContext } from "Utils/testing/render";
 import Inputs from ".";
 import { WorkflowCanvas, WorkflowStatus } from "Types";
 
@@ -59,19 +60,19 @@ beforeEach(() => {
 
 describe("Inputs --- Snapshot Test", () => {
   it("Capturing Snapshot of Inputs", async () => {
-    const { baseElement } = global.rtlContextRouterRender(<Inputs {...props} />);
+    const { baseElement } = renderWithContext(<Inputs {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });
 
 describe("Inputs --- RTL", () => {
   it("Render inputs correctly", async () => {
-    global.rtlContextRouterRender(<Inputs {...props} />);
+    renderWithContext(<Inputs {...props} />);
     expect(screen.getByText("tim-parameter")).toBeInTheDocument();
   });
 
   it("Opens create new parameter modal", async () => {
-    global.rtlContextRouterRender(<Inputs {...props} />);
+    renderWithContext(<Inputs {...props} />);
 
     const modalTrigger = screen.getByTestId("create-parameter-button");
     fireEvent.click(modalTrigger);
@@ -80,7 +81,7 @@ describe("Inputs --- RTL", () => {
   });
 
   it("Opens edit parameter modal", async () => {
-    global.rtlContextRouterRender(<Inputs {...props} />);
+    renderWithContext(<Inputs {...props} />);
 
     const modalTrigger = screen.getByLabelText(/Edit/i);
     fireEvent.click(modalTrigger);

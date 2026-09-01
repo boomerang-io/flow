@@ -1,7 +1,6 @@
 package io.boomerang.kube;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -37,7 +36,7 @@ import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
-import java.lang.reflect.Type;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -321,16 +320,14 @@ public class KubeJobsExecutor implements TaskExecutor {
         || "null".equalsIgnoreCase(kubeWorkerTolerations)) {
       return List.of();
     }
-    Type listType = new TypeToken<List<Toleration>>() {}.getType();
-    return new Gson().fromJson(kubeWorkerTolerations, listType);
+    return Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
   }
 
   private List<HostAlias> hostAliases() {
     if (kubeWorkerHostAliases == null || kubeWorkerHostAliases.isEmpty()) {
       return List.of();
     }
-    Type listType = new TypeToken<List<HostAlias>>() {}.getType();
-    return new Gson().fromJson(kubeWorkerHostAliases, listType);
+    return Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
   }
 
   private List<LocalObjectReference> imagePullSecrets() {

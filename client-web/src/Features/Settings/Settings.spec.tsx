@@ -4,13 +4,15 @@ import { Route } from "react-router-dom";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import Settings, { action, loader } from "./Settings";
 
 // Route-module test pattern (see GlobalParameters.spec.tsx): build the same shape the real
 // router config uses (a <Route> carrying loader/action alongside its element) so the loader/
 // action actually run.
 function renderSettings() {
-  return global.rtlContextRouterRender(<Route path="*" loader={loader} action={action} element={<Settings />} />);
+  return renderWithContext(<Route path="*" loader={loader} action={action} element={<Settings />} />);
 }
 
 describe("Settings --- Snapshot", () => {
@@ -62,7 +64,7 @@ describe("Settings --- action", () => {
 
     const result = await action({ request });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({});
   });
 
   test("surfaces a failed update without throwing", async () => {
@@ -72,8 +74,11 @@ describe("Settings --- action", () => {
       body: new URLSearchParams({ intent: "update", settingsGroup: JSON.stringify(settingsGroup) }),
     });
 
-    const result = await action({ request });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request })) as unknown as { data: unknown };
 
-    expect(result).toEqual({ ok: false });
+    expect(isActionError(result.data)).toBe(true);
   });
 });

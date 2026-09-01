@@ -5,6 +5,7 @@ import { Route } from "react-router-dom";
 import { profile } from "ApiServer/fixtures";
 import { TokenType } from "Constants";
 import { workflowTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
+import { renderWithContext } from "Utils/testing/render";
 import CreateServiceTokenButton from "./CreateToken";
 
 // The `getTokensUrl` prop is gone: the form posts the shared "create" intent to the matched
@@ -20,7 +21,7 @@ const ROUTE = "/test-workspace/editor/test-workflow/configure/tokens";
 const contextValue = { workspaces: profile.teams };
 
 function renderCreateToken() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path={ROUTE_PATH}
       loader={workflowTokensLoader}

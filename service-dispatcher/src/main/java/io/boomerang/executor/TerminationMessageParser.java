@@ -1,15 +1,15 @@
 package io.boomerang.executor;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import io.boomerang.common.model.RunResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Parses a Kubernetes container termination message into declared Task Results. Tasks emit
@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
  * ({@code [{"key": .., "value": ..}]}). Empty or non-JSON input yields no Results.
  */
 public abstract class TerminationMessageParser {
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private TerminationMessageParser() {}
 
@@ -31,36 +33,25 @@ public abstract class TerminationMessageParser {
 
     List<RunResult> parsed = new ArrayList<>();
     try {
-      JsonElement element = new Gson().fromJson(message, JsonElement.class);
-      if (element == null) {
-        return List.of();
-      } else if (element.isJsonArray()) {
-        element
-            .getAsJsonArray()
-            .forEach(
-                item -> {
-                  if (item.isJsonObject()) {
-                    JsonObject obj = item.getAsJsonObject();
-                    if (obj.has("key") && obj.has("value")) {
-                      parsed.add(new RunResult(obj.get("key").getAsString(), obj.get("value").getAsString()));
-                    }
-                  }
-                });
-      } else if (element.isJsonObject()) {
-        element
-            .getAsJsonObject()
-            .entrySet()
-            .forEach(
-                entry -> {
-                  JsonElement value = entry.getValue();
-                  parsed.add(
-                      new RunResult(
-                          entry.getKey(), value.isJsonPrimitive() ? value.getAsString() : value.toString()));
-                });
+      JsonNode node = OBJECT_MAPPER.readTree(message);
+      if (node.isArray()) {
+        node.forEach(
+            item -> {
+              if (item.isObject() && item.has("key") && item.has("value")) {
+                parsed.add(new RunResult(item.get("key").asText(), item.get("value").asText()));
+              }
+            });
+      } else if (node.isObject()) {
+        for (Map.Entry<String, JsonNode> entry : node.properties()) {
+          JsonNode value = entry.getValue();
+          parsed.add(
+              new RunResult(
+                  entry.getKey(), value.isValueNode() ? value.asText() : value.toString()));
+        }
       } else {
         return List.of();
       }
-    } catch (JsonSyntaxException e) {
+    } catch (JacksonException e) {
       return List.of();
     }
 

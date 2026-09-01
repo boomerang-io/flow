@@ -21,6 +21,7 @@ import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
+import { isActionError } from "Utils/actionResult";
 import styles from "./RunHeader.module.scss";
 
 type Props = {
@@ -77,9 +78,9 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent === "action") {
       return;
     }
-    const { ok, intent, errorMessage } = fetcher.data;
+    const { intent } = fetcher.data;
     const copy = TRANSITION_COPY[intent];
-    if (ok) {
+    if (!isActionError(fetcher.data)) {
       notify(<ToastNotification kind="success" title={copy.title} subtitle={copy.success} />);
       if (intent === "retry") {
         executionViewRedirect({ workflowRunRef: id });
@@ -88,8 +89,8 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
       notify(
         <ToastNotification
           kind="error"
-          title={errorMessage?.title ?? "Something's wrong"}
-          subtitle={errorMessage?.message ?? copy.failure}
+          title={fetcher.data.error.title ?? "Something's wrong"}
+          subtitle={fetcher.data.error.message ?? copy.failure}
         />,
       );
     }

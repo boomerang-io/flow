@@ -4,6 +4,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun, WorkflowStatus } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import RunHeader from "./RunHeader";
 
 // Replaces RunHeader.spec.jsx, which passed a v3-era `{ workflowExecution, workflow }` prop pair
@@ -75,7 +76,7 @@ const workflow: WorkflowCanvas = {
 function renderRunHeader(overrides: Partial<WorkflowRun> = {}, workflowOverrides: Partial<WorkflowCanvas> = {}) {
   // RunHeader uses useFetcher, so it needs to sit on a real route of the data router rather than
   // the helper's catch-all - same shape as app/routes/run.tsx.
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path={AppPath.Run}
       element={
