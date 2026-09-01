@@ -51,4 +51,24 @@ setup("sign in via IDPZero and save storage state", async ({ page, baseURL }) =>
   });
 
   await page.context().storageState({ path: STORAGE_STATE });
+
+  // Pre-run hygiene: this suite (and the fixture-creating specs) mint one throwaway workspace per
+  // worker per run, named e2e-<kind>-<Date.now()>-<random>, and nothing else ever deletes them.
+  // Delete ONLY those - a name must match the exact shape AND embed a timestamp older than a day -
+  // so real workspaces (or anything not created by these tests) are never touched. Deletion
+  // cascades the workspace's workflows, revisions and runs (WorkspaceService.delete).
+  const dayMs = 24 * 60 * 60 * 1000;
+  const apiOrigin = process.env.E2E_API_URL ?? "http://localhost:7700";
+  const list = await page.request.get(`${apiOrigin}/api/v2/workspace/query?limit=100`);
+  if (list.ok()) {
+    const body = (await list.json()) as { content?: { name: string }[] };
+    const stale = (body.content ?? [])
+      .map((w) => ({ name: w.name, m: /^e2e-[a-z-]+-(\d{13})-\d+$/.exec(w.name) }))
+      .filter((w) => w.m && Date.now() - Number(w.m[1]) > dayMs);
+    for (const w of stale) {
+      const res = await page.request.delete(`${apiOrigin}/api/v2/workspace/${w.name}`);
+      console.log(`pre-run cleanup: ${w.name} -> ${res.status()}`);
+    }
+    console.log(`pre-run cleanup: removed ${stale.length} stale e2e workspace(s)`);
+  }
 });
