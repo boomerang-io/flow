@@ -1,14 +1,18 @@
 package io.boomerang.kube;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import io.boomerang.client.EngineClient;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
 import io.fabric8.tekton.client.TektonClient;
+import io.fabric8.tekton.v1.ParamValue;
+import io.fabric8.tekton.v1.TaskRunResult;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,5 +69,26 @@ public class TektonServiceImplTest {
     // The same deployment-wide isolation setting the Kubernetes Jobs executor honours.
     assertEquals(
         "kata-qemu", taskRuns.get(0).getSpec().getPodTemplate().getRuntimeClassName());
+  }
+
+  @Test
+  public void testToRunResultsConvertsTektonResultsRegardlessOfTaskOutcome() {
+    // watchTaskRun() calls this on both the success return and the failure throw - a failed Task
+    // (e.g. an HTTP Task that records a 404 status code before exiting non-zero) must not lose the
+    // Result Parameters it wrote (issue #361).
+    TaskRunResult tknResult = new TaskRunResult();
+    tknResult.setName("statusCode");
+    tknResult.setValue(new ParamValue("404"));
+    TaskRunResult tknResultWithNullValue = new TaskRunResult();
+    tknResultWithNullValue.setName("empty");
+
+    List<RunResult> results =
+        TektonServiceImpl.toRunResults(List.of(tknResult, tknResultWithNullValue));
+
+    assertEquals(2, results.size());
+    assertEquals("statusCode", results.get(0).getName());
+    assertEquals("404", results.get(0).getValue());
+    assertEquals("empty", results.get(1).getName());
+    assertNull(results.get(1).getValue());
   }
 }
