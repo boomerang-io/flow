@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Ask a question / get help
+    url: https://join.slack.com/t/boomerang-io/shared_invite/zt-pxo2yw2o-c3~6YvWkKNrKIwhIBAKhaw
+    about: Questions and support happen on the Boomerang Slack, not in the issue tracker.
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/boomerang-io/flow/security/advisories/new
+    about: Please use private vulnerability reporting rather than a public issue.
