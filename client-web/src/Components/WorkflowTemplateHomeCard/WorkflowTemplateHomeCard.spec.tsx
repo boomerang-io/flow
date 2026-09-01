@@ -6,6 +6,7 @@ import { workspaces, workflowTemplates, profile } from "ApiServer/fixtures";
 import { AppContextProvider } from "State/context";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Home";
+import { isActionError } from "Utils/actionResult";
 import WorkflowCard from "./index";
 
 const props = {
@@ -66,7 +67,6 @@ describe("WorkflowCard --- action", () => {
     const result = await action({ request });
 
     expect(result).toEqual({
-      ok: true,
       intent: "create-workflow-from-template",
       workspace,
       workflow: { name: "new-workflow" },
@@ -90,9 +90,12 @@ describe("WorkflowCard --- action", () => {
       }),
     });
 
-    const result = await action({ request });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself is
+    // what unwraps it into fetcher.data in real use (see the render-based tests above).
+    const result = (await action({ request })) as unknown as { data: { intent: string; error: unknown } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("create-workflow-from-template");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("create-workflow-from-template");
   });
 });
