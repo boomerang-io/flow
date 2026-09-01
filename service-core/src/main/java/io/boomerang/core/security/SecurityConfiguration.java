@@ -2,6 +2,7 @@ package io.boomerang.core.security;
 
 import io.boomerang.core.TokenService;
 import io.boomerang.core.SettingsService;
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,6 +72,14 @@ public class SecurityConfiguration {
           .authorizeHttpRequests(
               authorize ->
                   authorize
+                      // A streaming response (e.g. StreamingResponseBody) completes its async
+                      // dispatch with no Authentication in the SecurityContext - our
+                      // AuthenticationFilter (a OncePerRequestFilter) only ever populates it on
+                      // the initial REQUEST dispatch. The authorization decision already happened
+                      // there; permit the ASYNC/ERROR re-dispatch here so it isn't denied a second
+                      // time against a response that is already committed.
+                      .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
+                      .permitAll()
                       .requestMatchers(
                           HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL, GITHUB_CALLBACK,
                           AUTH_EXCHANGE, AUTH_CONFIG)

@@ -5,6 +5,7 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
@@ -33,6 +34,17 @@ public class SecurityInterceptor implements HandlerInterceptor {
   @Override
   public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
       throws Exception {
+    // DispatcherServlet re-enters preHandle on a request's ASYNC re-dispatch (e.g. a
+    // StreamingResponseBody completing) and on an ERROR dispatch. The REQUEST dispatch already
+    // made this decision - it is what let the handler start async processing at all - and by the
+    // time either re-dispatch arrives here AuthenticationFilter has not repopulated the
+    // SecurityContext (it only ever runs on REQUEST) and the response may already be committed,
+    // so re-checking would deny a request that was already authorized, into a body that can no
+    // longer carry the denial.
+    DispatcherType dispatcherType = request.getDispatcherType();
+    if (DispatcherType.ASYNC.equals(dispatcherType) || DispatcherType.ERROR.equals(dispatcherType)) {
+      return true;
+    }
     if (handler instanceof HandlerMethod) {
       LOGGER.debug("In SecurityInterceptor()");
       HandlerMethod handlerMethod = (HandlerMethod) handler;
