@@ -208,6 +208,12 @@ public class DAGUtility {
           }
           taskRunEntity.setTimeout(timeout);
 
+          // Workspaces this Task mounts - the executor resolves each by type and honours its
+          // mountPath. Absent on the Workflow Task leaves the TaskRun's default (none mounted).
+          if (wfRevisionTask.getWorkspaces() != null) {
+            taskRunEntity.setWorkspaces(wfRevisionTask.getWorkspaces());
+          }
+
           // Set TaskRun Spec from Task Spec - Debug and Deletion come from an alternate
           // source
           if (!Objects.isNull(task.getSpec().getImage()) && !task.getSpec().getImage().isEmpty()) {

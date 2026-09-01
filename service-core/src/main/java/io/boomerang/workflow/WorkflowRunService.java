@@ -751,18 +751,29 @@ public class WorkflowRunService {
 
   /*
    * Queues the Workflow to be executed (and optionally starts the execution)
+   *
+   * A run with Workspaces is never started directly here: the dispatcher must provision them
+   * first, so the run stays ready/pending for its provisioning claim (findClaimableForProvision)
+   * and the dispatcher starts it itself once provisioned (PUT .../workflowrun/{id}/start). Only a
+   * run with no Workspaces - nothing to provision - starts on this call.
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
     workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
-    if (start) {
-      return this.start(wfRunEntity.getId(), Optional.empty());
-    } else {
-      // Retrieve the refreshed status
-      return ConvertUtil.entityToModel(
-          workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
+    boolean hasWorkspaces =
+        wfRunEntity.getWorkspaces() != null && !wfRunEntity.getWorkspaces().isEmpty();
+    if (start && hasWorkspaces) {
+      LOGGER.info(
+          "[{}] Run has Workspaces - leaving ready/pending for the dispatcher to provision and start.",
+          wfRunEntity.getId());
     }
+    if (start && !hasWorkspaces) {
+      return this.start(wfRunEntity.getId(), Optional.empty());
+    }
+    // Retrieve the refreshed status
+    return ConvertUtil.entityToModel(
+        workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
   }
 
   public WorkflowRun start(String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {

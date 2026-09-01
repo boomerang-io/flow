@@ -23,6 +23,7 @@ import io.boomerang.common.model.*;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.StorageQuantityUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
@@ -453,55 +454,46 @@ public class WorkflowService {
           String maxStorageSizeQuota =
               this.settingsService
                   .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
-                  .getValue()
-                  .replace("Gi", "");
+                  .getValue();
           ws.setName("workflow");
           ws.setOptional(false);
-          WorkflowWorkspaceSpec workflowWorkspaceSpec = new WorkflowWorkspaceSpec();
-          if (ws.getSpec() != null) {
-            //            workflowWorkspaceSpec = (WorkflowWorkspaceSpec) ws.getSpec();
-            BeanUtils.copyProperties(ws.getSpec(), workflowWorkspaceSpec);
-          }
-          if (workflowWorkspaceSpec.getSize() == null) {
-            workflowWorkspaceSpec.setSize(maxStorageSizeQuota);
-          } else if (enforceQuotas
-              && (Integer.valueOf(workflowWorkspaceSpec.getSize())
-                  > Integer.valueOf(maxStorageSizeQuota))) {
-            throw new BoomerangException(
-                BoomerangError.QUOTA_EXCEEDED,
-                "Workspace Size Limit",
-                workflowWorkspaceSpec.getSize(),
-                maxStorageSizeQuota);
-          }
-          ws.setSpec(workflowWorkspaceSpec);
+          ws.setSpec(
+              resolveWorkspaceSpec(ws.getSpec(), maxStorageSizeQuota, enforceQuotas));
         } else if (ws.getType().equals("workflowrun")) {
           String maxStorageSizeQuota =
               this.settingsService
                   .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
-                  .getValue()
-                  .replace("Gi", "");
+                  .getValue();
           ws.setName("workflowrun");
           ws.setOptional(false);
-          WorkflowWorkspaceSpec workflowWorkspaceSpec = new WorkflowWorkspaceSpec();
-          if (ws.getSpec() != null) {
-            BeanUtils.copyProperties(ws.getSpec(), workflowWorkspaceSpec);
-            //            workflowWorkspaceSpec = (WorkflowWorkspaceSpec) ws.getSpec();
-          }
-          if (workflowWorkspaceSpec.getSize() == null) {
-            workflowWorkspaceSpec.setSize(maxStorageSizeQuota);
-          } else if (enforceQuotas
-              && (Integer.valueOf(workflowWorkspaceSpec.getSize())
-                  > Integer.valueOf(maxStorageSizeQuota))) {
-            throw new BoomerangException(
-                BoomerangError.QUOTA_EXCEEDED,
-                "Workspace Size Limit",
-                workflowWorkspaceSpec.getSize(),
-                maxStorageSizeQuota);
-          }
-          ws.setSpec(workflowWorkspaceSpec);
+          ws.setSpec(
+              resolveWorkspaceSpec(ws.getSpec(), maxStorageSizeQuota, enforceQuotas));
         }
       }
     }
+  }
+
+  /*
+   * Converts a Workspace's spec (a Map when it arrives over JSON/BSON - ws.getSpec() is typed
+   * Object) into a WorkflowWorkspaceSpec, defaults its size to the quota when unset, and - only
+   * when quotas are enforced - rejects an authored size over quota. The size is always kept as a
+   * Kubernetes quantity ("1Gi", "500Mi"), never stripped to a bare number: the dispatcher passes
+   * it straight to a Kubernetes Quantity, and a stripped size is silently requested as bytes.
+   */
+  private WorkflowWorkspaceSpec resolveWorkspaceSpec(
+      Object rawSpec, String maxStorageSizeQuota, boolean enforceQuotas) {
+    WorkflowWorkspaceSpec spec =
+        rawSpec != null
+            ? this.objectMapper.convertValue(rawSpec, WorkflowWorkspaceSpec.class)
+            : new WorkflowWorkspaceSpec();
+    if (spec.getSize() == null) {
+      spec.setSize(maxStorageSizeQuota);
+    } else if (enforceQuotas
+        && StorageQuantityUtil.toGi(spec.getSize()) > StorageQuantityUtil.toGi(maxStorageSizeQuota)) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, "Workspace Size Limit", spec.getSize(), maxStorageSizeQuota);
+    }
+    return spec;
   }
 
   /*

@@ -17,10 +17,12 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.WorkflowService;
 import java.util.LinkedList;
@@ -41,6 +43,7 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private TaskRunService taskRunService;
+  @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
 
   @Test
   void submittedRunCompletesThroughAgentCallbacks() {
@@ -230,6 +233,136 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
     TaskRunEntity taskRun =
         taskRunRepository.findFirstByNameAndWorkflowRunRef("work", wfRunId).orElseThrow();
     assertEquals("busybox:latest", taskRun.getSpec().getImage());
+  }
+
+  @Test
+  void taskWorkspacesAreCopiedOntoTheMaterialisedTaskRun() {
+    Task template = new Task();
+    template.setName("lifecycle-workspace-echo");
+    template.setType(TaskType.template);
+    template.getSpec().setImage("busybox:latest");
+    template.getSpec().setCommand(List.of("echo"));
+    String templateId = taskService.create(template).getId();
+
+    WorkflowTask echo = workflowTask("echo", TaskType.template, templateId, "start");
+    TaskWorkspace taskWorkspace = new TaskWorkspace();
+    taskWorkspace.setName("run-store");
+    taskWorkspace.setType("workflowrun");
+    taskWorkspace.setMountPath("/workspace/run");
+    echo.setWorkspaces(new LinkedList<>(List.of(taskWorkspace)));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("run-lifecycle-task-workspace");
+    workflow.setTasks(
+        List.of(workflowTask("start", TaskType.start, null), echo, workflowTask("end", TaskType.end, null, "echo")));
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+
+    String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+    awaitEngine("echo TaskRun materialised")
+        .untilAsserted(
+            () ->
+                assertTrue(
+                    taskRunRepository.findFirstByNameAndWorkflowRunRef("echo", wfRunId).isPresent()));
+
+    TaskRunEntity echoTaskRun =
+        taskRunRepository.findFirstByNameAndWorkflowRunRef("echo", wfRunId).orElseThrow();
+    assertEquals(1, echoTaskRun.getWorkspaces().size(), "the Task's own workspaces must be copied");
+    TaskWorkspace copied = echoTaskRun.getWorkspaces().get(0);
+    assertEquals("run-store", copied.getName());
+    assertEquals("workflowrun", copied.getType());
+    assertEquals("/workspace/run", copied.getMountPath());
+  }
+
+  // A run with Workspaces must be provisioned by the dispatcher before it starts - start=true
+  // stays ready/pending rather than being started directly, and the run becomes claimable.
+  @Test
+  void aRunWithWorkspacesSubmittedWithStartTrueStaysReadyPendingForProvisioning() {
+    String templateId = simpleTemplate("lifecycle-workspace-claim-provision");
+    Workflow workflow = runnableWorkflowWithWorkspace("run-lifecycle-provision-claim", templateId);
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+
+    String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), true).getId();
+
+    awaitEngine("WorkflowRun with Workspaces parked for dispatcher provisioning")
+        .untilAsserted(
+            () -> {
+              WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();
+              assertEquals(RunStatus.ready, run.getStatus());
+              assertEquals(RunPhase.pending, run.getPhase());
+            });
+
+    assertTrue(
+        workflowRunStateHelper.findClaimableForProvision(50).stream()
+            .anyMatch(r -> wfRunId.equals(r.getId())),
+        "a ready/pending run with Workspaces must be claimable for provisioning");
+  }
+
+  // A run with no Workspaces has nothing to provision, so start=true starts it directly and it
+  // never becomes a provisioning claimant.
+  @Test
+  void aRunWithoutWorkspacesSubmittedWithStartTrueStartsDirectlyAndIsNotClaimableForProvision() {
+    String templateId = simpleTemplate("lifecycle-no-workspace-claim-start");
+    Workflow workflow = runnableWorkflow("run-lifecycle-no-workspace-start", templateId);
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+
+    String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), true).getId();
+
+    awaitEngine("WorkflowRun without Workspaces started directly")
+        .untilAsserted(
+            () -> {
+              WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();
+              assertEquals(RunStatus.running, run.getStatus());
+              assertEquals(RunPhase.running, run.getPhase());
+            });
+
+    assertTrue(
+        workflowRunStateHelper.findClaimableForProvision(50).stream()
+            .noneMatch(r -> wfRunId.equals(r.getId())),
+        "a run without Workspaces must never be claimable for provisioning");
+  }
+
+  // A run with no Workspaces parked with start=false (an explicit later PUT .../start) also has
+  // nothing to provision, so it must not be picked up by the provisioning claim either.
+  @Test
+  void aRunParkedWithoutWorkspacesIsNotClaimableForProvision() {
+    String templateId = simpleTemplate("lifecycle-no-workspace-claim-park");
+    Workflow workflow = runnableWorkflow("run-lifecycle-no-workspace-park", templateId);
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+
+    String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+
+    awaitEngine("WorkflowRun without Workspaces parked ready/pending")
+        .untilAsserted(
+            () -> {
+              WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();
+              assertEquals(RunStatus.ready, run.getStatus());
+              assertEquals(RunPhase.pending, run.getPhase());
+            });
+
+    assertTrue(
+        workflowRunStateHelper.findClaimableForProvision(50).stream()
+            .noneMatch(r -> wfRunId.equals(r.getId())),
+        "a parked run without Workspaces must never be claimable for provisioning");
+  }
+
+  private String simpleTemplate(String name) {
+    Task template = new Task();
+    template.setName(name);
+    template.setType(TaskType.template);
+    template.getSpec().setImage("busybox:latest");
+    template.getSpec().setCommand(List.of("echo"));
+    return taskService.create(template).getId();
+  }
+
+  // AbstractEngineIntegrationTest.runnableWorkflow gives start -> work -> end; this just adds a
+  // Workflow-level Workspace on top.
+  private static Workflow runnableWorkflowWithWorkspace(String name, String taskSlug) {
+    Workflow workflow = runnableWorkflow(name, taskSlug);
+    WorkflowWorkspace ws = new WorkflowWorkspace();
+    ws.setName("run-store");
+    ws.setType("workflowrun");
+    workflow.setWorkspaces(new LinkedList<>(List.of(ws)));
+    return workflow;
   }
 
   /**
