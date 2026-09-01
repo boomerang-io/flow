@@ -461,7 +461,9 @@ public class WorkspaceService {
 
     Page<Workspace> pages =
         PageableExecutionUtils.getPage(
-            teams, pageable, () -> mongoTemplate.count(query, WorkspaceEntity.class));
+            teams,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkspaceEntity.class));
 
     return pages;
   }

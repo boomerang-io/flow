@@ -582,7 +582,11 @@ public class WorkflowRunService {
           wfRuns.add(wfRun);
         });
 
-    Page<WorkflowRun> pages = PageableExecutionUtils.getPage(wfRuns, pageable, () -> wfRuns.size());
+    Page<WorkflowRun> pages =
+        PageableExecutionUtils.getPage(
+            wfRuns,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowRunEntity.class));
 
     return pages;
   }

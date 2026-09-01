@@ -504,7 +504,9 @@ public class TokenService {
 
     Page<Token> pages =
         PageableExecutionUtils.getPage(
-            response, pageable, () -> mongoTemplate.count(query, ActionEntity.class));
+            response,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), TokenEntity.class));
 
     return pages;
   }

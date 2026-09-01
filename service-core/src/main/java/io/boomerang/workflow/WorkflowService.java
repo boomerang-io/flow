@@ -1381,7 +1381,10 @@ public class WorkflowService {
         });
 
     Page<Workflow> pages =
-        PageableExecutionUtils.getPage(workflows, pageable, () -> workflows.size());
+        PageableExecutionUtils.getPage(
+            workflows,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowEntity.class));
     LOGGER.debug(pages.toString());
     return pages;
   }
