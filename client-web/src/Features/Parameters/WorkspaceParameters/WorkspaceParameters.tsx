@@ -15,6 +15,7 @@ import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { DataDrivenInput } from "Types";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import ParametersTable from "../ParametersTable";
 
 // Route module for app/routes/workspaceParameters.tsx, following
@@ -59,20 +60,11 @@ export async function loader({
   }
 }
 
-type ActionResult = {
-  ok: boolean;
-  intent: "create" | "update" | "delete";
-  label: string;
-  errorMessage?: { title: string; message: string };
-};
+type ActionResult =
+  | { intent: "create" | "update" | "delete"; label: string }
+  | ({ intent: "create" | "update" | "delete"; label: string } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<ActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -82,31 +74,30 @@ export async function action({
     const label = String(formData.get("label"));
     try {
       await serverFetch(request).delete(serviceUrl.workspace.deleteWorkspaceParameter({ workspace, name }));
-      return { ok: true, intent: "delete", label };
+      return { intent: "delete" as const, label };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "delete",
+      return actionError({
+        intent: "delete" as const,
         label,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Configuration Failed" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Delete Configuration Failed" }),
+      });
     }
   }
 
   const isEdit = intent === "update";
+  const editIntent: "update" | "create" = isEdit ? "update" : "create";
   const parameter = JSON.parse(String(formData.get("parameter")));
   try {
     await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { parameters: [parameter] });
-    return { ok: true, intent: isEdit ? "update" : "create", label: parameter.label };
+    return { intent: editIntent, label: parameter.label };
   } catch (error) {
-    return {
-      ok: false,
-      intent: isEdit ? "update" : "create",
+    return actionError({
+      intent: editIntent,
       label: parameter.label,
       // Matches the previous handleSubmit catch's (pre-existing, unchanged) default message -
       // written for the delete path and never updated when create/update was added.
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Configuration Failed" }),
-    };
+      error: formatErrorMessage({ error, defaultMessage: "Delete Configuration Failed" }),
+    });
   }
 }
 
@@ -127,10 +118,12 @@ function WorkspaceParameters() {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    const { ok, intent, label, errorMessage } = fetcher.data;
+    const data = fetcher.data;
+    const { intent, label } = data;
+    const isError = isActionError(data);
 
     if (intent === "delete") {
-      if (ok) {
+      if (!isError) {
         notify(
           <ToastNotification
             kind="success"
@@ -143,8 +136,8 @@ function WorkspaceParameters() {
         notify(
           <ToastNotification
             kind="error"
-            title={errorMessage?.title ?? "Something's Wrong"}
-            subtitle={errorMessage?.message}
+            title={data.error.title ?? "Something's Wrong"}
+            subtitle={data.error.message}
             data-testid="delete-workspace-param-notification"
           />,
         );
@@ -152,7 +145,7 @@ function WorkspaceParameters() {
       return;
     }
 
-    if (ok) {
+    if (!isError) {
       notify(
         <ToastNotification
           kind="success"
@@ -165,8 +158,8 @@ function WorkspaceParameters() {
       notify(
         <ToastNotification
           kind="error"
-          title={errorMessage?.title ?? "Something's Wrong"}
-          subtitle={errorMessage?.message}
+          title={data.error.title ?? "Something's Wrong"}
+          subtitle={data.error.message}
           data-testid="create-param-notification"
         />,
       );
@@ -204,7 +197,7 @@ function WorkspaceParameters() {
   };
 
   const isSubmitting = fetcher.state !== "idle";
-  const errorSubmitting = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent !== "delete");
+  const errorSubmitting = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent !== "delete");
 
   return (
     <>
