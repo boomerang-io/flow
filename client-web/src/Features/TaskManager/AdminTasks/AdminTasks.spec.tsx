@@ -5,6 +5,7 @@ import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import AdminTasks, { action, loader } from "./AdminTasks";
 
 // Route-module test pattern - see GlobalParameters.spec.tsx. The real route ("/admin/task-manager/*"
@@ -12,7 +13,7 @@ import AdminTasks, { action, loader } from "./AdminTasks";
 // which task-template sub-page (if any) is being requested, so the test route below has to use
 // the same "/*" pattern rather than a bare catch-all for the splat value to line up.
 function renderAdminTasks(route: string = "/admin/task-manager") {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/admin/task-manager/*" loader={loader} action={action} element={<AdminTasks />} />,
     { route },
   );

@@ -8,6 +8,7 @@ import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
+import { renderWithContext } from "Utils/testing/render";
 import WorkflowActivity, { loader } from "./Activity";
 
 const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skipEmptyString: true };
@@ -18,7 +19,7 @@ const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js
 // (displayName/breadcrumb) is still a client-side context concern - the loader itself only ever
 // needs the `:workspace` URL param (see Activity.tsx's module doc).
 function renderActivity(route: string = `/${WORKSPACE}/activity`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/activity"
       loader={loader}

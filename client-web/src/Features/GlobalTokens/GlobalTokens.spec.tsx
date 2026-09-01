@@ -4,13 +4,14 @@ import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import GlobalTokens, { action, loader } from "./GlobalTokens";
 
 // Route-module test pattern (see GlobalParameters.spec.tsx): build the same shape the real
 // router config uses (a <Route> carrying loader/action alongside its element) so
-// rtlContextRouterRender runs them instead of wrapping the element in its usual catch-all.
+// renderWithContext runs them instead of wrapping the element in its usual catch-all.
 function renderGlobalTokens() {
-  return global.rtlContextRouterRender(<Route path="*" loader={loader} action={action} element={<GlobalTokens />} />);
+  return renderWithContext(<Route path="*" loader={loader} action={action} element={<GlobalTokens />} />);
 }
 
 describe("GlobalTokens --- loader", () => {

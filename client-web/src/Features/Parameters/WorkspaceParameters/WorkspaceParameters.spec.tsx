@@ -3,6 +3,7 @@ import { screen, fireEvent, waitForElementToBeRemoved } from "@testing-library/r
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
+import { renderWithContext } from "Utils/testing/render";
 import WorkspaceParameters, { action, loader } from "./WorkspaceParameters";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
@@ -33,7 +34,7 @@ function DeleteFirstParameter() {
 }
 
 function renderWorkspaceParameters() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/parameters"
       loader={loader}

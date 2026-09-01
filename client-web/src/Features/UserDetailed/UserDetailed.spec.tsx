@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import { Route } from "react-router-dom";
 import { waitFor, screen } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
+import { renderWithContext } from "Utils/testing/render";
 import UserDetailed, { action, loader } from "./UserDetailed";
 
 const USER_ID = "5f170b3df6ab327e302cb0a5";
 
 function renderUserDetailed(route = appLink.user({ userId: USER_ID })) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path={`${AppPath.User}/*`} loader={loader} action={action} element={<UserDetailed />} />,
     { route },
   );

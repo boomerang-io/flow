@@ -2,6 +2,7 @@ import { Route } from "react-router-dom";
 import { waitFor } from "@testing-library/react";
 import { WorkspaceContainer } from "Features/App/App";
 import { appLink } from "Config/appConfig";
+import { renderWithContext } from "Utils/testing/render";
 import Actions, { loader } from "./Actions";
 
 const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js content[0].
@@ -10,7 +11,7 @@ const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js
 // app/routes.ts) is a splat: Actions.tsx re-matches the remainder with its own descendant
 // <Routes>, so the test route has to use the same "/*" pattern.
 function renderActions(route: string = appLink.actions({ workspace: WORKSPACE })) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/actions/*"
       loader={loader}

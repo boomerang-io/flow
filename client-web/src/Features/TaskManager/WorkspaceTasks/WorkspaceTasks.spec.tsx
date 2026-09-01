@@ -8,6 +8,7 @@ import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import WorkspaceTasks, { action, loader } from "./WorkspaceTasks";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
@@ -16,7 +17,7 @@ const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/
 // WorkspaceContainer app/routes/manageTasks.tsx does, since WorkspaceTasks reads the active
 // workspace off its context (unrelated to the loader/action migration - untouched here).
 function renderWorkspaceTasks(route: string = `/${WORKSPACE}/task-manager`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/task-manager/*"
       loader={loader}

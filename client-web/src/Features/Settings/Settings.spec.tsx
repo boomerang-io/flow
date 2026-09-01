@@ -5,13 +5,14 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import Settings, { action, loader } from "./Settings";
 
 // Route-module test pattern (see GlobalParameters.spec.tsx): build the same shape the real
 // router config uses (a <Route> carrying loader/action alongside its element) so the loader/
 // action actually run.
 function renderSettings() {
-  return global.rtlContextRouterRender(<Route path="*" loader={loader} action={action} element={<Settings />} />);
+  return renderWithContext(<Route path="*" loader={loader} action={action} element={<Settings />} />);
 }
 
 describe("Settings --- Snapshot", () => {

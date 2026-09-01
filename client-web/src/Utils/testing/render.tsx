@@ -3,8 +3,10 @@ import {
   Route,
   createRoutesFromElements,
   createRoutesStub,
+  useLocation,
   type ActionFunction,
   type LoaderFunction,
+  type Location,
   type RouteObject,
 } from "react-router-dom";
 import { render as rtlRender, type RenderOptions } from "@testing-library/react";
@@ -33,13 +35,51 @@ import {
 // unchanged - only the render call itself moves off the `global.rtlXRender` ambients.
 type StubRoutes = Parameters<typeof createRoutesStub>[0];
 
-function toStubRoutes(routes: RouteObject[]): StubRoutes {
+// A handful of specs (Insights.spec.tsx, Activity.spec.tsx, Actions.spec.tsx,
+// Configure.spec.tsx) destructure `{ history }` off the render return value and read
+// `history.location` after a navigation - the same shape the old `routerHistory(router)` shim in
+// setupTests.tsx exposed off the `createMemoryRouter` instance it built by hand.
+// `createRoutesStub` doesn't hand back its internal router (it returns a component, not a
+// router instance), so there's no router object to read `.state.location` off any more. Instead,
+// every route's `Component` is wrapped with an invisible sibling that calls `useLocation()` -
+// which works from anywhere inside the router, matched route or not - and mutates a closure
+// variable on every navigation; `history.location` is a getter over that variable, so it stays
+// live without the caller re-rendering.
+function createHistoryHandle() {
+  let current: Location | undefined;
+  function HistoryProbe() {
+    current = useLocation();
+    return null;
+  }
+  return {
+    HistoryProbe,
+    history: {
+      get location() {
+        if (!current) {
+          throw new Error("history.location read before the router committed its first render");
+        }
+        return current;
+      },
+    },
+  };
+}
+
+function toStubRoutes(routes: RouteObject[], HistoryProbe: React.ComponentType): StubRoutes {
   return routes.map((route) => {
     const { element, errorElement, children, ...rest } = route as RouteObject & { element?: React.ReactNode };
     return {
       ...rest,
-      ...(element !== undefined ? { Component: () => element } : {}),
-      ...(children ? { children: toStubRoutes(children) } : {}),
+      ...(element !== undefined
+        ? {
+            Component: () => (
+              <>
+                <HistoryProbe />
+                {element}
+              </>
+            ),
+          }
+        : {}),
+      ...(children ? { children: toStubRoutes(children, HistoryProbe) } : {}),
     };
   }) as StubRoutes;
 }
@@ -64,13 +104,14 @@ export interface RenderRouteOptions {
 
 /** Builds the StubRouteObject[] a spec's `ui` implies: an explicit route tree (`options.routes`),
  * `ui` itself already being a <Route>/<>...</> tree, or a bare element wrapped in one route. */
-function buildStubRoutes(ui: React.ReactElement, options: RenderRouteOptions) {
-  if (options.routes) return toStubRoutes(options.routes);
-  if (isRouteTree(ui)) return toStubRoutes(createRoutesFromElements(ui));
+function buildStubRoutes(ui: React.ReactElement, options: RenderRouteOptions, HistoryProbe: React.ComponentType) {
+  if (options.routes) return toStubRoutes(options.routes, HistoryProbe);
+  if (isRouteTree(ui)) return toStubRoutes(createRoutesFromElements(ui), HistoryProbe);
   return toStubRoutes(
     createRoutesFromElements(
       <Route path={options.path ?? "*"} loader={options.loader} action={options.action} element={ui} />
-    )
+    ),
+    HistoryProbe
   );
 }
 
@@ -88,11 +129,15 @@ export function renderWithRouter(
   options: RenderRouteOptions & Omit<RenderOptions, "wrapper"> = {}
 ) {
   const { path, route, initialEntries, initialIndex, loader, action, routes, ...renderOptions } = options;
-  const Stub = createRoutesStub(buildStubRoutes(ui, { path, route, initialEntries, loader, action, routes }));
-  return rtlRender(
-    <Stub initialEntries={initialEntriesFor({ route, initialEntries })} initialIndex={initialIndex} />,
-    renderOptions
-  );
+  const { HistoryProbe, history } = createHistoryHandle();
+  const Stub = createRoutesStub(buildStubRoutes(ui, { path, route, initialEntries, loader, action, routes }, HistoryProbe));
+  return {
+    ...rtlRender(
+      <Stub initialEntries={initialEntriesFor({ route, initialEntries })} initialIndex={initialIndex} />,
+      renderOptions
+    ),
+    history,
+  };
 }
 
 const feature = featureFlagsFixture.features;
@@ -154,25 +199,29 @@ export function renderWithContext(ui: React.ReactElement, options: RenderContext
       mutations: { throwOnError: true } as MutationObserverOptions<unknown, unknown, unknown, unknown>,
     },
   });
-  const Stub = createRoutesStub(buildStubRoutes(ui, { path, route, initialEntries, loader, action, routes }));
-  return rtlRender(
-    <FlagsProvider features={defaultFeatures}>
-      {/* `defaultContextValue`/`defaultWorkspaceValue` only ever supplied a subset of `AppContext`/
-      `WorkspaceContext` (both types local to State/context/index.tsx and not exported) - true in
-      the old `//@ts-nocheck`d harness too. Cast rather than widen the fixtures or export+narrow
-      the app's own context types, which is out of scope here. */}
-      <AppContextProvider
-        value={{ ...defaultContextValue, ...contextValue } as unknown as Parameters<typeof AppContextProvider>[0]["value"]}
-      >
-        <WorkspaceContextProvider
-          value={defaultWorkspaceValue as unknown as Parameters<typeof WorkspaceContextProvider>[0]["value"]}
+  const { HistoryProbe, history } = createHistoryHandle();
+  const Stub = createRoutesStub(buildStubRoutes(ui, { path, route, initialEntries, loader, action, routes }, HistoryProbe));
+  return {
+    ...rtlRender(
+      <FlagsProvider features={defaultFeatures}>
+        {/* `defaultContextValue`/`defaultWorkspaceValue` only ever supplied a subset of `AppContext`/
+        `WorkspaceContext` (both types local to State/context/index.tsx and not exported) - true in
+        the old `//@ts-nocheck`d harness too. Cast rather than widen the fixtures or export+narrow
+        the app's own context types, which is out of scope here. */}
+        <AppContextProvider
+          value={{ ...defaultContextValue, ...contextValue } as unknown as Parameters<typeof AppContextProvider>[0]["value"]}
         >
-          <QueryClientProvider client={queryClient}>
-            <Stub initialEntries={initialEntriesFor({ route, initialEntries })} initialIndex={initialIndex} />
-          </QueryClientProvider>
-        </WorkspaceContextProvider>
-      </AppContextProvider>
-    </FlagsProvider>,
-    renderOptions
-  );
+          <WorkspaceContextProvider
+            value={defaultWorkspaceValue as unknown as Parameters<typeof WorkspaceContextProvider>[0]["value"]}
+          >
+            <QueryClientProvider client={queryClient}>
+              <Stub initialEntries={initialEntriesFor({ route, initialEntries })} initialIndex={initialIndex} />
+            </QueryClientProvider>
+          </WorkspaceContextProvider>
+        </AppContextProvider>
+      </FlagsProvider>,
+      renderOptions
+    ),
+    history,
+  };
 }

@@ -8,6 +8,7 @@ import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
+import { renderWithContext } from "Utils/testing/render";
 import Schedules, { loader } from "./Schedules";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
@@ -16,7 +17,7 @@ const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/
 // WorkspaceContainer the same way app/routes/schedules.tsx does, since Schedules reads the active
 // workspace off its context for the header/breadcrumb (unrelated to the loader migration).
 function renderSchedules(route: string = `/${WORKSPACE}/schedules`) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/schedules"
       loader={loader}
