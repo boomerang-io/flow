@@ -19,7 +19,13 @@
  *      into index.html by the old server at container boot; there is no index.html to template
  *      anymore, so this server does the equivalent as a response transform around the SSR
  *      handler's HTML output. `@react-router/serve` has no extension point for this.
- * Neither of these hardcodes any networking assumption (host, scheme, upstream address) - see
+ * (A third reason used to live here: an /api forward to service-core for the browser's direct
+ * API calls. The BFF teardown removed it - the browser only ever talks to THIS server now
+ * (documents, /res/* resource routes, .data requests), and every service-core call happens
+ * server-side via CORE_SERVICE_INTERNAL_ORIGIN (Config/serverFetch.ts). /api on the public
+ * ingress remains a service-core concern for integrations and the dispatcher, not this
+ * server's.)
+ * None of these hardcodes any networking assumption (host, scheme, upstream address) - see
  * the trust-proxy and process.env notes below - honouring CLAUDE.md's deployment constraint
  * that enterprises run this behind reverse proxies and internal CAs.
  */

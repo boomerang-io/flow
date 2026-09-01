@@ -6,7 +6,6 @@ import {
   FeatureHeaderTitle as HeaderTitle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { UserRole, UserRoleCopy } from "Constants";
-import { serviceUrl } from "Config/servicesConfig";
 import { FlowUser, UserRoleType } from "Types";
 import { Checkmark, Close } from "@carbon/react/icons";
 import styles from "./UserDetailedHeader.module.scss";
@@ -33,11 +32,11 @@ function UserDetailedHeader({ user, userManagementEnabled }: UserDetailedHeaderP
       header={
         <div className={styles.infoContainer}>
           <div className={styles.userContainer}>
-            <Avatar
-              className={styles.userAvatar}
-              src={serviceUrl.getUserProfileImage({ userEmail: user?.email })}
-              userName={user?.email}
-            />
+            {/* src="" on purpose: the old value pointed at GET /api/users/image/{email}, a
+                v3-era users-service endpoint that no longer exists in service-core - it has
+                404'd since v4 (and was a browser /api call besides). A falsy src makes Avatar
+                render its default user icon with no request at all. */}
+            <Avatar className={styles.userAvatar} src="" userName={user?.email} />
             <HeaderTitle style={{ margin: "0 1rem 0 1rem" }} title={user?.name}>
               {user?.name ?? "---"}
             </HeaderTitle>

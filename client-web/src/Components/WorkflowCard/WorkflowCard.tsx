@@ -10,7 +10,6 @@ import {
   TooltipHover,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import workflowIcons from "Assets/workflowIcons";
-import axios from "axios";
 import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
 import cloneDeep from "lodash/cloneDeep";
@@ -20,7 +19,7 @@ import WorkflowWarningButton from "Components/WorkflowWarningButton";
 import { swapValue } from "Utils";
 import { WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
+import { resourceRoute } from "Config/resourceRoutes";
 import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
@@ -153,14 +152,19 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     fetcher.submit({ intent: "duplicate", workflowName: workflow.name }, { method: "post" });
   };
 
+  // Fetches the same-origin /res streaming resource route (app/routes/resWorkflowExport.tsx)
+  // rather than calling /api from the browser (the BFF direction). The downloaded file's content
+  // is unchanged: the JSON is still pretty-printed exactly as the previous axios version did.
   const handleExportWorkflow = (workflow: Workflow) => {
     notify(<ToastNotification kind="info" title={`Export ${viewType}`} subtitle="Export starting soon" />);
-    axios
-      .get(serviceUrl.workspace.workflow.getExportWorkflow({ workspace: workspaceName, workflow: workflow.name }))
-      .then(({ data }) => {
+    fetch(resourceRoute.workflowExport({ workspace: workspaceName, workflow: workflow.name }), {
+      credentials: "same-origin",
+    })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
+      .then((data) => {
         fileDownload(JSON.stringify(data, null, 4), `${workflow.name}.json`);
       })
-      .catch((error) => {
+      .catch(() => {
         notify(
           <ToastNotification
             kind="error"

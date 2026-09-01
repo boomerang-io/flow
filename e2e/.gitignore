@@ -1,3 +1,6 @@
+# Saved storage state from the login bootstrap (tests/auth.setup.ts) - contains a live session
+# cookie, never commit it.
+.auth/
 node_modules/
 test-results/
 playwright-report/

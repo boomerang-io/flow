@@ -15,7 +15,6 @@ import { emailIsValid } from "Utils";
 import ChangeRole from "./ChangeRole";
 import styles from "./UserDetailedHeader.module.scss";
 import { appLink } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
 import { UserRole, UserRoleCopy } from "Constants";
 import { FlowUser, UserRoleType } from "Types";
 
@@ -99,11 +98,11 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
       header={
         <div className={styles.infoContainer}>
           <div className={styles.userContainer}>
-            <Avatar
-              className={styles.userAvatar}
-              src={serviceUrl.getUserProfileImage({ userEmail: user?.email })}
-              userName={user?.email}
-            />
+            {/* src="" on purpose: the old value pointed at GET /api/users/image/{email}, a
+                v3-era users-service endpoint that no longer exists in service-core - it has
+                404'd since v4 (and was a browser /api call besides). A falsy src makes Avatar
+                render its default user icon with no request at all. */}
+            <Avatar className={styles.userAvatar} src="" userName={user?.email} />
             <HeaderTitle style={{ margin: "0 1rem 0 1rem" }} title={user?.name}>
               {user?.name ?? "---"}
             </HeaderTitle>

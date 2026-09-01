@@ -24,7 +24,6 @@ import {
   TextArea,
   TextInput,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import axios from "axios";
 import cronstrue from "cronstrue";
 import moment from "moment-timezone";
 import * as Yup from "yup";
@@ -32,7 +31,7 @@ import { useWorkspaceContext } from "Hooks";
 import { cronToDateTime, daysOfWeekCronList } from "Utils/cronHelper";
 import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone } from "Utils/dateHelper";
 import { scheduleTypeLabelMap } from "Constants";
-import { serviceUrl } from "Config/servicesConfig";
+import { validateCronExpression } from "Config/resourceRoutes";
 import {
   DataDrivenInput,
   DayOfWeekKey,
@@ -43,7 +42,14 @@ import {
 import styles from "./ScheduleManagerForm.module.scss";
 
 interface CreateEditFormProps {
-  handleSubmit: (args: ScheduleManagerFormInputs) => void;
+  // Called with the form values AND the modal's own closeModal. The parent
+  // (ScheduleCreator/ScheduleEditor) submits a useFetcher() and stashes closeModal in a ref,
+  // closing only from its fetcher-settle effect on success - the fetcher's result arrives by
+  // re-render, not as an awaitable promise, so the old `await handleSubmit(); closeModal()`
+  // contract cannot hold. Same shape as CreateWorkflow.tsx's handleImportWorkflow(workflow,
+  // closeModal). On failure the modal stays open and `isError` renders the inline notification,
+  // exactly as before.
+  handleSubmit: (args: ScheduleManagerFormInputs, closeModal: () => void) => void;
   includeWorkflowDropdown?: boolean;
   isError: boolean;
   isLoading: boolean;
@@ -160,14 +166,7 @@ export default function CreateEditForm(props: CreateEditFormProps) {
       validateOnMount
       initialValues={initFormValues}
       inputs={workflowParams ?? []}
-      onSubmit={async (args: ScheduleManagerFormInputs) => {
-        try {
-          await props.handleSubmit(args);
-          props.modalProps.closeModal();
-        } catch (e) {
-          //no-op
-        }
-      }}
+      onSubmit={(args: ScheduleManagerFormInputs) => props.handleSubmit(args, props.modalProps.closeModal)}
       validationSchemaExtension={Yup.object().shape({
         name: Yup.string().required("Name is required").max(200, "Enter less than 200 characters"),
         description: Yup.string().max(500, "Enter less than 500 characters"),
@@ -188,17 +187,14 @@ export default function CreateEditForm(props: CreateEditFormProps) {
             .test({
               name: "isValidCron",
               test: async (value: string | undefined, { createError, path }) => {
-                const response = await axios.get(
-                  serviceUrl.schedule.getCronValidation({ workspace: workspace.name, expression: value }),
-                );
-                if (response.data.valid) {
+                const result = await validateCronExpression({ workspace: workspace.name, cron: value ?? "" });
+                if (result.valid) {
                   return true;
                 } else {
                   return createError({
                     path,
                     message:
-                      response.data.message ??
-                      "Cron Expression is invalid and couldn't be converted. Please, try again.",
+                      result.message ?? "Cron Expression is invalid and couldn't be converted. Please, try again.",
                   });
                 }
               },

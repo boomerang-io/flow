@@ -21,8 +21,8 @@ import styles from "./integrations.module.scss";
 // for the fuller rationale on the split and the serverFetch/errorLoading/ssr:true contract.
 //
 // The workspace-scoped fetch below uses `params.workspace` (the route param, available to the
-// loader directly) rather than `useWorkspaceContext()`, which only resolves client-side via
-// WorkspaceContainer's own react-query call - see WorkspaceParameters.tsx/WorkspaceTasks.tsx for
+// loader directly) rather than `useWorkspaceContext()`, which resolves through
+// app/routes/workspaceLayout.tsx's loader - see WorkspaceParameters.tsx/WorkspaceTasks.tsx for
 // the same split (loader fetches by param, component still reads the context object for display
 // concerns like the breadcrumb/header).
 type LoaderData = {

@@ -3,44 +3,31 @@ import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
-import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
-import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
 import WorkspaceTasks, { action, loader } from "./WorkspaceTasks";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
 
-// Route-module test pattern - see GlobalParameters.spec.tsx/AdminTasks.spec.tsx. Wraps the same
-// WorkspaceContainer app/routes/manageTasks.tsx does, since WorkspaceTasks reads the active
-// workspace off its context (unrelated to the loader/action migration - untouched here).
+// Route-module test pattern - see GlobalParameters.spec.tsx/AdminTasks.spec.tsx. WorkspaceTasks
+// reads the active workspace off its context, so the harness's WorkspaceContextProvider is
+// overridden with the full workspace fixture the WORKSPACE constant names - production supplies
+// it from app/routes/workspaceLayout.tsx's loader.
 function renderWorkspaceTasks(route: string = `/${WORKSPACE}/task-manager`) {
   return global.rtlContextRouterRender(
     <Route
       path="/:workspace/task-manager/*"
       loader={loader}
       action={action}
-      element={
-        <WorkspaceContainer>
-          <WorkspaceTasks />
-        </WorkspaceContainer>
-      }
+      element={<WorkspaceTasks />}
     />,
-    { route },
+    { route, workspaceValue: { workspace: workspaceFixture } },
   );
 }
 
-// WorkspaceContainer resolves the active workspace via `resourceWorkspace`, which now does a
-// real lookup by name (see handlers.ts's `findWorkspace`) instead of Mirage's old
-// always-return-the-canned-fixture behaviour - seed the fixture the WORKSPACE constant above
-// names so that lookup actually finds something (same reasoning as WorkspaceDetailed.spec.tsx).
-// `serviceUrl.workspace.task.*` itself now has a default handler in handlers.ts (it had none at
-// all under Mirage - this spec used to register every one of these routes on its own server
-// instance every test), so nothing else needs registering here.
-beforeEach(() => {
-  db.workspaces.push(structuredClone(workspaceFixture));
-});
-
+// `serviceUrl.workspace.task.*` has a default handler in handlers.ts (it had none at all under
+// Mirage - this spec used to register every one of these routes on its own server instance every
+// test), so nothing needs registering here.
 // Mirrors AdminTasks.spec.tsx: the sidenav's task list is independent of the selected template's
 // task/changelog pair, so all three belong in one wave. Only the YAML read (editor sub-route)
 // genuinely depends on the selected task having resolved.

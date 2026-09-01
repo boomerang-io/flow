@@ -37,6 +37,7 @@
     "@carbon/pictograms-react": "^11.50.0",
     "@carbon/react": "1.75.0",
     "@dagrejs/dagre": "^1.0.4",
+    "@mjackson/headers": "^0.11.1",
     "@react-router/node": "7.18.2",
     "@tanstack/react-query": "^5",
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
@@ -76,11 +77,12 @@
     "react-lazylog": "4.5.3",
     "react-markdown": "^8.0.3",
     "react-mde": "11.5.0",
-    "react-query": "^3.39.3",
     "react-router-dom": "^7.18.2",
     "react-sliding-pane": "^7.1.0",
     "react-transition-group": "^4.4.2",
     "reflexbox": "^4.0.6",
+    "remix-auth": "^4.2.0",
+    "remix-auth-oauth2": "^3.4.1",
     "use-immer": "^0.8.1",
     "validator": "^13.7.0",
     "yaml": "^2.3.2",
@@ -159,7 +161,12 @@
       "react-virtualized@9.22.5": "patches/react-virtualized@9.22.5.patch",
       "@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15": "patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch",
       "@boomerang-io/utils@1.1.0": "patches/@boomerang-io__utils@1.1.0.patch"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msw",
+      "@parcel/watcher"
+    ]
   },
   "msw": {
     "workerDirectory": [

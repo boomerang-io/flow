@@ -4,7 +4,6 @@ import { InlineNotification } from "@carbon/react";
 import { ChevronRight } from "@carbon/react/icons";
 import { Loading, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import "Styles/markdown.css";
-import axios from "axios";
 import { sentenceCase } from "change-case";
 import cx from "classnames";
 import "codemirror/addon/comment/comment.js";
@@ -31,7 +30,7 @@ import EmptyState from "Components/EmptyState";
 import { TaskTemplateStatus } from "Constants";
 import { yamlInstructions } from "Constants";
 import { appLink, AppPath } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
+import { resourceRoute } from "Config/resourceRoutes";
 import { ChangeLog, Task } from "Types";
 import Header from "../Header";
 import { TemplateRequestType } from "../constants";
@@ -254,20 +253,23 @@ export function TaskTemplateYamlEditor({
     );
   };
 
+  // Fetches the same-origin /res streaming resource route (app/routes/resTaskYaml.tsx) rather
+  // than calling /api from the browser (the BFF direction); the route forwards
+  // Accept: application/x-yaml upstream and streams the YAML text through untouched.
   const handleDownloadTaskTemplate = async () => {
     try {
-      let url = serviceUrl.task.getTask({ name: selectedTaskTemplate.name, version: selectedTaskTemplate.version });
-      if (params.workspace) {
-        url = serviceUrl.workspace.task.getTask({
-          workspace: params.workspace,
+      const response = await fetch(
+        resourceRoute.taskYaml({
           name: selectedTaskTemplate.name,
           version: selectedTaskTemplate.version,
-        });
+          workspace: params.workspace,
+        }),
+        { credentials: "same-origin" },
+      );
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
       }
-      const response = await axios.get(url, {
-        headers: { Accept: "application/x-yaml" },
-      });
-      fileDownload(response.data, `${selectedTaskTemplate.name}.yaml`);
+      fileDownload(await response.text(), `${selectedTaskTemplate.name}.yaml`);
       notify(
         <ToastNotification
           kind="success"
