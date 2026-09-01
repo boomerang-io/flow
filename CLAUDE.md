@@ -345,6 +345,8 @@ Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.y
 | `specifications/api-contract-trace.md`     | 🔵 **ACTIVE (2026-08-18)**   | End-to-end webapp↔service-core contract trace (call site → route → service → serialised fields). Live defects, blocked capability, the permissions/auth findings that gate the frontend work, and the maintainer decisions outstanding. |
 | `specifications/task-contract-research.md` | 📎 Research record (2026-08-22) | Params-in/results-out across Tekton, Argo, GitHub Actions, GitLab, Airflow, KFP, Conductor, Dagger; executor side-by-side (Tekton/Jobs/Docker/ACA/Lambda); the channel options A–E debated. Inputs to `runtime-contract.md` C2/C3. |
 | `specifications/repo-insights-engagement-inputs.md` | 🟡 Inputs — proposed (2026-08-09) | Client-engagement requirements for a future v5 phase: pull-based **executor SPI** (zone queues, payload cap), **evidence/custody ledger** in the task-result contract, **executor portfolio** (K8s Jobs default, VM/MicroVM, CoCo flag), workspace non-retention guarantee, thin LLM task type + **propose/dispose** governed agency, **Embabel** spike. Not ruled — proposed→confirmed when the phase is worked. |
+| `specifications/framework-review-wave.md`  | 🟢 Fix wave complete (2026-09-01) | Tracker for the 2026-08-31 framework-vs-rolled-own review: every item’s disposition and status (done / proposed / GitHub issue / deferred), the G1/G2 declarations, and the grouped **follow-on wave** (Security A1–A6, Cache, Threads, Web C5). Branch `feat-v5-framework-wave`, unmerged. |
+| `specifications/framework-review-proposals.md` | 📝 Proposed (2026-09-01) | Before/after code for the maintainer-gated items A7 Bean Validation, A8 `@ConfigurationProperties`, A9 Spring Data auditing feasibility (client-side; fits `save`/`insert` only, never the CAS `Update` paths), A10 `Pageable` + the 9-site count-total bug, A11 shared `Criteria` builder, A16 entity↔model mapping. Nothing applied. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =
@@ -417,10 +419,7 @@ Gates on a quiet tree: **vitest 172 passed / 0 failed (51 files)** — up from 9
 (`CORE_SERVICE_INTERNAL_ORIGIN` in `build/server/`, absent from `build/client/`).
 
 **T8 still owes**: Wave 5 (`Editor.tsx`'s query cluster — the blocker for the schedules cluster,
-which currently runs loaders for reads and react-query for writes); a sweep of **21 redundant
-`revalidator.revalidate()` calls** (React Router already revalidates after a `useFetcher` action —
-but exactly 4 of the 25 call sites genuinely need it because they are still on react-query, so a
-naive sweep breaks them); and two open frontend defects — schedule labels cannot be set
+which currently runs loaders for reads and react-query for writes); the `revalidator.revalidate()` sweep is DONE (2026-09-01 check on `feat-v5-track9`: 6 call sites remain, 5 in the react-query-backed schedules cluster + 1 poll, each justified in-file); and two open frontend defects — schedule labels cannot be set
 (`ScheduleCreator`/`ScheduleEditor`, the submit-side block is commented out and would not work if
 uncommented) and `WorkflowAdvancedDetail` rendering `boomerang.io/workflow-ref=undefined`.
 
