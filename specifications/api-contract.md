@@ -95,6 +95,9 @@ Accepted CloudEvent shape (structured mode):
   "data": { "event": "request_success", "inputs": { "key": "value" } } }
 ```
 
+`data` is optional: an event without it is accepted and its run params carry only `event`
+(`WebhookEventService.java:226-230`).
+
 A caller with no relationship to the workflow gets `PERMISSION_DENIED`
 (`WebhookEventService.java:94-97`); a rejected request creates no run.
 
