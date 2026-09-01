@@ -897,6 +897,15 @@ Rejected: stay-split + async decoupling (branch B, preserved in the proposal). /
 **DD-03: Unified product versioning** — one tag builds the compatible image set; no
 independent engine version line; `engine@` alias tags for the embedder deprecation
 window. / Rejected: per-service tags + compatibility-set manifest. / 2026-07-22.
+> **Amendment (2026-09-01, maintainer)**: the `engine@` alias tags are **ruled OUT** —
+> v5 has never shipped, so there is no v5 embedder to carry through a deprecation
+> window; v4 embedders keep pulling the v4 image tags, which remain published. Reopen
+> only if a v5 embedder appears that needs an engine-only pull line. With that, DD-03 is
+> fully implemented: `ci-release.yml` builds `flow-service-core`/`flow-service-dispatcher`/
+> `flow-service-loader`/`flow-client-web` off one `5.x.y` tag (also `-beta.z`/`-rc.z`;
+> `sbom.yml` fires on the same patterns), and `:latest` moves on stable tags only —
+> pre-release tags push just `:<semver>`. The remaining act is operational, not code:
+> the first `5.x` tag has never been cut (`/release` skill).
 
 **DD-08: Control/execution state = typed fields; annotations/labels = non-identifying
 metadata only** — Anything the engine reads to make a decision, or queries/indexes/selects

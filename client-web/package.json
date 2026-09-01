@@ -1,6 +1,6 @@
 {
   "name": "boomerang.app.flow",
-  "version": "3.12.0",
+  "version": "5.0.0",
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "homepage": "https://useboomerang.io",
