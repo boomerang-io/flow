@@ -1,6 +1,6 @@
 ---
 name: spec-review-change
-description: Review a proposed spec change — explore current implementation, ask clarifying questions, critically debate the design, and surface implementation gaps. Use when reviewing a spec (or a v5-enhancement Q-register answer / Living Section) before committing to implementation.
+description: Review a proposed spec change — explore current implementation, ask clarifying questions, critically debate the design, and surface implementation gaps. Use when reviewing a proposed change to a reference doc or a proposed decision record before committing to implementation.
 argument-hint: <paste spec text here>
 ---
 
@@ -10,10 +10,9 @@ Review a proposed spec change by comparing it to the current implementation, deb
 design, and surfacing blockers before implementation begins. The spec text is passed as the
 skill argument.
 
-This repo is **spec-driven**: `specifications/v5-enhancemnet.md` is the master spec (phases,
-Q-register, Living Sections), with `scaling.md` and `service-consolidation.md` as annexes.
-`CLAUDE.md` holds the architecture invariants. A "spec change" here is usually a new Q-register
-answer, a Living Section, or a phase proposal.
+This repo is **spec-driven**: `specifications/<subsystem>.md` describes how each subsystem works today and
+`specifications/decisions/` records why (one numbered record per decision) — see CLAUDE.md.
+`CLAUDE.md` holds the architecture invariants. A "spec change" here is a proposed edit to a reference doc or a proposed decision record.
 
 ## Phase 1 — Parse the Spec
 
@@ -25,7 +24,7 @@ Read the pasted spec text and extract:
   (e.g. `WorkflowRunEntity`, phase vs status, TaskRun reconciliation, the claim query).
 - **Design decisions**: explicit choices made in the spec (named DD-01 style or implicit).
 - **Scope of change**: what is being added, removed, or changed relative to what likely
-  exists today, and which **phase** (0–4) and **Q-register** items it touches.
+  exists today, and which reference doc and decision records it touches.
 
 Summarise these four points in 3–5 bullet points before proceeding. This confirms you have
 read the spec correctly.
@@ -40,7 +39,7 @@ Tell the Explore agent to:
   `service-engine/`, `service-dispatcher/` — entities (`**/entity/`), services, controllers
   (`*ControllerV1.java` / `*ControllerV2.java`), repositories, config.
 - Find spec files in `specifications/` that cover the same area, and the relevant
-  Q-register items / Living Sections in `v5-enhancemnet.md`.
+  the reference docs and decision records in `specifications/`.
 - Check `CLAUDE.md` for any **architecture invariant** the change touches (status-only
   external field, WorkflowRun as execution record, idempotent transition handlers,
   lib-common purity, no new synchronous flow→engine HTTP calls).
