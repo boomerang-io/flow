@@ -62,6 +62,25 @@ Q-126.
 > including `creationDate`. The annotations remain in 12 files and have drifted; reading them
 > instead of the migration gives a wrong answer.
 
+> ### Prior decision — ADR001 "Async vs Sync Mode" (2022-10-08, proposed, never closed)
+>
+> Pre-v4, execution was a blocking synchronous call from the engine to the controller. ADR001
+> (archived community `decisions/adr001-asyncmode.md`, merged here 2026-09-01) recorded three
+> options for v4: (1) a switchable mode where synchronous mode auto-advanced Queued→Started with
+> an outbound call from the engine; (2) an executor polling every *x* seconds for queued work;
+> (3) an executor listening for status events. It proposed "2 or 3 (or both)" and was never ruled.
+>
+> **v5 resolves it as option 2 only.** Dispatchers poll and claim: `DispatcherService` pages
+> `TaskRunService.findClaimable(types, PAGE_SIZE)`
+> (`service-core/src/main/java/io/boomerang/dispatcher/DispatcherService.java:207`) and takes each
+> candidate with a single `findAndModify` CAS (`TaskRunService.tryClaim`, `TaskRunService.java:232`);
+> the workflow-level provision/teardown claimables use the same shape
+> (`DispatcherService.java:132-139`). There is no synchronous mode and no engine→executor call —
+> the engine never calls out to run work (CLAUDE.md invariant). Option 3 survives only as
+> **outbound** notification: transitions go to the transactional outbox
+> (`multi-instance-model.md` §2b), and in-process `ApplicationEvent`s are a latency hint, never
+> the trigger for dispatch (§2c).
+
 ## D1. Claim/Queue Design (Q-225)
 
 ### 1.1 Claim fields (flat, absent-as-eligible)

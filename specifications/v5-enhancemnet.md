@@ -346,6 +346,17 @@ evidence (file/class or measurement).
   - ✅ Removed: Quartz (via lib-scheduling), flapdoodle, OpenTracing/Jaeger, wiremock
     (unused), tekton-model-v1beta1/triggers, stale pins. Still-slated: alturkovic
     (E4, post-gating-list), JobRunr (Q-227 deferred decision).
+- **Q-007** Is GSON still needed beside Jackson 3, or should AD003 (2020: "GSON for small JSON, Jackson for large") be retired? *(added 2026-09-01 by the community-docs merge — see §10 "Pre-v5 decisions")*
+  - 🟡 **Proposed: remove GSON.** It is a direct dependency in `service-core/pom.xml:213-214`
+    and `service-dispatcher/pom.xml:130-131` with 4 call sites:
+    `service-core/src/main/java/io/boomerang/event/model/GenericStatusEvent.java`,
+    `service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java`,
+    `.../kube/TektonServiceImpl.java`, `.../executor/TerminationMessageParser.java`. AD003's
+    performance rationale predates Jackson 3 and was never measured here; a second JSON library
+    is one more CVE surface (`/cve-review`) for no capability Jackson lacks. Do it as one small
+    PR: replace each `Gson`/`JsonParser` use with the module's existing `ObjectMapper`, drop both
+    `<dependency>` blocks, and confirm with `mvn dependency:tree | grep gson` that nothing pulls
+    it in transitively. Propose→confirm.
 
 ### Phase 1 — DAG semantics
 
@@ -928,6 +939,32 @@ auto-retry starts). Executor-config `task-*` annotations (→ task spec) and par
 `version`/`kind`/`position`) stays annotations. `RunStatus` stays a closed enum (H15). /
 Rejected: keep control state in annotations (fights the datastore, non-queryable, couples
 orchestration to K8s metadata). / 2026-07-24.
+> **Labels convention (merged 2026-09-01 from the archived community `Labels.md`).** User labels
+> are `Map<String,String>` on `WorkflowEntity`, `WorkflowRunEntity`, `TaskRunEntity`, `TaskEntity`,
+> `WorkspaceEntity` and `UserEntity`, keyed `<prefix>/<name>=<value>`; the prefix is optional and
+> MUST be a DNS subdomain when present (the Kubernetes convention); unprefixed keys belong to the
+> user. Nothing enforces the convention in code. Labels are queryable: every v2 list endpoint takes
+> `labels` as URL-encoded `key=value` pairs (`WorkspaceWorkflowControllerV2.java:108-113`,
+> `WorkspaceWorkflowRunControllerV2.java:66-72`, `TaskControllerV2.java:98-103`,
+> `WorkspaceControllerV2.java:109-114`, `UserControllerV2.java:73-78`).
+> **The doc's `io.boomerang.event/*` label family (`id`, `source`, `subject`, `initiatorid`,
+> `initiatorcontext`) is written nowhere in v5** — `grep -rn "io.boomerang.event/"` over
+> `service-core`, `service-dispatcher`, `lib-common` and `client-web` matches nothing; the only
+> `io.boomerang.event` string is the CloudEvent `type` in the sample payload at
+> `client-web/src/Features/WorkflowEditor/Configure/ConfigureEventTrigger/ConfigureEventTrigger.tsx:10`.
+> An event-triggered run carries the CloudEvent as the `event` and `data` run params instead
+> (`WebhookEventService.eventToRunParams`, `service-core/src/main/java/io/boomerang/event/WebhookEventService.java:209-219`).
+> The live engine convention is the **annotation** namespace `boomerang.io/*` (`Map<String,Object>`,
+> stored with `#` for `.` — `MongoConfiguration.java:38`). Keys found on 2026-09-01
+> (`grep -rhoE 'boomerang\.io/[a-z-]+'` over the Java and TS sources): `category`,
+> `context-params`, `displayName`, `docs`, `generation`, `global-params`, `icon`, `kind`, `params`,
+> `position`, `product`, `revision`, `selector`, `status`, `task-default-image`, `task-deletion`,
+> `task-timeout`, `taskrun-ref`, `tier`, `verified`, `version`, `workflow-ref`, `workflowrun-ref`,
+> `workspace-name`, `workspace-params`, `workspace-ref`, `workspace-type`. The category-A keys this
+> DD retired (`retry-count`, `retry-of`, `timeout-cause`) now appear only in
+> `service-core/src/test/java/io/boomerang/engine/ControlStateFieldsTest.java`, the tripwire that
+> asserts they are no longer written; the `task-*` and `*-params` families are the "later cleanups"
+> named above.
 
 **DD-07: Database migrations — flow-loader joins the monorepo, rewritten on Flamingock**
 — a `service-loader` module in this repo, running as today's pre-deploy container/Job
@@ -964,3 +1001,18 @@ renaming immediately (churns CI/poms mid-PR-train). / 2026-07-23.
 `flow.client.web` 3.12.x into the product version; path-filtered CI; webapp only in
 `full`/`standalone` modes. / Rejected: immediate move (would run alongside the heaviest
 backend phases); staying separate. / 2026-07-22.
+
+### Pre-v5 decisions — the archived `boomerang-io/community` ADRs and AD-table (reviewed 2026-09-01)
+
+Each entry is marked **retained** (still true of the code), **superseded** (a v5 DD replaced it)
+or **moot** (the premise no longer exists). None re-opens a v5 DD.
+
+| ID | Date | Decision as recorded | v5 status | Why |
+|---|---|---|---|---|
+| ADR001 Async vs Sync mode | 2022-10-08 (proposed) | Options: a switchable sync mode / an executor that polls / an executor that listens for status events; "2 or 3" proposed | **Superseded** | Ruled as dispatchers polling and claiming, events outbound only — `queue-design.md` "Prior decision — ADR001". |
+| ADR002 Start and End nodes | 2022-10-08 (proposed) | Whether API-authored workflows should still have to carry `start`/`end` nodes | **Retained — never actually decided** | The ADR's options and outcome were a copy-paste of ADR001's, so it recorded no decision. Start/end are still real: `TaskType.start/end` (`lib-common/src/main/java/io/boomerang/common/enums/TaskType.java:16-17`); `DAGUtility.validateWorkflow` requires both and a path between them (`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:59-74`), and `createTaskList` materialises `start` as an already-`succeeded`/`completed` TaskRun (`:122-125`). Removing them is a DAG-semantics change and therefore G1-gated. |
+| ADR003 Versioned-document schema | 2023-08-14 (proposed) | Subset pattern over embedded-array and document-per-version | **Retained — implemented** | `tasks`+`task_revisions`, `workflows`+`workflow_revisions`; `entity-diff-v4-v5.md` A.3. |
+| AD001 Microservice configuration | 2020-01-01 | Spring profile `application.properties` for local vs live, plus Kubernetes env/ConfigMap injection into the live profile | **Retained** | Still how `service-core`/`service-dispatcher`/`service-loader` are configured (`application.properties` + env overrides in `docker-compose.yml` and the Helm charts); `flow.mode` is one such property (DD-02). |
+| AD002 kube-dns internal referencing | 2020-01-01 | Services reference each other by Kubernetes service name + port | **Moot** | DD-02 merged flow and engine into one deployable; the one remaining service-to-service hop is dispatcher→core over `/api/v1/dispatcher`, configured by explicit URL. |
+| AD003 JSON libraries: GSON + Jackson | 2020-01-01 | GSON for small payloads, Jackson for large ones and for annotations | **Retained literally — proposed for retirement** | Both are still on the classpath (`service-core/pom.xml:213-214`, `service-dispatcher/pom.xml:130-131`) beside Jackson 3, with 4 GSON call sites. Q-007 proposes removing GSON. |
+| AD004 Browser platform support | 2020-01-01 | Chrome, Firefox, Edge (current + two previous), limited Safari, no IE | **Retained — moved** | Now recorded in `design-system.md` "Browser support". |

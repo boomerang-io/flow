@@ -178,3 +178,27 @@ This model must be validated against the current CloudEvents consumer implementa
 > Rationale: ...  
 > Rejected alternatives: ...  
 > Date: ...
+
+---
+
+## Appendix — Storage benchmarks (2021; merged 2026-09-01 from the archived community `Benchmarking.md` and its three fio reports)
+
+Method: `fio` 3.25 run as a Kubernetes Job against a PVC of each storage class, following the
+Google Cloud persistent-disk benchmarking recipe (`direct=1`, `ioengine=libaio`, `iodepth=64`,
+`time_based`, `runtime=60`, `ramp_time=2s`, 10 GiB file). Read IOPS = random 4K reads, 1 job;
+read throughput = sequential 1M reads, 8 jobs; write IOPS = random 4K writes, 1 job; write
+throughput = sequential 1M writes, 8 jobs. Summary numbers only — the raw fio output was not
+carried over.
+
+| Cluster / storage class | Date | Read IOPS (4K rand) | Read BW (1M seq ×8) | Write IOPS (4K rand) | Write BW (1M seq ×8) |
+|---|---|---|---|---|---|
+| IBM Cloud Classic, self-managed ICP, GlusterFS | 2021-02-08 | 4 829 | 407 MiB/s | 276 | 70 MiB/s |
+| IBM Cloud Classic, self-managed OCP4, OpenShift Container Storage (Ceph) on 3 × 400 GB local SSD | 2021-02-23 | 15 800 | 214 MiB/s | 3 547 | 13.9 MiB/s |
+| IBM Cloud ROKS (VPC gen2), `ibmc-vpc-block-10iops-tier` | 2021-03-10 | 2 993 | 49.2 MiB/s | 2 000 | 49.1 MiB/s |
+
+Why it stays in this spec: these are the only measured storage numbers behind the workflow /
+workflow-run workspace PVC feature (`WorkflowRevisionEntity.workspaces[]`,
+`WorkflowWorkspaceSpec{accessMode, className, mountPath, size}` in
+`lib-common/src/main/java/io/boomerang/common/model/`) and the `max.workflowrun.storage` quota.
+Q-403 keeps workspaces a capability-gated extension; anyone choosing a storage class for them
+SHOULD re-run the same four jobs on the target cluster rather than reuse these figures.

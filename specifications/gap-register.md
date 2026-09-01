@@ -137,6 +137,48 @@ Tags: **BEFORE-MERGE** ≈ migration steps 1–8 · **WITH-MERGE** ≈ steps 9�
 | G5 | Hot data traverses graph | M | workspaceId-direct rubric | BEFORE (7) |
 | G6 | Edge role data unverified | L | Pre-cutover check | BEFORE (7 gate) |
 
+#### G — Design lineage: Models 1–4 and the E6 verdict (Stable; merged 2026-09-01 from the archived community `RelationshipGraph.md`)
+
+The relationship layer replaced per-object `teamId`/`ownerId` refs because every new parent type
+(user, team, workflow, …) needed another field and another query. Four models preceded v5:
+
+| Model | Shape | Why it was left |
+|---|---|---|
+| 1 | One `relationships` document per link: `{fromType, fromRef, label, toType, toRef}` | No slug support; an object's id sat in many documents, so renames fanned out. This is the `relationships` collection `_0014__V3DropIntermediates` drops. |
+| 2 | Gremlin-style vertex + edge collections carrying `orgRef` and `attributes` | Every check crossed collections (nodes ⟷ edges) — the query cost the model was meant to avoid. |
+| 3 | The node embeds its own `connections[]` (edges with `label`, `to`, `data`) | Deleting a node dropped its edges for free, but multi-hop reads still needed `$graphLookup` and embedding grew the hot documents. |
+| 4 | `rel_nodes` + `rel_edges`, node id = `type:ref`, slug on the node, role in edge `data` — **plus an in-memory JGraphT graph (BFS shortest path) rebuilt on every mutation** | The storage half is what v5 keeps. The in-memory half was **REJECTED in E6 (G1, 2026-07-23)**: each replica rebuilt its own graph, so an edge written on instance A stayed invisible on instance B until B rebuilt — per-replica staleness is an authorization bug, not a cache miss. |
+
+Schema example — Model 4's documents are v5's documents unchanged: `RelationshipNodeEntity`
+`{id=type:ref, creationDate, type, ref, slug, data}` on `rel_nodes`
+(`service-core/src/main/java/io/boomerang/core/entity/RelationshipNodeEntity.java:17-29`) and
+`RelationshipEdgeEntity` `{id, creationDate, from, label, to, data}` on `rel_edges`
+(`RelationshipEdgeEntity.java:18-31`):
+
+```json
+{ "_id": "user:66c5b0a1703c1e28aea58c0a", "creationDate": ISODate("2024-08-21T09:17:21.307Z"),
+  "type": "user", "ref": "66c5b0a1703c1e28aea58c0a", "slug": "test@test.com.au", "data": {} }
+```
+```json
+{ "_id": ObjectId("66c419cbc8737a17e2bc54a7"), "creationDate": ISODate("2024-08-20T04:21:31.422Z"),
+  "from": "user:66bbe41cf62a3a642faee42e", "label": "memberOf",
+  "to": "workspace:66c419cbc8737a17e2bc54a6", "data": { "role": "owner" } }
+```
+
+What v5 does instead of the graph object: `RelationshipService` walks the edges directly — a
+level-by-level downward walk anchored at the principal's node, one edge query plus one node
+batch-load per level (`service-core/src/main/java/io/boomerang/core/RelationshipService.java:32-50`
+header; `check()` → `hasNodes()` → `findNodes()` at `:364`, `:683`, `:603`), served by the
+loader-managed `rel_nodes{type,slug}`/`{type,ref}` and `rel_edges{from,label}`/`{to,label}`
+indexes (`_0036__RelationshipAndAuditIndexes`). Node types are
+`RelationshipType{root, workspace, user, workflow, workflowrun, approvergroup, integration,
+schedule, teamtask, task}` and edge labels `RelationshipLabel{contains, ownerOf, memberOf,
+hasIntegration, hasWorkflow, hasWorkflowRun, hasTask, hasTaskRun, hasApproverGroup}`
+(`core/enums/RelationshipType.java:13-24`, `RelationshipLabel.java:14-22`). Model 4's proposed
+`*Of` label-match adjustment was not adopted — role stays in edge `data.role`, which is what G6
+still tracks as unverified. `$graphLookup` remains the escalation path if the hierarchy ever
+deepens beyond `root → workspace → object`.
+
 ### H. Merge Mechanics / API / Product
 | ID | Gap | Sev | Fix | Tag |
 |---|---|---|---|---|

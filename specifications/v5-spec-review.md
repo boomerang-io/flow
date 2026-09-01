@@ -5,7 +5,8 @@
 (2) service-flow call graph / relationships / security, (3) ARCHIE shipped WorkflowWatcher
 design (`/Users/tysonlawrie/Workspaces/tlawrie/asdr`), (4) CHEER relationship + queue designs
 (`/Users/tysonlawrie/Workspaces/walkaboutdev/cheer.dev`), (5) public architecture docs
-(`github.com/boomerang-io/community/architecture/flow`).
+(`github.com/boomerang-io/community/architecture/flow` — archived 2026-09-01; the surviving
+content was merged into the live specs, see the CLAUDE.md index entries marked "+ …").
 **Framing constraint honoured:** Flow is more complex than either reference — the review
 evaluates *patterns* for adoption, not implementations for transplant.
 

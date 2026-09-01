@@ -178,6 +178,12 @@ The argument, precisely:
    only owed to facts not in our DB (ingress → ledger) and promises to others (egress →
    outbox). Internal coordination needs neither.
 
+> **Outcome vs the pre-v5 roadmap (archived community `Eventing.md`, merged 2026-09-01).** That
+> doc named NATS Streaming as the default queue behind CloudEvents and dapr as the likely
+> application-mesh successor. Neither exists in v5: the outbox (§2b) is the only durable egress,
+> dispatch is claim-driven from Mongo (`queue-design.md` D1), and the no-broker argument above is
+> the ruling that closes both.
+
 ---
 
 ## 3. Reconciler Concurrency Model (Q-223)

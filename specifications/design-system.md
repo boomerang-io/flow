@@ -190,6 +190,15 @@ Carbon's categorical palette.
 - Hand-roll navigation/modals/forms that the add-ons already provide.
 - Add a second UI or charting framework.
 
+## Browser support (AD004, 2020 — retained; moved here 2026-09-01 from the archived community decisions table)
+
+Supported: Chrome, Firefox and Edge — the current version and the two previous versions. Safari
+has limited support. No version of Internet Explorer is supported. The build encodes a looser
+rule than the words: `client-web/package.json:138-149` sets `browserslist` production to
+`>0.2%`, `not dead`, `not op_mini all` (which admits Safari and excludes IE 11 only via "not
+dead") and development to the last Chrome/Firefox/Safari version. Any narrowing SHOULD change
+that field, not this paragraph.
+
 ## Open items (fill when UI work actually lands here)
 
 - Confirm the current `@boomerang-io/*` and `@carbon/react` versions at the time of use (the table

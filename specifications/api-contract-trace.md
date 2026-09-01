@@ -12,6 +12,41 @@ against `io.boomerang.api.**` and `client-web/src/Config/servicesConfig.ts`. Fin
 marked **[verified]** where re-checked in source directly, **[reported]** where they rest on the
 sweep alone.
 
+## 0. Feature intent — the archived community feature specifications (Stable; merged 2026-09-01)
+
+Requirement bullets carried over from `boomerang-io/community`
+`architecture/flow/specifications/{Workflows,Activity,Insights}.md` (2021; the empty
+TBA/acceptance sections are dropped). They state what each route cluster is *for*; the sections
+below record where the wire currently falls short of it.
+
+**Workflows** (`/api/v2/workspace/{workspace}/workflow` — `WorkspaceWorkflowControllerV2`;
+webapp `Features/Workflows`, `Features/WorkflowEditor`). Workspaces group workflows without
+confining them: a workflow can move between workspaces and users act on workflows almost
+irrespective of workspace. The landing screen lists every workspace and workflow with Run it,
+Edit, View Activity, Update, Export, Duplicate and Delete, plus the workspace's quotas. The editor
+is visual — drag-and-drop tasks, notes, versions, task inputs, link (dependency) states — and
+Configure holds per-workflow configuration, the parameter set, and the change/audit log.
+
+**Workflow runs / Activity** (`/api/v2/workspace/{workspace}/workflowrun` —
+`WorkspaceWorkflowRunControllerV2`; `/api/v2/taskrun` — `TaskRunControllerV2`; webapp
+`Features/Activity`, `Features/WorkflowRun`). Search and view executions by workspace, workflow,
+trigger, label and start/end date, with a day-stats snapshot, status filters and a sortable table
+(workspace, scope, workflow, trigger, initiated by, start, duration, status). The detail view shows
+run metadata (workspace, version, initiator, trigger, start), an advanced panel for debug and
+labels, a read-only DAG showing status and the path taken, run-level results and status, and a
+per-task log with status, start, duration, log, result params and error. Labels are the abstract
+finder — set by the user on the workflow, or by an external trigger. Reachable directly from
+Run-and-View in Workflows, and pre-filtered from the Workflows screen.
+
+**Insights** (`/api/v2/workspace/{workspace}/insights` — `WorkspaceInsightsControllerV2`; webapp
+`Features/Insights`). Trends over time filtered by workspace, workflow and period: run counts
+(top 5), duration (median, min/max/average), status split (succeeded / failed / invalid / in
+progress), and a line graph of executions by status and execution time. The stated non-functional
+concern still stands: the query spans every workspace, workflow and run, and no performance
+requirement has been set for it. `InsightsService` resolves objects through the `audit`
+collection (`service-core/src/main/java/io/boomerang/workspace/InsightsService.java:58-110`),
+which is why `_0013__V3SeedAudit` exists — deleted workflows must still resolve.
+
 ## 1. Live defects — fixed during this track
 
 | Area | Defect | Consequence |
@@ -102,6 +137,34 @@ missing-field defects elsewhere in this document.
 *Confidence note:* date-field serialisation (ISO-8601 vs epoch) was **inferred from the absence of
 Jackson configuration, not runtime-verified**. Confirm with a live `GET /schedule/{id}` before
 relying on it.
+
+**Webhook / event route cluster** (`POST /api/v2/webhook`, `POST /api/v2/event`,
+`POST|GET /api/v2/callback` — `WebhookEventControllerV2`; merged 2026-09-01 from the archived
+community `Eventing.md`). The inbound contract is a CloudEvents 1.0 JSON object — structured mode
+(`application/cloudevents+json`, `WebhookEventControllerV2.java:210`) or binary mode with `ce-*`
+headers (`:228-243`); the workflow ref comes from `?ref=` or, failing that, the first path element
+of `subject` (`WebhookEventService.java:87`). The reference sample:
+
+```json
+{ "specversion": "1.0", "type": "io.boomerang.eventing.custom", "source": "/github/actions",
+  "id": "C234-1234-1234", "time": "2020-04-05T17:31:00Z", "subject": "/5f74d0293979cd04c7f8afa1",
+  "datacontenttype": "application/json",
+  "data": { "event": "request_success", "inputs": { "key": "value" } } }
+```
+
+The old rule — *"if the Workflow ID is valid but the token is not, log an activity against the
+Workflow with a Workflow-level failure"* — **does not hold today and was not re-implemented.** An
+invalid or missing token never reaches the controller: `AuthenticationFilter` answers
+`AUTH_REQUIRED` (401) when no identity branch yields an `Authentication`
+(`service-core/src/main/java/io/boomerang/core/security/AuthenticationFilter.java:128-131`). A
+valid token with no relationship to the workflow gets `PERMISSION_DENIED` on `/event`
+(`WebhookEventService.java:95-97`, pinned by `WebhookEventAuthorizationTest`) or
+`WORKFLOW_INVALID_REF` from `WorkflowService.submit`'s relationship filter on `/webhook`
+(`WorkflowService.java:555-571`). Neither path creates a `WorkflowRun`, so nothing is written to
+the run history for a rejected caller — the request is refused, not recorded. Recording refusals
+belongs to the audit trail (`security-audit` skill), not to `workflow_runs`. The doc's NATS
+Streaming queue and dapr roadmap were both dropped: v5 has no broker
+(`multi-instance-model.md` §2c).
 
 ## 2c. GitHub integration — rebuilt (2026-08-18)
 
