@@ -18,7 +18,7 @@ import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
 import ErrorDragon from "Components/ErrorDragon";
 import { useWorkspaceContext } from "Hooks";
-import { timeSecondsToTimeUnit } from "Utils/timeSecondsToTimeUnit";
+import { timeSecondsToTimeUnit } from "Utils/dateHelper";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
