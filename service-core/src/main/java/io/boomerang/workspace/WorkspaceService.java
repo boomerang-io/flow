@@ -635,9 +635,15 @@ public class WorkspaceService {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
 
+      // Match by id when supplied so a rename updates the existing group; name matching is the
+      // fallback for requests that carry no id.
       ApproverGroupEntity age =
           approverGroupEntities.stream()
-              .filter(e -> e.getName().equalsIgnoreCase(r.getName()))
+              .filter(
+                  e ->
+                      (r.getId() != null && !r.getId().isBlank())
+                          ? r.getId().equals(e.getId())
+                          : e.getName().equalsIgnoreCase(r.getName()))
               .findFirst()
               .orElse(null);
 
@@ -658,9 +664,9 @@ public class WorkspaceService {
                   .collect(Collectors.toList());
           LOGGER.debug("Valid Approver Refs: " + validApproverRefs.toString());
           age.setApprovers(validApproverRefs);
-
-          age = approverGroupRepository.save(age);
         }
+        // Save outside the approvers guard so a rename without an approvers list still persists.
+        approverGroupRepository.save(age);
       } else {
         // ApproverGroup + Relationship needs creating
         ApproverGroupEntity approverGroupEntity = new ApproverGroupEntity();
@@ -690,14 +696,17 @@ public class WorkspaceService {
     }
   }
 
-  // Retrieve ApproverGroups by relationship as they are stored separately to the WorkspaceEntity
+  // Retrieve ApproverGroups by relationship as they are stored separately to the WorkspaceEntity.
+  // The relationship node's ref is the group id (its slug is the name), so ask for refs - the
+  // repository lookup below is by id.
   private List<ApproverGroupEntity> getApproverGroupsForTeam(String team) {
     List<String> approverGroupRefs =
         relationshipService.filter(
             RelationshipType.APPROVERGROUP,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)));
+            Optional.of(List.of(team)),
+            false);
     List<ApproverGroupEntity> approverGroupEntities =
         approverGroupRepository.findByIdIn(approverGroupRefs);
     return approverGroupEntities;

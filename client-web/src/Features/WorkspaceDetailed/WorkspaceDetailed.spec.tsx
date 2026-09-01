@@ -329,6 +329,27 @@ describe("WorkspaceDetailed --- approver groups action", () => {
     expect(result.isEdit).toBe(false);
   });
 
+  test("edits send the group id so the backend updates the group rather than creating one", async () => {
+    let patchBody: { approverGroups: Array<Record<string, unknown>> } | undefined;
+    server.use(
+      http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), async ({ request }) => {
+        patchBody = (await request.json()) as typeof patchBody;
+        return HttpResponse.json(workspaceFixture);
+      }),
+    );
+    const result = await submit({
+      intent: "saveApproverGroup",
+      isEdit: "true",
+      groupId: "some-group-id",
+      name: "Renamed Group",
+      approvers: JSON.stringify(["user-1"]),
+    });
+    expect(isActionError(result)).toBe(false);
+    expect(patchBody?.approverGroups).toEqual([
+      { name: "Renamed Group", id: "some-group-id", approvers: ["user-1"] },
+    ]);
+  });
+
   test("surfaces a failed save without throwing", async () => {
     server.use(
       http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), () =>
