@@ -44,8 +44,7 @@ import org.bson.Document;
  * _0003} ran ahead of this seed in the old chain, the seven v3 {@code _id}s existed under
  * DIFFERENT {@code key}s, so the seed's OR-guard's {@code key} half could never protect them, only
  * the {@code _id} half could, and only once the {@code _id}s existed. Now that {@code _0003} always
- * runs first, this is simply insert-if-absent over already-correct data). See "Post-G consolidation
- * review" in {@code specifications/merge-execution-plan.md}.
+ * runs first, this is simply insert-if-absent over already-correct data).
  */
 @Change(id = "0021-seed-settings", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")

@@ -22,10 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * Closes the run-payload redaction gap (task-contract-research.md §7): sensitive means sensitive
- * UPWARD, so the workspace-scoped v2 read redacts password-typed params by joining the run against
- * its workflow revision's param spec, while the unscoped read the engine and dispatcher use keeps
- * real values.
+ * Sensitive means sensitive UPWARD: the workspace-scoped v2 read redacts password-typed params by
+ * joining the run against its workflow revision's param spec, while the unscoped read the engine
+ * and dispatcher use keeps real values.
  */
 class RunRedactionTest extends AbstractEngineIntegrationTest {
 

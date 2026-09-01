@@ -22,10 +22,9 @@ import org.springframework.test.context.TestPropertySource;
  * Companion to {@link FlowModeGatingTest}: same boot test with {@code flow.mode=engine}. See that
  * class for the overall rationale.
  *
- * <p>E8: extends the H6 coverage to the two-mode matrix (re-ruled 2026-08-15) - {@code workspace}
- * (DD-01/J1), {@code schedule} (ruling I2) and their dependent api controllers are absent in
- * engine mode, while {@code workflow}/{@code engine}/{@code dispatcher} stay present per the mode
- * matrix (consolidation-proposal §4).
+ * <p>Covers the two-mode matrix: {@code workspace}, {@code schedule} and their dependent api
+ * controllers are absent in engine mode, while {@code workflow}/{@code engine}/{@code dispatcher}
+ * stay present (see specifications/architecture.md).
  */
 @TestPropertySource(properties = "flow.mode=engine")
 class FlowModeGatingEngineModeTest extends AbstractEngineIntegrationTest {

@@ -15,12 +15,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * T6-3: restructures the token model from scope-typed ({@code AuthScope} doing double duty as
- * both the token's class AND each grant's scope) to actor/ceiling-typed (see {@code
- * specifications/merge-execution-plan.md}, ruling T6-3, for the full design).
+ * Restructures the token model from scope-typed ({@code AuthScope} doing double duty as both the
+ * token's class AND each grant's scope) to actor/ceiling-typed (see {@code
+ * specifications/authorization.md} for the resulting token model).
  *
  * <p>Two of the four pre-restructure token classes are RETIRED outright with no deprecation
- * window (maintainer ruling): {@code workspace} (renamed to {@code key}) and {@code workflow}
+ * window: {@code workspace} (renamed to {@code key}) and {@code workflow}
  * (folded into {@code key} + {@code actorKind=WORKFLOW}). Their raw-token prefixes ({@code bft_},
  * {@code bfw_}) are dropped from {@code TokenTypePrefix}'s pre-DB shape gate at the same time (see
  * that class), so a token minted under either prefix can never authenticate again — only the

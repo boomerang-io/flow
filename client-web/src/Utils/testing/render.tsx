@@ -18,9 +18,9 @@ import {
   profile as userFixture,
 } from "ApiServer/fixtures";
 
-// Replaces setupTests.tsx's hand-rolled `buildRoutes` + `createMemoryRouter` (C7,
-// specifications/framework-review-wave.md). React Router 7.18 ships `createRoutesStub` for
-// exactly this - a real (mocked) data router driven off a route tree, rather than the plain
+// Replaces setupTests.tsx's hand-rolled `buildRoutes` + `createMemoryRouter`. React Router 7.18
+// ships `createRoutesStub` for exactly this - a real (mocked) data router driven off a route
+// tree, rather than the plain
 // <RouterProvider> wrapper the old helpers used, so `useLoaderData`/`useFetcher`/`useActionData`
 // work without hand-wiring a router by hand.
 //

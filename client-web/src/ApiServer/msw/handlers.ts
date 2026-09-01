@@ -73,7 +73,7 @@ async function putTaskResponse(name: string, request: Request) {
 
 export const handlers: HttpHandler[] = [
   /**
-   * Auth (specifications/authentication.md). The default config mode is "none" so every existing
+   * Auth. The default config mode is "none" so every existing
    * spec keeps today's behaviour (no sign-in surface, no silent exchange) - auth specs override
    * these per-test with server.use(). The real /auth/config contract is exactly
    * { mode: "oidc" | "proxy" | "none", issuer, clientId }; /auth/exchange responds 200 with a

@@ -5,17 +5,17 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /*
- * T6-3: four prefixes, one per AuthScope token class - and ONLY these four. Per the maintainer's
- * ruling (specifications/merge-execution-plan.md, T6-3), the retired classes' legacy prefixes
- * ("bft" workspace, "bfw" workflow) are dropped ENTIRELY, with no deprecation window: a raw token
- * minted under either legacy prefix can never authenticate again (the SHA-256 hash of the full
- * raw token, prefix included, is all that is ever stored - see TokenService#hashString/validate -
- * so there is nothing to migrate the raw token itself to). Operators holding one of those tokens
- * must re-issue. TOKEN_PATTERN (the pre-DB shape gate) matches only "g", "k", "u", "s" - a "bft_"
- * or "bfw_" bearer fails this cheap gate exactly like any non-Flow bearer, never reaching Mongo.
+ * Four prefixes, one per AuthScope token class - and ONLY these four. The retired classes' legacy
+ * prefixes ("bft" workspace, "bfw" workflow) are dropped ENTIRELY, with no deprecation window: a
+ * raw token minted under either legacy prefix can never authenticate again (the SHA-256 hash of
+ * the full raw token, prefix included, is all that is ever stored - see
+ * TokenService#hashString/validate - so there is nothing to migrate the raw token itself to).
+ * Operators holding one of those tokens must re-issue. TOKEN_PATTERN (the pre-DB shape gate)
+ * matches only "g", "k", "u", "s" - a "bft_" or "bfw_" bearer fails this cheap gate exactly like
+ * any non-Flow bearer, never reaching Mongo.
  *
- * "bfk" ("worKspace" - kept from H14-e; K is the first letter in "workspace" not already claimed
- * by another prefix) is now the CLASS prefix for {@code AuthScope.key} - the renamed/generalised
+ * "bfk" ("worKspace" - K is the first letter in "workspace" not already claimed by another
+ * prefix) is now the CLASS prefix for {@code AuthScope.key} - the renamed/generalised
  * successor of the old {@code workspace} constant, and also covers what used to be minted under
  * {@code workflow}/"bfw" (a {@code key} token with {@code actorKind=WORKFLOW}).
  */

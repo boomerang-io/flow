@@ -47,7 +47,7 @@ public class WebhookEventService {
   // Jackson 2 overloads (com.fasterxml.jackson.databind.ObjectMapper /
   // com.fasterxml.jackson.core.type.TypeReference) - it knows nothing of tools.jackson (the
   // Boot-managed Jackson 3 mapper). eventToRunParams() below is deliberately still on Jackson 2
-  // for that reason - see A15 in specifications/framework-review-wave.md.
+  // for that reason.
   private static final ObjectMapper JACKSON2_MAPPER =
       com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
 

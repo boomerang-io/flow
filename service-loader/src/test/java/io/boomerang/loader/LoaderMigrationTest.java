@@ -436,7 +436,7 @@ class LoaderMigrationTest {
         .containsExactlyInAnyOrder(
             "auth", "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
 
-    // The trusted OIDC issuer configuration (specifications/authentication.md §1) - seeded empty.
+    // The trusted OIDC issuer configuration - seeded empty.
     Document auth = collection("settings").find(Filters.eq("key", "auth")).first();
     assertThat(
             auth.getList("config", Document.class).stream()
@@ -669,7 +669,7 @@ class LoaderMigrationTest {
     // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 v3-era documents in place - same
     // count, but the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5,
     // ungated) then inserts nothing new for those 7: its OR-guard matches every one of them by
-    // _id. The "auth" document (specifications/authentication.md) has no v3 predecessor to match,
+    // _id. The "auth" document has no v3 predecessor to match,
     // so _0021 inserts it fresh - bringing the total to 8.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
     assertThat(settings.countDocuments()).isEqualTo(8);
@@ -782,9 +782,8 @@ class LoaderMigrationTest {
 
   /**
    * V4-shaped fixture for {@code _0024__V4RepairTaskVersions}/{@code
-   * _0025__V4RepairWorkflowAudit} — the two "best-effort v4 repair" units from maintainer ruling
-   * M-2 (see "v3 → v5 migration consolidation" in {@code specifications/merge-execution-plan.md}).
-   * Unlike every other test in this class, this fixture must be v4-shaped, not v3-shaped: the
+   * _0025__V4RepairWorkflowAudit} — the two "best-effort v4 repair" units. Unlike every other
+   * test in this class, this fixture must be v4-shaped, not v3-shaped: the
    * real v3 dump {@code V3DumpMigrationTest} runs against never exercises these two units at all
    * (they are gated {@code InstallGeneration.V4}), so a synthetic fixture is the only way to prove
    * them.

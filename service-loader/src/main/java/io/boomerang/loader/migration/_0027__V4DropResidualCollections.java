@@ -49,10 +49,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Does NOT touch {@code task_locks} (v5's own current lock collection, a different literal
  * name entirely) or the flow-prefixed Quartz {@code locks} classified and dropped by {@link
- * _0004__V3DropDeadCollections}/{@link _0014__V3DropIntermediates} (V3-only — Quartz predates V4,
- * see the "v3 → v5 migration consolidation" scout findings in {@code
- * specifications/merge-execution-plan.md}: a V4 install postdates the Quartz→JobRunr migration,
- * so it never carries genuine Quartz artifacts under those names).
+ * _0004__V3DropDeadCollections}/{@link _0014__V3DropIntermediates} (V3-only — Quartz predates V4:
+ * a V4 install postdates the Quartz→JobRunr migration, so it never carries genuine Quartz
+ * artifacts under those names).
  *
  * <p>Idempotent: every drop is a {@code MongoCollection.drop()} on an already-absent collection,
  * a no-op on a second run; logs what (if anything) it discards.

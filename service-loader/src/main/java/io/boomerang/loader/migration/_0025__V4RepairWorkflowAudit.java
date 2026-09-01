@@ -16,10 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * V4-only (maintainer ruling M-2 — "best-effort v4 repair units", see "v3 → v5 migration
- * consolidation" in {@code specifications/merge-execution-plan.md}). Rebuilds the {@code
- * WORKFLOW}-scope {@code audit} records ({@code AuditEntity}/{@code AuditScope}) a v4 install is
- * missing.
+ * V4-only (a best-effort v4 repair unit). Rebuilds the {@code WORKFLOW}-scope {@code audit}
+ * records ({@code AuditEntity}/{@code AuditScope}) a v4 install is missing.
  *
  * <p><b>The v4 bug:</b> legacy {@code 4038} tried to seed audit records from the relationship
  * graph for BOTH workspaces and workflows, but its workflow half matched {@code

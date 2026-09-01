@@ -63,7 +63,7 @@ import org.slf4j.LoggerFactory;
  * job in full: verified against the real v3 dump (89 tasks / 132 revisions, unchanged — the sole
  * gap, seed {@code Manual Approval} v2, is inserted here exactly as {@code _0034} used to insert
  * it) and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions,
- * unchanged). See "Post-G consolidation review" in {@code specifications/merge-execution-plan.md}.
+ * unchanged).
  */
 @Change(id = "0022-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")

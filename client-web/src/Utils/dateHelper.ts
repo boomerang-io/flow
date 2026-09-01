@@ -134,8 +134,7 @@ export const defaultTimeZone = moment.tz.guess();
 export const DATETIME_LOCAL_DISPLAY_FORMAT = "MMMM DD, YYYY h:mma";
 export const DATETIME_LOCAL_INPUT_FORMAT = "YYYY-MM-DDTHH:mm";
 
-// Formerly Utils/timeHelper.ts - collapsed in here per the C3 consolidation (see
-// specifications/framework-review-wave.md).
+// Formerly Utils/timeHelper.ts - collapsed in here.
 export const getSimplifiedDuration = (seconds: number): string => {
   const duration = moment.duration(seconds, "seconds");
   const hour = 3600;
@@ -152,9 +151,8 @@ export const getSimplifiedDuration = (seconds: number): string => {
   return result;
 };
 
-// Formerly Utils/timeSecondsToTimeUnit.ts - collapsed in here per the C3 consolidation (see
-// specifications/framework-review-wave.md). Trailing space preserved when the minutes component
-// is empty (existing quirk, pinned deliberately - see dateHelper.spec.ts).
+// Formerly Utils/timeSecondsToTimeUnit.ts - collapsed in here. Trailing space preserved when the
+// minutes component is empty (existing quirk, pinned deliberately - see dateHelper.spec.ts).
 export const timeSecondsToTimeUnit = (seconds: number): string => {
   if (!seconds) return "0 secs";
 

@@ -17,10 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * V4-only (maintainer ruling M-2 — "best-effort v4 repair units", see "v3 → v5 migration
- * consolidation" in {@code specifications/merge-execution-plan.md}). Re-derives {@code
- * taskVersion} on v4 installs (never on v3 — a v3-sourced install gets {@code taskVersion}
- * correct at source, via {@link _0009__V3MigrateWorkflows}/{@link _0006__V3MigrateTaskCatalogue}).
+ * V4-only (a best-effort v4 repair unit). Re-derives {@code taskVersion} on v4 installs (never on
+ * v3 — a v3-sourced install gets {@code taskVersion} correct at source, via {@link
+ * _0009__V3MigrateWorkflows}/{@link _0006__V3MigrateTaskCatalogue}).
  *
  * <p><b>The v4 bug, confirmed against the live loader/entity code:</b> legacy {@code 4005} does
  * {@code Document.replace} on a freshly-constructed, still-empty {@code Document} — a no-op — and

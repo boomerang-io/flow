@@ -22,7 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
- * The engine-enforced payload caps (runtime-contract C2): resolved params are checked at
+ * The engine-enforced payload caps: resolved params are checked at
  * admission, results at end. Both are engine-side so the failure mode is one clear message on
  * every executor, instead of each substrate's own ceiling (128 KiB env string at exec, 4096-byte
  * termination message, 4 KB Lambda env) surfacing differently.
