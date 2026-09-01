@@ -294,31 +294,15 @@ public class WorkflowRunService {
   public ResponseEntity<WorkflowRun> retry(String team, String workflowRunId) {
     requireWorkspaceRelationship(team, workflowRunId);
 
-    // Ownership is resolved BEFORE the retried run is created, which makes this operation
-    // all-or-nothing. The edge write below is the only step that can fail on an unresolvable
-    // owner, and running it afterwards meant a graph-orphaned run answered the caller with an
-    // unmapped 500 - IllegalArgumentException("Node does not exist: workspace:") out of
-    // RelationshipService.createNodeAndEdge - while the retried run had already been created,
-    // queued and left to execute ownerless.
-    String owner = owningWorkspace(workflowRunId);
+    // Refuse-first: an unresolvable owner fails the request BEFORE the clone is created, keeping
+    // this operation all-or-nothing for a caller. The unscoped retry below records the ownership
+    // edge itself, against this same resolution - never the `team` path segment, which only
+    // proves the caller can reach this run through that path (and for a global-scope token
+    // RelationshipService.check returns true for ANY path workspace), and once recorded wrong
+    // owners permanently.
+    owningWorkspace(workflowRunId);
 
-    WorkflowRun wfRun = retry(workflowRunId, false, 1);
-
-    // Record ownership against the run's REAL owning workspace, resolved from the run - NOT the
-    // `team` path segment. `team` only proves the caller can reach this run through that path, and
-    // for a global-scope token RelationshipService.check returns true for ANY path workspace
-    // (RelationshipService:417-419). Using it here permanently recorded the wrong owner whenever a
-    // run was retried through another workspace's URL.
-    relationshipService.createNodeAndEdge(
-        RelationshipType.WORKSPACE,
-        owner,
-        RelationshipLabel.HAS_WORKFLOWRUN,
-        RelationshipType.WORKFLOWRUN,
-        wfRun.getId(),
-        wfRun.getId(),
-        Optional.empty(),
-        Optional.empty());
-    return ResponseEntity.ok(wfRun);
+    return ResponseEntity.ok(retry(workflowRunId, false, 1));
   }
 
   /**
@@ -395,6 +379,19 @@ public class WorkflowRunService {
    * uses for an unresolvable workspace, rather than minting a run no workspace owns.
    */
   private String owningWorkspace(String workflowRunId) {
+    String workspace = owningWorkspaceOrNull(workflowRunId);
+    if (workspace == null) {
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+    }
+    return workspace;
+  }
+
+  /**
+   * The same resolution, answering {@code null} instead of refusing when no workspace owns the
+   * run or its Workflow - for the engine's auto-retry, which must not fail a run's recovery over
+   * graph bookkeeping. A missing run still throws: there is nothing to retry at all.
+   */
+  private String owningWorkspaceOrNull(String workflowRunId) {
     String workspace =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, workflowRunId);
@@ -412,10 +409,10 @@ public class WorkflowRunService {
     if (workspace == null || workspace.isBlank()) {
       LOGGER.error(
           "[{}] Neither the WorkflowRun nor its Workflow ({}) has an owning workspace in the"
-              + " relationship graph. Refusing the retry rather than creating an ownerless run.",
+              + " relationship graph.",
           workflowRunId,
           workflowRef);
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      return null;
     }
     return workspace;
   }
@@ -901,6 +898,17 @@ public class WorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
+    // Ownership travels with creation: user retries and the engine's auto-retry both come through
+    // here, so both record the same owner through this one path. Resolved BEFORE the clone is
+    // created, so resolution can never fail a run that already exists and is queued. Deliberate
+    // asymmetry with retry(team, id): the scoped caller is refused outright on an unresolvable
+    // owner (owningWorkspace throws before delegating here), but the engine's auto-retry must not
+    // fail a run's recovery over graph bookkeeping - it logs and retries ownerless, preserving
+    // the engine path's previous behaviour for the orphan case.
+    String owner = owningWorkspaceOrNull(workflowRunId);
+    if (owner == null) {
+      LOGGER.warn("[{}] Retrying without an owning workspace.", workflowRunId);
+    }
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isPresent()) {
@@ -927,6 +935,20 @@ public class WorkflowRunService {
         wfRunEntity.setTrigger(TriggerEnum.retry.getTrigger());
       }
       workflowRunRepository.save(wfRunEntity);
+
+      // Recorded before the clone is queued, so it never executes as reachable-but-unowned
+      // (visible in /query via its Workflow yet denied on GET /{id}).
+      if (owner != null) {
+        relationshipService.createNodeAndEdge(
+            RelationshipType.WORKSPACE,
+            owner,
+            RelationshipLabel.HAS_WORKFLOWRUN,
+            RelationshipType.WORKFLOWRUN,
+            wfRunEntity.getId(),
+            wfRunEntity.getId(),
+            Optional.empty(),
+            Optional.empty());
+      }
 
       workflowExecutionService.queue(wfRunEntity.getId());
 
