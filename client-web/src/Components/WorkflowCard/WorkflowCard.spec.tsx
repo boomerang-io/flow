@@ -9,6 +9,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
 import { FlowWorkspaceQuotas, Workflow, WorkflowStatus } from "Types";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import WorkflowCard from "./index";
 
 const workspace = workspaces.content[0];
@@ -78,11 +79,11 @@ const props = {
 // `<Route path="/:workspace/workflows" action={action}>` shape the real route tree wires up
 // (app/routes/workflows.tsx), so the action's `params.workspace` read behaves as it does live.
 // No explicit AppContextProvider wrap: WorkflowCard's tree doesn't read AppContext (only the
-// FlagsProvider rtlContextRouterRender already supplies), and wrapping it with the raw
+// FlagsProvider renderWithContext already supplies), and wrapping it with the raw
 // (differently-shaped) fixtures the way the previous .jsx spec did is what kept this file off
 // typechecking in the first place.
 function renderWorkflowCard() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/:workspace/workflows" action={action} element={<WorkflowCard {...props} />} />,
     { route: appLink.workflows({ workspace: workspace.name }) },
   );

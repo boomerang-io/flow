@@ -7,6 +7,7 @@ import { TokenActorKind, TokenType } from "Constants";
 import TokenSection from "./TokenSection";
 import { workflowTokensLoader, tokenAction } from "./tokenRoute";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 
 // Route-module test pattern (see GlobalTokens.spec.tsx / GlobalParameters.spec.tsx): build the
 // same shape the real router config uses - a <Route> carrying loader/action alongside its
@@ -20,7 +21,7 @@ const ROUTE_PATH = "/:workspace/editor/:workflow/*";
 const ROUTE = "/test-workspace/editor/test-workflow/configure/tokens";
 
 function renderTokenSection() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path={ROUTE_PATH}
       loader={workflowTokensLoader}

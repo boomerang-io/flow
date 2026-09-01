@@ -4,6 +4,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { WorkflowStatus, type ScheduleUnion, type Workflow } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import ScheduleEditor from "./ScheduleEditor";
 
 // Built by hand for the same reason ScheduleCreator.spec.tsx does it - see the comment there.
@@ -47,7 +48,7 @@ const schedule: ScheduleUnion = {
 // component) - it's shared with WorkflowEditor/Schedule/Schedule.tsx, which this batch must not
 // touch. `useRevalidator()` was added alongside the existing mutation/invalidateQueries flow.
 function renderEditor(overrides: Partial<React.ComponentProps<typeof ScheduleEditor>> = {}) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <ScheduleEditor
       getCalendarUrl="http://localhost/calendar"
       getSchedulesUrl="http://localhost/schedules"

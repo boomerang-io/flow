@@ -8,6 +8,7 @@ import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import UpdateWorkflow from ".";
 
 const workspace = workspaces.content[0];
@@ -29,7 +30,7 @@ beforeEach(() => {
 // the same `<Route path="/:workspace/workflows" action={action}>` shape the real route tree wires
 // up (app/routes/workflows.tsx).
 function renderUpdateWorkflow() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/:workspace/workflows" action={action} element={<UpdateWorkflow {...props} />} />,
     { route: appLink.workflows({ workspace: workspace.name }) }
   );

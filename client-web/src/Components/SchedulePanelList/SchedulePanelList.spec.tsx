@@ -1,6 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import type { PaginatedSchedulesResponse } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import SchedulePanelList from "./SchedulePanelList";
 
 function buildSchedulesData(): PaginatedSchedulesResponse {
@@ -41,13 +42,13 @@ function buildSchedulesData(): PaginatedSchedulesResponse {
   };
 }
 
-// SchedulePanelList is rendered as a bare component (no Route needed) - `rtlContextRouterRender`
+// SchedulePanelList is rendered as a bare component (no Route needed) - `renderWithContext`
 // wraps anything that isn't itself a <Route>/<Fragment> in a catch-all route (see
-// setupTests.tsx's buildRoutes), which is enough router context for the component's
-// `useRevalidator()` call and its shared react-query mutations (see the rationale comment on
-// ScheduledListItem in SchedulePanelList.tsx for why those stay on react-query).
+// Utils/testing/render.tsx's buildStubRoutes), which is enough router context for the
+// component's `useRevalidator()` call and its shared react-query mutations (see the rationale
+// comment on ScheduledListItem in SchedulePanelList.tsx for why those stay on react-query).
 function renderList(overrides: Partial<React.ComponentProps<typeof SchedulePanelList>> = {}) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <SchedulePanelList
       getCalendarUrl="http://localhost/calendar"
       getSchedulesUrl="http://localhost/schedules"

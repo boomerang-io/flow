@@ -6,6 +6,7 @@ import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type Workflow } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import ScheduleCreator from "./ScheduleCreator";
 
 // Built by hand rather than spreading the `workflows` ApiServer fixture: that fixture (untyped
@@ -46,7 +47,7 @@ const workflow: Workflow = {
 // no picker) - `handleSubmit` reads `workflow.name` unconditionally, so a workflow must be
 // supplied one way or the other.
 function renderCreator(overrides: Partial<React.ComponentProps<typeof ScheduleCreator>> = {}) {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <ScheduleCreator
       getCalendarUrl="http://localhost/calendar"
       getSchedulesUrl="http://localhost/schedules"

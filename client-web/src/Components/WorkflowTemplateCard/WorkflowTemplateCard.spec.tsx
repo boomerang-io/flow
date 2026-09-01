@@ -7,6 +7,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/TemplateWorkflows/TemplateWorkflows";
 import { WorkflowStatus } from "Types";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import WorkflowTemplateCard from "./index";
 
 // The fixture is the wire shape returned by the mocked workflow-template list endpoint (a
@@ -46,10 +47,10 @@ const props = {
 // of the templateWorkflows route's element with no nested <Route> of its own, so its
 // `useFetcher()` submits resolve against whichever route is in context - here, the same
 // `<Route action={action}>` shape the real route tree wires up. Context (user/workspaces) comes
-// from rtlContextRouterRender's own defaults - WorkflowTemplateCard doesn't read AppContext, so
+// from renderWithContext's own defaults - WorkflowTemplateCard doesn't read AppContext, so
 // no extra provider wrap is needed here.
 function renderWorkflowTemplateCard() {
-  return global.rtlContextRouterRender(<Route path="*" action={action} element={<WorkflowTemplateCard {...props} />} />);
+  return renderWithContext(<Route path="*" action={action} element={<WorkflowTemplateCard {...props} />} />);
 }
 
 describe("WorkflowCard --- Snapshot", () => {

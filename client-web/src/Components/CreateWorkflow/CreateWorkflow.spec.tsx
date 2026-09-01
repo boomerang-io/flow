@@ -11,6 +11,7 @@ import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 
 const workspace = workspaces.content[0];
 
@@ -27,7 +28,7 @@ const props = {
 // `<Route path="/:workspace/workflows" action={action}>` shape the real route tree wires up
 // (app/routes/workflows.tsx), so the action's `params.workspace` read behaves as it does live.
 function renderCreateWorkflow() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/workflows"
       action={action}

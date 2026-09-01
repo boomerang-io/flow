@@ -129,7 +129,11 @@ const defaultContextValue = {
 const defaultWorkspaceValue = { workspace: workspacesFixture.content[0] };
 
 export interface RenderContextOptions extends RenderRouteOptions, Omit<RenderOptions, "wrapper"> {
-  contextValue?: Partial<typeof defaultContextValue>;
+  // Loosely typed on purpose: callers pass fixture slices (e.g. `profile.teams`) whose literal
+  // shape doesn't line up 1:1 with `AppContext.workspaces`/`.user` (untyped ApiServer/fixtures
+  // modules predate the webapp/API type alignment noted in CLAUDE.md) - same laxity the old
+  // `rtlContextRouterRender`'s untyped/`//@ts-nocheck`'d `contextValue` param had.
+  contextValue?: Partial<Record<keyof typeof defaultContextValue, unknown>>;
 }
 
 /** Replaces `global.rtlContextRouterRender` - the router render above, plus the app-wide
