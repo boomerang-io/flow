@@ -74,7 +74,10 @@ public class ScheduleJob {
       SecurityContextHolder.getContext().setAuthentication(authToken);
 
       // TODO: fix setting of start to come from somewhere
-      workflowService.submit(teamRef, workflowRef, request, false);
+      // Lineage: stamp the firing Schedule's id as initiatedByRef, mirroring the retry path's
+      // convention (initiatedByRef + trigger together identify what caused the run). Threaded
+      // internally rather than on WorkflowSubmitRequest, which is a public API model.
+      workflowService.submit(teamRef, workflowRef, request, false, schedule.getId());
       if (schedule.getType().equals(WorkflowScheduleType.runOnce)) {
         logger.debug("Executing runOnce schedule: {}, and marking as completed.", schedule.getId());
         workflowScheduleService.complete(schedule.getId());
