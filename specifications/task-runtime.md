@@ -95,8 +95,9 @@ The engine enforces both caps so the failure is one message on every executor; a
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
 to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:238`), and the node-value
-merge keeps the declared casing (`ParameterUtil.java:57-66`). A node param with no value is rejected at save (`WORKFLOW_TASK_PARAM_MISSING_VALUE`,
-`WorkflowService.java:1631`), so a placeholder can never reach a run. The safety pair is rejection at save: names that
+merge keeps the declared casing (`ParameterUtil.java:57-66`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
+substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
+parameter (`engine/TaskExecutionService.java`, `runWorkflow`). The safety pair is rejection at save: names that
 are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PARAM_NAME_COLLISION` (code 1209,
 `BoomerangError.java:50`) at workflow save (`workflow/WorkflowService.java:1593-1599`) and task save
 (`workflow/TaskService.java:366-374`); the dispatcher repeats the check at dispatch (`KubeHelperService.java:131-140`).

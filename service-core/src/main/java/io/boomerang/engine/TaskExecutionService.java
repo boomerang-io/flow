@@ -804,11 +804,13 @@ public class TaskExecutionService {
 
   private void runWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
     LOGGER.debug("[{}] RunWorkflow Request received.", taskExecution.getId());
-    if (taskExecution.getParams() != null
-        && ParameterUtil.containsName(taskExecution.getParams(), "workflowRef")) {
+    Object workflowRefValue =
+        taskExecution.getParams() != null
+            ? ParameterUtil.getValue(taskExecution.getParams(), "workflowRef")
+            : null;
+    if (workflowRefValue != null && !workflowRefValue.toString().isBlank()) {
       try {
-        String workflowRef =
-            ParameterUtil.getValue(taskExecution.getParams(), "workflowRef").toString();
+        String workflowRef = workflowRefValue.toString();
         WorkflowSubmitRequest request = new WorkflowSubmitRequest();
         request.setTrigger(TriggerEnum.task);
         request.setParams(wfRunEntity.getParams());
@@ -840,14 +842,23 @@ public class TaskExecutionService {
         taskExecution.setStatusMessage(ex.getMessage());
         taskExecution.setStatus(RunStatus.failed);
       }
+    } else {
+      // Empty is a valid stored value (it may be substituted or deliberately blank) - the
+      // requirement belongs to this task, so the failure names the parameter here.
+      taskExecution.setStatusMessage(
+          "Parameter 'workflowRef' resolved to no value; provide the workflow to run.");
+      taskExecution.setStatus(RunStatus.failed);
     }
     // No save here - the execute() endTask branch persists this same taskExecution.
   }
 
   private void runScheduledWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    if (taskExecution.getParams() != null) {
-      String workflowId =
-          ParameterUtil.getValue(taskExecution.getParams(), "workflowRef").toString();
+    Object scheduledRefValue =
+        taskExecution.getParams() != null
+            ? ParameterUtil.getValue(taskExecution.getParams(), "workflowRef")
+            : null;
+    if (scheduledRefValue != null && !scheduledRefValue.toString().isBlank()) {
+      String workflowId = scheduledRefValue.toString();
       Integer futureIn =
           Integer.valueOf(ParameterUtil.getValue(taskExecution.getParams(), "futureIn").toString());
       String futurePeriod =

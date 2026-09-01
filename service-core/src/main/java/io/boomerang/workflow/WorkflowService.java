@@ -1614,16 +1614,9 @@ public class WorkflowService {
               name -> {
                 throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
               });
-      wfTask.getParams().stream()
-          .filter(param -> param.getValue() == null)
-          .findFirst()
-          .ifPresent(
-              param -> {
-                throw new BoomerangException(
-                    BoomerangError.WORKFLOW_TASK_PARAM_MISSING_VALUE,
-                    wfTask.getName(),
-                    param.getName());
-              });
+      // An empty (or absent) value is valid: emptiness can be meaningful, and a substitution can
+      // legitimately resolve to empty. A task that requires a value fails its own run with a
+      // message naming the parameter (for example runWorkflow's workflowRef).
       // Case/separator-variant duplicates collide as PARAM_<NAME> env vars and, under
       // case-insensitive matching, as references - rejected here rather than at dispatch.
       List<List<String>> collisions =

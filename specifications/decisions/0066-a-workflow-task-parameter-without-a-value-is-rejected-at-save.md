@@ -1,6 +1,6 @@
 # 0066 — A workflow task parameter without a value is rejected at save
 
-**Status:** accepted · **Date:** 2026-09-02
+**Status:** superseded by 0068 · **Date:** 2026-09-02
 
 ## Context
 

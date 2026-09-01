@@ -91,43 +91,45 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
   }
 
   /*
-   * Regression guard: a node param saved with no value (the caller supplied a name but never a
-   * value, e.g. {"name": "workflowRef"}) used to slip straight through this same "empty declared
-   * set" carve-out and persist as a name-only placeholder - runworkflow/runscheduledworkflow then
-   * read it back as null at run time and failed the task ("Submitting RunWorkflow Request for
-   * ref: ."). A null-valued param is now rejected regardless of whether the Template declares any
-   * params at all.
+   * An empty (or absent) value is a valid value: emptiness can be meaningful to the workflow, and
+   * a substitution can legitimately resolve to empty. The save accepts it and persists the
+   * parameter as authored; a task that requires a value (runworkflow's workflowRef) fails its own
+   * run at execution time with a message naming the parameter.
    */
   @Test
-  void aNodeParamWithNoValueIsRejectedEvenOnATemplateThatDeclaresNoParams() {
-    String taskSlug = noParamTask("param-validation-missing-value-undeclared");
+  void aNodeParamWithNoValueIsAcceptedOnATemplateThatDeclaresNoParams() {
+    String taskSlug = noParamTask("param-validation-empty-value-undeclared");
     Workflow workflow =
         workflowWithTaskParams(
-            "param-validation-missing-value-undeclared-wf",
+            "param-validation-empty-value-undeclared-wf",
             taskSlug,
             new RunParam("workflowRef", null));
 
-    BoomerangException ex =
-        assertThrows(
-            BoomerangException.class, () -> workflowService.create(WORKSPACE, workflow));
+    Workflow created = workflowService.create(WORKSPACE, workflow);
 
-    assertEquals("WORKFLOW_TASK_PARAM_MISSING_VALUE", ex.getReason());
+    assertEquals("param-validation-empty-value-undeclared-wf", created.getName());
   }
 
   @Test
-  void aNodeParamWithNoValueIsRejectedOnATemplateThatDeclaresParams() {
-    String taskSlug = declaredParamTask("param-validation-missing-value-declared", "greeting");
+  void aNodeParamWithAnEmptyStringValueIsAcceptedAndSurvivesSave() {
+    String taskSlug = declaredParamTask("param-validation-empty-value-declared", "greeting");
     Workflow workflow =
         workflowWithTaskParams(
-            "param-validation-missing-value-declared-wf",
+            "param-validation-empty-value-declared-wf",
             taskSlug,
-            new RunParam("greeting", null));
+            new RunParam("greeting", ""));
 
-    BoomerangException ex =
-        assertThrows(
-            BoomerangException.class, () -> workflowService.create(WORKSPACE, workflow));
+    Workflow created = workflowService.create(WORKSPACE, workflow);
 
-    assertEquals("WORKFLOW_TASK_PARAM_MISSING_VALUE", ex.getReason());
+    assertEquals(
+        "",
+        created.getTasks().stream()
+            .filter(t -> !"start".equals(t.getName()) && !"end".equals(t.getName()))
+            .findFirst()
+            .orElseThrow()
+            .getParams()
+            .get(0)
+            .getValue());
   }
 
   @Test

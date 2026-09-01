@@ -51,5 +51,6 @@ things by name, not by code.
 | 0063 | [A run timeout must be at least the transport timeout of the work it guards](0063-run-timeout-must-cover-transport-timeout.md) | accepted | 2026-07-23 |
 | 0064 | [Claimed tasks carry a lease renewed by one batched heartbeat per dispatcher](0064-worker-leases-by-batched-heartbeat.md) | accepted | 2026-09-01 |
 | 0065 | [A task ends with a typed `statusReason` beside its `statusMessage`](0065-typed-status-reason-on-task-end.md) | accepted | 2026-09-01 |
-| 0066 | [A workflow task parameter without a value is rejected at save](0066-a-workflow-task-parameter-without-a-value-is-rejected-at-save.md) | accepted | 2026-09-02 |
+| 0066 | [A workflow task parameter without a value is rejected at save](0066-a-workflow-task-parameter-without-a-value-is-rejected-at-save.md) | superseded by 0068 | 2026-09-02 |
 | 0067 | [A run that declares workspaces is started by the dispatcher after provisioning](0067-runs-with-workspaces-are-started-by-the-dispatcher-after-provisioning.md) | accepted | 2026-09-02 |
+| 0068 | [An empty workflow task parameter value is valid; required-ness is the task's run-time concern](0068-an-empty-workflow-task-parameter-value-is-valid.md) | accepted | 2026-09-02 |
