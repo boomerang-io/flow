@@ -7,6 +7,7 @@ import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
+import { isActionError } from "Utils/actionResult";
 import UpdateWorkflow from ".";
 
 const workspace = workspaces.content[0];
@@ -63,7 +64,7 @@ describe("UpdateWorkflow --- action", () => {
 
     const result = await action({ request, params: { workspace: workspace.name } });
 
-    expect(result).toEqual({ ok: true, intent: "update" });
+    expect(result).toEqual({ intent: "update" });
   });
 
   test("surfaces a failed update without throwing", async () => {
@@ -81,8 +82,12 @@ describe("UpdateWorkflow --- action", () => {
       }),
     });
 
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
     const result = await action({ request, params: { workspace: workspace.name } });
 
-    expect(result).toEqual({ ok: false, intent: "update" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("update");
   });
 });

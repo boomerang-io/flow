@@ -8,6 +8,7 @@ import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
 import { FlowWorkspaceQuotas, Workflow, WorkflowStatus } from "Types";
+import { isActionError } from "Utils/actionResult";
 import WorkflowCard from "./index";
 
 const workspace = workspaces.content[0];
@@ -103,7 +104,7 @@ describe("WorkflowCard --- action", () => {
 
     const result = await action({ request, params: { workspace: workspace.name } });
 
-    expect(result).toEqual({ ok: true, intent: "delete" });
+    expect(result).toEqual({ intent: "delete" });
   });
 
   test("surfaces a failed delete without throwing", async () => {
@@ -118,9 +119,15 @@ describe("WorkflowCard --- action", () => {
       body: new URLSearchParams({ intent: "delete", workflowName: workflow.name }),
     });
 
-    const result = await action({ request, params: { workspace: workspace.name } });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request, params: { workspace: workspace.name } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result).toEqual({ ok: false, intent: "delete" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("delete");
   });
 
   test("duplicates a workflow through the mocked API", async () => {
@@ -138,7 +145,7 @@ describe("WorkflowCard --- action", () => {
 
     const result = await action({ request, params: { workspace: workspace.name } });
 
-    expect(result).toEqual({ ok: true, intent: "duplicate" });
+    expect(result).toEqual({ intent: "duplicate" });
   });
 
   test("executes a workflow through the mocked API", async () => {
@@ -152,9 +159,11 @@ describe("WorkflowCard --- action", () => {
       }),
     });
 
-    const result = await action({ request, params: { workspace: workspace.name } });
+    const result = (await action({ request, params: { workspace: workspace.name } })) as unknown as {
+      intent: string;
+    };
 
-    expect(result.ok).toBe(true);
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("execute");
   });
 });
