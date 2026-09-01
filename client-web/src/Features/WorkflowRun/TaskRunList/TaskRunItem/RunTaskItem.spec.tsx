@@ -1,4 +1,6 @@
 import React from "react";
+import { screen } from "@testing-library/react";
+import { NodeType } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import TaskItem from "./index";
 
@@ -78,5 +80,26 @@ describe("TaskItem --- Snapshot", () => {
   it("Capturing Snapshot of TaskItem", () => {
     const { baseElement } = global.rtlRender(<TaskItem {...props} />);
     expect(baseElement).toMatchSnapshot();
+  });
+
+  it("Capturing Snapshot of a slim (START/END) TaskItem", () => {
+    const { baseElement } = global.rtlRender(<TaskItem {...props} taskRun={{ ...taskRun, type: NodeType.Start }} />);
+    expect(baseElement).toMatchSnapshot();
+  });
+});
+
+describe("TaskItem --- RTL", () => {
+  it("Renders START/END task types slim, without start time or duration", () => {
+    global.rtlRender(<TaskItem {...props} taskRun={{ ...taskRun, type: NodeType.End }} />);
+
+    expect(screen.queryByText("Start time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Duration")).not.toBeInTheDocument();
+  });
+
+  it("Renders a normal task type with start time and duration", () => {
+    global.rtlRender(<TaskItem {...props} />);
+
+    expect(screen.getByText("Start time")).toBeInTheDocument();
+    expect(screen.getByText("Duration")).toBeInTheDocument();
   });
 });

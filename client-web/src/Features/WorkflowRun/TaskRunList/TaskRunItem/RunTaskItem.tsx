@@ -31,13 +31,20 @@ type Props = {
 function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Props) {
   const Icon = executionStatusIcon[taskRun.status];
   const statusClassName = styles[taskRun.status];
+  // START/END are synthetic graph markers, not executed tasks - they render "slim", without the
+  // start time/duration block below, which has no meaningful value for them.
+  const isSlim = taskRun.type === NodeType.Start || taskRun.type === NodeType.End;
 
   const calculatedDuration = taskRun.duration
     ? dateHelper.timeMillisecondsToTimeUnit(taskRun.duration)
     : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
 
   return (
-    <li key={taskRun.name} id={`task-${taskRun.name}`} className={`${styles.taskitem} ${statusClassName}`}>
+    <li
+      key={taskRun.name}
+      id={`task-${taskRun.name}`}
+      className={[styles.taskitem, statusClassName, isSlim && styles.slim].filter(Boolean).join(" ")}
+    >
       <div className={styles.progressBar} />
       <section className={styles.header}>
         <div className={styles.title}>
@@ -51,18 +58,20 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Pr
           <p>{ExecutionStatusCopy[taskRun.status]}</p>
         </div>
       </section>
-      <section className={styles.data}>
-        <div className={styles.time}>
-          <p className={styles.timeTitle}>Start time</p>
-          <time className={styles.timeValue}>
-            {taskRun.startTime ? moment(taskRun.startTime).format("hh:mm:ss A") : "---"}
-          </time>
-        </div>
-        <div className={styles.time}>
-          <p className={styles.timeTitle}>Duration</p>
-          <time className={styles.timeValue}>{calculatedDuration}</time>
-        </div>
-      </section>
+      {!isSlim && (
+        <section className={styles.data}>
+          <div className={styles.time}>
+            <p className={styles.timeTitle}>Start time</p>
+            <time className={styles.timeValue}>
+              {taskRun.startTime ? moment(taskRun.startTime).format("hh:mm:ss A") : "---"}
+            </time>
+          </div>
+          <div className={styles.time}>
+            <p className={styles.timeTitle}>Duration</p>
+            <time className={styles.timeValue}>{calculatedDuration}</time>
+          </div>
+        </section>
+      )}
       <section className={styles.data}>
         <ComposedModal
           composedModalProps={{
