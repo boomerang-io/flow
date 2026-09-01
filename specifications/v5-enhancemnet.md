@@ -580,6 +580,20 @@ evidence (file/class or measurement).
   fix cleaned up). The one condition that reopens this: direct per-action grants (assigning an
   approval to a user outside the workspace, external sharing of a single gate) — that cannot
   be expressed as a parent hop.
+- **RULED (2026-09-02, maintainer): machine tokens cannot action GROUP approvals; every
+  actioned decision records an actor.** A group approval is a membership test, and only named
+  members pass it — `ActionService.action` denies a caller that resolves no user record
+  (minted key/global tokens; security-off is NOT this branch, it resolves the synthetic admin
+  user, which is simply not a member). An automation that must approve is given a real user
+  identity and placed IN the group — GitHub's environment-protection-rule model (named
+  users/teams only; machines only as installed Apps). Manual tasks and group-less approvals
+  stay open to machines — they are completion claims, not accountability controls — but the
+  `Actioner.approverId` then carries the token's name (falling back to its principal), the
+  Temporal capture-approver-metadata norm, so no decision ever lands unattributed. Alternatives
+  rejected: B (a `machineActionable` per-gate flag — configuration surface for a case the
+  group-membership model already expresses) and C (deny machines everywhere — breaks the
+  legitimate CI-completes-a-manual-gate flow). Pinned by
+  `ActionWorkspaceAuthorizationTest` and `ActionServiceTest.approvalWithGroupDeniesACallerWithNoUserRecord`.
 - **Q-133** Does the CHEER model sharpen or blur the engine-mode seam (where relationships don't exist and workspace resolves to `default`)?
   - ✅ **Answered (2026-07-22): sharpens it.** Access-as-anchored-reachability means
     `engine` mode simply doesn't load (or no-ops) the relationship layer and anchors at the

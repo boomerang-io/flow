@@ -11,6 +11,8 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.User;
@@ -62,6 +64,7 @@ public class ActionService {
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
   private final UserService userService;
+  private final IdentityService identityService;
   private final MongoTemplate mongoTemplate;
 
   public ActionService(
@@ -71,6 +74,7 @@ public class ActionService {
       WorkflowService workflowService,
       RelationshipService relationshipService,
       UserService userService,
+      IdentityService identityService,
       MongoTemplate mongoTemplate) {
     this.actionRepository = actionRepository;
     this.approverGroupRepository = approverGroupRepository;
@@ -78,6 +82,7 @@ public class ActionService {
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.userService = userService;
+    this.identityService = identityService;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -129,12 +134,16 @@ public class ActionService {
           if (approverGroupEntity.isEmpty()) {
             throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
           }
-          // No current user (e.g. security disabled) - mirrors RelationshipService.check()'s
-          // no-principal branch above (already allowed this request through unscoped): there is
-          // no principal-based narrowing possible, so group membership can't be denied on it.
+          // RULED (2026-09-02, maintainer): a group approval is a membership test, and only
+          // named members pass it. A machine token (key/global - resolves no user record) is
+          // denied; an automation that must approve is given a real user identity and placed IN
+          // the group, mirroring GitHub's protection-rule model. Note security-off is NOT this
+          // branch: it resolves the synthetic admin user, which is non-null and simply not a
+          // member. Manual tasks and group-less approvals are deliberately unchanged - they are
+          // completion claims, not accountability controls.
           boolean partOfGroup =
-              userEntity == null
-                  || approverGroupEntity.get().getApprovers().contains(userEntity.getId());
+              userEntity != null
+                  && approverGroupEntity.get().getApprovers().contains(userEntity.getId());
           if (partOfGroup) {
             canBeActioned = true;
           }
@@ -146,9 +155,20 @@ public class ActionService {
       if (canBeActioned) {
         Actioner actioner = new Actioner();
         actioner.setDate(new Date());
-        // No current user (e.g. security disabled) leaves approverId unset rather than NPE-ing -
-        // there is no principal to record as the approver.
-        actioner.setApproverId(userEntity == null ? null : userEntity.getId());
+        // Every decision records SOME actor: the user's id, or - for a machine token on the
+        // still-open manual/group-less paths - the token's own name/principal, so no action ever
+        // lands unattributed (Temporal's capture-approver-metadata norm).
+        if (userEntity != null) {
+          actioner.setApproverId(userEntity.getId());
+        } else {
+          Token machineIdentity = identityService.getCurrentIdentity();
+          actioner.setApproverId(
+              machineIdentity == null
+                  ? null
+                  : (machineIdentity.getName() != null && !machineIdentity.getName().isBlank()
+                      ? machineIdentity.getName()
+                      : machineIdentity.getPrincipal()));
+        }
         actioner.setComments(request.getComments());
         actioner.setApproved(request.isApproved());
         actionEntity.getActioners().add(actioner);

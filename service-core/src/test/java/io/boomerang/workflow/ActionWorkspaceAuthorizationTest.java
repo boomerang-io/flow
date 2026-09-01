@@ -4,6 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.boomerang.common.entity.ActionEntity;
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.workspace.repository.ApproverGroupRepository;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.workflow.model.ActionRequest;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
 import io.boomerang.common.enums.TaskType;
@@ -61,6 +66,7 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
 
   @Autowired private ActionService actionService;
   @Autowired private ActionRepository actionRepository;
+  @Autowired private ApproverGroupRepository approverGroupRepository;
   @Autowired private WorkflowService workflowService;
   @Autowired private UserRepository userRepository;
   @Autowired private RoleRepository roleRepository;
@@ -75,10 +81,8 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
   void seedActionInOwningWorkspace() {
     seedRelationshipRoot();
     seedOwnerRole();
-    relationshipService.createNode(
-        RelationshipType.WORKSPACE, OWNING_WORKSPACE, OWNING_WORKSPACE, Optional.empty());
-    relationshipService.createNode(
-        RelationshipType.WORKSPACE, OTHER_WORKSPACE, OTHER_WORKSPACE, Optional.empty());
+    workspaceNode(OWNING_WORKSPACE);
+    workspaceNode(OTHER_WORKSPACE);
     memberId = memberOf(OWNER_EMAIL, OWNING_WORKSPACE);
     outsiderId = memberOf(OUTSIDER_EMAIL, OTHER_WORKSPACE);
 
@@ -101,7 +105,29 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
     action.setType(ActionType.manual);
     action.setStatus(ActionStatus.submitted);
     action.setCreationDate(new Date());
+    // A quorum-met action ends its backing TaskRun; the ref must resolve or action() refuses.
+    // The unresolvable workflowRunRef sends the async end handler down its graceful cancel path.
+    TaskRunEntity taskRun = new TaskRunEntity();
+    taskRun.setWorkflowRunRef("no-such-workflowrun");
+    action.setTaskRunRef(taskRunRepository.save(taskRun).getId());
     actionId = actionRepository.save(action).getId();
+  }
+
+  // Anchored under root so a global identity (which anchors its walk at ROOT) can resolve these
+  // workspaces - the same shape production has, where every workspace hangs off the root node.
+  private void workspaceNode(String name) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, name)) {
+      return;
+    }
+    relationshipService.createNodeAndEdge(
+        RelationshipType.ROOT,
+        "root",
+        RelationshipLabel.CONTAINS,
+        RelationshipType.WORKSPACE,
+        name,
+        name,
+        Optional.empty(),
+        Optional.empty());
   }
 
   @Test
@@ -125,6 +151,97 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
 
     Action action = actionService.get(OWNING_WORKSPACE, actionId);
     assertEquals(actionId, action.getId(), "the owning workspace's member must still be served");
+  }
+
+  @Test
+  void aMachineTokenCannotActionAGroupApproval() {
+    ActionEntity action = actionRepository.findById(actionId).orElseThrow();
+    action.setType(ActionType.approval);
+    action.setApproverGroupRef(seedGroupWith(memberId));
+    action.setNumberOfApprovers(1);
+    actionRepository.save(action);
+    installMachineIdentity("ci-bot");
+
+    ActionRequest request = new ActionRequest();
+    request.setId(actionId);
+    request.setApproved(true);
+    actionService.action(OWNING_WORKSPACE, List.of(request));
+
+    ActionEntity after = actionRepository.findById(actionId).orElseThrow();
+    assertEquals(
+        0,
+        after.getActioners() == null ? 0 : after.getActioners().size(),
+        "a machine token is not a group member and must not action a group approval");
+  }
+
+  @Test
+  void aGroupMemberStillActionsTheApproval() {
+    ActionEntity action = actionRepository.findById(actionId).orElseThrow();
+    action.setType(ActionType.approval);
+    action.setApproverGroupRef(seedGroupWith(memberId));
+    action.setNumberOfApprovers(1);
+    actionRepository.save(action);
+    installSessionIdentity(memberId);
+
+    ActionRequest request = new ActionRequest();
+    request.setId(actionId);
+    request.setApproved(true);
+    actionService.action(OWNING_WORKSPACE, List.of(request));
+
+    ActionEntity after = actionRepository.findById(actionId).orElseThrow();
+    assertEquals(1, after.getActioners().size(), "the named group member must still approve");
+    assertEquals(memberId, after.getActioners().get(0).getApproverId());
+  }
+
+  @Test
+  void aMachineTokenActioningAManualTaskIsRecordedByTokenName() {
+    // Manual tasks stay open to machines (a completion claim, not an accountability control) -
+    // but the decision must land attributed to the token, never to nobody.
+    installMachineIdentity("ci-bot");
+
+    ActionRequest request = new ActionRequest();
+    request.setId(actionId);
+    request.setApproved(true);
+    actionService.action(OWNING_WORKSPACE, List.of(request));
+
+    ActionEntity after = actionRepository.findById(actionId).orElseThrow();
+    assertEquals(1, after.getActioners().size());
+    assertEquals(
+        "ci-bot",
+        after.getActioners().get(0).getApproverId(),
+        "a machine actioner must be recorded by its token name, not left unattributed");
+  }
+
+  private String seedGroupWith(String userId) {
+    ApproverGroupEntity group = new ApproverGroupEntity();
+    group.setName("action-authz-group");
+    group.setApprovers(new java.util.LinkedList<>(List.of(userId)));
+    String groupId = approverGroupRepository.save(group).getId();
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        OWNING_WORKSPACE,
+        RelationshipLabel.HAS_APPROVER_GROUP,
+        RelationshipType.APPROVERGROUP,
+        groupId,
+        groupId,
+        Optional.empty(),
+        Optional.empty());
+    return groupId;
+  }
+
+  /** A minted machine token: global scope, full grant, a name, and NO user record behind it. */
+  private void installMachineIdentity(String tokenName) {
+    Token principal = new Token(AuthScope.global);
+    principal.setPrincipal("machine-" + tokenName);
+    principal.setName(tokenName);
+    principal.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "machine", List.of("**/**"))));
+    org.springframework.security.authentication.UsernamePasswordAuthenticationToken authentication =
+        new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+            "machine-" + tokenName, null);
+    authentication.setDetails(principal);
+    org.springframework.security.core.context.SecurityContextHolder.getContext()
+        .setAuthentication(authentication);
   }
 
   /** Session identity with permissions resolved exactly as TokenService does per request. */
