@@ -124,6 +124,36 @@ test.describe("dispatcher on kubernetes", () => {
     expect(log, "task log should stream the script output").toContain("dispatcher-script-ok");
   });
 
+  test("a task with an empty parameter value runs and sees it as empty", async ({ request }) => {
+    // Emptiness is a valid, meaningful value (decision 0068): the save keeps it, and the
+    // container receives the declared parameter (PARAM_PATH) set to the empty string.
+    const { run: r } = await run(request, {
+      tasks: [
+        start,
+        {
+          name: "shell",
+          type: "script",
+          taskRef: "execute-shell",
+          params: [
+            { name: "shell", value: "sh" },
+            { name: "path", value: "" },
+            {
+              name: "script",
+              value: `echo "path=[\${PARAM_PATH}]"\nif [ -z "\${PARAM_PATH+x}" ]; then echo '{"emptyOk":"unset"}' > "$RESULTS_PATH"; elif [ -z "$PARAM_PATH" ]; then echo '{"emptyOk":"empty"}' > "$RESULTS_PATH"; else echo '{"emptyOk":"nonempty"}' > "$RESULTS_PATH"; fi`,
+            },
+          ],
+          results: [{ name: "emptyOk" }],
+          dependencies: [{ taskRef: "start" }],
+        },
+        endAfter("shell"),
+      ],
+    });
+    expect(r.status, describe(r)).toBe("succeeded");
+    const t = task(r, "shell");
+    expect(t.status, describe(r)).toBe("succeeded");
+    expect(result(t, "emptyOk"), describe(r)).toBe("empty");
+  });
+
   test("a custom task runs an arbitrary image and command", async ({ request }) => {
     const { run: r } = await run(request, {
       tasks: [
