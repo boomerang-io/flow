@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Characterization tests that PIN the current behaviour of ParameterManager.resolveParam across
@@ -38,7 +39,8 @@ class ParameterManagerTest {
   void setUp() {
     taskRunRepository = mock(TaskRunRepository.class);
     parameterManager =
-        new ParameterManager(mock(WorkflowRunRepository.class), taskRunRepository);
+        new ParameterManager(
+            mock(WorkflowRunRepository.class), taskRunRepository, new ObjectMapper());
   }
 
   // (a) plain param: $(params.<name>) resolves from the flattened layer.
