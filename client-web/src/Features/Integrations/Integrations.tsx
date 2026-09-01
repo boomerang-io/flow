@@ -13,6 +13,7 @@ import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
+import { actionError, type ActionError } from "Utils/actionResult";
 import { FlowWorkspace, Integration } from "Types";
 import styles from "./integrations.module.scss";
 
@@ -46,9 +47,7 @@ export async function loader({
   }
 }
 
-export type ActionResult =
-  | { ok: true; intent: "disconnect"; name: string }
-  | { ok: false; intent: "disconnect"; name: string; errorMessage: { title: string; message: string } };
+export type ActionResult = { intent: "disconnect"; name: string } | ({ intent: "disconnect"; name: string } & ActionError);
 
 // Each integration type unlinks through its own endpoint, keyed by the integration's display
 // name - mirrors the previous browser-side `unlinkResolverByIntegrationName` lookup in
@@ -59,7 +58,11 @@ const unlinkUrlByIntegrationName: Record<string, () => string> = {
   GitHub: serviceUrl.postGitHubAppUnlink,
 };
 
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+// No explicit return-type annotation: `actionError` wraps the failure branches in RR's `data()`
+// (see Utils/actionResult.ts), so the function's real return type is a union of the plain
+// success payload and `DataWithResponseInit<...>` - React Router unwraps the latter at runtime,
+// and `ActionResult` above is the already-unwrapped shape `fetcher.data` is typed against.
+export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
   const name = String(formData.get("name"));
@@ -67,34 +70,27 @@ export async function action({ request }: { request: Request }): Promise<ActionR
   if (intent === "disconnect") {
     const getUnlinkUrl = unlinkUrlByIntegrationName[name];
     if (!getUnlinkUrl) {
-      return {
-        ok: false,
+      return actionError({
         intent: "disconnect",
         name,
-        errorMessage: { title: "Something's Wrong", message: `No disconnect handler is registered for ${name}` },
-      };
+        error: { title: "Something's Wrong", message: `No disconnect handler is registered for ${name}` },
+      });
     }
     const workspace = String(formData.get("workspace"));
     const ref = String(formData.get("ref"));
     try {
       await serverFetch(request).post(getUnlinkUrl(), { workspace, ref });
-      return { ok: true, intent: "disconnect", name };
+      return { intent: "disconnect", name };
     } catch (error) {
-      return {
-        ok: false,
+      return actionError({
         intent: "disconnect",
         name,
-        errorMessage: formatErrorMessage({ error, defaultMessage: `Request to disable ${name.toLowerCase()} failed` }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: `Request to disable ${name.toLowerCase()} failed` }),
+      });
     }
   }
 
-  return {
-    ok: false,
-    intent: "disconnect",
-    name,
-    errorMessage: { title: "Something's Wrong", message: "Unknown action" },
-  };
+  return actionError({ intent: "disconnect", name, error: { title: "Something's Wrong", message: "Unknown action" } });
 }
 
 export default function Integrations() {
