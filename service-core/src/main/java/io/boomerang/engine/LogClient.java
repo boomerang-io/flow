@@ -87,11 +87,7 @@ public class LogClient {
       LOGGER.info("Remove word list empty, moving on.");
       return restTemplateResponse -> {
         InputStream is = restTemplateResponse.getBody();
-        int nRead;
-        byte[] data = new byte[1024];
-        while ((nRead = is.read(data, 0, data.length)) != -1) {
-          outputStream.write(data, 0, nRead);
-        }
+        is.transferTo(outputStream);
         return null;
       };
       //    } else {
