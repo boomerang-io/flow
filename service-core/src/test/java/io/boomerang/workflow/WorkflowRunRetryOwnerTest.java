@@ -160,6 +160,76 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
         "the retry must fail before the clone is created, leaving only the source run");
   }
 
+  /**
+   * The engine's auto-retry calls the unscoped {@code retry(workflowRunId, start, retryCount)}
+   * directly (WorkflowExecutionService), which used to create the clone WITHOUT a HAS_WORKFLOWRUN
+   * edge - the run appeared in {@code /query} (filter walks the Workflow) but {@code GET
+   * /&#123;id&#125;} was denied (check anchors on the run). Ownership is now written by the
+   * unscoped method itself, so user retries and engine auto-retries produce identically-owned
+   * runs through one path.
+   */
+  @Test
+  void anUnscopedRetryRecordsTheSameOwnerAsAUserRetry() {
+    seedRelationshipRoot();
+    relationshipService.createNode(
+        RelationshipType.WORKSPACE, OWNING_WORKSPACE, OWNING_WORKSPACE, Optional.empty());
+
+    String workflowId = createLinearWorkflow("retry-owner-engine");
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        OWNING_WORKSPACE,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        workflowId,
+        workflowId,
+        Optional.empty(),
+        Optional.empty());
+    String wfRunId =
+        workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        OWNING_WORKSPACE,
+        RelationshipLabel.HAS_WORKFLOWRUN,
+        RelationshipType.WORKFLOWRUN,
+        wfRunId,
+        wfRunId,
+        Optional.empty(),
+        Optional.empty());
+
+    // The engine path: no workspace segment, no scoped wrapper.
+    WorkflowRun retried = workflowRunService.retry(wfRunId, false, 1);
+
+    assertEquals(
+        OWNING_WORKSPACE,
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, retried.getId()),
+        "an engine auto-retry must record the same owner a user retry records");
+  }
+
+  /**
+   * The deliberate asymmetry with the scoped path: a user retry of an unowned run refuses
+   * (TEAM_INVALID_REF, nothing created - the test above this one), but the engine's auto-retry
+   * must never fail a run's recovery over graph bookkeeping, so an unresolvable owner logs and
+   * creates the clone ownerless - exactly what the engine path produced before for EVERY retry.
+   */
+  @Test
+  void anUnscopedRetryOfAnUnownedRunStillRetriesAndStaysOwnerless() {
+    seedRelationshipRoot();
+
+    // Graph-orphaned: no HAS_WORKFLOW edge and no HAS_WORKFLOWRUN edge.
+    String workflowId = createLinearWorkflow("retry-owner-engine-orphan");
+    String wfRunId =
+        workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+
+    WorkflowRun retried = workflowRunService.retry(wfRunId, false, 1);
+
+    assertEquals(
+        "",
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, retried.getId()),
+        "the orphan engine retry stays ownerless rather than failing or inventing an owner");
+  }
+
   private String createLinearWorkflow(String name) {
     Task template = new Task();
     template.setName(name + "-echo");

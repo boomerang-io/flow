@@ -49,6 +49,7 @@ class ActionServiceTest {
   @Mock private WorkflowService workflowService;
   @Mock private RelationshipService relationshipService;
   @Mock private UserService userService;
+  @Mock private io.boomerang.core.security.IdentityService identityService;
   @Mock private MongoTemplate mongoTemplate;
 
   private ActionService actionService;
@@ -63,6 +64,7 @@ class ActionServiceTest {
             workflowService,
             relationshipService,
             userService,
+            identityService,
             mongoTemplate);
     when(relationshipService.check(any(), anyString(), any(), any())).thenReturn(true);
   }
@@ -96,7 +98,10 @@ class ActionServiceTest {
   }
 
   @Test
-  void approvalWithGroupAndNoCurrentUserIsPermissiveNotNpe() {
+  void approvalWithGroupDeniesACallerWithNoUserRecord() {
+    // A group approval is a membership test - a machine token (resolves no user record) cannot
+    // be a member, so its decision is not recorded. Automations that must approve are given a
+    // real user identity and placed in the group.
     when(userService.getCurrentUser()).thenReturn(null);
     ActionEntity entity = manualAction();
     entity.setType(ActionType.approval);
@@ -114,8 +119,7 @@ class ActionServiceTest {
 
     actionService.action("team1", List.of(request));
 
-    assertThat(entity.getActioners()).hasSize(1);
-    assertThat(entity.getActioners().get(0).getApproverId()).isNull();
+    assertThat(entity.getActioners()).isEmpty();
   }
 
   @Test

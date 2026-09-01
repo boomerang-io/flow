@@ -179,6 +179,19 @@ class UserServiceTest {
    */
   @Test
   void applyByMixedCaseEmailQueriesTheLowerCasedValue() {
+    // The update-by-email shape carries no target id, so it is never self: apply requires a
+    // global-scoped user/write grant - the admin this test's javadoc already assumes.
+    io.boomerang.core.model.Token admin =
+        new io.boomerang.core.model.Token(io.boomerang.core.security.enums.AuthScope.session);
+    admin.setPrincipal("admin-id");
+    admin.setPermissions(
+        java.util.List.of(
+            new io.boomerang.core.security.model.ResolvedPermissions(
+                io.boomerang.core.security.enums.PermissionScope.global,
+                "**",
+                java.util.List.of("**/**"))));
+    when(identityService.getCurrentIdentity()).thenReturn(admin);
+
     UserEntity stored = new UserEntity();
     stored.setId("u1");
     stored.setEmail("ada.lovelace@example.com");
