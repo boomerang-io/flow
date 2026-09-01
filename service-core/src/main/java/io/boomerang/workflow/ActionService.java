@@ -291,7 +291,9 @@ public class ActionService {
 
     Page<Action> pages =
         PageableExecutionUtils.getPage(
-            actions, pageable, () -> mongoTemplate.count(query, ActionEntity.class));
+            actions,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), ActionEntity.class));
 
     return pages;
   }

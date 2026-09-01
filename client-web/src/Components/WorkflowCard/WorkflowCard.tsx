@@ -21,6 +21,7 @@ import { WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
 import WorkflowRunModalContent from "./WorkflowRunModalContent";
@@ -39,10 +40,10 @@ interface WorkflowCardProps {
 // own, so `useFetcher()` resolves against it - see WorkflowTemplateCard.tsx for the sibling
 // conversion (Workflow Templates) this mirrors.
 type ActionResult =
-  | { ok: true; intent: "delete" | "duplicate" }
-  | { ok: false; intent: "delete" | "duplicate" }
-  | { ok: true; intent: "execute"; execution: WorkflowRun; redirect: boolean }
-  | { ok: false; intent: "execute"; errorMessage: { title: string; message: string } };
+  | { intent: "delete" | "duplicate" }
+  | ({ intent: "delete" | "duplicate" } & ActionError)
+  | { intent: "execute"; execution: WorkflowRun; redirect: boolean }
+  | ({ intent: "execute" } & ActionError);
 
 const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType }) => {
   const fetcher = useFetcher<ActionResult>();
@@ -72,7 +73,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     const data = fetcher.data;
 
     if (data.intent === "delete") {
-      if (data.ok) {
+      if (!isActionError(data)) {
         notify(
           <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
         );
@@ -89,7 +90,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     }
 
     if (data.intent === "duplicate") {
-      if (data.ok) {
+      if (!isActionError(data)) {
         notify(
           <ToastNotification
             kind="success"
@@ -110,7 +111,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     }
 
     if (data.intent === "execute") {
-      if (data.ok) {
+      if (!isActionError(data)) {
         notify(
           <ToastNotification
             kind="success"
@@ -127,7 +128,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
           executeRef.current?.closeModal();
         }
       } else {
-        seterrorMessage(data.errorMessage);
+        seterrorMessage(data.error);
       }
       executeRef.current = null;
     }

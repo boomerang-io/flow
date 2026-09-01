@@ -3,12 +3,13 @@ import Workspaces, { action, loader } from "Features/Workspaces/Workspaces";
 import { Route } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
+import { renderWithContext } from "Utils/testing/render";
 
 // Route-module test pattern (see GlobalParameters.spec.tsx): attach loader/action to the <Route>
-// the same way AppRoutes.tsx does via app/routes/workspaceList.tsx, so rtlContextRouterRender
+// the same way AppRoutes.tsx does via app/routes/workspaceList.tsx, so renderWithContext
 // actually exercises them instead of leaving useLoaderData() undefined.
 function renderWorkspaces() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path={AppPath.WorkspaceList} loader={loader} action={action} element={<Workspaces />} />,
     { route: appLink.workspaceList() },
   );

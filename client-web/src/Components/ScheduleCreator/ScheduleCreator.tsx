@@ -4,6 +4,7 @@ import moment from "moment-timezone";
 import { useFetcher } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { labelStringsToRecord } from "Utils";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import { cronDayNumberMap } from "Utils/cronHelper";
 import { ScheduleManagerFormInputs, ScheduleDate, ScheduleUnion, Workflow, DayOfWeekCronAbbreviation } from "Types";
 import styles from "./ScheduleCreator.module.scss";
@@ -24,7 +25,7 @@ interface CreateScheduleProps {
 // serve the "createSchedule" intent (app/routes/schedules.tsx exports scheduleAction directly;
 // editorRoute.ts's editorAction dispatches SCHEDULE_INTENTS to it), so the bare useFetcher()
 // resolves correctly from either surface.
-type ActionResult = { ok: boolean; intent: string };
+type ActionResult = { intent: string } | ({ intent: string } & ActionError);
 
 export default function CreateSchedule(props: CreateScheduleProps) {
   const fetcher = useFetcher<ActionResult>();
@@ -42,7 +43,7 @@ export default function CreateSchedule(props: CreateScheduleProps) {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    if (fetcher.data.ok && fetcher.data.intent === "createSchedule") {
+    if (!isActionError(fetcher.data) && fetcher.data.intent === "createSchedule") {
       notify(
         <ToastNotification
           kind="success"
@@ -138,7 +139,7 @@ export default function CreateSchedule(props: CreateScheduleProps) {
         <ScheduleManagerForm
           handleSubmit={handleSubmit}
           includeWorkflowDropdown={props.includeWorkflowDropdown}
-          isError={Boolean(fetcher.data && !fetcher.data.ok)}
+          isError={Boolean(fetcher.data && isActionError(fetcher.data))}
           isLoading={fetcher.state !== "idle"}
           modalProps={modalProps}
           schedule={props.schedule as ScheduleUnion}

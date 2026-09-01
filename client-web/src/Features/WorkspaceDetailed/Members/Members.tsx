@@ -17,6 +17,7 @@ import {
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { appLink } from "Config/appConfig";
 import { Member } from "Types";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import EmptyState from "Components/EmptyState";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import AddMember from "./AddMember";
@@ -30,21 +31,14 @@ import styles from "./Members.module.scss";
 // action path resolves to the nearest matched route, which for a component rendered by the index
 // route is that index route. Settling the fetcher revalidates the parent layout route's loader,
 // which is where the member list comes from - so there is nothing to invalidate by hand.
-export type MembersActionResult = {
-  ok: boolean;
-  intent: "add" | "remove";
+export type MembersActionResult =
+  | { intent: "remove" }
+  | ({ intent: "remove" } & ActionError)
   /** "add" only: one success toast is raised per email, as before. */
-  emails?: string[];
-  errorMessage?: { title: string; message: string };
-};
+  | { intent: "add"; emails: string[] }
+  | ({ intent: "add"; emails: string[] } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<MembersActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -56,30 +50,28 @@ export async function action({
       await serverFetch(request).delete(serviceUrl.workspace.deleteWorkspaceMembers({ workspace }), {
         data: [{ id: memberId }],
       });
-      return { ok: true, intent: "remove" };
+      return { intent: "remove" as const };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "remove",
-        errorMessage: formatErrorMessage({
+      return actionError({
+        intent: "remove" as const,
+        error: formatErrorMessage({
           error,
           defaultMessage: "Request to remove user from workspace failed",
         }),
-      };
+      });
     }
   }
 
   const members: Array<Member> = JSON.parse(String(formData.get("members")));
   try {
     await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), { members });
-    return { ok: true, intent: "add", emails: members.map((member) => member.email ?? "") };
+    return { intent: "add" as const, emails: members.map((member) => member.email ?? "") };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "add",
+    return actionError({
+      intent: "add" as const,
       emails: [],
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Request to add members failed" }),
-    };
+      error: formatErrorMessage({ error, defaultMessage: "Request to add members failed" }),
+    });
   }
 }
 
@@ -101,11 +93,11 @@ const Members: React.FC = () => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "add") {
       return;
     }
-    const { ok, emails } = fetcher.data;
-    if (!ok) {
+    if (isActionError(fetcher.data)) {
       // Failures leave the modal open; AddMember/AddMemberSearch surface them inline via `error`.
       return;
     }
+    const { emails } = fetcher.data;
     closeModalRef.current?.();
     closeModalRef.current = null;
     emails?.forEach((email) =>
@@ -125,7 +117,8 @@ const Members: React.FC = () => {
   };
 
   const isSubmitting = fetcher.state !== "idle";
-  const submitError = fetcher.data && !fetcher.data.ok && fetcher.data.intent === "add" ? fetcher.data.errorMessage : null;
+  const submitError =
+    fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === "add" ? fetcher.data.error : null;
   const isAdmin = user?.type === "admin";
   return (
     <section aria-label={`${workspace.displayName} Workspace Members`} className={styles.container}>

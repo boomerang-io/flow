@@ -1,6 +1,6 @@
 import React from "react";
 import { http, HttpResponse } from "msw";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe("WorkspaceCreateContent --- RTL", () => {
   test("an available name validates through the resource route (direct /api blocked) and enables Create", async () => {
-    global.rtlRender(<WorkspaceCreateContent {...defaultProps} />);
+    render(<WorkspaceCreateContent {...defaultProps} />);
 
     const nameInput = screen.getByLabelText(/^Display Name$/i);
     // One change event, not per-keystroke typing - see Workspaces.spec.tsx's note on racing
@@ -52,7 +52,7 @@ describe("WorkspaceCreateContent --- RTL", () => {
   });
 
   test("a taken name (fixture workspace tyson-workspace) reads as unavailable and keeps Create disabled", async () => {
-    global.rtlRender(<WorkspaceCreateContent {...defaultProps} />);
+    render(<WorkspaceCreateContent {...defaultProps} />);
 
     fireEvent.change(screen.getByLabelText(/^Display Name$/i), { target: { value: "Tyson Workspace" } });
 

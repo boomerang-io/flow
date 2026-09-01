@@ -4,6 +4,7 @@ import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import { HttpMethod, TokenType } from "Constants";
 import type { Token, TokenScopeType } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import type { TokenCatalog, TokenSectionData, TokenSectionRouteData } from "./tokenRouteData";
 
 /*
@@ -139,13 +140,13 @@ export async function workspaceTokensLoader({
 }
 
 export type TokenActionResult =
-  | { ok: true; intent: "delete" }
-  | { ok: false; intent: "delete"; errorMessage: { title: string; message: string } }
+  | { intent: "delete" }
+  | ({ intent: "delete" } & ActionError)
   // The create response is the only place the token secret is ever returned; CreateToken/Form
   // hands it straight to the modal's Result step and it is never persisted client-side.
-  | { ok: true; intent: "create"; token: Token & { token?: string } }
-  | { ok: false; intent: "create"; errorMessage: { title: string; message: string } }
-  | { ok: false; intent: "unknown"; errorMessage: { title: string; message: string } };
+  | { intent: "create"; token: Token & { token?: string } }
+  | ({ intent: "create" } & ActionError)
+  | ({ intent: "unknown" } & ActionError);
 
 export const TOKEN_INTENTS = ["create", "delete"] as const;
 
@@ -159,19 +160,18 @@ export const TOKEN_INTENTS = ["create", "delete"] as const;
  * DELETE /token/undefined. Unknown intents now return an error result instead of deleting
  * anything - the consumers all narrow on `intent`, so an "unknown" result is inert for them.
  */
-export async function tokenAction({ request }: { request: Request }): Promise<TokenActionResult> {
+export async function tokenAction({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
   if (!(TOKEN_INTENTS as readonly string[]).includes(intent)) {
-    return {
-      ok: false,
-      intent: "unknown",
-      errorMessage: {
+    return actionError({
+      intent: "unknown" as const,
+      error: {
         title: "Unsupported Token Action",
         message: `The token action does not handle the "${intent}" intent.`,
       },
-    };
+    });
   }
 
   if (intent === "create") {
@@ -184,13 +184,12 @@ export async function tokenAction({ request }: { request: Request }): Promise<To
         data: body,
         method: HttpMethod.Post,
       });
-      return { ok: true, intent: "create", token: response.data };
+      return { intent: "create" as const, token: response.data };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "create",
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Create Token Failed" }),
-      };
+      return actionError({
+        intent: "create" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Create Token Failed" }),
+      });
     }
   }
 
@@ -198,22 +197,20 @@ export async function tokenAction({ request }: { request: Request }): Promise<To
   // string "undefined", which would otherwise be sent as a real path segment.
   const rawTokenId = formData.get("tokenId");
   if (!rawTokenId) {
-    return {
-      ok: false,
-      intent: "delete",
-      errorMessage: { title: "Delete Token Failed", message: "No token was identified to delete." },
-    };
+    return actionError({
+      intent: "delete" as const,
+      error: { title: "Delete Token Failed", message: "No token was identified to delete." },
+    });
   }
 
   const tokenId = String(rawTokenId);
   try {
     await serverFetch(request).delete(serviceUrl.deleteToken({ tokenId }));
-    return { ok: true, intent: "delete" };
+    return { intent: "delete" as const };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "delete",
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Token Failed" }),
-    };
+    return actionError({
+      intent: "delete" as const,
+      error: formatErrorMessage({ error, defaultMessage: "Delete Token Failed" }),
+    });
   }
 }

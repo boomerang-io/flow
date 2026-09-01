@@ -2,6 +2,7 @@ import React from "react";
 import { screen, fireEvent, within } from "@testing-library/react";
 import { NodeType } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import { renderWithRouter } from "Utils/testing/render";
 import ExecutionTaskLog from "./index";
 
 const baseTaskRun = {
@@ -111,7 +112,7 @@ const props = {
 
 describe("ExecutionTaskLog --- Snapshot", () => {
   it("Capturing Snapshot of ExecutionTaskLog", () => {
-    const { baseElement } = global.rtlRouterRender(<ExecutionTaskLog {...props} />);
+    const { baseElement } = renderWithRouter(<ExecutionTaskLog {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });

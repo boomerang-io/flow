@@ -6,6 +6,7 @@ import { useFetcher, useNavigate } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
 import { FlowWorkspace, ModalTriggerProps, CreateWorkflowSummary, Workflow, WorkflowViewType } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import CreateWorkflowContainer from "./CreateWorkflowContainer";
 import styles from "./createWorkflow.module.scss";
 
@@ -22,9 +23,7 @@ interface CreateWorkflowProps {
 // resolves against it - see GlobalParameters.tsx for the closeModalRef-style pattern the import
 // flow below follows, and WorkflowTemplateCard.tsx/CreateWorkflowTemplate.tsx for the sibling
 // conversion (Workflow Templates) this mirrors.
-type ActionResult =
-  | { ok: true; intent: "create" | "import"; workflow: Workflow }
-  | { ok: false; intent: "create" | "import"; errorMessage: { title: string; message: string } };
+type ActionResult = { intent: "create" | "import"; workflow: Workflow } | ({ intent: "create" | "import" } & ActionError);
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {
   const fetcher = useFetcher<ActionResult>();
@@ -44,7 +43,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
     }
     const data = fetcher.data;
 
-    if (data.ok) {
+    if (!isActionError(data)) {
       navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: data.workflow.name }));
       notify(
         <ToastNotification kind="success" title={`${data.intent === "create" ? "Create" : "Import"} ${viewType}`} subtitle={`${viewType} successfully ${data.intent === "create" ? "created" : "imported"}`} />,
@@ -59,7 +58,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
     // create failures are silent here (the same no-op the previous catch had) - CreateWorkflowContent
     // surfaces them inline via `createError`. Import failures do get a toast, matching before.
     if (data.intent === "import") {
-      notify(<ToastNotification kind="error" title={data.errorMessage.title} subtitle={data.errorMessage.message} />);
+      notify(<ToastNotification kind="error" title={data.error.title} subtitle={data.error.message} />);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -78,8 +77,8 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
   const isLoading = fetcher.state !== "idle";
   // Each content pane renders its own inline failure notification, so the two failures are kept
   // apart by intent - an import failure must not surface as a create failure, or vice versa.
-  const createError = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "create");
-  const importError = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "import");
+  const createError = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === "create");
+  const importError = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === "import");
 
   return (
     <ComposedModal

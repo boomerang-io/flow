@@ -14,6 +14,7 @@ import EmptyGraphic from "Components/EmptyState/EmptyGraphic";
 import styles from "./ManualTask.module.scss";
 import type { ActionResult } from "Features/Actions/Actions";
 import { Action, ApprovalStatus, ModalTriggerProps } from "Types";
+import { isActionError } from "Utils/actionResult";
 
 type ManualTaskProps = {
   action: Action;
@@ -58,7 +59,7 @@ function Form({ action, closeModal }: FormProps) {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(
         <ToastNotification
           kind="success"
@@ -74,7 +75,7 @@ function Form({ action, closeModal }: FormProps) {
   }, [fetcher.state, fetcher.data]);
 
   const approvalsIsLoading = fetcher.state !== "idle";
-  const approvalsError = Boolean(fetcher.data && !fetcher.data.ok);
+  const approvalsError = Boolean(fetcher.data && isActionError(fetcher.data));
 
   const handleSubmit = (isApproved: boolean) => {
     const body = [

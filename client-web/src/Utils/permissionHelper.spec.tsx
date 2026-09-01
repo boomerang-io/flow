@@ -1,4 +1,4 @@
-import { hasPermission } from "./permissionHelper";
+import { hasPermission, actionMatches } from "./permissionHelper";
 import { ResolvedPermissions } from "Types";
 
 const globalRead: ResolvedPermissions = { scope: "global", principal: "**", actions: ["workflow/read"] };
@@ -47,5 +47,42 @@ describe("hasPermission", () => {
     expect(hasPermission({ permissions }, "workflow", "read")).toBe(true);
     expect(hasPermission({ permissions }, "workflow", "write", "team-a")).toBe(true);
     expect(hasPermission({ permissions }, "workflow", "write", "team-b")).toBe(false);
+  });
+});
+
+// These cases mirror what PermissionSelector.tsx's buildGrid used to check inline
+// (permissions.includes(`${resource}/${action}`) || `${resource}/**` || `**/${action}` ||
+// "**/**") before it switched to this shared helper - see PermissionSelector.spec.tsx for the
+// grid-building test built on the same fixtures.
+describe("actionMatches", () => {
+  it("matches an exact 'resource/action' entry", () => {
+    expect(actionMatches("workflow/read", "workflow", "read")).toBe(true);
+    expect(actionMatches("workflow/read", "workflow", "write")).toBe(false);
+    expect(actionMatches("workflow/read", "task", "read")).toBe(false);
+  });
+
+  it("matches a 'resource/**' entry for any action on that resource", () => {
+    expect(actionMatches("workflow/**", "workflow", "read")).toBe(true);
+    expect(actionMatches("workflow/**", "workflow", "delete")).toBe(true);
+    expect(actionMatches("workflow/**", "task", "read")).toBe(false);
+  });
+
+  it("matches a '**/action' entry for that action on any resource", () => {
+    expect(actionMatches("**/read", "workflow", "read")).toBe(true);
+    expect(actionMatches("**/read", "task", "read")).toBe(true);
+    expect(actionMatches("**/read", "workflow", "write")).toBe(false);
+  });
+
+  it("matches '**/**' for any resource/action pair", () => {
+    expect(actionMatches("**/**", "workflow", "read")).toBe(true);
+    expect(actionMatches("**/**", "user", "delete")).toBe(true);
+  });
+
+  it("matches the bare '**' entry for any resource/action pair", () => {
+    expect(actionMatches("**", "workflow", "read")).toBe(true);
+  });
+
+  it("denies an unrelated entry", () => {
+    expect(actionMatches("task/read", "workflow", "read")).toBe(false);
   });
 });

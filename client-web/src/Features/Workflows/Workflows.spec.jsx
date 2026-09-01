@@ -5,15 +5,16 @@ import WorkflowsHome from "./index";
 import { workspaces, workspace as workspaceFixture, profile } from "ApiServer/fixtures";
 import { AppPath, appLink } from "Config/appConfig";
 import { WorkspaceContextProvider } from "State/context";
+import { renderWithContext } from "Utils/testing/render";
 
 // Route-module test pattern (see GlobalParameters.spec.tsx): build the same shape the real router
 // config uses (app/routes/workflows.tsx - a route carrying loader/action alongside its element,
 // matched on the real "/:workspace/workflows" path so the loader/action's `params.workspace` read
-// resolves) and hand it to rtlContextRouterRender - the helper detects a <Route> element and uses
+// resolves) and hand it to renderWithContext - it detects a <Route> element and uses
 // it as-is instead of wrapping it in its usual catch-all, so the loader/action actually run.
 describe("WorkflowsHome --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowsHome", async () => {
-    const { baseElement } = rtlContextRouterRender(
+    const { baseElement } = renderWithContext(
       <Route
         path={AppPath.Workflows}
         loader={loader}

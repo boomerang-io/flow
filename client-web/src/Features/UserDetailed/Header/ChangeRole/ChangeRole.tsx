@@ -4,6 +4,7 @@ import { Button, ModalBody, ModalFooter, RadioButton, RadioButtonGroup, InlineNo
 import { Loading, ModalFlowForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { UserType, UserTypeCopy } from "Constants";
 import { FlowUser, PlatformRole } from "Types";
+import { isActionError } from "Utils/actionResult";
 import type { UserDetailedActionResult } from "../../UserDetailed";
 import styles from "./ChangeRole.module.scss";
 
@@ -44,7 +45,7 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
     if (fetcher.state !== "idle" || !result || result.intent !== "changeRole") {
       return;
     }
-    if (result.ok) {
+    if (!isActionError(result)) {
       closeModal();
       notify(
         <ToastNotification

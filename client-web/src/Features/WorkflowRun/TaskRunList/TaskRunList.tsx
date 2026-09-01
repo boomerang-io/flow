@@ -3,7 +3,7 @@ import { Button } from "@carbon/react";
 import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
-import { getSimplifiedDuration } from "Utils/timeHelper";
+import { getSimplifiedDuration } from "Utils/dateHelper";
 import { ExecutionStatusCopy, executionStatusIcon, NodeType } from "Constants";
 import { Action, RunStatus, WorkflowRun } from "Types";
 import TaskRunItem from "./TaskRunItem";

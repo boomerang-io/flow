@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { notify, ToastNotification, ModalFlow } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFetcher } from "react-router-dom";
 import { Workflow } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import ImportWorkflowContent from "./ImportWorkflowContent";
 import styles from "./updateWorkflow.module.scss";
 
@@ -23,7 +24,7 @@ interface UpdateWorkflowProps {
 // /workspace/{workspace}/workflow, the workflow identified by `body.name`) exactly. There was no
 // extra `workflow` field being sent that the URL builder ignored; the action below preserves the
 // same shape (workspace from the route param, the full parsed file as the body).
-type ActionResult = { ok: true; intent: "update" } | { ok: false; intent: "update" };
+type ActionResult = { intent: "update" } | ({ intent: "update" } & ActionError);
 
 const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({ workspaceName, workflowRef, onCloseModal, type }) => {
   const fetcher = useFetcher<ActionResult>();
@@ -33,7 +34,7 @@ const UpdateWorkflow: React.FC<UpdateWorkflowProps> = ({ workspaceName, workflow
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "update") {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(<ToastNotification kind="success" title={`Update ${type}`} subtitle={`${type} successfully updated`} />);
       onCloseModal();
     }

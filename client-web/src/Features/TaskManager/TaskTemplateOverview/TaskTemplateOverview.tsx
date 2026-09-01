@@ -19,6 +19,7 @@ import { taskIcons } from "Utils/taskIcons";
 import { TaskTemplateStatus } from "Constants";
 import { appLink, AppPath } from "Config/appConfig";
 import { DataDrivenInput, Task, ChangeLog } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import Header from "../Header";
 import { TemplateRequestType, FieldTypes } from "../constants";
 import styles from "./TaskTemplateOverview.module.scss";
@@ -253,10 +254,7 @@ export function TaskTemplateOverview({
   // Data reads (the selected task template, its changelog) come from the parent route's loader
   // as props now, rather than useQuery, and React Router revalidates every matched loader once
   // this fetcher's action settles, so a successful write refreshes them with no explicit call.
-  const fetcher = useFetcher<
-    | { ok: true; intent: "apply" | "applyYaml"; task: Task }
-    | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
-  >();
+  const fetcher = useFetcher<{ intent: "apply" | "applyYaml"; task: Task } | ({ intent: "apply" | "applyYaml" } & ActionError)>();
   const pendingApplyRef = React.useRef<PendingApply | null>(null);
   const params = useParams();
   const navigate = useNavigate();
@@ -274,7 +272,7 @@ export function TaskTemplateOverview({
 
     if (pending.kind === "archive") {
       notify(
-        result.ok ? (
+        !isActionError(result) ? (
           <ToastNotification
             kind="success"
             title={"Successfully Archived Task Template"}
@@ -295,7 +293,7 @@ export function TaskTemplateOverview({
 
     if (pending.kind === "restore") {
       notify(
-        result.ok ? (
+        !isActionError(result) ? (
           <ToastNotification
             kind="success"
             title={"Successfully Restored Task Template"}
@@ -316,7 +314,7 @@ export function TaskTemplateOverview({
 
     // pending.kind === "save"
     setIsSaving(false);
-    if (result.ok) {
+    if (!isActionError(result)) {
       notify(
         <ToastNotification
           kind="success"

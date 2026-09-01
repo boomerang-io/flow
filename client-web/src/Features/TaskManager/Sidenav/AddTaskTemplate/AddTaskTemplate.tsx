@@ -6,6 +6,7 @@ import { notify, ToastNotification, ComposedModal } from "@boomerang-io/carbon-a
 import { NavigateFunction, useFetcher, useParams } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { Task } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import AddTaskTemplateForm from "./AddTaskTemplateForm";
 import styles from "./addTaskTemplate.module.scss";
 
@@ -25,10 +26,7 @@ function AddTaskTemplate({ taskNames, navigate }: AddTaskTemplateProps) {
   // `applyYaml` for a raw yaml/text body. `pendingRef` records which of the two is in flight (and
   // the modal's closeModal) so the effect below knows what to do once the fetcher settles -
   // mirrors TaskTemplateOverview.tsx's PendingApply.
-  const fetcher = useFetcher<
-    | { ok: true; intent: "apply" | "applyYaml"; task: Task }
-    | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
-  >();
+  const fetcher = useFetcher<{ intent: "apply" | "applyYaml"; task: Task } | ({ intent: "apply" | "applyYaml" } & ActionError)>();
   const pendingRef = React.useRef<{ kind: "create" | "import"; closeModal: () => void } | null>(null);
 
   React.useEffect(() => {
@@ -43,7 +41,7 @@ function AddTaskTemplate({ taskNames, navigate }: AddTaskTemplateProps) {
     const result = fetcher.data;
     setIsSubmitting(false);
 
-    if (!result.ok) {
+    if (isActionError(result)) {
       setIsSubmitError(true);
       return;
     }

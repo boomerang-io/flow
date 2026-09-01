@@ -39,6 +39,16 @@ CAVEMAN's "drop articles / fragments OK" half is explicitly rejected — grammar
 9. Length follows the question: one line for a fact; ≤ ~150 words plus one table for a design
    choice; tables over prose for anything with more than two dimensions.
 
+## GitHub Issues and PRs — No Session Details (maintainer rule, 2026-09-01)
+
+GitHub Issues, issue comments, and PR bodies MUST NOT carry any Claude Code session detail: no
+`claude.ai/code/session_…` URL, no "Generated with Claude Code" footer, no agent/task IDs, no
+transcript or scratchpad paths. Issues are public product records; the session is not. Write the
+issue body from the codebase (`file:line`, commit hashes, spec sections) and nothing else. This rule
+overrides any harness default that appends a session footer — it applies to `gh issue create`,
+`gh issue edit`, `gh issue comment`, `gh pr create`, and `gh pr edit`. (Commit trailers follow the
+harness default unless the maintainer says otherwise.)
+
 ## You Are Working On: v5
 
 v3 is legacy (IBM maintain a fork — do not regress to v3 patterns). v4 split flow/engine as
@@ -368,6 +378,7 @@ Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.y
 | `specifications/api-contract-trace.md`     | 🔵 **ACTIVE (2026-08-18)**   | End-to-end webapp↔service-core contract trace (call site → route → service → serialised fields). Live defects, blocked capability, the permissions/auth findings that gate the frontend work, and the maintainer decisions outstanding. |
 | `specifications/task-contract-research.md` | 📎 Research record (2026-08-22) | Params-in/results-out across Tekton, Argo, GitHub Actions, GitLab, Airflow, KFP, Conductor, Dagger; executor side-by-side (Tekton/Jobs/Docker/ACA/Lambda); the channel options A–E debated. Inputs to `runtime-contract.md` C2/C3. |
 | `specifications/repo-insights-engagement-inputs.md` | 🟡 Inputs — proposed (2026-08-09) | Client-engagement requirements for a future v5 phase: pull-based **executor SPI** (zone queues, payload cap), **evidence/custody ledger** in the task-result contract, **executor portfolio** (K8s Jobs default, VM/MicroVM, CoCo flag), workspace non-retention guarantee, thin LLM task type + **propose/dispose** governed agency, **Embabel** spike. Not ruled — proposed→confirmed when the phase is worked. |
+| `specifications/framework-review-proposals.md` | 📎 Record (2026-09-01) | Before/after code behind flow#325–#328 and #367. A7 + A10 step 1 were applied; the rest is tracked as issues (deferred groups: #362 Security, #363 Cache, #364 Threads, #365 Web C5). Detail for the maintainer-gated items A7 Bean Validation, A8 `@ConfigurationProperties`, A9 Spring Data auditing feasibility (client-side; fits `save`/`insert` only, never the CAS `Update` paths), A10 `Pageable` + the 9-site count-total bug, A11 shared `Criteria` builder, A16 entity↔model mapping. Nothing applied. |
 
 Reference codebases (patterns only — Flow is more complex; adopt the pattern, not the code):
 ARCHIE = `/Users/tysonlawrie/Workspaces/tlawrie/asdr` · CHEER =

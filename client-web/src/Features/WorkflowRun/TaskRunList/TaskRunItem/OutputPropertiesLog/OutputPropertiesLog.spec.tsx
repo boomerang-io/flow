@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import OutputPropertiesLog from "./index";
 
 // The modal body only renders once the trigger is clicked (ComposedModal invokes its `children`
@@ -19,7 +19,7 @@ const props = {
 };
 
 function openModal() {
-  global.rtlRender(<OutputPropertiesLog {...(props as any)} />);
+  render(<OutputPropertiesLog {...(props as any)} />);
   fireEvent.click(screen.getByText("View Parameters"));
 }
 

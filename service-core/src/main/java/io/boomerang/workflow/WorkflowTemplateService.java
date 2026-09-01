@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.validation.ResourceName;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.WorkflowTemplateEntity;
 import io.boomerang.common.enums.TaskType;
@@ -42,7 +43,7 @@ public class WorkflowTemplateService {
 
   private static final String CHANGELOG_INITIAL = "Initial WorkflowTemplate";
   private static final String CHANGELOG_UPDATE = "Updated WorkflowTemplate";
-  private static final String NAME_REGEX = "^([0-9a-zA-Z\\\\-]+)$";
+  private static final String NAME_REGEX = ResourceName.REGEX;
 
   private final WorkflowTemplateRepository wfTemplateRepository;
   private final MongoTemplate mongoTemplate;
@@ -139,7 +140,12 @@ public class WorkflowTemplateService {
     wfTemplateEntities.forEach(e -> wfTemplates.add(new WorkflowTemplate(e)));
 
     Page<WorkflowTemplate> pages =
-        PageableExecutionUtils.getPage(wfTemplates, pageable, () -> wfTemplates.size());
+        PageableExecutionUtils.getPage(
+            wfTemplates,
+            pageable,
+            () ->
+                mongoTemplate.count(
+                    Query.of(query).skip(-1).limit(-1), WorkflowTemplateEntity.class));
 
     return pages;
   }

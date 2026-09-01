@@ -6,6 +6,7 @@ import { appLink } from "Config/appConfig";
 import { workflows as workflowsFixture } from "ApiServer/fixtures";
 import { WorkflowStatus, type PaginatedWorkflowResponse, type WorkflowCanvas } from "Types";
 import { editorLoader } from "../editorRoute";
+import { renderWithContext } from "Utils/testing/render";
 import Configure from "./index";
 
 const WORKSPACE = "personal";
@@ -44,7 +45,7 @@ const workflow: WorkflowCanvas = {
 // rendering the component bare is what made the previous version of this spec fail.
 function renderConfigure(route = appLink.editorConfigureGeneral({ workspace: WORKSPACE, workflow: WORKFLOW })) {
   const settingsRef = React.createRef<any>();
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     // The splat must stop at the workflow segment: Configure renders its own <Routes> whose paths
     // are relative to this match and already start with "configure/", so consuming that segment
     // here would make them resolve to ".../configure/configure/general" and match nothing - which

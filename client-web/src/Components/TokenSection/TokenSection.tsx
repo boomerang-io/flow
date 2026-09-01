@@ -24,6 +24,7 @@ import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import { TokenActorKind } from "Constants";
 import type { Token, TokenScopeType } from "Types";
+import { isActionError } from "Utils/actionResult";
 import styles from "./TokenSection.module.scss";
 import { useTokenSectionData } from "./tokenRouteData";
 import type { TokenActionResult } from "./tokenRoute";
@@ -103,7 +104,7 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
       return;
     }
     const result = fetcher.data;
-    if (result.ok) {
+    if (!isActionError(result)) {
       // The list is loader-driven and React Router revalidates it automatically once this
       // fetcher's action settles - nothing to invalidate or revalidate by hand.
       notify(<ToastNotification kind="success" title="Delete Token" subtitle={`Token successfully deleted`} />);
@@ -111,8 +112,8 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
       notify(
         <ToastNotification
           kind="error"
-          title={result.errorMessage?.title ?? "Something's Wrong"}
-          subtitle={result.errorMessage?.message ?? "Request to delete token failed"}
+          title={result.error.title ?? "Something's Wrong"}
+          subtitle={result.error.message ?? "Request to delete token failed"}
         />,
       );
     }

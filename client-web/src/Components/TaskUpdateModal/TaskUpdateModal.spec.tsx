@@ -1,6 +1,6 @@
 import React from "react";
 import { http, HttpResponse } from "msw";
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { server } from "ApiServer/msw/node";
 import { db } from "ApiServer/msw/db";
@@ -41,7 +41,7 @@ beforeEach(() => {
 describe("TaskUpdateModal --- RTL", () => {
   it("renders both version panes from the resource route (direct /api blocked)", async () => {
     const latest = { ...findFixtureTask(), version: 5 };
-    global.rtlRender(
+    render(
       <TaskUpdateModal
         availableParameters={[]}
         closeModal={vi.fn()}
@@ -60,7 +60,7 @@ describe("TaskUpdateModal --- RTL", () => {
 
   it("renders the inline empty state when the resource route reports ok:false", async () => {
     server.use(http.get(resourceRoute.task({ name: ":name" }), () => HttpResponse.json({ ok: false })));
-    global.rtlRender(
+    render(
       <TaskUpdateModal
         availableParameters={[]}
         closeModal={vi.fn()}

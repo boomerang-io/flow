@@ -3,6 +3,7 @@ import { useFetcher } from "react-router-dom";
 import { ConfirmModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { TrashCan } from "@carbon/react/icons";
 import { Member } from "Types";
+import { isActionError } from "Utils/actionResult";
 import type { MembersActionResult } from "../Members";
 import styles from "./RemoveMember.module.scss";
 
@@ -24,7 +25,7 @@ const RemoveMember: React.FC<RemoveMemberProps> = ({ member, workspaceName, user
       return;
     }
     notify(
-      fetcher.data.ok ? (
+      !isActionError(fetcher.data) ? (
         <ToastNotification
           title="Remove User Requested"
           subtitle="Request to remove user from workspace successful"
