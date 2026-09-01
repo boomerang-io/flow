@@ -442,6 +442,12 @@ export const handlers: HttpHandler[] = [
     const user = db.users.find((u) => u.id === params.userId);
     return user ? HttpResponse.json(user) : HttpResponse.json({ errors: ["User not found"] }, { status: 404 });
   }),
+  http.get(serviceUrl.getUserWorkspaces({ userId: ":userId" }), ({ params }) => {
+    const user = db.users.find((u) => u.id === params.userId);
+    return user
+      ? HttpResponse.json(db.workspaces)
+      : HttpResponse.json({ errors: ["User not found"] }, { status: 400 });
+  }),
   http.patch(serviceUrl.getUser({ userId: ":userId" }), async ({ params, request }) => {
     const index = db.users.findIndex((u) => u.id === params.userId);
     if (index === -1) return HttpResponse.json({ errors: ["User not found"] }, { status: 404 });

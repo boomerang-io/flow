@@ -84,6 +84,7 @@ export const serviceUrl = {
   getTokenCatalog: ({ query }) => `${BASE_URL}/token/catalog${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
+  getUserWorkspaces: ({ userId }) => `${BASE_URL}/user/${userId}/workspaces`,
   deleteUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserProfile: () => `${BASE_URL}/profile`,
   getIntegrations: ({ workspace }: WorkspaceArg) => `${BASE_URL}/integration${workspace ? "?workspace=" + workspace : ""}`,
