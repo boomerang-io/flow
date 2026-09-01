@@ -232,6 +232,24 @@ public class KubeJobsExecutorTest {
     assertTrue(TerminationMessageParser.parse("", List.of()).isEmpty());
     assertTrue(TerminationMessageParser.parse(null, List.of()).isEmpty());
   }
+
+  @Test
+  public void testParseTerminationMessageHandlesOversizedMessage() {
+    // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
+    // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
+    // — it should fall back to no Results, exactly like any other malformed message.
+    String truncated = "{\"greeting\": \"" + "x".repeat(5000);
+    assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
+
+    // A large but well-formed message (bigger than the 4096-byte Kubernetes cap would ever allow
+    // in practice) still parses correctly — the parser itself imposes no size limit.
+    String largeValue = "y".repeat(5000);
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of());
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+    assertEquals(largeValue, results.get(0).getValue());
+  }
 }
 
 @SpringBootTest
