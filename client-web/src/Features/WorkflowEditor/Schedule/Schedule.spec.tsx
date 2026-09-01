@@ -4,6 +4,7 @@ import { workspaces } from "ApiServer/fixtures";
 import { appLink } from "Config/appConfig";
 import { WorkflowStatus, type WorkflowCanvas } from "Types";
 import { editorLoader } from "../editorRoute";
+import { renderWithContext } from "Utils/testing/render";
 import Schedule from "./index";
 
 const WORKSPACE = workspaces.content[0].name;
@@ -61,7 +62,7 @@ const LOADER_WAIT = { timeout: 15000 };
 const TEST_TIMEOUT = 30000;
 
 function renderSchedule() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/:workspace/editor/:workflow/*" loader={editorLoader} element={<Schedule workflow={workflow} />} />,
     { route: appLink.editorSchedule({ workspace: WORKSPACE, workflow: WORKFLOW }) },
   );

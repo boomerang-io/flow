@@ -4,6 +4,7 @@ import { Route } from "react-router-dom";
 import { vi } from "vitest";
 import { AppPath, appLink } from "Config/appConfig";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import { editorAction, editorLoader } from "./editorRoute";
 import Editor from "./index";
 
@@ -37,7 +38,7 @@ beforeEach(() => {
  * Route-module test pattern (see GlobalParameters.spec.tsx / Workflows.spec.jsx): build the same
  * shape app/routes/editor.tsx registers - a route carrying loader/action alongside its element,
  * matched on the real "/:workspace/editor/:workflow/*" path so the loader's params resolve - and
- * hand it to rtlContextRouterRender, which uses a <Route> element as-is instead of wrapping it in
+ * hand it to renderWithContext, which uses a <Route> element as-is instead of wrapping it in
  * its usual catch-all, so the loader actually runs. Everything the editor renders now reads that
  * loader's data, so without it the page renders nothing at all.
  */
@@ -53,7 +54,7 @@ const LOADER_WAIT = { timeout: 15000 };
 const TEST_TIMEOUT = 30000;
 
 function renderEditor(route: string) {
-  return rtlContextRouterRender(
+  return renderWithContext(
     <Route path={`${AppPath.Editor}/*`} loader={editorLoader} action={editorAction} element={<Editor />} />,
     { route },
   );
