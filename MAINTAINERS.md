@@ -9,7 +9,7 @@ triage issues, and cut releases.
 | —               | [@gchickma](https://github.com/gchickma)     | IBM          |
 | Marcus Roy      | [@marcusdroy](https://github.com/marcusdroy) | Independent  |
 | Tim Bula        | [@timrbula](https://github.com/timrbula)     | IBM Research |
-| Tyson Lawrie    | [@tlawrie](https://github.com/tlawrie)       | Flowabl      |
+| Tyson Lawrie    | [@tlawrie](https://github.com/tlawrie)       | Cheer.dev      |
 
 ## Emeritus
 
