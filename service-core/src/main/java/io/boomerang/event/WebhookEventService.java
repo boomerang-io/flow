@@ -223,8 +223,11 @@ public class WebhookEventService {
             event,
             PojoCloudEventDataMapper.from(
                 JACKSON2_MAPPER, new TypeReference<Map<String, Object>>() {}));
-    params.add(new RunParam("data", (Object) data, ParamType.object));
-    params.addAll(ParameterUtil.mapToRunParamList(data.getValue()));
+    // A CloudEvent may carry no data at all - the run then gets only the event param.
+    if (data != null) {
+      params.add(new RunParam("data", (Object) data, ParamType.object));
+      params.addAll(ParameterUtil.mapToRunParamList(data.getValue()));
+    }
     return params;
   }
 }
