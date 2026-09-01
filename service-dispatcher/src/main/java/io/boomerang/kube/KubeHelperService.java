@@ -7,16 +7,22 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
+import io.fabric8.kubernetes.api.model.ContainerState;
+import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.LabelSelector;
+import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodAffinityTerm;
 import io.fabric8.kubernetes.api.model.PodAntiAffinity;
+import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -320,6 +326,44 @@ public class KubeHelperService {
 
     LOGGER.info("  labelSelector: " + labelSelector.toString());
     return labelSelector.toString();
+  }
+
+  /**
+   * Inspect the failed Task's "task" container for a more specific cause than a generic
+   * failure: {@code OOMKilled} from a terminated container, or an image-pull failure from a
+   * waiting one. Returns null when neither applies, so the caller falls back to a generic
+   * JobFailed/TaskRunFailed reason.
+   */
+  protected String getPodFailureReason(KubernetesClient client, Map<String, String> taskLabels) {
+    List<Pod> pods = client.pods().withLabels(taskLabels).list().getItems();
+    if (pods.isEmpty()) {
+      return null;
+    }
+    return Optional.ofNullable(pods.get(0).getStatus())
+        .map(PodStatus::getContainerStatuses)
+        .orElse(List.of())
+        .stream()
+        .filter(cs -> "task".equals(cs.getName()))
+        .map(ContainerStatus::getState)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .map(this::reasonFromContainerState)
+        .orElse(null);
+  }
+
+  private String reasonFromContainerState(ContainerState state) {
+    if (state.getTerminated() != null && "OOMKilled".equals(state.getTerminated().getReason())) {
+      return "OOMKilled";
+    }
+    if (state.getWaiting() != null) {
+      String reason = state.getWaiting().getReason();
+      if ("ImagePullBackOff".equals(reason)
+          || "ErrImagePull".equals(reason)
+          || "InvalidImageName".equals(reason)) {
+        return "ImagePull";
+      }
+    }
+    return null;
   }
 
   protected String workspaceLabelSelector(String workspaceRef, String workspaceType) {

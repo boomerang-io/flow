@@ -13,16 +13,22 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.kube.KubeJobsExecutor;
 import io.boomerang.kube.KubeServiceImpl;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.ContainerState;
+import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
+import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
-import io.fabric8.kubernetes.api.model.HostAlias;
-import io.fabric8.kubernetes.api.model.Toleration;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodBuilder;
+import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
+import io.fabric8.kubernetes.api.model.batch.v1.JobStatus;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
 import java.util.HashMap;
@@ -36,6 +42,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import io.fabric8.kubernetes.api.model.HostAlias;
+import io.fabric8.kubernetes.api.model.Toleration;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -232,24 +240,6 @@ public class KubeJobsExecutorTest {
     assertTrue(TerminationMessageParser.parse("", List.of()).isEmpty());
     assertTrue(TerminationMessageParser.parse(null, List.of()).isEmpty());
   }
-
-  @Test
-  public void testParseTerminationMessageHandlesOversizedMessage() {
-    // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
-    // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
-    // — it should fall back to no Results, exactly like any other malformed message.
-    String truncated = "{\"greeting\": \"" + "x".repeat(5000);
-    assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
-
-    // A large but well-formed message (bigger than the 4096-byte Kubernetes cap would ever allow
-    // in practice) still parses correctly — the parser itself imposes no size limit.
-    String largeValue = "y".repeat(5000);
-    List<RunResult> results =
-        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of());
-    assertEquals(1, results.size());
-    assertEquals("greeting", results.get(0).getName());
-    assertEquals(largeValue, results.get(0).getValue());
-  }
 }
 
 @SpringBootTest
@@ -301,6 +291,143 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
             .getItems();
     assertEquals(1, jobs.size());
     assertEquals("gvisor", jobs.get(0).getSpec().getTemplate().getSpec().getRuntimeClassName());
+  }
+  @Test
+  public void testParseTerminationMessageHandlesOversizedMessage() {
+    // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
+    // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
+    // — it should fall back to no Results, exactly like any other malformed message.
+    String truncated = "{\"greeting\": \"" + "x".repeat(5000);
+    assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
+
+    // A large but well-formed message (bigger than the 4096-byte Kubernetes cap would ever allow
+    // in practice) still parses correctly — the parser itself imposes no size limit.
+    String largeValue = "y".repeat(5000);
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of());
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+    assertEquals(largeValue, results.get(0).getValue());
+  }
+}
+
+/**
+ * Pins the reconcile loop: the watch never delivers a terminating event in these tests (the
+ * terminal state is written to the mock server before the watch is opened), so every case is
+ * resolved by the label-list poll on a one-second {@code kube.timeout.reconcileSeconds}.
+ */
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(properties = {"dispatcher.executor=kube-jobs", "kube.timeout.reconcileSeconds=1"})
+class KubeJobsExecutorReconcileTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private EngineClient engineClient;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  private TaskRun task(String taskRunRef) {
+    TaskRun task = new TaskRun();
+    task.setId(taskRunRef);
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+    return task;
+  }
+
+  @Test
+  public void testWatchReconcilesAGenericJobFailureAsJobFailed() throws Exception {
+    TaskRun task = task("taskrun-reconcile-failed");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+  }
+
+  @Test
+  public void testWatchReconcilesAMissingJobAsJobDeleted() {
+    TaskRun task = task("taskrun-reconcile-missing");
+    // No Job is ever created - the watch never fires and the reconcile poll finds nothing.
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobDeleted", ex.getStatusReason());
+  }
+
+  @Test
+  public void testWatchReconcilesAnOOMKilledPodAsOOMKilled() throws Exception {
+    TaskRun task = task("taskrun-reconcile-oom");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    Map<String, String> taskLabels = created.getMetadata().getLabels();
+
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setReason("OOMKilled");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(taskLabels)
+            .endMetadata()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("OOMKilled", ex.getStatusReason());
+  }
+
+  @Test
+  public void testCreateAdoptsAnExistingJobRatherThanCreatingASecondOne() throws Exception {
+    TaskRun task = task("taskrun-reconcile-adopt");
+    kubeJobsExecutor.create(task, 30L);
+    assertEquals(1, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
+
+    kubeJobsExecutor.create(task, 30L);
+
+    assertEquals(1, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
   }
 }
 

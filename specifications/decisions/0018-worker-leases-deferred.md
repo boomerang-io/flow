@@ -1,6 +1,6 @@
 # 0018 — Worker leases and lease renewal are deferred
 
-**Status:** accepted · **Date:** 2026-08-14
+**Status:** superseded by 0064 · **Date:** 2026-08-14
 
 ## Context
 

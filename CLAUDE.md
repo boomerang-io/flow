@@ -7,7 +7,7 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 | Module | What it is |
 | --- | --- |
 | `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. |
-| `service-dispatcher` | The execution worker. Polls `/api/v1/dispatcher`, claims task runs, runs them through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs). |
+| `service-dispatcher` | The execution worker. Polls `/api/v1/dispatcher`, claims task runs, heartbeats their leases, runs them through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs). |
 | `service-loader` | Flamingock migrations and seed data, run as a pre-deploy Job once per deploy. The change-unit chain upgrades a v3 database in place and MUST NOT be collapsed. |
 | `lib-common` | Shared model, entities, enums, error handling. |
 | `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Served only in `standalone` mode. |
@@ -72,8 +72,7 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 - The custom HTTP client configuration (`RestConfig`: proxy, trust-all option, per-template timeouts, streaming
   template) is a product requirement for enterprises behind proxies and internal CAs. Framework upgrades MUST
   preserve it.
-- Do not build ahead of proven need: per-type concurrency caps and per-class switches, retry classes, worker
-  leases, supersede generations and a separate reconciler were all considered and deliberately not built
+- Do not build ahead of proven need: per-type concurrency caps and per-class switches, retry classes, supersede generations and a separate reconciler were all considered and deliberately not built
   (one global claim switch, `flow.queue.enabled`, exists). Reopen them with evidence — load tests or a
   reproduced incident — not speculation.
 

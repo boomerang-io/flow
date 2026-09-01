@@ -1,6 +1,7 @@
 package io.boomerang.dispatcher;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -13,14 +14,15 @@ import io.boomerang.client.EngineClient;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.TaskExecutionException;
-import java.util.List;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import io.boomerang.common.model.RunResult;
+import java.util.List;
 
 /**
  * Pins the dispatch half of the claim contract. The engine hands the agent a run whose phase is
@@ -34,9 +36,10 @@ class QueueServiceDispatchTest {
   private final WorkspaceService workspaceService = mock(WorkspaceService.class);
   private final TaskService taskService = mock(TaskService.class);
   private final EngineClient engineClient = mock(EngineClient.class);
+  private final LeaseRegistry leaseRegistry = new LeaseRegistry();
 
   private final QueueService queueService =
-      new QueueService(workflowService, workspaceService, taskService, engineClient);
+      new QueueService(workflowService, workspaceService, taskService, engineClient, leaseRegistry);
 
   private static TaskRun taskRun(RunPhase phase) {
     TaskRun run = new TaskRun();
@@ -96,5 +99,33 @@ class QueueServiceDispatchTest {
 
     verify(workflowService).execute(any(WorkflowRun.class));
     verify(engineClient).startWorkflow("wf-1");
+  }
+
+  @Test
+  void genericFailureEndsTheTaskAsDispatchErrorAndClearsTheLease() {
+    when(taskService.execute(any())).thenThrow(new RuntimeException("boom"));
+    leaseRegistry.beat("task-1");
+
+    queueService.processTaskRun(taskRun(RunPhase.queued));
+
+    ArgumentCaptor<TaskRunEndRequest> captor = ArgumentCaptor.forClass(TaskRunEndRequest.class);
+    verify(engineClient).endTask(eq("task-1"), captor.capture());
+    assertEquals(RunStatus.failed, captor.getValue().getStatus());
+    assertEquals("DispatchError", captor.getValue().getStatusReason());
+    assertTrue(leaseRegistry.aliveWithin(Duration.ofMinutes(1)).isEmpty());
+  }
+
+  @Test
+  void taskExecutionExceptionForwardsItsStatusReasonAndClearsTheLease() {
+    when(taskService.execute(any())).thenThrow(new TaskExecutionException("OOMKilled", "boom"));
+    leaseRegistry.beat("task-1");
+
+    queueService.processTaskRun(taskRun(RunPhase.queued));
+
+    ArgumentCaptor<TaskRunEndRequest> captor = ArgumentCaptor.forClass(TaskRunEndRequest.class);
+    verify(engineClient).endTask(eq("task-1"), captor.capture());
+    assertEquals(RunStatus.failed, captor.getValue().getStatus());
+    assertEquals("OOMKilled", captor.getValue().getStatusReason());
+    assertTrue(leaseRegistry.aliveWithin(Duration.ofMinutes(1)).isEmpty());
   }
 }

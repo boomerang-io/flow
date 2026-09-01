@@ -9,7 +9,7 @@ so a `generic` task waits in the queue until a dispatcher registers that type.
 
 ## Dispatcher protocol
 
-The dispatcher registers once, then polls two queues every 5 seconds and calls four lifecycle routes.
+The dispatcher registers once, polls two queues every 5 seconds, sends one lease heartbeat every 30 seconds, and calls four lifecycle routes.
 
 | Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:41-159`) | Direction | Payload |
 | --- | --- | --- |
@@ -17,7 +17,8 @@ The dispatcher registers once, then polls two queues every 5 seconds and calls f
 | `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns this call claimed for provisioning or teardown; 204 = none (`DispatcherService.java:110-145`) |
 | `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:207-221`) |
 | `PUT /workflowrun/{id}/start`, `/finalize` | dispatcher → engine | Called after workspaces are provisioned, and after run-scoped storage is deleted (`QueueService.java:47-58`) |
-| `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusMessage`, `results` (`QueueService.java:80-87`); any executor exception ends the task `failed` (`:101-106`) |
+| `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed |
+| `PUT /{id}/heartbeat` | dispatcher → engine, every `flow.dispatcher.lease.beat-ms` (30 s) | `ids` of the task runs whose executor threads stamped `LeaseRegistry` since the last beat (`dispatcher/LeaseHeartbeat.java`); the engine renews `claim.leaseExpiresAt` for the ids this dispatcher owns (`DispatcherService.heartbeat`, `flow.dispatcher.lease-ms` 90 s) |
 
 Claims are compare-and-set per document, so two dispatchers never receive the same run
 (`DispatcherService.java:202-210`). A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
@@ -45,8 +46,12 @@ runs `create` then `watch`, and deletes the runtime object per `kube.task.deleti
 | `tekton` (default) | `kube/TektonServiceImpl.java:53` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`:454,492`) | `spec.timeout` in minutes (`:440`) | `status.results` (`:571`); a 4096-byte overflow is detected from the pod log tail (`:552`) | Overwrite the status condition with `TaskRunCancelled` (`:617-632`) |
 | `kube-jobs` | `kube/KubeJobsExecutor.java:65` | One `batch/v1` `Job` (`:199`); `restartPolicy`, `backoffLimit`, TTL from `kube.task.*` (`:162,183-184`) | `activeDeadlineSeconds = minutes × 60` (`:185`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`:156-158,393-402`; `executor/TerminationMessageParser.java:15-17`) | Delete the Job and its script ConfigMap (`:424-461`) |
 
-Both executors block one thread on a label-selector watch for `timeout + kube.timeout.watchGraceMinutes`
-(default 2; `TektonServiceImpl.java:532`, `KubeJobsExecutor.java:356`, `application.properties:28`). The
+Both executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every
+`kube.timeout.reconcileSeconds` (default 30) the loop re-lists the object by label, applies the same terminal
+logic, stamps the lease registry, and re-opens the watch if it was closed (`KubeJobsExecutor.java`, `watch`;
+`TektonServiceImpl.java`, `watchTaskRun`); it gives up at `timeout + kube.timeout.watchGraceMinutes` (default 2,
+`application.properties:28`). `create` adopts an existing Job or TaskRun that already carries the task's labels
+instead of creating a second one. The
 Jobs executor mounts a `script` task's body from a per-task ConfigMap at `/scripts/script`, which MUST
 start with a shebang (`KubeJobsExecutor.java:295-311`).
 

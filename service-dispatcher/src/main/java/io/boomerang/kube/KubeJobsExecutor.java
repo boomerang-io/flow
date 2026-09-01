@@ -1,6 +1,7 @@
 package io.boomerang.kube;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -11,6 +12,7 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TerminationMessageParser;
 import io.fabric8.kubernetes.api.model.ConfigMap;
@@ -39,6 +41,8 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.utils.Serialization;
 import java.text.ParseException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +82,9 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Value("${kube.timeout.watchGraceMinutes}")
   private long watchGraceMinutes;
 
+  @Value("${kube.timeout.reconcileSeconds}")
+  private long reconcileSeconds;
+
   @Value("${kube.image.pullPolicy}")
   private String kubeImagePullPolicy;
 
@@ -111,10 +118,13 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Value("${dispatcher.tasks.runtimeClassName}")
   private String kubeWorkerRuntimeClassName;
 
+  private final LeaseRegistry leaseRegistry;
+
   private KubernetesClient client;
 
-  public KubeJobsExecutor(KubernetesClient client) {
+  public KubeJobsExecutor(KubernetesClient client, LeaseRegistry leaseRegistry) {
     this.client = client;
+    this.leaseRegistry = leaseRegistry;
   }
 
   // Tests swap in the mock-server client after the context is up.
@@ -132,6 +142,15 @@ public class KubeJobsExecutor implements TaskExecutor {
     TaskRunSpec spec = task.getSpec();
     Map<String, String> taskLabels =
         helperKubeService.getTaskLabels(workflowRef, workflowRunRef, taskRunRef, task.getLabels());
+
+    List<Job> existing = client.batch().v1().jobs().withLabels(taskLabels).list().getItems();
+    if (!existing.isEmpty()) {
+      LOGGER.info(
+          "Adopting existing Job {} for TaskRun {}",
+          existing.get(0).getMetadata().getName(),
+          taskRunRef);
+      return;
+    }
 
     List<Volume> volumes = new ArrayList<>();
     List<VolumeMount> volumeMounts = new ArrayList<>();
@@ -345,17 +364,35 @@ public class KubeJobsExecutor implements TaskExecutor {
 
     final CountDownLatch latch = new CountDownLatch(1);
     JobWatcher jobWatcher = new JobWatcher(latch);
+    Watch watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
 
-    try (Watch ignore = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher)) {
+    try {
+      leaseRegistry.beat(task.getId());
       // A backstop only, for the case where the Job's own deadline never reaches this watch. The
       // engine owns the deadline and reaps at the task budget plus a few seconds, so it always
       // acts first; this grace exists to release the thread and report, not to wait for
       // scheduling. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
-      boolean jobComplete = latch.await(timeoutMinutes + watchGraceMinutes, TimeUnit.MINUTES);
-      if (!jobComplete) {
-        throw new BoomerangException(
-            BoomerangError.TASK_EXECUTION_ERROR,
-            "JobTimeout - Job timed out while waiting for completion.");
+      Instant deadline = Instant.now().plus(Duration.ofMinutes(timeoutMinutes + watchGraceMinutes));
+      while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
+        leaseRegistry.beat(task.getId());
+        if (Instant.now().isAfter(deadline)) {
+          throw new TaskExecutionException(
+              "DeadlineExceeded", "JobTimeout - Job timed out while waiting for completion.");
+        }
+        // The watch is the fast path; this poll is the reconcile that catches whatever the watch
+        // missed - a dropped connection, or a state transition that happened before the watch was
+        // established.
+        List<Job> jobs = client.batch().v1().jobs().withLabels(taskLabels).list().getItems();
+        if (jobs.isEmpty()) {
+          jobWatcher.markDeleted();
+        } else {
+          jobWatcher.evaluate(jobs.get(0));
+        }
+        if (jobWatcher.isWatchLost()) {
+          watch.close();
+          watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
+          jobWatcher.resetWatchLost();
+        }
       }
 
       JobCondition condition = jobWatcher.getCondition();
@@ -370,16 +407,33 @@ public class KubeJobsExecutor implements TaskExecutor {
       // The container may have written its Result Parameters to the termination log before it
       // exited non-zero; carry them so a failed Task's output still reaches the Engine.
       List<RunResult> failureResults = readResults(taskLabels, task.getResults());
-      if ("DeadlineExceeded".equals(reason)) {
-        throw new TaskExecutionException(failureResults, "DeadlineExceeded - " + message);
-      }
-      throw new TaskExecutionException(failureResults, reason + " - " + message);
+      throw failureFor(reason, message, taskLabels, failureResults);
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
     } finally {
+      watch.close();
+      leaseRegistry.remove(task.getId());
       deleteConfigMaps(taskLabels);
     }
+  }
+
+  private TaskExecutionException failureFor(
+      String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
+    if ("DeadlineExceeded".equals(reason)) {
+      return new TaskExecutionException("DeadlineExceeded", results, reason + " - " + message);
+    }
+    if ("JobDeleted".equals(reason)) {
+      return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
+    }
+    String podReason = helperKubeService.getPodFailureReason(client, taskLabels);
+    if ("OOMKilled".equals(podReason)) {
+      return new TaskExecutionException("OOMKilled", results, reason + " - " + message);
+    }
+    if ("ImagePull".equals(podReason)) {
+      return new TaskExecutionException("ImagePull", results, reason + " - " + message);
+    }
+    return new TaskExecutionException("JobFailed", results, reason + " - " + message);
   }
 
   /**
@@ -394,8 +448,8 @@ public class KubeJobsExecutor implements TaskExecutor {
     String message = getTerminationMessage(taskLabels);
     if (message == null || message.isBlank()) {
       if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-        throw new BoomerangException(
-            BoomerangError.TASK_EXECUTION_ERROR,
+        throw new TaskExecutionException(
+            "ResultsTooLarge",
             "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
       }
       return List.of();
@@ -416,6 +470,7 @@ public class KubeJobsExecutor implements TaskExecutor {
             .map(ContainerState::getTerminated)
             .filter(Objects::nonNull)
             .map(ContainerStateTerminated::getMessage)
+            .filter(Objects::nonNull)
             .findFirst()
             .orElse(null)
         : null;

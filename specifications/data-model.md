@@ -49,12 +49,12 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | --- | --- | --- |
 | Control state (typed, `@JsonIgnore`, never on the public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count}` (task), `waitUntil` (task), `pauseRequestedAt`, `retryCount` (workflow) | `WorkflowRunEntity.java:53-77`, `TaskRunEntity.java:65-81`, `RunClaim.java:19-22`, `RunRetry.java:17-18` |
 | Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retried run points at the run it retries) | `WorkflowRunEntity.java:72-73` |
-| Status (typed, serialised) | `status` (closed `RunStatus` enum), `phase`, `statusMessage`, `statusOverride` | `WorkflowRunEntity.java:41-44` |
+| Status (typed, serialised) | `status` (closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (task runs only; a closed string set of causes such as `OOMKilled`, `DeadlineExceeded`, `LeaseExpired`), `statusOverride` | `WorkflowRunEntity.java:41-44`, `TaskRunEntity.java:54` |
 | User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
 | Annotations | `annotations: Map<String,Object>` in the `boomerang.io/*` namespace | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
 
-`claim.leaseExpiresAt` is declared but only ever unset (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:185`);
-crash recovery keys on `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control field serialises,
+`claim.leaseExpiresAt` is written by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `renewLeases`) and unset on requeue (`:583`);
+crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control field serialises,
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:45-51`) and `ControlStateFieldsTest`
 (`retry-of`, `retry-count`, `timeout-cause` are never written as annotations).
 

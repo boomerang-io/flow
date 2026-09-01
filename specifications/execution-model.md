@@ -35,9 +35,12 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   identity MUST match `claim.by`/`claim.seq` (`claimantIsValid`, `engine/TaskExecutionService.java:536-560`, called
   at `:247` and `:415`), and the completion write repeats the check in its query (`TaskRunService.java:427-428`).
   A request with no identity is accepted as the legacy protocol (`TaskExecutionService.java:538-545`).
-- `claim.leaseExpiresAt` exists on `RunClaim` (`lib-common/.../model/RunClaim.java:21`) and is indexed by the loader
-  (`service-loader/.../_0017__RunIndexes.java:82`), but nothing writes it; it is only ever `unset`
-  (`TaskRunService.java:583`, `WorkflowRunStateHelper.java:165`). Leases are not a working guard.
+- `claim.leaseExpiresAt` on `RunClaim` (`lib-common/.../model/RunClaim.java:21`, indexed by
+  `service-loader/.../_0017__RunIndexes.java:82`) is the dispatcher's liveness signal: each dispatcher sends one
+  batched heartbeat every 30 s listing the task runs its executor threads are still working on, and the engine
+  sets the lease 90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases`, fenced on `claim.by`;
+  `flow.dispatcher.lease-ms`). A requeue unsets it (`TaskRunService.java:583`). A claim that was never
+  heartbeated holds no lease and is recovered by the deadline and gone-dispatcher sweeps alone.
 - A global kill switch exists: `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`DispatcherService.java:38-40`, `:111`, `:176`).
 
 ## Compare-and-set transitions instead of locks
@@ -62,15 +65,17 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 | `cancelDeletedWorkflowRuns` `:248` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
 | `pruneDeletedWorkflows` `:269` | — | a no-op until `flow.watcher.retention.enabled=true` (`:85-86`); the retention policy is undecided |
 | `reapRunsWithMissingRevision` `:282` | in-flight runs whose `workflowRevisionRef` no longer resolves | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest |
-| `reapClaimsFromGoneDispatchers` `:326` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:69`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`) |
+| `reapClaimsFromGoneDispatchers` `:326` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:69`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
+| `reapExpiredLeases` | claimed task runs whose `claim.leaseExpiresAt` has elapsed (`TaskRunService.findLeaseExpired`) | the same requeue-or-abandon treatment, `statusReason=LeaseExpired` |
 | `closeStrayActions` `:378` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
 
 ## Timeouts and crash recovery
 
 Timeouts are deadline-based: `timeoutAt` = start time + budget in minutes + 5 s grace (`engine/RunTimeouts.java:14-18`,
 `EngineConstants.java:9`), written by the claim and start transitions and cleared by completion. There are no per-run
-timers; the sweeps above are the only reaper. A crashed dispatcher is recovered by the same path: its claimed task
-reaches `timeoutAt` (or its dispatcher goes stale) and is requeued or timed out. Both reap writes are fenced on the
+timers; the sweeps above are the only reaper. A crashed dispatcher, a dead executor thread or a pod that died while the dispatcher's watch was closed is recovered by
+the same path: the claimed task's lease lapses (90 s without a heartbeat), or its dispatcher goes stale (60 s), or
+it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fenced on the
 observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.java:659-664`). A task's budget is the
 smaller of the workflow's `boomerang.io/task-timeout` annotation and the task's own timeout (`engine/DAGUtility.java:194-207`).
 A task timeout on the final write times out the whole run (`TaskExecutionService.java:487-490`); a workflow timeout
@@ -145,7 +150,6 @@ means "held" (`TaskExecutionService.java:711-740`). A task that cannot acquire p
 | --- | --- | --- |
 | Per-type or per-class concurrency caps | `findClaimable` filters by task type only; the global `flow.queue.enabled` switch is the only throttle | load testing shows one task type starving the rest |
 | Retry classes (rate-limit, deterministic-terminal) | one generic `Backoff`; failures are not retried | a task family whose failures demonstrably need a different policy |
-| Worker leases and lease renewal | `claim.leaseExpiresAt` declared, never written; recovery waits for `timeoutAt` or 60 s of dispatcher silence | worker-crash recovery latency proves to matter |
 | Supersede generations and a separate reconciler | retry creates a new workflow run; "reconcile" is the level-triggered `advance` | in-place partial re-run of one workflow run becomes a requirement |
 | A transaction (or `transitionSeq`) across CAS commit and outbox insert | the accepted creation-loss window above | a missing terminal-status event is reported, or a consumer becomes load-bearing on delivery |
 

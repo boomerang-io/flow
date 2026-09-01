@@ -21,7 +21,7 @@ things by name, not by code.
 | 0015 | [One generic retry backoff; retry classes are not built until proven needed](0015-one-generic-retry-backoff.md) | accepted | 2026-08-18 |
 | 0016 | [Supersede generations and a separate reconciler are not built; retry creates a new run](0016-no-supersede-generations-or-reconciler.md) | accepted | 2026-08-21 |
 | 0017 | [The outbox creation-loss window is accepted](0017-outbox-creation-loss-window-accepted.md) | accepted | 2026-08-21 |
-| 0018 | [Worker leases and lease renewal are deferred](0018-worker-leases-deferred.md) | accepted | 2026-08-14 |
+| 0018 | [Worker leases and lease renewal are deferred](0018-worker-leases-deferred.md) | superseded by 0064 | 2026-08-14 |
 | 0019 | [Workflow delete is a tombstone swept by the watcher](0019-workflow-delete-is-a-tombstone.md) | accepted | 2026-07-23 |
 | 0020 | [Control and execution state are typed fields; annotations and labels are metadata only](0020-control-state-is-typed-fields.md) | accepted | 2026-07-24 |
 | 0021 | [Versioned documents use the subset pattern (parent plus revision documents)](0021-versioned-documents-use-the-subset-pattern.md) | accepted | 2023-08-14 |
@@ -49,3 +49,5 @@ things by name, not by code.
 | 0061 | [Concurrency caps and per-class kill switches wait for load-test evidence](0061-concurrency-caps-and-kill-switches-wait-for-load-test-evidence.md) | accepted | 2026-08-18 |
 | 0062 | [Custom HTTP client configuration is a product requirement every upgrade must preserve](0062-custom-http-client-configuration-is-a-product-requirement.md) | accepted | 2026-07-23 |
 | 0063 | [A run timeout must be at least the transport timeout of the work it guards](0063-run-timeout-must-cover-transport-timeout.md) | accepted | 2026-07-23 |
+| 0064 | [Claimed tasks carry a lease renewed by one batched heartbeat per dispatcher](0064-worker-leases-by-batched-heartbeat.md) | accepted | 2026-09-01 |
+| 0065 | [A task ends with a typed `statusReason` beside its `statusMessage`](0065-typed-status-reason-on-task-end.md) | accepted | 2026-09-01 |
