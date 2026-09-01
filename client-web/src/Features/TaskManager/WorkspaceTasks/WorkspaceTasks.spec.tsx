@@ -7,6 +7,7 @@ import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { WorkspaceContainer } from "Features/App/App";
 import { serviceUrl } from "Config/servicesConfig";
+import { isActionError } from "Utils/actionResult";
 import WorkspaceTasks, { action, loader } from "./WorkspaceTasks";
 
 const WORKSPACE = "ibm-services-engineering"; // matches src/ApiServer/fixtures/workspace.js.
@@ -108,7 +109,6 @@ describe("WorkspaceTasks --- action", () => {
     });
 
     expect(result).toEqual({
-      ok: true,
       intent: "apply",
       task: { name: "execute-advanced-http-call", displayName: "Updated Task", version: 5 },
     });
@@ -123,7 +123,6 @@ describe("WorkspaceTasks --- action", () => {
     });
 
     expect(result).toEqual({
-      ok: true,
       intent: "applyYaml",
       task: { name: "execute-advanced-http-call", displayName: "YAML Task", version: 9 },
     });
@@ -144,14 +143,18 @@ describe("WorkspaceTasks --- action", () => {
       body: JSON.stringify({ name: "execute-advanced-http-call" }),
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("apply");
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const errorResult = result as unknown as { data: { intent: string } };
+    expect(isActionError(errorResult.data)).toBe(true);
+    expect(errorResult.data.intent).toBe("apply");
   });
 
   test("validates an uploaded file through the mocked API", async () => {
     const result = await submit({ intent: "validateYaml", body: "name: some-task\n" });
 
-    expect(result).toEqual({ ok: true, intent: "validateYaml" });
+    expect(result).toEqual({ intent: "validateYaml" });
   });
 
   test("surfaces a failed validation without throwing", async () => {
@@ -161,9 +164,11 @@ describe("WorkspaceTasks --- action", () => {
       ),
     );
 
-    const result = await submit({ intent: "validateYaml", body: "not: valid: yaml: at all" });
+    const result = (await submit({ intent: "validateYaml", body: "not: valid: yaml: at all" })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("validateYaml");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("validateYaml");
   });
 });

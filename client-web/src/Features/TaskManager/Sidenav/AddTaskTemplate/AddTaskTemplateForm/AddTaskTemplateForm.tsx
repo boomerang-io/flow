@@ -24,6 +24,7 @@ import * as Yup from "yup";
 import SelectIcon from "Components/SelectIcon";
 import { taskIcons } from "Utils/taskIcons";
 import { Task } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import styles from "./addTaskTemplateForm.module.scss";
 
 interface AddTaskTemplateFormProps {
@@ -94,9 +95,7 @@ function AddTaskTemplateForm({
   // still happens by parsing the uploaded file's own text client-side (as before) - the validate
   // call is only used to gate whether that parse is trusted; the ref stashes what to parse once
   // the fetcher settles.
-  const validateFetcher = useFetcher<
-    { ok: true; intent: "validateYaml" } | { ok: false; intent: "validateYaml"; error: { title: string; message: string } }
-  >();
+  const validateFetcher = useFetcher<{ intent: "validateYaml" } | ({ intent: "validateYaml" } & ActionError)>();
   const [validateYamlError, setValidateYamlError] = React.useState(false);
   const pendingFileRef = React.useRef<{
     file: File;
@@ -114,7 +113,7 @@ function AddTaskTemplateForm({
     if (!pending) {
       return;
     }
-    if (!validateFetcher.data.ok) {
+    if (isActionError(validateFetcher.data)) {
       setValidateYamlError(true);
       return;
     }
