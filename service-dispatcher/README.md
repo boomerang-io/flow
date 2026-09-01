@@ -38,7 +38,8 @@ method to use and then look at the API code to see how it works for advance conf
 ## Development
 
 When running the service locally you need access to a kubernetes API endpoint. This service is set up to use whatever
-the kubeconfig is pointing to.
+the kubeconfig is pointing to. If that kubeconfig context has no namespace set, startup fails fast with an
+`IllegalStateException` rather than the first task job failing — set `kube.namespace` to pin the namespace explicitly.
 
 ## RBAC
 
