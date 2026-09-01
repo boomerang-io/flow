@@ -8,6 +8,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.executor.TaskExecutionException;
 import io.boomerang.dispatcher.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,15 +28,19 @@ public class QueueService {
 
   private final EngineClient engineClient;
 
+  private final LeaseRegistry leaseRegistry;
+
   public QueueService(
       WorkflowService workflowService,
       WorkspaceService workspaceService,
       TaskService taskService,
-      @Lazy EngineClient engineClient) {
+      @Lazy EngineClient engineClient,
+      LeaseRegistry leaseRegistry) {
     this.workflowService = workflowService;
     this.workspaceService = workspaceService;
     this.taskService = taskService;
     this.engineClient = engineClient;
+    this.leaseRegistry = leaseRegistry;
   }
 
   @Async
@@ -100,12 +105,27 @@ public class QueueService {
       }
     } catch (BoomerangException e) {
       LOGGER.fatal("Failed to execute TaskRun.", e);
+      endFailed(
+          request.getId(),
+          e instanceof TaskExecutionException t ? t.getStatusReason() : "DispatchError",
+          e.getMessage());
+    } catch (Exception e) {
+      LOGGER.error("A fatal error has occurred while processing the message!", e);
+      endFailed(request.getId(), "DispatchError", e.getMessage());
+    } finally {
+      leaseRegistry.remove(request.getId());
+    }
+  }
+
+  private void endFailed(String taskRunId, String statusReason, String message) {
+    try {
       TaskRunEndRequest endRequest = new TaskRunEndRequest();
       endRequest.setStatus(RunStatus.failed);
-      endRequest.setStatusMessage(e.getMessage());
-      engineClient.endTask(request.getId(), endRequest);
+      endRequest.setStatusReason(statusReason);
+      endRequest.setStatusMessage(message);
+      engineClient.endTask(taskRunId, endRequest);
     } catch (Exception e) {
-      LOGGER.fatal("A fatal error has occurred while processing the message!", e);
+      LOGGER.error("Failed to report TaskRun ({}) failure to the engine.", taskRunId, e);
     }
   }
 }

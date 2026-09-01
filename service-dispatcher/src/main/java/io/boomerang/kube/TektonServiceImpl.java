@@ -2,6 +2,7 @@ package io.boomerang.kube;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.RunParam;
@@ -10,6 +11,7 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.executor.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
@@ -22,6 +24,7 @@ import io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
@@ -35,6 +38,7 @@ import io.fabric8.tekton.v1.WorkspaceBinding;
 import io.fabric8.tekton.v1.WorkspaceDeclaration;
 import java.lang.reflect.Type;
 import java.text.ParseException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -68,6 +72,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Value("${kube.timeout.watchGraceMinutes}")
   protected long watchGraceMinutes;
+
+  @Value("${kube.timeout.reconcileSeconds}")
+  protected long reconcileSeconds;
 
   @Override
   public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
@@ -158,10 +165,13 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Value("${dispatcher.tasks.runtimeClassName}")
   private String kubeWorkerRuntimeClassName;
 
+  private final LeaseRegistry leaseRegistry;
+
   TektonClient client = null;
 
-  public TektonServiceImpl(TektonClient client) {
+  public TektonServiceImpl(TektonClient client, LeaseRegistry leaseRegistry) {
     this.client = client;
+    this.leaseRegistry = leaseRegistry;
   }
 
   // Tests swap in the mock-server client after the context is up.
@@ -506,34 +516,43 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       Map<String, String> customLabels,
       Long timeout)
       throws InterruptedException {
+    Map<String, String> taskLabels =
+        helperKubeService.getTaskLabels(workflowId, workflowActivityId, taskActivityId, customLabels);
+
     final CountDownLatch latch = new CountDownLatch(1);
-    Condition condition = null;
-    List<TaskRunResult> tknResults = new ArrayList<TaskRunResult>();
+    Condition condition;
+    List<TaskRunResult> tknResults;
 
     TaskWatcher taskWatcher = new TaskWatcher(latch);
+    Watch watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
 
-    try (Watch ignore =
-        client
-            .v1()
-            .taskRuns()
-            .withLabels(
-                helperKubeService.getTaskLabels(
-                    workflowId, workflowActivityId, taskActivityId, customLabels))
-            .watch(taskWatcher)) {
-
-      // TODO is there a way to wait 3 minutes and check if the task
-      // has moved from initial state. If its still in initial state then check PVC
-      // PVC might have Event / Condition "ProvisioningFailed" with a reason.
-
+    try {
+      leaseRegistry.beat(taskActivityId);
       // A backstop only, for the case where Tekton's own timeout interrupt never reaches this
       // watch. The engine owns the deadline and reaps at the task budget plus a few seconds, so it
       // always acts first; this grace exists to release the thread and report, not to wait for
       // provisioning. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
-      boolean taskComplete = latch.await(timeout + watchGraceMinutes, TimeUnit.MINUTES);
-      if (!taskComplete) {
-        throw new BoomerangException(
-            BoomerangError.TASK_EXECUTION_ERROR,
-            "TaskRunTimeout - Task timed out while waiting for completion.");
+      Instant deadline = Instant.now().plus(java.time.Duration.ofMinutes(timeout + watchGraceMinutes));
+      while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
+        leaseRegistry.beat(taskActivityId);
+        if (Instant.now().isAfter(deadline)) {
+          throw new TaskExecutionException(
+              "DeadlineExceeded", "TaskRunTimeout - Task timed out while waiting for completion.");
+        }
+        // The watch is the fast path; this poll is the reconcile that catches whatever the watch
+        // missed - a dropped connection, or a state transition that happened before the watch was
+        // established.
+        List<TaskRun> taskRuns = client.v1().taskRuns().withLabels(taskLabels).list().getItems();
+        if (taskRuns.isEmpty()) {
+          taskWatcher.markDeleted();
+        } else {
+          taskWatcher.evaluate(taskRuns.get(0));
+        }
+        if (taskWatcher.isWatchLost()) {
+          watch.close();
+          watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
+          taskWatcher.resetWatchLost();
+        }
       }
 
       condition = taskWatcher.getCondition();
@@ -542,24 +561,19 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       if (condition != null && "True".equals(condition.getStatus())) {
         LOGGER.info("Task completed successfully");
       } else {
-        LOGGER.info(
-            "Task execution error. " + condition.getReason() + " - " + condition.getMessage());
-        if (kubeService.isTaskRunResultTooLarge(
-            helperKubeService.getTaskLabels(
-                workflowId, workflowActivityId, taskActivityId, customLabels))) {
-          throw new BoomerangException(
-              BoomerangError.TASK_EXECUTION_ERROR,
-              "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
-        } else {
-          throw new BoomerangException(
-              BoomerangError.TASK_EXECUTION_ERROR,
-              condition.getReason() + " - " + condition.getMessage());
-        }
+        String reason = condition != null ? condition.getReason() : "Unknown";
+        String message =
+            condition != null ? condition.getMessage() : "TaskRun did not report a terminal condition.";
+        LOGGER.info("Task execution error. " + reason + " - " + message);
+        throw failureFor(reason, message, taskLabels);
       }
 
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
+    } finally {
+      watch.close();
+      leaseRegistry.remove(taskActivityId);
     }
 
     List<RunResult> results = new ArrayList<>();
@@ -572,6 +586,28 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         });
 
     return results;
+  }
+
+  private TaskExecutionException failureFor(String reason, String message, Map<String, String> taskLabels) {
+    if ("DeadlineExceeded".equals(reason) || "TaskRunTimeout".equals(reason)) {
+      return new TaskExecutionException("DeadlineExceeded", reason + " - " + message);
+    }
+    if ("JobDeleted".equals(reason)) {
+      return new TaskExecutionException("JobDeleted", reason + " - " + message);
+    }
+    if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
+      return new TaskExecutionException(
+          "ResultsTooLarge",
+          "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
+    }
+    String podReason = helperKubeService.getPodFailureReason(client.adapt(KubernetesClient.class), taskLabels);
+    if ("OOMKilled".equals(podReason)) {
+      return new TaskExecutionException("OOMKilled", reason + " - " + message);
+    }
+    if ("ImagePull".equals(podReason)) {
+      return new TaskExecutionException("ImagePull", reason + " - " + message);
+    }
+    return new TaskExecutionException("JobFailed", reason + " - " + message);
   }
 
   @Override

@@ -20,6 +20,7 @@ public class JobWatcher implements Watcher<Job> {
 
   private final CountDownLatch latch;
   private JobCondition condition;
+  private volatile boolean watchLost;
 
   public JobWatcher(CountDownLatch latch) {
     this.latch = latch;
@@ -29,17 +30,34 @@ public class JobWatcher implements Watcher<Job> {
     return condition;
   }
 
+  /** True once the watch's connection has been lost; the caller must close and re-open it. */
+  public boolean isWatchLost() {
+    return watchLost;
+  }
+
+  /** Clears the lost-connection flag after the caller has re-opened the watch. */
+  public void resetWatchLost() {
+    watchLost = false;
+  }
+
   @Override
   public void eventReceived(Action action, Job resource) {
     LOGGER.info("Watch event received {}: {}", action.name(), resource.getMetadata().getName());
-    JobStatus status = resource.getStatus();
-
     if (Action.DELETED.equals(action)) {
-      condition = terminalCondition("Failed", "False", "JobDeleted", "The Job was deleted before completion.");
-      latch.countDown();
+      markDeleted();
       return;
     }
+    evaluate(resource);
+  }
 
+  /**
+   * Evaluate a Job for a terminal state - {@code status.succeeded >= 1}, {@code status.failed >=
+   * 1}, or a terminal {@code Failed}/{@code Complete} condition - counting the latch down when
+   * found. Safe to call repeatedly on the same non-terminal Job, including from a reconcile poll
+   * of a listed Job rather than a watch event.
+   */
+  public void evaluate(Job job) {
+    JobStatus status = job.getStatus();
     if (status == null) {
       return;
     }
@@ -65,6 +83,12 @@ public class JobWatcher implements Watcher<Job> {
     }
   }
 
+  /** Mark the Job as terminally deleted - used when a reconcile poll finds no matching Job. */
+  public void markDeleted() {
+    condition = terminalCondition("Failed", "False", "JobDeleted", "The Job was deleted before completion.");
+    latch.countDown();
+  }
+
   private JobCondition failedConditionFrom(JobStatus status) {
     if (status.getConditions() != null) {
       for (JobCondition candidate : status.getConditions()) {
@@ -87,7 +111,8 @@ public class JobWatcher implements Watcher<Job> {
 
   @Override
   public void onClose(WatcherException e) {
-    LOGGER.error("Watch error received: {}", e.getMessage(), e);
-    // The caller's latch.await() times out and surfaces a TASK_EXECUTION_ERROR; do not exit the process.
+    watchLost = true;
+    LOGGER.warn("Watch closed: {}", e != null ? e.getMessage() : "no exception", e);
+    // The reconcile loop notices watchLost and re-opens the watch; do not exit the process.
   }
 }

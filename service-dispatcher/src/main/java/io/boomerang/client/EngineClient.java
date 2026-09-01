@@ -43,6 +43,9 @@ public class EngineClient {
   @Value("${flow.engine.dispatcher.register.url}")
   private String dispatcherRegisterURL;
 
+  @Value("${flow.engine.dispatcher.heartbeat.url}")
+  private String dispatcherHeartbeatURL;
+
   @Value("${flow.engine.dispatcher.workflowqueue.url}")
   private String dispatcherQueueWorkflowURL;
 
@@ -118,6 +121,23 @@ public class EngineClient {
       LOGGER.info(response.getStatusCode());
     } catch (RestClientException ex) {
       LOGGER.error(ex.toString());
+    }
+  }
+
+  /**
+   * Reports the TaskRun ids this dispatcher's watch loops are still polling, so the engine can
+   * renew their lease. A missed beat is the engine's signal, never fatal to the dispatcher - any
+   * failure is logged and swallowed.
+   */
+  public void heartbeat(List<String> ids) {
+    try {
+      String url = dispatcherHeartbeatURL.replace("{dispatcherId}", dispatcherId);
+      final HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
+      HttpEntity<HeartbeatRequest> entity = new HttpEntity<>(new HeartbeatRequest(ids), headers);
+      restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
+    } catch (Exception e) {
+      LOGGER.warn("Error sending dispatcher heartbeat: {}", e.getMessage());
     }
   }
 
