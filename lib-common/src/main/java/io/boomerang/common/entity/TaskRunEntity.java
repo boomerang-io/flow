@@ -50,6 +50,8 @@ public class TaskRunEntity {
   @Indexed private RunStatus status;
   @Indexed private RunPhase phase;
   private String statusMessage;
+
+  private String statusReason;
   @JsonIgnore private boolean preApproved;
   @JsonIgnore private String decisionValue;
   @JsonIgnore private List<WorkflowTaskDependency> dependencies;

@@ -43,6 +43,8 @@ public class TaskRun {
   private RunStatus status;
   private RunPhase phase;
   private String statusMessage;
+
+  private String statusReason;
   private String taskRef;
   private Integer taskVersion;
   private String workflowRef;
