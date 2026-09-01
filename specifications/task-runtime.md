@@ -14,7 +14,7 @@ The dispatcher registers once, polls two queues every 5 seconds, sends one lease
 | Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:41-159`) | Direction | Payload |
 | --- | --- | --- |
 | `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:70-96`) |
-| `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns this call claimed for provisioning or teardown; 204 = none (`DispatcherService.java:110-145`) |
+| `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning or teardown; 204 = none (`DispatcherService.java:110-145`) |
 | `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:207-221`) |
 | `PUT /workflowrun/{id}/start`, `/finalize` | dispatcher → engine | Called after workspaces are provisioned, and after run-scoped storage is deleted (`QueueService.java:47-58`) |
 | `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed |
@@ -120,12 +120,16 @@ Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storag
 task param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:208-227`, `TektonServiceImpl.java:301`).
 Shared storage is a workflow-level opt-in with two types (`StorageType.java:12-13`), each a persistent
 volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPath`
-(`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A `workflow` PVC is keyed by
-`workflowRef`, created at the first run's start if absent and never deleted by a run; a `workflowrun` PVC is
-keyed by the run id, created at start and deleted at finalize (`dispatcher/WorkflowService.java:41-60,88-100`).
-Size, class and access mode default to `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class
-leaves `storageClassName` unset so the cluster default applies, because an empty string disables dynamic
-provisioning (`KubeServiceImpl.java:175`).
+(`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A task mounts only the workspaces it
+declares: `DAGUtility` copies the node's `workspaces` onto the TaskRun (`engine/DAGUtility.java:214`) and the
+executor mounts by type. A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
+and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted at finalize
+(`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
+`mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
+against the workspace quota in Gi (`workflow/WorkflowService.java:448`,
+`lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to
+`kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves `storageClassName` unset so the cluster
+default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:175`).
 
 ## Isolation and placement
 

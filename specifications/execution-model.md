@@ -17,7 +17,7 @@ The normal path is `notstarted/pending` → admit → `ready/pending` → claim 
 | Transition | Task run (`engine/TaskRunService.java`) | Workflow run (`engine/WorkflowRunStateHelper.java`) |
 | --- | --- | --- |
 | admit (persists resolved params) | `tryAdmit` `:278` | `tryAdmit` `:135` |
-| claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:79`, `tryClaimForTeardown` `:108` |
+| claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:79`, `tryClaimForTeardown` `:108` — both only for runs that declare workspaces (`findClaimableForProvision` `:47`) |
 | start (bakes `timeoutAt`) | `tryStartExecution` `:380` | `tryStart` `:152` |
 | complete | `tryComplete` `:415` | `tryComplete` `:188` |
 | finalize | — | `tryFinalize` `:217` |
@@ -49,6 +49,11 @@ Every state change is a single-document compare-and-set (CAS): a `findAndModify`
 prior state and whose update applies the new one, returning the pre-image or null (`TaskRunService.java:669`,
 `WorkflowRunStateHelper.java:331-334`). There are no distributed locks, no `@Version` fields and no leader election.
 Only the CAS winner performs side effects; a loser logs and returns, so N instances and overlapping sweeps are safe.
+
+A run without workspaces submitted with `start=true` is started by the engine at once; a run that declares
+workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its claims and calls
+`PUT /api/v1/dispatcher/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:765`). A run submitted with
+`start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it.
 
 ## The watcher sweeps
 
