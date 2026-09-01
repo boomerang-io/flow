@@ -100,7 +100,9 @@ docker compose up --build                             # Mongo, loader Job, IDPZe
   `:4380` (`docker/idpzero/`); sign-in is a passwordless user picker and the first user to sign in on a fresh
   database becomes admin. Set `flow.security.enabled=false` only for a headless engine — requests then run as
   a synthetic admin (see `authorization.md`).
-- `service-dispatcher` is not in compose — it drives Tekton on a real cluster (`service-dispatcher/README.md`).
+- `service-dispatcher` is not in the default compose stack. To run it against a laptop Kubernetes (OrbStack) with the
+  plain-Jobs executor, layer `docker-compose.kube.yml` (header comment explains the kubeconfig at `docker/kube/config`)
+  and run the dispatcher scenarios: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),
   `cd e2e && npm ci && npx playwright test` against the compose stack.
 - Skills: `/spring-module` before any backend Java, `/design-system` before any UI, `/spec-maintenance`

@@ -1,0 +1,49 @@
+# Local experiment: run service-dispatcher against a laptop Kubernetes (OrbStack) with the
+# plain-Jobs executor. Layer it over the main stack:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.kube.yml up -d --build service-dispatcher
+#
+# Prerequisites: OrbStack Kubernetes enabled (`orb config set k8s.enable true`, then restart
+# OrbStack) and a kubeconfig at docker/kube/config whose server points at host.docker.internal
+# (generate with kubectl config view --context orbstack --minify --flatten --raw, rewrite the
+# server, and set insecure-skip-tls-verify - the API cert has no SAN for that host name).
+# Dispatcher authentication is switched OFF on service-core here (the documented dev/test
+# escape hatch); never carry that into a real deployment.
+services:
+  service-core:
+    environment:
+      FLOW_DISPATCHER_AUTH_ENABLED: "false"
+      FLOW_AGENT_SERVICE_HOST: service-dispatcher:7702
+
+  service-dispatcher:
+    build:
+      context: ./service-dispatcher
+      dockerfile: Dockerfile
+    ports:
+      - "7702:7702"
+    environment:
+      DISPATCHER_EXECUTOR: kube-jobs
+      FLOW_DISPATCHER_NAME: orbstack-kube-jobs
+      FLOW_ENGINE_SERVICE_HOST: service-core:7700
+      FLOW_ENGINE_DISPATCHER_TOKEN: ""
+      FLOW_DISPATCHER_LEASE_ENABLED: "true"
+      KUBECONFIG: /kube/config
+      KUBERNETES_TRUST_CERTIFICATES: "true"
+      # OrbStack's default StorageClass is ReadWriteOnce-only.
+      KUBE_WORKSPACE_STORAGE_ACCESSMODE: ReadWriteOnce
+      KUBE_WORKFLOW_STORAGE_ACCESSMODE: ReadWriteOnce
+      KUBE_TASK_TIMEOUT: "10"
+    volumes:
+      - ./docker/kube/config:/kube/config:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      service-core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7702/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [flow]

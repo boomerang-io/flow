@@ -50,7 +50,10 @@ Both executors hold one thread per task in a reconcile loop: a label-selector wa
 `kube.timeout.reconcileSeconds` (default 30) the loop re-lists the object by label, applies the same terminal
 logic, stamps the lease registry, and re-opens the watch if it was closed (`KubeJobsExecutor.java`, `watch`;
 `TektonServiceImpl.java`, `watchTaskRun`); it gives up at `timeout + kube.timeout.watchGraceMinutes` (default 2,
-`application.properties:28`). `create` adopts an existing Job or TaskRun that already carries the task's labels
+`application.properties:28`). A Job whose pod count reports a failure before its `Failed` condition exists is
+held until the condition arrives, so a deadline kill is reported as `DeadlineExceeded` rather than `JobFailed`;
+after `kube.timeout.failedConditionGraceSeconds` (60) without a condition it is reported as `JobFailed`
+(`executor/JobWatcher.java:21`). `create` adopts an existing Job or TaskRun that already carries the task's labels
 instead of creating a second one. The
 Jobs executor mounts a `script` task's body from a per-task ConfigMap at `/scripts/script`, which MUST
 start with a shebang (`KubeJobsExecutor.java:295-311`).
@@ -62,6 +65,9 @@ parameter values and into `spec.script`, `spec.command`, `spec.arguments` and `s
 (`engine/ParameterManager.java:111,121-136`), then persists the resolved copy with the admission
 compare-and-set (`TaskExecutionService.java:181`; `TaskRunService.java:278`). The TaskRun's params are the
 task's declared params merged with the values authored on the workflow node (`engine/DAGUtility.java:183`).
+A `custom` task takes its runtime from its own params — `image`, `command` and `arguments` (newline-split)
+and `shellScript` — rather than from the catalogue entry, which declares no image
+(`DAGUtility.java:247,302`).
 The dispatcher then sets these environment variables (`kube/KubeHelperService.java:111-149`):
 
 | Variable | Value |
@@ -89,7 +95,8 @@ The engine enforces both caps so the failure is one message on every executor; a
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
 to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:238`), and the node-value
-merge keeps the declared casing (`ParameterUtil.java:57-66`). The safety pair is rejection at save: names that
+merge keeps the declared casing (`ParameterUtil.java:57-66`). A node param with no value is rejected at save (`WORKFLOW_TASK_PARAM_MISSING_VALUE`,
+`WorkflowService.java:1631`), so a placeholder can never reach a run. The safety pair is rejection at save: names that
 are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PARAM_NAME_COLLISION` (code 1209,
 `BoomerangError.java:50`) at workflow save (`workflow/WorkflowService.java:1593-1599`) and task save
 (`workflow/TaskService.java:366-374`); the dispatcher repeats the check at dispatch (`KubeHelperService.java:131-140`).
@@ -101,7 +108,10 @@ marker, and values are filtered on the way up only. The workspace-scoped `get` a
 password-typed params by name and scrub their resolved values from task params, spec fields and results
 (`workflow/WorkflowRunService.java:145-149,160-170,209`), and the task log stream is wrapped in
 `FilterValuesOutputStream`, a line-buffered scrub of the same values (`:339-346`;
-`lib-common/.../FilterValuesOutputStream.java:21`). Engine and dispatcher reads, and delivery into the
+`lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher ends the stream when the pod is already
+finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
+asynchronous completion of a streamed response without re-running authorization on it
+(`core/security/SecurityConfiguration.java:81`, `SecurityInterceptor.java:45`). Engine and dispatcher reads, and delivery into the
 container, carry the real values.
 
 ## Volumes and workspaces
@@ -113,7 +123,9 @@ volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPat
 (`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A `workflow` PVC is keyed by
 `workflowRef`, created at the first run's start if absent and never deleted by a run; a `workflowrun` PVC is
 keyed by the run id, created at start and deleted at finalize (`dispatcher/WorkflowService.java:41-60,88-100`).
-Size, class and access mode default to `kube.workspace.storage.*` (1Gi, `ReadWriteMany`).
+Size, class and access mode default to `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class
+leaves `storageClassName` unset so the cluster default applies, because an empty string disables dynamic
+provisioning (`KubeServiceImpl.java:175`).
 
 ## Isolation and placement
 
@@ -123,7 +135,10 @@ TaskRun `podTemplate` for Tekton (`TektonServiceImpl.java:467-470`). There is no
 different tier is a second dispatcher deployment with its own name and task types. Node selector,
 tolerations, host aliases and the image pull secret are likewise per deployment
 (`application.properties:22-23,43-46`; `KubeJobsExecutor.java:165-166`; `TektonServiceImpl.java:471-474`).
-Resource requests and limits are not applied by either executor.
+Empty toleration or host-alias entries are dropped before dispatch, so a `[]` or `[{}]` default never reaches
+the API server (`KubeHelperService.java:240`). Tasks, claims and ConfigMaps are created in `kube.namespace`,
+or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
+(`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either executor.
 
 ## Task catalogue
 
@@ -132,6 +147,9 @@ Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boome
 their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and `task_revisions`,
 inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
+The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
+(`workflowRef`; plus `futureIn`, `futurePeriod`, `timezone`, `time`), added to an existing catalogue by
+`_0040__DeclareRunWorkflowParams`.
 
 ## Task types handled inside the engine
 

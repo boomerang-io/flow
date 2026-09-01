@@ -944,3 +944,6 @@ FodyWeavers.xsd
 # The Visual Studio [Rr]elease/ build-output pattern above must not swallow the release skill.
 !.claude/skills/release/
 !.claude/skills/release/**
+
+# Generated kubeconfig for the local dispatcher experiment (docker-compose.kube.yml)
+docker/kube/config
