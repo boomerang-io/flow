@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.boomerang.common.entity.WorkflowTemplateEntity;
+import io.boomerang.common.validation.ResourceName;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -45,7 +46,7 @@ import org.springframework.data.annotation.Id;
 public class WorkflowTemplate {
 
   @Id @JsonIgnore private String id;
-  private String name;
+  @ResourceName private String name;
   private String displayName;
   private Date creationDate = new Date();
   private Integer version;

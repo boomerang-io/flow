@@ -8,6 +8,7 @@ import { server } from "ApiServer/msw/node";
 import { APP_ROOT } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { browserNavigation } from "./authClient";
+import { renderWithContext, renderWithRouter } from "Utils/testing/render";
 import AuthCallback from "./AuthCallback";
 import AuthLogout from "./AuthLogout";
 import SignedOut from "./SignedOut";
@@ -39,7 +40,7 @@ describe("SignedOut --- mode none", () => {
       }),
     );
 
-    global.rtlContextRouterRender(<SignedOut config={{ mode: "none" }} onReloadConfig={vi.fn()} />);
+    renderWithContext(<SignedOut config={{ mode: "none" }} onReloadConfig={vi.fn()} />);
 
     expect(screen.getByText("You're not signed in")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
@@ -51,7 +52,7 @@ describe("SignedOut --- mode none", () => {
 
 describe("SignedOut --- mode oidc", () => {
   test("server-renderable: the very first render offers sign-in - no effect, no fetch", () => {
-    global.rtlContextRouterRender(
+    renderWithContext(
       <SignedOut config={{ mode: "oidc", issuer: "https://idp.example/realms/flow", clientId: "flow-web" }} onReloadConfig={vi.fn()} />,
       { route: "/boomerang/activity?phase=succeeded" },
     );
@@ -80,7 +81,7 @@ describe("SignedOut --- mode oidc", () => {
 
 describe("AuthCallback", () => {
   test("renders the failure surface with a way back - never an automatic retry", () => {
-    global.rtlRouterRender(
+    renderWithRouter(
       <AuthCallback error="The sign-in response did not match this browser's sign-in request (state mismatch)." />,
     );
 
@@ -91,7 +92,7 @@ describe("AuthCallback", () => {
   });
 
   test("renders the working shell while the server-side flow completes", () => {
-    global.rtlRouterRender(<AuthCallback />);
+    renderWithRouter(<AuthCallback />);
     expect(screen.getByText("Signing you in...")).toBeInTheDocument();
   });
 });
@@ -113,7 +114,7 @@ describe("SignedOut --- mode proxy", () => {
       return { ok: false };
     };
 
-    global.rtlContextRouterRender(
+    renderWithContext(
       <>
         <Route path="/" element={<SignedOut config={{ mode: "proxy" }} onReloadConfig={vi.fn()} />} />
         <Route path="/auth/signin" action={exchangeAction} />
@@ -143,7 +144,7 @@ describe("SignedOut --- mode proxy", () => {
       return { ok: true };
     };
 
-    global.rtlContextRouterRender(
+    renderWithContext(
       <>
         <Route path="/" element={<SignedOut config={{ mode: "proxy" }} onReloadConfig={vi.fn()} />} />
         <Route path="/auth/signin" action={exchangeAction} />
@@ -164,7 +165,7 @@ describe("SignedOut --- config unavailable", () => {
   test("renders the readable failure; retry re-runs the root loader, not a browser fetch", () => {
     const onReloadConfig = vi.fn();
 
-    global.rtlContextRouterRender(<SignedOut config={null} onReloadConfig={onReloadConfig} />);
+    renderWithContext(<SignedOut config={null} onReloadConfig={onReloadConfig} />);
 
     expect(screen.getByText("The sign-in configuration could not be loaded.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -188,7 +189,7 @@ describe("AuthLogout", () => {
     };
     const replaceSpy = vi.spyOn(browserNavigation, "replace").mockImplementation(() => {});
 
-    global.rtlRouterRender(<Route path="/auth/logout" element={<AuthLogout />} action={logoutAction} />, {
+    renderWithRouter(<Route path="/auth/logout" element={<AuthLogout />} action={logoutAction} />, {
       route: "/auth/logout",
     });
 
@@ -206,7 +207,7 @@ describe("AuthLogout", () => {
     const logoutAction = async () => ({ redirectTo: "https://sso.example.com/pkmslogout" });
     const replaceSpy = vi.spyOn(browserNavigation, "replace").mockImplementation(() => {});
 
-    global.rtlRouterRender(<Route path="/auth/logout" element={<AuthLogout />} action={logoutAction} />, {
+    renderWithRouter(<Route path="/auth/logout" element={<AuthLogout />} action={logoutAction} />, {
       route: "/auth/logout",
     });
 

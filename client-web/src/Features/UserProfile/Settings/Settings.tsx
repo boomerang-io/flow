@@ -14,6 +14,7 @@ import { useFetcher } from "react-router-dom";
 import TokenSection from "Components/TokenSection";
 import { TokenType } from "Constants";
 import type { FlowUser } from "Types";
+import { isActionError } from "Utils/actionResult";
 import type { UserProfileActionResult } from "../UserProfile";
 import styles from "./Settings.module.scss";
 import UpdateBasicDetails from "./UpdateBasicDetails";
@@ -42,12 +43,12 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
       return;
     }
     notify(
-      result.ok ? (
+      !isActionError(result) ? (
         <ToastNotification title="Close Account" subtitle="Request to close your account successful" kind="success" />
       ) : (
         <ToastNotification
           title="Close Account"
-          subtitle={`${result.errorMessage?.message}. Please contact support.`}
+          subtitle={`${result.error.message}. Please contact support.`}
           kind="error"
         />
       ),

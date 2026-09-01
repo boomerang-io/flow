@@ -1,7 +1,6 @@
 package io.boomerang.kube;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.RunParam;
@@ -10,6 +9,7 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
@@ -23,6 +23,7 @@ import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.client.Watch;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.Param;
 import io.fabric8.tekton.v1.ParamSpec;
@@ -33,7 +34,6 @@ import io.fabric8.tekton.v1.TaskRunBuilder;
 import io.fabric8.tekton.v1.TaskRunResult;
 import io.fabric8.tekton.v1.WorkspaceBinding;
 import io.fabric8.tekton.v1.WorkspaceDeclaration;
-import java.lang.reflect.Type;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -336,8 +336,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         && !kubeWorkerTolerations.isEmpty()
         && !"null".equalsIgnoreCase(kubeWorkerTolerations)) {
       LOGGER.info(kubeWorkerTolerations.toString());
-      Type listTolerationsType = new TypeToken<List<Toleration>>() {}.getType();
-      tolerations = new Gson().fromJson(kubeWorkerTolerations, listTolerationsType);
+      tolerations =
+          Serialization.unmarshal(kubeWorkerTolerations, new TypeReference<List<Toleration>>() {});
 
       //      kubeWorkerTolerations.forEach(t -> {
       //        LOGGER.info("Adding toleration: " + t);
@@ -351,8 +351,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
      */
     List<HostAlias> hostAliases = new ArrayList<>();
     if (!kubeWorkerHostAliases.isEmpty()) {
-      Type listHostAliasType = new TypeToken<List<HostAlias>>() {}.getType();
-      hostAliases = new Gson().fromJson(kubeWorkerHostAliases, listHostAliasType);
+      hostAliases =
+          Serialization.unmarshal(kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {});
     }
 
     /*
@@ -541,27 +541,31 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
       if (condition != null && "True".equals(condition.getStatus())) {
         LOGGER.info("Task completed successfully");
-      } else {
-        LOGGER.info(
-            "Task execution error. " + condition.getReason() + " - " + condition.getMessage());
-        if (kubeService.isTaskRunResultTooLarge(
-            helperKubeService.getTaskLabels(
-                workflowId, workflowActivityId, taskActivityId, customLabels))) {
-          throw new BoomerangException(
-              BoomerangError.TASK_EXECUTION_ERROR,
-              "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
-        } else {
-          throw new BoomerangException(
-              BoomerangError.TASK_EXECUTION_ERROR,
-              condition.getReason() + " - " + condition.getMessage());
-        }
+        return toRunResults(tknResults);
       }
+
+      LOGGER.info(
+          "Task execution error. " + condition.getReason() + " - " + condition.getMessage());
+      if (kubeService.isTaskRunResultTooLarge(
+          helperKubeService.getTaskLabels(
+              workflowId, workflowActivityId, taskActivityId, customLabels))) {
+        throw new BoomerangException(
+            BoomerangError.TASK_EXECUTION_ERROR,
+            "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
+      }
+      // The Step may have written its Result Parameters to the termination message before the
+      // container exited non-zero; carry them so a failed Task's output still reaches the Engine.
+      throw new TaskExecutionException(
+          toRunResults(tknResults), condition.getReason() + " - " + condition.getMessage());
 
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
     }
+  }
 
+  // Package-private so TektonServiceImplTest can pin the conversion directly.
+  static List<RunResult> toRunResults(List<TaskRunResult> tknResults) {
     List<RunResult> results = new ArrayList<>();
     tknResults.forEach(
         tr -> {
@@ -570,7 +574,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
               new RunResult(
                   tr.getName(), (tr.getValue() != null) ? tr.getValue().getStringVal() : null));
         });
-
     return results;
   }
 

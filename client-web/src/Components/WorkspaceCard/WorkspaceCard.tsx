@@ -6,6 +6,7 @@ import { appLink } from "Config/appConfig";
 import { ArrowRight, Checkmark, Close } from "@carbon/react/icons";
 import moment from "moment";
 import { FlowWorkspaceSummary } from "Types";
+import { isActionError } from "Utils/actionResult";
 import styles from "./workspaceCard.module.scss";
 
 interface WorkspaceCardProps {
@@ -15,11 +16,9 @@ interface WorkspaceCardProps {
 // Submits to Home's `action` (Features/Home/Home.tsx, intent "leave-workspace") - this card is
 // only ever rendered inside the Home route, with no route boundary in between, so a plain
 // useFetcher() submission with no explicit `action` target lands there by default.
-type LeaveWorkspaceActionResult = {
-  ok: boolean;
-  intent: "leave-workspace";
-  displayName: string;
-};
+type LeaveWorkspaceActionResult =
+  | { intent: "leave-workspace"; displayName: string }
+  | { intent: "leave-workspace"; displayName: string; error: { title: string; message: string } };
 
 const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
@@ -35,7 +34,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(
         <ToastNotification kind="success" title={`Leave Workspace`} subtitle={`${fetcher.data.displayName} successfully left`} />,
       );

@@ -17,6 +17,7 @@ import EmptyState from "Components/EmptyState";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { DataDrivenInput } from "Types";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import styles from "./settings.module.scss";
 
 export type SettingsGroup = {
@@ -44,27 +45,25 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
   }
 }
 
-type ActionResult = {
-  ok: boolean;
-};
+type ActionResult = Record<string, never> | ActionError;
 
 // Only one write happens on this route today, but the action still keys off `intent` (rather
 // than assuming the sole POST is always "update settings") to match the established
 // one-action-per-route convention and leave room for a second write without a shape change.
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
   if (intent !== "update") {
-    return { ok: false };
+    return actionError({ error: { title: "Something's Wrong", message: "Unknown action" } });
   }
 
   const settingsGroup = JSON.parse(String(formData.get("settingsGroup")));
   try {
     await serverFetch(request).put(serviceUrl.resourceSettings(), [settingsGroup]);
-    return { ok: true };
+    return {};
   } catch (error) {
-    return { ok: false };
+    return actionError({ error: { title: "Something's Wrong", message: "Request to update settings failed" } });
   }
 }
 
@@ -101,7 +100,7 @@ const Settings: React.FC = () => {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(<ToastNotification title="Update Settings" subtitle="Settings succesfully updated" kind="success" />);
       setFieldErrorRef.current?.("initialerror", "required");
       setFieldErrorRef.current = null;

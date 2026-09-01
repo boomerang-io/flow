@@ -18,6 +18,7 @@ import { FeatureFlag, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { FlowWorkspace, ModalTriggerProps, Workflow, WorkflowRun } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import WorkflowQuotaModalContent from "./WorkflowQuotaModalContent";
 import styles from "./workflows.module.scss";
 
@@ -62,20 +63,14 @@ export async function loader({
 // Field convention: "workflow" always carries a JSON-stringified payload (a CreateWorkflowSummary,
 // a full Workflow, or an execute body); "workflowName" always carries a bare identifier string.
 type ActionResult =
-  | { ok: true; intent: "create" | "import"; workflow: Workflow }
-  | { ok: false; intent: "create" | "import"; errorMessage: { title: string; message: string } }
-  | { ok: true; intent: "delete" | "duplicate" | "update" }
-  | { ok: false; intent: "delete" | "duplicate" | "update" }
-  | { ok: true; intent: "execute"; execution: WorkflowRun; redirect: boolean }
-  | { ok: false; intent: "execute"; errorMessage: { title: string; message: string } };
+  | { intent: "create" | "import"; workflow: Workflow }
+  | ({ intent: "create" | "import" } & ActionError)
+  | { intent: "delete" | "duplicate" | "update" }
+  | ({ intent: "delete" | "duplicate" | "update" } & ActionError)
+  | { intent: "execute"; execution: WorkflowRun; redirect: boolean }
+  | ({ intent: "execute" } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<ActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -84,9 +79,12 @@ export async function action({
     const workflowName = String(formData.get("workflowName"));
     try {
       await serverFetch(request).delete(serviceUrl.workspace.workflow.getWorkflow({ workspace, workflow: workflowName }));
-      return { ok: true, intent: "delete" };
+      return { intent: "delete" as const };
     } catch (error) {
-      return { ok: false, intent: "delete" };
+      return actionError({
+        intent: "delete" as const,
+        error: { title: "Something's Wrong", message: "Request to delete workflow failed" },
+      });
     }
   }
 
@@ -96,9 +94,12 @@ export async function action({
       await serverFetch(request).post(
         serviceUrl.workspace.workflow.postDuplicateWorkflow({ workspace, workflow: workflowName }),
       );
-      return { ok: true, intent: "duplicate" };
+      return { intent: "duplicate" as const };
     } catch (error) {
-      return { ok: false, intent: "duplicate" };
+      return actionError({
+        intent: "duplicate" as const,
+        error: { title: "Something's Wrong", message: "Request to duplicate workflow failed" },
+      });
     }
   }
 
@@ -111,30 +112,28 @@ export async function action({
         serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace, workflow: workflowName }),
         body,
       );
-      return { ok: true, intent: "execute", execution: response.data, redirect };
+      return { intent: "execute" as const, execution: response.data, redirect };
     } catch (error) {
       // Mirrors the previous client-side mutateAsync catch: a 429 (quota exceeded) gets its own
       // message built from the response body, everything else falls back to formatErrorMessage.
       const response = axios.isAxiosError(error) ? error.response : undefined;
       if (response?.status === 429) {
         const data = response.data;
-        return {
-          ok: false,
-          intent: "execute",
-          errorMessage: {
+        return actionError({
+          intent: "execute" as const,
+          error: {
             title: "Quota Exceeded",
             message:
               data && typeof data === "object" && "message" in data
                 ? String(data.message)
                 : "Too many requests. Please try again later.",
           },
-        };
+        });
       }
-      return {
-        ok: false,
-        intent: "execute",
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Run Workflow Failed" }),
-      };
+      return actionError({
+        intent: "execute" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Run Workflow Failed" }),
+      });
     }
   }
 
@@ -142,9 +141,12 @@ export async function action({
     const workflow = JSON.parse(String(formData.get("workflow")));
     try {
       await serverFetch(request).put(serviceUrl.workspace.workflow.putApplyWorkflow({ workspace }), workflow);
-      return { ok: true, intent: "update" };
+      return { intent: "update" as const };
     } catch (error) {
-      return { ok: false, intent: "update" };
+      return actionError({
+        intent: "update" as const,
+        error: { title: "Something's Wrong", message: "Request to update workflow failed" },
+      });
     }
   }
 
@@ -156,21 +158,21 @@ export async function action({
   // dropped, since narrowing it isn't this conversion's call to make.
   const viewType = String(formData.get("viewType"));
   const workflow = JSON.parse(String(formData.get("workflow")));
+  const createIntent: "create" | "import" = intent === "import" ? "import" : "create";
   try {
     const response =
       viewType === WorkflowView.Template
         ? await serverFetch(request).post(serviceUrl.template.postWorkflowTemplate(), workflow)
         : await serverFetch(request).post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), workflow);
-    return { ok: true, intent: intent === "import" ? "import" : "create", workflow: response.data };
+    return { intent: createIntent, workflow: response.data };
   } catch (error) {
-    return {
-      ok: false,
-      intent: intent === "import" ? "import" : "create",
-      errorMessage: formatErrorMessage({
+    return actionError({
+      intent: createIntent,
+      error: formatErrorMessage({
         error,
         defaultMessage: `${intent === "import" ? "Import" : "Create"} ${viewType} Failed`,
       }),
-    };
+    });
   }
 }
 

@@ -195,6 +195,11 @@ export const appLink = {
   manageUsers: () => "/admin/users",
   properties: () => "/admin/parameters",
   schedule: () => "/schedule",
+  schedules: ({ workspace }: WorkspaceArg) => `/${workspace}/schedules`,
+  // Deep-links into the schedules page's existing "workflows" FilterableMultiSelect (matched
+  // against Workflow.name - see Features/Schedules/Schedules.tsx's selectedWorkflowRefs) rather
+  // than a new per-schedule focus mechanism, which the page does not have.
+  schedulesForWorkflow: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/schedules?workflows=${workflow}`,
   settings: () => "/admin/settings",
   templateWorkflows: () => "/admin/template-workflows",
   adminTasks: () => "/admin/task-manager",

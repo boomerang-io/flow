@@ -13,6 +13,7 @@ import { useFetcher } from "react-router-dom";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import type { ActionResult } from "Features/WorkflowRun/WorkflowRun";
+import { isActionError } from "Utils/actionResult";
 import styles from "./taskApprovalModal.module.scss";
 
 const GateStatus = {
@@ -31,13 +32,13 @@ function TaskApprovalModal({ actionId, closeModal }: Props) {
   // what refreshes the task list behind the modal once the approval is recorded.
   const fetcher = useFetcher<ActionResult>();
   const approvalsIsLoading = fetcher.state !== "idle";
-  const approvalsError = Boolean(fetcher.data && !fetcher.data.ok);
+  const approvalsError = Boolean(fetcher.data && isActionError(fetcher.data));
   const approvedRef = React.useRef(false);
 
   // The fetcher settles asynchronously, so the modal stays open with its spinner and closes only
   // once the submission actually succeeds - the same behaviour the awaited mutateAsync had.
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || !fetcher.data.ok) {
+    if (fetcher.state !== "idle" || !fetcher.data || isActionError(fetcher.data)) {
       return;
     }
     notify(

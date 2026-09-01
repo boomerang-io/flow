@@ -6,6 +6,7 @@ import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-ad
 import { useFetcher } from "react-router-dom";
 import workflowIcons from "Assets/workflowIcons";
 import { Workflow } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import styles from "./workflowTemplateCard.module.scss";
 
 interface WorkflowTemplateCardProps {
@@ -15,11 +16,7 @@ interface WorkflowTemplateCardProps {
 // Matches only the fields this component reads off TemplateWorkflows.tsx's action result for a
 // "delete" intent - see that file for the actual action, and GlobalParameters.tsx for the
 // closeModalRef-style pattern this card's revalidate-on-success effect follows.
-type DeleteResult = {
-  ok: boolean;
-  intent: "delete" | "create";
-  errorMessage?: { title: string; message: string };
-};
+type DeleteResult = { intent: "delete" | "create" } | ({ intent: "delete" | "create" } & ActionError);
 
 const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow }) => {
   const fetcher = useFetcher<DeleteResult>();
@@ -30,7 +27,7 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ workflow })
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "delete") {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(
         <ToastNotification
           kind="success"

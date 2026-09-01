@@ -13,6 +13,7 @@ import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { ChangeLog, Task } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import Sidenav from "../Sidenav";
 import styles from "../TaskManager.module.scss";
 import TaskTemplateOverview from "../TaskTemplateOverview";
@@ -111,15 +112,15 @@ export async function loader({
 }
 
 type ActionResult =
-  | { ok: true; intent: "apply" | "applyYaml"; task: Task }
-  | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
-  | { ok: true; intent: "validateYaml" }
-  | { ok: false; intent: "validateYaml"; error: { title: string; message: string } };
+  | { intent: "apply" | "applyYaml"; task: Task }
+  | ({ intent: "apply" | "applyYaml" } & ActionError)
+  | { intent: "validateYaml" }
+  | ({ intent: "validateYaml" } & ActionError);
 
 // One action, keyed by `intent`, for every write this route's sub-components perform (create,
 // import, save, archive, restore, and the file-import validation step) - see
 // CLAUDE.md/GlobalParameters.tsx for why: a single fetcher target per route module.
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
@@ -132,13 +133,12 @@ export async function action({ request }: { request: Request }): Promise<ActionR
         method: HttpMethod.Post,
         headers: { "content-type": "application/x-yaml" },
       });
-      return { ok: true, intent: "validateYaml" };
+      return { intent: "validateYaml" as const };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "validateYaml",
+      return actionError({
+        intent: "validateYaml" as const,
         error: formatErrorMessage({ error, defaultMessage: "The uploaded file could not be validated." }),
-      };
+      });
     }
   }
 
@@ -154,13 +154,12 @@ export async function action({ request }: { request: Request }): Promise<ActionR
         method: HttpMethod.Put,
         headers: { "content-type": "application/x-yaml" },
       });
-      return { ok: true, intent: "applyYaml", task: response.data };
+      return { intent: "applyYaml" as const, task: response.data };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "applyYaml",
+      return actionError({
+        intent: "applyYaml" as const,
         error: formatErrorMessage({ error, defaultMessage: "Request to save task template failed." }),
-      };
+      });
     }
   }
 
@@ -170,13 +169,12 @@ export async function action({ request }: { request: Request }): Promise<ActionR
       data: JSON.parse(body),
       method: HttpMethod.Put,
     });
-    return { ok: true, intent: "apply", task: response.data };
+    return { intent: "apply" as const, task: response.data };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "apply",
+    return actionError({
+      intent: "apply" as const,
       error: formatErrorMessage({ error, defaultMessage: "Request to save task template failed." }),
-    };
+    });
   }
 }
 

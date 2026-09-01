@@ -5,6 +5,7 @@ import { useFetcher } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, NumberInput, InlineNotification } from "@carbon/react";
 import { Loading, ModalForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import type { QuotasActionResult } from "../Quotas";
+import { isActionError } from "Utils/actionResult";
 import styles from "./QuotaEditModalContent.module.scss";
 
 interface QuotaEditProps {
@@ -36,13 +37,13 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
   // parent layout route's workspace record, which the fetcher's completion revalidates.
   const fetcher = useFetcher<QuotasActionResult>();
   const isSubmitting = fetcher.state !== "idle";
-  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "update");
+  const failed = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === "update");
 
   React.useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "update") {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       closeModal();
       notify(
         <ToastNotification kind="success" title="Update Workspace Quotas" subtitle="Workspace quota successfully updated" />,

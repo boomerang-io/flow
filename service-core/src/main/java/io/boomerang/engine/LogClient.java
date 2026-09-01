@@ -3,12 +3,10 @@ package io.boomerang.engine;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +21,7 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.web.util.UriComponentsBuilder;
 import io.boomerang.common.error.BoomerangException;
 
 @Service
@@ -43,15 +42,7 @@ public class LogClient {
       String workflowId, String workflowRunId, String taskRunId) {
     LOGGER.info("URL: " + logStreamURL);
 
-    Map<String, String> requestParams = new HashMap<>();
-    requestParams.put("workflowRef", workflowId);
-    requestParams.put("workflowRunRef", workflowRunId);
-    requestParams.put("taskRunRef", taskRunId);
-
-    String encodedURL =
-        requestParams.keySet().stream()
-            .map(key -> key + "=" + requestParams.get(key))
-            .collect(Collectors.joining("&", logStreamURL + "?", ""));
+    URI encodedURI = buildLogStreamUri(workflowId, workflowRunId, taskRunId);
 
     return outputStream -> {
       RequestCallback requestCallback =
@@ -64,9 +55,9 @@ public class LogClient {
       List<String> removeList = Collections.emptyList();
       ResponseExtractor<Void> responseExtractor =
           getResponseExtractorForRemovalList(removeList, outputStream, printWriter);
-      LOGGER.info("Starting log download: {}", encodedURL);
+      LOGGER.info("Starting log download: {}", encodedURI);
       try {
-        restTemplate.execute(encodedURL, HttpMethod.GET, requestCallback, responseExtractor);
+        restTemplate.execute(encodedURI, HttpMethod.GET, requestCallback, responseExtractor);
       } catch (Exception ex) {
         LOGGER.error(ex.toString());
         throw new BoomerangException(
@@ -80,17 +71,23 @@ public class LogClient {
     };
   }
 
+  URI buildLogStreamUri(String workflowId, String workflowRunId, String taskRunId) {
+    return UriComponentsBuilder.fromUriString(logStreamURL)
+        .queryParam("workflowRef", workflowId)
+        .queryParam("workflowRunRef", workflowRunId)
+        .queryParam("taskRunRef", taskRunId)
+        .build()
+        .encode()
+        .toUri();
+  }
+
   private ResponseExtractor<Void> getResponseExtractorForRemovalList(
       List<String> maskWordList, OutputStream outputStream, PrintWriter printWriter) {
     if (maskWordList.isEmpty()) {
       LOGGER.info("Remove word list empty, moving on.");
       return restTemplateResponse -> {
         InputStream is = restTemplateResponse.getBody();
-        int nRead;
-        byte[] data = new byte[1024];
-        while ((nRead = is.read(data, 0, data.length)) != -1) {
-          outputStream.write(data, 0, nRead);
-        }
+        is.transferTo(outputStream);
         return null;
       };
       //    } else {

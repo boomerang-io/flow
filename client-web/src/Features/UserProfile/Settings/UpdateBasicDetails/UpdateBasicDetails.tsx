@@ -13,6 +13,7 @@ import * as Yup from "yup";
 import type { UserProfileActionResult } from "../../UserProfile";
 import styles from "./UpdateBasicDetails.module.scss";
 import { FlowUser } from "Types";
+import { isActionError } from "Utils/actionResult";
 
 interface UpdateBasicDetailsProps {
   closeModal: () => void;
@@ -32,7 +33,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
   const fetcher = useFetcher<UserProfileActionResult>();
   const isSubmitting = fetcher.state !== "idle";
   const result = fetcher.data;
-  const isError = Boolean(result && !result.ok);
+  const isError = Boolean(result && isActionError(result));
 
   // The fetcher settles asynchronously, so the success/failure handling that used to sit in
   // handleUpdate's try/catch runs here off the settled result instead.
@@ -40,7 +41,7 @@ const UpdateBasicDetails: React.FC<UpdateBasicDetailsProps> = ({ closeModal, use
     if (fetcher.state !== "idle" || !result) {
       return;
     }
-    if (result.ok) {
+    if (!isActionError(result)) {
       notify(<ToastNotification kind="success" title="Update Profile" subtitle="Profile successfully updated" />);
       closeModal();
     } else {

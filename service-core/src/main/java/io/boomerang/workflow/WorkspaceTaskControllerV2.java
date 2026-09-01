@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Sort.Direction;
@@ -177,7 +178,7 @@ public class WorkspaceTaskControllerV2 {
               required = true)
           @PathVariable
           String workspace,
-      @RequestBody Task task) {
+      @Valid @RequestBody Task task) {
     return taskService.create(workspace, task);
   }
 
@@ -231,7 +232,7 @@ public class WorkspaceTaskControllerV2 {
               required = true)
           @PathVariable
           String workspace,
-      @RequestBody Task task,
+      @Valid @RequestBody Task task,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {

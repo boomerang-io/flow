@@ -7,6 +7,7 @@ import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import { action as resActivateAction } from "../../../../app/routes/resActivate";
+import { renderWithRouter } from "Utils/testing/render";
 import AppActivation from "./AppActivation";
 
 // The activation submit must flow through the /res/activate route action (which makes the
@@ -16,7 +17,7 @@ import AppActivation from "./AppActivation";
 // a component that still PUTs /api directly never invokes it and fails these tests.
 function renderAppActivation(setActivationCode = vi.fn()) {
   const actionSpy = vi.fn(resActivateAction);
-  global.rtlRouterRender(
+  renderWithRouter(
     <>
       <Route path={resourceRoute.activateAction()} action={actionSpy} />
       <Route path="*" element={<AppActivation setActivationCode={setActivationCode} />} />

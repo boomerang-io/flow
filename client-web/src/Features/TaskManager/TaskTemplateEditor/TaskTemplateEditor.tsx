@@ -32,6 +32,7 @@ import { yamlInstructions } from "Constants";
 import { appLink, AppPath } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import { ChangeLog, Task } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
 import Header from "../Header";
 import { TemplateRequestType } from "../constants";
 import styles from "./TaskTemplateEditor.module.scss";
@@ -90,10 +91,7 @@ export function TaskTemplateYamlEditor({
   // The yaml text, task template and changelog all come from the parent route's loader as props
   // now (see AdminTasks.tsx/WorkspaceTasks.tsx), and React Router revalidates every matched
   // loader once this fetcher's action settles, so no write needs to refresh them by hand.
-  const fetcher = useFetcher<
-    | { ok: true; intent: "apply" | "applyYaml"; task: Task }
-    | { ok: false; intent: "apply" | "applyYaml"; error: { title: string; message: string } }
-  >();
+  const fetcher = useFetcher<{ intent: "apply" | "applyYaml"; task: Task } | ({ intent: "apply" | "applyYaml" } & ActionError)>();
   const pendingWriteRef = React.useRef<PendingWrite | null>(null);
 
   const params = useParams();
@@ -114,7 +112,7 @@ export function TaskTemplateYamlEditor({
 
     if (pending.kind === "archive") {
       notify(
-        result.ok ? (
+        !isActionError(result) ? (
           <ToastNotification
             kind="success"
             title={"Successfully Archived Task Template"}
@@ -135,7 +133,7 @@ export function TaskTemplateYamlEditor({
 
     if (pending.kind === "restore") {
       notify(
-        result.ok ? (
+        !isActionError(result) ? (
           <ToastNotification
             kind="success"
             title={"Successfully Restored Task Template"}
@@ -156,7 +154,7 @@ export function TaskTemplateYamlEditor({
 
     // pending.kind === "save"
     setIsSaving(false);
-    if (result.ok) {
+    if (!isActionError(result)) {
       notify(
         <ToastNotification
           kind="success"

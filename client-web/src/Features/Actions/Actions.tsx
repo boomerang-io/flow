@@ -24,6 +24,7 @@ import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { Action, PaginatedWorkflowResponse } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./Actions.module.scss";
 import ActionsTable from "./ActionsTable";
 
@@ -143,17 +144,9 @@ export async function loader({
   };
 }
 
-export type ActionResult =
-  | { ok: true; intent: "putAction" }
-  | { ok: false; intent: "putAction"; errorMessage: { title: string; message: string } };
+export type ActionResult = { intent: "putAction" } | ({ intent: "putAction" } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<ActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -166,17 +159,16 @@ export async function action({
         data: body,
         method: HttpMethod.Put,
       });
-      return { ok: true, intent: "putAction" };
+      return { intent: "putAction" as const };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "putAction",
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Request to action failed" }),
-      };
+      return actionError({
+        intent: "putAction" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Request to action failed" }),
+      });
     }
   }
 
-  return { ok: false, intent: "putAction", errorMessage: { title: "Something's Wrong", message: "Unknown action" } };
+  return actionError({ intent: "putAction" as const, error: { title: "Something's Wrong", message: "Unknown action" } });
 }
 
 function Actions() {

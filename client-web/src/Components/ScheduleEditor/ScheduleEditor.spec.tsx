@@ -1,11 +1,11 @@
 import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { scheduleAction } from "Features/Schedules/scheduleRoute";
 import { WorkflowStatus, type ScheduleUnion, type Workflow } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import ScheduleEditor from "./ScheduleEditor";
 
 const WORKSPACE = "test-workspace";
@@ -51,15 +51,9 @@ const schedule: ScheduleUnion = {
 // through a bare useFetcher(), so it renders under the same `/:workspace/schedules` +
 // scheduleAction shape app/routes/schedules.tsx wires up.
 function renderEditor(overrides: Partial<React.ComponentProps<typeof ScheduleEditor>> = {}) {
-  return global.rtlContextRouterRender(
-    <Route
-      path="/:workspace/schedules"
-      action={scheduleAction}
-      element={
-        <ScheduleEditor includeWorkflowDropdown={false} isModalOpen onCloseModal={() => {}} schedule={schedule} {...overrides} />
-      }
-    />,
-    { route: `/${WORKSPACE}/schedules` },
+  return renderWithContext(
+    <ScheduleEditor includeWorkflowDropdown={false} isModalOpen onCloseModal={() => {}} schedule={schedule} {...overrides} />,
+    { path: "/:workspace/schedules", action: scheduleAction, route: `/${WORKSPACE}/schedules` },
   );
 }
 

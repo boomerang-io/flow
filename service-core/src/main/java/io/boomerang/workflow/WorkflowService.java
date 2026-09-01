@@ -45,7 +45,6 @@ import io.boomerang.workspace.FlowQuotaProperties;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.net.URLDecoder;
@@ -164,6 +163,13 @@ public class WorkflowService {
   private final TokenService tokenService;
   private final ObjectProvider<WorkspaceService> workspaceService;
   private final boolean quotasEnabled;
+  private final ObjectMapper objectMapper;
+
+  // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
+  // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
+  // bean - so validateTriggerConditions() needs its own Jackson 2 mapper.
+  private static final com.fasterxml.jackson.databind.ObjectMapper JSON_PATH_MAPPER =
+      com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
 
   public WorkflowService(
       WorkflowRepository workflowRepository,
@@ -179,7 +185,8 @@ public class WorkflowService {
       ActionRepository actionRepository,
       TokenService tokenService,
       ObjectProvider<WorkspaceService> workspaceService,
-      Environment environment) {
+      Environment environment,
+      ObjectMapper objectMapper) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -194,6 +201,7 @@ public class WorkflowService {
     this.tokenService = tokenService;
     this.workspaceService = workspaceService;
     this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
+    this.objectMapper = objectMapper;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -554,6 +562,20 @@ public class WorkflowService {
    */
   public WorkflowRun submit(
       String team, String name, WorkflowSubmitRequest request, boolean start) {
+    return submit(team, name, request, start, null);
+  }
+
+  /*
+   * Submit Workflow to Run, internally stamping lineage
+   *
+   * initiatedByRef is NOT sourced from the request - WorkflowSubmitRequest is a public API model
+   * and lineage must not be spoofable by API callers. Callers that need it (e.g. ScheduleJob,
+   * with the firing Schedule's id) pass it directly; every other caller goes through the 4-arg
+   * overload above and gets null, matching prior behaviour.
+   */
+  public WorkflowRun submit(
+      String team, String name, WorkflowSubmitRequest request, boolean start,
+      String initiatedByRef) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -566,7 +588,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      return this.internalSubmit(team, refs.get(0), request, start);
+      return this.internalSubmit(team, refs.get(0), request, start, initiatedByRef);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -601,6 +623,17 @@ public class WorkflowService {
    */
   public WorkflowRun internalSubmit(
       String team, String workflowId, WorkflowSubmitRequest request, boolean start) {
+    return internalSubmit(team, workflowId, request, start, null);
+  }
+
+  /*
+   * Submit WorkflowRun Internally, internally stamping lineage - see submit(..., initiatedByRef)
+   *
+   * Caution: bypasses the authN and authZ and Relationship checks
+   */
+  public WorkflowRun internalSubmit(
+      String team, String workflowId, WorkflowSubmitRequest request, boolean start,
+      String initiatedByRef) {
     // Check if Workflow exists and is active. Then check triggers are enabled.
     // Presumed workflow exists as relationship was valid to get to this point.
     Workflow workflow = get(workflowId, Optional.empty(), false).getBody();
@@ -648,7 +681,7 @@ public class WorkflowService {
     executionAnnotations.put("boomerang.io/workspace-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
-    WorkflowRun wfRun = submit(workflowId, request, start);
+    WorkflowRun wfRun = submit(workflowId, request, start, initiatedByRef);
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -738,16 +771,13 @@ public class WorkflowService {
 
     try {
 
-      com.fasterxml.jackson.databind.ObjectMapper mapper =
-          new com.fasterxml.jackson.databind.ObjectMapper();
-
-      byte[] buf = mapper.writeValueAsBytes(workflow);
+      byte[] buf = objectMapper.writeValueAsBytes(workflow);
 
       return ResponseEntity.ok()
           .contentLength(buf.length)
           .contentType(MediaType.parseMediaType("application/octet-stream"))
           .body(new InputStreamResource(new ByteArrayInputStream(buf)));
-    } catch (IOException e) {
+    } catch (JacksonException e) {
 
       LOGGER.error(e);
     }
@@ -997,9 +1027,7 @@ public class WorkflowService {
   private void validateTriggerConditions(Object data, Trigger trigger) {
     if (!trigger.getConditions().isEmpty()) {
       // Convert Object to JsonNode and configure for JsonPath
-      com.fasterxml.jackson.databind.ObjectMapper mapper =
-          new com.fasterxml.jackson.databind.ObjectMapper();
-      JsonNode jData = mapper.valueToTree(data);
+      JsonNode jData = JSON_PATH_MAPPER.valueToTree(data);
       Configuration jsonConfig =
           Configuration.builder()
               .mappingProvider(new JacksonMappingProvider())
@@ -1386,7 +1414,10 @@ public class WorkflowService {
         });
 
     Page<Workflow> pages =
-        PageableExecutionUtils.getPage(workflows, pageable, () -> workflows.size());
+        PageableExecutionUtils.getPage(
+            workflows,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowEntity.class));
     LOGGER.debug(pages.toString());
     return pages;
   }
@@ -1707,6 +1738,17 @@ public class WorkflowService {
    * Trigger will be set to 'Engine' if empty
    */
   public WorkflowRun submit(String workflowId, WorkflowSubmitRequest request, boolean start) {
+    return submit(workflowId, request, start, null);
+  }
+
+  /*
+   * Queues the Workflow to be executed (and optionally starts the execution), internally
+   * stamping lineage - see submit(String, String, WorkflowSubmitRequest, boolean, String)
+   *
+   * Trigger will be set to 'Engine' if empty
+   */
+  public WorkflowRun submit(
+      String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {
     if (workflowId == null || workflowId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -1784,6 +1826,11 @@ public class WorkflowService {
     } else {
       wfRunEntity.setTrigger(request.getTrigger().getTrigger());
     }
+    // Lineage on the typed field: mirrors the retry path's convention (initiatedByRef + trigger
+    // together identify what caused this run). Internal-only - never sourced from the request.
+    if (initiatedByRef != null) {
+      wfRunEntity.setInitiatedByRef(initiatedByRef);
+    }
     // Add System Generated Annotations
     Map<String, Object> annotations = new HashMap<>();
     annotations.put("boomerang.io/generation", "4");
@@ -1858,7 +1905,6 @@ public class WorkflowService {
 
   private void logPayload(WorkflowRunRequest request) {
     try {
-      ObjectMapper objectMapper = new ObjectMapper();
       String payload = objectMapper.writeValueAsString(request);
       LOGGER.debug("Payload: {}", payload);
     } catch (JacksonException e) {

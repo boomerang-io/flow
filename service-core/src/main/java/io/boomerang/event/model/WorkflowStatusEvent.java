@@ -1,6 +1,5 @@
 package io.boomerang.event.model;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.CloudEventData;
@@ -10,16 +9,19 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.MediaType;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 public class WorkflowStatusEvent extends Event {
+
+  private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
   private WorkflowEntity workflowEntity;
 
   @Override
   public CloudEvent toCloudEvent() throws IOException {
 
-    ObjectMapper mapper = new ObjectMapper();
-    CloudEventData data = PojoCloudEventData.wrap(workflowEntity, mapper::writeValueAsBytes);
+    CloudEventData data = PojoCloudEventData.wrap(workflowEntity, MAPPER::writeValueAsBytes);
 
     // @formatter:off
     CloudEventBuilder cloudEventBuilder =

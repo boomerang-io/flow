@@ -18,6 +18,7 @@ import EmptyState from "Components/EmptyState";
 import LabelModal from "Components/LabelModal";
 import { Add, Edit, Save, TrashCan } from "@carbon/react/icons";
 import { FlowUser, ModalTriggerProps } from "Types";
+import { isActionError } from "Utils/actionResult";
 import type { UserDetailedActionResult } from "../UserDetailed";
 import styles from "./UserLabels.module.scss";
 
@@ -46,7 +47,7 @@ function UserLabels({ user, userManagementEnabled }: UserLabelsProps) {
     if (fetcher.state !== "idle" || !result || result.intent !== "saveLabels") {
       return;
     }
-    if (result.ok) {
+    if (!isActionError(result)) {
       notify(
         <ToastNotification
           kind="success"

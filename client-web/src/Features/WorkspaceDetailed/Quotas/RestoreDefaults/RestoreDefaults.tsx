@@ -10,6 +10,7 @@ import React from "react";
 import { useFetcher, useLoaderData } from "react-router-dom";
 import styles from "./RestoreDefaults.module.scss";
 import { ModalTriggerProps, FlowWorkspace } from "Types";
+import { isActionError } from "Utils/actionResult";
 import type { QuotasActionResult, QuotasLoaderData } from "../Quotas";
 
 interface RestoreDefaultsProps {
@@ -52,13 +53,13 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal }) => {
   // gap: the page kept showing the old quotas until reloaded).
   const fetcher = useFetcher<QuotasActionResult>();
   const isSubmitting = fetcher.state !== "idle";
-  const failed = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent === "restore");
+  const failed = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === "restore");
 
   React.useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "restore") {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       closeModal();
       notify(
         <ToastNotification

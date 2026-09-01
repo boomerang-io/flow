@@ -43,6 +43,14 @@ public class WebhookEventService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
+  // io.cloudevents:cloudevents-json-jackson's PojoCloudEventDataMapper.from(...) only offers
+  // Jackson 2 overloads (com.fasterxml.jackson.databind.ObjectMapper /
+  // com.fasterxml.jackson.core.type.TypeReference) - it knows nothing of tools.jackson (the
+  // Boot-managed Jackson 3 mapper). eventToRunParams() below is deliberately still on Jackson 2
+  // for that reason - see A15 in specifications/framework-review-wave.md.
+  private static final ObjectMapper JACKSON2_MAPPER =
+      com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
+
   @Value("${flow.workflowrun.auto-start-on-submit}")
   private boolean autoStart;
 
@@ -210,11 +218,11 @@ public class WebhookEventService {
     List<RunParam> params = new LinkedList<>();
     params.add(new RunParam("event", (Object) event, ParamType.object));
 
-    ObjectMapper mapper = new ObjectMapper();
     PojoCloudEventData<Map<String, Object>> data =
         mapData(
             event,
-            PojoCloudEventDataMapper.from(mapper, new TypeReference<Map<String, Object>>() {}));
+            PojoCloudEventDataMapper.from(
+                JACKSON2_MAPPER, new TypeReference<Map<String, Object>>() {}));
     params.add(new RunParam("data", (Object) data, ParamType.object));
     params.addAll(ParameterUtil.mapToRunParamList(data.getValue()));
     return params;

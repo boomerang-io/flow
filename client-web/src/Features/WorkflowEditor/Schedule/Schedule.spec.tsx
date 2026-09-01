@@ -10,6 +10,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type WorkflowCanvas } from "Types";
 import { editorLoader, editorAction } from "../editorRoute";
+import { renderWithContext } from "Utils/testing/render";
 import Schedule from "./index";
 
 const WORKSPACE = workspaces.content[0].name;
@@ -78,7 +79,7 @@ beforeAll(() => {
 });
 
 function renderSchedule() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path="/:workspace/editor/:workflow/*"
       loader={editorLoader}

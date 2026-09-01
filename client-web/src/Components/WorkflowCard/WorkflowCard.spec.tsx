@@ -8,6 +8,8 @@ import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/Workflows/Workflows";
 import { FlowWorkspaceQuotas, Workflow, WorkflowStatus } from "Types";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 import WorkflowCard from "./index";
 
 const workspace = workspaces.content[0];
@@ -77,11 +79,11 @@ const props = {
 // `<Route path="/:workspace/workflows" action={action}>` shape the real route tree wires up
 // (app/routes/workflows.tsx), so the action's `params.workspace` read behaves as it does live.
 // No explicit AppContextProvider wrap: WorkflowCard's tree doesn't read AppContext (only the
-// FlagsProvider rtlContextRouterRender already supplies), and wrapping it with the raw
+// FlagsProvider renderWithContext already supplies), and wrapping it with the raw
 // (differently-shaped) fixtures the way the previous .jsx spec did is what kept this file off
 // typechecking in the first place.
 function renderWorkflowCard() {
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route path="/:workspace/workflows" action={action} element={<WorkflowCard {...props} />} />,
     { route: appLink.workflows({ workspace: workspace.name }) },
   );
@@ -103,7 +105,7 @@ describe("WorkflowCard --- action", () => {
 
     const result = await action({ request, params: { workspace: workspace.name } });
 
-    expect(result).toEqual({ ok: true, intent: "delete" });
+    expect(result).toEqual({ intent: "delete" });
   });
 
   test("surfaces a failed delete without throwing", async () => {
@@ -118,9 +120,15 @@ describe("WorkflowCard --- action", () => {
       body: new URLSearchParams({ intent: "delete", workflowName: workflow.name }),
     });
 
-    const result = await action({ request, params: { workspace: workspace.name } });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request, params: { workspace: workspace.name } })) as unknown as {
+      data: { intent: string };
+    };
 
-    expect(result).toEqual({ ok: false, intent: "delete" });
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("delete");
   });
 
   test("duplicates a workflow through the mocked API", async () => {
@@ -138,7 +146,7 @@ describe("WorkflowCard --- action", () => {
 
     const result = await action({ request, params: { workspace: workspace.name } });
 
-    expect(result).toEqual({ ok: true, intent: "duplicate" });
+    expect(result).toEqual({ intent: "duplicate" });
   });
 
   test("executes a workflow through the mocked API", async () => {
@@ -152,9 +160,11 @@ describe("WorkflowCard --- action", () => {
       }),
     });
 
-    const result = await action({ request, params: { workspace: workspace.name } });
+    const result = (await action({ request, params: { workspace: workspace.name } })) as unknown as {
+      intent: string;
+    };
 
-    expect(result.ok).toBe(true);
+    expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("execute");
   });
 });

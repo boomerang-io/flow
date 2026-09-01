@@ -13,6 +13,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
 import { DataDrivenInput } from "Types";
+import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import ParametersTable from "../ParametersTable";
 import styles from "./globalParameters.module.scss";
 
@@ -45,17 +46,14 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
   }
 }
 
-type ActionResult = {
-  ok: boolean;
-  intent: "create" | "update" | "delete";
-  label: string;
-  errorMessage?: { title: string; message: string };
-};
+type ActionResult =
+  | { intent: "create" | "update" | "delete"; label: string }
+  | ({ intent: "create" | "update" | "delete"; label: string } & ActionError);
 
 // Typed by the one field this action reads rather than the router's full ActionFunctionArgs -
 // that's also what keeps it easy to call directly (see GlobalParameters.spec.tsx) without having
 // to fabricate the params/context/pattern fields a real navigation would supply.
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   // Plain form-encoded submission (the fetcher.submit default) rather than encType:"application/json" -
   // DataDrivenInput carries UI-only fields (onChange/onBlur handlers) that aren't valid JSON, so the
   // payload the component builds is serialized into a couple of string fields instead.
@@ -67,18 +65,18 @@ export async function action({ request }: { request: Request }): Promise<ActionR
     const label = String(formData.get("label"));
     try {
       await serverFetch(request).delete(serviceUrl.getGlobalParameter({ name }));
-      return { ok: true, intent: "delete", label };
+      return { intent: "delete" as const, label };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "delete",
+      return actionError({
+        intent: "delete" as const,
         label,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Parameter Failed" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Delete Parameter Failed" }),
+      });
     }
   }
 
   const isEdit = intent === "update";
+  const editIntent: "update" | "create" = isEdit ? "update" : "create";
   const parameter = JSON.parse(String(formData.get("parameter")));
   try {
     const response = isEdit
@@ -92,9 +90,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
           data: parameter,
           method: HttpMethod.Post,
         });
-    return { ok: true, intent: isEdit ? "update" : "create", label: response.data.label };
+    return { intent: editIntent, label: response.data.label };
   } catch (error) {
-    return { ok: false, intent: isEdit ? "update" : "create", label: parameter.label };
+    return actionError({
+      intent: editIntent,
+      label: parameter.label,
+      error: formatErrorMessage({ error, defaultMessage: `${isEdit ? "Update" : "Create"} Parameter Failed` }),
+    });
   }
 }
 
@@ -111,11 +113,13 @@ function GlobalParameters() {
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
-    const { ok, intent, label, errorMessage } = fetcher.data;
+    const data = fetcher.data;
+    const { intent, label } = data;
+    const isError = isActionError(data);
 
     if (intent === "delete") {
       notify(
-        ok ? (
+        !isError ? (
           <ToastNotification
             kind="success"
             title="Parameter Deleted"
@@ -125,8 +129,8 @@ function GlobalParameters() {
         ) : (
           <ToastNotification
             kind="error"
-            title={errorMessage?.title ?? "Something's Wrong"}
-            subtitle={errorMessage?.message}
+            title={data.error.title ?? "Something's Wrong"}
+            subtitle={data.error.message}
             data-testid="delete-parameter-notification"
           />
         ),
@@ -134,7 +138,7 @@ function GlobalParameters() {
       return;
     }
 
-    if (ok) {
+    if (!isError) {
       closeModalRef.current?.();
       closeModalRef.current = null;
       notify(
@@ -160,7 +164,7 @@ function GlobalParameters() {
   };
 
   const isSubmitting = fetcher.state !== "idle";
-  const errorSubmitting = Boolean(fetcher.data && !fetcher.data.ok && fetcher.data.intent !== "delete");
+  const errorSubmitting = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent !== "delete");
 
   return (
     <div className={styles.container}>

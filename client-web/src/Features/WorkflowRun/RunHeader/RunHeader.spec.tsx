@@ -4,6 +4,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun, WorkflowStatus } from "Types";
+import { renderWithContext } from "Utils/testing/render";
 import RunHeader from "./RunHeader";
 
 // Replaces RunHeader.spec.jsx, which passed a v3-era `{ workflowExecution, workflow }` prop pair
@@ -75,7 +76,7 @@ const workflow: WorkflowCanvas = {
 function renderRunHeader(overrides: Partial<WorkflowRun> = {}, workflowOverrides: Partial<WorkflowCanvas> = {}) {
   // RunHeader uses useFetcher, so it needs to sit on a real route of the data router rather than
   // the helper's catch-all - same shape as app/routes/run.tsx.
-  return global.rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path={AppPath.Run}
       element={
@@ -113,6 +114,33 @@ describe("RunHeader --- RTL", () => {
 
     renderRunHeader({ paused: true });
     expect(screen.getByTestId("paused-indicator")).toBeInTheDocument();
+  });
+});
+
+// #359: a schedule-fired run stamps the firing Schedule's id into initiatedByRef (Option A -
+// mirrors the retry path's convention, WorkflowRunService.java:930-936). The Schedules page has
+// no per-schedule focus route, so this deep-links its existing "workflows" filter instead.
+describe("RunHeader --- Initiated by", () => {
+  it("links a schedule-triggered run's initiatedByRef to its workflow's schedules", () => {
+    renderRunHeader({ trigger: "schedule", initiatedByRef: "651e4789ab1cb56bc8976af0" });
+
+    const link = screen.getByTestId("initiated-by-schedule-link");
+    expect(link).toHaveTextContent("651e4789ab1cb56bc8976af0");
+    expect(link).toHaveAttribute("href", `/${workspace}/schedules?workflows=${workflowName}`);
+  });
+
+  it("keeps a retried run's initiatedByRef as plain text, not a link", () => {
+    renderRunHeader({ trigger: "retry", initiatedByRef: "651e4789ab1cb56bc8976ae9" });
+
+    expect(screen.getByText("651e4789ab1cb56bc8976ae9")).toBeInTheDocument();
+    expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the robot glyph for a schedule-triggered run with no recorded initiatedByRef", () => {
+    renderRunHeader({ trigger: "schedule", initiatedByRef: undefined as unknown as string });
+
+    expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "robot" })).toBeInTheDocument();
   });
 });
 

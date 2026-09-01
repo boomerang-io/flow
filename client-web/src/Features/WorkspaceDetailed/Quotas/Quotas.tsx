@@ -12,6 +12,7 @@ import QuotaEditModalContent from "./QuotaEditModalContent";
 import styles from "./Quotas.module.scss";
 import RestoreDefaults from "./RestoreDefaults";
 import { ModalTriggerProps } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 
 // Route module for the Quotas tab (app/routes/manageWorkspaceQuotas.tsx).
@@ -37,19 +38,11 @@ export async function loader({ request }: { request: Request }): Promise<QuotasL
   }
 }
 
-export type QuotasActionResult = {
-  ok: boolean;
-  intent: "update" | "restore";
-  errorMessage?: { title: string; message: string };
-};
+export type QuotasActionResult =
+  | { intent: "update" | "restore" }
+  | ({ intent: "update" | "restore" } & ActionError);
 
-export async function action({
-  params,
-  request,
-}: {
-  params: { workspace?: string };
-  request: Request;
-}): Promise<QuotasActionResult> {
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
   const workspace = String(params.workspace);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
@@ -57,13 +50,12 @@ export async function action({
   if (intent === "restore") {
     try {
       await serverFetch(request).delete(serviceUrl.deleteWorkspaceQuotas({ workspace }));
-      return { ok: true, intent: "restore" };
+      return { intent: "restore" as const };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "restore",
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to restore default quotas" }),
-      };
+      return actionError({
+        intent: "restore" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Failed to restore default quotas" }),
+      });
     }
   }
 
@@ -73,13 +65,12 @@ export async function action({
     await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), {
       quotas: { [quotaProperty]: quotaValue },
     });
-    return { ok: true, intent: "update" };
+    return { intent: "update" as const };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "update",
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Failed to update workspace quota" }),
-    };
+    return actionError({
+      intent: "update" as const,
+      error: formatErrorMessage({ error, defaultMessage: "Failed to update workspace quota" }),
+    });
   }
 }
 

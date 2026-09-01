@@ -25,6 +25,7 @@ import EmptyState from "Components/EmptyState";
 import { useTokenSectionData } from "Components/TokenSection/tokenRouteData";
 import type { TokenActionResult } from "Components/TokenSection/tokenRoute";
 import { arrayPagination } from "Utils/arrayHelper";
+import { isActionError } from "Utils/actionResult";
 import { TokenType } from "Constants";
 import type { Token } from "Types";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
@@ -98,7 +99,7 @@ function Tokens() {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "delete") {
       return;
     }
-    if (fetcher.data.ok) {
+    if (!isActionError(fetcher.data)) {
       notify(<ToastNotification kind="success" title="Delete Workspace Token" subtitle={`Token successfully deleted`} />);
     } else {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle="Request to delete token failed" />);
