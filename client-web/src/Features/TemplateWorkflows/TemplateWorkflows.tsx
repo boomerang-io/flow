@@ -10,6 +10,7 @@ import { WorkflowView, HttpMethod } from "Constants";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { PaginatedWorkflowResponse, Workflow } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./TemplateWorkflows.module.scss";
 
 // Workflow Templates are static content served read-only from backend resources (not a managed
@@ -35,14 +36,11 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
 // those components render as descendants of this route's element (no nested <Route>), so their
 // `useFetcher()` calls resolve to this action without needing an explicit `action` path - same
 // as a <Form> with no action defaults to the closest route in context.
-type ActionResult = {
-  ok: boolean;
-  intent: "create" | "delete";
-  name?: string;
-  errorMessage?: { title: string; message: string };
-};
+type ActionResult =
+  | { intent: "create" | "delete"; name?: string }
+  | ({ intent: "create" | "delete"; name?: string } & ActionError);
 
-export async function action({ request }: { request: Request }): Promise<ActionResult> {
+export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
@@ -50,14 +48,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
     const name = String(formData.get("name"));
     try {
       await serverFetch(request).delete(serviceUrl.template.getWorkflowTemplate({ name }));
-      return { ok: true, intent: "delete", name };
+      return { intent: "delete" as const, name };
     } catch (error) {
-      return {
-        ok: false,
-        intent: "delete",
+      return actionError({
+        intent: "delete" as const,
         name,
-        errorMessage: formatErrorMessage({ error, defaultMessage: "Delete Workflow Template Failed" }),
-      };
+        error: formatErrorMessage({ error, defaultMessage: "Delete Workflow Template Failed" }),
+      });
     }
   }
 
@@ -68,14 +65,13 @@ export async function action({ request }: { request: Request }): Promise<ActionR
       data: workflow,
       method: HttpMethod.Post,
     });
-    return { ok: true, intent: "create", name: response.data.name };
+    return { intent: "create" as const, name: response.data.name };
   } catch (error) {
-    return {
-      ok: false,
-      intent: "create",
+    return actionError({
+      intent: "create" as const,
       name: workflow.name,
-      errorMessage: formatErrorMessage({ error, defaultMessage: "Import Template Failed" }),
-    };
+      error: formatErrorMessage({ error, defaultMessage: "Import Template Failed" }),
+    });
   }
 }
 

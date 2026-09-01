@@ -6,6 +6,7 @@ import { workflowTemplates } from "ApiServer/fixtures";
 import { serviceUrl } from "Config/servicesConfig";
 import { action } from "Features/TemplateWorkflows/TemplateWorkflows";
 import { WorkflowStatus } from "Types";
+import { isActionError } from "Utils/actionResult";
 import WorkflowTemplateCard from "./index";
 
 // The fixture is the wire shape returned by the mocked workflow-template list endpoint (a
@@ -69,7 +70,7 @@ describe("WorkflowCard --- action", () => {
 
     const result = await action({ request });
 
-    expect(result).toEqual({ ok: true, intent: "delete", name: props.workflow.name });
+    expect(result).toEqual({ intent: "delete", name: props.workflow.name });
   });
 
   test("surfaces a failed delete without throwing", async () => {
@@ -84,9 +85,12 @@ describe("WorkflowCard --- action", () => {
       body: new URLSearchParams({ intent: "delete", name: props.workflow.name }),
     });
 
-    const result = await action({ request });
+    // Calling `action` directly (rather than through a router) surfaces the raw
+    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
+    // unwraps it into fetcher.data in real use.
+    const result = (await action({ request })) as unknown as { data: { intent: string } };
 
-    expect(result.ok).toBe(false);
-    expect(result.intent).toBe("delete");
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("delete");
   });
 });
