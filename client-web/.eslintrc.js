@@ -6,9 +6,6 @@ module.exports = {
     render: true,
     mount: true,
     renderer: true,
-    rtlRender: true,
-    rtlRouterRender: true,
-    rtlContextRouterRender: true,
   },
   ignorePatterns: ["public/*"],
 };
