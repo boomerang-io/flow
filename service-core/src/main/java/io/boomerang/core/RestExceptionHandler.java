@@ -1,5 +1,6 @@
 package io.boomerang.core;
 
+import java.lang.annotation.Annotation;
 import java.util.Locale;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,15 +10,22 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.context.request.WebRequest;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.error.RestErrorResponse;
+import io.boomerang.common.validation.ParamName;
+import io.boomerang.common.validation.ResourceName;
 import io.boomerang.core.security.FlowAuthenticationException;
+import jakarta.validation.ConstraintViolation;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -59,6 +67,42 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     // LOGGER.error(ExceptionUtils.getStackTrace(ex));
 
     return new ResponseEntity<>(errorResponse, new HttpHeaders(), ex.getStatus());
+  }
+
+  /*
+   * Routes a @Valid @RequestBody failure through the same RestErrorResponse shape as every other
+   * platform error, rather than Spring's default field-error body. Only the first field error is
+   * reported - the platform error format carries one code/reason/message, not a list.
+   */
+  @Override
+  protected ResponseEntity<Object> handleMethodArgumentNotValid(
+      MethodArgumentNotValidException ex,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    FieldError first = ex.getBindingResult().getFieldErrors().stream().findFirst().orElse(null);
+    if (first == null) {
+      return handleBoomerangException(
+          new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "body"));
+    }
+    return handleBoomerangException(new BoomerangException(errorFor(first), first.getRejectedValue()));
+  }
+
+  private static BoomerangError errorFor(FieldError fieldError) {
+    try {
+      Annotation constraint =
+          fieldError.unwrap(ConstraintViolation.class).getConstraintDescriptor().getAnnotation();
+      if (constraint instanceof ResourceName resourceName) {
+        return resourceName.error();
+      }
+      if (constraint instanceof ParamName) {
+        return BoomerangError.PARAM_INVALID_NAME;
+      }
+    } catch (IllegalArgumentException notAConstraintViolation) {
+      // Not a bean-validation constraint violation (e.g. a binding/conversion error) - fall
+      // through to the generic reason.
+    }
+    return BoomerangError.QUERY_INVALID_FILTERS;
   }
 
   /*

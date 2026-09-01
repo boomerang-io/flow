@@ -2,6 +2,7 @@ package io.boomerang.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -9,14 +10,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.error.RestErrorResponse;
+import io.boomerang.common.model.Task;
 import io.boomerang.core.security.FlowAuthenticationException;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import jakarta.validation.Valid;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.method.ControllerAdviceBean;
@@ -85,6 +91,45 @@ class RestExceptionHandlerRegistrationTest extends AbstractEngineIntegrationTest
         .andExpect(jsonPath("$.status").value("401 UNAUTHORIZED"));
   }
 
+  /*
+   * A @Valid @RequestBody failure on the real Task model must resolve to the ResourceName
+   * constraint's TASK_INVALID_NAME, whether the name is present-but-invalid or absent entirely -
+   * before this, an absent name NPE'd to 500 rather than 400 (TaskService.java:276).
+   */
+  @Test
+  void invalidTaskNameRendersTaskInvalidName() throws Exception {
+    mockMvc()
+        .perform(
+            post("/test-valid-task")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\": \"bad name!\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(1403))
+        .andExpect(jsonPath("$.reason").value("TASK_INVALID_NAME"));
+  }
+
+  @Test
+  void missingTaskNameRendersTaskInvalidNameNotServerError() throws Exception {
+    mockMvc()
+        .perform(post("/test-valid-task").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(1403))
+        .andExpect(jsonPath("$.reason").value("TASK_INVALID_NAME"));
+  }
+
+  @Test
+  void reservedParamNameRendersParamInvalidName() throws Exception {
+    mockMvc()
+        .perform(
+            post("/test-valid-task")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"name\": \"ok-name\", \"spec\": {\"params\": [{\"name\": \"NAMES\"}]}}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(1210))
+        .andExpect(jsonPath("$.reason").value("PARAM_INVALID_NAME"));
+  }
+
   private MockMvc mockMvc() {
     return MockMvcBuilders.standaloneSetup(new ThrowingController())
         .setControllerAdvice(context.getBean(RestExceptionHandler.class))
@@ -106,6 +151,13 @@ class RestExceptionHandlerRegistrationTest extends AbstractEngineIntegrationTest
     @GetMapping("/test-auth")
     String auth() {
       throw new FlowAuthenticationException(BoomerangError.AUTH_TOKEN_INVALID, "Token is not valid.");
+    }
+
+    // Mirrors TaskControllerV2#create's @Valid @RequestBody Task wiring, driving the real Task
+    // model's @ResourceName/@ParamName constraints without depending on TaskService.
+    @PostMapping("/test-valid-task")
+    Task validTask(@Valid @RequestBody Task task) {
+      return task;
     }
   }
 }

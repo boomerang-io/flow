@@ -44,6 +44,14 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
+        <!-- Carries the @ResourceName/@ParamName constraint annotations and the ConstraintValidator
+             SPI the models in this module now declare - not optional, since a consumer that reads
+             these annotations reflectively (Hibernate Validator, in service-core) needs the same
+             annotation classes lib-common compiled them against. -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
         <!-- Test-only: lib-common carries no other test infrastructure yet - this is the
              minimum to run a plain JUnit 5 unit test (e.g. ResourceNameTest). Version managed
              by the spring-boot-starter-parent BOM. -->

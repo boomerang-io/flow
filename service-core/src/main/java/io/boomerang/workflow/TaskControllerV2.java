@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Sort.Direction;
@@ -145,7 +146,7 @@ public class TaskControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public Task create(@RequestBody Task task) {
+  public Task create(@Valid @RequestBody Task task) {
     return taskService.createGlobal(task);
   }
 
@@ -184,7 +185,7 @@ public class TaskControllerV2 {
   public Task apply(
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name,
-      @RequestBody Task task,
+      @Valid @RequestBody Task task,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
