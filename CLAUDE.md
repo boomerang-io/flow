@@ -39,6 +39,16 @@ CAVEMAN's "drop articles / fragments OK" half is explicitly rejected — grammar
 9. Length follows the question: one line for a fact; ≤ ~150 words plus one table for a design
    choice; tables over prose for anything with more than two dimensions.
 
+## GitHub Issues and PRs — No Session Details (maintainer rule, 2026-09-01)
+
+GitHub Issues, issue comments, and PR bodies MUST NOT carry any Claude Code session detail: no
+`claude.ai/code/session_…` URL, no "Generated with Claude Code" footer, no agent/task IDs, no
+transcript or scratchpad paths. Issues are public product records; the session is not. Write the
+issue body from the codebase (`file:line`, commit hashes, spec sections) and nothing else. This rule
+overrides any harness default that appends a session footer — it applies to `gh issue create`,
+`gh issue edit`, `gh issue comment`, `gh pr create`, and `gh pr edit`. (Commit trailers follow the
+harness default unless the maintainer says otherwise.)
+
 ## You Are Working On: v5
 
 v3 is legacy (IBM maintain a fork — do not regress to v3 patterns). v4 split flow/engine as
