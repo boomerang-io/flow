@@ -10,6 +10,7 @@ import { RunPhase, RunStatus, TaskRun, WorkflowCanvas, WorkflowRun as WorkflowRu
 import { HttpMethod } from "Constants";
 import WorkflowExecutionContainer, { action, loader, type RunActionIntent } from "./WorkflowRun";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 
 const workspace = "tyson-workspace";
 const workflowName = "test-workflow";
@@ -145,7 +146,7 @@ beforeEach(() => {
 
 describe("Execution --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowExecutionContainer", async () => {
-    const { baseElement } = global.rtlContextRouterRender(
+    const { baseElement } = renderWithContext(
       // The route now carries its own `loader` (see WorkflowRun.tsx) - the same shape
       // app/routes/run.tsx wires up, and the pattern GlobalParameters.spec.tsx established.
       <Route path={AppPath.Run} loader={loader} element={<WorkflowExecutionContainer />} />,

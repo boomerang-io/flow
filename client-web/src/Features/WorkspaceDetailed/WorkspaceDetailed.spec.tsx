@@ -23,6 +23,7 @@ import Tokens from "./Tokens";
 import { workspaceTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
 import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
 
 // Mirrors App.tsx's WorkspaceContainer: resolves the active workspace from the `:workspace`
 // route param and re-fetches (and re-provides fresh context) whenever navigation changes it -
@@ -51,7 +52,7 @@ beforeEach(() => {
 // the same tree: a layout route carrying the loader that fetches the workspace record, with one
 // child route per tab. Members stays the index route at the bare `/:workspace/manage` path.
 function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ workspace: workspaceFixture.name })) {
-  return rtlContextRouterRender(
+  return renderWithContext(
     <Route
       path={AppPath.ManageWorkspace}
       loader={loader}
