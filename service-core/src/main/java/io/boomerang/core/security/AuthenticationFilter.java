@@ -141,7 +141,16 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     } catch (final HttpClientErrorException ex) {
       LOGGER.error(ex);
       res.sendError(ex.getStatusCode().value());
-    } catch (AccessDeniedException | AuthenticationException ex) {
+    } catch (AccessDeniedException ex) {
+      // Thrown by AuthCriteriaAuthorizationManager (method security) for a permission mismatch -
+      // a plain 403, matching the retired SecurityInterceptor's raw response for the same case
+      // exactly (no structured body; the mismatch itself is already logged/counted there).
+      LOGGER.error(ex);
+      res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+    } catch (AuthenticationException ex) {
+      // Covers both this filter's own identity resolution failures and
+      // AuthCriteriaAuthorizationManager throwing for "no identity"/"scope not assignable" - the
+      // same structured 401 entry point either way.
       LOGGER.error(ex);
       authEntryPoint.commence(
           req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, ex.getMessage()));
