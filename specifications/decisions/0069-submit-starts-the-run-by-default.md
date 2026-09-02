@@ -33,4 +33,5 @@ dispatcher to provision and start it (decision 0067), and `?start=false` still p
 - Submitting from any client runs the workflow without a flag; staging a run is a deliberate
   `?start=false`.
 - An integration that depended on the old default for staging MUST add `?start=false`.
-- The webhook and event triggers keep their own configured flag and are unaffected.
+- The webhook and event triggers follow the same default: `flow.workflowrun.auto-start-on-submit` defaults
+  to true, with false as the explicit parking opt-out.

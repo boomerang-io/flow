@@ -62,11 +62,11 @@ class ScheduleJobTest {
     scheduleJob.execute("team-1", "wf-1", "schedule-359");
 
     verify(workflowService)
-        .submit(eq("team-1"), eq("wf-1"), any(WorkflowSubmitRequest.class), eq(false),
+        .submit(eq("team-1"), eq("wf-1"), any(WorkflowSubmitRequest.class), eq(true),
             eq("schedule-359"));
     // Never the 4-arg overload - that would silently drop lineage.
     verify(workflowService, never())
-        .submit(anyString(), anyString(), any(WorkflowSubmitRequest.class), eq(false));
+        .submit(anyString(), anyString(), any(WorkflowSubmitRequest.class), eq(true));
   }
 
   @Test
@@ -84,7 +84,7 @@ class ScheduleJobTest {
             eq("team-1"),
             eq("wf-2"),
             argThatTriggerIsSchedule(),
-            eq(false),
+            eq(true),
             eq("schedule-360"));
   }
 
@@ -116,7 +116,7 @@ class ScheduleJobTest {
                     request.getParams().size() == 1
                         && "greeting".equals(request.getParams().get(0).getName())
                         && "hello".equals(request.getParams().get(0).getValue())),
-            eq(false),
+            eq(true),
             eq("schedule-params"));
   }
 
@@ -131,7 +131,7 @@ class ScheduleJobTest {
             anyString(),
             anyString(),
             any(WorkflowSubmitRequest.class),
-            eq(false),
+            eq(true),
             anyString());
   }
 }
