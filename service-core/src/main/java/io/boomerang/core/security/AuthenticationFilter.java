@@ -27,6 +27,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -69,7 +70,11 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
   private TokenService tokenService;
   private SettingsService settingsService;
-  private String basicPassword;
+  private PasswordEncoder passwordEncoder;
+  // Encoded once at startup from flow.authorization.basic.password - never the raw configured
+  // value, so the comparison below is always through PasswordEncoder.matches (constant-time),
+  // never a raw String.equals.
+  private String encodedBasicPassword;
   private AuthenticationEntryPoint authEntryPoint;
   private OidcTokenVerifier oidcTokenVerifier;
 
@@ -78,11 +83,13 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       SettingsService settingsService,
       String basicPassword,
       AuthenticationEntryPoint authEntryPoint,
-      OidcTokenVerifier oidcTokenVerifier) {
+      OidcTokenVerifier oidcTokenVerifier,
+      PasswordEncoder passwordEncoder) {
     super();
     this.tokenService = tokenService;
     this.settingsService = settingsService;
-    this.basicPassword = basicPassword;
+    this.passwordEncoder = passwordEncoder;
+    this.encodedBasicPassword = passwordEncoder.encode(basicPassword);
     this.authEntryPoint = authEntryPoint;
     this.oidcTokenVerifier = oidcTokenVerifier;
   }
@@ -241,7 +248,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         password = values[1];
       }
 
-      if (!basicPassword.equals(password)) {
+      // Constant-time via PasswordEncoder.matches - was a raw String.equals against the
+      // configured password, timeable by an attacker probing byte-by-byte.
+      if (!passwordEncoder.matches(password, encodedBasicPassword)) {
         return null;
       }
 

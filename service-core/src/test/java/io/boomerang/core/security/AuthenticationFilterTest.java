@@ -30,6 +30,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 
 /**
@@ -51,13 +53,20 @@ class AuthenticationFilterTest {
   @Mock private FilterChain filterChain;
   @Mock private OidcTokenVerifier oidcTokenVerifier;
 
+  private final PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+
   private AuthenticationFilter filter;
 
   @BeforeEach
   void setUp() {
     filter =
         new AuthenticationFilter(
-            tokenService, settingsService, "basic-pass", authEntryPoint, oidcTokenVerifier);
+            tokenService,
+            settingsService,
+            "basic-pass",
+            authEntryPoint,
+            oidcTokenVerifier,
+            passwordEncoder);
     SecurityContextHolder.clearContext();
   }
 
@@ -150,6 +159,51 @@ class AuthenticationFilterTest {
 
     verify(filterChain, times(1)).doFilter(request, response);
     verify(authEntryPoint, never()).commence(any(), any(), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void theCorrectBasicPasswordAuthenticates() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("person@example.test");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, false))
+        .thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader(
+        "Authorization",
+        "Basic "
+            + java.util.Base64.getEncoder()
+                .encodeToString("person@example.test:basic-pass".getBytes()));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    verify(authEntryPoint, never()).commence(any(), any(), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(sessionToken);
+  }
+
+  @Test
+  void theWrongBasicPasswordIsRejected() throws Exception {
+    // The comparison is now via PasswordEncoder.matches (constant-time), never a raw
+    // String.equals against the configured password - this pins the observable behaviour, not
+    // the timing property itself.
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader(
+        "Authorization",
+        "Basic "
+            + java.util.Base64.getEncoder()
+                .encodeToString("person@example.test:wrong-pass".getBytes()));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
 

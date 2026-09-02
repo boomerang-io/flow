@@ -12,6 +12,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -63,6 +65,16 @@ public class SecurityConfiguration {
   @Value("${flow.authorization.basic.password:}")
   private String basicPassword;
 
+  // Delegating encoder (Spring Security's own recommended default) so the single shared Basic
+  // password is compared via PasswordEncoder.matches - constant-time - rather than a raw
+  // String.equals. There is one operator-wide password, not a per-user credential store, so this
+  // stays a plain bean rather than a full http.httpBasic()/UserDetailsService setup - see decision
+  // 0069.
+  @Bean
+  PasswordEncoder passwordEncoder() {
+    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+  }
+
   //TODO figure out why we also have to have the permitAll matches in the doNotFilter of AuthenticationFilter
     // @Order required now that DispatcherSecurityConfiguration's /api/v1/** chain (E8.2a merge)
     // also lives in this context: it must evaluate FIRST (lower value), this chain evaluates last.
@@ -71,7 +83,12 @@ public class SecurityConfiguration {
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
           new AuthenticationFilter(
-              tokenService, settingsService, basicPassword, authEntryPoint, oidcTokenVerifier);
+              tokenService,
+              settingsService,
+              basicPassword,
+              authEntryPoint,
+              oidcTokenVerifier,
+              passwordEncoder());
       http.csrf(csrf -> csrf.disable())
           .authorizeHttpRequests(
               authorize ->
