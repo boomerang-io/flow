@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 // A5/H6: complement of SecurityConfiguration's SecurityEnabledCondition - see
 // FlowSecurityProperties.
@@ -23,10 +22,13 @@ public class SecurityDisabledConfiguration {
         .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
         // Security is off, but an identity is still ESTABLISHED rather than left absent, so
         // IdentityService.getCurrentIdentity() is never null and downstream consumers (audit in
-        // particular) have a real actor to record. See UnauthenticatedGlobalToken.
-        .addFilterBefore(
-            new UnauthenticatedGlobalAuthenticationFilter(),
-            UsernamePasswordAuthenticationFilter.class)
+        // particular) have a real actor to record. See UnauthenticatedGlobalToken. Native
+        // http.anonymous(), with a custom AnonymousAuthenticationFilter supplying WHAT gets
+        // installed - Spring Security's own filter already owns WHEN (only if the SecurityContext
+        // has no Authentication yet).
+        .anonymous(
+            anonymous ->
+                anonymous.authenticationFilter(new UnauthenticatedGlobalAuthenticationFilter()))
         .build();
   }
 }
