@@ -347,8 +347,20 @@ export const handlers: HttpHandler[] = [
   // getWorkspaces (the literal /workspace/query list route) must be registered before
   // resourceWorkspace's GET (the parameterized /workspace/:workspace below) - see the ordering
   // note on task.queryTasks above. Workspaces.tsx's table reads `number`/`size`/`totalElements`
-  // off this response, not just `content` (same reasoning as getUsers below).
-  http.get(serviceUrl.getWorkspaces({ query: "" }), () => HttpResponse.json(paginatedResponse(db.workspaces))),
+  // off this response, not just `content` (same reasoning as getUsers below). `search` mirrors
+  // WorkspaceService.findByCriteria: an anchored, case-insensitive prefix match on
+  // name/displayName (issue #386 - the loader forwards the search box's term as `search`).
+  http.get(serviceUrl.getWorkspaces({ query: "" }), ({ request }) => {
+    const search = new URL(request.url).searchParams.get("search")?.trim().toLowerCase();
+    const content = search
+      ? db.workspaces.filter(
+          (workspace) =>
+            workspace.name?.toLowerCase().startsWith(search) ||
+            workspace.displayName?.toLowerCase().startsWith(search),
+        )
+      : db.workspaces;
+    return HttpResponse.json(paginatedResponse(content));
+  }),
   http.get(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), ({ params }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     return workspace ? HttpResponse.json(workspace) : HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
