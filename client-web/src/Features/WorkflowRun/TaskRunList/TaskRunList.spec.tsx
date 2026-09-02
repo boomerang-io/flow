@@ -119,7 +119,7 @@ describe("ExecutionTaskLog --- Snapshot", () => {
 
 describe("ExecutionTaskLog --- RTL", () => {
   it("Sort tasks, with START pinned first and END pinned last", () => {
-    global.rtlRouterRender(<ExecutionTaskLog {...props} />);
+    renderWithRouter(<ExecutionTaskLog {...props} />);
 
     const sortButton = screen.getByTestId("taskbar-button");
     let taskItems = screen.getAllByTestId("taskitem-name");
@@ -138,7 +138,7 @@ describe("ExecutionTaskLog --- RTL", () => {
   });
 
   it("Renders START and END slim - no start time or duration shown", () => {
-    global.rtlRouterRender(<ExecutionTaskLog {...props} />);
+    renderWithRouter(<ExecutionTaskLog {...props} />);
 
     // Ordering is asserted separately above - index into the <li> list items directly rather
     // than walking up from the name node (keeps this Testing-Library-idiomatic).
