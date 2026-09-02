@@ -1135,6 +1135,90 @@ class LoaderMigrationTest {
   }
 
   @Test
+  void reencryptsLegacyAesSettingsToAesGcmAndIsIdempotent() throws Exception {
+    String uri = MONGO.getReplicaSetUrl("settingsreencrypt");
+    MongoDatabase settingsDb = client.getDatabase("settingsreencrypt");
+    settingsDb.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+
+    // EncryptionSecrets.fromEnvironment() defaults to secret="secret", salt="salt" when nothing
+    // is configured - the same defaults EncryptionConfig uses, so this fixture is encrypted under
+    // exactly what the migration will use when it runs.
+    String legacySecret = "secret";
+    String legacySalt = "salt";
+    String legacyCiphertext = legacyEncrypt("s3cr3t-value", legacySecret, legacySalt);
+
+    MongoCollection<Document> settings = settingsDb.getCollection(PREFIX + "_settings");
+    ObjectId securedSettingId = new ObjectId();
+    settings.insertOne(
+        new Document("_id", securedSettingId)
+            .append("key", "extensions")
+            .append(
+                "config",
+                List.of(
+                    new Document("key", "slack.signingSecret")
+                        .append("type", "secured")
+                        .append("value", "crypt_v1{AES|" + legacyCiphertext + "}"),
+                    new Document("key", "not.secured")
+                        .append("type", "text")
+                        .append("value", "plain-value"))));
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    Document afterFirstRun = settings.find(Filters.eq("_id", securedSettingId)).first();
+    List<Document> configsAfterFirstRun = afterFirstRun.getList("config", Document.class);
+    String migratedValue = configOf(configsAfterFirstRun, "slack.signingSecret").getString("value");
+    assertThat(migratedValue).startsWith("crypt_v1{AESGCM|").endsWith("}");
+    assertThat(configOf(configsAfterFirstRun, "not.secured").getString("value"))
+        .as("an unrelated, non-secured config value is untouched")
+        .isEqualTo("plain-value");
+
+    // Round-trip: the migrated value must decrypt back to the original plaintext under the same
+    // AES-GCM call service-core's AESAlgorithm makes.
+    String migratedCiphertext = migratedValue.substring("crypt_v1{AESGCM|".length(), migratedValue.length() - 1);
+    assertThat(decryptNewScheme(migratedCiphertext, legacySecret, legacySalt)).isEqualTo("s3cr3t-value");
+
+    // Idempotency: a second run finds nothing left matching the legacy prefix.
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    Document afterSecondRun = settings.find(Filters.eq("_id", securedSettingId)).first();
+    assertThat(
+            configOf(afterSecondRun.getList("config", Document.class), "slack.signingSecret")
+                .getString("value"))
+        .as("re-running finds no legacy-labelled value left to migrate")
+        .isEqualTo(migratedValue);
+  }
+
+  private static Document configOf(List<Document> configs, String key) {
+    return configs.stream().filter(c -> key.equals(c.getString("key"))).findFirst().orElseThrow();
+  }
+
+  /** A verbatim, self-contained copy of the retired AES/CBC/PKCS5Padding scheme, test-only. */
+  private static String legacyEncrypt(String value, String secret, String salt) throws Exception {
+    byte[] iv = {11, 112, 13, 117, 45, 68, 17, -55, -6, 77, 10, -13, -78, 4, -127, -61};
+    javax.crypto.SecretKeyFactory factory =
+        javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+    javax.crypto.spec.PBEKeySpec spec =
+        new javax.crypto.spec.PBEKeySpec(
+            secret.toCharArray(), salt.getBytes(java.nio.charset.StandardCharsets.UTF_8), 131072, 256);
+    javax.crypto.spec.SecretKeySpec secretKey =
+        new javax.crypto.spec.SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
+    javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding");
+    cipher.init(
+        javax.crypto.Cipher.ENCRYPT_MODE, secretKey, new javax.crypto.spec.IvParameterSpec(iv));
+    return java.util.Base64.getEncoder()
+        .encodeToString(cipher.doFinal(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+  }
+
+  /** Decrypts a value produced by the new AES-256-GCM scheme, test-only verification helper. */
+  private static String decryptNewScheme(String ciphertext, String secret, String salt) {
+    String hexSalt =
+        new String(
+            org.springframework.security.crypto.codec.Hex.encode(
+                salt.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    return org.springframework.security.crypto.encrypt.Encryptors.delux(secret, hexSalt)
+        .decrypt(ciphertext);
+  }
+
+  @Test
   void failsWhenMongoIsUnreachable() {
     assertThatThrownBy(
             () ->

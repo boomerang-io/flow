@@ -152,7 +152,7 @@ public class SettingsService {
 
     return StringUtils.hasText(value)
         ? value
-        : ("crypt_v1{AES|"
+        : ("crypt_v1{AESGCM|"
             + AESAlgorithm.encrypt(value, encryptConfig.getSecretKey(), encryptConfig.getSalt())
             + "}");
   }
@@ -163,7 +163,10 @@ public class SettingsService {
       return value;
     }
 
-    String replacedValue = value.replace("crypt_v1{AES|", "").replace("}", "");
+    // Every stored value reaching this point has already been rewritten to the AESGCM label by
+    // service-loader's _0041__ReencryptSettingsAesGcm change unit, which runs as a pre-deploy Job
+    // before service-core ever starts - see AESAlgorithm.
+    String replacedValue = value.replace("crypt_v1{AESGCM|", "").replace("}", "");
     return AESAlgorithm.decrypt(
         replacedValue, encryptConfig.getSecretKey(), encryptConfig.getSalt());
   }

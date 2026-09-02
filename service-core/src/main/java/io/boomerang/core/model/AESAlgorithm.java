@@ -1,28 +1,33 @@
 package io.boomerang.core.model;
 
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.util.Base64;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.crypto.Cipher;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
+import org.springframework.security.crypto.codec.Hex;
+import org.springframework.security.crypto.encrypt.Encryptors;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
 
+/**
+ * AES encryption for stored {@code Setting} values, via Spring Security's {@link
+ * Encryptors#delux} - AES-256-GCM with a random IV generated per call, hex-encoded. ({@code
+ * Encryptors.delegatingText}, which adds a version-tagged output for future algorithm migrations,
+ * does not exist in the spring-security-crypto version on this classpath; {@code delux} is its
+ * current GCM equivalent - the app-level {@code crypt_v1{AESGCM|...}} label in {@code
+ * SettingsService} is what identifies the scheme instead.)
+ *
+ * <p>Replaces a hand-rolled AES/CBC/PKCS5Padding scheme that reused ONE hardcoded IV for every
+ * value it ever encrypted (defeating CBC's own security argument) and carried no authentication
+ * tag. {@code service-loader}'s {@code _0041__ReencryptSettingsAesGcm} change unit re-encrypts
+ * every value stored under the retired scheme; nothing in {@code service-core} reads that scheme
+ * any more.
+ *
+ * <p>{@code delux} requires its salt as a hex string; the configured salt (an arbitrary
+ * operator-supplied string, see {@code EncryptionConfig}) is hex-encoded first so any existing
+ * configuration keeps working unchanged.
+ */
 public final class AESAlgorithm {
 
   private static final Logger LOGGER = Logger.getLogger(AESAlgorithm.class.getName());
-
-  private static final int PWD_ITERATOINS = 131072;
-  private static final int KEY_SIZE = 256;
-  private static final byte[] IV =
-      {11, 112, 13, 117, 45, 68, 17, -55, -6, 77, 10, -13, -78, 4, -127, -61};
-
-  private static final String KEY_ALGORITHM = "AES";
-  private static final String ENCRYPT_ALGORITHM = "AES/CBC/PKCS5Padding";
-  private static final String SECRET_KEY_FACTORY_ALGORITHM = "PBKDF2WithHmacSHA1";
 
   private AESAlgorithm() {
     // Do nothing
@@ -30,44 +35,24 @@ public final class AESAlgorithm {
 
   public static String encrypt(String strToEncrypt, String secret, String salt) {
     try {
-      SecretKeySpec secretKey = getSecretKeySpec(secret, salt.getBytes(StandardCharsets.UTF_8));
-
-      // AES initialization
-      Cipher cipher = Cipher.getInstance(ENCRYPT_ALGORITHM); //NOSONAR
-      IvParameterSpec ivSpec = new IvParameterSpec(IV);
-      cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
-
-      return Base64.getEncoder()
-          .encodeToString(cipher.doFinal(strToEncrypt.getBytes(StandardCharsets.UTF_8)));
-    } catch (GeneralSecurityException e) {
+      return textEncryptorFor(secret, salt).encrypt(strToEncrypt);
+    } catch (RuntimeException e) {
       LOGGER.log(Level.SEVERE, "Error encrypt value: ", e);
     }
-
     return null;
   }
 
   public static String decrypt(String strToDecrypt, String secret, String salt) {
     try {
-      SecretKeySpec secretKey = getSecretKeySpec(secret, salt.getBytes(StandardCharsets.UTF_8));
-
-      Cipher cipher = Cipher.getInstance(ENCRYPT_ALGORITHM);  //NOSONAR
-      IvParameterSpec ivSpec = new IvParameterSpec(IV);
-      cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
-
-      byte[] byteToDecrypt = Base64.getDecoder().decode(strToDecrypt);
-      return new String(cipher.doFinal(byteToDecrypt));
-    } catch (GeneralSecurityException | IllegalArgumentException e) {
+      return textEncryptorFor(secret, salt).decrypt(strToDecrypt);
+    } catch (RuntimeException e) {
       LOGGER.log(Level.SEVERE, "Error decrypt value: ", e);
     }
-
     return null;
   }
 
-  private static SecretKeySpec getSecretKeySpec(String secret, byte[] saltBytes)
-      throws GeneralSecurityException {
-
-    SecretKeyFactory factory = SecretKeyFactory.getInstance(SECRET_KEY_FACTORY_ALGORITHM);
-    PBEKeySpec spec = new PBEKeySpec(secret.toCharArray(), saltBytes, PWD_ITERATOINS, KEY_SIZE);
-    return new SecretKeySpec(factory.generateSecret(spec).getEncoded(), KEY_ALGORITHM);
+  private static TextEncryptor textEncryptorFor(String secret, String salt) {
+    String hexSalt = new String(Hex.encode(salt.getBytes(StandardCharsets.UTF_8)));
+    return Encryptors.delux(secret, hexSalt);
   }
 }
