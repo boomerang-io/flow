@@ -8,6 +8,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.nimbusds.jwt.JWTClaimsSet;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
@@ -31,7 +34,10 @@ import org.springframework.security.web.AuthenticationEntryPoint;
  * not disturb its existing header-based branches, must accept
  * SessionCookie.NAME as an additional source, and must route an unresolved identity through the
  * delegated entry point EXCEPT on the exchange endpoint's own path, which it must let through
- * unauthenticated (the OIDC login body verifies itself).
+ * unauthenticated (the OIDC login body verifies itself). The proxy-forwarded bearer JWT path
+ * (a non-Flow-shaped {@code Authorization: Bearer <jwt>}) delegates signature/claims verification
+ * to {@link OidcTokenVerifier} - the actual cryptography is covered by OidcTokenVerifierTest, this
+ * class only pins that the filter trusts the verifier's outcome and never the token's raw claims.
  */
 @ExtendWith(MockitoExtension.class)
 class AuthenticationFilterTest {
@@ -40,12 +46,15 @@ class AuthenticationFilterTest {
   @Mock private SettingsService settingsService;
   @Mock private AuthenticationEntryPoint authEntryPoint;
   @Mock private FilterChain filterChain;
+  @Mock private OidcTokenVerifier oidcTokenVerifier;
 
   private AuthenticationFilter filter;
 
   @BeforeEach
   void setUp() {
-    filter = new AuthenticationFilter(tokenService, settingsService, "basic-pass", authEntryPoint);
+    filter =
+        new AuthenticationFilter(
+            tokenService, settingsService, "basic-pass", authEntryPoint, oidcTokenVerifier);
     SecurityContextHolder.clearContext();
   }
 
@@ -114,5 +123,66 @@ class AuthenticationFilterTest {
     verify(filterChain, times(1)).doFilter(request, response);
     verify(authEntryPoint, never()).commence(any(), any(), any());
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void anUnsignedBearerJwtIsRejected() throws Exception {
+    // OidcTokenVerifier.verifyBearerToken refuses a PlainJWT outright (Nimbus's
+    // DefaultJWTProcessor rejects unsecured JWTs by default) - the filter must treat that refusal
+    // as no identity at all, never fall back to trusting the token's own claims.
+    when(oidcTokenVerifier.verifyBearerToken("a.plain.jwt"))
+        .thenThrow(new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID));
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer a.plain.jwt");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void aBadSignatureBearerJwtIsRejected() throws Exception {
+    when(oidcTokenVerifier.verifyBearerToken("a.badsig.jwt"))
+        .thenThrow(new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID));
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer a.badsig.jwt");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void aValidlySignedBearerJwtAuthenticates() throws Exception {
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder().claim("email", "person@example.test").build();
+    when(oidcTokenVerifier.verifyBearerToken("a.valid.jwt")).thenReturn(claims);
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("person@example.test");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, false))
+        .thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer a.valid.jwt");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    verify(authEntryPoint, never()).commence(any(), any(), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(sessionToken);
   }
 }

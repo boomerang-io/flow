@@ -1,12 +1,10 @@
 package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.JWTParser;
-import com.nimbusds.jwt.PlainJWT;
-import com.nimbusds.jwt.SignedJWT;
 import com.slack.api.app_backend.SlackSignature.Generator;
 import com.slack.api.app_backend.SlackSignature.Verifier;
 import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
@@ -73,17 +71,20 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   private SettingsService settingsService;
   private String basicPassword;
   private AuthenticationEntryPoint authEntryPoint;
+  private OidcTokenVerifier oidcTokenVerifier;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
-      AuthenticationEntryPoint authEntryPoint) {
+      AuthenticationEntryPoint authEntryPoint,
+      OidcTokenVerifier oidcTokenVerifier) {
     super();
     this.tokenService = tokenService;
     this.settingsService = settingsService;
     this.basicPassword = basicPassword;
     this.authEntryPoint = authEntryPoint;
+    this.oidcTokenVerifier = oidcTokenVerifier;
   }
 
   /*
@@ -185,16 +186,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       LOGGER.debug("AuthFilter() - " + token);
       JWTClaimsSet claims;
       try {
-        Object jwt = JWTParser.parse(token.replace("Bearer ", ""));
-        if (jwt instanceof PlainJWT) {
-          claims = ((PlainJWT) jwt).getJWTClaimsSet();
-        } else if (jwt instanceof SignedJWT) {
-          claims = ((SignedJWT) jwt).getJWTClaimsSet();
-        } else {
-          throw new IllegalArgumentException("Unsupported JWT type");
-        }
-      } catch (Exception e) {
-        LOGGER.error("AuthFilter() - Error parsing Bearer token: " + e.getMessage());
+        // Cryptographically verified against the configured OIDC issuer's published JWKS - an
+        // unsigned (PlainJWT) or wrongly-signed token is refused here, never trusted on its claims
+        // alone. See OidcTokenVerifier.verifyBearerToken.
+        claims = oidcTokenVerifier.verifyBearerToken(token.replace("Bearer ", ""));
+      } catch (BoomerangException e) {
+        LOGGER.error("AuthFilter() - Error verifying Bearer token: " + e.getMessage());
         return null;
       }
       LOGGER.debug("AuthFilter() - claims: " + claims.toString());
