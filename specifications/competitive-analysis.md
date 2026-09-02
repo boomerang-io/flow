@@ -307,6 +307,7 @@ Each row is a design three or more products converged on independently.
 | Small typed payloads, big data by reference | Code Engine 4 KB; Temporal 2 MB; Trigger.dev 512 KB offload; Kestra ~1 MB; incidents when exceeded | 16 KB / 4 KB | Parity — the caps are vindicated |
 | Per-run budgets and rate limits | GitHub Agentic Workflows (5 scopes); Temporal Actions; Trigger.dev limits | Workspace quotas only | The budget list for the AI node |
 | "Model proposes, a gate approves, then it runs" | GitHub safe outputs; Vercel `needsApproval`; n8n human-in-the-loop; Temporal signal approval | Propose/dispose proposed | The propose/dispose node |
+| Create-without-start as an explicit state | Tekton `spec.status: PipelineRunPending` ("will not actually be started until the pending status is cleared"); Cloud Run Jobs create vs `--execute-now`; Temporal `startDelay` (first task not scheduled until the delay passes, Signal-With-Start bypasses); GitHub environment approval gates; Trigger.dev `delay`/`ttl` on an enqueued run | `submit?start=false` parks at ready for `PUT /{id}/start`; runs with workspaces additionally wait for dispatcher provisioning | Parity — the park is deliberate, not an accident |
 | Retention policy with user pins | n8n annotated never pruned; Code Engine 7 d; Vercel 1/7/30 d | No run retention | A `retain` flag once the policy is decided |
 | Explicit lost-worker policy | Kestra restart strategy; n8n `crashed`; Trigger.dev `CRASHED`; Temporal heartbeat timeout | The reaper hard-codes one policy | `onLostDispatcher` per template |
 
