@@ -1672,6 +1672,12 @@ public class WorkflowService {
     if (workflow.getDescription() != null && !workflow.getDescription().isBlank()) {
       workflowEntity.setDescription(workflow.getDescription());
     }
+    if (workflow.getDisplayName() != null && !workflow.getDisplayName().isBlank()) {
+      workflowEntity.setDisplayName(workflow.getDisplayName());
+    }
+    if (workflow.getIcon() != null && !workflow.getIcon().isBlank()) {
+      workflowEntity.setIcon(workflow.getIcon());
+    }
     if (workflow.getLabels() != null && !workflow.getLabels().isEmpty()) {
       if (replace) {
         workflowEntity.setLabels(workflow.getLabels());

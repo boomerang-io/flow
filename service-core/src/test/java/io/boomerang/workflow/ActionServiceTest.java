@@ -13,6 +13,8 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workflow.model.Action;
@@ -184,5 +186,29 @@ class ActionServiceTest {
     Action action = actionService.get("team1", "a1");
 
     assertThat(action.getWorkflowName()).isEqualTo("my-workflow-slug");
+  }
+
+  // The approval modal's Workspace field: the owning Workspace is resolved fresh from the
+  // relationship graph via the Action's Workflow, never stored on ActionEntity.
+  @Test
+  void getResolvesWorkspaceNameFromOwningWorkspace() {
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("my-workflow-slug");
+    workflow.setDisplayName("My Workflow");
+    when(workflowService.get("w1", Optional.empty(), false))
+        .thenReturn(ResponseEntity.ok(workflow));
+    when(engineTaskRunService.get(any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+    when(relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, "w1"))
+        .thenReturn("ws1");
+    when(relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, "ws1"))
+        .thenReturn("my-workspace");
+
+    Action action = actionService.get("team1", "a1");
+
+    assertThat(action.getWorkspaceName()).isEqualTo("my-workspace");
   }
 }

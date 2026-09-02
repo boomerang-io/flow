@@ -71,7 +71,7 @@ export async function action({ params, request }: { params: { workspace?: string
   const groupId = formData.get("groupId") ? String(formData.get("groupId")) : null;
   const approverGroup = {
     name: String(formData.get("name")),
-    groupId,
+    id: groupId,
     approvers: JSON.parse(String(formData.get("approvers"))),
   };
   try {
