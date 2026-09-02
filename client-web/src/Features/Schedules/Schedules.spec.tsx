@@ -48,6 +48,16 @@ describe("Schedules --- loader", () => {
     expect(screen.getByText("Daily event")).toBeInTheDocument();
   });
 
+  // Regression (#387): the API serialises schedule labels as a string map (backend
+  // WorkflowSchedule.labels is a Map<String,String>); the fixture used to carry the retired
+  // [{key, value}] array shape, which Object.entries renders as "0=[object Object]". This pins
+  // the wire shape end to end: MSW response -> loader -> SchedulePanelList tags.
+  test("renders schedule labels from the API's string-map wire shape", async () => {
+    renderSchedules();
+    expect((await screen.findAllByText("maintenance=hello")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("daily=yes").length).toBeGreaterThan(0);
+  });
+
   // ScheduleStatus gained "completed" (a runOnce schedule moves there once it fires) - the
   // default (no filter selected) status list needs to keep including it, otherwise completed
   // schedules would silently vanish from the page on first load. See scheduleStatusOptions in
