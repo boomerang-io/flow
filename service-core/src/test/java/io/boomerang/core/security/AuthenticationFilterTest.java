@@ -15,8 +15,11 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,6 +80,31 @@ class AuthenticationFilterTest {
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
     assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
         .isEqualTo(sessionToken);
+  }
+
+  @Test
+  void aTokensPermissionsAreMappedToGrantedAuthorities() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    sessionToken.setPermissions(
+        List.of(
+            new ResolvedPermissions(
+                PermissionScope.workspace, "user-1", List.of("workflow/write", "task/read")),
+            new ResolvedPermissions(
+                PermissionScope.workspace, "user-1", List.of("workflow/write"))));
+    when(tokenService.validate("bfs_raw-value")).thenReturn(true);
+    when(tokenService.get("bfs_raw-value")).thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.setCookies(new Cookie(SessionCookie.NAME, "bfs_raw-value"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+        .extracting(Object::toString)
+        .containsExactlyInAnyOrder("workflow/write", "task/read");
   }
 
   @Test

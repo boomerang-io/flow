@@ -15,7 +15,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -26,6 +25,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.client.HttpClientErrorException;
@@ -220,9 +220,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         final Token sessionToken =
             tokenService.createSessionToken(
                 email, firstName, lastName, allowActivation, allowUserCreation);
-        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, null, authorities);
+            new UsernamePasswordAuthenticationToken(email, null, authoritiesFor(sessionToken));
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -249,9 +248,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       if (email != null && !email.isBlank()) {
         final Token sessionToken =
             tokenService.createSessionToken(email, null, null, allowActivation, allowUserCreation);
-        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, password, authorities);
+            new UsernamePasswordAuthenticationToken(email, password, authoritiesFor(sessionToken));
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -272,9 +270,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     if (tokenService.validate(accessToken)) {
       Token token = tokenService.get(accessToken);
       if (token != null) {
-        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
+            new UsernamePasswordAuthenticationToken(
+                token.getPrincipal(), null, authoritiesFor(token));
         authToken.setDetails(token);
         return authToken;
       }
@@ -302,9 +300,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     final Token token =
         tokenService.createSessionToken(email, userName, null, allowActivation, allowUserCreation);
     if (email != null && !email.isBlank()) {
-      final List<GrantedAuthority> authorities = new ArrayList<>();
       final UsernamePasswordAuthenticationToken authToken =
-          new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
+          new UsernamePasswordAuthenticationToken(
+              token.getPrincipal(), null, authoritiesFor(token));
       authToken.setDetails(token);
       return authToken;
     }
@@ -329,6 +327,26 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     LOGGER.debug("Slack Signature: " + signature);
     LOGGER.debug("Computed Signature: " + generator.generate(timestamp, body));
     return verifier.isValid(timestamp, body, signature);
+  }
+
+  /*
+   * Maps a resolved Token's permission actions (e.g. "workflow/write") straight onto
+   * GrantedAuthority, so Spring Security's own authorization machinery can act on them natively
+   * instead of every check having to re-derive them from Token.getPermissions() by hand. Token
+   * itself remains the source of truth - setDetails(Token) below is unchanged, and callers that
+   * still read scope/relationship semantics off the Token keep doing so.
+   */
+  private static List<GrantedAuthority> authoritiesFor(Token token) {
+    if (token == null || token.getPermissions() == null) {
+      return List.of();
+    }
+    return token.getPermissions().stream()
+        .filter(permission -> permission.getActions() != null)
+        .flatMap(permission -> permission.getActions().stream())
+        .distinct()
+        .map(SimpleGrantedAuthority::new)
+        .map(GrantedAuthority.class::cast)
+        .toList();
   }
 
   @Override
