@@ -34,6 +34,7 @@ import io.boomerang.workspace.model.WorkspaceMember;
 import io.boomerang.workspace.model.WorkspaceNameCheckRequest;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import io.boomerang.workspace.model.WorkspaceStatus;
+import io.boomerang.workspace.model.WorkspaceType;
 import io.boomerang.workspace.model.WorkspaceSummary;
 import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
@@ -166,6 +167,11 @@ public class WorkspaceService {
    */
   public Workspace create(WorkspaceRequest request) {
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
+      // The system type marks the one loader-seeded system Workspace and must stay unique -
+      // migrations resolve system-scoped ownership by querying for it.
+      if (WorkspaceType.system.equals(request.getType())) {
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_TYPE);
+      }
       // Validate name - will throw exception if not valid
       WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
       this.validateName(checkRequest);
@@ -276,7 +282,13 @@ public class WorkspaceService {
       if (request.getStatus() != null) {
         workspaceEntity.setStatus(request.getStatus());
       }
-      if (request.getType() != null) {
+      // Changing to or from the system type is refused: it marks the one loader-seeded
+      // system Workspace, and migrations resolve system-scoped ownership by querying for it.
+      if (request.getType() != null && !request.getType().equals(workspaceEntity.getType())) {
+        if (WorkspaceType.system.equals(request.getType())
+            || WorkspaceType.system.equals(workspaceEntity.getType())) {
+          throw new BoomerangException(BoomerangError.TEAM_INVALID_TYPE);
+        }
         workspaceEntity.setType(request.getType());
       }
       if (request.getExternalRef() != null && !request.getExternalRef().isBlank()) {
