@@ -172,7 +172,10 @@ export const serviceUrl = {
       postDuplicateWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/duplicate`,
       postSubmitWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
-        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/submit`,
+        // start=true: submit alone parks the run at ready (the engine's default is start=false),
+        // and nothing starts a parked run any more - a run without workspaces starts at once,
+        // one with workspaces waits for the dispatcher to provision and start it.
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/submit?start=true`,
       getAvailableParameters: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/available-parameters`,
       putApplyWorkflowCompose: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>

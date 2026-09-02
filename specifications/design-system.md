@@ -184,3 +184,33 @@ rule than the words: `client-web/package.json:138-149` sets `browserslist` produ
 dead") and development to the last Chrome/Firefox/Safari version. Any narrowing SHOULD change
 that field, not this paragraph.
 
+
+## Accessibility and how tests locate things
+
+Carbon components expose their accessible names through their label props, and both assistive
+technology and the end-to-end suite depend on them: `labelText` on inputs (`TextArea`, `Search`),
+`iconDescription` on icon-only buttons, `title`/text content on tiles and headings. A control
+added without one is invisible twice over — to a screen reader and to a `getByRole`/`getByLabel`
+locator. Two conventions the canvas editor already follows and new UI MUST keep:
+
+- Every interactive element carries a role and a name. The palette entries are `role="option"`
+  named by the task's display name (`Designer/Tasks/Task/Task.tsx`); icon-only buttons carry
+  `iconDescription` (the version buttons in `WorkflowEditor/Header/Header.tsx`) or an `alt`
+  (`WorkflowEditButton`: "Workflow edit button").
+- Form inputs are named by their parameter label, not their key: the task-edit form renders
+  `textbox "Shell Interpreter"`, not `#shell` (`Reactflow/components/shared/inputs.tsx`).
+
+The end-to-end suite (`e2e/`) locates elements in this order, which doubles as an accessibility
+check — a journey that can only be written with CSS selectors is a journey a screen-reader user
+cannot follow:
+
+1. `getByRole(role, { name })` / `getByLabel(...)` — the accessible contract, preferred.
+2. `getByTestId(...)` — for containers with no natural role (list rows, cards); `data-testid`
+   values are part of the UI's test contract and renames MUST update the suite.
+3. CSS/structural selectors — only for third-party internals with no accessible surface (the
+   `.react-flow__node-*`/`.react-flow__handle` canvas classes, `.CodeMirror`), each with a
+   comment saying why.
+
+When a locator fails, read the Playwright page snapshot in the failure's `error-context.md` — it
+is the accessibility tree, so it shows both what the test should target and what a screen reader
+actually gets (a collapsed accordion's content, for example, is absent from it).
