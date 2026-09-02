@@ -2,9 +2,11 @@ package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.WorkflowCount;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
@@ -95,6 +97,7 @@ public class WorkspaceService {
   private final MongoTemplate mongoTemplate;
   private final InsightsService insightsService;
   private final WorkflowService workflowService;
+  private final WorkflowRunService workflowRunService;
   private final TokenService tokenService;
   private final TaskService taskService;
 
@@ -109,6 +112,7 @@ public class WorkspaceService {
       MongoTemplate mongoTemplate,
       InsightsService insightsService,
       WorkflowService workflowService,
+      WorkflowRunService workflowRunService,
       TokenService tokenService,
       TaskService taskService) {
     this.workspaceRepository = workspaceRepository;
@@ -121,6 +125,7 @@ public class WorkspaceService {
     this.mongoTemplate = mongoTemplate;
     this.insightsService = insightsService;
     this.workflowService = workflowService;
+    this.workflowRunService = workflowRunService;
     this.tokenService = tokenService;
     this.taskService = taskService;
   }
@@ -1030,10 +1035,32 @@ public class WorkspaceService {
             Optional.empty(),
             Optional.empty());
     LOGGER.debug("Insights: {}", insight.toString());
-    currentQuotas.setCurrentConcurrentRuns(insight.getConcurrentRuns().intValue());
     currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration().intValue());
     currentQuotas.setCurrentRunMedianDuration(insight.getMedianDuration().intValue());
-    currentQuotas.setCurrentRuns(insight.getTotalRuns().intValue());
+
+    // The run counters that quotas enforce come from the live WorkflowRun collection - the
+    // audit-derived insight cannot serve them, as no workflowrun-scope audit record is written.
+    // Concurrent = admitted and not yet terminal, so queued work counts against the limit.
+    Map<String, Long> monthlyRuns =
+        workflowRunService
+            .count(
+                team,
+                Optional.of(currentMonthStart.getTimeInMillis()),
+                Optional.of(nextMonth.getTimeInMillis()),
+                Optional.empty(),
+                Optional.empty())
+            .getStatus();
+    currentQuotas.setCurrentRuns(monthlyRuns.get("all").intValue());
+    Map<String, Long> runsByStatus =
+        workflowRunService
+            .count(team, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty())
+            .getStatus();
+    currentQuotas.setCurrentConcurrentRuns(
+        (int)
+            (runsByStatus.get(RunStatus.notstarted.getStatus())
+                + runsByStatus.get(RunStatus.ready.getStatus())
+                + runsByStatus.get(RunStatus.running.getStatus())
+                + runsByStatus.get(RunStatus.waiting.getStatus())));
 
     WorkflowCount count =
         workflowService.count(
