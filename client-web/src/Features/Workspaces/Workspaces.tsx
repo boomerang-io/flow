@@ -35,10 +35,11 @@ import { actionError, isActionError, type ActionError } from "Utils/actionResult
 
 interface FeatureLayoutProps {
   children?: React.ReactNode;
+  defaultQuery?: string;
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 
-const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchChange }) => {
+const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, defaultQuery, handleSearchChange }) => {
   return (
     <>
       <Helmet>
@@ -56,7 +57,13 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
       <Box p="2rem" className={styles.content}>
         <>
           <Box mb="1rem" maxWidth="20rem">
-            <Search id="flow-workspaces" labelText="Search workspaces" placeholder="Search workspaces" onChange={handleSearchChange} />
+            <Search
+              id="flow-workspaces"
+              labelText="Search workspaces"
+              placeholder="Search workspaces"
+              defaultValue={defaultQuery}
+              onChange={handleSearchChange}
+            />
           </Box>
           {children}
         </>
@@ -143,6 +150,9 @@ const WorkspaceList: React.FC = () => {
   const parsedQuery = queryString.parse(location.search, queryStringOptions);
   const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
+  // Seed the (uncontrolled) search box with the URL's term so a direct/SSR load of
+  // `?query=...` shows the term the list is already filtered by (#386).
+  const query = typeof parsedQuery.query === "string" ? parsedQuery.query : undefined;
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) {
@@ -228,13 +238,13 @@ const WorkspaceList: React.FC = () => {
 
   if (errorLoading || !workspacesData) {
     return (
-      <FeatureLayout handleSearchChange={handleSearchChange}>
+      <FeatureLayout defaultQuery={query} handleSearchChange={handleSearchChange}>
         <ErrorMessage />
       </FeatureLayout>
     );
   }
   return (
-    <FeatureLayout handleSearchChange={handleSearchChange}>
+    <FeatureLayout defaultQuery={query} handleSearchChange={handleSearchChange}>
       {workspaceManagementEnabled && (
         <ComposedModal
           composedModalProps={{ shouldCloseOnOverlayClick: true }}
