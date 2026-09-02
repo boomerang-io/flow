@@ -15,8 +15,10 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.Token;
 import io.boomerang.core.model.User;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.tekton.TektonConverter;
@@ -470,11 +472,23 @@ public class TaskService {
       changelog = new ChangeLog();
     }
     changelog.setDate(new Date());
-    // No principal (e.g. security disabled) leaves the author unset - same as a resolved
-    // identity with no principal string, which this already tolerated.
-    String principal = identityService.getCurrentPrincipal();
-    if (principal != null) {
-      changelog.setAuthor(principal);
+    // No identity or principal (e.g. security disabled) leaves the author unset - same as a
+    // resolved identity with no principal string, which this already tolerated.
+    Token identity = identityService.getCurrentIdentity();
+    if (identity == null || identity.getPrincipal() == null) {
+      return;
+    }
+    // A user or session principal is a user id and is resolved to the user's name on read. Any
+    // other token's principal (key = workspace ref, global = varies) is NOT a user id, so record
+    // the token's own name - falling back to its scope - rather than an id that a reader would
+    // mislabel as a user.
+    if (AuthScope.user.equals(identity.getType()) || AuthScope.session.equals(identity.getType())) {
+      changelog.setAuthor(identity.getPrincipal());
+    } else {
+      changelog.setAuthor(
+          (identity.getName() != null && !identity.getName().isBlank())
+              ? identity.getName()
+              : identity.getType().getLabel());
     }
   }
 
@@ -487,9 +501,9 @@ public class TaskService {
             user.get().getDisplayName().isEmpty()
                 ? user.get().getName()
                 : user.get().getDisplayName());
-      } else {
-        changelog.setAuthor("---");
       }
+      // Not a user id: the author is a token's name (or a pre-existing non-user id) stamped by
+      // stampChangeLog - keep it as recorded rather than masking it.
     }
   }
 
