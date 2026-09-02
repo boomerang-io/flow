@@ -53,7 +53,8 @@ Only the CAS winner performs side effects; a loser logs and returns, so N instan
 A run without workspaces submitted with `start=true` is started by the engine at once; a run that declares
 workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its claims and calls
 `PUT /api/v1/dispatcher/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:765`). A run submitted with
-`start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it. A `runworkflow` task submits its
+`start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it; `start` defaults to true
+on the submit route, so parking is the explicit opt-out. A `runworkflow` task submits its
 child with `start=true`, so the child follows the same rule (`engine/TaskExecutionService.java:825`).
 
 ## The watcher sweeps

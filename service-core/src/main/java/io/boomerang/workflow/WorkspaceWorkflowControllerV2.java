@@ -278,9 +278,10 @@ public class WorkspaceWorkflowControllerV2 {
           String name,
       @Parameter(
               name = "start",
-              description = "Start the WorkflowRun immediately after submission",
+              description =
+                  "Start the WorkflowRun after submission (default). Pass start=false to park the run at ready for a later PUT /workflowrun/{id}/start.",
               required = false)
-          @RequestParam(required = false, defaultValue = "false")
+          @RequestParam(required = false, defaultValue = "true")
           boolean start,
       @RequestBody WorkflowSubmitRequest request) {
     return workflowService.submit(workspace, name, request, start);

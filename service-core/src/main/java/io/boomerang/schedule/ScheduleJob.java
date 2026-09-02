@@ -73,11 +73,13 @@ public class ScheduleJob {
       authToken.setDetails(token);
       SecurityContextHolder.getContext().setAuthentication(authToken);
 
-      // TODO: fix setting of start to come from somewhere
       // Lineage: stamp the firing Schedule's id as initiatedByRef, mirroring the retry path's
       // convention (initiatedByRef + trigger together identify what caused the run). Threaded
       // internally rather than on WorkflowSubmitRequest, which is a public API model.
-      workflowService.submit(teamRef, workflowRef, request, false, schedule.getId());
+      // start=true: a fired schedule means "run now" - submit alone parks the run at ready, and
+      // nothing starts a parked run (a run with workspaces still waits for dispatcher
+      // provisioning, which is the start=true semantics, not an override of them).
+      workflowService.submit(teamRef, workflowRef, request, true, schedule.getId());
       if (schedule.getType().equals(WorkflowScheduleType.runOnce)) {
         logger.debug("Executing runOnce schedule: {}, and marking as completed.", schedule.getId());
         workflowScheduleService.complete(schedule.getId());
