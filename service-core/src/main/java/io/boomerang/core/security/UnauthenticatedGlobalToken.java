@@ -76,7 +76,7 @@ public class UnauthenticatedGlobalToken extends Token {
    * an admin-typed profile adds no privilege; it only makes the profile/context surface tell the
    * UI the truth about the power the caller already has. Never seeded or written to Mongo: a
    * stored user could be surfaced in member lists of secured instances and, worse, activated by
-   * an IDP email match. Ruled 2026-08-26 - see specifications/authentication.md.
+   * an IDP email match. See specifications/authorization.md (security-off identity).
    */
   public static UserEntity virtualUser() {
     UserEntity user = new UserEntity();

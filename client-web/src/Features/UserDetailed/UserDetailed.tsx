@@ -5,11 +5,10 @@ import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { Route, Routes, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
-import { useAppContext } from "Hooks";
 import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import { FlowUser } from "Types";
+import { FlowUser, FlowWorkspaceSummary } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
 import Header from "./Header";
 import Labels from "./Labels";
@@ -24,6 +23,7 @@ import styles from "./UserDetailed.module.scss";
 // resolves but fails.
 type LoaderData = {
   userDetails: FlowUser | null;
+  workspaces: Array<FlowWorkspaceSummary>;
   errorLoading: boolean;
 };
 
@@ -38,12 +38,17 @@ export async function loader({
   params: { userId?: string };
   request: Request;
 }): Promise<LoaderData> {
-  const userDetailsUrl = serviceUrl.getUser({ userId: params.userId });
+  const fetch = serverFetch(request);
   try {
-    const response = await serverFetch(request).get(userDetailsUrl);
-    return { userDetails: response.data, errorLoading: false };
+    // The Workspaces tab must show the VIEWED user's memberships, not the signed-in viewer's
+    // (AppContext.workspaces), so both the user record and their workspace rollup load here.
+    const [userResponse, workspacesResponse] = await Promise.all([
+      fetch.get(serviceUrl.getUser({ userId: params.userId })),
+      fetch.get(serviceUrl.getUserWorkspaces({ userId: params.userId })),
+    ]);
+    return { userDetails: userResponse.data, workspaces: workspacesResponse.data, errorLoading: false };
   } catch (error) {
-    return { userDetails: null, errorLoading: true };
+    return { userDetails: null, workspaces: [], errorLoading: true };
   }
 }
 
@@ -109,8 +114,7 @@ const FeatureLayout = ({ children, isError }: FeatureLayoutProps) => {
 
 function WorkspaceDetailedContainer() {
   const userManagementEnabled = useFeature(FeatureFlag.UserManagementEnabled);
-  const { workspaces } = useAppContext();
-  const { userDetails, errorLoading } = useLoaderData() as LoaderData;
+  const { userDetails, workspaces, errorLoading } = useLoaderData() as LoaderData;
 
   if (errorLoading || !userDetails) {
     return (

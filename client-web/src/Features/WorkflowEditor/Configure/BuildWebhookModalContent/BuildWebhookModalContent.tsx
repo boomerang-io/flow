@@ -13,7 +13,7 @@ interface BuildWebhookModalContentProps {
 
 const BuildWebhookModalContent: React.FC<BuildWebhookModalContentProps> = ({ workflowRef, closeModal }) => {
   const resourceUrl = serviceUrl.resourceTrigger();
-  const webhookURL = `${resourceUrl}/webhook?workflow=${workflowRef}`;
+  const webhookURL = `${resourceUrl}/webhook?ref=${workflowRef}`;
 
   return (
     <ModalForm>
@@ -37,7 +37,7 @@ const BuildWebhookModalContent: React.FC<BuildWebhookModalContentProps> = ({ wor
               className={styles.codeSnippet}
             >
               POST{"  "}
-              {`${resourceUrl}/webhook?workflow=${workflowRef}
+              {`${resourceUrl}/webhook?ref=${workflowRef}
                 &access_token=`}
             </CodeSnippet>
           </>

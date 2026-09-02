@@ -34,8 +34,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * Covers the OIDC direct-login path's cryptographic verification (specifications/authentication.md
- * §1/§5): a real RSA-signed JWT verified via a mocked JWKS/discovery response, so these exercise
+ * Covers the OIDC direct-login path's cryptographic verification: a real RSA-signed JWT verified
+ * via a mocked JWKS/discovery response, so these exercise
  * the actual nimbus-jose-jwt signature/claims verification pipeline rather than a stub.
  */
 @ExtendWith(MockitoExtension.class)

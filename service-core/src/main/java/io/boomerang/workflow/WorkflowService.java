@@ -111,7 +111,7 @@ import tools.jackson.databind.ObjectMapper;
  * mode-matrix row keeps "the same surface, team-&gt;default" in engine mode too (J1 remap deferred
  * to E10) - in particular POST /workspace/&#123;workspace&#125;/workflow/&#123;name&#125;/submit,
  * the only HTTP route that starts a run, must work in engine mode against the single {@code system}
- * workspace (AM-10, EngineWorkspaceInterceptor).
+ * workspace (see EngineWorkspaceInterceptor).
  *
  * <p>Its two standalone-only collaborators are therefore held as ObjectProvider, not as fields:
  * workspace.WorkspaceService and schedule.ScheduleService are both
@@ -1670,6 +1670,12 @@ public class WorkflowService {
     }
     if (workflow.getDescription() != null && !workflow.getDescription().isBlank()) {
       workflowEntity.setDescription(workflow.getDescription());
+    }
+    if (workflow.getDisplayName() != null && !workflow.getDisplayName().isBlank()) {
+      workflowEntity.setDisplayName(workflow.getDisplayName());
+    }
+    if (workflow.getIcon() != null && !workflow.getIcon().isBlank()) {
+      workflowEntity.setIcon(workflow.getIcon());
     }
     if (workflow.getLabels() != null && !workflow.getLabels().isEmpty()) {
       if (replace) {

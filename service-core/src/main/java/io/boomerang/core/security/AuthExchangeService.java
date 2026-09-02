@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * The two identity sources of {@code POST /api/v2/auth/exchange} converging on the same
- * session-minting path (specifications/authentication.md §1). Standalone-only: the exchange
+ * session-minting path. Standalone-only: the exchange
  * endpoint has no meaning for an embedded engine.
  */
 @Service

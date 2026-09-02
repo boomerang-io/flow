@@ -80,10 +80,8 @@ type LoaderData = {
 // the same order/page/limit/sort search params the component below parses off `location.search`
 // - kept as parallel, not shared, logic: the loader only has `request.url` to work with, and the
 // component still needs order/sort for its own display concerns (sort-header state, pagination
-// controls) independent of the fetch. Note `query` (the search box's debounced param) is parsed
-// into the URL but was never actually forwarded to the API by the pre-loader code either - that
-// existing behaviour (search box updates the URL but doesn't filter server-side) is preserved
-// as-is rather than "fixed" as part of this conversion.
+// controls) independent of the fetch. The search box's debounced `query` param is forwarded to
+// the API as `search` (anchored case-insensitive prefix match on name/displayName).
 export async function loader({ request }: { request: Request }): Promise<LoaderData> {
   const url = new URL(request.url);
   const parsedQuery = queryString.parse(url.search, queryStringOptions);
@@ -91,8 +89,9 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
   const page = parsedQuery.page ?? DEFAULT_PAGE;
   const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
+  const search = typeof parsedQuery.query === "string" ? parsedQuery.query : undefined;
 
-  const workspacesUrlQuery = queryString.stringify({ order, page, limit, sort });
+  const workspacesUrlQuery = queryString.stringify({ order, page, limit, sort, search }, { skipEmptyString: true });
 
   try {
     const response = await serverFetch(request).get(serviceUrl.getWorkspaces({ query: workspacesUrlQuery }));

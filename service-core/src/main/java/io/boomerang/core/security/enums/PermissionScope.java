@@ -6,11 +6,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /*
- * T6-3: a permission GRANT's scope (what a {@link io.boomerang.core.security.model.
+ * A permission GRANT's scope (what a {@link io.boomerang.core.security.model.
  * ResolvedPermissions} entry is anchored to) - split out of the former overloaded {@link
  * AuthScope}, which conflated this with the token's own class. Named after ARCHIE's {@code
- * PermissionScope} (the maintainer's preferred name where the split has no churn reason to keep
- * the old name - see this track's ruling, specifications/merge-execution-plan.md T6-3).
+ * PermissionScope} (see specifications/authorization.md).
  *
  * <p>Only two values exist because only two ever have: every {@code ResolvedPermissions} the
  * codebase builds is either anchored to a single workspace ({@code principal}=workspaceId) or

@@ -57,7 +57,13 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
     if (schedules) {
       const filteredSchedules = Boolean(filterQuery)
         ? matchSorter(schedules, filterQuery, {
-            keys: ["name", "description", "type", "status", "labels.0.key", "labels.0.value"],
+            keys: [
+              "name",
+              "description",
+              "type",
+              "status",
+              (schedule) => Object.entries(schedule.labels ?? {}).map(([key, value]) => `${key}=${value}`),
+            ],
             threshold: matchSorter.rankings.CONTAINS,
           })
         : schedules;
@@ -225,13 +231,11 @@ function ScheduledListItem(props: ScheduledListItemProps) {
 
   // Determine some things for rendering
   const isActive = props.schedule.status === "active";
-  // Iterate through labels: Record<string, string>
   const labels: Array<React.ReactNode> = [];
-  //TODO figure out labels
-  Object.entries(props.schedule?.labels || {}).forEach(([index, value]) => {
+  Object.entries(props.schedule.labels ?? {}).forEach(([key, value]) => {
     labels.push(
-      <Tag key={index} style={{ marginLeft: 0 }} type="teal">
-        {/* ${value} */}
+      <Tag key={key} style={{ marginLeft: 0 }} type="teal">
+        {`${key}=${value}`}
       </Tag>,
     );
   });

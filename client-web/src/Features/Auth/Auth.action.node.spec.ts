@@ -1,8 +1,8 @@
 // @vitest-environment node
 //
-// The server-side OIDC sign-in flow (specifications/authentication.md - maintainer ruling
-// 2026-08-31: the PKCE dance moved off the browser into route action/loader halves on the SSR
-// server, remix-auth v4 + remix-auth-oauth2 v3 underneath). These run in a REAL Node environment
+// The server-side OIDC sign-in flow (the PKCE dance runs in route action/loader halves on the
+// SSR server, not in the browser, with remix-auth v4 + remix-auth-oauth2 v3 underneath). These
+// run in a REAL Node environment
 // because that is where the flow now executes: the browser only ever sees the authorize redirect
 // and the final Set-Cookie relay - the id_token and code_verifier never leave this process.
 //

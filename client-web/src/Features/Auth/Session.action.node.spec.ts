@@ -1,6 +1,6 @@
 // @vitest-environment node
 //
-// The session-side SSR actions (specifications/authentication.md - BFF slice, 2026-09-01): the
+// The session-side SSR actions: the
 // browser no longer calls POST /api/v2/auth/exchange or POST /api/v2/auth/logout itself. Both
 // moved into route actions on the SSR server (session.server.ts), because both hinge on the same
 // mechanic the sign-in flow already proved (oidc.server.ts): the Java response's Set-Cookie

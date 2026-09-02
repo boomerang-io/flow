@@ -57,7 +57,7 @@ type QueryArg = {
 };
 
 export const serviceUrl = {
-  // Sign-in flow (specifications/authentication.md). getAuthConfig is unauthenticated - the
+  // Sign-in flow. getAuthConfig is unauthenticated - the
   // signed-out page reads it to decide which sign-in surface (if any) to offer. postAuthExchange
   // mints the httpOnly bfs_ session cookie (empty body = proxy-forwarded identity; {idToken,
   // nonce} = direct OIDC login). postAuthLogout revokes the session and clears the cookie.
@@ -84,6 +84,7 @@ export const serviceUrl = {
   getTokenCatalog: ({ query }) => `${BASE_URL}/token/catalog${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
+  getUserWorkspaces: ({ userId }) => `${BASE_URL}/user/${userId}/workspaces`,
   deleteUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserProfile: () => `${BASE_URL}/profile`,
   getIntegrations: ({ workspace }: WorkspaceArg) => `${BASE_URL}/integration${workspace ? "?workspace=" + workspace : ""}`,

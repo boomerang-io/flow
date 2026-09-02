@@ -24,10 +24,10 @@ import axios, { type AxiosInstance } from "axios";
 const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
 
 /*
- * specifications/authentication.md: `POST /api/v2/auth/exchange` mints an httpOnly, Secure,
- * SameSite=Lax session cookie carrying an opaque `bfs_<uuid>`, which `AuthenticationFilter`
- * reads. VERIFIED end-to-end (2026-08-27, secured compose stack): an SSR fetch of /home carrying
- * only the session Cookie header returns the authenticated render.
+ * `POST /api/v2/auth/exchange` mints an httpOnly, Secure, SameSite=Lax session cookie carrying
+ * an opaque `bfs_<uuid>`, which `AuthenticationFilter` reads. Verified end-to-end against a
+ * secured compose stack: an SSR fetch of /home carrying only the session Cookie header returns
+ * the authenticated render.
  * The browser's axios instance relies on `withCredentials: true` (see servicesConfig.ts) to send
  * cookies automatically; that browser cookie jar doesn't exist in Node, so the incoming request's
  * `Cookie` header is read off the *inbound* SSR `Request` and forwarded explicitly on the

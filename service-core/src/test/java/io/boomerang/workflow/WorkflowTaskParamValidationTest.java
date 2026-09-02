@@ -154,6 +154,26 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void updatePreservesDisplayNameAndIcon() {
+    String taskSlug = declaredParamTask("param-validation-display", "greeting");
+    Workflow workflow =
+        workflowWithTaskParams(
+            "param-validation-display-wf", taskSlug, new RunParam("greeting", "hi"));
+    workflowService.create(WORKSPACE, workflow);
+
+    Workflow update =
+        workflowWithTaskParams(
+            "param-validation-display-wf", taskSlug, new RunParam("greeting", "hi"));
+    update.setDisplayName("Renamed Workflow");
+    update.setIcon("bot");
+
+    Workflow applied = workflowService.apply(WORKSPACE, update, false);
+
+    assertEquals("Renamed Workflow", applied.getDisplayName());
+    assertEquals("bot", applied.getIcon());
+  }
+
+  @Test
   void aNodeParamThatCaseVariesFromTheDeclaredNameIsAccepted() {
     String taskSlug = declaredParamTask("param-validation-case", "githubToken");
     Workflow workflow =

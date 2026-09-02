@@ -19,6 +19,7 @@ public class Workspace {
   private String name;
   private String displayName;
   private Date creationDate = new Date();
+  private WorkspaceType type;
   private WorkspaceStatus status = WorkspaceStatus.active;
   private String externalRef;
   private Map<String, String> labels = new HashMap<>();
@@ -65,6 +66,14 @@ public class Workspace {
 
   public void setCreationDate(Date creationDate) {
     this.creationDate = creationDate;
+  }
+
+  public WorkspaceType getType() {
+    return type;
+  }
+
+  public void setType(WorkspaceType type) {
+    this.type = type;
   }
 
   public WorkspaceStatus getStatus() {
