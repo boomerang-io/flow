@@ -712,11 +712,10 @@ public class WorkflowService {
   }
 
   /*
-   * Delete the Workflows, WorkflowRuns, and TaskRuns by calling Engine.
-   *
-   * Engine takes care of deleting Triggers & Workspaces
-   *
-   * We have to delete the Actions, Schedules, Tokens, and Relationships
+   * Scoped delete: tombstones the Workflow, then cleans up what only this layer knows about -
+   * Schedules, the principal's Tokens, open Actions, and the relationship node. The documents
+   * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the watcher's
+   * prune sweep once in-flight runs finalise.
    */
   public void delete(String team, String name) {
     if (name == null || name.isBlank()) {
@@ -731,7 +730,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      // Deletes the Workflow and associated WorkflowRuns, and TaskRuns
+      // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
       // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
       // schedules to delete.
@@ -1877,7 +1876,7 @@ public class WorkflowService {
   /*
    * Tombstones the Workflow: a single status change to deleted, never a cascade. Submit already
    * rejects a non-active Workflow, so new runs stop immediately; the watcher winds down in-flight
-   * runs of a deleted Workflow, and a retention sweep prunes once runs finalise. Nothing is
+   * runs of a deleted Workflow, and the prune sweep hard-deletes once runs finalise. Nothing is
    * destroyed here, so running work is never orphaned.
    */
   public void delete(String workflowId) {

@@ -59,22 +59,22 @@ child with `start=true`, so the child follows the same rule (`engine/TaskExecuti
 
 ## The watcher sweeps
 
-`WorkflowWatcher` runs on every instance, once at boot and then every `flow.watcher.interval-ms` (default 30 s) with a random start delay; `flow.watcher.enabled=false` disables it (`engine/WorkflowWatcher.java:109-125`).
-Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolated so one failure cannot stop the rest (`:129-138`).
+`WorkflowWatcher` runs on every instance, once at boot and then every `flow.watcher.interval-ms` (default 30 s) with a random start delay; `flow.watcher.enabled=false` disables it (`engine/WorkflowWatcher.java:118-134`).
+Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolated so one failure cannot stop the rest (`:138-148`).
 
 | Sweep (`WorkflowWatcher.java`) | Selects | Does |
 | --- | --- | --- |
-| `reapTaskTimeouts` `:151` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:445`) | requeues a `template`/`custom`/`script`/`generic` task with attempts < 3 (`tryRequeue` `:548`); otherwise marks it `timedout` (`tryTimeout` `:485`) and ends it |
-| `reapWorkflowTimeouts` `:181` | running, unpaused workflow runs past `timeoutAt` (`findTimedOut` `:256`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:870`) |
-| `recoverStalledRuns` `:194` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
-| `finalizeWorkspacelessRuns` `:214` | completed runs with no workspaces (`findFinalizableWithoutWorkspaces` `:298`) | `tryFinalize` — no dispatcher teardown is needed |
-| `resumeDueWaitingTasks` `:232` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:771`) |
-| `cancelDeletedWorkflowRuns` `:248` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
-| `pruneDeletedWorkflows` `:269` | — | a no-op until `flow.watcher.retention.enabled=true` (`:85-86`); the retention policy is undecided |
-| `reapRunsWithMissingRevision` `:282` | in-flight runs whose `workflowRevisionRef` no longer resolves | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest |
-| `reapClaimsFromGoneDispatchers` `:326` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:69`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
+| `reapTaskTimeouts` `:161` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:445`) | requeues a `template`/`custom`/`script`/`generic` task with attempts < 3 (`tryRequeue` `:548`); otherwise marks it `timedout` (`tryTimeout` `:485`) and ends it |
+| `reapWorkflowTimeouts` `:191` | running, unpaused workflow runs past `timeoutAt` (`findTimedOut` `:256`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:870`) |
+| `recoverStalledRuns` `:204` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
+| `finalizeWorkspacelessRuns` `:224` | completed runs with no workspaces (`findFinalizableWithoutWorkspaces` `:298`) | `tryFinalize` — no dispatcher teardown is needed |
+| `resumeDueWaitingTasks` `:242` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:771`) |
+| `cancelDeletedWorkflowRuns` `:259` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
+| `pruneDeletedWorkflows` `:284` | deleted workflows with no in-flight runs | hard-deletes the workflow's task runs, workflow runs, revisions, leftover actions, schedules and relationship node, then the workflow document; audit records are kept |
+| `reapRunsWithMissingRevision` `:316` | in-flight runs whose `workflowRevisionRef` no longer resolves | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest |
+| `reapClaimsFromGoneDispatchers` `:360` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:73`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
 | `reapExpiredLeases` | claimed task runs whose `claim.leaseExpiresAt` has elapsed (`TaskRunService.findLeaseExpired`) | the same requeue-or-abandon treatment, `statusReason=LeaseExpired` |
-| `closeStrayActions` `:378` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
+| `closeStrayActions` `:437` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
 
 ## Timeouts and crash recovery
 

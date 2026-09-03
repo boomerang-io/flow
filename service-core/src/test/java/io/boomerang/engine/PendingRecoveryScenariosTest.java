@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.workflow.WorkflowRunService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -195,7 +196,7 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void deletedWorkflowIsTombstonedAndRunsCancelled() {
+  void deletedWorkflowIsTombstonedRunsCancelledThenPruned() {
     String workflowId = createdLifecycleWorkflow("tombstone");
     String wfRunId =
         workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
@@ -222,9 +223,18 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
                     RunStatus.cancelled,
                     workflowRunRepository.findById(wfRunId).orElseThrow().getStatus()));
 
-    // Pruning ships disabled, so the workflow document survives (never hard-deleted).
+    // Once the runs have finalised, the prune sweep removes the workflow's documents;
+    // the audit trail is the record that outlives the deletion.
+    awaitEngine("the cancelled run to leave the in-flight phases")
+        .untilAsserted(
+            () ->
+                assertFalse(
+                    workflowRunRepository.existsByWorkflowRefAndPhaseIn(
+                        workflowId,
+                        List.of(RunPhase.pending, RunPhase.queued, RunPhase.running))));
     watcher.pruneDeletedWorkflows();
-    assertTrue(workflowRepository.findById(workflowId).isPresent());
+    assertFalse(workflowRepository.existsById(workflowId));
+    assertFalse(workflowRunRepository.existsById(wfRunId));
   }
 
   private String submittedAndStartedRun(String name) {
