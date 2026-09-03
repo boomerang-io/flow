@@ -136,9 +136,9 @@ The browser never calls `/api/*`; every request is made server-side by a React R
 the inbound session `Cookie`, and rewrites `/api/...` to `/api/v2/...`
 (`client-web/src/Config/serverFetch.ts:24,64-72`). Binary or streamed reads (task YAML, run logs,
 workflow export) go through the webapp's own `/res/*` resource routes
-(`client-web/src/Config/resourceRoutes.ts:19-39`). `CORE_SERVICE_ENV_URL`/`PRODUCT_SERVICE_ENV_URL`
-(default `/api`, injected into `window._SERVER_DATA` in production) are used only for URLs the UI
-displays, such as the copyable webhook trigger URL (`client-web/src/Config/servicesConfig.ts:14-29`).
+(`client-web/src/Config/resourceRoutes.ts:19-39`). `PRODUCT_SERVICE_ENV_URL`
+(default `/api`, injected into `window._SERVER_DATA` in production) is used only for URLs the UI
+displays, such as the copyable webhook trigger URL (`client-web/src/Config/servicesConfig.ts:18-24`).
 In `docker-compose.yml` the webapp's SSR server on `:3000` is the single browser-facing origin and
 `service-core` on `:7700` stays reachable for integrations, the dispatcher and direct API use
 (`docker-compose.yml:3-8,166-176`); there is no separate gateway.
