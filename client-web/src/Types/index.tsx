@@ -29,7 +29,6 @@ declare global {
     _SERVER_DATA: {
       APP_ROOT: string;
       CORE_ENV_URL: string;
-      CORE_SERVICE_ENV_URL: string;
       EMBEDDED_MODE: string;
       PRODUCT_ENV_URL: string;
       PRODUCT_SERVICE_ENV_URL: string;

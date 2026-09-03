@@ -179,7 +179,6 @@ services:
       # few places that still surface an API URL (the copyable webhook/event trigger URLs)
       # should render the deployment's own origin.
       PRODUCT_SERVICE_ENV_URL: /api/v2
-      CORE_SERVICE_ENV_URL: /api/v2
       # Server-side only (route loaders read it directly via process.env - Config/serverFetch.ts
       # - it never reaches the browser). Direct container-to-container address on this compose
       # network. NOTE: the
