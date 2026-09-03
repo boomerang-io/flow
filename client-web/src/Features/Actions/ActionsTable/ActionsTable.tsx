@@ -149,7 +149,7 @@ function ActionsTable(props: ActionsTableProps) {
           className={cx(`cds--skeleton`, `cds--data-table`, styles.tableSkeleton)}
           rowCount={5}
           columnCount={headerList.length}
-          headers={headerList.map((header) => header.header)}
+          headers={headerList}
         />
       </div>
     );

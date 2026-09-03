@@ -8,6 +8,7 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
@@ -38,6 +39,8 @@ public class WorkflowExecutionService {
   @Autowired private WorkflowRunRepository workflowRunRepository;
 
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
+
+  @Autowired private TaskRunRepository taskRunRepository;
 
   @Autowired private DAGUtility dagUtility;
 
@@ -269,10 +272,15 @@ public class WorkflowExecutionService {
   }
 
   private void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
-    // Cancel Running & Queued Tasks
-    Optional<WorkflowRevisionEntity> wfRevisionEntity =
-        workflowRevisionRepository.findById(wfRunEntity.getWorkflowRevisionRef());
-    List<TaskRunEntity> tasks = dagUtility.createTaskList(wfRevisionEntity.get(), wfRunEntity);
+    // Cancel Running & Queued Tasks. The run's TaskRuns are all materialised at start, so the
+    // stored set is the graph; the revision is only needed to materialise a task that does not
+    // exist yet. When the revision is gone (deleted workflow), wind down what is stored rather
+    // than throw after the run is already terminal and orphan its in-flight TaskRuns.
+    List<TaskRunEntity> tasks =
+        workflowRevisionRepository
+            .findById(wfRunEntity.getWorkflowRevisionRef())
+            .map(revision -> dagUtility.createTaskList(revision, wfRunEntity))
+            .orElseGet(() -> taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId()));
 
     // Running and queued (claimed but not yet started) tasks get the same treatment: end() ends
     // up completing them as cancelled through the completion Compare-And-Set, which is

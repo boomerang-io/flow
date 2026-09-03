@@ -27,4 +27,12 @@ public class TaskRunEndRequest {
    * ResultsTooLarge, DispatchError, DispatcherGone, LeaseExpired.
    */
   private String statusReason;
+
+  /**
+   * The registered id of the dispatcher making the request - the value the engine wrote to {@code
+   * claim.by} when it claimed the TaskRun. The engine fences on it: a request from a dispatcher
+   * that no longer holds the claim is rejected instead of overwriting the current claimant's
+   * record. Absent on the legacy protocol, which is accepted unfenced.
+   */
+  private String dispatcherRef;
 }

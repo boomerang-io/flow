@@ -91,7 +91,7 @@ and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 | `boomerangio/flow-service-core` | `service-core/target/service-core.jar` | `eclipse-temurin:25-jre-alpine`, port 7700 (`application.properties:1`) | `build-core`/`deploy-core` (`:18,:49`) |
 | `boomerangio/flow-service-dispatcher` | `service-dispatcher/target/service-dispatcher.jar` | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `build-dispatcher`/`deploy-agent` (`:100,:131`) |
 | `boomerangio/flow-service-loader` | `service-loader/target/service-loader.jar` | same base, runs to completion | `build-loader`/`deploy-loader` (`:180,:206`) |
-| `boomerangio/flow-client-web` | `client-web/build` (client + server bundles) | `node:22-alpine`, port 3000 | `build-webapp`/`deploy-webapp` (`:256,:298`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:22-alpine`, port 3000 | `deploy-webapp` (`:256`) |
 
 The dispatcher reaches core at `flow.engine.service.host` and authenticates with `flow.engine.dispatcher.token`
 (`service-dispatcher/src/main/resources/application.properties:64-77`); core runs the dispatcher's `/api/v1/**`

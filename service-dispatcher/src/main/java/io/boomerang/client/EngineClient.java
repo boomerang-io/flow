@@ -94,12 +94,16 @@ public class EngineClient {
     }
   }
 
+  // Start and end carry this dispatcher's registered id so the engine can fence a request from a
+  // dispatcher whose claim has since been superseded (claim.by no longer matches).
   public void startTask(String taskRunId) {
     try {
       String url = startTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
+      TaskRunStartRequest startRequest = new TaskRunStartRequest();
+      startRequest.setDispatcherRef(dispatcherId);
+      HttpEntity<TaskRunStartRequest> entity = new HttpEntity<>(startRequest, headers);
       ResponseEntity<Void> response =
           restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
 
@@ -114,6 +118,7 @@ public class EngineClient {
       String url = endTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
+      endRequest.setDispatcherRef(dispatcherId);
       HttpEntity<TaskRunEndRequest> entity = new HttpEntity<TaskRunEndRequest>(endRequest, headers);
       ResponseEntity<Void> response =
           restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);

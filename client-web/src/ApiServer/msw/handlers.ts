@@ -137,25 +137,11 @@ export const handlers: HttpHandler[] = [
   }),
 
   /**
-   * Workspace Properties
+   * Workspace Parameters
    *
-   * Divergence: real backend has no per-property PATCH/DELETE-by-configurationId sub-route (see
-   * servicesConfig.ts's TODO on resourceWorkspaceParameters) - updates go through the workspace
-   * PATCH below and per-name deletes through workspace.deleteWorkspaceParameter. Mirage mocked a
-   * `configurationId` path segment that the underlying serviceUrl builder silently drops, so
-   * those two handlers never actually matched a real-shaped request; not ported.
+   * There is no list/create/update sub-route: the list is read off the workspace record and
+   * create/update go through the workspace PATCH below. Only the per-name delete is its own route.
    */
-  http.get(serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace" }), ({ params }) => {
-    const workspace = findWorkspace(pathParam(params.workspace));
-    return HttpResponse.json(workspace?.parameters ?? []);
-  }),
-  http.post(serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace" }), async ({ params, request }) => {
-    const workspace = findWorkspace(pathParam(params.workspace));
-    if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
-    const body = await jsonBody(request);
-    workspace.parameters = [...(workspace.parameters ?? []), { id: crypto.randomUUID(), ...body }];
-    return HttpResponse.json(workspace.parameters);
-  }),
   http.delete(serviceUrl.workspace.deleteWorkspaceParameter({ workspace: ":workspace", name: ":name" }), ({ params }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
@@ -270,10 +256,6 @@ export const handlers: HttpHandler[] = [
     serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace: ":workspace", workflow: ":workflow" }),
     () => HttpResponse.json(fixtures.workflowExecution),
   ),
-  // The real endpoint has no dedicated workflow-level validate-name route (see
-  // servicesConfig.ts's TODO on workspace.workflow.postValidateName) - Mirage never mocked one
-  // either, so this stays unmocked here too.
-
   /**
    * Workflow Runs
    */
@@ -381,12 +363,6 @@ export const handlers: HttpHandler[] = [
     const removedIds = removed.map((member) => member.id);
     const members = (workspace.members ?? []) as unknown as Array<{ id?: string }>;
     workspace.members = members.filter((member) => !removedIds.includes(member.id));
-    return HttpResponse.json(workspace);
-  }),
-  http.patch(serviceUrl.getManageWorkspaceLabels({ workspace: ":workspace" }), async ({ params, request }) => {
-    const workspace = findWorkspace(pathParam(params.workspace));
-    if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
-    workspace.labels = await jsonBody(request);
     return HttpResponse.json(workspace);
   }),
   http.post(serviceUrl.getManageWorkspacesCreate(), async ({ request }) => {

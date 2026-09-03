@@ -33,10 +33,8 @@ import ParametersTable from "../ParametersTable";
 // `refetchOnWindowFocus: false` in app/root.tsx removed the last accidental refresh).
 //
 // It reads the workspace record - the same GET app/routes/workspaceLayout.tsx's loader makes -
-// rather than
-// `serviceUrl.workspace.resourceWorkspaceParameters`, because there is no dedicated
-// parameter list/create route on the API (see that builder's TODO in Config/servicesConfig.ts);
-// parameters are carried on the workspace and merged in through patchWorkspace.
+// because there is no dedicated parameter list/create route on the API: parameters are carried
+// on the workspace and merged in through PATCH /workspace/{workspace} (serviceUrl.resourceWorkspace).
 type LoaderData = {
   parameters: DataDrivenInput[];
   errorLoading: boolean;

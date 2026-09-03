@@ -66,7 +66,8 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
         platformName={platformName}
         productName={appName}
         skipToContentProps={skipToContentProps}
-        user={userData}
+        // The shell's platform `User` requires a `teams` array; FlowUser only carries it on the profile response.
+        user={{ ...userData, teams: userData.teams ?? [] }}
         supportMenuItems={[
           <HeaderMenuItem type="button" onClick={handleOnTutorialClick} text="Tutorial" />,
           <HeaderMenuItem type="link" kind="external" href="https://www.useboomerang.io/flow" text="Docs" />,

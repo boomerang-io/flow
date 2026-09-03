@@ -422,16 +422,14 @@ class V3DumpMigrationTest {
     assertThat(collection("tasks").countDocuments()).isGreaterThan(0);
     assertThat(collection("task_revisions").countDocuments()).isGreaterThan(0);
 
-    // _0023__SeedTemplates itself never inserts its two starter templates on a v3 install (still
-    // v3-gated - no FRESH-install seed content lands here) - but workflow_templates is NOT empty:
     // _0010__V3ExtractWorkflowTemplates has, by this point in the same migration run, already
-    // extracted the real v3 scope=template workflows into this collection (asserted in detail in
-    // assertTemplatesExtracted() below) - coincidentally landing on the SAME two _id values
-    // _0023's seed would have used (see that unit's collision-guard javadoc), which is exactly
-    // why this count is 2 and not 0. integration_templates has no v3->v5 migration counterpart at
-    // all, so it stays at 0 precisely BECAUSE _0023 keeps its v3 skip guard.
+    // extracted the real v3 scope=template workflows into workflow_templates (asserted in detail
+    // in assertTemplatesExtracted() below) under the SAME two _id values _0023__SeedTemplates
+    // carries, so the seed's guard makes its two workflow templates a no-op - the count is 2, the
+    // migrated content, not the seed. integration_templates has no v3 counterpart, so the seed
+    // gives the upgraded install the two out-of-the-box integration templates.
     assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
-    assertThat(collection("integration_templates").countDocuments()).isZero();
+    assertThat(collection("integration_templates").countDocuments()).isEqualTo(2);
 
     // _0002/_0003/_0020 are NOT v3-skipped - the graph root, system workspace, and roles are
     // seeded exactly as on a fresh/v4 install, same as LoaderMigrationTest proves.
