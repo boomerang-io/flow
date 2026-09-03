@@ -5,6 +5,9 @@ import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.model.TokenCreateResponse;
 import io.boomerang.core.model.TokenPermissionCatalog;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.audit.Audited;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -40,6 +43,10 @@ public class TokenControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.WRITE)
+  @Audited(
+      action = AuditAction.TOKEN_CREATE,
+      resourceType = "token",
+      resourceId = "#result?.getId()")
   @Operation(summary = "Create Token")
   public TokenCreateResponse createToken(@RequestBody TokenCreateRequest request) {
     return tokenService.create(request);
@@ -139,6 +146,11 @@ public class TokenControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.DELETE)
+  @Audited(
+      action = AuditAction.TOKEN_REVOKE,
+      resourceType = "token",
+      resourceId = "#id",
+      level = AuditLevel.DESTRUCTIVE)
   @Operation(summary = "Delete Token")
   public ResponseEntity<?> deleteToken(
       @Parameter(name = "id", description = "ID of the Token", required = true) @PathVariable
