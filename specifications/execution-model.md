@@ -129,7 +129,11 @@ call at any time; the watcher and resume both use it. Transition handlers follow
 
 ## Outbound events: the transactional outbox
 
-CAS winners publish an in-process `TaskRunTransition`/`WorkflowRunTransition` event (`engine/model/*.java`). When
+CAS winners publish an in-process `TaskRunTransition`/`WorkflowRunTransition` event (`engine/model/*.java`).
+`WorkflowRunAuditBridge` consumes the WorkflowRun stream (`core/audit/WorkflowRunAuditBridge.java`): the run's first
+status change records a CREATE audit event and reaching the completed phase records an UPDATE event carrying the
+terminal status and duration — the events the monthly run quota and the workspace insights read. TaskRun transitions
+are not audited (volume; no consumer reads them). Emission is best-effort and never fails the transition. When
 `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:38`),
 `CloudEventsBridge` inserts one `events_outbox` row per externally visible status change (`event/CloudEventsBridge.java:32-76`)
 and `OutboxDispatcher` drains it every 5 s on every instance, delivering at least once, marking rows `sent` by CAS,

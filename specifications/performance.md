@@ -109,6 +109,19 @@ and enforcement additionally requires the `features.workspaceQuotas` setting (`w
 | `max.workflow.storage`, `max.workflowrun.storage` | Run submit (workspace size ≤ quota, else `QUOTA_EXCEEDED`) | `WorkflowService.java:445-491,921-950` |
 | `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout | `WorkflowService.java:224-234` |
 
+The two run counters come from different sources (decision 0071). Concurrent = the live count of
+non-terminal runs (`notstarted`/`ready`/`running`/`waiting`) over the workspace's Workflows
+(`workflow/WorkflowRunService.countForQuota`, the `workflow_ref_status` index) — what is running
+now, which deletion legitimately reduces. Monthly = `max(audit count, live count)`: the month's
+`{workspaceId, action=CREATE, resourceType=workflowrun}` audit events
+(`core/audit/AuditQueryService.countRunsCreated`, the `workspace_time` index) versus the month's
+live run documents (the `workflow_ref_creation` index). The max is deliberate — the audit write is
+async best-effort, so a just-admitted run may not be audited yet (the live count covers that
+race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
+Submit re-checks the same counters after admitting the run, so a burst cannot over-fill a limit
+(`WorkflowService.guardQuotasAfterAdmission`). Audit retention is floored at 60 days so the month
+window always holds (`core/audit/AuditRetentionService.java`).
+
 ## Payload caps
 
 Two byte caps bound what every executor must carry (`application.properties:149-155`): resolved params
