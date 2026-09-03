@@ -55,6 +55,7 @@ async function api(method, path, body) {
       method,
       headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json", Accept: "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000), // a hung socket must not defeat --deadline
     });
     status = res.status;
     text = await res.text();
