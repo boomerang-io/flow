@@ -80,6 +80,22 @@ public class AuditQueryService {
     return mongoTemplate.find(query, AuditEventEntity.class);
   }
 
+  /**
+   * Count run-creation events for one workspace in a time window — the monthly quota counter in
+   * {@code WorkspaceService.setCurrentQuotas}. Served by the {@code workspace_time} index.
+   */
+  public long countRunsCreated(String workspaceId, Date from, Date to) {
+    Query query =
+        new Query(
+            new Criteria()
+                .andOperator(
+                    Criteria.where("workspaceId").is(workspaceId),
+                    Criteria.where("action").is(AuditAction.CREATE.name()),
+                    Criteria.where("resourceType").is("workflowrun"),
+                    Criteria.where("time").gte(from).lt(to)));
+    return mongoTemplate.count(query, AuditEventEntity.class);
+  }
+
   private static Optional<Criteria> timeRange(Optional<Date> from, Optional<Date> to) {
     if (from.isEmpty() && to.isEmpty()) {
       return Optional.empty();
