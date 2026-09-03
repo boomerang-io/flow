@@ -57,7 +57,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, index, settin
         }}
         inputProps={isOperator ? { readOnly: true } : {}}
       >
-        {({ inputs, formikProps }: { inputs: DataDrivenInput[]; formikProps: FormikProps<any> }) => {
+        {({ inputs, formikProps }: { inputs: React.ReactNode[]; formikProps: FormikProps<any> }) => {
           return (
             <>
               {!isOperator && (

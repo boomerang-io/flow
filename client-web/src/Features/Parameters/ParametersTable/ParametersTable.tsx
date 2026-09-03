@@ -83,9 +83,9 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
         return <p className={styles.tableTextarea}>{determineValue}</p>;
       case "secured":
         return parameter && parameter.type === InputType.Password ? (
-          <Checkmark size={32} alt="secured" className={`${styles.tableSecured} ${styles.secured}`} />
+          <Checkmark size={32} aria-label="secured" className={`${styles.tableSecured} ${styles.secured}`} />
         ) : (
-          <Close size={32} alt="unsecured" className={`${styles.tableSecured} ${styles.unsecured}`} />
+          <Close size={32} aria-label="unsecured" className={`${styles.tableSecured} ${styles.unsecured}`} />
         );
       case "actions":
         return (

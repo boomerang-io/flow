@@ -67,7 +67,8 @@ export interface ResolvedPermissions {
   actions: string[];
 }
 
-export interface FlowUser extends User {
+// `teams` is redeclared below with the Flow shape (the platform type has `teams: any[]`, required).
+export interface FlowUser extends Omit<User, "teams"> {
   id: string;
   email: string;
   name: string;

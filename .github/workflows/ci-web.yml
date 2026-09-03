@@ -17,9 +17,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # The webapp test suite is stale against its components - 36 of 37 files fail on assertions and
-  # snapshots that predate this pipeline. It runs for visibility but cannot gate merges until it is
-  # repaired; make it blocking again at that point.
+  # `test` and `typecheck` report without gating: the suite is green and the type errors are
+  # counted, but the maintainer keeps merges gated on `build` alone until the remaining type
+  # errors (Carbon/vendor typing gaps, see `pnpm run typecheck`) are settled.
   test:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -43,6 +43,37 @@ jobs:
       - name: Test
         working-directory: client-web
         run: pnpm test
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  typecheck:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client-web/package.json
+          run_install: false
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: client-web/.nvmrc
+          cache: 'pnpm'
+          cache-dependency-path: client-web/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: client-web
+        run: pnpm install
+      - name: Typecheck
+        working-directory: client-web
+        run: pnpm run typecheck
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
