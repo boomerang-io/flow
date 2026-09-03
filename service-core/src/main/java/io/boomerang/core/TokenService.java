@@ -15,6 +15,7 @@ import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -77,6 +78,7 @@ public class TokenService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final IdentityService identityService;
+  private final TokenLookupCache lookupCache;
 
   public TokenService(
       TokenRepository tokenRepository,
@@ -84,13 +86,15 @@ public class TokenService {
       RoleRepository roleRepository,
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
-      IdentityService identityService) {
+      IdentityService identityService,
+      TokenLookupCache lookupCache) {
     this.tokenRepository = tokenRepository;
     this.userService = userService;
     this.roleRepository = roleRepository;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.identityService = identityService;
+    this.lookupCache = lookupCache;
   }
 
   /*
@@ -392,19 +396,30 @@ public class TokenService {
   }
 
   public boolean validate(String token) {
-    LOGGER.debug("Token Validation - token: " + token);
-    String hash = hashString(token);
-    LOGGER.debug("Token Validation - hash: " + hash);
-    Optional<TokenEntity> tokenEntityOptional = this.tokenRepository.findByToken(hash);
-    if (tokenEntityOptional.isPresent()) {
-      TokenEntity tokenEntity = tokenEntityOptional.get();
-      if (isValid(tokenEntity.getExpirationDate())) {
-        LOGGER.debug("Token Validation - valid");
-        return true;
+    boolean valid = lookup(token).filter(te -> isValid(te.getExpirationDate())).isPresent();
+    LOGGER.debug("Token Validation - " + (valid ? "valid" : "not valid"));
+    return valid;
+  }
+
+  /**
+   * Resolve a raw token to its stored entity through {@link TokenLookupCache}: a hit is served
+   * from memory (evicted first if it has since expired, but still returned so callers see the same
+   * entity they would have read), a miss goes to the repository and is cached only when present
+   * and unexpired. Every read path that starts from a raw token goes through here, so {@code
+   * validate} followed by {@code get} costs one repository read.
+   */
+  private Optional<TokenEntity> lookup(String rawToken) {
+    String hash = hashString(rawToken);
+    TokenEntity cached = lookupCache.get(hash);
+    if (cached != null) {
+      if (!isValid(cached.getExpirationDate())) {
+        lookupCache.evict(hash);
       }
+      return Optional.of(cached);
     }
-    LOGGER.debug("Token Validation - not valid");
-    return false;
+    Optional<TokenEntity> found = tokenRepository.findByToken(hash);
+    found.filter(te -> isValid(te.getExpirationDate())).ifPresent(te -> lookupCache.put(hash, te));
+    return found;
   }
 
   /**
@@ -416,8 +431,7 @@ public class TokenService {
    * before reaching this (Mongo) lookup.
    */
   public Optional<TokenEntity> validateActorToken(String rawToken) {
-    return tokenRepository
-        .findByToken(hashString(rawToken))
+    return lookup(rawToken)
         .filter(te -> isValid(te.getExpirationDate()))
         .filter(te -> te.getActorKind() != null)
         .filter(te -> AuthScope.global.equals(te.getType()));
@@ -442,17 +456,19 @@ public class TokenService {
   }
 
   public boolean delete(String id) {
-    Optional<TokenEntity> tokenEntityOptional = this.tokenRepository.findById(id);
-    if (tokenEntityOptional.isPresent()) {
-      TokenEntity tokenEntity = tokenEntityOptional.get();
-      this.tokenRepository.delete(tokenEntity);
-      return true;
+    TokenEntity tokenEntity = this.tokenRepository.findById(id).orElse(null);
+    if (tokenEntity == null) {
+      return false;
     }
-    return false;
+    this.tokenRepository.delete(tokenEntity);
+    lookupCache.evict(tokenEntity.getToken());
+    return true;
   }
 
+  /** Revoke every token of {@code principal}; the hashes are not in hand, so the whole cache goes. */
   public void deleteAllForPrincipal(String principal) {
     this.tokenRepository.deleteAllByPrincipal(principal);
+    lookupCache.evictAll();
   }
 
   public Page<Token> query(
@@ -522,16 +538,14 @@ public class TokenService {
   }
 
   public Token get(String token) {
-    String hash = hashString(token);
-    Optional<TokenEntity> tokenEntityOptional = this.tokenRepository.findByToken(hash);
-    if (tokenEntityOptional.isPresent()) {
-      TokenEntity tokenEntity = tokenEntityOptional.get();
-      Token response = new Token();
-      response.setValid(isValid(tokenEntity.getExpirationDate()));
-      BeanUtils.copyProperties(tokenEntity, response);
-      return response;
+    TokenEntity tokenEntity = lookup(token).orElse(null);
+    if (tokenEntity == null) {
+      return null;
     }
-    return null;
+    Token response = new Token();
+    response.setValid(isValid(tokenEntity.getExpirationDate()));
+    BeanUtils.copyProperties(tokenEntity, response);
+    return response;
   }
 
   /*
