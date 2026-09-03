@@ -16,10 +16,12 @@ import io.boomerang.core.model.TokenCreateResponse;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
+import java.time.Duration;
 import java.util.List;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +61,8 @@ class TokenServiceTest {
             roleRepository,
             relationshipService,
             mongoTemplate,
-            identityService);
+            identityService,
+            new TokenLookupCache(true, Duration.ofSeconds(60), 10_000));
   }
 
   // =====================================================================================
