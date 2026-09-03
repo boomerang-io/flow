@@ -326,6 +326,7 @@ class LoaderMigrationTest {
     assertWorkspaceFeatureFlagSettingsKeysRenamed();
     assertDefinitionIndexes();
     assertRelationshipAndAuditIndexes();
+    assertAuditRestructured();
     assertSweepIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
@@ -486,12 +487,12 @@ class LoaderMigrationTest {
   }
 
   private void assertSettingsSeeded() {
-    assertThat(collection("settings").countDocuments()).isEqualTo(8);
+    assertThat(collection("settings").countDocuments()).isEqualTo(9);
     List<String> keys =
         collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(keys)
         .containsExactlyInAnyOrder(
-            "auth", "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
+            "audit", "auth", "customizations", "features", "integration", "task", "workspaces", "workflow", "workflowrun");
 
     // The trusted OIDC issuer configuration - seeded empty.
     Document auth = collection("settings").find(Filters.eq("key", "auth")).first();
@@ -611,7 +612,7 @@ class LoaderMigrationTest {
         .isZero();
 
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(8);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
     assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
@@ -626,7 +627,7 @@ class LoaderMigrationTest {
     fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(8);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
     assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
@@ -726,10 +727,10 @@ class LoaderMigrationTest {
     // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 v3-era documents in place - same
     // count, but the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5,
     // ungated) then inserts nothing new for those 7: its OR-guard matches every one of them by
-    // _id. The "auth" document has no v3 predecessor to match,
-    // so _0021 inserts it fresh - bringing the total to 8.
+    // _id. The "auth" and "audit" documents have no v3 predecessors to match,
+    // so _0021 inserts them fresh - bringing the total to 9.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
-    assertThat(settings.countDocuments()).isEqualTo(8);
+    assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(
             settings
                 .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
@@ -822,7 +823,7 @@ class LoaderMigrationTest {
     // reconciled on the first run already exists).
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(settings.countDocuments()).isEqualTo(8);
+    assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(tasks.countDocuments()).isEqualTo(89);
     assertThat(taskRevisions.countDocuments()).isEqualTo(131);
     Document taskRunAfterSecondRun =
@@ -1020,6 +1021,14 @@ class LoaderMigrationTest {
         .orElseThrow(() -> new AssertionError("No task named " + name));
   }
 
+  /**
+   * The per-object records _0025 repairs mid-chain (and the fixture's pre-existing workspace
+   * record) are all dropped again by _0042__AuditEventRestructure at the end of the same chain -
+   * the repair keeps earlier units' invariants intact for installs pinned before the
+   * restructure, but the post-chain observable state is an empty, flat-event-indexed audit
+   * collection. The unit itself stays untouched and the fixture stays in place so the
+   * repair-then-drop path keeps executing.
+   */
   private void assertV4WorkflowAuditRepaired(
       MongoDatabase v4,
       ObjectId workflowId,
@@ -1028,34 +1037,10 @@ class LoaderMigrationTest {
       ObjectId workflowNoWorkspaceAuditId) {
     MongoCollection<Document> audit = v4.getCollection(PREFIX + "_audit");
 
-    assertThat(audit.countDocuments(Filters.eq("scope", "WORKFLOW")))
-        .as("only the one cleanly-resolvable workflow gets an audit record")
-        .isEqualTo(1);
-
-    Document repaired =
-        audit.find(Filters.and(Filters.eq("scope", "WORKFLOW"), Filters.eq("selfRef", workflowId.toString()))).first();
-    assertThat(repaired).isNotNull();
-    assertThat(repaired.getString("selfName")).isEqualTo("v4-workflow");
-    assertThat(repaired.getString("parent"))
-        .as("parent must be the workspace's OWN AUDIT RECORD id, not its domain _id")
-        .isEqualTo(workspaceAuditId.toString());
-    assertThat(((Document) repaired.get("data")).getString("name")).isEqualTo("v4-workflow");
-
-    assertThat(
-            audit
-                .find(Filters.and(Filters.eq("scope", "WORKFLOW"), Filters.eq("selfRef", workflowNoEdgeId.toString())))
-                .first())
-        .as("no hasWorkflow edge - skipped, never fabricated")
-        .isNull();
-    assertThat(
-            audit
-                .find(
-                    Filters.and(
-                        Filters.eq("scope", "WORKFLOW"),
-                        Filters.eq("selfRef", workflowNoWorkspaceAuditId.toString())))
-                .first())
-        .as("edge resolves but the workspace has no WORKSPACE audit record - skipped, never fabricated")
-        .isNull();
+    assertThat(audit.countDocuments(Filters.exists("scope")))
+        .as("every per-object audit record - repaired or pre-existing - is dropped by the restructure")
+        .isZero();
+    assertThat(audit.countDocuments()).isZero();
   }
 
   /**
@@ -1342,15 +1327,40 @@ class LoaderMigrationTest {
    * RelationshipNodeRepository} issues needs BOTH {@code (type, slug)} and {@code (type, ref)} — one
    * alone leaves the query a collection scan.
    */
+  /**
+   * The audit restructure: every old per-object record (including the seeded legacy one) is
+   * dropped, the scope indexes _0036 created earlier in this same chain are gone, and the
+   * flat-event indexes - TTL on createdAt plus the time/workspace/actor/resource lookups - are
+   * the only ones left beside _id. The capture-gate settings document is seeded alongside.
+   */
+  private void assertAuditRestructured() {
+    assertThat(collection("audit").countDocuments()).isZero();
+    assertThat(collection("audit").find(Filters.eq("_id", teamAudit)).first()).isNull();
+
+    Map<String, Document> indexes = indexesByName("audit");
+    assertThat(indexes.keySet())
+        .containsExactlyInAnyOrder(
+            "_id_", "createdAt_ttl", "time_desc", "workspace_time", "actor_time", "resource_time");
+    assertThat(indexes.get("createdAt_ttl").get("expireAfterSeconds", Number.class).longValue())
+        .isEqualTo(365L * 24 * 60 * 60);
+    assertIndex("audit", "workspace_time", List.of("workspaceId", "time"));
+    assertIndex("audit", "actor_time", List.of("actorId", "time"));
+    assertIndex("audit", "resource_time", List.of("resourceType", "resourceId", "time"));
+
+    Document auditSettings = collection("settings").find(Filters.eq("key", "audit")).first();
+    assertThat(auditSettings).isNotNull();
+    assertThat(
+            auditSettings.getList("config", Document.class).stream()
+                .map(config -> config.getString("key"))
+                .toList())
+        .containsExactlyInAnyOrder("enabled", "level", "retentionDays");
+  }
+
   private void assertRelationshipAndAuditIndexes() {
     assertIndex("rel_nodes", "type_slug", List.of("type", "slug"));
     assertIndex("rel_nodes", "type_ref", List.of("type", "ref"));
     assertIndex("rel_edges", "from_label", List.of("from", "label"));
     assertIndex("rel_edges", "to_label", List.of("to", "label"));
-
-    assertIndex("audit", "scope_self_ref", List.of("scope", "selfRef"));
-    assertIndex("audit", "scope_self_name", List.of("scope", "selfName"));
-    assertIndex("audit", "scope_parent", List.of("scope", "parent"));
 
     // The seeded changelog carries neither the "112" nor the "4000" marker, so this fixture is
     // detected as V4 (see InstallGeneration.detect) — _0019__DomainIndexes' v3-gated email_unique
@@ -1441,12 +1451,9 @@ class LoaderMigrationTest {
     assertThat(tokenPermissions.get(0).getList("actions", String.class))
         .containsExactlyInAnyOrder("workspace/read", "workflow/write");
 
-    // H14-c: audit.scope "TEAM" -> "WORKSPACE" (Spring Data's default enum-name converter has no
-    // alias mechanism, so a stray "TEAM" would fail to deserialize as AuditScope).
-    Document audit = collection("audit").find(Filters.eq("_id", teamAudit)).first();
-    assertThat(audit).isNotNull();
-    assertThat(audit.getString("scope")).isEqualTo("WORKSPACE");
-    assertThat(collection("audit").countDocuments(Filters.eq("scope", "TEAM"))).isZero();
+    // The seeded legacy audit record's fate is asserted in assertAuditRestructured() - the
+    // per-object shape (and with it the H14-c scope rename's output) is dropped by the audit
+    // restructure at the end of the chain.
 
     // H14-b: the "#"-escaped boomerang#io/team-* annotation keys -> boomerang#io/workspace-*, on
     // both task_runs and workflow_runs.

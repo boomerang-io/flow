@@ -522,6 +522,41 @@
       },
       "name": "Workspace Configuration - Activity Storage",
       "type": "ValuesList"
+    },
+    {
+      "_id": {
+        "$oid": "5eed00000000000000000400"
+      },
+      "config": [
+        {
+          "description": "Capture an audit event for every audited operation. Disabling stops capture immediately; nothing is captured retroactively when re-enabled.",
+          "key": "enabled",
+          "label": "Enabled",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Capture verbosity: DESTRUCTIVE records deletes only, WRITE records all mutations, ALL adds sensitive reads and exports.",
+          "key": "level",
+          "label": "Level",
+          "type": "text",
+          "value": "WRITE",
+          "readOnly": false
+        },
+        {
+          "description": "Days audit events are retained before expiry. Applied to the TTL index at startup; floored at 60 days because monthly quota counting needs at least one month of events.",
+          "key": "retentionDays",
+          "label": "Retention Days",
+          "type": "number",
+          "value": "365",
+          "readOnly": false
+        }
+      ],
+      "description": "Control the capture and retention of the audit trail.",
+      "key": "audit",
+      "name": "Audit",
+      "type": "ValuesList"
     }
   ]
 }
