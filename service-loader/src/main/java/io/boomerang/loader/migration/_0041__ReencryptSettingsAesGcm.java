@@ -26,22 +26,16 @@ import org.springframework.security.crypto.codec.Hex;
 import org.springframework.security.crypto.encrypt.Encryptors;
 
 /**
- * Re-encrypts every {@code settings.config[].value} stored under the retired
- * AES/CBC/PKCS5Padding scheme ({@code crypt_v1{AES|...}}, ONE hardcoded IV shared by every value
- * ever encrypted with it, no authentication tag) with AES-256-GCM ({@code crypt_v1{AESGCM|...}},
- * the same {@code Encryptors.delux} call {@code service-core}'s {@code AESAlgorithm} now uses).
- * {@code SettingsService.decrypt} only recognises the {@code AESGCM} label going forward - this
- * unit is what guarantees no {@code AES}-labelled value survives a deploy.
+ * Rewrite every {@code settings.config[].value} stored under the retired static-IV AES/CBC scheme
+ * ({@code crypt_v1{AES|...}}) to AES-256-GCM ({@code crypt_v1{AESGCM|...}}, the same
+ * {@code Encryptors.delux} call service-core's {@code AESAlgorithm} makes). service-core only
+ * recognises the AESGCM label, so this unit must complete before it starts.
  *
- * <p><b>Why the legacy cipher is reproduced here rather than reused from service-core.</b>
- * {@code service-loader} has no dependency on {@code service-core} (migrations must not be coupled
- * to evolving entity/service classes) - the legacy decrypt below is a frozen, read-only copy of
- * the retired {@code AESAlgorithm}, used nowhere else and never to be updated.
+ * <p>The legacy decrypt below is a frozen copy of the retired cipher: service-loader takes no
+ * dependency on service-core, and nothing else may use it.
  *
- * <p><b>Idempotency.</b> Only a value whose stored string starts with {@code crypt_v1{AES|} is
- * touched; an already-migrated ({@code AESGCM}), plaintext, or otherwise-shaped value is left
- * untouched. A rerun therefore finds nothing left to do. Safe on a database with no encrypted
- * settings at all (nothing matches the legacy prefix, so nothing is read or written).
+ * <p>Idempotent - only values carrying the legacy prefix are touched, so reruns and databases with
+ * no encrypted settings are no-ops.
  */
 @Change(id = "0041-reencrypt-settings-aes-gcm", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -143,8 +137,7 @@ public class _0041__ReencryptSettingsAesGcm {
 
   @Rollback
   public void rollback() {
-    // Not reversible in place - the point of this unit is that the retired scheme's key material
-    // (a single shared IV, no authentication tag) should not be reconstructed. An operator who
-    // truly needs the old ciphertext back has it in a pre-migration backup.
+    // Not reversible: recreating the retired scheme's ciphertext is exactly what this unit
+    // removes. Pre-migration backups hold the old values.
   }
 }

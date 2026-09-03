@@ -163,9 +163,8 @@ public class SettingsService {
       return value;
     }
 
-    // Every stored value reaching this point has already been rewritten to the AESGCM label by
-    // service-loader's _0041__ReencryptSettingsAesGcm change unit, which runs as a pre-deploy Job
-    // before service-core ever starts - see AESAlgorithm.
+    // Only the AESGCM label exists in storage: the loader's _0041 change unit rewrites the
+    // retired CBC scheme before service-core starts.
     String replacedValue = value.replace("crypt_v1{AESGCM|", "").replace("}", "");
     return AESAlgorithm.decrypt(
         replacedValue, encryptConfig.getSecretKey(), encryptConfig.getSalt());

@@ -8,22 +8,13 @@ import org.springframework.security.crypto.encrypt.Encryptors;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 
 /**
- * AES encryption for stored {@code Setting} values, via Spring Security's {@link
- * Encryptors#delux} - AES-256-GCM with a random IV generated per call, hex-encoded. ({@code
- * Encryptors.delegatingText}, which adds a version-tagged output for future algorithm migrations,
- * does not exist in the spring-security-crypto version on this classpath; {@code delux} is its
- * current GCM equivalent - the app-level {@code crypt_v1{AESGCM|...}} label in {@code
- * SettingsService} is what identifies the scheme instead.)
+ * Encrypt stored {@code Setting} values with AES-256-GCM via {@link Encryptors#delux}: random IV
+ * per call, authenticated ciphertext, hex-encoded. Non-deterministic by design - stored values are
+ * only ever decrypted for use, never compared; the scheme is identified by the
+ * {@code crypt_v1{AESGCM|...}} label {@code SettingsService} wraps around this output.
  *
- * <p>Replaces a hand-rolled AES/CBC/PKCS5Padding scheme that reused ONE hardcoded IV for every
- * value it ever encrypted (defeating CBC's own security argument) and carried no authentication
- * tag. {@code service-loader}'s {@code _0041__ReencryptSettingsAesGcm} change unit re-encrypts
- * every value stored under the retired scheme; nothing in {@code service-core} reads that scheme
- * any more.
- *
- * <p>{@code delux} requires its salt as a hex string; the configured salt (an arbitrary
- * operator-supplied string, see {@code EncryptionConfig}) is hex-encoded first so any existing
- * configuration keeps working unchanged.
+ * <p>{@code delux} requires a hex salt, so the operator-supplied salt from {@code EncryptionConfig}
+ * is hex-encoded before use.
  */
 public final class AESAlgorithm {
 
