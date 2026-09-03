@@ -112,6 +112,24 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void runIdFilterNarrowsWithinTheWorkspaceAndCannotReachAForeignRun() {
+    // A second run of the workspace's own workflow, so the id filter has something to exclude.
+    String otherMyRunId =
+        savedWorkflowRun(MY_WORKFLOW, RunStatus.running, RunPhase.running).getId();
+
+    List<String> ids =
+        queryWorkspace(MY_WORKSPACE, Optional.of(List.of(myRunId))).getContent().stream()
+            .map(WorkflowRun::getId)
+            .toList();
+    assertEquals(List.of(myRunId), ids, "workflowruns= must narrow the page to the named ids");
+    assertFalse(ids.contains(otherMyRunId));
+
+    assertTrue(
+        queryWorkspace(MY_WORKSPACE, Optional.of(List.of(foreignRunId))).getContent().isEmpty(),
+        "naming a run outside the workspace must return nothing, not the run");
+  }
+
+  @Test
   void insightAndCountAreScopedToTheSameWorkflows() {
     long mine = runCount(MY_WORKFLOW);
     assertTrue(
@@ -179,6 +197,11 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   }
 
   private WorkflowRunResponsePage queryWorkspace(String workspace) {
+    return queryWorkspace(workspace, Optional.empty());
+  }
+
+  private WorkflowRunResponsePage queryWorkspace(
+      String workspace, Optional<List<String>> workflowRuns) {
     return workflowRunService.query(
         workspace,
         Optional.empty(),
@@ -189,7 +212,7 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
         Optional.empty(),
         Optional.empty(),
         Optional.empty(),
-        Optional.empty(),
+        workflowRuns,
         Optional.empty(),
         Optional.empty());
   }

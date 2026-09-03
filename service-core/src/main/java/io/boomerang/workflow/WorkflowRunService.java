@@ -191,10 +191,11 @@ public class WorkflowRunService {
       Optional<List<String>> queryTriggers) {
 
     List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
-    // TODO query workflow runs
     if (wfRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
+    // The run-id filter is applied on top of the workspace's workflows, so a caller cannot reach
+    // a run outside the workspace by naming its id.
     Page<WorkflowRun> page =
         query(
             fromDate.map(Date::new),
@@ -205,7 +206,7 @@ public class WorkflowRunService {
             queryLabels,
             queryStatus,
             queryPhase,
-            Optional.empty(),
+            queryWorkflowRuns,
             Optional.of(wfRefs),
             queryTriggers);
     page.getContent().forEach(this::filterSensitiveValues);
