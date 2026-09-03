@@ -53,25 +53,8 @@ jobs:
         run: |
           mvn clean package --projects service-core,service-loader --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          package_json_file: client-web/package.json
-          run_install: false
-
-      - name: Install Node.js for client-web build
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: client-web/.nvmrc
-          cache: 'pnpm'
-          cache-dependency-path: client-web/pnpm-lock.yaml
-
-      - name: Build client-web
-        working-directory: client-web
-        run: |
-          pnpm install
-          pnpm run build
-
+      # client-web needs no host-side build: its Dockerfile's build stage runs pnpm install +
+      # pnpm run build itself, so `docker compose build client-web` is the whole build.
       - name: Build stack images
         run: docker compose build service-loader service-core client-web
 
