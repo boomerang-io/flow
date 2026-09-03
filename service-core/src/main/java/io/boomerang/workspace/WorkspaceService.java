@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1041,26 +1042,32 @@ public class WorkspaceService {
     // The run counters that quotas enforce come from the live WorkflowRun collection - the
     // audit-derived insight cannot serve them, as no workflowrun-scope audit record is written.
     // Concurrent = admitted and not yet terminal, so queued work counts against the limit.
-    Map<String, Long> monthlyRuns =
-        workflowRunService
-            .count(
-                team,
-                Optional.of(currentMonthStart.getTimeInMillis()),
-                Optional.of(nextMonth.getTimeInMillis()),
-                Optional.empty(),
-                Optional.empty())
-            .getStatus();
-    currentQuotas.setCurrentRuns(monthlyRuns.get("all").intValue());
-    Map<String, Long> runsByStatus =
-        workflowRunService
-            .count(team, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty())
-            .getStatus();
+    List<String> workflowRefs =
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.empty(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    currentQuotas.setCurrentRuns(
+        (int)
+            workflowRunService.countForQuota(
+                workflowRefs,
+                Optional.of(currentMonthStart.getTime()),
+                Optional.of(nextMonth.getTime()),
+                Optional.empty()));
     currentQuotas.setCurrentConcurrentRuns(
         (int)
-            (runsByStatus.get(RunStatus.notstarted.getStatus())
-                + runsByStatus.get(RunStatus.ready.getStatus())
-                + runsByStatus.get(RunStatus.running.getStatus())
-                + runsByStatus.get(RunStatus.waiting.getStatus())));
+            workflowRunService.countForQuota(
+                workflowRefs,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(
+                    Set.of(
+                        RunStatus.notstarted,
+                        RunStatus.ready,
+                        RunStatus.running,
+                        RunStatus.waiting))));
 
     WorkflowCount count =
         workflowService.count(
