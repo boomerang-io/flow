@@ -1,61 +1,52 @@
 package io.boomerang.core.security;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 /**
  * Installs the {@link UnauthenticatedGlobalToken} on the {@code SecurityContext} so that {@code
  * IdentityService.getCurrentIdentity()} is <b>never null</b>, even when {@code
  * flow.security.enabled=false}.
  *
- * <p>Registered only by {@link SecurityDisabledConfiguration} (the {@code
- * SecurityDisabledCondition} complement of {@code SecurityConfiguration}), so when security is
- * enabled this filter is not in the chain at all and {@code AuthenticationFilter}'s real-token
+ * <p>Registered only by {@link SecurityDisabledConfiguration} via {@code http.anonymous(...)} (the
+ * {@code SecurityDisabledCondition} complement of {@code SecurityConfiguration}), so when security
+ * is enabled this filter is not in the chain at all and {@code AuthenticationFilter}'s real-token
  * path is completely untouched.
  *
- * <p>It is written as "populate only if empty" rather than an unconditional overwrite: the {@code
+ * <p>This extends Spring Security's own {@link AnonymousAuthenticationFilter} rather than
+ * reimplementing it: that class's {@code doFilter()} already installs its result only when the
+ * {@code SecurityContext} carries no {@code Authentication} yet - exactly the "populate only if
+ * empty" guard the previous hand-rolled version reimplemented by hand, needed because the {@code
  * /api/v1/**} dispatcher chain ({@code DispatcherSecurityConfiguration}, {@code @Order(1)}) runs
- * ahead of the {@code @Order(2)} chain this filter belongs to and may already have authenticated a
- * real dispatcher token via {@code DispatcherAuthFilter}. That identity must win - this filter only
- * fills the gap where nothing else established one.
+ * ahead of the {@code @Order(2)} chain this filter belongs to. The only customisation required is
+ * {@link #createAuthentication(HttpServletRequest)} - WHAT gets installed, never WHEN.
  */
-public class UnauthenticatedGlobalAuthenticationFilter extends OncePerRequestFilter {
+public class UnauthenticatedGlobalAuthenticationFilter extends AnonymousAuthenticationFilter {
 
-  @Override
-  protected void doFilterInternal(
-      HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-      throws IOException, ServletException {
-    if (!hasIdentity()) {
-      final List<GrantedAuthority> authorities = List.of();
-      final UsernamePasswordAuthenticationToken authentication =
-          new UsernamePasswordAuthenticationToken(
-              UnauthenticatedGlobalToken.PRINCIPAL, null, authorities);
-      authentication.setDetails(new UnauthenticatedGlobalToken());
-      SecurityContextHolder.getContext().setAuthentication(authentication);
-    }
-    chain.doFilter(request, response);
+  private static final String KEY = "flow-security-disabled";
+
+  // AnonymousAuthenticationFilter's constructor requires a non-empty authorities list, but
+  // createAuthentication() below is fully overridden and never reads this field - the
+  // Authentication it actually installs carries an EMPTY authority list, byte-for-byte the same
+  // as the previous hand-rolled filter.
+  private static final List<GrantedAuthority> UNUSED_SUPERCLASS_PLACEHOLDER =
+      List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"));
+
+  public UnauthenticatedGlobalAuthenticationFilter() {
+    super(KEY, UnauthenticatedGlobalToken.PRINCIPAL, UNUSED_SUPERCLASS_PLACEHOLDER);
   }
 
-  /**
-   * Mirrors {@code IdentityService.getCurrentIdentity()}'s own test: an {@code Authentication}
-   * whose {@code details} is not a {@code Token} is, to every consumer in this codebase, the same
-   * as no identity at all.
-   */
-  private boolean hasIdentity() {
-    Authentication authentication =
-        SecurityContextHolder.getContext() == null
-            ? null
-            : SecurityContextHolder.getContext().getAuthentication();
-    return authentication != null
-        && authentication.getDetails() instanceof io.boomerang.core.model.Token;
+  @Override
+  protected Authentication createAuthentication(HttpServletRequest request) {
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(
+            UnauthenticatedGlobalToken.PRINCIPAL, null, List.of());
+    authentication.setDetails(new UnauthenticatedGlobalToken());
+    return authentication;
   }
 }

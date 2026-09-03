@@ -50,6 +50,14 @@
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
         </dependency>
+        <!-- _0041__ReencryptSettingsAesGcm needs the SAME AES-256-GCM call service-core's
+             AESAlgorithm uses (Encryptors.delux), so the re-encrypted value it writes is exactly
+             what service-core will later decrypt. Version comes from the parent's
+             spring-boot-starter-parent BOM, matching service-core's resolved version. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

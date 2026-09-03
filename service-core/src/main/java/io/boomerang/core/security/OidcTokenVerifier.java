@@ -21,6 +21,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.text.ParseException;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -52,6 +53,22 @@ public class OidcTokenVerifier {
   private static final String ISSUER_CONFIG_KEY = "oidc.issuer";
   private static final String CLIENT_ID_CONFIG_KEY = "oidc.clientId";
   private static final String DISCOVERY_PATH = "/.well-known/openid-configuration";
+
+  // The standard asymmetric family - a spec-compliant IdP may sign with any of these (Azure AD
+  // uses RS256; others vary). Widened from pinned RS256 2026-08-31 (maintainer-approved,
+  // Azure-compatibility). NEVER any HMAC or "none": the JWKS is public, so a symmetric
+  // "signature" would be forgeable by anyone who can read it.
+  private static final Set<JWSAlgorithm> ACCEPTED_ALGORITHMS =
+      Set.of(
+          JWSAlgorithm.RS256,
+          JWSAlgorithm.RS384,
+          JWSAlgorithm.RS512,
+          JWSAlgorithm.PS256,
+          JWSAlgorithm.PS384,
+          JWSAlgorithm.PS512,
+          JWSAlgorithm.ES256,
+          JWSAlgorithm.ES384,
+          JWSAlgorithm.ES512);
 
   // Only the signature-check machinery (built from the issuer's JWKS) is cached, keyed by issuer -
   // never the claims verifier, which is built fresh per call since it is bound to that call's
@@ -90,36 +107,50 @@ public class OidcTokenVerifier {
 
     String issuer = requireSetting(ISSUER_CONFIG_KEY);
     String clientId = requireSetting(CLIENT_ID_CONFIG_KEY);
+    return process(idToken, issuer, clientId, expectedNonce);
+  }
 
+  /**
+   * Verifies a bearer JWT presented directly on {@code Authorization: Bearer <jwt>} (the
+   * authenticating-proxy path, {@code AuthenticationFilter.getUserSessionAuthentication}) against
+   * the same configured issuer/JWKS as {@link #verify(String, String)}, without a nonce - this is
+   * not a one-time login exchange, so there is no per-call nonce to bind to. Signature, {@code
+   * iss}, {@code aud} and {@code exp} are all still checked; an issuer that is not configured means
+   * this path cannot be cryptographically verified at all, so it is refused rather than trusted.
+   *
+   * @throws BoomerangException {@code AUTH_NOT_CONFIGURED} if no issuer/clientId is configured;
+   *     {@code AUTH_TOKEN_INVALID} for any signature, claims, or parse failure - including an
+   *     unsigned ({@code alg=none}) token, which {@link DefaultJWTProcessor} rejects outright.
+   */
+  public JWTClaimsSet verifyBearerToken(String jwt) {
+    if (jwt == null || jwt.isBlank()) {
+      throw new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID);
+    }
+    String issuer = requireSetting(ISSUER_CONFIG_KEY);
+    String clientId = requireSetting(CLIENT_ID_CONFIG_KEY);
+    return process(jwt, issuer, clientId, null);
+  }
+
+  /**
+   * Shared JWS verification pipeline for {@link #verify(String, String)} and {@link
+   * #verifyBearerToken(String)}. {@code expectedNonceOrNull} is only enforced when non-null - the
+   * login-exchange path requires it, the bearer-token path does not.
+   */
+  private JWTClaimsSet process(
+      String idToken, String issuer, String clientId, String expectedNonceOrNull) {
     JWKSource<SecurityContext> keySource = keySourceFor(issuer);
-    // The standard asymmetric family - a spec-compliant IdP may sign with any of these (Azure AD
-    // uses RS256; others vary). Widened from pinned RS256 2026-08-31 (maintainer-approved,
-    // Azure-compatibility). NEVER any HMAC or "none": the JWKS is public, so a symmetric
-    // "signature" would be forgeable by anyone who can read it.
-    Set<JWSAlgorithm> acceptedAlgorithms =
-        Set.of(
-            JWSAlgorithm.RS256,
-            JWSAlgorithm.RS384,
-            JWSAlgorithm.RS512,
-            JWSAlgorithm.PS256,
-            JWSAlgorithm.PS384,
-            JWSAlgorithm.PS512,
-            JWSAlgorithm.ES256,
-            JWSAlgorithm.ES384,
-            JWSAlgorithm.ES512);
     JWSKeySelector<SecurityContext> keySelector =
-        new JWSVerificationKeySelector<>(acceptedAlgorithms, keySource);
+        new JWSVerificationKeySelector<>(ACCEPTED_ALGORITHMS, keySource);
 
     DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
     processor.setJWSKeySelector(keySelector);
-    JWTClaimsSet exactMatch =
-        new JWTClaimsSet.Builder()
-            .issuer(issuer)
-            .audience(clientId)
-            .claim("nonce", expectedNonce)
-            .build();
-    processor.setJWTClaimsSetVerifier(
-        new DefaultJWTClaimsVerifier<>(exactMatch, Set.of("sub", "iss", "aud", "exp", "nonce")));
+    JWTClaimsSet.Builder exactMatch = new JWTClaimsSet.Builder().issuer(issuer).audience(clientId);
+    Set<String> requiredClaims = new HashSet<>(Set.of("sub", "iss", "aud", "exp"));
+    if (expectedNonceOrNull != null) {
+      exactMatch.claim("nonce", expectedNonceOrNull);
+      requiredClaims.add("nonce");
+    }
+    processor.setJWTClaimsSetVerifier(new DefaultJWTClaimsVerifier<>(exactMatch.build(), requiredClaims));
 
     try {
       return processor.process(idToken, null);
