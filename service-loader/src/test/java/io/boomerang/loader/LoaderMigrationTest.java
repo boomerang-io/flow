@@ -798,10 +798,11 @@ class LoaderMigrationTest {
     assertThat(taskRun.getInteger("taskVersion")).isEqualTo(1);
     assertThat(taskRun.containsKey("templateVersion")).isFalse();
 
-    // _0023__SeedTemplates (Phase 5, still v3-gated) skipped: no starter templates were seeded
-    // either.
-    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
-    assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isZero();
+    // _0023__SeedTemplates is not generation-gated: this fixture has no scope=template workflows
+    // for _0010 to extract, so the two starter workflow templates and the two integration
+    // templates are seeded exactly as on a fresh install.
+    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
 
     // _0002/_0003/_0020 are NOT v3-skipped: the graph root, system workspace and roles are seeded
     // exactly as on a fresh/v4 install.
@@ -829,7 +830,8 @@ class LoaderMigrationTest {
         v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
     assertThat(taskRunAfterSecondRun.getString("taskRef")).isEqualTo(customTaskId.toString());
     assertThat(taskRunAfterSecondRun.containsKey("templateRef")).isFalse();
-    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isZero();
+    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
   }
 
   private static void insertV3Setting(MongoDatabase db, String id, String v3Key) {
