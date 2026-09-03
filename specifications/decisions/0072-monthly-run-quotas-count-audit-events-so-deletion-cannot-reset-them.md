@@ -1,4 +1,4 @@
-# 0071 — Monthly run quotas count audit events so deletion cannot reset them
+# 0072 — Monthly run quotas count audit events so deletion cannot reset them
 
 **Status:** accepted · **Date:** 2026-09-03
 
