@@ -76,6 +76,7 @@ public class AuditQueryService {
       criteria.add(Criteria.where("payload." + payloadField.get()).in(payloadValues.get()));
     }
     Query query = new Query(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+    query.with(Sort.by(Sort.Direction.ASC, "time"));
     return mongoTemplate.find(query, AuditEventEntity.class);
   }
 

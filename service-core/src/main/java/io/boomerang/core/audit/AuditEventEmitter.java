@@ -5,6 +5,7 @@ import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.SettingsRepository;
 import io.boomerang.core.security.IdentityService;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
@@ -79,7 +80,45 @@ public class AuditEventEmitter {
             http.path(),
             null,
             errorSummary,
-            detail));
+            detail,
+            null));
+  }
+
+  /**
+   * Emit as an explicitly resolved actor with a caller-supplied payload — for sites without a
+   * request to attribute (the engine's run transition listener). The attempt already happened,
+   * so the outcome is always SUCCESS. Gate-checked.
+   */
+  public void emitAs(
+      AuditActor actor,
+      AuditAction action,
+      AuditLevel level,
+      String resourceType,
+      String resourceId,
+      String resourceName,
+      String workspaceId,
+      Map<String, Object> payload) {
+    if (!captureEnabled(level)) {
+      return;
+    }
+    writer.persist(
+        new AuditRecord(
+            actor,
+            workspaceId,
+            action,
+            level,
+            resourceType,
+            resourceId,
+            resourceName,
+            AuditOutcome.SUCCESS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            payload));
   }
 
   /** The current actor: the token's identity, else anonymous over HTTP, else system. */
