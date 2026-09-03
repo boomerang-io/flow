@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -23,6 +24,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -266,5 +269,64 @@ class AuthenticationFilterTest {
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
     assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
         .isEqualTo(sessionToken);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"bft_retired-workspace-token", "bfw_retired-workflow-token"})
+  void aRetiredPrefixBearerNeverReachesTheTokenLookup(String retired) throws Exception {
+    // The shape gate (TokenTypePrefix.isFlowToken) admits only bfg_/bfk_/bfu_/bfs_; anything
+    // else on the Authorization header is treated as a non-Flow bearer and handed to the OIDC
+    // verifier, which refuses a value that is not a JWT - TokenService is never consulted.
+    when(oidcTokenVerifier.verifyBearerToken(retired))
+        .thenThrow(new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID));
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer " + retired);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verifyNoInteractions(tokenService);
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"bft_retired-workspace-token", "bfw_retired-workflow-token"})
+  void aRetiredPrefixOnTheFallbackSourcesNeverReachesTheTokenLookup(String retired)
+      throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("x-access-token", retired);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verifyNoInteractions(tokenService);
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+  }
+
+  @Test
+  void aLivePrefixBearerReachesTheTokenLookup() throws Exception {
+    Token globalToken = new Token(AuthScope.global);
+    globalToken.setPrincipal("admin");
+    when(tokenService.validate("bfg_live-token")).thenReturn(true);
+    when(tokenService.get("bfg_live-token")).thenReturn(globalToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer bfg_live-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(tokenService, times(1)).validate("bfg_live-token");
+    verifyNoInteractions(oidcTokenVerifier);
+    verify(filterChain, times(1)).doFilter(request, response);
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(globalToken);
   }
 }

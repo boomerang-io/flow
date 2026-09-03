@@ -23,30 +23,30 @@ first and is independent of this switch — see "Dispatcher endpoints".
 ## Authentication: how a caller becomes a `Token`
 
 `AuthenticationFilter` checks the identity sources in a fixed order and stops at the first one present
-(`core/security/AuthenticationFilter.java:111-125`). It is loaded only when security is on (`:41`). Every
+(`core/security/AuthenticationFilter.java:112-126`). It is loaded only when security is on (`:43`). Every
 branch maps the resolved `Token`'s permission actions (e.g. `workflow/write`) onto `GrantedAuthority` via
-`authoritiesFor` (`:357-368`) before installing the `Authentication` — `Token` itself, via `setDetails`,
+`authoritiesFor` (`:369-380`) before installing the `Authentication` — `Token` itself, via `setDetails`,
 remains what every scope/relationship check actually reads.
 
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
-| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token) | `getTokenAuthentication` (`:284-299`) | SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:403-417`) |
-| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:184-243`) | `OidcTokenVerifier.verifyBearerToken` checks the signature against the configured OIDC issuer's JWKS and `iss`/`aud`/`exp` (no nonce — this is not a one-time login exchange); an unsigned or wrongly-signed token is refused, and an unconfigured issuer means the path cannot authenticate at all. A session token is minted for the verified `email`/`emailAddress` claim |
-| 1c | `Authorization: Basic email:password` | same method (`:244-276`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `:81-95`), not a raw string comparison; session token minted for the email |
+| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `isFlowBearer` `:308-311`) | `getTokenAuthentication` (`:285-305`) | shape gate `TokenTypePrefix.isFlowToken` (`:289-294`), then SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:403-417`) |
+| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:185-244`) | `OidcTokenVerifier.verifyBearerToken` checks the signature against the configured OIDC issuer's JWKS and `iss`/`aud`/`exp` (no nonce — this is not a one-time login exchange); an unsigned or wrongly-signed token is refused, and an unconfigured issuer means the path cannot authenticate at all. A session token is minted for the verified `email`/`emailAddress` claim |
+| 1c | `Authorization: Basic email:password` | same method (`:245-277`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `:82-96`), not a raw string comparison; session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
-| 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:54-61`) |
-| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:304-328`) | session token minted for the forwarded email |
-| 5 | `flow_session` cookie | `getTokenAuthentication` (`:123-124,165-175`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
+| 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:50-57`) |
+| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:316-340`) | session token minted for the forwarded email |
+| 5 | `flow_session` cookie | `getTokenAuthentication` (`:124-125,166-177`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
 normalised email for 60 seconds per instance (`core/TokenService.java:578-605`). User creation is allowed
 only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
-(`AuthenticationFilter.java:189-199`).
+(`AuthenticationFilter.java:190-200`).
 
-No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:136-140`), except on
+No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:137-141`), except on
 `/api/v2/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
-(`:131-135`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
-`/api/v2/auth/config` (`:372-379`); `SecurityConfiguration.java:104-107` also permits `/info`, `/webjars`, the
+(`:132-136`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
+`/api/v2/auth/config` (`:384-391`); `SecurityConfiguration.java:104-107` also permits `/info`, `/webjars`, the
 Slack install URL and the exchange endpoint.
 
 ### Session sign-in (the browser flow)
@@ -75,8 +75,10 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 | `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:132-134`) |
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
-human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a bearer that does
-not match `^bf[gkus]_.+` is rejected before any database lookup (`core/enums/TokenTypePrefix.java:35`).
+human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a token that does
+not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any database lookup on both
+paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above (`:289-294`) and
+`DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:94`) — so a retired `bft_`/`bfw_` bearer never reaches Mongo.
 
 Seeded roles (`service-loader/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
 (`**/read`, `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`,
