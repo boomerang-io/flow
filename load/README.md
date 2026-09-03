@@ -29,7 +29,7 @@ Exit code is 0 only when every submission returned 2xx and every run finalized a
 | Profile | Workflow | Needs |
 | --- | --- | --- |
 | `inline` | `start → setwfproperty → decision → setwfproperty ×FANOUT → end`, plus one never-taken decision branch. Every task type is executed inside the engine (`TaskExecutionService`), so the numbers are the engine and MongoDB only. | The compose stack |
-| `dispatch` | `inline` plus one `sleep` template task (`duration=1`) before `end`, which only a dispatcher can claim. | `service-dispatcher` running against a cluster: layer `docker-compose.kube.yml` as described in its header comment |
+| `dispatch` | `inline` plus one `execute-shell` script task (`echo load`) before `end`, which only a dispatcher can claim and run as a container. | `service-dispatcher` running against a cluster: layer `docker-compose.kube.yml` as described in its header comment |
 
 The workflow is named `load-<profile>-fanout<N>` and reused across invocations; delete it (or
 the workspace) to recreate it.
@@ -38,12 +38,20 @@ the workspace) to recreate it.
 
 - Submit phase: ok/error counts, submits per second, latency p50/p95/p99/max of `POST .../submit`
   (which starts the run by default).
-- Time to finalize as the client sees it (submit sent → run observed `finalized`, polled once per
-  second in pages of 100 ids via `GET .../workflowrun/query?workflowruns=...`), and the server's
-  own `duration` field.
-- Wall clock, completed runs per minute, executed task runs per second (tasks except `start`,
-  `end` and the unmatched decision branch), per-status counts, stuck run ids.
+- Time to complete as the client sees it (submit sent → terminal `status` observed, polled once per
+  second in pages of 100 ids via `GET .../workflowrun/query?workflowruns=...`), the server's own
+  `duration`, and time to finalize (→ `phase=finalized` observed).
+- Completed runs per minute and executed task runs per second (tasks except `start`, `end` and
+  the unmatched decision branch), finalized runs per minute, per-status counts, and the ids of
+  runs that never reached a terminal status.
 - Every non-2xx response grouped by route and status, with one sample body.
+
+Completion and finalization are reported separately on purpose. A run without workspaces is
+finalized only by the watcher sweep — 50 runs every 30 s per instance
+(`WorkflowWatcher.finalizeWorkspacelessRuns`) — so `finalized` trails `succeeded` by up to
+`outstanding / 100` minutes and the script keeps polling until the deadline. The exit code depends
+on status only. Runs left unfinalized by a previous invocation are still drained by that sweep, so
+either wait for it or start from an empty run collection before comparing numbers.
 
 Polling costs the server one indexed list query per 100 outstanding runs per second; it is
 included in the numbers, as any real client would be.

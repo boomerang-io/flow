@@ -108,7 +108,8 @@ on `:7700` with `FLOW_MODE=standalone` and `FLOW_SECURITY_ENABLED=true` (`:129-1
 `client-web`'s server is the only thing the browser talks to, and it calls core at
 `http://service-core:7700` (`:191`). `service-dispatcher` is not in the stack because it needs a Kubernetes
 cluster (`:10-16`). Build the jars with Maven and the web app with pnpm first (`:18-33`); the Playwright
-suite in `e2e/` runs against this stack.
+suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`, see `performance.md`) run
+against this stack.
 
 ## Not built
 

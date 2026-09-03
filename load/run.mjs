@@ -4,8 +4,8 @@
 //   node load/run.mjs --runs 200 --concurrency 20 [--profile inline|dispatch]
 //
 // Creates (or reuses) one workflow, submits RUNS runs with CONCURRENCY submitters in flight,
-// waits for every run to reach phase=finalized, and prints submit latency, time-to-finalize,
-// throughput and per-status counts. Exits non-zero unless every run succeeded.
+// waits for every run to complete and then finalize, and prints submit latency, time to complete,
+// time to finalize, throughput and per-status counts. Exits non-zero unless every run succeeded.
 
 const HELP = `Usage: node load/run.mjs [options]
 
@@ -22,8 +22,8 @@ const HELP = `Usage: node load/run.mjs [options]
 Profiles:
   inline    start -> setwfproperty -> decision -> setwfproperty x FANOUT -> end. Every task runs
             inside the engine; no dispatcher is needed. Measures the engine itself.
-  dispatch  inline plus one 'sleep' template task per run (a real dispatcher must claim it);
-            needs service-dispatcher running against a cluster (docker-compose.kube.yml).`;
+  dispatch  inline plus one 'execute-shell' script task per run (a real dispatcher must claim
+            it); needs service-dispatcher against a cluster (docker-compose.kube.yml).`;
 
 const arg = (flag, env, fallback) => {
   const i = process.argv.indexOf(`--${flag}`);
@@ -73,22 +73,23 @@ async function api(method, path, body) {
 // Fixtures: workspace and workflow, both looked up by name and created only when absent.
 function workflowDefinition(name) {
   const set = (n, deps, value) => ({
-    name: n, type: "setwfproperty", dependencies: deps,
+    name: n, type: "setwfproperty", taskRef: "set-result-parameter", dependencies: deps,
     params: [{ name: "output", value: n }, { name: "value", value }],
   });
   const fan = Array.from({ length: cfg.fanout }, (_, i) => `par-${i + 1}`);
   const tasks = [
     { name: "start", type: "start" },
     set("set-1", [{ taskRef: "start" }], "one"),
-    { name: "decide", type: "decision", dependencies: [{ taskRef: "set-1" }], params: [{ name: "value", value: "a" }] },
+    { name: "decide", type: "decision", taskRef: "switch", dependencies: [{ taskRef: "set-1" }], params: [{ name: "value", value: "a" }] },
     set("branch-a", [{ taskRef: "decide", decisionCondition: "a" }], "matched"),
     set("branch-default", [{ taskRef: "decide" }], "default"),
     ...fan.map((n) => set(n, [{ taskRef: "branch-a" }], n)),
   ];
   let last = fan.map((n) => ({ taskRef: n }));
   if (cfg.profile === "dispatch") {
-    tasks.push({ name: "sleep-1", type: "template", taskRef: "sleep", dependencies: last, params: [{ name: "duration", value: "1" }] });
-    last = [{ taskRef: "sleep-1" }];
+    tasks.push({ name: "shell-1", type: "script", taskRef: "execute-shell", dependencies: last,
+      params: [{ name: "shell", value: "sh" }, { name: "script", value: "echo load" }] });
+    last = [{ taskRef: "shell-1" }];
   }
   tasks.push({ name: "end", type: "end", dependencies: last });
   return { name, displayName: name, description: `load harness (${cfg.profile}, fanout ${cfg.fanout})`, tasks };
@@ -116,7 +117,7 @@ async function ensureFixtures() {
     if (!wf.ok) throw new Error(`create workflow failed: ${wf.status} ${wf.text}`);
     console.log(`created workflow ${name}`);
   }
-  return { id: wf.json.id, name: wf.json.name };
+  return { name: wf.json.name, version: wf.json.version };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -138,32 +139,45 @@ async function submitAll(wf) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Wait phase: one list query per 100 outstanding ids every second, until all are finalized.
+// Wait phase: one list query per 100 outstanding ids every second. A run is "complete" when its
+// status is terminal (what the API reports as the outcome) and "finalized" when phase=finalized;
+// for runs without workspaces the second step is the watcher's finalize sweep, so it can lag.
 const TERMINAL = new Set(["succeeded", "failed", "invalid", "skipped", "cancelled", "timedout"]);
 async function waitForRuns(submits) {
-  const pending = new Map(submits.filter((s) => s.id).map((s) => [s.id, s]));
-  const done = new Map(); // id -> run + { finalizedAt, submittedAt }
+  const runs = new Map(submits.filter((s) => s.id).map((s) => [s.id, { submittedAt: s.submittedAt }]));
+  const outstanding = () => [...runs].filter(([, r]) => !r.finalizedAt).map(([id]) => id);
   const deadline = Date.now() + cfg.deadline * 1000;
   let lastLog = 0;
-  while (pending.size && Date.now() < deadline) {
-    const ids = [...pending.keys()];
-    for (let i = 0; i < ids.length; i += 100) {
-      const chunk = ids.slice(i, i + 100);
-      const q = `workflowruns=${chunk.join(",")}&limit=${chunk.length}&page=0`;
-      const r = await api("GET", `/api/v2/workspace/${cfg.workspace}/workflowrun/query?${q}`);
+  let perRun = false; // fallback when the server ignores the workflowruns= filter
+  while (outstanding().length && Date.now() < deadline) {
+    const ids = outstanding();
+    const pages = perRun ? ids.map((id) => [id]) : Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, i * 100 + 100));
+    for (const chunk of pages) {
+      const r = perRun
+        ? await api("GET", `/api/v2/workspace/${cfg.workspace}/workflowrun/${chunk[0]}?withTasks=false`)
+        : await api("GET", `/api/v2/workspace/${cfg.workspace}/workflowrun/query?workflowruns=${chunk.join(",")}&limit=${chunk.length}&page=0`);
       const seenAt = Date.now();
-      for (const run of r.json?.content ?? []) {
-        const finished = run.phase === "finalized" || (run.phase === "completed" && TERMINAL.has(run.status));
-        if (finished && pending.has(run.id)) {
-          done.set(run.id, { ...run, finalizedAt: seenAt, submittedAt: pending.get(run.id).submittedAt });
-          pending.delete(run.id);
-        }
+      const page = perRun ? [r.json].filter(Boolean) : (r.json?.content ?? []);
+      if (!perRun && page.some((run) => !runs.has(run.id))) {
+        console.log("  server ignores workflowruns=; polling each run with GET instead (older build)");
+        perRun = true;
+        break;
+      }
+      for (const run of page) {
+        const rec = runs.get(run.id);
+        if (!rec) continue;
+        if (TERMINAL.has(run.status) && !rec.completedAt) Object.assign(rec, { completedAt: seenAt, status: run.status, duration: run.duration });
+        if (run.phase === "finalized" && !rec.finalizedAt) rec.finalizedAt = seenAt;
       }
     }
-    if (Date.now() - lastLog > 5000) { lastLog = Date.now(); console.log(`  finalized ${done.size}/${done.size + pending.size}`); }
+    if (Date.now() - lastLog > 5000) {
+      lastLog = Date.now();
+      const c = [...runs.values()].filter((r) => r.completedAt).length, f = [...runs.values()].filter((r) => r.finalizedAt).length;
+      console.log(`  completed ${c}/${runs.size}  finalized ${f}/${runs.size}`);
+    }
     await new Promise((res) => setTimeout(res, 1000));
   }
-  return { done, stuck: [...pending.keys()] };
+  return runs;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -173,37 +187,41 @@ const row = (label, xs) => `${label.padEnd(26)} p50 ${pct(xs, .5).toFixed(0)}ms 
 async function main() {
   console.log(`flow ${cfg.url}  workspace ${cfg.workspace}  profile ${cfg.profile}  runs ${cfg.runs}  concurrency ${cfg.concurrency}  fanout ${cfg.fanout}`);
   const wf = await ensureFixtures();
-  console.log(`workflow ${wf.name} (${wf.id})`);
+  console.log(`workflow ${wf.name} v${wf.version}`);
 
   const t0 = Date.now();
   const submits = await submitAll(wf);
   const tSubmitted = Date.now();
-  const { done, stuck } = await waitForRuns(submits);
+  const runs = await waitForRuns(submits);
   const t1 = Date.now();
 
   const submitOk = submits.filter((s) => s.id);
   const submitS = (tSubmitted - t0) / 1000;
-  const wallS = (t1 - t0) / 1000;
-  const finalizeMs = [...done.values()].map((d) => d.finalizedAt - d.submittedAt);
-  const serverDurationMs = [...done.values()].map((d) => d.duration ?? 0).filter((d) => d > 0);
+  const all = [...runs.values()];
+  const completed = all.filter((r) => r.completedAt), finalized = all.filter((r) => r.finalizedAt);
+  const lastCompletedAt = Math.max(t0, ...completed.map((r) => r.completedAt));
+  const completeS = (lastCompletedAt - t0) / 1000; // wall clock from first submit to last terminal status
   const byStatus = {};
-  for (const d of done.values()) byStatus[d.status] = (byStatus[d.status] ?? 0) + 1;
+  for (const r of completed) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
 
   console.log("\n=== results ===");
   console.log(`submitted ${submitOk.length}/${cfg.runs} ok, ${submits.length - submitOk.length} submit errors, submit phase ${submitS.toFixed(1)}s (${(submitOk.length / submitS).toFixed(1)} submits/s)`);
   console.log(row("submit latency", submits.map((s) => s.latencyMs)));
-  if (finalizeMs.length) console.log(row("time to finalize (client)", finalizeMs));
-  if (serverDurationMs.length) console.log(row("run duration (server)", serverDurationMs));
-  console.log(`wall clock ${wallS.toFixed(1)}s  completed ${done.size} runs  ${(done.size / wallS * 60).toFixed(1)} runs/min  ${(done.size * executedTasksPerRun() / wallS).toFixed(1)} task runs/s`);
-  console.log(`per status: ${JSON.stringify(byStatus)}  stuck (not finalized by deadline): ${stuck.length}`);
-  if (stuck.length) console.log(`  stuck ids: ${stuck.slice(0, 10).join(", ")}${stuck.length > 10 ? " ..." : ""}`);
+  if (completed.length) console.log(row("time to complete (client)", completed.map((r) => r.completedAt - r.submittedAt)));
+  if (completed.length) console.log(row("run duration (server)", completed.map((r) => r.duration ?? 0).filter((d) => d > 0)));
+  if (finalized.length) console.log(row("time to finalize (client)", finalized.map((r) => r.finalizedAt - r.submittedAt)));
+  console.log(`completed ${completed.length} runs in ${completeS.toFixed(1)}s  ${(completed.length / completeS * 60).toFixed(1)} runs/min  ${(completed.length * executedTasksPerRun() / completeS).toFixed(1)} task runs/s`);
+  console.log(`finalized ${finalized.length} runs in ${((t1 - t0) / 1000).toFixed(1)}s  ${(finalized.length / ((t1 - t0) / 1000) * 60).toFixed(1)} runs/min (bounded by the finalize sweep for workspace-less runs)`);
+  const notCompleted = all.length - completed.length, notFinalized = completed.length - finalized.length;
+  console.log(`per status: ${JSON.stringify(byStatus)}  not complete by deadline: ${notCompleted}  complete but not finalized by deadline: ${notFinalized}`);
+  if (notCompleted) console.log(`  incomplete ids: ${[...runs].filter(([, r]) => !r.completedAt).slice(0, 10).map(([id]) => id).join(", ")}`);
   if (errors.length) {
     console.log(`non-2xx responses: ${errors.length}`);
     const grouped = {};
     for (const e of errors) { const k = `${e.method} ${e.path.split("?")[0]} -> ${e.status}`; grouped[k] = grouped[k] ?? { n: 0, sample: e.text }; grouped[k].n++; }
     for (const [k, v] of Object.entries(grouped)) console.log(`  ${v.n}x ${k}  ${v.sample}`);
   }
-  const allSucceeded = stuck.length === 0 && submitOk.length === cfg.runs && (byStatus.succeeded ?? 0) === cfg.runs;
+  const allSucceeded = notCompleted === 0 && submitOk.length === cfg.runs && (byStatus.succeeded ?? 0) === cfg.runs;
   process.exit(allSucceeded ? 0 : 1);
 }
 
