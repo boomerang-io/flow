@@ -25,7 +25,7 @@ first and is independent of this switch — see "Dispatcher endpoints".
 
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
-| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token) | `getTokenAuthentication` (`:271-286`) | SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:403-417`) |
+| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token) | `getTokenAuthentication` (`:271-286`) | SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:398-423`) |
 | 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:184-231`) | JWT is parsed for `email`/`emailAddress` and names, **not signature-verified**; a session token is minted for that email |
 | 1c | `Authorization: Basic email:password` | same method (`:232-261`) | password must equal `flow.authorization.basic.password`; session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
@@ -34,9 +34,19 @@ first and is independent of this switch — see "Dispatcher endpoints".
 | 5 | `flow_session` cookie | `getTokenAuthentication` (`:115-116,148-159`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
-normalised email for 60 seconds per instance (`core/TokenService.java:578-605`). User creation is allowed
+normalised email for 60 seconds per instance (`core/TokenService.java:585-619`). User creation is allowed
 only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
 (`AuthenticationFilter.java:172-182`).
+
+Rows 1, 2, 3 and 5 resolve the bearer through `TokenLookupCache` (`core/security/TokenLookupCache.java`), a
+per-instance Caffeine cache keyed by the stored SHA-256 hash and holding the validated `TokenEntity`, so the
+filter's `validate` followed by `get` costs one repository read (`core/TokenService.java:411-423`). Only a
+present, unexpired entity is cached - misses are never cached - and the entity's `expirationDate` is re-checked
+on every hit. Entries live 60 seconds and the cache holds at most 10 000 (`flow.security.token-cache.ttl`,
+`flow.security.token-cache.max-size`, `flow.security.token-cache.enabled`, `application.properties:23-25`).
+`TokenService.delete` evicts the token's hash and `deleteAllForPrincipal` flushes the cache
+(`core/TokenService.java:458-472`); `touchLastUsed` does not evict. Eviction is per instance: after a revoke on
+one instance, another instance MAY still honour the token until its own entry ages out, at most the TTL.
 
 No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:128-132`), except on
 `/api/v2/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
@@ -60,17 +70,17 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 ## Token kinds
 
 `AuthScope` is the token **class**; `TokenActorKind` is an orthogonal badge for machine tokens; `PermissionScope`
-(`global` | `workspace`) is the scope of each grant and is always derived server-side (`core/TokenService.java:170-199`).
+(`global` | `workspace`) is the scope of each grant and is always derived server-side (`core/TokenService.java:174-203`).
 
 | `AuthScope` | Prefix | Holder | Grants | How it is minted |
 | --- | --- | --- | --- | --- |
-| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:704-724`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:105-106`) |
-| `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`:174-184`) | `POST /api/v2/token` |
-| `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:375-381`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:757-769`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:132-134`) |
+| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:711-731`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:109-110`) |
+| `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`:178-188`) | `POST /api/v2/token` |
+| `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:379-385`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:764-781`) |
+| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`) |
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
-human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a bearer that does
+human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:388-391`), and a bearer that does
 not match `^bf[gkus]_.+` is rejected before any database lookup (`core/enums/TokenTypePrefix.java:35`).
 
 Seeded roles (`service-loader/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
@@ -139,7 +149,7 @@ segment is not `system` (`core/security/EngineWorkspaceInterceptor.java:37-44`, 
 `/api/v1/dispatcher/**` is guarded by `DispatcherAuthFilter` regardless of `flow.security.enabled`
 (`dispatcher/DispatcherAuthFilter.java:54,78-105`): the bearer must be Flow-shaped, then
 `TokenService.validateActorToken` requires a stored, unexpired `global` token with a non-null `actorKind`
-(`core/TokenService.java:427-433`). `lastUsedAt` is stamped at most every 5 minutes. `flow.dispatcher.auth.enabled=false`
+(`core/TokenService.java:433-438`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5 minutes. `flow.dispatcher.auth.enabled=false`
 (default `true`, `application.properties:34`) turns the filter into a pass-through for local development.
 The rest of `/api/v1/**` is `permitAll` and relies on network isolation.
 
