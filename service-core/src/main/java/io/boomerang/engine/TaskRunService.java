@@ -363,17 +363,17 @@ public class TaskRunService {
   // create a nested annotations -> boomerang -> "io/status" document that
   // TaskExecutionService.processWaitForEventTask would never find.
   //
-  // Results are appended with $push/$each, NOT $addToSet: a redelivered event appends its results
-  // a second time today, which is inherited behaviour deliberately left alone - see
-  // EventDeliveryIdempotencyTest.
+  // Results are merged by name, the same rule end() applies (ResultUtil.addUniqueResults): a
+  // redelivered event with the same keys converges on one element per key instead of appending
+  // duplicates - see EventDeliveryIdempotencyTest.
   public void applyEventDelivery(String id, RunStatus status, List<RunResult> results) {
     Update update =
         new Update().set("annotations.boomerang#io/status", status).set("preApproved", true);
-    if (results != null && !results.isEmpty()) {
-      update.push("results").each(results.toArray());
-    }
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(id)), update, TaskRunEntity.class);
+    if (results != null) {
+      results.forEach(r -> ResultUtil.upsertResultByName(mongoTemplate, id, TaskRunEntity.class, r));
+    }
   }
 
   // Execution-entry Compare-And-Set: ready + pending/queued becomes running with the given start
@@ -667,6 +667,17 @@ public class TaskRunService {
     Query query =
         Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
     Update update = new Update().set("status", RunStatus.waiting).set("waitUntil", waitUntil);
+    return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
+  }
+
+  // Arm an eventwait: status -> waiting as a field-scoped Compare-And-Set fenced on the running
+  // phase. An event delivered between execute()'s entry read and this write lands through
+  // applyEventDelivery (preApproved, status annotation, results) and survives; the whole-document
+  // save this replaces rolled those fields back. Returns whether the arm was applied.
+  public boolean tryArmEventWait(String id) {
+    Query query =
+        Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", RunStatus.waiting);
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
