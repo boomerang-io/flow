@@ -144,22 +144,21 @@ public class SettingsService {
         .forEach(c -> c.setValue(decrypt(c.getValue())));
   }
 
+  // Blank values and values already carrying the label pass through; everything else is encrypted.
   private String encrypt(String value) {
-
-    if (StringUtils.hasText(value) || value.startsWith("crypt_v1")) {
+    if (!StringUtils.hasText(value) || value.startsWith("crypt_v1")) {
       return value;
     }
 
-    return StringUtils.hasText(value)
-        ? value
-        : ("crypt_v1{AESGCM|"
-            + AESAlgorithm.encrypt(value, encryptConfig.getSecretKey(), encryptConfig.getSalt())
-            + "}");
+    return "crypt_v1{AESGCM|"
+        + AESAlgorithm.encrypt(value, encryptConfig.getSecretKey(), encryptConfig.getSalt())
+        + "}";
   }
 
+  // A value without the label was stored as plaintext by an earlier release and is returned as-is;
+  // it is encrypted on its next save.
   private String decrypt(String value) {
-
-    if (StringUtils.hasText(value) || !value.startsWith("crypt_v1")) {
+    if (!StringUtils.hasText(value) || !value.startsWith("crypt_v1")) {
       return value;
     }
 
