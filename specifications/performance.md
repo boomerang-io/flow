@@ -57,7 +57,7 @@ colliding. Each paged query carries `maxTimeMsec(5000)` so a slow database canno
 
 | Sweeper | Property (default) | Start jitter | Page | Notes |
 | --- | --- | --- | --- | --- |
-| `WorkflowWatcher.sweep` (10 sweeps, `WorkflowWatcher.java:129-138`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true) | up to 30 s (`:116-119`) | 50 (`EngineConstants.java:12`) | Stall grace 60 s (`:51`); dispatcher declared gone after 60 s without a poll (`:69`); `flow.watcher.retention.enabled` (false) keeps `pruneDeletedWorkflows` a no-op (`:269-274`) |
+| `WorkflowWatcher.sweep` (10 sweeps, `WorkflowWatcher.java:138-148`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true) | up to 30 s (`:125-128`) | 50 (`EngineConstants.java:12`) | Stall grace 60 s (`:55`); dispatcher declared gone after 60 s without a poll (`:73`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finalise (`:284`) |
 | `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:69-71`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:41`) |
 | `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:32-35`) | up to 5 s (`:59-61`) | 50 | 3 delivery attempts, then the row is marked dead (`:41`) |
 
