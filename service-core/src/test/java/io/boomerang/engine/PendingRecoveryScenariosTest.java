@@ -227,6 +227,58 @@ class PendingRecoveryScenariosTest extends AbstractEngineIntegrationTest {
     assertTrue(workflowRepository.findById(workflowId).isPresent());
   }
 
+  /**
+   * Orphan backstop: an in-flight run whose revision no longer resolves (the workflow was purged
+   * or its revision deleted underneath it) is failed outright by the sweep, and its materialised
+   * TaskRuns are wound down rather than left running forever.
+   */
+  @Test
+  void runWithMissingRevisionIsFailedAndItsTasksWoundDown() {
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("missing-revision-wf", RunStatus.running, RunPhase.running);
+    wfRun.setWorkflowRevisionRef("revision-that-no-longer-exists");
+    workflowRunRepository.save(wfRun);
+    TaskRunEntity running =
+        savedTaskRun(
+            "in-flight",
+            TaskType.template,
+            RunStatus.running,
+            RunPhase.running,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    TaskRunEntity pending =
+        savedTaskRun(
+            "not-yet",
+            TaskType.template,
+            RunStatus.notstarted,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+
+    watcher.reapRunsWithMissingRevision();
+
+    awaitEngine("the orphaned run and its tasks to be wound down")
+        .untilAsserted(
+            () -> {
+              WorkflowRunEntity after = workflowRunRepository.findById(wfRun.getId()).orElseThrow();
+              assertEquals(RunPhase.completed, after.getPhase());
+              assertEquals(RunStatus.invalid, after.getStatus());
+              assertEquals(
+                  RunPhase.completed,
+                  taskRunRepository.findById(running.getId()).orElseThrow().getPhase(),
+                  "the running task is ended");
+              assertEquals(
+                  RunPhase.completed,
+                  taskRunRepository.findById(pending.getId()).orElseThrow().getPhase(),
+                  "the pending task is queued into a skip");
+            });
+
+    // Idempotent: a second sweep finds nothing in flight and changes nothing.
+    watcher.reapRunsWithMissingRevision();
+    assertEquals(
+        RunStatus.invalid, workflowRunRepository.findById(wfRun.getId()).orElseThrow().getStatus());
+  }
+
   private String submittedAndStartedRun(String name) {
     String workflowId = createdLifecycleWorkflow(name);
     String wfRunId =
