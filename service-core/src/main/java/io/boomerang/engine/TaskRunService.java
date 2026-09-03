@@ -35,6 +35,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /*
@@ -749,6 +750,9 @@ public class TaskRunService {
       Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
       if (optTaskRunEntity.isPresent()) {
         TaskRunEntity taskRunEntity = optTaskRunEntity.get();
+        Optional<String> claimedBy =
+            optRunRequest.map(TaskRunStartRequest::getDispatcherRef).filter(StringUtils::hasText);
+        rejectSupersededClaimant(taskRunEntity, claimedBy);
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
           taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
@@ -767,7 +771,7 @@ public class TaskRunService {
             taskRunRepository.save(taskRunEntity);
           }
         }
-        taskExecutionService.start(taskRunId);
+        taskExecutionService.start(taskRunId, claimedBy, Optional.empty());
         // Retrieve the refreshed state
         TaskRun taskRun = new TaskRun(taskRunRepository.findById(taskRunId).get());
         return ResponseEntity.ok(taskRun);
@@ -781,6 +785,11 @@ public class TaskRunService {
       Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
       if (optTaskRunEntity.isPresent()) {
         TaskRunEntity taskRunEntity = optTaskRunEntity.get();
+        // Fence before the merge below: a superseded claimant's result must not be written over
+        // the current claimant's record, let alone complete it.
+        Optional<String> claimedBy =
+            optRunRequest.map(TaskRunEndRequest::getDispatcherRef).filter(StringUtils::hasText);
+        rejectSupersededClaimant(taskRunEntity, claimedBy);
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
           taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
@@ -832,12 +841,31 @@ public class TaskRunService {
         if (!RunPhase.completed.equals(taskRunEntity.getPhase())) {
           taskRunRepository.save(taskRunEntity);
         }
-        taskExecutionService.end(taskRunId);
+        taskExecutionService.end(taskRunId, claimedBy, Optional.empty());
         TaskRun taskRun = new TaskRun(taskRunEntity);
         return ResponseEntity.ok(taskRun);
       }
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+  }
+
+  // Wire-level fence: a request that names its dispatcher must match claim.by. A request with no
+  // dispatcherRef is the legacy protocol and passes unfenced (TaskExecutionService applies the
+  // same rule on its entry). claim.seq is not on the wire, so a dispatcher that lost and re-won
+  // the same claim is not distinguished from its earlier self.
+  private static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
+    if (claimedBy.isEmpty() || taskRun.getClaim() == null || taskRun.getClaim().getBy() == null) {
+      return;
+    }
+    if (!claimedBy.get().equals(taskRun.getClaim().getBy())) {
+      LOGGER.error(
+          "[{}] Rejecting request from superseded claimant {}. Current claim is {} (seq {}).",
+          taskRun.getId(),
+          claimedBy.get(),
+          taskRun.getClaim().getBy(),
+          taskRun.getClaim().getSeq());
+      throw new BoomerangException(BoomerangError.TASKRUN_CLAIM_SUPERSEDED);
+    }
   }
 
   public StreamingResponseBody streamLog(String taskRunId) {
