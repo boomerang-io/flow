@@ -57,6 +57,13 @@ describe("WorkflowInsights --- Snapshot", () => {
 });
 
 describe("WorkflowInsights --- RTL", () => {
+  test("explains that insights come from the audit trail and include deleted Workflows", async () => {
+    renderInsights();
+    expect(
+      await screen.findByText(/Workflows and runs that have since been deleted are included/),
+    ).toBeInTheDocument();
+  });
+
   test("filtering by status updates the URL search params", async () => {
     const { history } = renderInsights();
     await screen.findByTestId("completed-insights");
