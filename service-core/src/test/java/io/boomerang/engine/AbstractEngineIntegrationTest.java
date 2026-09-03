@@ -60,7 +60,7 @@ public abstract class AbstractEngineIntegrationTest {
     registry.add("spring.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
     registry.add("flow.mongo.collection.prefix", () -> "flowtest");
     registry.add("flow.events.sink.enabled", () -> "false");
-    registry.add("flow.audit.enabled", () -> "false");
+    // Audit capture gates on the "audit" settings document, which these tests do not seed.
     // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
     registry.add("flow.watcher.enabled", () -> "false");
   }

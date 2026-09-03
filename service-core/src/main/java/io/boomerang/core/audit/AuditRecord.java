@@ -1,23 +1,23 @@
 package io.boomerang.core.audit;
 
-import java.util.Date;
-import java.util.Map;
-import lombok.Value;
-
-/*
- * Minimal read-model projection of an AuditEntity.
- *
- * Exposed by AuditQueryService so that callers outside io.boomerang.core (e.g.
- * io.boomerang.workspace.InsightsService) can query audit data without importing the
- * AuditRepository/AuditEntity persistence types directly.
+/**
+ * Immutable capture of one audited attempt, assembled synchronously on the calling thread (the
+ * SecurityContext and RequestContextHolder thread-locals must not cross into the async writer) and
+ * handed to {@link AuditEventWriter#persist(AuditRecord)}.
  */
-@Value
-public class AuditRecord {
-  String id;
-  AuditScope scope;
-  String selfRef;
-  String selfName;
-  String parent;
-  Date creationDate;
-  Map<String, String> data;
-}
+public record AuditRecord(
+    AuditActor actor,
+    String workspaceId,
+    AuditAction action,
+    AuditLevel level,
+    String resourceType,
+    String resourceId,
+    String resourceName,
+    AuditOutcome outcome,
+    String sourceIp,
+    String userAgent,
+    String httpMethod,
+    String requestPath,
+    Long durationMs,
+    String errorSummary,
+    String detail) {}

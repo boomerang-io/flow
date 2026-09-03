@@ -30,7 +30,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts; hashed bearer tokens with principal, permissions, expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
 | `settings` | Instance settings grouped by `key`, each with a `config` list | `SettingEntity` (`core`) |
-| `audit` | One audit record per workspace and per workflow, with an event list | `AuditEntity` (`core.audit`) |
+| `audit` | One flat event per audited attempt: CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`/`actorName`/`actorType`), `workspaceId`, `action`, resource (`resourceType`/`resourceId`/`resourceName`), `outcome`, `level`, `payload`; expires by TTL | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (schema below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
 | `integrations`, `integration_templates` | Installed integrations and their catalogue | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
@@ -94,7 +94,8 @@ Indexes exist only because a loader change unit created them (`MigrationUtils.en
 | `_0026__TokenIndexes` | `tokens` | `token_hash_lookup` on the stored hash |
 | `_0030__WorkspaceSearchIndexes` | `workspaces` | `name_lookup`, `display_name_lookup` |
 | `_0033__DefinitionIndexes` | `workflows`, `workflow_revisions`, `workflow_templates`, `tasks`, `task_revisions`, `workflow_schedules` | `name_lookup`, `(parent, version)` lookups, `fire_sweep` |
-| `_0036__RelationshipAndAuditIndexes` | `rel_nodes`, `rel_edges`, `audit`, `users` | `type_ref`, `type_slug`, `from_label`, `to_label`, audit scope lookups, `email_lookup` |
+| `_0036__RelationshipAndAuditIndexes` | `rel_nodes`, `rel_edges`, `audit`, `users` | `type_ref`, `type_slug`, `from_label`, `to_label`, `email_lookup` (its audit scope lookups are dropped again by `_0042`) |
+| `_0042__AuditEventRestructure` | `audit` | `createdAt_ttl` (365-day TTL; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `_0037__SweepIndexes` | `task_runs`, `workflow_runs`, `actions` | `status_sweep`, `claimed_sweep` for the watcher and dispatcher polls |
 
 ## Migrations
@@ -121,7 +122,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0010__V3ExtractWorkflowTemplates` | v3 | Workflows with `scope=template` → `workflow_templates` |
 | `_0011__V3MigrateRuns` | v3 | `workflows_activity` → `workflow_runs`; approvals → `actions`; schedules → `workflow_schedules` |
 | `_0012__V3BuildRelationshipGraph` | v3 | Builds `rel_nodes` / `rel_edges` for the migrated data |
-| `_0013__V3SeedAudit` | v3 | Creates one `audit` record per workspace and per workflow |
+| `_0013__V3SeedAudit` | v3 | Creates one per-object `audit` record per workspace and per workflow (dropped again by `_0042`) |
 | `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections (`workflows_activity`, `relationships`, …) |
 | `_0015__DispatcherRename` | all | Renames the worker-tier fields from `agent` to `dispatcher` on stored runs |
 | `_0016__WorkspaceRename` | all | Renames `teams` → `workspaces` and `team` → `workspace` in graph ids, types and scopes |
@@ -131,7 +132,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0022__SeedTaskCatalogue` | all | Seeds the 87 out-of-the-box tasks and their 130 revisions |
 | `_0023__SeedTemplates` | all | Seeds the starter workflow templates and the integration templates |
 | `_0024__V4RepairTaskVersions` | v4 | Repairs task version numbering left inconsistent by the v4 loader |
-| `_0025__V4RepairWorkflowAudit` | v4 | Creates the workflow-scope `audit` records the v4 loader never wrote |
+| `_0025__V4RepairWorkflowAudit` | v4 | Creates the workflow-scope per-object `audit` records the v4 loader never wrote (dropped again by `_0042`) |
 | `_0026__TokenIndexes` | all | Index unit (table above) |
 | `_0027__V4DropResidualCollections` | all | Drops the leftover JobRunr collections (`<prefix>jr_*`, `<prefix>_sch_*`) |
 | `_0028__TokenClassRestructure` | all | Restructures tokens by actor kind; deletes team-, workspace- and workflow-typed tokens |
@@ -145,6 +146,8 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0036`, `_0037` | all | Index units (table above) |
 | `_0038__NormaliseUserEmails` | all | Lower-cases every `users.email` so the equality index serves lookups |
 | `_0039__RepointWorkerFlowImages` | all | Repoints catalogue tasks off the retired `worker-flow` image |
+| `_0040__DeclareRunWorkflowParams` | all | Declares the params the `run-workflow` and `run-scheduled-workflow` catalogue tasks read |
+| `_0042__AuditEventRestructure` | all | Drops the per-object `audit` records and their indexes, creates the flat-event indexes (table above), seeds the `audit` settings document |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

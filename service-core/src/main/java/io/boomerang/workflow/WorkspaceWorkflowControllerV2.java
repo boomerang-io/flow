@@ -6,6 +6,9 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.audit.Audited;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -145,6 +148,12 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.CREATE,
+      resourceType = "workflow",
+      resourceId = "#result?.getName()",
+      resourceName = "#result?.getDisplayName()",
+      workspaceId = "#workspace")
   @Operation(summary = "Create a new workflow")
   @ApiResponses(
       value = {
@@ -168,6 +177,12 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "workflow",
+      resourceId = "#result?.getName()",
+      resourceName = "#result?.getDisplayName()",
+      workspaceId = "#workspace")
   @Operation(summary = "Update, replace, or create new, Workflow")
   @ApiResponses(
       value = {
@@ -225,6 +240,12 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "workflow",
+      resourceId = "#name",
+      workspaceId = "#workspace",
+      level = AuditLevel.DESTRUCTIVE)
   @Operation(summary = "Delete a workflow")
   @ApiResponses(
       value = {
@@ -254,6 +275,12 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.SUBMIT,
+      resourceType = "workflow",
+      resourceId = "#name",
+      resourceName = "#result?.getId()",
+      workspaceId = "#workspace")
   @Operation(
       summary = "Submit a Workflow to be run. Will queue the WorkflowRun ready for execution.")
   @ApiResponses(
@@ -349,6 +376,12 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "workflow",
+      resourceId = "#result?.getName()",
+      resourceName = "#result?.getDisplayName()",
+      workspaceId = "#workspace")
   @Operation(summary = "Update, replace, or create new, Workflow for Canvas")
   @ApiResponses(
       value = {
@@ -375,6 +408,12 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.DUPLICATE,
+      resourceType = "workflow",
+      resourceId = "#result?.getName()",
+      resourceName = "#name",
+      workspaceId = "#workspace")
   @Operation(summary = "Duplicates the workflow.")
   public Workflow duplicateWorkflow(
       @Parameter(
