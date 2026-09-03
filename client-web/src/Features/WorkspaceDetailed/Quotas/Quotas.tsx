@@ -165,6 +165,9 @@ function Quotas() {
             coverageBarStyle={coverageBarStyle}
           />
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentRuns}`}</p>
+          <p className={styles.detailedSmallText}>
+            Monthly counts include Workflows and runs that have since been deleted.
+          </p>
         </QuotaCard>
         <QuotaCard
           subtitle="Maximum amount of time that a single Workflow can take for one run (execution)."

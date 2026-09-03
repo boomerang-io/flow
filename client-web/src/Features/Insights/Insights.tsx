@@ -224,7 +224,11 @@ function InsightsContainer({ workspace, children }: InsightsContainerProps) {
         header={
           <>
             <HeaderTitle>Insights</HeaderTitle>
-            <HeaderSubtitle>Gain valuable insight by digging deeper into the Workflow runs</HeaderSubtitle>
+            <HeaderSubtitle>
+              Gain valuable insight by digging deeper into the Workflow runs. Insights are drawn
+              from the audit trail, so Workflows and runs that have since been deleted are
+              included for as long as the audit retention keeps them.
+            </HeaderSubtitle>
           </>
         }
       />

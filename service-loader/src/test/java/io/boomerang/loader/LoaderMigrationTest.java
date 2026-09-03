@@ -328,6 +328,7 @@ class LoaderMigrationTest {
     assertRelationshipAndAuditIndexes();
     assertAuditRestructured();
     assertSweepIndexes();
+    assertQuotaCountIndexes();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
     assertWorkerFlowImagesRepointed();
@@ -1384,6 +1385,15 @@ class LoaderMigrationTest {
     assertIndex("workflow_runs", "workflow_ref_phase", List.of("workflowRef", "phase"));
     assertIndex("task_runs", "claimed_sweep", List.of("phase", "claim.at"));
     assertIndex("actions", "status_sweep", List.of("status", "creationDate"));
+  }
+
+  /**
+   * {@code _0041}: the quota-count indexes. Both quota counters anchor on {@code workflowRef $in},
+   * which only {@code workflow_ref_phase} prefixes - and neither count filters {@code phase}.
+   */
+  private void assertQuotaCountIndexes() {
+    assertIndex("workflow_runs", "workflow_ref_creation", List.of("workflowRef", "creationDate"));
+    assertIndex("workflow_runs", "workflow_ref_status", List.of("workflowRef", "status"));
   }
 
   private void assertWorkspaceRenameApplied() {

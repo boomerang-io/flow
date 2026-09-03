@@ -30,7 +30,8 @@ class AuditEventWriterTest {
         "/api/v2/workspace/acme/workflow",
         12L,
         null,
-        null);
+        null,
+        java.util.Map.of("workflowRef", "wf1"));
   }
 
   @Test
@@ -66,6 +67,7 @@ class AuditEventWriterTest {
         .containsEntry("httpMethod", "POST")
         .containsEntry("requestPath", "/api/v2/workspace/acme/workflow")
         .containsEntry("durationMs", 12L)
+        .containsEntry("workflowRef", "wf1")
         .doesNotContainKeys("errorSummary", "detail");
   }
 }

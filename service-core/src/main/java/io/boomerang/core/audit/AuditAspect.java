@@ -114,6 +114,7 @@ public class AuditAspect {
               http.path(),
               durationMs,
               errorSummary(error),
+              null,
               null));
     } catch (RuntimeException e) {
       // Audit assembly must never break the request - the outcome (including the original

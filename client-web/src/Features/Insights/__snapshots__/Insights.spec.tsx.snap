@@ -54,7 +54,7 @@ exports[`WorkflowInsights --- Snapshot > Capturing Snapshot of WorkflowInsights 
           <p
             class="cds--bmrg-feature-header-title"
           >
-            Gain valuable insight by digging deeper into the Workflow runs
+            Gain valuable insight by digging deeper into the Workflow runs. Insights are drawn from the audit trail, so Workflows and runs that have since been deleted are included for as long as the audit retention keeps them.
           </p>
         </div>
       </section>
