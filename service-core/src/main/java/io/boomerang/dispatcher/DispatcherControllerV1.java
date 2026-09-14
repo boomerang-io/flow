@@ -21,8 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * The whole v1 dispatcher protocol — registration, the two queue polls, and the four lifecycle
- * callbacks — served under the single {@code /api/v1/dispatcher} path root.
+ * The whole v1 dispatcher protocol — registration, the two queue polls, the lifecycle callbacks and
+ * the workspace release query — served under the single {@code /api/v1/dispatcher} path root.
  *
  * <p>The callbacks previously lived on {@code /api/v1/workflowrun} and {@code /api/v1/taskrun} in
  * separate {@code WorkflowRunControllerV1}/{@code TaskRunControllerV1} classes — v4 residue from
@@ -130,23 +130,6 @@ public class DispatcherControllerV1 {
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
     return workflowRunService.start(workflowRunId, runRequest);
-  }
-
-  @PutMapping(value = "/workflowrun/{workflowRunId}/finalize")
-  @Operation(summary = "End a WorkflowRun")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
-      })
-  public WorkflowRun finalize(
-      @Parameter(
-              name = "workflowRunId",
-              description = "ID of WorkflowRun to Finalize",
-              required = true)
-          @PathVariable(required = true)
-          String workflowRunId) {
-    return workflowRunService.finalize(workflowRunId);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/start")

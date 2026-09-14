@@ -129,10 +129,11 @@ public class DispatcherService {
   /**
    * Long-poll endpoint dispatching WorkflowRuns to the agent.
    *
-   * <p>Each cycle pages the eligible candidates (provision and workspace teardown) and claims
-   * each one individually via a Compare-And-Set; racing agents cannot both win a run and the
-   * response contains only the documents this agent actually claimed. Claimed and terminal runs
-   * are not redelivered.
+   * <p>Each cycle pages the runs awaiting workspace provisioning and claims each one individually
+   * via a Compare-And-Set; racing agents cannot both win a run and the response contains only the
+   * documents this agent actually claimed. Claimed and terminal runs are not redelivered. Releasing
+   * a run's storage is not dispatched here - the dispatcher reconciles what it holds against {@link
+   * #releasable}.
    *
    * @param agentId
    * @return
@@ -157,18 +158,11 @@ public class DispatcherService {
       LOGGER.debug("Checking queue for agent: {}", agentId);
       try {
         // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
-        // provision and start, completed to tear down and finalize.
+        // provision and start.
         List<WorkflowRun> workflowRuns = new LinkedList<>();
         for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
-          if (claimed != null) {
-            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
-          }
-        }
-        for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForTeardown(PAGE_SIZE)) {
-          WorkflowRunEntity claimed =
-              workflowRunStateHelper.tryClaimForTeardown(candidate.getId(), agentId);
           if (claimed != null) {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }

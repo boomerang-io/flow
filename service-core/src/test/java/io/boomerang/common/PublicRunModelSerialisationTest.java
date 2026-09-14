@@ -2,6 +2,7 @@ package io.boomerang.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import java.util.Set;
@@ -104,9 +105,11 @@ class PublicRunModelSerialisationTest {
    *
    * <p>The architecture invariant says {@code phase} must never appear in a public {@code /api/v2}
    * response. It does, because {@link WorkflowRun}/{@link TaskRun} are shared with the dispatcher
-   * wire, which legitimately needs {@code phase} to dispatch on. Fixing this requires either a
-   * dispatcher-specific wire model or a {@code @JsonView}/mixin split — a design decision, not a
-   * drive-by change.
+   * wire, which legitimately needs {@code phase} to dispatch on. The one position {@code status}
+   * cannot express is {@code queued} — every other phase pairs with a status the caller already
+   * sees — so that single gap is now the whole reason the field stays exposed. Closing it requires
+   * either a dispatcher-specific wire model or a {@code @JsonView}/mixin split — a design decision,
+   * not a drive-by change.
    *
    * <p><b>When {@code phase} is removed from the public surface, invert these assertions.</b>
    */
@@ -123,6 +126,18 @@ class PublicRunModelSerialisationTest {
             "KNOWN DEVIATION: phase is declared on the public v2 TaskRun response. "
                 + "Invert this assertion once the public/dispatcher model split lands.")
         .contains("phase");
+  }
+
+  /**
+   * The closed phase set. A run ends at {@code completed}: releasing its storage is the
+   * dispatcher's reconciliation against the cluster, not a further phase, so nothing follows the
+   * terminal one. Adding a member here changes what every consumer of the shared models can see.
+   */
+  @Test
+  void theRunPhaseSetIsClosedAndEndsAtCompleted() {
+    assertThat(RunPhase.values())
+        .as("RunPhase is a closed set shared with the dispatcher and the frontend")
+        .containsExactly(RunPhase.queued, RunPhase.pending, RunPhase.running, RunPhase.completed);
   }
 
   private static Set<String> fieldNamesOf(Class<?> type) {

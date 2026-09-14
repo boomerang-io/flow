@@ -126,8 +126,7 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
       strings = {
         "/api/v1/dispatcher/taskrun/any-run-id/start",
         "/api/v1/dispatcher/taskrun/any-run-id/end",
-        "/api/v1/dispatcher/workflowrun/any-run-id/start",
-        "/api/v1/dispatcher/workflowrun/any-run-id/finalize"
+        "/api/v1/dispatcher/workflowrun/any-run-id/start"
       })
   void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
     mockMvc.perform(put(path)).andExpect(status().isUnauthorized());

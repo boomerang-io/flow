@@ -138,7 +138,6 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
-    SweepRunner.runIsolated("finalizeWorkspacelessRuns", this::finalizeWorkspacelessRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
@@ -218,22 +217,6 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Finalize completed runs that have no workspaces: with nothing to tear down no agent ever
-   * claims them, so the engine closes them out itself.
-   */
-  public void finalizeWorkspacelessRuns() {
-    SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findFinalizableWithoutWorkspaces(PAGE_SIZE),
-        wfRun -> {
-          if (workflowRunStateHelper.tryFinalize(wfRun.getId()) != null) {
-            LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
-          }
-        },
-        (wfRun, ex) ->
-            LOGGER.error("[{}] Finalize sweep failed: {}", wfRun.getId(), ex.getMessage()));
-  }
-
-  /**
    * Resume waiting tasks whose {@code waitUntil} has elapsed - a due sleep completes, a due
    * acquirelock re-attempts. Event and approval waits carry no {@code waitUntil}, so the sparse
    * index never surfaces them here. Each is claimed by a Compare-And-Set so instances never
@@ -254,7 +237,7 @@ public class WorkflowWatcher {
   /**
    * Wind down deleted (tombstoned) Workflows: cancel their still-in-flight WorkflowRuns through the
    * normal cancel path. Nothing is destroyed here - pruneDeletedWorkflows hard-deletes once
-   * the runs finalise.
+   * the runs complete.
    */
   public void cancelDeletedWorkflowRuns() {
     for (WorkflowEntity workflow : workflowRepository.findByStatus(WorkflowStatus.deleted)) {
@@ -274,7 +257,7 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Prune deleted (tombstoned) Workflows whose runs have all finalised: hard-delete the
+   * Prune deleted (tombstoned) Workflows whose runs have all completed: hard-delete the
    * workflow's TaskRuns, WorkflowRuns, revisions, leftover Actions and schedules, its
    * relationship node, and finally the workflow document itself. A workflow with a run still in
    * flight is skipped - the cancel sweep finishes first, so live work is never pruned. Audit

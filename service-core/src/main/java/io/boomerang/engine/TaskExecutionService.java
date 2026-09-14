@@ -129,8 +129,7 @@ public class TaskExecutionService {
           RunPhase.completed,
           Optional.of("Unable to find WorkflowRun"));
       return;
-    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.get().getPhase())) {
+    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())) {
       // Set duration. If in Queued. There will be no start time.
       long duration =
           taskExecution.getStartTime() != null
@@ -268,8 +267,7 @@ public class TaskExecutionService {
           RunPhase.completed,
           Optional.of("Unable to find WorkflowRun"));
       return;
-    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.get().getPhase())) {
+    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())) {
       // Set duration. If in Queued. There will be no start time.
       long duration =
           taskExecution.getStartTime() != null
@@ -446,8 +444,7 @@ public class TaskExecutionService {
       return;
     }
     WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
-    if (RunPhase.completed.equals(wfRunEntity.getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.getPhase())) {
+    if (RunPhase.completed.equals(wfRunEntity.getPhase())) {
       String statusMessage =
           MessageFormatter.arrayFormat(
                   "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion.",

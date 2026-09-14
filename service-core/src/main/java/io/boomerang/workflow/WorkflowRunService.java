@@ -284,16 +284,6 @@ public class WorkflowRunService {
   }
 
   /*
-   * Finalize WorkflowRun
-   *
-   * TODO: do we expose this one?
-   */
-  public ResponseEntity<WorkflowRun> finalize(String team, String workflowRunId) {
-    requireWorkspaceRelationship(team, workflowRunId);
-    return ResponseEntity.ok(finalize(workflowRunId));
-  }
-
-  /*
    * Cancel WorkflowRun
    */
   public ResponseEntity<WorkflowRun> cancel(String team, String workflowRunId) {
@@ -842,22 +832,6 @@ public class WorkflowRunService {
       // Retrieve the refreshed status
       WorkflowRunEntity updatedWfRunEntity = workflowRunRepository.findById(workflowRunId).get();
       return ConvertUtil.entityToModel(updatedWfRunEntity, WorkflowRun.class);
-    } else {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
-    }
-  }
-
-  public WorkflowRun finalize(String workflowRunId) {
-    if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
-    }
-    final Optional<WorkflowRunEntity> optWfRunEntity =
-        workflowRunRepository.findById(workflowRunId);
-    if (optWfRunEntity.isPresent()) {
-      workflowExecutionService.end(workflowRunId);
-      // Retrieve the refreshed status
-      return ConvertUtil.entityToModel(
-          workflowRunRepository.findById(workflowRunId).get(), WorkflowRun.class);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }

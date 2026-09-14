@@ -65,13 +65,11 @@ public class CloudEventsBridge {
     }
   }
 
-  // A transition emits when the externally-visible status changes, or when the run reaches a
+  // A transition emits when the externally-visible status changes, or when the run reaches the
   // terminal phase carrying a caller-persisted status (whose change was never emitted). Claim
   // transitions (phase-only, non-terminal) stay silent.
   private static boolean emits(
       RunStatus fromStatus, RunPhase fromPhase, RunStatus toStatus, RunPhase toPhase) {
-    return fromStatus != toStatus
-        || (fromPhase != toPhase
-            && (RunPhase.completed == toPhase || RunPhase.finalized == toPhase));
+    return fromStatus != toStatus || (fromPhase != toPhase && RunPhase.completed == toPhase);
   }
 }

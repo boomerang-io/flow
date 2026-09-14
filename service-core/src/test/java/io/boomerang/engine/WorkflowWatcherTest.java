@@ -38,7 +38,7 @@ import org.springframework.data.mongodb.core.query.Update;
 /**
  * The watcher's self-healing sweeps: durable timeout reaping with retry backoff (which is also
  * the crash recovery for a killed claimant - one sweep pass recovers the task), stalled-run
- * recovery, and engine-internal finalize of workspace-less completed runs. Every sweep action
+ * recovery, and the wind-down of deleted Workflows. Every sweep action
  * goes through a Compare-And-Set, so the sweeps are exercised by direct invocation - one call is
  * one tick.
  */
@@ -267,18 +267,6 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void workspacelessCompletedRunIsFinalized() {
-    WorkflowRunEntity wfRun =
-        savedWorkflowRun("finalize-wf", RunStatus.succeeded, RunPhase.completed);
-
-    watcher.finalizeWorkspacelessRuns();
-
-    WorkflowRunEntity after = workflowRunRepository.findById(wfRun.getId()).orElseThrow();
-    assertEquals(RunPhase.finalized, after.getPhase());
-    assertEquals(RunStatus.succeeded, after.getStatus());
-  }
-
-  @Test
   void dueSleepTaskIsCompletedBySweepNotAHeldThread() {
     WorkflowRunEntity wfRun = savedWorkflowRun("sleep-wf", RunStatus.running, RunPhase.running);
     String taskRunId =
@@ -307,10 +295,10 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void deletedWorkflowWithFinalisedRunsIsPruned() {
+  void deletedWorkflowWithCompletedRunsIsPruned() {
     WorkflowEntity workflow = savedWorkflow("pruned-wf", WorkflowStatus.deleted);
     WorkflowRunEntity wfRun =
-        savedWorkflowRun(workflow.getId(), RunStatus.cancelled, RunPhase.finalized);
+        savedWorkflowRun(workflow.getId(), RunStatus.cancelled, RunPhase.completed);
     String taskRunId =
         savedTaskRun(
                 "pruned-task",
@@ -386,7 +374,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   void activeWorkflowIsNeverPruned() {
     WorkflowEntity workflow = savedWorkflow("active-wf", WorkflowStatus.active);
     WorkflowRunEntity run =
-        savedWorkflowRun(workflow.getId(), RunStatus.succeeded, RunPhase.finalized);
+        savedWorkflowRun(workflow.getId(), RunStatus.succeeded, RunPhase.completed);
 
     watcher.pruneDeletedWorkflows();
 

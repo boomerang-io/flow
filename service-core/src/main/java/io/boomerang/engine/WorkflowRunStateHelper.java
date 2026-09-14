@@ -62,23 +62,6 @@ public class WorkflowRunStateHelper {
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
-  public List<WorkflowRunEntity> findClaimableForTeardown(int limit) {
-    // workspaces.0 exists = the run still has workspaces for the claimant to tear down.
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.completed)
-                    .and("claim.by")
-                    .exists(false)
-                    .and("workspaces.0")
-                    .exists(true))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit);
-    // The claim page only needs the id - tryClaimForTeardown transitions by id.
-    query.fields().include("_id");
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
   public WorkflowRunEntity tryClaimForProvision(String id, String claimedBy) {
     Date now = new Date();
     Query query =
@@ -110,33 +93,6 @@ public class WorkflowRunStateHelper {
     return preImage;
   }
 
-  public WorkflowRunEntity tryClaimForTeardown(String id, String claimedBy) {
-    Date now = new Date();
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("phase")
-                .is(RunPhase.completed)
-                .and("claim.by")
-                .exists(false)
-                .and("workspaces.0")
-                .exists(true));
-    Update update =
-        new Update()
-            .set("claim.by", claimedBy)
-            .set("claim.at", now)
-            .inc("claim.seq", 1);
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), preImage.getPhase());
-      // Return the pre-image with the claim owner applied - teardown leaves the phase (completed)
-      // unchanged, so only the claim block needs patching for the caller's agent payload.
-      preImage.setClaim(TaskRunService.claimApplied(preImage.getClaim(), claimedBy, now));
-    }
-    return preImage;
-  }
-
   public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
     Query query =
         Query.query(
@@ -155,8 +111,7 @@ public class WorkflowRunStateHelper {
   }
 
   public WorkflowRunEntity tryStart(String id, Date startTime, Long timeoutMinutes) {
-    // Clearing the dispatch claim frees the completed-phase teardown claimable; claim.seq is
-    // never cleared and survives.
+    // The dispatch claim is cleared on start; claim.seq is never cleared and survives.
     Query query =
         Query.query(
             Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.queued));
@@ -215,16 +170,6 @@ public class WorkflowRunStateHelper {
     WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryFinalize(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.completed));
-    Update update = new Update().set("phase", RunPhase.finalized);
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.finalized);
     }
     return preImage;
   }
@@ -294,16 +239,6 @@ public class WorkflowRunStateHelper {
   public List<WorkflowRunEntity> findInFlight(int limit) {
     Query query =
         Query.query(Criteria.where("phase").in(RunPhase.pending, RunPhase.queued, RunPhase.running))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
-  public List<WorkflowRunEntity> findFinalizableWithoutWorkspaces(int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("phase").is(RunPhase.completed).and("workspaces.0").exists(false))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);
