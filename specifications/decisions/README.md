@@ -55,3 +55,4 @@ things by name, not by code.
 | 0067 | [A run that declares workspaces is started by the dispatcher after provisioning](0067-runs-with-workspaces-are-started-by-the-dispatcher-after-provisioning.md) | accepted | 2026-09-02 |
 | 0068 | [An empty workflow task parameter value is valid; required-ness is the task's run-time concern](0068-an-empty-workflow-task-parameter-value-is-valid.md) | accepted | 2026-09-02 |
 | 0069 | [Submit starts the run by default; parking is the explicit opt-out](0069-submit-starts-the-run-by-default.md) | accepted | 2026-09-02 |
+| 0070 | [Audit is flat per-event documents captured by annotation, with levels](0070-audit-is-flat-per-event-documents-captured-by-annotation.md) | accepted | 2026-09-03 |
