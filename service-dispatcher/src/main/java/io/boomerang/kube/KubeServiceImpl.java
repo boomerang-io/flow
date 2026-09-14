@@ -257,7 +257,8 @@ public class KubeServiceImpl implements KubeService {
           .list()
           .getItems();
     } catch (KubernetesClientException e) {
-      LOGGER.error("Unable to list workspace PersistentVolumeClaims.", e);
+      // Best effort, like the lease heartbeat: the claims stay held and the next tick re-lists.
+      LOGGER.warn("Unable to list workspace PersistentVolumeClaims: {}", e.getMessage());
       return List.of();
     }
   }
