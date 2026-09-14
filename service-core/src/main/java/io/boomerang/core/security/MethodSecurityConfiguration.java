@@ -1,22 +1,28 @@
 package io.boomerang.core.security;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import java.lang.reflect.Method;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.Advisor;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.Pointcuts;
+import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Role;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Enforces {@link AuthCriteria} through Spring Security's native method security, replacing the
+ * Enforces {@link AuthCriteria} (and its opt-out, {@link AuthExempt}) through Spring Security's
+ * native method security, replacing the
  * {@code HandlerInterceptor}-based {@code SecurityInterceptor}/{@code
  * SecurityInterceptorConfiguration} - see {@link AuthCriteriaAuthorizationManager} for the
  * enforcement logic itself.
@@ -47,12 +53,35 @@ public class MethodSecurityConfiguration {
   @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
   static Advisor authCriteriaAuthorizationAdvisor(
       IdentityService identityService, MeterRegistry meterRegistry) {
+    // Every REST handler in this application is intercepted, not only the annotated ones: an
+    // unannotated route is denied (see AuthCriteriaAuthorizationManager), so publishing a route
+    // without an authorization decision is a startup-time test failure and a runtime 403, never a
+    // silently open endpoint. The class filter keeps framework controllers (springdoc, actuator)
+    // outside the rule; the method matcher accepts @RequestMapping and its composed forms
+    // (@GetMapping and friends) through meta-annotation lookup.
     Pointcut pointcut =
         Pointcuts.union(
-            AnnotationMatchingPointcut.forClassAnnotation(AuthCriteria.class),
-            AnnotationMatchingPointcut.forMethodAnnotation(AuthCriteria.class));
+            Pointcuts.union(
+                AnnotationMatchingPointcut.forClassAnnotation(AuthCriteria.class),
+                AnnotationMatchingPointcut.forMethodAnnotation(AuthCriteria.class)),
+            new RestHandlerPointcut());
     AuthorizationManager<MethodInvocation> manager =
         new AuthCriteriaAuthorizationManager(identityService, meterRegistry);
     return new AuthorizationManagerBeforeMethodInterceptor(pointcut, manager);
+  }
+
+  /** Matches every request-mapped method of an {@code io.boomerang} {@code @RestController}. */
+  static final class RestHandlerPointcut extends StaticMethodMatcherPointcut {
+    RestHandlerPointcut() {
+      setClassFilter(
+          clazz ->
+              clazz.getPackageName().startsWith("io.boomerang")
+                  && AnnotatedElementUtils.hasAnnotation(clazz, RestController.class));
+    }
+
+    @Override
+    public boolean matches(Method method, Class<?> targetClass) {
+      return AnnotatedElementUtils.hasAnnotation(method, RequestMapping.class);
+    }
   }
 }

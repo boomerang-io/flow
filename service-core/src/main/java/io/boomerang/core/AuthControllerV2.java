@@ -6,6 +6,7 @@ import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.model.AuthConfig;
 import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.AuthExempt;
 import io.boomerang.core.security.AuthExchangeService;
 import io.boomerang.core.security.SessionCookie;
 import io.boomerang.core.security.enums.AuthScope;
@@ -53,6 +54,10 @@ public class AuthControllerV2 {
    * browser needs for its authorize request - never anything else from the auth settings.
    */
   @GetMapping("/config")
+  @AuthExempt(
+      reason =
+          "Pre-auth bootstrap: the webapp reads how to sign in before it holds any session; exposes"
+              + " only the sign-in mode and the OIDC issuer/clientId. permitAll in SecurityConfiguration.")
   @Operation(summary = "How to sign in - the pre-auth bootstrap contract for the webapp")
   public AuthConfig config() {
     return authExchangeService.config();
@@ -69,6 +74,10 @@ public class AuthControllerV2 {
    * id_token itself and needs no prior credential.
    */
   @PostMapping("/exchange")
+  @AuthExempt(
+      reason =
+          "The sign-in exchange itself: a verified OIDC id_token or a proxy-forwarded identity is"
+              + " traded for a session, so there is no Flow token yet. permitAll in SecurityConfiguration.")
   @Operation(
       summary = "Exchange a proxy-forwarded identity or a verified OIDC id_token for a session")
   public ResponseEntity<Void> exchange(
