@@ -89,23 +89,37 @@ either side; resources and actions are the `PermissionResource` and `PermissionA
 
 ### Layer 1 — `@AuthCriteria` at the endpoint
 
-Every protected controller method (or, since `@AuthCriteria` targets `TYPE` as well as `METHOD`, an entire
-controller class) declares `resource`, `action` and `assignableScopes` (`core/security/AuthCriteria.java:11-19`).
-Enforcement is Spring Security method security, not a `HandlerInterceptor`:
-`MethodSecurityConfiguration` (`core/security/MethodSecurityConfiguration.java:34-52`) registers
-`AuthCriteriaAuthorizationManager` as an `Advisor` — `AuthorizationManagerBeforeMethodInterceptor` over a
-`Pointcut` that unions class- and method-level `@AuthCriteria` matches (`:44-51`) — via `@EnableMethodSecurity`;
-the bean carries `@Role(ROLE_INFRASTRUCTURE)` because `EnableMethodSecurity`'s auto-proxy creator only ever
-applies advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:66-108`):
+Every REST handler MUST carry one of two annotations, on the method or on its controller class:
+`@AuthCriteria` declares `resource`, `action` and `assignableScopes` (`core/security/AuthCriteria.java:11-19`);
+`@AuthExempt(reason = …)` is the explicit opt-out for a route that is public by design or whose caller
+cannot hold a Flow token (`core/security/AuthExempt.java`). A handler with neither is **denied** — authorization
+is deny-by-default, so a route cannot ship open by omission. `AuthCriteriaCoverageTest` scans every
+`io.boomerang` `@RestController` and fails the build naming any handler without a decision.
 
-1. No `@AuthCriteria` on the method or its declaring class → the pointcut never selects the method at all, so the call proceeds unintercepted. Public endpoints such as `GET /api/v2/auth/config` rely on this deliberately.
-2. Annotated but no identity → throws `AuthenticationCredentialsNotFoundException`, caught by `AuthenticationFilter`'s exception handling like any other authentication failure → structured 401 (`:74-79`).
-3. Token class not in `assignableScopes` → same exception, counted in `flow.security.denied` (`:81-89`).
-4. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`) → plain 403, counted in `flow.security.denied` (`:91-104`).
+Enforcement is Spring Security method security, not a `HandlerInterceptor`: `MethodSecurityConfiguration`
+(`core/security/MethodSecurityConfiguration.java:54-69`) registers `AuthCriteriaAuthorizationManager` as an
+`Advisor` — `AuthorizationManagerBeforeMethodInterceptor` over a `Pointcut` that matches every request-mapped
+method of an `io.boomerang` `@RestController` (`RestHandlerPointcut`, `:74-87`; framework controllers such
+as springdoc stay outside) plus any class or method carrying `@AuthCriteria` — via `@EnableMethodSecurity`; the
+bean carries `@Role(ROLE_INFRASTRUCTURE)` because `EnableMethodSecurity`'s auto-proxy creator only ever applies
+advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:68-137`)
+reads the method's annotations first, then the class's, whichever kind each is:
 
-The annotation lookup tries the invoked method first, then falls back to its declaring class
-(`authCriteriaFor`, `:116-121`) — the one behavioural fix over the retired `SecurityInterceptor`, which only
-ever read the method and so silently ignored a class-level placement. No endpoint currently uses one.
+1. Neither annotation → error log, `flow.security.denied{resource=unannotated}`, a denied
+   `AuthorizationDecision` → 403 (`:85-97`).
+2. `@AuthExempt` → the call proceeds; the filter chain has still run, so identity is whatever it established.
+3. `@AuthCriteria` but no identity → throws `AuthenticationCredentialsNotFoundException`, caught by
+   `AuthenticationFilter`'s exception handling like any other authentication failure → structured 401.
+4. Token class not in `assignableScopes` → same exception, counted in `flow.security.denied`.
+5. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring
+   turns into `AuthorizationDeniedException` (an `AccessDeniedException`) → plain 403, counted in
+   `flow.security.denied`.
+
+The exempt routes today, each with its reason in the annotation: `GET /api/v2/auth/config` and
+`POST /api/v2/auth/exchange` (pre-session bootstrap and the sign-in exchange), `GET /api/v2/integration/github/callback`
+(browser redirect from GitHub, secured by signed state), the five `/api/v2/integration/slack/*` routes (inbound
+from Slack; signature verification is not wired — the legacy integration, boomerang-io/flow#374), and the whole
+of `DispatcherControllerV1` (the dispatcher wire, authenticated by `DispatcherAuthFilter` on the `/api/v1/**` chain).
 
 ### Layer 2 — `RelationshipService` on the data
 
