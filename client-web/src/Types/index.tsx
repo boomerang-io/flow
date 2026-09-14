@@ -577,7 +577,6 @@ export enum RunPhase {
   Pending = "pending",
   Running = "running",
   Completed = "completed",
-  Finalized = "finalized",
 }
 
 export interface FlowNavigationItemChild {

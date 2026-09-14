@@ -1,6 +1,6 @@
 import React from "react";
 import { Breadcrumb, BreadcrumbItem, Button, ModalBody, SkeletonPlaceholder, Tag, TextArea } from "@carbon/react";
-import { CheckmarkOutline, Catalog, CopyFile, Pause, Play, StopOutline, Warning, Redo } from "@carbon/react/icons";
+import { Catalog, CopyFile, Pause, Play, StopOutline, Warning, Redo } from "@carbon/react/icons";
 import {
   ComposedModal,
   ConfirmModal,
@@ -35,7 +35,7 @@ const cancelStatusTypes = [RunStatus.NotStarted, RunStatus.Waiting, RunStatus.Re
 const retryStatusTypes = [RunStatus.Cancelled, RunStatus.Failed, RunStatus.TimedOut, RunStatus.Invalid];
 const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
 
-// Copy for the toast each transition raises, keyed by the route action's intent - the six
+// Copy for the toast each transition raises, keyed by the route action's intent - the five
 // handlers below were otherwise identical mutate/notify/notify blocks.
 const TRANSITION_COPY: Record<
   Exclude<RunActionIntent, "action">,
@@ -46,7 +46,6 @@ const TRANSITION_COPY: Record<
   start: { title: "Start run", success: "Run successfully started", failure: "Failed to start this run" },
   pause: { title: "Pause run", success: "Run successfully paused", failure: "Failed to pause this run" },
   resume: { title: "Resume run", success: "Run successfully resumed", failure: "Failed to resume this run" },
-  finalize: { title: "Finalize run", success: "Run successfully finalized", failure: "Failed to finalize this run" },
 };
 
 export default function RunHeader({ workflow, workflowRun, version, executionViewRedirect }: Props) {
@@ -68,13 +67,11 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status);
-  // Start only admits a run still waiting to begin; Finalize only applies once the DAG has
-  // completed. An absent `paused` (older backends) is treated as not paused, so Pause is the
-  // one shown rather than both or neither.
+  // Start only admits a run still waiting to begin. An absent `paused` (older backends) is
+  // treated as not paused, so Pause is the one shown rather than both or neither.
   const displayStartButton = startPhaseTypes.includes(phase);
   const displayPauseButton = phase === RunPhase.Running && !paused;
   const displayResumeButton = Boolean(paused);
-  const displayFinalizeButton = phase === RunPhase.Completed;
 
   // The fetcher settles asynchronously, so the toast is raised from an effect once the result
   // lands rather than from an awaited mutate call. Retry additionally redirects to the run it
@@ -111,7 +108,6 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   const handleStartWorkflow = () => submitTransition("start");
   const handlePauseWorkflow = () => submitTransition("pause");
   const handleResumeWorkflow = () => submitTransition("resume");
-  const handleFinalizeWorkflow = () => submitTransition("finalize");
 
   return (
     <Header
@@ -314,26 +310,6 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                     size="sm"
                   >
                     Resume run
-                  </Button>
-                )}
-              />
-            )}
-            {canActionWorkflowRun && displayFinalizeButton && (
-              <ConfirmModal
-                affirmativeAction={handleFinalizeWorkflow}
-                children="Are you sure? This will mark the completed run as finalized."
-                title="Finalize run"
-                modalTrigger={({ openModal }) => (
-                  <Button
-                    className={styles.cancelRun}
-                    data-testid="finalize-run"
-                    kind="tertiary"
-                    iconDescription="Finalize run"
-                    onClick={openModal}
-                    renderIcon={CheckmarkOutline}
-                    size="sm"
-                  >
-                    Finalize run
                   </Button>
                 )}
               />

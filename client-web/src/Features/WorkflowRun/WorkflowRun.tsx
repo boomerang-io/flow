@@ -42,8 +42,8 @@ import styles from "./WorkflowRun.module.scss";
 const POLL_INTERVAL_MS = 5000;
 
 // A run in one of these statuses will not change again on its own, so polling stops. Anything
-// that *can* still change it from here is a user action (finalize, retry), and those submit
-// through the fetcher below, which revalidates on completion.
+// that *can* still change it from here is a user action (retry), and those submit through the
+// fetcher below, which revalidates on completion.
 const TERMINAL_STATUSES = [
   RunStatus.Succeeded,
   RunStatus.Failed,
@@ -169,7 +169,7 @@ export async function loader({
   return { workflowRun, workflow, tasks, workspaceTasks, actions, errorLoading };
 }
 
-export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "finalize" | "action";
+export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "action";
 
 export type ActionResult = { intent: RunActionIntent } | ({ intent: RunActionIntent } & ActionError);
 
@@ -182,11 +182,10 @@ const RUN_INTENT_REQUESTS: Record<
   start: { url: serviceUrl.workspace.workflowrun.putStartWorkflow, method: HttpMethod.Put },
   pause: { url: serviceUrl.workspace.workflowrun.putPauseWorkflow, method: HttpMethod.Put },
   resume: { url: serviceUrl.workspace.workflowrun.putResumeWorkflow, method: HttpMethod.Put },
-  finalize: { url: serviceUrl.workspace.workflowrun.putFinalizeWorkflow, method: HttpMethod.Put },
 };
 
 /*
- * Every write this route makes: the six run lifecycle transitions driven from RunHeader, plus
+ * Every write this route makes: the five run lifecycle transitions driven from RunHeader, plus
  * `action` (the approval/manual submission from the two task modals). A fetcher submission to a
  * route action revalidates the route's loader on completion, which is what replaces the
  * queryClient.invalidateQueries(getWorkflowRun) calls these mutations used to make.

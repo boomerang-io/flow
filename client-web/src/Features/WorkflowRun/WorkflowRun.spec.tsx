@@ -214,7 +214,6 @@ const INTENT_CONTRACT: Array<{ intent: RunActionIntent; path: string; method: st
   { intent: "start", path: runUrl.putStartWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
   { intent: "pause", path: runUrl.putPauseWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
   { intent: "resume", path: runUrl.putResumeWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
-  { intent: "finalize", path: runUrl.putFinalizeWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
 ];
 
 describe("WorkflowRun --- action", () => {

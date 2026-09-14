@@ -186,8 +186,6 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/pause`,
       putResumeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/resume`,
-      putFinalizeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
-        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/finalize`,
       getWorkflowRunCount: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/count${query ? "?" + query : ""}`,
       getWorkflowRuns: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
