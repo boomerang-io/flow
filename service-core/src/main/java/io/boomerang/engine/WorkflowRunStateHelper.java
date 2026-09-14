@@ -6,6 +6,7 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.engine.model.WorkflowRunTransition;
 import java.util.Date;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
@@ -236,9 +237,25 @@ public class WorkflowRunStateHelper {
   // Return the page of in-flight WorkflowRuns, oldest first - the orphan backstop checks each
   // one's revision ref resolves; not itself an indexed predicate, so the page stays narrow and
   // any miss is caught again on the next tick.
-  public List<WorkflowRunEntity> findInFlight(int limit) {
+  // The distinct revision refs of every in-flight run - one round trip, no documents hydrated -
+  // so the missing-revision reaper can ask "which of these no longer exist?" instead of paging
+  // in-flight runs it would mostly skip (a first page of healthy runs starved everything behind it).
+  public List<String> findInFlightRevisionRefs() {
     Query query =
         Query.query(Criteria.where("phase").in(RunPhase.pending, RunPhase.queued, RunPhase.running))
+            .maxTimeMsec(5000);
+    return mongoTemplate.findDistinct(
+        query, "workflowRevisionRef", WorkflowRunEntity.class, String.class);
+  }
+
+  public List<WorkflowRunEntity> findInFlightWithRevisionIn(
+      Collection<String> revisionRefs, int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("phase")
+                    .in(RunPhase.pending, RunPhase.queued, RunPhase.running)
+                    .and("workflowRevisionRef")
+                    .in(revisionRefs))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);

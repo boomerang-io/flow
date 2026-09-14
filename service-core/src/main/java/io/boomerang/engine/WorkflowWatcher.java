@@ -23,6 +23,7 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -297,12 +298,22 @@ public class WorkflowWatcher {
    * and cancelled the same way the normal cancel path treats them.
    */
   public void reapRunsWithMissingRevision() {
+    // Resolve the missing revisions first, then page only the runs that reference them: a page
+    // of in-flight runs whose revisions all exist would otherwise be re-read every tick and
+    // never advance past them, leaving a newer orphan unreaped for as long as the backlog held.
+    List<String> referenced = workflowRunStateHelper.findInFlightRevisionRefs();
+    if (referenced.isEmpty()) {
+      return;
+    }
+    Set<String> existing = new HashSet<>();
+    workflowRevisionRepository.findAllById(referenced).forEach(r -> existing.add(r.getId()));
+    List<String> missing = referenced.stream().filter(ref -> !existing.contains(ref)).toList();
+    if (missing.isEmpty()) {
+      return;
+    }
     SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findInFlight(PAGE_SIZE),
+        workflowRunStateHelper.findInFlightWithRevisionIn(missing, PAGE_SIZE),
         wfRun -> {
-          if (workflowRevisionRepository.existsById(wfRun.getWorkflowRevisionRef())) {
-            return;
-          }
           long duration =
               wfRun.getStartTime() != null
                   ? new Date().getTime() - wfRun.getStartTime().getTime()
