@@ -109,6 +109,19 @@ and enforcement additionally requires the `features.workspaceQuotas` setting (`w
 | `max.workflow.storage`, `max.workflowrun.storage` | Run submit (workspace size ≤ quota, else `QUOTA_EXCEEDED`) | `WorkflowService.java:445-491,921-950` |
 | `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout | `WorkflowService.java:224-234` |
 
+The two run counters come from different sources (decision 0071). Concurrent = the live count of
+non-terminal runs (`notstarted`/`ready`/`running`/`waiting`) over the workspace's Workflows
+(`workflow/WorkflowRunService.countForQuota`, the `workflow_ref_status` index) — what is running
+now, which deletion legitimately reduces. Monthly = `max(audit count, live count)`: the month's
+`{workspaceId, action=CREATE, resourceType=workflowrun}` audit events
+(`core/audit/AuditQueryService.countRunsCreated`, the `workspace_time` index) versus the month's
+live run documents (the `workflow_ref_creation` index). The max is deliberate — the audit write is
+async best-effort, so a just-admitted run may not be audited yet (the live count covers that
+race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
+Submit re-checks the same counters after admitting the run, so a burst cannot over-fill a limit
+(`WorkflowService.guardQuotasAfterAdmission`). Audit retention is floored at 60 days so the month
+window always holds (`core/audit/AuditRetentionService.java`).
+
 ## Payload caps
 
 Two byte caps bound what every executor must carry (`application.properties:149-155`): resolved params
@@ -137,9 +150,36 @@ The only measured storage numbers are 2021 `fio` runs (60 s, 10 GiB file, `iodep
 | IBM Cloud Classic, OpenShift Container Storage (Ceph, 3 × 400 GB local SSD) | 15 800 | 214 | 3 547 | 13.9 |
 | IBM Cloud ROKS VPC gen2, `ibmc-vpc-block-10iops-tier` | 2 993 | 49.2 | 2 000 | 49.1 |
 
+## Throughput baseline
+
+Measured 2026-09-03 with `load/run.mjs` (`load/README.md`) on one laptop: Apple M1, 8 cores (4 performance
++ 4 efficiency), 16 GiB; OrbStack VM with 8 CPUs and 8 GiB running the compose stack — one `service-core`
+(standalone, security on), MongoDB 7.0, Node 20 client on the host. Profile `inline`: 6 engine-executed
+tasks per run (`setwfproperty`, `decision`, 4 parallel `setwfproperty`), no dispatcher, no workspaces.
+Each row is one run; poll traffic (one list query per 100 outstanding runs per second) is included.
+
+| Runs / in flight | Submit p50 / p95 / p99 | Complete p50 / p95 (submit → terminal status) | Runs/min completed | Peak `service-core` / Mongo |
+| --- | --- | --- | --- | --- |
+| 50 / 5 | 0.37 / 0.84 / 0.89 s | 1.6 / 4.4 s | 548 (64 task runs/s) | — |
+| 200 / 20 | 0.61 / 1.27 / 1.50 s | 3.6 / 7.2 s | 1 658 (193 task runs/s) | 319 % CPU, 0.9 GiB / 224 %, 0.5 GiB |
+| 500 / 50 | 1.25 / 1.80 / 1.99 s | 7.9 / 13.1 s | 2 245 (262 task runs/s) | 350 % CPU, 0.9 GiB / 180 %, 0.3 GiB |
+| 1 000 / 100 | 3.77 / 5.73 / 6.55 s | 24.8 / 40.4 s | 1 383 (161 task runs/s) | 329 % CPU, 0.9 GiB / 201 %, 0.4 GiB |
+
+Every run in every row ended `succeeded` with zero non-2xx responses and nothing in the server log. Throughput
+peaks near 50 concurrent submitters and falls at 100, where submit latency triples: the single instance is
+CPU-bound (3.5 of 8 VM cores) before Mongo is. Two things the numbers say that the code does not:
+`phase=finalized` is a separate, slower step — workspace-less runs are finalized only by the watcher sweep,
+50 per 30 s tick (`WorkflowWatcher.java:215-226`, `EngineConstants.java:12`), so one instance finalizes at
+most 100 runs/min and 500 completed runs took 281 s to all show `finalized` (p50 127 s), while the
+`status` a client reads is terminal within seconds. What they do not say: anything about a
+cluster, several instances, template tasks, a dispatcher, or storage — this is an engine baseline on a
+laptop, not the multi-instance saturation run decisions 0060 and 0061 need, which remains a release gate.
+Reproduce with `FLOW_TOKEN=$(node load/mint-token.mjs) node load/run.mjs --runs 500 --concurrency 50`.
+
 ## Not built
 
-Each item is deliberately absent; load testing or an incident reopens it, not speculation (decisions 0060, 0061).
+Each item is deliberately absent; a saturation load test on a cluster or an incident reopens it, not
+speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 
 | Not built | What exists instead | Reopen when |
 | --- | --- | --- |

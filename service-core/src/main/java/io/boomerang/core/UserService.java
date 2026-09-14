@@ -258,7 +258,13 @@ public class UserService {
     if (identityService.getCurrentIdentity() instanceof UnauthenticatedGlobalToken) {
       return UnauthenticatedGlobalToken.virtualUser();
     }
-    return getUserByID(identityService.getCurrentPrincipal()).orElse(null);
+    // A minted global token carries no principal (TokenService.create only sets one for
+    // non-global types), and findById(null) throws rather than returning empty.
+    String principal = identityService.getCurrentPrincipal();
+    if (principal == null) {
+      return null;
+    }
+    return getUserByID(principal).orElse(null);
   }
 
   /*

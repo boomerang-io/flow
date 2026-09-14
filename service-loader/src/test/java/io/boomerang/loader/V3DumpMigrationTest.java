@@ -409,9 +409,10 @@ class V3DumpMigrationTest {
     // _0021__SeedSettings runs unconditionally, but 7 of its 8 seed documents already exist
     // (under the SAME _id, migrated in place by _0005__V3MigrateSettings) by the time this unit
     // runs - its OR-guard matches those 7 on _id, so nothing new is inserted for them and no
-    // fresh-shape duplicate is created alongside the migrated ones. The 8th, "auth"
-    // (the OIDC issuer configuration), has no v3 predecessor, so _0021 inserts it fresh.
-    assertThat(collection("settings").countDocuments()).isEqualTo(8);
+    // fresh-shape duplicate is created alongside the migrated ones. "auth" (the OIDC issuer
+    // configuration) and "audit" (the capture gate) have no v3 predecessors, so _0021 inserts
+    // them fresh.
+    assertThat(collection("settings").countDocuments()).isEqualTo(9);
 
     // _0022__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
     // populated by this point (by _0006__V3MigrateTaskCatalogue), so its name-matching insert-if-
@@ -422,16 +423,14 @@ class V3DumpMigrationTest {
     assertThat(collection("tasks").countDocuments()).isGreaterThan(0);
     assertThat(collection("task_revisions").countDocuments()).isGreaterThan(0);
 
-    // _0023__SeedTemplates itself never inserts its two starter templates on a v3 install (still
-    // v3-gated - no FRESH-install seed content lands here) - but workflow_templates is NOT empty:
     // _0010__V3ExtractWorkflowTemplates has, by this point in the same migration run, already
-    // extracted the real v3 scope=template workflows into this collection (asserted in detail in
-    // assertTemplatesExtracted() below) - coincidentally landing on the SAME two _id values
-    // _0023's seed would have used (see that unit's collision-guard javadoc), which is exactly
-    // why this count is 2 and not 0. integration_templates has no v3->v5 migration counterpart at
-    // all, so it stays at 0 precisely BECAUSE _0023 keeps its v3 skip guard.
+    // extracted the real v3 scope=template workflows into workflow_templates (asserted in detail
+    // in assertTemplatesExtracted() below) under the SAME two _id values _0023__SeedTemplates
+    // carries, so the seed's guard makes its two workflow templates a no-op - the count is 2, the
+    // migrated content, not the seed. integration_templates has no v3 counterpart, so the seed
+    // gives the upgraded install the two out-of-the-box integration templates.
     assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
-    assertThat(collection("integration_templates").countDocuments()).isZero();
+    assertThat(collection("integration_templates").countDocuments()).isEqualTo(2);
 
     // _0002/_0003/_0020 are NOT v3-skipped - the graph root, system workspace, and roles are
     // seeded exactly as on a fresh/v4 install, same as LoaderMigrationTest proves.
@@ -452,14 +451,14 @@ class V3DumpMigrationTest {
 
     // 7 documents remain from the v3 dump (8 v3 minus the deleted "users" one), under the v5
     // seed's keys - proves the v3 documents were migrated in place rather than left under their
-    // v3 keys or duplicated alongside a fresh seed insert. Plus "auth"
-    // (the OIDC issuer configuration), which has no v3 predecessor to migrate from, so
-    // _0021__SeedSettings inserts it fresh - 8 total.
-    assertThat(collection("settings").countDocuments()).isEqualTo(8);
+    // v3 keys or duplicated alongside a fresh seed insert. Plus "auth" (the OIDC issuer
+    // configuration) and "audit" (the capture gate), which have no v3 predecessors to migrate
+    // from, so _0021__SeedSettings inserts them fresh - 9 total.
+    assertThat(collection("settings").countDocuments()).isEqualTo(9);
     List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(settingsKeys)
         .containsExactlyInAnyOrder(
-            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations", "auth");
+            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations", "auth", "audit");
 
     // None of the 7 surviving documents carry the stale v3 _class discriminator any more -
     // MappingMongoConverter would fail to resolve io.boomerang.mongo.entity.FlowSettingsEntity
@@ -1464,33 +1463,18 @@ class V3DumpMigrationTest {
   // =====================================================================================
 
   private void assertAuditSeeded() {
-    // H14-c: _0013 originally seeds these as "TEAM" (AuditScope's pre-rename raw enum name);
-    // _0016__WorkspaceRename, later in the same chain, rewrites every one to "WORKSPACE" before
-    // this assertion (or any application code) ever reads them.
-    assertThat(collection("audit").countDocuments(Filters.eq("scope", "TEAM"))).isZero();
-    assertThat(collection("audit").countDocuments(Filters.eq("scope", "WORKSPACE"))).isEqualTo(86);
-    assertThat(collection("audit").countDocuments(Filters.eq("scope", "WORKFLOW"))).isEqualTo(65);
-
-    Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
-    String systemWorkspaceId = system.get("_id").toString();
-    Document systemAudit =
-        collection("audit").find(Filters.and(Filters.eq("scope", "WORKSPACE"), Filters.eq("selfRef", systemWorkspaceId))).first();
-    assertThat(systemAudit).isNotNull();
-    assertThat(systemAudit.getString("selfName")).isEqualTo("system");
-    assertThat(((Document) systemAudit.get("data")).getString("name")).isEqualTo("system");
-    assertThat(systemAudit.containsKey("parent")).as("workspace audit records have no parent").isFalse();
-
-    // legacy 4038's workflow half never worked (matched an uppercase node type that is never
-    // written) - this is the fix: a real workflow audit record, parent resolved via rel_edges.
-    Document heartbeatAudit =
-        collection("audit")
-            .find(Filters.and(Filters.eq("scope", "WORKFLOW"), Filters.eq("selfRef", "6144265f1950a72949b00efc")))
-            .first();
-    assertThat(heartbeatAudit).isNotNull();
-    assertThat(heartbeatAudit.getString("selfName")).isEqualTo("better-uptime-heartbeat");
-    assertThat(heartbeatAudit.getString("parent"))
-        .as("a workflow audit record's parent is the WORKSPACE'S OWN AUDIT RECORD id, not the workspace's domain _id")
-        .isEqualTo(systemAudit.get("_id").toString());
+    // The per-object records _0013 seeds (86 workspaces + 65 workflows on this dump, "TEAM"
+    // scopes rewritten by _0016) are dropped again by _0042__AuditEventRestructure at the end of
+    // the same chain - the audit collection ends the migration empty, carrying only the
+    // flat-event indexes. The chain deliberately keeps seed-then-drop rather than skipping
+    // _0013: every unit stays untouched for installs that stopped at earlier releases.
+    assertThat(collection("audit").countDocuments()).isZero();
+    List<String> auditIndexes = new ArrayList<>();
+    collection("audit").listIndexes().forEach(index -> auditIndexes.add(index.getString("name")));
+    assertThat(auditIndexes)
+        .containsExactlyInAnyOrder(
+            "_id_", "createdAt_ttl", "time_desc", "workspace_time", "actor_time", "resource_time");
+    assertThat(collection("settings").countDocuments(Filters.eq("key", "audit"))).isEqualTo(1);
   }
 
   // =====================================================================================

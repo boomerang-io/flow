@@ -948,8 +948,16 @@ public class TaskExecutionService {
   private boolean processWaitForEventTask(TaskRunEntity taskExecution) {
     LOGGER.debug(
         "[{}] Processing Wait for Event task: {}", taskExecution.getId(), taskExecution.getName());
+    // Field-scoped arm, then re-read: an event that arrived since execute()'s entry read has
+    // already set preApproved/status/results through applyEventDelivery and must not be lost.
+    if (!taskRunService.tryArmEventWait(taskExecution.getId())) {
+      LOGGER.debug("[{}] Eventwait no longer running; not armed.", taskExecution.getId());
+    }
+    TaskRunEntity armed = taskRunRepository.findById(taskExecution.getId()).orElse(taskExecution);
     taskExecution.setStatus(RunStatus.waiting);
-    taskExecution = taskRunRepository.save(taskExecution);
+    taskExecution.setPreApproved(armed.isPreApproved());
+    taskExecution.setAnnotations(armed.getAnnotations());
+    taskExecution.setResults(armed.getResults());
 
     if (taskExecution.isPreApproved()) {
       if (taskExecution.getAnnotations().get("boomerang.io/status") != null) {

@@ -18,9 +18,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.model.WorkflowTaskDependency;
-import io.boomerang.core.audit.AuditEntity;
-import io.boomerang.core.audit.AuditRepository;
-import io.boomerang.core.audit.AuditScope;
+import io.boomerang.core.audit.AuditEventEntity;
+import io.boomerang.core.audit.AuditEventRepository;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
@@ -51,7 +50,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private ActionRepository actionRepository;
   @Autowired private WorkflowScheduleRepository scheduleRepository;
-  @Autowired private AuditRepository auditRepository;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   @Test
   void killedClaimantTaskIsRequeuedByOneSweep() {
@@ -335,10 +334,10 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
     schedule = scheduleRepository.save(schedule);
     relationshipService.createNode(
         RelationshipType.WORKFLOW, workflow.getId(), workflow.getId(), Optional.empty());
-    AuditEntity audit = new AuditEntity();
-    audit.setScope(AuditScope.WORKFLOW);
-    audit.setSelfRef(workflow.getId());
-    audit = auditRepository.save(audit);
+    AuditEventEntity audit = new AuditEventEntity();
+    audit.setResourceType("workflow");
+    audit.setResourceId(workflow.getId());
+    audit = auditEventRepository.save(audit);
 
     watcher.pruneDeletedWorkflows();
 
@@ -352,7 +351,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
         relationshipService.doesSlugOrRefExistForType(
             RelationshipType.WORKFLOW, workflow.getId()));
     assertTrue(
-        auditRepository.existsById(audit.getId()),
+        auditEventRepository.existsById(audit.getId()),
         "audit records are the record that outlives the deletion");
   }
 

@@ -26,11 +26,11 @@
 # Maven output path `service-core/target/service-core.jar` / `service-loader/target/service-loader.jar`
 # to already exist - this compose file does not invoke Maven itself.
 #
-# client-web is built from its own `pnpm install && pnpm run build` (see .github/workflows/ci-web.yml),
-# which emits client-web/build/client (browser assets) + client-web/build/server (the SSR request
-# handler - SSR is on, react-router.config.ts: ssr:true) directly - both must exist before
-# `docker compose build client-web` runs; see client-web/Dockerfile, which copies that build/
-# directory in alongside client-web/server (the Express server wrapping the SSR handler).
+# client-web needs no host-side build: client-web/Dockerfile is a multi-stage build whose first
+# stage runs `pnpm install --frozen-lockfile && pnpm run build` (emitting build/client browser
+# assets + build/server, the SSR request handler - react-router.config.ts: ssr:true) and whose
+# runtime stage copies that output in alongside client-web/server (the Express server wrapping
+# the SSR handler). `docker compose build client-web` is the whole build.
 #
 # Security posture: this stack runs SECURED (FLOW_SECURITY_ENABLED=true). The login flow is the
 # real product flow (specifications/authorization.md): the unauthenticated bootstrap lands on
@@ -179,7 +179,6 @@ services:
       # few places that still surface an API URL (the copyable webhook/event trigger URLs)
       # should render the deployment's own origin.
       PRODUCT_SERVICE_ENV_URL: /api/v2
-      CORE_SERVICE_ENV_URL: /api/v2
       # Server-side only (route loaders read it directly via process.env - Config/serverFetch.ts
       # - it never reaches the browser). Direct container-to-container address on this compose
       # network. NOTE: the

@@ -35,6 +35,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /*
@@ -363,17 +364,17 @@ public class TaskRunService {
   // create a nested annotations -> boomerang -> "io/status" document that
   // TaskExecutionService.processWaitForEventTask would never find.
   //
-  // Results are appended with $push/$each, NOT $addToSet: a redelivered event appends its results
-  // a second time today, which is inherited behaviour deliberately left alone - see
-  // EventDeliveryIdempotencyTest.
+  // Results are merged by name, the same rule end() applies (ResultUtil.addUniqueResults): a
+  // redelivered event with the same keys converges on one element per key instead of appending
+  // duplicates - see EventDeliveryIdempotencyTest.
   public void applyEventDelivery(String id, RunStatus status, List<RunResult> results) {
     Update update =
         new Update().set("annotations.boomerang#io/status", status).set("preApproved", true);
-    if (results != null && !results.isEmpty()) {
-      update.push("results").each(results.toArray());
-    }
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(id)), update, TaskRunEntity.class);
+    if (results != null) {
+      results.forEach(r -> ResultUtil.upsertResultByName(mongoTemplate, id, TaskRunEntity.class, r));
+    }
   }
 
   // Execution-entry Compare-And-Set: ready + pending/queued becomes running with the given start
@@ -670,6 +671,17 @@ public class TaskRunService {
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
+  // Arm an eventwait: status -> waiting as a field-scoped Compare-And-Set fenced on the running
+  // phase. An event delivered between execute()'s entry read and this write lands through
+  // applyEventDelivery (preApproved, status annotation, results) and survives; the whole-document
+  // save this replaces rolled those fields back. Returns whether the arm was applied.
+  public boolean tryArmEventWait(String id) {
+    Query query =
+        Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", RunStatus.waiting);
+    return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
+  }
+
   // Claim a due waiting TaskRun for resume: clears waitUntil so a second instance's sweep skips
   // it. Returns whether this caller won (the winner resumes).
   public boolean tryStartWaitingResume(String id) {
@@ -738,6 +750,9 @@ public class TaskRunService {
       Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
       if (optTaskRunEntity.isPresent()) {
         TaskRunEntity taskRunEntity = optTaskRunEntity.get();
+        Optional<String> claimedBy =
+            optRunRequest.map(TaskRunStartRequest::getDispatcherRef).filter(StringUtils::hasText);
+        rejectSupersededClaimant(taskRunEntity, claimedBy);
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
           taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
@@ -756,7 +771,7 @@ public class TaskRunService {
             taskRunRepository.save(taskRunEntity);
           }
         }
-        taskExecutionService.start(taskRunId);
+        taskExecutionService.start(taskRunId, claimedBy, Optional.empty());
         // Retrieve the refreshed state
         TaskRun taskRun = new TaskRun(taskRunRepository.findById(taskRunId).get());
         return ResponseEntity.ok(taskRun);
@@ -770,6 +785,11 @@ public class TaskRunService {
       Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
       if (optTaskRunEntity.isPresent()) {
         TaskRunEntity taskRunEntity = optTaskRunEntity.get();
+        // Fence before the merge below: a superseded claimant's result must not be written over
+        // the current claimant's record, let alone complete it.
+        Optional<String> claimedBy =
+            optRunRequest.map(TaskRunEndRequest::getDispatcherRef).filter(StringUtils::hasText);
+        rejectSupersededClaimant(taskRunEntity, claimedBy);
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
           taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
@@ -821,12 +841,31 @@ public class TaskRunService {
         if (!RunPhase.completed.equals(taskRunEntity.getPhase())) {
           taskRunRepository.save(taskRunEntity);
         }
-        taskExecutionService.end(taskRunId);
+        taskExecutionService.end(taskRunId, claimedBy, Optional.empty());
         TaskRun taskRun = new TaskRun(taskRunEntity);
         return ResponseEntity.ok(taskRun);
       }
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+  }
+
+  // Wire-level fence: a request that names its dispatcher must match claim.by. A request with no
+  // dispatcherRef is the legacy protocol and passes unfenced (TaskExecutionService applies the
+  // same rule on its entry). claim.seq is not on the wire, so a dispatcher that lost and re-won
+  // the same claim is not distinguished from its earlier self.
+  private static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
+    if (claimedBy.isEmpty() || taskRun.getClaim() == null || taskRun.getClaim().getBy() == null) {
+      return;
+    }
+    if (!claimedBy.get().equals(taskRun.getClaim().getBy())) {
+      LOGGER.error(
+          "[{}] Rejecting request from superseded claimant {}. Current claim is {} (seq {}).",
+          taskRun.getId(),
+          claimedBy.get(),
+          taskRun.getClaim().getBy(),
+          taskRun.getClaim().getSeq());
+      throw new BoomerangException(BoomerangError.TASKRUN_CLAIM_SUPERSEDED);
+    }
   }
 
   public StreamingResponseBody streamLog(String taskRunId) {
