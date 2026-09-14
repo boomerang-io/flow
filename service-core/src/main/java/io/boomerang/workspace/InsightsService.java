@@ -10,18 +10,23 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.audit.AuditEventEntity;
 import io.boomerang.core.audit.AuditQueryService;
 import io.boomerang.core.enums.RelationshipType;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /**
  * Workspace insights rolled up from the audit trail's workflow-run events, so deleted Workflows
- * and WorkflowRuns still count. Reads events with {@code resourceType="workflowrun"} whose payload
- * carries the run facts ({@code workflowRef}, {@code workflowName}, {@code duration}, {@code
- * status}, {@code phase}) — the run lifecycle emission that writes them rides the engine's
- * transition listener.
+ * and WorkflowRuns still count. Reads events with {@code resourceType="workflowrun"} whose
+ * payload carries the run facts ({@code workflowRef}, {@code workflowName}, {@code duration},
+ * {@code status}, {@code phase}) — written by the engine's transition listener ({@code
+ * core.audit.WorkflowRunAuditBridge}): a CREATE event on the run's first status change and an
+ * UPDATE event when it completes. The events per run are collapsed to one summary — the earliest
+ * dates it, the latest carries its current facts.
  */
 @Service
 @ConditionalOnFlowMode(FlowMode.STANDALONE)
@@ -56,32 +61,40 @@ public class InsightsService {
                   false));
     }
 
+    // Time-ascending, so per run the first event is its creation and the last its latest state.
     List<AuditEventEntity> events =
         auditQueryService.findByWorkspaceAndResourceType(
             team, "workflowrun", from, to, wfRefs.map(refs -> "workflowRef"), wfRefs);
+    Map<String, List<AuditEventEntity>> byRun = new LinkedHashMap<>();
+    for (AuditEventEntity event : events) {
+      byRun.computeIfAbsent(event.getResourceId(), id -> new ArrayList<>()).add(event);
+    }
 
     WorkflowRunInsight insight = new WorkflowRunInsight();
     long totalDuration = 0L;
+    long inFlight = 0L;
     List<WorkflowRunSummary> summaries = new LinkedList<>();
-    for (AuditEventEntity event : events) {
-      long duration = payloadLong(event, "duration");
+    for (List<AuditEventEntity> runEvents : byRun.values()) {
+      AuditEventEntity first = runEvents.get(0);
+      AuditEventEntity latest = runEvents.get(runEvents.size() - 1);
+      long duration = payloadLong(latest, "duration");
       totalDuration += duration;
+      if (!RunPhase.completed.getPhase().equals(payloadString(latest, "phase"))) {
+        inFlight++;
+      }
 
       WorkflowRunSummary summary = new WorkflowRunSummary();
-      summary.setCreationDate(event.getTime());
+      summary.setCreationDate(first.getTime());
       summary.setDuration(duration);
-      summary.setStatus(RunStatus.getRunStatus(payloadString(event, "status")));
-      summary.setWorkflowRef(payloadString(event, "workflowRef"));
-      summary.setWorkflowName(payloadString(event, "workflowName"));
+      summary.setStatus(RunStatus.getRunStatus(payloadString(latest, "status")));
+      summary.setWorkflowRef(payloadString(latest, "workflowRef"));
+      summary.setWorkflowName(payloadString(latest, "workflowName"));
       summaries.add(summary);
     }
-    insight.setTotalRuns((long) events.size());
-    insight.setConcurrentRuns(
-        events.stream()
-            .filter(event -> RunPhase.running.getPhase().equals(payloadString(event, "phase")))
-            .count());
+    insight.setTotalRuns((long) byRun.size());
+    insight.setConcurrentRuns(inFlight);
     insight.setTotalDuration(totalDuration);
-    insight.setMedianDuration(events.isEmpty() ? 0L : totalDuration / events.size());
+    insight.setMedianDuration(byRun.isEmpty() ? 0L : totalDuration / byRun.size());
     insight.setRuns(summaries);
     return insight;
   }

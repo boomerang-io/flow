@@ -8,7 +8,11 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.core.audit.AuditEventRepository;
+import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.core.model.SettingConfig;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import java.util.List;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
@@ -32,6 +36,7 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   @BeforeEach
   void seedFixtures() {
@@ -80,6 +85,76 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
         workflowService.submit(workspace, "quota-duration-workflow", request, false);
 
     assertEquals(7L, run.getTimeout());
+  }
+
+  @Test
+  void theMonthlyRunQuotaSurvivesWorkflowDeletion() {
+    Quotas quotas = new Quotas();
+    quotas.setMaxWorkflowRunMonthly(1);
+    String workspace = createWorkspace("quota-monthly-audit", quotas);
+    workflowService.create(workspace, runnableWorkflow("quota-audit-first-workflow", TASK_SLUG));
+    setFeatureSetting(QUOTA_FEATURE, true);
+    seedAuditCapture();
+    try {
+      WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+      request.setTrigger(TriggerEnum.manual);
+      WorkflowRun run =
+          workflowService.submit(workspace, "quota-audit-first-workflow", request, false);
+
+      // The run-creation audit event is written asynchronously; the quota only counts it once
+      // it has landed, so wait for it before removing the live evidence.
+      awaitEngine("run CREATE audit event")
+          .untilAsserted(
+              () ->
+                  org.junit.jupiter.api.Assertions.assertTrue(
+                      auditEventRepository.findAll().stream()
+                          .anyMatch(
+                              event ->
+                                  run.getId().equals(event.getResourceId())
+                                      && "CREATE".equals(event.getAction()))));
+
+      // Deleting the Workflow removes its relationship node, so the live count no longer sees
+      // the run - only the audit event still testifies to it.
+      workflowService.delete(workspace, "quota-audit-first-workflow");
+      workflowService.create(
+          workspace, runnableWorkflow("quota-audit-second-workflow", TASK_SLUG));
+
+      BoomerangException refused =
+          assertThrows(
+              BoomerangException.class,
+              () ->
+                  workflowService.submit(
+                      workspace, "quota-audit-second-workflow", request, false));
+      assertEquals("QUOTA_EXCEEDED", refused.getReason());
+    } finally {
+      removeAuditCapture();
+    }
+  }
+
+  private void seedAuditCapture() {
+    if (settingsRepository.findOneByKey("audit") != null) {
+      return;
+    }
+    SettingEntity settings = new SettingEntity();
+    settings.setKey("audit");
+    settings.setName("Audit");
+    settings.setConfig(List.of(auditConfig("enabled", "true"), auditConfig("level", "WRITE")));
+    settingsRepository.save(settings);
+  }
+
+  /** Leaves the shared database as the other test classes expect it: capture off. */
+  private void removeAuditCapture() {
+    SettingEntity settings = settingsRepository.findOneByKey("audit");
+    if (settings != null) {
+      settingsRepository.delete(settings);
+    }
+  }
+
+  private static SettingConfig auditConfig(String key, String value) {
+    SettingConfig config = new SettingConfig();
+    config.setKey(key);
+    config.setValue(value);
+    return config;
   }
 
   private String createWorkspace(String name, Quotas quotas) {

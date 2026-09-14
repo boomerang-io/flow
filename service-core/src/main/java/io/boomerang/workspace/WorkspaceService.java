@@ -2,9 +2,12 @@ package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
+import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.WorkflowCount;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
@@ -48,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -95,6 +99,8 @@ public class WorkspaceService {
   private final MongoTemplate mongoTemplate;
   private final InsightsService insightsService;
   private final WorkflowService workflowService;
+  private final WorkflowRunService workflowRunService;
+  private final AuditQueryService auditQueryService;
   private final TokenService tokenService;
   private final TaskService taskService;
 
@@ -109,6 +115,8 @@ public class WorkspaceService {
       MongoTemplate mongoTemplate,
       InsightsService insightsService,
       WorkflowService workflowService,
+      WorkflowRunService workflowRunService,
+      AuditQueryService auditQueryService,
       TokenService tokenService,
       TaskService taskService) {
     this.workspaceRepository = workspaceRepository;
@@ -121,6 +129,8 @@ public class WorkspaceService {
     this.mongoTemplate = mongoTemplate;
     this.insightsService = insightsService;
     this.workflowService = workflowService;
+    this.workflowRunService = workflowRunService;
+    this.auditQueryService = auditQueryService;
     this.tokenService = tokenService;
     this.taskService = taskService;
   }
@@ -1030,10 +1040,45 @@ public class WorkspaceService {
             Optional.empty(),
             Optional.empty());
     LOGGER.debug("Insights: {}", insight.toString());
-    currentQuotas.setCurrentConcurrentRuns(insight.getConcurrentRuns().intValue());
     currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration().intValue());
     currentQuotas.setCurrentRunMedianDuration(insight.getMedianDuration().intValue());
-    currentQuotas.setCurrentRuns(insight.getTotalRuns().intValue());
+
+    // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
+    // work counts against the limit - it measures what is running now, which deletion
+    // legitimately reduces.
+    List<String> workflowRefs =
+        relationshipService.filter(
+            RelationshipType.WORKFLOW,
+            Optional.empty(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(team)),
+            false);
+    // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
+    // so a just-admitted run may not be audited yet (the live count covers that race), while a
+    // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
+    // events outlive both the run documents and the Workflow).
+    long liveMonthly =
+        workflowRunService.countForQuota(
+            workflowRefs,
+            Optional.of(currentMonthStart.getTime()),
+            Optional.of(nextMonth.getTime()),
+            Optional.empty());
+    long auditMonthly =
+        auditQueryService.countRunsCreated(
+            team, currentMonthStart.getTime(), nextMonth.getTime());
+    currentQuotas.setCurrentRuns((int) Math.max(auditMonthly, liveMonthly));
+    currentQuotas.setCurrentConcurrentRuns(
+        (int)
+            workflowRunService.countForQuota(
+                workflowRefs,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(
+                    Set.of(
+                        RunStatus.notstarted,
+                        RunStatus.ready,
+                        RunStatus.running,
+                        RunStatus.waiting))));
 
     WorkflowCount count =
         workflowService.count(

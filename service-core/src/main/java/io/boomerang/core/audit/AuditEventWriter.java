@@ -65,6 +65,9 @@ public class AuditEventWriter {
     putIfPresent(payload, "durationMs", record.durationMs());
     putIfPresent(payload, "errorSummary", record.errorSummary());
     putIfPresent(payload, "detail", record.detail());
+    if (record.payload() != null) {
+      payload.putAll(record.payload());
+    }
     event.setPayload(payload);
     return event;
   }

@@ -240,6 +240,37 @@ public class WorkflowRunService {
     return count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(wfRefs));
   }
 
+  /**
+   * Count runs matching the given Workflows with a single server-side count - no documents are
+   * fetched and nothing is grouped in memory. Serves the quota counters in {@code
+   * WorkspaceService.setCurrentQuotas}: the monthly counter passes the calendar-month {@code
+   * creationDate} window with no statuses, the concurrent counter passes the non-terminal statuses
+   * with no window.
+   */
+  public long countForQuota(
+      List<String> workflowRefs,
+      Optional<Date> from,
+      Optional<Date> to,
+      Optional<Set<RunStatus>> statuses) {
+    List<Criteria> criteriaList = new ArrayList<>();
+    criteriaList.add(Criteria.where("workflowRef").in(workflowRefs));
+    if (from.isPresent() && !to.isPresent()) {
+      criteriaList.add(Criteria.where("creationDate").gte(from.get()));
+    } else if (!from.isPresent() && to.isPresent()) {
+      criteriaList.add(Criteria.where("creationDate").lt(to.get()));
+    } else if (from.isPresent() && to.isPresent()) {
+      criteriaList.add(Criteria.where("creationDate").gte(from.get()).lt(to.get()));
+    }
+    if (statuses.isPresent()) {
+      criteriaList.add(Criteria.where("status").in(statuses.get()));
+    }
+    Query query =
+        new Query(
+            new Criteria().andOperator(criteriaList.toArray(new Criteria[criteriaList.size()])));
+    LOGGER.debug("Quota count query: {}", query);
+    return mongoTemplate.count(query, WorkflowRunEntity.class);
+  }
+
   /*
    * Start WorkflowRun
    *
