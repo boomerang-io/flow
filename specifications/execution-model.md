@@ -31,10 +31,14 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
 - `tryClaim` is one `findAndModify` that re-checks the full eligibility and, in the same write, sets
   `phase=queued`, `claim.by`, `claim.at`, `$inc claim.seq`, clears `retry.after` and bakes `timeoutAt`
   (`TaskRunService.java:238-258`). A null result means another dispatcher won; the loser skips the candidate.
-- `claim.seq` is never cleared and fences stale claimants: `start` and `end` requests that carry a claimant
-  identity MUST match `claim.by`/`claim.seq` (`claimantIsValid`, `engine/TaskExecutionService.java:536-560`, called
-  at `:247` and `:415`), and the completion write repeats the check in its query (`TaskRunService.java:427-428`).
-  A request with no identity is accepted as the legacy protocol (`TaskExecutionService.java:538-545`).
+- `claim.seq` is never cleared and fences stale claimants. The dispatcher names itself on every `start` and `end`
+  (`dispatcherRef` on `TaskRunStartRequest`/`TaskRunEndRequest`, the value the engine wrote to `claim.by`;
+  `service-dispatcher/.../client/EngineClient.java`). A request whose `dispatcherRef` does not match `claim.by` is
+  rejected with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged (`TaskRunService.rejectSupersededClaimant`,
+  called at `:755` and `:792`), and the claimant is re-checked on the handler's entry (`claimantIsValid`,
+  `engine/TaskExecutionService.java:546-570`). A request with no identity is accepted as the legacy protocol.
+  `claim.seq` is not on the wire, so a dispatcher that lost and re-won the same claim is not distinguished from
+  its earlier self.
 - `claim.leaseExpiresAt` on `RunClaim` (`lib-common/.../model/RunClaim.java:21`, indexed by
   `service-loader/.../_0017__RunIndexes.java:82`) is the dispatcher's liveness signal: each dispatcher sends one
   batched heartbeat every 30 s listing the task runs its executor threads are still working on, and the engine
@@ -71,7 +75,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 | `resumeDueWaitingTasks` `:232` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:771`) |
 | `cancelDeletedWorkflowRuns` `:248` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
 | `pruneDeletedWorkflows` `:269` | — | a no-op until `flow.watcher.retention.enabled=true` (`:85-86`); the retention policy is undecided |
-| `reapRunsWithMissingRevision` `:282` | in-flight runs whose `workflowRevisionRef` no longer resolves | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest |
+| `reapRunsWithMissingRevision` `:282` | in-flight runs whose `workflowRevisionRef` no longer resolves | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest. A cancel whose revision is gone takes the same fallback: it winds down the stored task runs instead of walking the revision (`WorkflowExecutionService.cancelPendingAndRunningTasks` `:274`) |
 | `reapClaimsFromGoneDispatchers` `:326` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:69`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
 | `reapExpiredLeases` | claimed task runs whose `claim.leaseExpiresAt` has elapsed (`TaskRunService.findLeaseExpired`) | the same requeue-or-abandon treatment, `statusReason=LeaseExpired` |
 | `closeStrayActions` `:378` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
@@ -126,6 +130,13 @@ call at any time; the watcher and resume both use it. Transition handlers follow
 2. The handler MUST check the transition has not already happened (phase guards at `:107-110`, `:241-245`, `:409-412`).
 3. Every write MUST be a guarded CAS; whole-document `save` is confined to caller-side request merges before the handler runs (`TaskRunService.java:718`, `:779`).
 4. Only the CAS winner performs side effects — queueing dependants, finishing the run, spawning a retry.
+
+Two field-scoped writes follow the same discipline. Results are keyed by name on every path: a `setwfproperty`
+result and an eventwait delivery upsert the element with that name (positional `$set`, else a `$push` guarded on
+the name being absent — `ResultUtil.upsertResultByName` `:25`), so a key written twice stays one element and a
+concurrent writer of another key is never lost. An eventwait arms with `tryArmEventWait` (`TaskRunService.java:678`),
+a `$set status=waiting` fenced on the running phase, then re-reads, so an event delivered between the handler's
+entry read and the arm (`applyEventDelivery`) is honoured rather than rolled back.
 
 ## Outbound events: the transactional outbox
 

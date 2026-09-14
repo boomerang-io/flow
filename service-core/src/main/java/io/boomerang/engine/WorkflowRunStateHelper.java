@@ -324,11 +324,10 @@ public class WorkflowRunStateHelper {
         WorkflowRunEntity.class);
   }
 
+  // Keyed by name: a second setwfproperty for the same key updates the value rather than
+  // appending a duplicate (issue #241), still without a read-modify-write.
   public void appendResult(String id, RunResult result) {
-    mongoTemplate.updateFirst(
-        Query.query(Criteria.where("_id").is(id)),
-        new Update().push("results", result),
-        WorkflowRunEntity.class);
+    ResultUtil.upsertResultByName(mongoTemplate, id, WorkflowRunEntity.class, result);
   }
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state

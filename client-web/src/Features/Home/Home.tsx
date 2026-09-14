@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Layer } from "@carbon/react";
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { Api, Parameter } from "@carbon/icons-react";
+import { Api, Parameter } from "@carbon/react/icons";
 import { Gear, PlanningAnalytics, PlayerFlow, Workflows } from "@carbon/pictograms-react";
 import cx from "classnames";
 import kebabcase from "lodash/kebabCase";

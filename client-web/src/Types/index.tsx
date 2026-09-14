@@ -29,7 +29,6 @@ declare global {
     _SERVER_DATA: {
       APP_ROOT: string;
       CORE_ENV_URL: string;
-      CORE_SERVICE_ENV_URL: string;
       EMBEDDED_MODE: string;
       PRODUCT_ENV_URL: string;
       PRODUCT_SERVICE_ENV_URL: string;
@@ -68,7 +67,8 @@ export interface ResolvedPermissions {
   actions: string[];
 }
 
-export interface FlowUser extends User {
+// `teams` is redeclared below with the Flow shape (the platform type has `teams: any[]`, required).
+export interface FlowUser extends Omit<User, "teams"> {
   id: string;
   email: string;
   name: string;
