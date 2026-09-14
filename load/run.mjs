@@ -4,8 +4,8 @@
 //   node load/run.mjs --runs 200 --concurrency 20 [--profile inline|dispatch]
 //
 // Creates (or reuses) one workflow, submits RUNS runs with CONCURRENCY submitters in flight,
-// waits for every run to complete and then finalize, and prints submit latency, time to complete,
-// time to finalize, throughput and per-status counts. Exits non-zero unless every run succeeded.
+// waits for every run to reach a terminal status, and prints submit latency, time to complete,
+// throughput and per-status counts. Exits non-zero unless every run succeeded.
 
 const HELP = `Usage: node load/run.mjs [options]
 
@@ -140,13 +140,12 @@ async function submitAll(wf) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Wait phase: one list query per 100 outstanding ids every second. A run is "complete" when its
-// status is terminal (what the API reports as the outcome) and "finalized" when phase=finalized;
-// for runs without workspaces the second step is the watcher's finalize sweep, so it can lag.
+// Wait phase: one list query per 100 outstanding ids every second. A run is done when its status
+// is terminal - what the API reports as the outcome, and the last thing that changes about a run.
 const TERMINAL = new Set(["succeeded", "failed", "invalid", "skipped", "cancelled", "timedout"]);
 async function waitForRuns(submits) {
   const runs = new Map(submits.filter((s) => s.id).map((s) => [s.id, { submittedAt: s.submittedAt }]));
-  const outstanding = () => [...runs].filter(([, r]) => !r.finalizedAt).map(([id]) => id);
+  const outstanding = () => [...runs].filter(([, r]) => !r.completedAt).map(([id]) => id);
   const deadline = Date.now() + cfg.deadline * 1000;
   let lastLog = 0;
   let perRun = false; // fallback when the server ignores the workflowruns= filter
@@ -168,13 +167,12 @@ async function waitForRuns(submits) {
         const rec = runs.get(run.id);
         if (!rec) continue;
         if (TERMINAL.has(run.status) && !rec.completedAt) Object.assign(rec, { completedAt: seenAt, status: run.status, duration: run.duration });
-        if (run.phase === "finalized" && !rec.finalizedAt) rec.finalizedAt = seenAt;
       }
     }
     if (Date.now() - lastLog > 5000) {
       lastLog = Date.now();
-      const c = [...runs.values()].filter((r) => r.completedAt).length, f = [...runs.values()].filter((r) => r.finalizedAt).length;
-      console.log(`  completed ${c}/${runs.size}  finalized ${f}/${runs.size}`);
+      const c = [...runs.values()].filter((r) => r.completedAt).length;
+      console.log(`  completed ${c}/${runs.size}`);
     }
     await new Promise((res) => setTimeout(res, 1000));
   }
@@ -194,12 +192,11 @@ async function main() {
   const submits = await submitAll(wf);
   const tSubmitted = Date.now();
   const runs = await waitForRuns(submits);
-  const t1 = Date.now();
 
   const submitOk = submits.filter((s) => s.id);
   const submitS = (tSubmitted - t0) / 1000;
   const all = [...runs.values()];
-  const completed = all.filter((r) => r.completedAt), finalized = all.filter((r) => r.finalizedAt);
+  const completed = all.filter((r) => r.completedAt);
   const lastCompletedAt = Math.max(t0, ...completed.map((r) => r.completedAt));
   const completeS = (lastCompletedAt - t0) / 1000; // wall clock from first submit to last terminal status
   const byStatus = {};
@@ -210,11 +207,9 @@ async function main() {
   console.log(row("submit latency", submits.map((s) => s.latencyMs)));
   if (completed.length) console.log(row("time to complete (client)", completed.map((r) => r.completedAt - r.submittedAt)));
   if (completed.length) console.log(row("run duration (server)", completed.map((r) => r.duration ?? 0).filter((d) => d > 0)));
-  if (finalized.length) console.log(row("time to finalize (client)", finalized.map((r) => r.finalizedAt - r.submittedAt)));
   console.log(`completed ${completed.length} runs in ${completeS.toFixed(1)}s  ${(completed.length / completeS * 60).toFixed(1)} runs/min  ${(completed.length * executedTasksPerRun() / completeS).toFixed(1)} task runs/s`);
-  console.log(`finalized ${finalized.length} runs in ${((t1 - t0) / 1000).toFixed(1)}s  ${(finalized.length / ((t1 - t0) / 1000) * 60).toFixed(1)} runs/min (bounded by the finalize sweep for workspace-less runs)`);
-  const notCompleted = all.length - completed.length, notFinalized = completed.length - finalized.length;
-  console.log(`per status: ${JSON.stringify(byStatus)}  not complete by deadline: ${notCompleted}  complete but not finalized by deadline: ${notFinalized}`);
+  const notCompleted = all.length - completed.length;
+  console.log(`per status: ${JSON.stringify(byStatus)}  not complete by deadline: ${notCompleted}`);
   if (notCompleted) console.log(`  incomplete ids: ${[...runs].filter(([, r]) => !r.completedAt).slice(0, 10).map(([id]) => id).join(", ")}`);
   if (errors.length) {
     console.log(`non-2xx responses: ${errors.length}`);

@@ -1,8 +1,8 @@
 # Load harness
 
 `run.mjs` is a dependency-free Node 20+ script that submits many runs of one workflow against a
-running `service-core`, waits for every run to finalize, and prints latency, throughput and status
-counts. It measures the engine as a client sees it; it does not measure Kubernetes or a dispatcher
+running `service-core`, waits for every run to reach a terminal status, and prints latency,
+throughput and status counts. It measures the engine as a client sees it; it does not measure Kubernetes or a dispatcher
 unless you choose the `dispatch` profile. Results are recorded in
 `specifications/performance.md` ("Throughput baseline").
 
@@ -20,9 +20,9 @@ FLOW_TOKEN=bfg_... node load/run.mjs --runs 200 --concurrency 20
 | Concurrency | `--concurrency` / `CONCURRENCY` | 5 | Submitters in flight at once |
 | Profile | `--profile` / `PROFILE` | `inline` | `inline` or `dispatch` (below) |
 | Fan-out | `--fanout` / `FANOUT` | 4 | Parallel `setwfproperty` tasks per run |
-| Deadline | `--deadline` / `DEADLINE` | 900 s | Runs not finalized by then are reported as stuck |
+| Deadline | `--deadline` / `DEADLINE` | 900 s | Runs with no terminal status by then are reported as stuck |
 
-Exit code is 0 only when every submission returned 2xx and every run finalized as `succeeded`.
+Exit code is 0 only when every submission returned 2xx and every run ended `succeeded`.
 
 ## Profiles
 
@@ -39,19 +39,16 @@ the workspace) to recreate it.
 - Submit phase: ok/error counts, submits per second, latency p50/p95/p99/max of `POST .../submit`
   (which starts the run by default).
 - Time to complete as the client sees it (submit sent → terminal `status` observed, polled once per
-  second in pages of 100 ids via `GET .../workflowrun/query?workflowruns=...`), the server's own
-  `duration`, and time to finalize (→ `phase=finalized` observed).
+  second in pages of 100 ids via `GET .../workflowrun/query?workflowruns=...`) and the server's own
+  `duration`.
 - Completed runs per minute and executed task runs per second (tasks except `start`, `end` and
-  the unmatched decision branch), finalized runs per minute, per-status counts, and the ids of
-  runs that never reached a terminal status.
+  the unmatched decision branch), per-status counts, and the ids of runs that never reached a
+  terminal status.
 - Every non-2xx response grouped by route and status, with one sample body.
 
-Completion and finalization are reported separately on purpose. A run without workspaces is
-finalized only by the watcher sweep — 50 runs every 30 s per instance
-(`WorkflowWatcher.finalizeWorkspacelessRuns`) — so `finalized` trails `succeeded` by up to
-`outstanding / 100` minutes and the script keeps polling until the deadline. The exit code depends
-on status only. Runs left unfinalized by a previous invocation are still drained by that sweep, so
-either wait for it or start from an empty run collection before comparing numbers.
+A terminal `status` is the end of the run as far as the product is concerned — there is no second
+step to wait for, and releasing the run's cluster resources is the dispatcher's own
+reconciliation, invisible to a client.
 
 Polling costs the server one indexed list query per 100 outstanding runs per second; it is
 included in the numbers, as any real client would be.
