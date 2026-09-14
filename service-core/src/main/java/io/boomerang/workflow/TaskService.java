@@ -18,6 +18,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.User;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
@@ -472,23 +473,23 @@ public class TaskService {
       changelog = new ChangeLog();
     }
     changelog.setDate(new Date());
-    // No identity or principal (e.g. security disabled) leaves the author unset - same as a
-    // resolved identity with no principal string, which this already tolerated.
+    // No identity or principal leaves the author unset. The security-off synthetic token is
+    // treated the same: its name ("system") must not appear as a changelog author - it would read
+    // as the platform itself making the change.
     Token identity = identityService.getCurrentIdentity();
-    if (identity == null || identity.getPrincipal() == null) {
+    if (identity == null
+        || identity.getPrincipal() == null
+        || identity instanceof UnauthenticatedGlobalToken) {
       return;
     }
     // A user or session principal is a user id and is resolved to the user's name on read. Any
     // other token's principal (key = workspace ref, global = varies) is NOT a user id, so record
-    // the token's own name - falling back to its scope - rather than an id that a reader would
-    // mislabel as a user.
+    // the token's own name; a token without a name leaves the author unset rather than inventing
+    // one from its scope.
     if (AuthScope.user.equals(identity.getType()) || AuthScope.session.equals(identity.getType())) {
       changelog.setAuthor(identity.getPrincipal());
-    } else {
-      changelog.setAuthor(
-          (identity.getName() != null && !identity.getName().isBlank())
-              ? identity.getName()
-              : identity.getType().getLabel());
+    } else if (identity.getName() != null && !identity.getName().isBlank()) {
+      changelog.setAuthor(identity.getName());
     }
   }
 

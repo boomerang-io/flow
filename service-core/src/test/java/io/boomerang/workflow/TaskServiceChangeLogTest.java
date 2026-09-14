@@ -13,6 +13,7 @@ import io.boomerang.core.UserService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.User;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.repository.TaskRepository;
@@ -31,7 +32,8 @@ import org.springframework.data.mongodb.core.MongoTemplate;
  * must not NPE on the changelog author stamp - see {@code TaskService#stampChangeLog}, which used
  * to dereference {@code identityService.getCurrentIdentity().getPrincipal()} directly. The stamp
  * is also actor-kind aware: only a user/session principal is a user id, so a key or global token
- * authors as its own name (or scope) rather than an id that resolves to the wrong thing.
+ * authors as its own name; an unnamed token and the security-off synthetic token leave the author
+ * unset rather than inventing one.
  *
  * <p>F3 collapsed {@code api.WorkspaceTaskService} into {@link TaskService}, so this no longer
  * mocks the delegate it used to sit in front of: it drives the real merged service with the
@@ -123,11 +125,12 @@ class TaskServiceChangeLogTest {
   }
 
   @Test
-  void createWithUnnamedGlobalTokenAuthorsAsScopeLabel() {
+  void createWithUnnamedGlobalTokenLeavesAuthorUnset() {
+    // No scope fallback: "global" as an author reads as the platform itself. An unnamed token
+    // leaves the author unset, the same posture as no identity.
     Token token = new Token(AuthScope.global);
     token.setPrincipal("some-service");
     when(identityService.getCurrentIdentity()).thenReturn(token);
-    when(userService.getUserByID("global")).thenReturn(Optional.empty());
 
     Task request = new Task();
     request.setName("my-task");
@@ -135,6 +138,20 @@ class TaskServiceChangeLogTest {
 
     Task created = taskService.createGlobal(request);
 
-    assertThat(created.getChangelog().getAuthor()).isEqualTo("global");
+    assertThat(created.getChangelog().getAuthor()).isNull();
+  }
+
+  @Test
+  void createWithSecurityOffSyntheticTokenLeavesAuthorUnset() {
+    // The synthetic token's name is "system" - it must not reach the changelog as an author.
+    when(identityService.getCurrentIdentity()).thenReturn(new UnauthenticatedGlobalToken());
+
+    Task request = new Task();
+    request.setName("my-task");
+    request.setChangelog(new ChangeLog());
+
+    Task created = taskService.createGlobal(request);
+
+    assertThat(created.getChangelog().getAuthor()).isNull();
   }
 }
