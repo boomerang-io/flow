@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.boomerang.common.entity.WorkflowEntity;
-import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.WorkflowStatus;
@@ -13,10 +12,12 @@ import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.repository.WorkflowRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -34,6 +35,26 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
   @Autowired private DispatcherService dispatcherService;
   @Autowired private WorkflowRepository workflowRepository;
 
+  private final List<String> createdRunIds = new ArrayList<>();
+  private final List<String> createdWorkflowIds = new ArrayList<>();
+
+  // These fixtures are unfinished runs and live workflows, which several watcher sweeps page. The
+  // Testcontainers Mongo is shared across every test class, so leaving them behind would crowd
+  // those fixed-size sweep pages and make another class's assertions depend on ordering.
+  @AfterEach
+  void removeFixtures() {
+    createdRunIds.forEach(workflowRunRepository::deleteById);
+    createdWorkflowIds.forEach(workflowRepository::deleteById);
+    createdRunIds.clear();
+    createdWorkflowIds.clear();
+  }
+
+  private String savedRun(RunStatus status, RunPhase phase) {
+    String id = savedWorkflowRun("release-wf", status, phase).getId();
+    createdRunIds.add(id);
+    return id;
+  }
+
   private static WorkspaceReleaseQuery runQuery(List<String> refs) {
     WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
     query.setWorkflowRunRefs(refs);
@@ -50,24 +71,25 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
     WorkflowEntity workflow = new WorkflowEntity();
     workflow.setName("release-" + UUID.randomUUID());
     workflow.setStatus(status);
-    return workflowRepository.save(workflow).getId();
+    String id = workflowRepository.save(workflow).getId();
+    createdWorkflowIds.add(id);
+    return id;
   }
 
   @Test
   void aCompletedRunsVolumeIsReleasable() {
-    WorkflowRunEntity run =
-        savedWorkflowRun("release-wf", RunStatus.succeeded, RunPhase.completed);
+    String runId = savedRun(RunStatus.succeeded, RunPhase.completed);
 
-    WorkspaceReleaseResponse response = dispatcherService.releasable(runQuery(List.of(run.getId())));
+    WorkspaceReleaseResponse response = dispatcherService.releasable(runQuery(List.of(runId)));
 
-    assertThat(response.getWorkflowRunRefs()).containsExactly(run.getId());
+    assertThat(response.getWorkflowRunRefs()).containsExactly(runId);
   }
 
   @Test
   void aRunningRunsVolumeIsHeld() {
-    WorkflowRunEntity run = savedWorkflowRun("release-wf", RunStatus.running, RunPhase.running);
+    String runId = savedRun(RunStatus.running, RunPhase.running);
 
-    WorkspaceReleaseResponse response = dispatcherService.releasable(runQuery(List.of(run.getId())));
+    WorkspaceReleaseResponse response = dispatcherService.releasable(runQuery(List.of(runId)));
 
     assertThat(response.getWorkflowRunRefs()).isEmpty();
   }
@@ -108,9 +130,8 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aMixedQueryAnswersEachListIndependently() {
-    String completedRun =
-        savedWorkflowRun("release-wf", RunStatus.succeeded, RunPhase.completed).getId();
-    String runningRun = savedWorkflowRun("release-wf", RunStatus.running, RunPhase.running).getId();
+    String completedRun = savedRun(RunStatus.succeeded, RunPhase.completed);
+    String runningRun = savedRun(RunStatus.running, RunPhase.running);
     String deletedWorkflow = savedWorkflow(WorkflowStatus.deleted);
     String liveWorkflow = savedWorkflow(WorkflowStatus.active);
 
@@ -140,8 +161,7 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aQueryAtTheCapIsAnswered() {
-    String completedRun =
-        savedWorkflowRun("release-wf", RunStatus.succeeded, RunPhase.completed).getId();
+    String completedRun = savedRun(RunStatus.succeeded, RunPhase.completed);
     List<String> atCap =
         java.util.stream.Stream.concat(
                 java.util.stream.Stream.of(completedRun),
