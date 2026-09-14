@@ -21,6 +21,8 @@ public interface WorkflowScheduleRepository
 
   Optional<List<WorkflowScheduleEntity>> findByWorkflowRef(String ref);
 
+  void deleteByWorkflowRef(String workflowRef);
+
   Optional<List<WorkflowScheduleEntity>> findByIdInAndStatusIn(
       List<String> ids, List<WorkflowScheduleStatus> statuses);
 

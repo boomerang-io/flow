@@ -6,14 +6,28 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.entity.WorkflowScheduleEntity;
+import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.core.audit.AuditEventEntity;
+import io.boomerang.core.audit.AuditEventRepository;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -32,6 +46,11 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowWatcher watcher;
   @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private WorkflowRepository workflowRepository;
+  @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
+  @Autowired private ActionRepository actionRepository;
+  @Autowired private WorkflowScheduleRepository scheduleRepository;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   @Test
   void killedClaimantTaskIsRequeuedByOneSweep() {
@@ -285,6 +304,101 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
                 assertEquals(
                     RunStatus.succeeded,
                     taskRunRepository.findById(taskRunId).orElseThrow().getStatus()));
+  }
+
+  @Test
+  void deletedWorkflowWithFinalisedRunsIsPruned() {
+    WorkflowEntity workflow = savedWorkflow("pruned-wf", WorkflowStatus.deleted);
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun(workflow.getId(), RunStatus.cancelled, RunPhase.finalized);
+    String taskRunId =
+        savedTaskRun(
+                "pruned-task",
+                TaskType.template,
+                RunStatus.cancelled,
+                RunPhase.completed,
+                workflow.getId(),
+                wfRun.getId())
+            .getId();
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setWorkflowRef(workflow.getId());
+    revision.setVersion(1);
+    revision = workflowRevisionRepository.save(revision);
+    ActionEntity action = new ActionEntity();
+    action.setWorkflowRef(workflow.getId());
+    action.setWorkflowRunRef(wfRun.getId());
+    action.setStatus(ActionStatus.cancelled);
+    action = actionRepository.save(action);
+    WorkflowScheduleEntity schedule = new WorkflowScheduleEntity();
+    schedule.setWorkflowRef(workflow.getId());
+    schedule = scheduleRepository.save(schedule);
+    relationshipService.createNode(
+        RelationshipType.WORKFLOW, workflow.getId(), workflow.getId(), Optional.empty());
+    AuditEventEntity audit = new AuditEventEntity();
+    audit.setResourceType("workflow");
+    audit.setResourceId(workflow.getId());
+    audit = auditEventRepository.save(audit);
+
+    watcher.pruneDeletedWorkflows();
+
+    assertFalse(workflowRepository.existsById(workflow.getId()));
+    assertFalse(workflowRunRepository.existsById(wfRun.getId()));
+    assertFalse(taskRunRepository.existsById(taskRunId));
+    assertFalse(workflowRevisionRepository.existsById(revision.getId()));
+    assertFalse(actionRepository.existsById(action.getId()));
+    assertFalse(scheduleRepository.existsById(schedule.getId()));
+    assertFalse(
+        relationshipService.doesSlugOrRefExistForType(
+            RelationshipType.WORKFLOW, workflow.getId()));
+    assertTrue(
+        auditEventRepository.existsById(audit.getId()),
+        "audit records are the record that outlives the deletion");
+  }
+
+  @Test
+  void deletedWorkflowWithInFlightRunIsNotPruned() {
+    WorkflowEntity workflow = savedWorkflow("still-running-wf", WorkflowStatus.deleted);
+    WorkflowRunEntity inFlight =
+        savedWorkflowRun(workflow.getId(), RunStatus.running, RunPhase.running);
+    String taskRunId =
+        savedTaskRun(
+                "in-flight-task",
+                TaskType.template,
+                RunStatus.running,
+                RunPhase.running,
+                workflow.getId(),
+                inFlight.getId())
+            .getId();
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setWorkflowRef(workflow.getId());
+    revision.setVersion(1);
+    revision = workflowRevisionRepository.save(revision);
+
+    watcher.pruneDeletedWorkflows();
+
+    assertTrue(workflowRepository.existsById(workflow.getId()));
+    assertTrue(workflowRunRepository.existsById(inFlight.getId()));
+    assertTrue(taskRunRepository.existsById(taskRunId));
+    assertTrue(workflowRevisionRepository.existsById(revision.getId()));
+  }
+
+  @Test
+  void activeWorkflowIsNeverPruned() {
+    WorkflowEntity workflow = savedWorkflow("active-wf", WorkflowStatus.active);
+    WorkflowRunEntity run =
+        savedWorkflowRun(workflow.getId(), RunStatus.succeeded, RunPhase.finalized);
+
+    watcher.pruneDeletedWorkflows();
+
+    assertTrue(workflowRepository.existsById(workflow.getId()));
+    assertTrue(workflowRunRepository.existsById(run.getId()));
+  }
+
+  private WorkflowEntity savedWorkflow(String name, WorkflowStatus status) {
+    WorkflowEntity workflow = new WorkflowEntity();
+    workflow.setName(name);
+    workflow.setStatus(status);
+    return workflowRepository.save(workflow);
   }
 
   private void claimWithExpiredDeadline(String taskRunId, String claimedBy, long claimSeq) {

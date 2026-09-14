@@ -11,12 +11,16 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
@@ -77,13 +81,12 @@ public class WorkflowWatcher {
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final ActionRepository actionRepository;
   private final DispatcherRepository dispatcherRepository;
+  private final TaskRunRepository taskRunRepository;
+  private final WorkflowScheduleRepository scheduleRepository;
+  private final RelationshipService relationshipService;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
-
-  // Hard pruning of tombstoned Workflows ships off - the retention policy is decided separately.
-  @Value("${flow.watcher.retention.enabled:false}")
-  private boolean retentionEnabled;
 
   public WorkflowWatcher(
       TaskRunService taskRunService,
@@ -94,7 +97,10 @@ public class WorkflowWatcher {
       WorkflowRunService workflowRunService,
       WorkflowRunStateHelper workflowRunStateHelper,
       ActionRepository actionRepository,
-      DispatcherRepository dispatcherRepository) {
+      DispatcherRepository dispatcherRepository,
+      TaskRunRepository taskRunRepository,
+      WorkflowScheduleRepository scheduleRepository,
+      RelationshipService relationshipService) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
@@ -104,6 +110,9 @@ public class WorkflowWatcher {
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.actionRepository = actionRepository;
     this.dispatcherRepository = dispatcherRepository;
+    this.taskRunRepository = taskRunRepository;
+    this.scheduleRepository = scheduleRepository;
+    this.relationshipService = relationshipService;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -244,7 +253,8 @@ public class WorkflowWatcher {
 
   /**
    * Wind down deleted (tombstoned) Workflows: cancel their still-in-flight WorkflowRuns through the
-   * normal cancel path. Nothing is destroyed - hard pruning is the separate retention sweep.
+   * normal cancel path. Nothing is destroyed here - pruneDeletedWorkflows hard-deletes once
+   * the runs finalise.
    */
   public void cancelDeletedWorkflowRuns() {
     for (WorkflowEntity workflow : workflowRepository.findByStatus(WorkflowStatus.deleted)) {
@@ -264,14 +274,37 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Retention sweep for deleted Workflows once their runs have finalised. Ships disabled - the
-   * pruning policy (what to keep, for how long) is a separate ruling; enabling it hard-deletes.
+   * Prune deleted (tombstoned) Workflows whose runs have all finalised: hard-delete the
+   * workflow's TaskRuns, WorkflowRuns, revisions, leftover Actions and schedules, its
+   * relationship node, and finally the workflow document itself. A workflow with a run still in
+   * flight is skipped - the cancel sweep finishes first, so live work is never pruned. Audit
+   * records are never touched: they are the record that outlives the deletion. Every delete is
+   * by-ref and idempotent, so overlapping sweeps are harmless.
    */
   public void pruneDeletedWorkflows() {
-    if (!retentionEnabled) {
-      return;
-    }
-    // Intentionally a no-op until the retention policy is ruled and this sweep is implemented.
+    SweepRunner.forEachIsolated(
+        workflowRepository.findByStatus(WorkflowStatus.deleted, PageRequest.of(0, PAGE_SIZE)),
+        workflow -> {
+          if (!workflowRunRepository
+              .findByWorkflowRefAndPhaseIn(workflow.getId(), IN_FLIGHT_PHASES)
+              .isEmpty()) {
+            return;
+          }
+          taskRunRepository.deleteByWorkflowRef(workflow.getId());
+          workflowRunRepository.deleteByWorkflowRef(workflow.getId());
+          workflowRevisionRepository.deleteByWorkflowRef(workflow.getId());
+          actionRepository.deleteByWorkflowRef(workflow.getId());
+          scheduleRepository.deleteByWorkflowRef(workflow.getId());
+          relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, workflow.getId());
+          workflowRepository.deleteById(workflow.getId());
+          LOGGER.info(
+              "[{}] Pruned deleted Workflow: its runs, revisions, actions, schedules and"
+                  + " relationship node are removed; audit records are kept.",
+              workflow.getId());
+        },
+        (workflow, ex) ->
+            LOGGER.error(
+                "[{}] Deleted-workflow prune failed: {}", workflow.getId(), ex.getMessage()));
   }
 
   /**
