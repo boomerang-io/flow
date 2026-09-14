@@ -1,5 +1,6 @@
 package io.boomerang.dispatcher;
 
+import io.boomerang.core.security.AuthExempt;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.HeartbeatRequest;
 import io.boomerang.common.model.TaskRun;
@@ -41,6 +42,11 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/v1/dispatcher")
+@AuthExempt(
+    reason =
+        "The dispatcher wire. Identity is a dispatcher actor token (a global token with an actorKind)"
+            + " checked by DispatcherAuthFilter on the /api/v1/** chain; there is no per-route"
+            + " permission model for a dispatcher, it may do everything the protocol defines.")
 @Tag(
     name = "Dispatcher",
     description =

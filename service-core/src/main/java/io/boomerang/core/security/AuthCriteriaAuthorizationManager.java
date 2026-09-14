@@ -24,6 +24,8 @@ import org.springframework.security.core.Authentication;
  * the same {@code flow.security.denied} metric with the same tags:
  *
  * <ol>
+ *   <li>neither {@code @AuthCriteria} nor {@link AuthExempt} on the method or its class - denied
+ *       (deny by default; {@code @AuthExempt} is the explicit opt-out)
  *   <li>no identity - denied
  *   <li>the token's {@link AuthScope} is not one of {@code assignableScopes} - denied
  *   <li>no grant matches {@code (**|resource)/(**|action)} - denied
@@ -65,12 +67,34 @@ public class AuthCriteriaAuthorizationManager implements AuthorizationManager<Me
   @Override
   public AuthorizationDecision authorize(
       Supplier<? extends Authentication> authentication, MethodInvocation invocation) {
-    AuthCriteria authCriteria = authCriteriaFor(invocation.getMethod());
+    Method method = invocation.getMethod();
+    // Method-level annotations win over class-level ones, whichever kind each is.
+    AuthCriteria authCriteria = AnnotatedElementUtils.findMergedAnnotation(method, AuthCriteria.class);
     if (authCriteria == null) {
-      // The advisor's pointcut only matches methods/classes carrying @AuthCriteria; reachable in
-      // practice only through a merged meta-annotation edge case. Treated like "not annotated" -
-      // the retired interceptor's own behaviour for that case.
-      return new AuthorizationDecision(true);
+      if (AnnotatedElementUtils.findMergedAnnotation(method, AuthExempt.class) != null) {
+        return new AuthorizationDecision(true);
+      }
+      Class<?> declaringClass = method.getDeclaringClass();
+      authCriteria = AnnotatedElementUtils.findMergedAnnotation(declaringClass, AuthCriteria.class);
+    }
+    if (authCriteria == null) {
+      if (AnnotatedElementUtils.findMergedAnnotation(method.getDeclaringClass(), AuthExempt.class)
+          != null) {
+        return new AuthorizationDecision(true);
+      }
+      // Deny by default. A REST handler with neither annotation has had no authorization
+      // decision made for it; the retired interceptor let it through with a WARN, which is how a
+      // route could ship open by omission. AuthCriteriaCoverageTest fails the build first.
+      LOGGER.error(
+          "AuthCriteriaAuthorizationManager - {}.{} carries neither @AuthCriteria nor @AuthExempt."
+              + " Denied.",
+          method.getDeclaringClass().getSimpleName(),
+          method.getName());
+      meterRegistry
+          .counter("flow.security.denied", "resource", "unannotated", "action", "unannotated",
+              "type", "n/a")
+          .increment();
+      return new AuthorizationDecision(false);
     }
 
     Token accessToken = identityService.getCurrentIdentity();
@@ -111,14 +135,6 @@ public class AuthCriteriaAuthorizationManager implements AuthorizationManager<Me
       return new AuthorizationDecision(false);
     }
     return new AuthorizationDecision(true);
-  }
-
-  private AuthCriteria authCriteriaFor(Method method) {
-    AuthCriteria onMethod = AnnotatedElementUtils.findMergedAnnotation(method, AuthCriteria.class);
-    if (onMethod != null) {
-      return onMethod;
-    }
-    return AnnotatedElementUtils.findMergedAnnotation(method.getDeclaringClass(), AuthCriteria.class);
   }
 
   private void count(AuthCriteria authCriteria, Token accessToken) {
