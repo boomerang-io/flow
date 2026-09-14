@@ -3,6 +3,7 @@ package io.boomerang.dispatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,6 +29,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -130,6 +132,34 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
       })
   void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
     mockMvc.perform(put(path)).andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * The workspace release query is the same worker protocol on the same path root: it reveals which
+   * runs and workflows exist and in what state, so it must sit behind the same filter as the queue
+   * polls rather than being reachable by anyone with network access.
+   */
+  @Test
+  void releaseQueryRejectsMissingBearerToken() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/dispatcher/workspaces/releasable")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void releaseQueryAcceptsAValidDispatcherToken() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            post("/api/v1/dispatcher/workspaces/releasable")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
+        .andExpect(status().isOk());
   }
 
   @Test

@@ -7,6 +7,8 @@ import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunRequest;
+import io.boomerang.common.model.WorkspaceReleaseQuery;
+import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -130,6 +132,20 @@ public class DispatcherControllerV1 {
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
     return workflowRunService.start(workflowRunId, runRequest);
+  }
+
+  @PostMapping(value = "/workspaces/releasable")
+  @Operation(
+      summary =
+          "Ask which owners of the workspace volumes a dispatcher holds are finished, so those"
+              + " volumes can be released.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public WorkspaceReleaseResponse releasableWorkspaces(@RequestBody WorkspaceReleaseQuery query) {
+    return dispatcherService.releasable(query);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/start")
