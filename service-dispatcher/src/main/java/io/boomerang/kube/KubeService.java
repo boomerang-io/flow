@@ -2,6 +2,7 @@ package io.boomerang.kube;
 
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import java.util.List;
 import java.util.Map;
 
 public interface KubeService {
@@ -18,6 +19,8 @@ public interface KubeService {
       throws KubernetesClientException, InterruptedException;
 
   void deleteWorkspacePVC(String workspaceRef, String workspaceType);
+
+  List<PersistentVolumeClaim> listWorkspacePVCs();
 
   boolean checkWorkspacePVCExists(
       String workspaceRef, String workspaceType, boolean failIfNotBound);
