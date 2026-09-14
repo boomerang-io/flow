@@ -49,8 +49,10 @@ import org.slf4j.LoggerFactory;
  *       io.boomerang.common.enums.RunStatus} exactly for every other real value - {@code
  *       cancelled}/{@code invalid} pass straight through); {@code statusOverride} mapped the same
  *       way when present (not observed in the real dump — 0 occurrences — still implemented for
- *       fidelity to the field). {@code phase} is ALWAYS {@code "finalized"} ({@code 4002}) - v3 has
- *       no phase concept, every v3 run is by definition already finished.
+ *       fidelity to the field). {@code phase} is ALWAYS {@code "completed"}, the terminal phase -
+ *       v3 has no phase concept, every v3 run is by definition already finished. Legacy {@code
+ *       4002} wrote {@code "finalized"}, as did this unit until that phase was retired; {@code
+ *       _0043__RunPhaseFinalizedIsCompleted} rewrites the databases migrated before the change.
  *   <li>{@code statusMessage} <- v3 {@code statusMessage} directly when present (4 real
  *       occurrences), else v3 {@code error.message} when present (2 real occurrences, e.g. {@code
  *       "Workflow execution terminated due to exceeding maxinum workflow duration."}) - a value-add
@@ -207,7 +209,7 @@ public class _0011__V3MigrateRuns {
 
     String status = mapRunStatus(source.getString("status"));
     run.put("status", status != null ? status : "failed");
-    run.put("phase", "finalized");
+    run.put("phase", "completed");
     String statusOverride = source.getString("statusOverride");
     if (statusOverride != null) {
       run.put("statusOverride", mapRunStatus(statusOverride));
