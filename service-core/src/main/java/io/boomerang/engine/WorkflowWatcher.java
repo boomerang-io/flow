@@ -23,6 +23,7 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -138,7 +139,6 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
-    SweepRunner.runIsolated("finalizeWorkspacelessRuns", this::finalizeWorkspacelessRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
@@ -218,22 +218,6 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Finalize completed runs that have no workspaces: with nothing to tear down no agent ever
-   * claims them, so the engine closes them out itself.
-   */
-  public void finalizeWorkspacelessRuns() {
-    SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findFinalizableWithoutWorkspaces(PAGE_SIZE),
-        wfRun -> {
-          if (workflowRunStateHelper.tryFinalize(wfRun.getId()) != null) {
-            LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
-          }
-        },
-        (wfRun, ex) ->
-            LOGGER.error("[{}] Finalize sweep failed: {}", wfRun.getId(), ex.getMessage()));
-  }
-
-  /**
    * Resume waiting tasks whose {@code waitUntil} has elapsed - a due sleep completes, a due
    * acquirelock re-attempts. Event and approval waits carry no {@code waitUntil}, so the sparse
    * index never surfaces them here. Each is claimed by a Compare-And-Set so instances never
@@ -254,7 +238,7 @@ public class WorkflowWatcher {
   /**
    * Wind down deleted (tombstoned) Workflows: cancel their still-in-flight WorkflowRuns through the
    * normal cancel path. Nothing is destroyed here - pruneDeletedWorkflows hard-deletes once
-   * the runs finalise.
+   * the runs complete.
    */
   public void cancelDeletedWorkflowRuns() {
     for (WorkflowEntity workflow : workflowRepository.findByStatus(WorkflowStatus.deleted)) {
@@ -274,7 +258,7 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Prune deleted (tombstoned) Workflows whose runs have all finalised: hard-delete the
+   * Prune deleted (tombstoned) Workflows whose runs have all completed: hard-delete the
    * workflow's TaskRuns, WorkflowRuns, revisions, leftover Actions and schedules, its
    * relationship node, and finally the workflow document itself. A workflow with a run still in
    * flight is skipped - the cancel sweep finishes first, so live work is never pruned. Audit
@@ -314,12 +298,22 @@ public class WorkflowWatcher {
    * and cancelled the same way the normal cancel path treats them.
    */
   public void reapRunsWithMissingRevision() {
+    // Resolve the missing revisions first, then page only the runs that reference them: a page
+    // of in-flight runs whose revisions all exist would otherwise be re-read every tick and
+    // never advance past them, leaving a newer orphan unreaped for as long as the backlog held.
+    List<String> referenced = workflowRunStateHelper.findInFlightRevisionRefs();
+    if (referenced.isEmpty()) {
+      return;
+    }
+    Set<String> existing = new HashSet<>();
+    workflowRevisionRepository.findAllById(referenced).forEach(r -> existing.add(r.getId()));
+    List<String> missing = referenced.stream().filter(ref -> !existing.contains(ref)).toList();
+    if (missing.isEmpty()) {
+      return;
+    }
     SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findInFlight(PAGE_SIZE),
+        workflowRunStateHelper.findInFlightWithRevisionIn(missing, PAGE_SIZE),
         wfRun -> {
-          if (workflowRevisionRepository.existsById(wfRun.getWorkflowRevisionRef())) {
-            return;
-          }
           long duration =
               wfRun.getStartTime() != null
                   ? new Date().getTime() - wfRun.getStartTime().getTime()

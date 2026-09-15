@@ -17,8 +17,7 @@ import org.bson.Document;
  * claim_page} compounds lead with {@code status} ({@code workflow_runs: {status, phase,
  * creationDate}}) or {@code type} ({@code task_runs: {type, status, phase, creationDate}}), so a
  * query that filters on {@code phase} WITHOUT the leading key cannot seek them at all — it
- * collection-scans. Every {@code WorkflowWatcher} sweep below is in that position, as is the
- * dispatcher's teardown claim page, which runs once per second per connected dispatcher.
+ * collection-scans. Every {@code WorkflowWatcher} sweep below is in that position.
  *
  * <p>All non-unique, and all created via {@link MigrationUtils#ensureIndexKeys} for the same reason
  * as {@code _0036}: a v4 install ran with {@code auto-index-creation=true} and may already carry a
@@ -29,14 +28,13 @@ import org.bson.Document;
  *       all filtering {@code phase} with no {@code status} predicate and all sorting {@code
  *       creationDate} ascending, which this index also satisfies without a blocking sort:
  *       <ul>
- *         <li>{@code WorkflowRunService.findClaimableForTeardown} ({@code WorkflowRunService.java:114-129})
- *             — {@code phase=completed}, unclaimed, has workspaces. Called every {@code
- *             MAX_SLEEP_INTERVAL} of the dispatcher long poll ({@code DispatcherService.java:139}),
- *             for every connected dispatcher; the highest-frequency unindexed query in the engine.
- *         <li>{@code WorkflowRunService.findFinalizableWithoutWorkspaces} — {@code phase=completed}
- *             (the {@code finalizeWorkspacelessRuns} sweep).
  *         <li>{@code WorkflowRunService.findInFlight} — {@code phase in (pending, queued, running)}
  *             (the {@code reapRunsWithMissingRevision} sweep).
+ *         <li>Two further callers this index was built for have since gone: the dispatcher's
+ *             teardown claim page (then the highest-frequency unindexed query in the engine) and
+ *             the {@code finalizeWorkspacelessRuns} sweep, both removed when the {@code finalized}
+ *             phase was retired. The index stays - {@code findInFlight} and {@code
+ *             findByWorkflowRefAndPhaseIn} still seek it.
  *       </ul>
  *   <li>{@code workflow_runs.phase_start_sweep {phase:1, startTime:1}} — {@code
  *       WorkflowRunService.findRunningStartedBefore} ({@code phase=running}, {@code startTime <=

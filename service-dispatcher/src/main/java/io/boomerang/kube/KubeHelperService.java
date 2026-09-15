@@ -259,7 +259,7 @@ public class KubeHelperService {
     return labels;
   }
 
-  private Map<String, String> getBaseLabels(String tier) {
+  protected Map<String, String> getBaseLabels(String tier) {
     Map<String, String> labels = new HashMap<>();
     labels.put("app.kubernetes.io/name", bmrgProduct);
     labels.put("app.kubernetes.io/instance", bmrgInstance);

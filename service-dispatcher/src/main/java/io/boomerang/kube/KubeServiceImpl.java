@@ -243,6 +243,26 @@ public class KubeServiceImpl implements KubeService {
     return false;
   }
 
+  /**
+   * Return every workspace claim this dispatcher's namespace holds, whoever created it. The
+   * cluster is the source of truth for what exists; the engine is asked separately whose owner is
+   * finished.
+   */
+  @Override
+  public List<PersistentVolumeClaim> listWorkspacePVCs() {
+    try {
+      return client
+          .persistentVolumeClaims()
+          .withLabels(helperKubeService.getBaseLabels("workspace"))
+          .list()
+          .getItems();
+    } catch (KubernetesClientException e) {
+      // Best effort, like the lease heartbeat: the claims stay held and the next tick re-lists.
+      LOGGER.warn("Unable to list workspace PersistentVolumeClaims: {}", e.getMessage());
+      return List.of();
+    }
+  }
+
   @Override
   public void deleteWorkspacePVC(String workspaceRef, String workspaceType) {
     deletePVC(helperKubeService.getWorkspaceLabels(null, workspaceRef, workspaceType, null));

@@ -102,6 +102,16 @@ class QueueServiceDispatchTest {
   }
 
   @Test
+  void completedWorkflowRunIsIgnored() {
+    // completed is terminal: the run carries nothing further for the dispatcher to do. Storage is
+    // released by WorkspaceReconciler asking the engine, not by a second trip through the queue.
+    queueService.processWorkflowRun(workflowRun(RunPhase.completed));
+
+    verify(workflowService, never()).execute(any(WorkflowRun.class));
+    verify(engineClient, never()).startWorkflow(any());
+  }
+
+  @Test
   void genericFailureEndsTheTaskAsDispatchErrorAndClearsTheLease() {
     when(taskService.execute(any())).thenThrow(new RuntimeException("boom"));
     leaseRegistry.beat("task-1");

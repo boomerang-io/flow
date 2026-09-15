@@ -51,6 +51,8 @@ class LoaderMigrationTest {
   private static ObjectId latestConnectedAgent;
   private static ObjectId taskRunWithAgentRef;
   private static ObjectId workflowRunWithAgentRef;
+  private static ObjectId finalizedWorkflowRun;
+  private static ObjectId finalizedTaskRun;
   private static ObjectId tokenWithTeamScope;
   private static ObjectId survivingGlobalToken;
   private static ObjectId teamAudit;
@@ -100,12 +102,37 @@ class LoaderMigrationTest {
     taskRunWithAgentRef = insertTaskRunWithAgentRef("wfr-claimed", "agent-1", EARLIER);
     workflowRunWithAgentRef = insertWorkflowRunWithAgentRef("agent-1", EARLIER);
 
+    seedRetiredFinalizedPhase();
     seedV4ResidualCollections();
     seedLegacyWorkerFlowRevision();
     seedLegacyRunWorkflowCatalogue();
     seedOrphanedFieldResidue();
     seedLegacyTeamQuotaSettings();
     seedLegacyFeatureFlagSettings();
+  }
+
+  /**
+   * Residue for {@code _0043__RunPhaseFinalizedIsCompleted}: a WorkflowRun and a TaskRun an earlier
+   * v5 install left on the retired {@code finalized} phase, which no longer deserialises to
+   * anything.
+   */
+  private static void seedRetiredFinalizedPhase() {
+    finalizedWorkflowRun = new ObjectId();
+    collection("workflow_runs")
+        .insertOne(
+            new Document("_id", finalizedWorkflowRun)
+                .append("status", "succeeded")
+                .append("phase", "finalized")
+                .append("creationDate", EARLIER));
+    finalizedTaskRun = new ObjectId();
+    collection("task_runs")
+        .insertOne(
+            new Document("_id", finalizedTaskRun)
+                .append("workflowRunRef", finalizedWorkflowRun.toHexString())
+                .append("name", "finalized-task")
+                .append("status", "succeeded")
+                .append("phase", "finalized")
+                .append("creationDate", EARLIER));
   }
 
   /**
@@ -329,6 +356,7 @@ class LoaderMigrationTest {
     assertAuditRestructured();
     assertSweepIndexes();
     assertQuotaCountIndexes();
+    assertFinalizedPhaseRewritten();
     assertWorkspaceRenameApplied();
     assertV4ResidualCollectionsDropped();
     assertWorkerFlowImagesRepointed();
@@ -1393,6 +1421,24 @@ class LoaderMigrationTest {
    * {@code _0041}: the quota-count indexes. Both quota counters anchor on {@code workflowRef $in},
    * which only {@code workflow_ref_phase} prefixes - and neither count filters {@code phase}.
    */
+  /**
+   * {@code completed} is the terminal phase: every run left on the retired {@code finalized} string
+   * is rewritten, in both run collections, leaving none behind. The second-run no-op is covered by
+   * the {@code task_runs}/{@code workflow_runs} snapshot comparisons in the test above.
+   */
+  private void assertFinalizedPhaseRewritten() {
+    Document workflowRun =
+        collection("workflow_runs").find(Filters.eq("_id", finalizedWorkflowRun)).first();
+    assertThat(workflowRun).isNotNull();
+    assertThat(workflowRun.getString("phase")).isEqualTo("completed");
+    Document taskRun = collection("task_runs").find(Filters.eq("_id", finalizedTaskRun)).first();
+    assertThat(taskRun).isNotNull();
+    assertThat(taskRun.getString("phase")).isEqualTo("completed");
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("phase", "finalized")))
+        .isZero();
+    assertThat(collection("task_runs").countDocuments(Filters.eq("phase", "finalized"))).isZero();
+  }
+
   private void assertQuotaCountIndexes() {
     assertIndex("workflow_runs", "workflow_ref_creation", List.of("workflowRef", "creationDate"));
     assertIndex("workflow_runs", "workflow_ref_status", List.of("workflowRef", "status"));

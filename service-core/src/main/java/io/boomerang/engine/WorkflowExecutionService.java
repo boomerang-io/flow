@@ -125,21 +125,6 @@ public class WorkflowExecutionService {
         asyncWorkflowExecutor);
   }
 
-  public void end(String wfRunId) {
-    WorkflowRunEntity workflowExecution =
-        workflowRunRepository
-            .findById(wfRunId)
-            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    // Finalize Compare-And-Set: only a completed run can be finalized, so an early or duplicate
-    // finalize can never stomp a run that is still executing.
-    if (workflowRunStateHelper.tryFinalize(wfRunId) == null) {
-      LOGGER.info(
-          "[{}] WorkflowRun not completed (phase: {}). Nothing to finalize.",
-          wfRunId,
-          workflowExecution.getPhase());
-    }
-  }
-
   public void cancel(String wfRunId) {
     // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
     WorkflowRunEntity workflowExecution =

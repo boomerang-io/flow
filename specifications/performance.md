@@ -167,11 +167,7 @@ Each row is one run; poll traffic (one list query per 100 outstanding runs per s
 
 Every run in every row ended `succeeded` with zero non-2xx responses and nothing in the server log. Throughput
 peaks near 50 concurrent submitters and falls at 100, where submit latency triples: the single instance is
-CPU-bound (3.5 of 8 VM cores) before Mongo is. Two things the numbers say that the code does not:
-`phase=finalized` is a separate, slower step — workspace-less runs are finalized only by the watcher sweep,
-50 per 30 s tick (`WorkflowWatcher.java:215-226`, `EngineConstants.java:12`), so one instance finalizes at
-most 100 runs/min and 500 completed runs took 281 s to all show `finalized` (p50 127 s), while the
-`status` a client reads is terminal within seconds. What they do not say: anything about a
+CPU-bound (3.5 of 8 VM cores) before Mongo is. What they do not say: anything about a
 cluster, several instances, template tasks, a dispatcher, or storage — this is an engine baseline on a
 laptop, not the multi-instance saturation run decisions 0060 and 0061 need, which remains a release gate.
 Reproduce with `FLOW_TOKEN=$(node load/mint-token.mjs) node load/run.mjs --runs 500 --concurrency 50`.

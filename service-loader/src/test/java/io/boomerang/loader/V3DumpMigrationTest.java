@@ -1097,7 +1097,10 @@ class V3DumpMigrationTest {
     assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "failed"))).isEqualTo(8);
     assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "invalid"))).isEqualTo(4);
     assertThat(collection("workflow_runs").countDocuments(Filters.eq("status", "running"))).isEqualTo(3);
-    assertThat(collection("workflow_runs").countDocuments(Filters.eq("phase", "finalized"))).isEqualTo(18093);
+    // Every v3 run is already finished, so all 18093 land on the terminal phase and none keeps
+    // the retired "finalized" string.
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("phase", "completed"))).isEqualTo(18093);
+    assertThat(collection("workflow_runs").countDocuments(Filters.eq("phase", "finalized"))).isZero();
 
     // trigger mapping - "scheduler" renamed to "schedule" (see _0011's javadoc).
     assertThat(collection("workflow_runs").countDocuments(Filters.eq("trigger", "schedule"))).isEqualTo(17699);
@@ -1116,7 +1119,7 @@ class V3DumpMigrationTest {
     assertThat(run.getString("workflowRef")).isEqualTo("6144265f1950a72949b00efc");
     assertThat(run.getString("workflowRevisionRef")).isEqualTo("614427031950a72949b00efe");
     assertThat(run.getString("status")).isEqualTo("succeeded");
-    assertThat(run.getString("phase")).isEqualTo("finalized");
+    assertThat(run.getString("phase")).isEqualTo("completed");
     assertThat(run.getString("trigger")).isEqualTo("manual");
     assertThat(run.getString("initiatedByRef")).isEqualTo("614415021950a72949b00efb");
     assertThat(run.getLong("duration")).isEqualTo(28832L);

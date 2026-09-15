@@ -57,14 +57,14 @@ public shapes; the entities are separate classes and MUST NOT be returned from a
 
 | Rule | Where |
 | --- | --- |
-| No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:43-76` |
+| No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:48-81` |
 | Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApproved`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
-| Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:80-87` |
+| Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:85-92` |
 | `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `lib-common/.../enums/RunStatus.java` |
-| **Exception:** `phase` (`queued, pending, running, completed, finalized`) is serialised on both models because the dispatcher receives the same classes and branches on it | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:93,142,157`; `service-dispatcher/.../dispatcher/QueueService.java:47-55`; tripwire `PublicRunModelSerialisationTest.java:110-121` |
+| **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models because the dispatcher receives the same classes and branches on it. `queued` is now the only position `status` cannot express, so it is the whole remaining reason the field is exposed | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:83,97,126`; `service-dispatcher/.../dispatcher/QueueService.java:47-55`; tripwire `PublicRunModelSerialisationTest.java:117-129`, phase set pinned at `:137-141` |
 
 `TaskRun` is `@JsonInclude(NON_NULL)`, so a null field is absent rather than `null`
-(`PublicRunModelSerialisationTest.java:92-94`).
+(`PublicRunModelSerialisationTest.java:97-99`).
 
 ## YAML content negotiation
 

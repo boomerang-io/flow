@@ -50,6 +50,27 @@ test.describe("dispatcher on kubernetes", () => {
     return { wf, run: finished };
   }
 
+  /*
+   * Run-scoped storage is released by the dispatcher reconciling the cluster against the engine
+   * (there is no phase after completed that says "released"), so the claim survives the run and
+   * disappears within one reconcile tick of it - FLOW_DISPATCHER_WORKSPACE_RECONCILE_MS is 10 s
+   * on the compose stack.
+   */
+  async function expectWorkspaceClaimReleased(workspaceRef: string, timeoutMs = 60_000) {
+    const selector = `boomerang.io/workspace-ref=${workspaceRef}`;
+    const deadline = Date.now() + timeoutMs;
+    let claims = "";
+    for (;;) {
+      claims = execSync(
+        `kubectl --context ${KUBE_CONTEXT} get pvc -l ${selector} -o jsonpath='{.items[*].metadata.name}'`,
+        { encoding: "utf8" },
+      ).trim();
+      if (!claims || Date.now() > deadline) break;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    expect(claims, `run-scoped claim for ${workspaceRef} released within one reconcile interval`).toBe("");
+  }
+
   const start = { name: "start", type: "start" };
   // A shell task on the catalogue's execute-shell template. Results are written by the script to
   // $RESULTS_PATH (one JSON object for the Jobs executor), so these scenarios exercise Flow's
@@ -236,9 +257,14 @@ test.describe("dispatcher on kubernetes", () => {
         endAfter("check"),
       ],
     });
+    // succeeded is terminal - completed is the run's last phase and nothing follows it.
     expect(r.status, describe(r)).toBe("succeeded");
     expect(task(r, "check").status, describe(r)).toBe("succeeded");
     expect(result(task(r, "check"), "seen"), describe(r)).toBe("yes");
+    if (KUBE_CONTEXT) {
+      // The claim is keyed by the run id and is the dispatcher's to release once the run is done.
+      await expectWorkspaceClaimReleased(r.id);
+    }
   });
 
   test("a failing task ends the run failed with a typed reason", async ({ request }) => {
