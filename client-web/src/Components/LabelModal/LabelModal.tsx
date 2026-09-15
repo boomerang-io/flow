@@ -4,6 +4,7 @@ import * as Yup from "yup";
 import { Formik } from "formik";
 import { Button, ModalBody, ModalFooter } from "@carbon/react";
 import { ComposedModal, ModalForm, TextInput, ModalTrigger } from "@boomerang-io/carbon-addons-boomerang-react";
+import { LABEL_KEY_PREFIX_REGEX, LABEL_NAME_AND_VALUE_REGEX } from "Constants";
 import styles from "./LabelModal.module.scss";
 
 interface LabelModalProps {
@@ -13,9 +14,6 @@ interface LabelModalProps {
   modalTrigger: ModalTrigger;
   selectedLabel?: { key: string; value: string };
 }
-
-const keyPrefixRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,62}([.\1][a-zA-Z0-9-]{1,63})*$/;
-const keyNameAndValueRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,61}[a-zA-Z0-9]$/;
 
 const LabelModal: React.FC<LabelModalProps> = ({ action, isEdit = false, labelsKeys, modalTrigger, selectedLabel }) => {
   return (
@@ -67,8 +65,8 @@ const AddLabelModalContent: React.FC<AddLabelModalContentProps> = ({
     const name = keyParts[1];
 
     const isValidPrefix =
-      key?.includes("/") && keyParts?.length === 2 ? keyPrefixRegex.test(prefix) && prefix?.length <= 253 : true;
-    const isValidName = keyParts.length === 2 ? keyNameAndValueRegex.test(name) : keyNameAndValueRegex.test(key);
+      key?.includes("/") && keyParts?.length === 2 ? LABEL_KEY_PREFIX_REGEX.test(prefix) && prefix?.length <= 253 : true;
+    const isValidName = keyParts.length === 2 ? LABEL_NAME_AND_VALUE_REGEX.test(name) : LABEL_NAME_AND_VALUE_REGEX.test(key);
     if (isValidPrefix && isValidName) return true;
     else if (!isValidPrefix)
       return this.createError({
@@ -83,7 +81,7 @@ const AddLabelModalContent: React.FC<AddLabelModalContentProps> = ({
   }
 
   const validateValue = (value) => {
-    return keyNameAndValueRegex.test(value);
+    return LABEL_NAME_AND_VALUE_REGEX.test(value);
   };
 
   return (
