@@ -147,6 +147,66 @@ status colour ad hoc.
 3. **Custom** — only when neither library has it. Build it from Carbon tokens + the 2x grid so it
    themes correctly; never with raw colours or off-scale spacing.
 
+### Task parameter inputs
+
+A catalogue task's parameters are rendered generically: the editor's config modal hands
+`task.spec.params` to the add-ons' `DynamicFormik`, which dispatches on each param's `type`
+(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:92`).
+The type vocabulary is `InputType` (`client-web/src/Constants/index.ts:86`); the Task Manager's
+add/edit-field form offers the same list
+(`client-web/src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:22`).
+
+| Input type | Renders as | Notes |
+| ---------- | ---------- | ----- |
+| `boolean` | add-ons `Toggle` | Vertical orientation. |
+| `email`, `password`, `tel`, `text`, `url` | add-ons `TextInput` | `password` renders a masked field. |
+| `number` | add-ons `TextInput`, `type="number"` | `min`/`max` feed DynamicFormik's yup schema. |
+| `select` | add-ons `ComboBox` | Options are `{ key, value }` pairs. |
+| `textarea` | add-ons `TextArea` | |
+| `texteditor`, `texteditor::{javascript,shell,text,yaml}` | `TextEditorModal` | Syntax mode from the suffix. |
+| **`slider`** | **`Components/Slider`** (`client-web/src/Components/Slider/Slider.tsx:49`) | Carbon `Slider` plus a number input; reads `min`/`max`/`step`. |
+
+`DataDrivenInput` has no branch of its own for `slider`, so a slider param is routed to the local
+component through its `customComponent` escape hatch
+(`client-web/src/Utils/paramsHelper.ts:11`). Two rules hold for it:
+
+- The value is written back to the form as a **string**, like every other param value
+  (`client-web/src/Components/Slider/SliderInput.tsx:37`).
+- The value is clamped to `[min, max]` and snapped to `step`, with the floating-point residue of
+  fractional steps trimmed (`client-web/src/Components/Slider/Slider.tsx:23`).
+
+`min`, `max` and `step` are nullable numbers on the param model
+(`client-web/src/Types/index.tsx:150-155`) mirroring the backend's; only `slider` requires all
+three, and the Task Manager's field form shows them for that type alone
+(`.../TemplateConfigModalContent.tsx:176`).
+
+### Task palette icons and categories
+
+The editor palette groups tasks by the catalogue's free-text `category`, with `workflow` pinned
+first and the rest alphabetical (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:123`).
+The task's `icon` field is a key into one shared icon map
+(`client-web/src/Utils/taskIcons.tsx:27`), used by the palette tile
+(`client-web/src/Features/WorkflowEditor/Designer/Tasks/Task/Task.tsx:15`), the canvas node
+(`.../Template/TemplateNode/TemplateNode.tsx:224`) and the palette's "Filter by Task Type" list.
+A seeded task whose `icon` is not in that map falls back to a generic `Bee`, so **an icon key must
+exist here before the backend seeds a task that uses it**.
+
+| Icon key (`task.icon`) | Carbon icon | Typical category |
+| ---------------------- | ----------- | ---------------- |
+| `AI` | `MachineLearningModel` (`client-web/src/Utils/taskIcons.tsx:38`) | `AI` — the seeded `ai` task. |
+| `API/HTTP call` | `Api` | `Utilities` |
+| `Automated task` | `Rocket` | any |
+| `Code`, `Terminal` | `Code`, `Terminal` | `Utilities` |
+| `Message` | `Chat` | `Communication with Slack` |
+| … | see `taskIcons` for the full list | |
+
+Node type and icon are separate: `ai` is its own node type
+(`client-web/src/Constants/index.ts:120`) mapped to a thin wrapper over the Template node
+(`client-web/src/Features/Reactflow/Reactflow.tsx:84`) that only re-tints the border with the
+Boomerang purple accent (`client-web/src/Features/Reactflow/components/Ai/AiNode.module.scss:6`).
+A new node type MUST be added to all three of `markerTypes`, `edgeTypes` and `nodeTypes` — they
+are keyed exhaustively off `NodeType`.
+
 ### Class-name conventions
 
 - Carbon component classes are prefixed **`cds--`** (v11). Override with care and scope under
