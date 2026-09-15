@@ -1,12 +1,7 @@
 import React from "react";
-import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
-import { server } from "ApiServer/msw/node";
+import { screen } from "@testing-library/react";
 import { workflowTemplates } from "ApiServer/fixtures";
-import { serviceUrl } from "Config/servicesConfig";
-import { action } from "Features/TemplateWorkflows/TemplateWorkflows";
 import { WorkflowStatus } from "Types";
-import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 import WorkflowTemplateCard from "./index";
 
@@ -43,55 +38,17 @@ const props = {
   },
 };
 
-// Route-module test pattern (see GlobalParameters.spec.tsx): this card renders as a descendant
-// of the templateWorkflows route's element with no nested <Route> of its own, so its
-// `useFetcher()` submits resolve against whichever route is in context - here, the same
-// `<Route action={action}>` shape the real route tree wires up. Context (user/workspaces) comes
-// from renderWithContext's own defaults - WorkflowTemplateCard doesn't read AppContext, so
-// no extra provider wrap is needed here.
-function renderWorkflowTemplateCard() {
-  return renderWithContext(<Route path="*" action={action} element={<WorkflowTemplateCard {...props} />} />);
-}
-
-describe("WorkflowCard --- Snapshot", () => {
-  it("Capturing Snapshot of WorkflowCard", () => {
-    const { baseElement } = renderWorkflowTemplateCard();
+describe("WorkflowTemplateCard --- Snapshot", () => {
+  it("Capturing Snapshot of WorkflowTemplateCard", () => {
+    const { baseElement } = renderWithContext(<WorkflowTemplateCard {...props} />);
     expect(baseElement).toMatchSnapshot();
   });
 });
 
-describe("WorkflowCard --- action", () => {
-  test("deletes a workflow template through the mocked API", async () => {
-    server.use(http.delete(serviceUrl.template.getWorkflowTemplate({ name: props.workflow.name }), () => HttpResponse.json({})));
-
-    const request = new Request("http://localhost/admin/template-workflows", {
-      method: "post",
-      body: new URLSearchParams({ intent: "delete", name: props.workflow.name }),
-    });
-
-    const result = await action({ request });
-
-    expect(result).toEqual({ intent: "delete", name: props.workflow.name });
-  });
-
-  test("surfaces a failed delete without throwing", async () => {
-    server.use(
-      http.delete(serviceUrl.template.getWorkflowTemplate({ name: props.workflow.name }), () =>
-        HttpResponse.json({}, { status: 500 }),
-      ),
-    );
-
-    const request = new Request("http://localhost/admin/template-workflows", {
-      method: "post",
-      body: new URLSearchParams({ intent: "delete", name: props.workflow.name }),
-    });
-
-    // Calling `action` directly (rather than through a router) surfaces the raw
-    // DataWithResponseInit wrapper actionError() returns for a failure - the router itself
-    // unwraps it into fetcher.data in real use.
-    const result = (await action({ request })) as unknown as { data: { intent: string } };
-
-    expect(isActionError(result.data)).toBe(true);
-    expect(result.data.intent).toBe("delete");
+describe("WorkflowTemplateCard --- render", () => {
+  it("renders the template name and description with no management actions", () => {
+    renderWithContext(<WorkflowTemplateCard {...props} />);
+    expect(screen.getByTestId("workflow-card-title")).toHaveTextContent(props.workflow.name);
+    expect(screen.queryByLabelText("Overflow card menu")).toBeNull();
   });
 });

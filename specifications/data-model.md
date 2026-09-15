@@ -17,7 +17,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | Collection | Holds | Entity (owner package) |
 | --- | --- | --- |
 | `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations) + one document per version (tasks, params, timeout, retries) | `WorkflowEntity`, `WorkflowRevisionEntity` (`lib-common`; used by `workflow`) |
-| `workflow_templates` | Starter workflow templates, `version` on the single document | `WorkflowTemplateEntity` (`lib-common`; `workflow`) |
+| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by the loader (`_0023__SeedTemplates` seeds them, `_0010__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`lib-common`; `workflow`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`lib-common`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`lib-common`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`lib-common`; `engine`) |

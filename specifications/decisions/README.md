@@ -59,3 +59,4 @@ things by name, not by code.
 | 0071 | [Deletion completes: the prune sweep hard-deletes once runs finalise, with no flag](0071-deletion-completes-the-prune-sweep-hard-deletes-once-runs-finalise.md) | accepted | 2026-09-03 |
 | 0072 | [Monthly run quotas count audit events so deletion cannot reset them](0072-monthly-run-quotas-count-audit-events-so-deletion-cannot-reset-them.md) | accepted | 2026-09-03 |
 | 0073 | [A run ends at `completed`; releasing its storage is the dispatcher's own reconciliation](0073-runs-end-at-completed-storage-release-is-dispatcher-reconciliation.md) | accepted | 2026-09-15 |
+| 0077 | [Workflow Templates are seeded, read-only content](0077-workflow-templates-are-seeded-read-only-content.md) | accepted | 2026-09-15 |
