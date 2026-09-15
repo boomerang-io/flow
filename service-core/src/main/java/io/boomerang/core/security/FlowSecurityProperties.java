@@ -7,7 +7,7 @@ import org.springframework.core.env.Environment;
  * A5/H6, simplified 2026-08-15 (v5 is the major - the legacy per-half alias pair is dropped): the
  * single {@code flow.security.enabled} property gates BOTH security halves - authentication (the
  * filter chain, {@link SecurityConfiguration}/{@link SecurityDisabledConfiguration}) and
- * authorization ({@link SecurityInterceptorConfiguration}). Its default derives from {@code
+ * authorization ({@link MethodSecurityConfiguration}). Its default derives from {@code
  * flow.mode}: {@code standalone} = enabled (today's default), {@code engine} = disabled.
  *
  * <p>This keeps every currently-deployed configuration byte-identical: nothing changes unless

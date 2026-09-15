@@ -1,14 +1,13 @@
 package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.JWTParser;
-import com.nimbusds.jwt.PlainJWT;
-import com.nimbusds.jwt.SignedJWT;
 import com.slack.api.app_backend.SlackSignature.Generator;
 import com.slack.api.app_backend.SlackSignature.Verifier;
 import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.enums.TokenTypePrefix;
 import io.boomerang.core.model.Token;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,7 +16,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -28,7 +26,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -67,23 +67,32 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   // body ({idToken}) carries no proxy headers, and the exchange controller verifies that token
   // itself rather than relying on this filter.
   static final String PATH_AUTH_EXCHANGE = "/api/v2/auth/exchange";
-  private static final String TOKEN_PATTERN = "Bearer\\sbf._(.)+";
+  private static final String BEARER_PREFIX = "Bearer ";
 
   private TokenService tokenService;
   private SettingsService settingsService;
-  private String basicPassword;
+  private PasswordEncoder passwordEncoder;
+  // Encoded once at startup from flow.authorization.basic.password - never the raw configured
+  // value, so the comparison below is always through PasswordEncoder.matches (constant-time),
+  // never a raw String.equals.
+  private String encodedBasicPassword;
   private AuthenticationEntryPoint authEntryPoint;
+  private OidcTokenVerifier oidcTokenVerifier;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
-      AuthenticationEntryPoint authEntryPoint) {
+      AuthenticationEntryPoint authEntryPoint,
+      OidcTokenVerifier oidcTokenVerifier,
+      PasswordEncoder passwordEncoder) {
     super();
     this.tokenService = tokenService;
     this.settingsService = settingsService;
-    this.basicPassword = basicPassword;
+    this.passwordEncoder = passwordEncoder;
+    this.encodedBasicPassword = passwordEncoder.encode(basicPassword);
     this.authEntryPoint = authEntryPoint;
+    this.oidcTokenVerifier = oidcTokenVerifier;
   }
 
   /*
@@ -101,7 +110,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       // and then a token in the URL param - some webhook senders can only set a URL, not
       // headers (see the constant declarations above for why these fallbacks are kept).
       if (req.getHeader(AUTHORIZATION_HEADER) != null) {
-        if (req.getHeader(AUTHORIZATION_HEADER).matches(TOKEN_PATTERN)) {
+        if (isFlowBearer(req.getHeader(AUTHORIZATION_HEADER))) {
           authentication = getTokenAuthentication(req.getHeader(AUTHORIZATION_HEADER));
         } else {
           authentication = getUserSessionAuthentication(req);
@@ -133,7 +142,16 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     } catch (final HttpClientErrorException ex) {
       LOGGER.error(ex);
       res.sendError(ex.getStatusCode().value());
-    } catch (AccessDeniedException | AuthenticationException ex) {
+    } catch (AccessDeniedException ex) {
+      // Thrown by AuthCriteriaAuthorizationManager (method security) for a permission mismatch -
+      // a plain 403, matching the retired SecurityInterceptor's raw response for the same case
+      // exactly (no structured body; the mismatch itself is already logged/counted there).
+      LOGGER.error(ex);
+      res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+    } catch (AuthenticationException ex) {
+      // Covers both this filter's own identity resolution failures and
+      // AuthCriteriaAuthorizationManager throwing for "no identity"/"scope not assignable" - the
+      // same structured 401 entry point either way.
       LOGGER.error(ex);
       authEntryPoint.commence(
           req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, ex.getMessage()));
@@ -185,16 +203,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       LOGGER.debug("AuthFilter() - " + token);
       JWTClaimsSet claims;
       try {
-        Object jwt = JWTParser.parse(token.replace("Bearer ", ""));
-        if (jwt instanceof PlainJWT) {
-          claims = ((PlainJWT) jwt).getJWTClaimsSet();
-        } else if (jwt instanceof SignedJWT) {
-          claims = ((SignedJWT) jwt).getJWTClaimsSet();
-        } else {
-          throw new IllegalArgumentException("Unsupported JWT type");
-        }
-      } catch (Exception e) {
-        LOGGER.error("AuthFilter() - Error parsing Bearer token: " + e.getMessage());
+        // Cryptographically verified against the configured OIDC issuer's published JWKS - an
+        // unsigned (PlainJWT) or wrongly-signed token is refused here, never trusted on its claims
+        // alone. See OidcTokenVerifier.verifyBearerToken.
+        claims = oidcTokenVerifier.verifyBearerToken(token.replace("Bearer ", ""));
+      } catch (BoomerangException e) {
+        LOGGER.error("AuthFilter() - Error verifying Bearer token: " + e.getMessage());
         return null;
       }
       LOGGER.debug("AuthFilter() - claims: " + claims.toString());
@@ -223,9 +237,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         final Token sessionToken =
             tokenService.createSessionToken(
                 email, firstName, lastName, allowActivation, allowUserCreation);
-        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, null, authorities);
+            new UsernamePasswordAuthenticationToken(email, null, authoritiesFor(sessionToken));
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -245,16 +258,17 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         password = values[1];
       }
 
-      if (!basicPassword.equals(password)) {
+      // Constant-time via PasswordEncoder.matches - was a raw String.equals against the
+      // configured password, timeable by an attacker probing byte-by-byte.
+      if (!passwordEncoder.matches(password, encodedBasicPassword)) {
         return null;
       }
 
       if (email != null && !email.isBlank()) {
         final Token sessionToken =
             tokenService.createSessionToken(email, null, null, allowActivation, allowUserCreation);
-        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, password, authorities);
+            new UsernamePasswordAuthenticationToken(email, password, authoritiesFor(sessionToken));
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -269,20 +283,31 @@ public class AuthenticationFilter extends OncePerRequestFilter {
    * TOKEN_URL_PARAM_NAME in that order
    */
   private Authentication getTokenAuthentication(String accessToken) {
-    if (accessToken.startsWith("Bearer ")) {
-      accessToken = accessToken.replace("Bearer ", "");
+    if (accessToken.startsWith(BEARER_PREFIX)) {
+      accessToken = accessToken.substring(BEARER_PREFIX.length());
+    }
+    // The same shape gate as DispatcherAuthFilter: a value that is not Flow-token-shaped
+    // (the live bfg_/bfk_/bfu_/bfs_ prefixes) never reaches the hash lookup in Mongo.
+    if (!TokenTypePrefix.isFlowToken(accessToken)) {
+      return null;
     }
     if (tokenService.validate(accessToken)) {
       Token token = tokenService.get(accessToken);
       if (token != null) {
-        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
+            new UsernamePasswordAuthenticationToken(
+                token.getPrincipal(), null, authoritiesFor(token));
         authToken.setDetails(token);
         return authToken;
       }
     }
     return null;
+  }
+
+  /** True for an {@code Authorization} header carrying a Flow-minted bearer, false for a JWT or Basic. */
+  private static boolean isFlowBearer(String header) {
+    return header.startsWith(BEARER_PREFIX)
+        && TokenTypePrefix.isFlowToken(header.substring(BEARER_PREFIX.length()));
   }
 
   /*
@@ -305,9 +330,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     final Token token =
         tokenService.createSessionToken(email, userName, null, allowActivation, allowUserCreation);
     if (email != null && !email.isBlank()) {
-      final List<GrantedAuthority> authorities = new ArrayList<>();
       final UsernamePasswordAuthenticationToken authToken =
-          new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
+          new UsernamePasswordAuthenticationToken(
+              token.getPrincipal(), null, authoritiesFor(token));
       authToken.setDetails(token);
       return authToken;
     }
@@ -332,6 +357,26 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     LOGGER.debug("Slack Signature: " + signature);
     LOGGER.debug("Computed Signature: " + generator.generate(timestamp, body));
     return verifier.isValid(timestamp, body, signature);
+  }
+
+  /*
+   * Maps a resolved Token's permission actions (e.g. "workflow/write") straight onto
+   * GrantedAuthority, so Spring Security's own authorization machinery can act on them natively
+   * instead of every check having to re-derive them from Token.getPermissions() by hand. Token
+   * itself remains the source of truth - setDetails(Token) below is unchanged, and callers that
+   * still read scope/relationship semantics off the Token keep doing so.
+   */
+  private static List<GrantedAuthority> authoritiesFor(Token token) {
+    if (token == null || token.getPermissions() == null) {
+      return List.of();
+    }
+    return token.getPermissions().stream()
+        .filter(permission -> permission.getActions() != null)
+        .flatMap(permission -> permission.getActions().stream())
+        .distinct()
+        .map(SimpleGrantedAuthority::new)
+        .map(GrantedAuthority.class::cast)
+        .toList();
   }
 
   @Override

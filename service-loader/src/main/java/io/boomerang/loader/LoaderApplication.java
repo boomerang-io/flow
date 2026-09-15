@@ -57,6 +57,7 @@ public class LoaderApplication {
           .addTargetSystem(targetSystem)
           .setAuditStore(auditStore)
           .addDependency(names)
+          .addDependency(EncryptionSecrets.fromEnvironment())
           .build()
           .run();
     }

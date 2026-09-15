@@ -171,6 +171,61 @@ class OidcTokenVerifierTest {
         .isInstanceOf(BoomerangException.class);
   }
 
+  /*
+   * verifyBearerToken backs the proxy-forwarded bearer JWT path (AuthenticationFilter,
+   * getUserSessionAuthentication) - same signature/issuer/audience checks as verify(), minus the
+   * nonce (there is no one-time login exchange to bind to).
+   */
+  @Test
+  void bearerTokenAcceptsAValidlySignedToken() throws Exception {
+    String token = signedToken(rsaKey, ISSUER, CLIENT_ID, NONCE, futureDate());
+
+    JWTClaimsSet claims = verifier.verifyBearerToken(token);
+
+    assertThat(claims.getSubject()).isEqualTo("user-1");
+    assertThat(claims.getStringClaim("email")).isEqualTo("person@example.test");
+  }
+
+  @Test
+  void bearerTokenRejectsAnUnsignedToken() throws Exception {
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder()
+            .subject("user-1")
+            .issuer(ISSUER)
+            .audience(CLIENT_ID)
+            .expirationTime(futureDate())
+            .build();
+    String plainToken = new PlainJWT(claims).serialize();
+
+    assertThatThrownBy(() -> verifier.verifyBearerToken(plainToken))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_TOKEN_INVALID.getReason());
+  }
+
+  @Test
+  void bearerTokenRejectsATokenSignedByAnUntrustedKey() throws Exception {
+    RSAKey untrustedKey = new RSAKeyGenerator(2048).keyID("untrusted-key").generate();
+    String token = signedToken(untrustedKey, ISSUER, CLIENT_ID, NONCE, futureDate());
+
+    assertThatThrownBy(() -> verifier.verifyBearerToken(token))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_TOKEN_INVALID.getReason());
+  }
+
+  @Test
+  void bearerTokenRequiresIssuerToBeConfigured() {
+    lenient()
+        .when(settingsService.getSettingConfig("auth", "oidc.issuer"))
+        .thenReturn(configOf(""));
+
+    assertThatThrownBy(() -> verifier.verifyBearerToken("anything"))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_NOT_CONFIGURED.getReason());
+  }
+
   @Test
   void requiresIssuerToBeConfigured() {
     lenient()

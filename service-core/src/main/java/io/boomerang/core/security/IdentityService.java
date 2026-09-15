@@ -29,7 +29,7 @@ import org.springframework.stereotype.Service;
  * under {@code flow.security.enabled=true} there genuinely are routes that bypass {@code
  * AuthenticationFilter} entirely ({@code shouldNotFilter}: {@code /health}, {@code /api/docs}, the
  * GitHub callback; plus the {@code permitAll} auth-exchange path). None of those carry an {@code
- * @AuthCriteria}, which is why {@code SecurityInterceptor.preHandle()} tests this accessor for
+ * @AuthCriteria}, which is why {@link AuthCriteriaAuthorizationManager} tests this accessor for
  * {@code null} to catch exactly that misconfiguration and answer a clean 401.
  */
 @Service

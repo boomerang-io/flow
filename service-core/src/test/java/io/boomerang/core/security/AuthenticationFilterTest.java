@@ -6,17 +6,26 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.nimbusds.jwt.JWTClaimsSet;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,6 +33,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 
 /**
@@ -31,7 +42,10 @@ import org.springframework.security.web.AuthenticationEntryPoint;
  * not disturb its existing header-based branches, must accept
  * SessionCookie.NAME as an additional source, and must route an unresolved identity through the
  * delegated entry point EXCEPT on the exchange endpoint's own path, which it must let through
- * unauthenticated (the OIDC login body verifies itself).
+ * unauthenticated (the OIDC login body verifies itself). The proxy-forwarded bearer JWT path
+ * (a non-Flow-shaped {@code Authorization: Bearer <jwt>}) delegates signature/claims verification
+ * to {@link OidcTokenVerifier} - the actual cryptography is covered by OidcTokenVerifierTest, this
+ * class only pins that the filter trusts the verifier's outcome and never the token's raw claims.
  */
 @ExtendWith(MockitoExtension.class)
 class AuthenticationFilterTest {
@@ -40,12 +54,22 @@ class AuthenticationFilterTest {
   @Mock private SettingsService settingsService;
   @Mock private AuthenticationEntryPoint authEntryPoint;
   @Mock private FilterChain filterChain;
+  @Mock private OidcTokenVerifier oidcTokenVerifier;
+
+  private final PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
 
   private AuthenticationFilter filter;
 
   @BeforeEach
   void setUp() {
-    filter = new AuthenticationFilter(tokenService, settingsService, "basic-pass", authEntryPoint);
+    filter =
+        new AuthenticationFilter(
+            tokenService,
+            settingsService,
+            "basic-pass",
+            authEntryPoint,
+            oidcTokenVerifier,
+            passwordEncoder);
     SecurityContextHolder.clearContext();
   }
 
@@ -68,6 +92,31 @@ class AuthenticationFilterTest {
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
     assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
         .isEqualTo(sessionToken);
+  }
+
+  @Test
+  void aTokensPermissionsAreMappedToGrantedAuthorities() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    sessionToken.setPermissions(
+        List.of(
+            new ResolvedPermissions(
+                PermissionScope.workspace, "user-1", List.of("workflow/write", "task/read")),
+            new ResolvedPermissions(
+                PermissionScope.workspace, "user-1", List.of("workflow/write"))));
+    when(tokenService.validate("bfs_raw-value")).thenReturn(true);
+    when(tokenService.get("bfs_raw-value")).thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.setCookies(new Cookie(SessionCookie.NAME, "bfs_raw-value"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+        .extracting(Object::toString)
+        .containsExactlyInAnyOrder("workflow/write", "task/read");
   }
 
   @Test
@@ -114,5 +163,170 @@ class AuthenticationFilterTest {
     verify(filterChain, times(1)).doFilter(request, response);
     verify(authEntryPoint, never()).commence(any(), any(), any());
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void theCorrectBasicPasswordAuthenticates() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("person@example.test");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, false))
+        .thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader(
+        "Authorization",
+        "Basic "
+            + java.util.Base64.getEncoder()
+                .encodeToString("person@example.test:basic-pass".getBytes()));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    verify(authEntryPoint, never()).commence(any(), any(), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(sessionToken);
+  }
+
+  @Test
+  void theWrongBasicPasswordIsRejected() throws Exception {
+    // The comparison is now via PasswordEncoder.matches (constant-time), never a raw
+    // String.equals against the configured password - this pins the observable behaviour, not
+    // the timing property itself.
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader(
+        "Authorization",
+        "Basic "
+            + java.util.Base64.getEncoder()
+                .encodeToString("person@example.test:wrong-pass".getBytes()));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void anUnsignedBearerJwtIsRejected() throws Exception {
+    // OidcTokenVerifier.verifyBearerToken refuses a PlainJWT outright (Nimbus's
+    // DefaultJWTProcessor rejects unsecured JWTs by default) - the filter must treat that refusal
+    // as no identity at all, never fall back to trusting the token's own claims.
+    when(oidcTokenVerifier.verifyBearerToken("a.plain.jwt"))
+        .thenThrow(new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID));
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer a.plain.jwt");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void aBadSignatureBearerJwtIsRejected() throws Exception {
+    when(oidcTokenVerifier.verifyBearerToken("a.badsig.jwt"))
+        .thenThrow(new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID));
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer a.badsig.jwt");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void aValidlySignedBearerJwtAuthenticates() throws Exception {
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder().claim("email", "person@example.test").build();
+    when(oidcTokenVerifier.verifyBearerToken("a.valid.jwt")).thenReturn(claims);
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("person@example.test");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, false))
+        .thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer a.valid.jwt");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    verify(authEntryPoint, never()).commence(any(), any(), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(sessionToken);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"bft_retired-workspace-token", "bfw_retired-workflow-token"})
+  void aRetiredPrefixBearerNeverReachesTheTokenLookup(String retired) throws Exception {
+    // The shape gate (TokenTypePrefix.isFlowToken) admits only bfg_/bfk_/bfu_/bfs_; anything
+    // else on the Authorization header is treated as a non-Flow bearer and handed to the OIDC
+    // verifier, which refuses a value that is not a JWT - TokenService is never consulted.
+    when(oidcTokenVerifier.verifyBearerToken(retired))
+        .thenThrow(new BoomerangException(BoomerangError.AUTH_TOKEN_INVALID));
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer " + retired);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verifyNoInteractions(tokenService);
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"bft_retired-workspace-token", "bfw_retired-workflow-token"})
+  void aRetiredPrefixOnTheFallbackSourcesNeverReachesTheTokenLookup(String retired)
+      throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("x-access-token", retired);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verifyNoInteractions(tokenService);
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+  }
+
+  @Test
+  void aLivePrefixBearerReachesTheTokenLookup() throws Exception {
+    Token globalToken = new Token(AuthScope.global);
+    globalToken.setPrincipal("admin");
+    when(tokenService.validate("bfg_live-token")).thenReturn(true);
+    when(tokenService.get("bfg_live-token")).thenReturn(globalToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader("Authorization", "Bearer bfg_live-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    verify(tokenService, times(1)).validate("bfg_live-token");
+    verifyNoInteractions(oidcTokenVerifier);
+    verify(filterChain, times(1)).doFilter(request, response);
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(globalToken);
   }
 }
