@@ -59,3 +59,4 @@ things by name, not by code.
 | 0071 | [Deletion completes: the prune sweep hard-deletes once runs finalise, with no flag](0071-deletion-completes-the-prune-sweep-hard-deletes-once-runs-finalise.md) | accepted | 2026-09-03 |
 | 0072 | [Monthly run quotas count audit events so deletion cannot reset them](0072-monthly-run-quotas-count-audit-events-so-deletion-cannot-reset-them.md) | accepted | 2026-09-03 |
 | 0073 | [A run ends at `completed`; releasing its storage is the dispatcher's own reconciliation](0073-runs-end-at-completed-storage-release-is-dispatcher-reconciliation.md) | accepted | 2026-09-15 |
+| 0076 | [A Docker executor runs tasks on one host, for the no-Kubernetes quickstart](0076-a-docker-executor-runs-tasks-on-one-host-for-the-no-kubernetes-quickstart.md) | accepted | 2026-09-15 |

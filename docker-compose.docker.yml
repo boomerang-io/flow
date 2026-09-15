@@ -1,0 +1,50 @@
+# The no-Kubernetes quickstart: run service-dispatcher with the docker executor, so the whole
+# product - workspaces, workflows, real task containers - runs on `docker compose` alone. Layer it
+# over the main stack:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.docker.yml up -d --build service-dispatcher
+#
+# The dispatcher talks to the HOST's Docker daemon through the mounted socket and starts task
+# containers as SIBLINGS of itself. This is not Docker-in-Docker: the task containers appear in
+# `docker ps` beside the stack's own, and workspace volumes appear in `docker volume ls`.
+#
+# Security: mounting /var/run/docker.sock gives this container root-equivalent control of the host
+# daemon - it can start any container, with any mount, as root. That is acceptable for a laptop
+# quickstart and is NOT a production posture; a real deployment runs the Kubernetes executors,
+# where a task is a Pod under the cluster's own RBAC. Dispatcher authentication is likewise
+# switched OFF on service-core here (the documented dev/test escape hatch); never carry that into
+# a real deployment.
+services:
+  service-core:
+    environment:
+      FLOW_DISPATCHER_AUTH_ENABLED: "false"
+      FLOW_AGENT_SERVICE_HOST: service-dispatcher:7702
+
+  service-dispatcher:
+    build:
+      context: ./service-dispatcher
+      dockerfile: Dockerfile
+    ports:
+      - "7702:7702"
+    environment:
+      DISPATCHER_EXECUTOR: docker
+      FLOW_DISPATCHER_NAME: local-docker
+      FLOW_ENGINE_SERVICE_HOST: service-core:7700
+      FLOW_ENGINE_DISPATCHER_TOKEN: ""
+      FLOW_DISPATCHER_LEASE_ENABLED: "true"
+      # Release run-scoped volumes promptly so an end-to-end run can assert the volume is gone.
+      FLOW_DISPATCHER_WORKSPACE_RECONCILE_ENABLED: "true"
+      FLOW_DISPATCHER_WORKSPACE_RECONCILE_MS: "10000"
+      KUBE_TASK_TIMEOUT: "10"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      service-core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7702/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [flow]

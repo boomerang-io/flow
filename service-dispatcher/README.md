@@ -1,23 +1,28 @@
-# Boomerang Dispatcher Service (Kubernetes)
+# Boomerang Dispatcher Service
 
 This service acts as a mechanism to execute tasks in a secure and highly performant way and connects to the Engine
 service to register and request a queue using a long poll mechanism.
 
-It executes template, script, and custom tasks in a Kubernetes cluster using the
-[Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client). The per-task runtime sits behind
-the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher.executor`:
+It executes template, script, and custom tasks either in a Kubernetes cluster, using the
+[Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client), or on a single Docker host,
+using [docker-java](https://github.com/docker-java/docker-java). The per-task runtime sits behind the
+`io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher.executor`:
 
 | `dispatcher.executor` | Implementation | Runtime object | Notes |
 | ---------------- | -------------- | -------------- | ----- |
 | `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
 | `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. |
+| `docker` | `io.boomerang.docker.DockerExecutor` | One container on the host daemon | No Kubernetes at all — the quickstart runtime. Reaches the daemon via `dispatcher.docker.host`, then `DOCKER_HOST`, then the local socket. The executor enforces the task timeout itself (Docker has no deadline) and reports `DeadlineExceeded`. Results are read from `RESULTS_PATH=/results.json`, copied out of the exited container. Scripts land at `/scripts/script` and MUST start with a shebang. Workspaces are labelled named volumes. No runtime class, node selector, tolerations, host aliases or image pull secret; `dispatcher.docker.memory` / `dispatcher.docker.cpus` apply when set. |
 
 `dispatcher.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
-task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.
-One setting per agent deployment; run a second agent deployment for a different isolation tier.
+task on BOTH Kubernetes executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun
+`podTemplate`. One setting per agent deployment; run a second agent deployment for a different isolation tier.
+The Docker executor has no equivalent.
 
-Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
-`/workspace/<type>` (or the declared mount path). Params reach the task container two ways, both usable by any image,
+The Kubernetes executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
+`/workspace/<type>` (or the declared mount path). The Docker executor binds a named volume at the same paths and needs
+no `/data` mount — a container's writable layer already is that scratch space. Which storage backs a workspace sits
+behind `io.boomerang.dispatcher.WorkspaceStore`, so one reconcile path releases a claim or a volume. Params reach the task container two ways, both usable by any image,
 Flow-aware or not:
 
 - `$(params.<name>)` references in `script`, `command`, `arguments` and `envs` are substituted by the engine before
@@ -28,16 +33,20 @@ Flow-aware or not:
   Task rather than silently overwriting each other.
 
 There is no file channel for params; structured or large inputs belong on a workspace mount, with the param carrying
-the path or URI. Explicitly declared task env vars win on name collision with a generated var. Both executors also set
-`RESULTS_PATH`: a directory for Tekton (`/tekton/results`, one file per result) and a single file for Jobs
-(`/dev/termination-log`, one JSON object).
+the path or URI. Explicitly declared task env vars win on name collision with a generated var. Every executor also sets
+`RESULTS_PATH`: a directory for Tekton (`/tekton/results`, one file per result), a single file for Jobs
+(`/dev/termination-log`, one JSON object) and for Docker (`/results.json`, one JSON object).
 
 When writing new integrations, it is recommended to look through the Kubernetes Client Docs to find the exact Client
 method to use and then look at the API code to see how it works for advance configurations such as the Watcher API.
 
 ## Development
 
-When running the service locally you need access to a kubernetes API endpoint. This service is set up to use whatever
+`dispatcher.executor=docker` needs only a reachable Docker daemon; `docker-compose.docker.yml` at the repository
+root layers this service onto the local stack with `/var/run/docker.sock` mounted. That mount is root-equivalent
+control of the host daemon — fine for a laptop, not a deployment posture.
+
+When running the service against Kubernetes you need access to a kubernetes API endpoint. This service is set up to use whatever
 the kubeconfig is pointing to. If that kubeconfig context has no namespace set, startup fails fast with an
 `IllegalStateException` rather than the first task job failing — set `kube.namespace` to pin the namespace explicitly.
 
