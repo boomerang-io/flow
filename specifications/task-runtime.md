@@ -96,6 +96,22 @@ The engine enforces both caps so the failure is one message on every executor; a
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:161-175`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
 | Results | `flow.engine.task.results.max-bytes=4096` | In `TaskRunService.end` (`TaskRunService.java:765-773`) | Status becomes `failed` with `RESULTS_TOO_LARGE`; the oversize results are not persisted |
 
+## Run labels on Kubernetes objects
+
+Run labels are user metadata and reach the dispatcher unchecked, but Kubernetes rejects an entire object when one
+label breaks its rules, so `KubeHelperService` coerces every user-supplied key and value into shape before it is
+merged into a TaskRun, Job or volume's labels — one place all executors share.
+
+| Part | Rule applied | Mapping |
+| --- | --- | --- |
+| Value, and the name half of a key | At most 63 characters of `[A-Za-z0-9._-]`, alphanumeric at both ends | Any other character becomes `_`, the string is truncated to 63, then trimmed to alphanumeric ends |
+| The optional `prefix/` half of a key | A DNS subdomain: at most 253 characters of `[a-z0-9.-]`, each dot-separated part alphanumeric at both ends | Lower-cased, any other character becomes `-`, truncated to 253, empty parts dropped |
+| A key with no usable name | — | Dropped; nothing can be written under it |
+| A key the dispatcher already set (`boomerang.io/*`, `app.kubernetes.io/*`) | — | The dispatcher's value wins; these are the selectors every lookup, watch and delete runs on |
+
+Every alteration is logged at debug. So `team/name=platform/flow` is written as `team/name=platform_flow`
+rather than failing the volume with a 422.
+
 ## Parameter names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
