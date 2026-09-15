@@ -26,16 +26,24 @@ import org.springframework.security.crypto.codec.Hex;
 import org.springframework.security.crypto.encrypt.Encryptors;
 
 /**
- * Rewrite every {@code settings.config[].value} stored under the retired static-IV AES/CBC scheme
- * ({@code crypt_v1{AES|...}}) to AES-256-GCM ({@code crypt_v1{AESGCM|...}}, the same
- * {@code Encryptors.delux} call service-core's {@code AESAlgorithm} makes). service-core only
- * recognises the AESGCM label, so this unit must complete before it starts.
+ * Bring every {@code settings.config[].value} of a {@code secured}-typed config to AES-256-GCM
+ * ({@code crypt_v1{AESGCM|...}}, the same {@code Encryptors.delux} call service-core's
+ * {@code AESAlgorithm} makes). service-core only recognises the AESGCM label, so this unit must
+ * complete before it starts. Two populations exist and both are handled in one pass:
+ *
+ * <ul>
+ *   <li>values under the retired static-IV AES/CBC label ({@code crypt_v1{AES|...}}) are decrypted
+ *       with the frozen copy of that cipher below and re-encrypted;
+ *   <li>values carrying no label at all were written as plaintext by releases whose encryption
+ *       guard was inverted, so the stored value is its own plaintext and is encrypted in place.
+ * </ul>
  *
  * <p>The legacy decrypt below is a frozen copy of the retired cipher: service-loader takes no
  * dependency on service-core, and nothing else may use it.
  *
- * <p>Idempotent - only values carrying the legacy prefix are touched, so reruns and databases with
- * no encrypted settings are no-ops.
+ * <p>Idempotent - a value already carrying a {@code crypt_v1} label other than the legacy one is
+ * left alone, so a second run changes nothing. Blank values and configs of any other type are never
+ * touched, matching {@code SettingsService}'s own encrypt guard.
  */
 @Change(id = "0044-reencrypt-settings-aes-gcm", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -44,6 +52,7 @@ public class _0044__ReencryptSettingsAesGcm {
   private static final Logger LOG = LoggerFactory.getLogger(_0044__ReencryptSettingsAesGcm.class);
 
   private static final String SECURED_TYPE = "secured";
+  private static final String LABEL_PREFIX = "crypt_v1";
   private static final String LEGACY_PREFIX = "crypt_v1{AES|";
   private static final String NEW_PREFIX = "crypt_v1{AESGCM|";
   private static final String SUFFIX = "}";
@@ -53,6 +62,7 @@ public class _0044__ReencryptSettingsAesGcm {
     MongoCollection<Document> settings = db.getCollection(names.resolve("settings"));
 
     int reencrypted = 0;
+    int encrypted = 0;
     int skipped = 0;
     for (Document setting : settings.find()) {
       @SuppressWarnings("unchecked")
@@ -67,22 +77,33 @@ public class _0044__ReencryptSettingsAesGcm {
           continue;
         }
         String value = config.getString("value");
-        if (value == null || !value.startsWith(LEGACY_PREFIX) || !value.endsWith(SUFFIX)) {
+        if (value == null || value.isBlank()) {
+          continue;
+        }
+        boolean legacy = value.startsWith(LEGACY_PREFIX) && value.endsWith(SUFFIX);
+        if (!legacy && value.startsWith(LABEL_PREFIX)) {
           continue;
         }
 
-        String legacyCiphertext =
-            value.substring(LEGACY_PREFIX.length(), value.length() - SUFFIX.length());
         try {
-          String plaintext = legacyDecrypt(legacyCiphertext, secrets.secret(), secrets.salt());
-          String reencryptedValue =
-              NEW_PREFIX + newEncrypt(plaintext, secrets.secret(), secrets.salt()) + SUFFIX;
-          config.put("value", reencryptedValue);
+          String plaintext =
+              legacy
+                  ? legacyDecrypt(
+                      value.substring(LEGACY_PREFIX.length(), value.length() - SUFFIX.length()),
+                      secrets.secret(),
+                      secrets.salt())
+                  : value;
+          config.put(
+              "value", NEW_PREFIX + newEncrypt(plaintext, secrets.secret(), secrets.salt()) + SUFFIX);
           changed = true;
-          reencrypted++;
+          if (legacy) {
+            reencrypted++;
+          } else {
+            encrypted++;
+          }
         } catch (RuntimeException | GeneralSecurityException e) {
           LOG.error(
-              "Unable to re-encrypt setting {} config '{}' - left unchanged: {}",
+              "Unable to encrypt setting {} config '{}' - left unchanged: {}",
               setting.get("_id"),
               config.getString("key"),
               e.getMessage());
@@ -96,9 +117,10 @@ public class _0044__ReencryptSettingsAesGcm {
     }
 
     LOG.info(
-        "Settings re-encryption: {} value(s) migrated to AES-GCM, {} left unchanged after a"
-            + " failed decrypt",
+        "Settings encryption: {} value(s) re-encrypted from the retired scheme, {} plaintext"
+            + " value(s) encrypted, {} left unchanged after a failure",
         reencrypted,
+        encrypted,
         skipped);
   }
 
@@ -137,7 +159,7 @@ public class _0044__ReencryptSettingsAesGcm {
 
   @Rollback
   public void rollback() {
-    // Not reversible: recreating the retired scheme's ciphertext is exactly what this unit
-    // removes. Pre-migration backups hold the old values.
+    // Not reversible: the retired ciphertext and the plaintext this unit replaces are exactly
+    // what it removes. Pre-migration backups hold the old values.
   }
 }

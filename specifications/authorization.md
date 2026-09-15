@@ -173,12 +173,21 @@ segment is not `system` (`core/security/EngineWorkspaceInterceptor.java:37-44`, 
 (default `true`, `application.properties:34`) turns the filter into a pass-through for local development.
 The rest of `/api/v1/**` is `permitAll` and relies on network isolation.
 
+## Secured settings at rest
+
+A `settings.config[]` entry typed `secured` is encrypted on every save and decrypted on every read
+(`core/SettingsService.java:135-145`). The cipher is AES-256-GCM with a random initialisation vector per call
+(`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme in its own
+label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value already labelled pass
+through untouched (`:147-156`).
+
+Two historical populations are brought forward by `service-loader`'s `_0044__ReencryptSettingsAesGcm`, which
+must complete before service-core starts: values under the retired static-IV AES/CBC label `crypt_v1{AES|…}`
+are decrypted with a frozen copy of that cipher and re-encrypted, and values carrying no label at all — every
+secured value saved while the service's encryption guard was inverted, so the stored value was its own
+plaintext — are encrypted in place. The unit is idempotent on the label, so a second run changes nothing.
+
 ## Known gaps
 
 - **Machine tokens cannot approve group approvals.** `ActionService.action` resolves the current *user*; a `key`/`global` token resolves none and is denied membership, so an automation must be given a real user identity placed in the approver group (`workflow/ActionService.java:137-146`). The controller's `assignableScopes` still admit machine tokens.
 - **`PATCH`/`DELETE /api/v2/user/{userId}` have no self-scoping.** Any token holding `user/write` or `user/delete` may edit or delete any user (`core/UserControllerV2.java:128-165`).
-- **Secured settings are effectively stored in plaintext.** `SettingsService.encrypt()`/`decrypt()`'s
-  `StringUtils.hasText` guard is inverted — `hasText(value) || value.startsWith("crypt_v1")` returns the raw
-  value whenever it has text, which is true for almost every real value (`core/SettingsService.java:147-158,160-170`).
-  `AESAlgorithm`'s cipher (AES-256-GCM as of this doc) is correct in isolation, but `encrypt()` never actually
-  reaches it in any current deployment. Needs its own fix and issue; unrelated to which cipher backs it.

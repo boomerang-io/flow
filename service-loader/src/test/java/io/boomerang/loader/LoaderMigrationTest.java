@@ -1151,7 +1151,7 @@ class LoaderMigrationTest {
   }
 
   @Test
-  void reencryptsLegacyAesSettingsToAesGcmAndIsIdempotent() throws Exception {
+  void encryptsLegacyAndPlaintextSecuredSettingsToAesGcmAndIsIdempotent() throws Exception {
     String uri = MONGO.getReplicaSetUrl("settingsreencrypt");
     MongoDatabase settingsDb = client.getDatabase("settingsreencrypt");
     settingsDb.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
@@ -1174,6 +1174,13 @@ class LoaderMigrationTest {
                     new Document("key", "slack.signingSecret")
                         .append("type", "secured")
                         .append("value", "crypt_v1{AES|" + legacyCiphertext + "}"),
+                    // Written as plaintext under an inverted encryption guard - no label at all.
+                    new Document("key", "slack.token")
+                        .append("type", "secured")
+                        .append("value", "xoxb-never-encrypted"),
+                    new Document("key", "blank.secured")
+                        .append("type", "secured")
+                        .append("value", ""),
                     new Document("key", "not.secured")
                         .append("type", "text")
                         .append("value", "plain-value"))));
@@ -1184,6 +1191,20 @@ class LoaderMigrationTest {
     List<Document> configsAfterFirstRun = afterFirstRun.getList("config", Document.class);
     String migratedValue = configOf(configsAfterFirstRun, "slack.signingSecret").getString("value");
     assertThat(migratedValue).startsWith("crypt_v1{AESGCM|").endsWith("}");
+    String encryptedValue = configOf(configsAfterFirstRun, "slack.token").getString("value");
+    assertThat(encryptedValue)
+        .as("a secured value stored as plaintext is encrypted, not left in the clear")
+        .startsWith("crypt_v1{AESGCM|")
+        .endsWith("}");
+    assertThat(
+            decryptNewScheme(
+                encryptedValue.substring("crypt_v1{AESGCM|".length(), encryptedValue.length() - 1),
+                legacySecret,
+                legacySalt))
+        .isEqualTo("xoxb-never-encrypted");
+    assertThat(configOf(configsAfterFirstRun, "blank.secured").getString("value"))
+        .as("a blank secured value is untouched")
+        .isEmpty();
     assertThat(configOf(configsAfterFirstRun, "not.secured").getString("value"))
         .as("an unrelated, non-secured config value is untouched")
         .isEqualTo("plain-value");
@@ -1196,11 +1217,14 @@ class LoaderMigrationTest {
     // Idempotency: a second run finds nothing left matching the legacy prefix.
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     Document afterSecondRun = settings.find(Filters.eq("_id", securedSettingId)).first();
-    assertThat(
-            configOf(afterSecondRun.getList("config", Document.class), "slack.signingSecret")
-                .getString("value"))
+    List<Document> configsAfterSecondRun = afterSecondRun.getList("config", Document.class);
+    assertThat(configOf(configsAfterSecondRun, "slack.signingSecret").getString("value"))
         .as("re-running finds no legacy-labelled value left to migrate")
         .isEqualTo(migratedValue);
+    assertThat(configOf(configsAfterSecondRun, "slack.token").getString("value"))
+        .as("the label already on an encrypted value stops it being encrypted twice")
+        .isEqualTo(encryptedValue);
+    assertThat(configOf(configsAfterSecondRun, "blank.secured").getString("value")).isEmpty();
   }
 
   private static Document configOf(List<Document> configs, String key) {
