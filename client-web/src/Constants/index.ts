@@ -117,6 +117,7 @@ export const InputTypeCopy = {
 
 export const NodeType = {
   Acquirelock: "acquirelock",
+  Ai: "ai",
   Approval: "approval",
   CustomTask: "custom",
   Decision: "decision",
