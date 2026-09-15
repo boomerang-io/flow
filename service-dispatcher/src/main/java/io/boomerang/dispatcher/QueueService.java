@@ -11,6 +11,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import java.util.List;
+import java.util.stream.Collectors;
 import io.boomerang.dispatcher.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,6 +22,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class QueueService {
   private static final Logger LOGGER = LogManager.getLogger(QueueService.class);
+
+  /*
+   * The types this dispatcher can actually run in a container. Which of them it is handed is the
+   * engine's decision, made from the types registered at startup (flow.dispatcher.task-types); this
+   * is the second gate, so a type the dispatcher has no runtime for is skipped rather than failed.
+   * `ai` runs the Flow-shipped worker image the dispatcher resolves for it (TaskImageResolver).
+   */
+  private static final List<TaskType> EXECUTABLE_TYPES =
+      List.of(TaskType.template, TaskType.custom, TaskType.script, TaskType.ai);
+
+  private static boolean isExecutable(TaskType type) {
+    return EXECUTABLE_TYPES.contains(type);
+  }
 
   private final WorkflowService workflowService;
 
@@ -72,9 +86,7 @@ public class QueueService {
   public void processTaskRun(TaskRun request) {
     try {
       LOGGER.debug(request.toString());
-      if ((TaskType.template.equals(request.getType())
-              || TaskType.custom.equals(request.getType())
-              || TaskType.script.equals(request.getType()))
+      if (isExecutable(request.getType())
           && RunPhase.queued.equals(request.getPhase())
           && RunStatus.ready.equals(request.getStatus())) {
         LOGGER.info("Executing TaskRun...");
@@ -88,9 +100,7 @@ public class QueueService {
         endRequest.setStatusMessage(response.getMessage());
         endRequest.setResults(response.getResults());
         engineClient.endTask(request.getId(), endRequest);
-      } else if ((TaskType.template.equals(request.getType())
-              || TaskType.custom.equals(request.getType())
-              || TaskType.script.equals(request.getType()))
+      } else if (isExecutable(request.getType())
           && RunPhase.completed.equals(request.getPhase())
           && (RunStatus.cancelled.equals(request.getStatus())
               || RunStatus.timedout.equals(request.getStatus()))) {
@@ -99,7 +109,9 @@ public class QueueService {
       } else {
         // TODO turn this into the types of tasks that this Agent supports
         LOGGER.info(
-            "Skipping TaskRun as criteria not met; (Type: template, custom, or script), (Status: ready, cancelled, timedout), and (Phase: pending, completed).");
+            "Skipping TaskRun as criteria not met; (Type: "
+                + EXECUTABLE_TYPES.stream().map(TaskType::getLabel).collect(Collectors.joining(", "))
+                + "), (Status: ready, cancelled, timedout), and (Phase: queued, completed).");
       }
     } catch (BoomerangException e) {
       LOGGER.fatal("Failed to execute TaskRun.", e);

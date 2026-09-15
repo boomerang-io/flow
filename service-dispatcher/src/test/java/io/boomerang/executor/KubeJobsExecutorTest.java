@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.client.EngineClient;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
@@ -53,7 +54,11 @@ import io.fabric8.kubernetes.api.model.Toleration;
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = "dispatcher.executor=kube-jobs")
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "flow.dispatcher.ai.image=boomerangio/flow-task-ai:5.1.0"
+    })
 public class KubeJobsExecutorTest {
 
   KubernetesClient client;
@@ -107,6 +112,67 @@ public class KubeJobsExecutorTest {
         client.batch().v1().jobs().withLabels(Map.of("boomerang.io/taskrun-ref", taskRunRef)).list().getItems();
     assertEquals(1, jobs.size());
     return jobs.get(0);
+  }
+
+  @Test
+  public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
+    // An `ai` task is authored with params only - no image, no command, no script - and the
+    // dispatcher supplies the Flow-shipped worker image and its `prompt` command.
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-ai");
+    task.setName("Ask the model");
+    task.setType(TaskType.ai);
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(
+        List.of(
+            new RunParam("endpoint", "https://api.example.com/v1"),
+            new RunParam("model", "gpt-4o-mini"),
+            new RunParam("maxTokens", 1024),
+            new RunParam("prompt", "Summarise the run")));
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    task.setSpec(new TaskRunSpec());
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals("boomerangio/flow-task-ai:5.1.0", container.getImage());
+    assertEquals(List.of("prompt"), container.getCommand());
+
+    // Params reach the worker exactly as they reach any other type: PARAM_<NAME>, upper-cased.
+    List<EnvVar> env = container.getEnv();
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "PARAM_ENDPOINT".equals(e.getName())
+                        && "https://api.example.com/v1".equals(e.getValue())));
+    assertTrue(
+        env.stream().anyMatch(e -> "PARAM_MAXTOKENS".equals(e.getName()) && "1024".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "RESULTS_PATH".equals(e.getName())
+                        && "/dev/termination-log".equals(e.getValue())));
+  }
+
+  @Test
+  public void testCreateAiTaskIgnoresAnImageOrCommandOnItsSpec() throws Exception {
+    TaskRun task = commandTask("taskrun-ai-override", false);
+    task.setType(TaskType.ai);
+    task.getSpec().setImage("evil:latest");
+    task.getSpec().setCommand(List.of("sh", "-c", "id"));
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals("boomerangio/flow-task-ai:5.1.0", container.getImage());
+    assertEquals(List.of("prompt"), container.getCommand());
   }
 
   @Test

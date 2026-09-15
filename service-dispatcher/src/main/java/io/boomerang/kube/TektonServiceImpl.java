@@ -12,6 +12,7 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.Duration;
@@ -64,6 +65,8 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Autowired private WorkspaceService workspaceService;
 
+  @Autowired protected TaskImageResolver imageResolver;
+
   protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
 
   @Value("${kube.timeout.waitUntil}")
@@ -84,9 +87,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         task.getId(),
         task.getName(),
         task.getLabels(),
-        task.getSpec().getImage(),
-        task.getSpec().getCommand(),
-        task.getSpec().getScript(),
+        imageResolver.image(task),
+        imageResolver.command(task),
+        imageResolver.script(task),
         task.getSpec().getArguments(),
         task.getParams(),
         task.getSpec().getEnvs(),

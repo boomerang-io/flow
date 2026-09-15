@@ -42,11 +42,15 @@ class QueueServiceDispatchTest {
       new QueueService(workflowService, workspaceService, taskService, engineClient, leaseRegistry);
 
   private static TaskRun taskRun(RunPhase phase) {
+    return taskRun(TaskType.template, phase, RunStatus.ready);
+  }
+
+  private static TaskRun taskRun(TaskType type, RunPhase phase, RunStatus status) {
     TaskRun run = new TaskRun();
     run.setId("task-1");
-    run.setType(TaskType.template);
+    run.setType(type);
     run.setPhase(phase);
-    run.setStatus(RunStatus.ready);
+    run.setStatus(status);
     return run;
   }
 
@@ -84,6 +88,35 @@ class QueueServiceDispatchTest {
     verify(engineClient).endTask(eq("task-1"), endRequestCaptor.capture());
     assertEquals(RunStatus.failed, endRequestCaptor.getValue().getStatus());
     assertEquals(results, endRequestCaptor.getValue().getResults());
+  }
+
+  @Test
+  void queuedAiTaskIsDispatchedLikeAnyOtherContainerType() {
+    // `ai` runs as a pod from the Flow-shipped worker image, so it takes the same path as
+    // template/custom/script - only the image and command are resolved rather than authored.
+    when(taskService.execute(any())).thenReturn(new TaskResponse());
+
+    queueService.processTaskRun(taskRun(TaskType.ai, RunPhase.queued, RunStatus.ready));
+
+    verify(engineClient).startTask("task-1");
+    verify(engineClient).endTask(eq("task-1"), any(TaskRunEndRequest.class));
+  }
+
+  @Test
+  void cancelledAiTaskIsTerminated() {
+    queueService.processTaskRun(taskRun(TaskType.ai, RunPhase.completed, RunStatus.cancelled));
+
+    verify(taskService).terminate(any(TaskRun.class));
+    verify(engineClient, never()).startTask(any());
+  }
+
+  @Test
+  void engineHandledTypeIsNotDispatched() {
+    // approval is decided inside the engine; the dispatcher has no runtime for it and must skip
+    // it rather than fail it.
+    queueService.processTaskRun(taskRun(TaskType.approval, RunPhase.queued, RunStatus.ready));
+
+    verify(engineClient, never()).startTask(any());
   }
 
   @Test
