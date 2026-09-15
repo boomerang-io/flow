@@ -73,10 +73,13 @@ export const InputProperty = {
   HelperText: "helperText",
   Name: "name",
   Label: "label",
+  Max: "max",
+  Min: "min",
   Options: "options",
   Placeholder: "placeholder",
   ReadOnly: "readOnly",
   Required: "required",
+  Step: "step",
   Type: "type",
 } as const;
 
@@ -86,6 +89,10 @@ export const InputType = {
   Number: "number",
   Password: "password",
   Select: "select",
+  // Renders Components/Slider through DataDrivenInput's customComponent escape hatch (see
+  // Utils/paramsHelper#attachCustomInputComponents); the numeric value is still stored as a
+  // string, like every other task param value.
+  Slider: "slider",
   TextArea: "textarea",
   Text: "text",
   TextEditor: "texteditor",
@@ -102,6 +109,7 @@ export const InputTypeCopy = {
   [InputType.Number]: "Number",
   [InputType.Password]: "Password",
   [InputType.Select]: "Select",
+  [InputType.Slider]: "Slider",
   [InputType.TextArea]: "Text Area",
   [InputType.Text]: "Text",
   [InputType.URL]: "URL",
