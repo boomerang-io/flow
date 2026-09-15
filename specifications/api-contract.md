@@ -143,6 +143,10 @@ In `docker-compose.yml` the webapp's SSR server on `:3000` is the single browser
 `service-core` on `:7700` stays reachable for integrations, the dispatcher and direct API use
 (`docker-compose.yml:3-8,166-176`); there is no separate gateway.
 
+Browser routes are keyed by workspace — `/:workspace/...` (`client-web/src/Config/appConfig.ts:80-134`) —
+and v4's `/:team/...` URLs are not redirected, so bookmarks and pasted links from v4 break at this
+major.
+
 ## Open contract decisions
 
 - Label update semantics differ by resource: `PATCH /workspace/{workspace}` replaces the map (`WorkspaceService.java:284-285`); `PUT /workflow` merges unless `replace=true` (`WorkflowService.java:1644-1649`). One rule is still to be chosen.

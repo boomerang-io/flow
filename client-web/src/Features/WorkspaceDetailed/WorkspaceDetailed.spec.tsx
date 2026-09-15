@@ -5,7 +5,7 @@ import { server } from "ApiServer/msw/node";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { appLink } from "Config/appConfig";
-import { workspace as workspaceFixture } from "ApiServer/fixtures";
+import { workspace as workspaceFixture, profile as userFixture } from "ApiServer/fixtures";
 import { db } from "ApiServer/msw/db";
 import { serviceUrl } from "Config/servicesConfig";
 import WorkspaceLayoutRoute, {
@@ -43,7 +43,30 @@ beforeEach(() => {
 // re-running when a rename navigates to the new slug), then the manage layout route carrying
 // the loader that fetches the workspace record, with one child route per tab. Members stays the
 // index route at the bare `/:workspace/manage` path.
-function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ workspace: workspaceFixture.name })) {
+// The Manage tabs' write controls are gated on the caller's own `workspace/write` grant for THIS
+// workspace (WorkspaceDetailed.tsx), not on a feature flag alone - since decision 0031 a caller
+// without it gets a real 403 from every endpoint those controls post to. The shared `profile`
+// fixture predates resolved permissions and carries none, so each render says which grant the
+// signed-in user holds; `platformAdmin` is what the pre-existing tests below assume (an admin's
+// global "**" grant, exactly what TokenService.resolvePermissionsForUser hands an admin).
+const platformAdmin = { ...userFixture, permissions: [{ scope: "global", principal: "**", actions: ["**"] }] };
+const workspaceEditor = {
+  ...userFixture,
+  type: "user",
+  permissions: [
+    { scope: "workspace", principal: workspaceFixture.name, actions: ["**/read", "**/write", "**/action"] },
+  ],
+};
+const workspaceReader = {
+  ...userFixture,
+  type: "user",
+  permissions: [{ scope: "workspace", principal: workspaceFixture.name, actions: ["**/read"] }],
+};
+
+function renderWorkspaceDetailed(
+  route: string = appLink.manageWorkspace({ workspace: workspaceFixture.name }),
+  user: Record<string, unknown> = platformAdmin,
+) {
   return renderWithContext(
     <Route
       path="/:workspace"
@@ -65,7 +88,7 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
         <Route path="settings" action={settingsAction} element={<Settings />} />
       </Route>
     </Route>,
-    { route },
+    { route, contextValue: { user } },
   );
 }
 
@@ -140,6 +163,39 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
   test("deep-links into the tokens tab", async () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceTokens({ workspace: workspaceFixture.name }));
     expect(await screen.findByTestId("create-token-button")).toBeInTheDocument();
+  });
+});
+
+describe("WorkspaceDetailed --- per-workspace write grant", () => {
+  const settingsRoute = appLink.manageWorkspaceSettings({ workspace: workspaceFixture.name });
+
+  test("a reader-role member gets the tabs read-only", async () => {
+    renderWorkspaceDetailed(settingsRoute, workspaceReader);
+    expect(await screen.findByText("Read-only")).toBeInTheDocument();
+    expect(screen.getByTestId("open-change-name-modal")).toBeDisabled();
+  });
+
+  test("an editor-role member gets the write controls", async () => {
+    renderWorkspaceDetailed(settingsRoute, workspaceEditor);
+    expect(await screen.findByText("Basic details")).toBeInTheDocument();
+    expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
+    expect(screen.getByTestId("open-change-name-modal")).toBeEnabled();
+  });
+
+  test("a grant on a DIFFERENT workspace does not unlock this one", async () => {
+    const otherWorkspaceEditor = {
+      ...userFixture,
+      type: "user",
+      permissions: [{ scope: "workspace", principal: "some-other-workspace", actions: ["**/write"] }],
+    };
+    renderWorkspaceDetailed(settingsRoute, otherWorkspaceEditor);
+    expect(await screen.findByText("Read-only")).toBeInTheDocument();
+    expect(screen.getByTestId("open-change-name-modal")).toBeDisabled();
+  });
+
+  test("a member with no resolved permissions at all gets the tabs read-only", async () => {
+    renderWorkspaceDetailed(settingsRoute, { ...userFixture, type: "user", permissions: [] });
+    expect(await screen.findByText("Read-only")).toBeInTheDocument();
   });
 });
 

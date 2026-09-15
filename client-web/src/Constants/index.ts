@@ -20,6 +20,14 @@ export const WorkflowScope = {
  */
 export const CREATED_DATE_FORMAT = "MMMM DD, YYYY";
 export const PROPERTY_KEY_REGEX = /^[a-zA-Z_]([a-zA-Z0-9-_])*$/;
+/**
+ * Kubernetes label syntax, used by both label editors (Components/LabelModal and
+ * Features/WorkflowEditor/Configure/CustomLabel).
+ * A key is `[prefix/]name`: the optional prefix is a DNS subdomain (max 253 chars, checked by the
+ * caller), and the name - like the value - is at most 63 alphanumeric-bounded characters.
+ */
+export const LABEL_KEY_PREFIX_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,62}([.\1][a-zA-Z0-9-]{1,63})*$/;
+export const LABEL_NAME_AND_VALUE_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,61}[a-zA-Z0-9]$/;
 export const PASSWORD_CONSTANT = "******";
 
 /**
