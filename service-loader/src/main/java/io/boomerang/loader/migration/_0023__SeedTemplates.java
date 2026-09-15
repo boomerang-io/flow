@@ -9,8 +9,6 @@ import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.List;
 import org.bson.Document;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Seed the remaining catalogue documents a fresh install needs: the starter workflow templates
@@ -33,43 +31,20 @@ import org.slf4j.LoggerFactory;
  * on an integration. The {@code _id} half of each guard is defence-in-depth: it skips a template
  * whose {@code _id} already exists even if its natural key has since changed.
  *
- * <p><b>Still generation-gated — deliberately NOT relaxed like the other Phase 5 seeds.</b>
- * {@code _0021__SeedSettings}/{@code _0022__SeedTaskCatalogue} dropped their v3 skip because the
- * v3 migration ALWAYS pre-populates their target collections under matching keys, making the
- * guard's non-{@code _id} half redundant. This unit is different for {@code
- * integration_templates}: NO v3→v5 unit migrates anything into it at all (no v3 dump collection
- * maps to integration templates), so on a v3-sourced install with no source workflows to extract
- * (verified: {@code LoaderMigrationTest}'s synthetic v3 fixture has no {@code workflows} data
- * whatsoever), an unconditional seed would insert the two out-of-the-box GitHub/Slack templates
- * where today's chain leaves this collection empty — a genuine behaviour change, not a no-op.
- * {@code workflow_templates} on its own would have been safe to relax (its two seed documents
- * collide by {@code _id} with what {@code _0010__V3ExtractWorkflowTemplates} always produces on
- * the real dump), but the two halves share one guard clause, and splitting them is not worth the
- * complexity for a change unit this small. Kept, whole, gated on {@link InstallGeneration#V3}: on
- * v3, {@code workflow_templates} is empty at the point this seed used to matter, so both seed
- * documents would insert, while their source workflows ({@code _id} {@code 62be6a32…e7} and
- * {@code 62be6a3e…e9}, {@code scope="template"}) still live in {@code workflows} — {@code
- * _0010__V3ExtractWorkflowTemplates} (Phase 2) extracts those into {@code workflow_templates}
- * too, duplicating the content.
- *
- * <p>Gate reads the durable marker ({@link LegacyGenerationMarker#read}), not a live {@link
- * InstallGeneration#detect} — consistent with every other generation-gated unit in this chain now
- * that {@code _0001__BaselineAndGenerationDetect} always runs first and records it once.
+ * <p>Not generation-gated. The v3->v5 units run before this seed, so on a v3-sourced install
+ * {@code _0010__V3ExtractWorkflowTemplates} has already extracted the source template workflows
+ * into {@code workflow_templates} under the same {@code _id}s this seed carries, and the guard
+ * makes those two documents a no-op. {@code integration_templates} has no v3 counterpart at all -
+ * integrations are a v5 feature - so an upgraded install receives the out-of-the-box GitHub and
+ * Slack integration templates exactly as a fresh install does; leaving it empty would have left
+ * every upgraded install unable to configure an integration.
  */
 @Change(id = "0023-seed-templates", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
 public class _0023__SeedTemplates {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0023__SeedTemplates.class);
-
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
-    if (LegacyGenerationMarker.read(db, names) == InstallGeneration.V3) {
-      LOG.info(
-          "v3 install detected — skipping template seed; the v3->v5 migration extracts the "
-              + "source template workflows into workflow_templates for this install.");
-      return;
-    }
     List<Document> workflowTemplates = SeedResources.load("seed/workflow-templates.json");
     int workflowsInserted = 0;
     for (Document template : workflowTemplates) {

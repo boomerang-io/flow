@@ -34,7 +34,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * Full WorkflowRun lifecycle: submit, then drive to completion via exactly the callbacks a
  * registered agent makes (mirroring service-dispatcher's QueueService): startWorkflow, startTask,
- * endTask, finalizeWorkflow. Regression tripwire for DAGUtility / TaskExecutionService changes
+ * endTask. Regression tripwire for DAGUtility / TaskExecutionService changes
  * (standing gate G1) - this test must stay green through the whole v5 refactor.
  */
 class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
@@ -117,16 +117,6 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
               WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();
               assertEquals(RunStatus.succeeded, run.getStatus());
               assertEquals(RunPhase.completed, run.getPhase());
-            });
-
-    // Agent finalizes on the completed phase.
-    workflowRunService.finalize(wfRunId);
-    awaitEngine("WorkflowRun finalized")
-        .untilAsserted(
-            () -> {
-              WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();
-              assertEquals(RunPhase.finalized, run.getPhase());
-              assertEquals(RunStatus.succeeded, run.getStatus());
             });
 
     // Exactly the 3 DAG steps, all terminal and succeeded, with the agent result recorded.

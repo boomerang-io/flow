@@ -59,10 +59,6 @@ public class QueueService {
         // dependencies at the workflow level (Workspaces) need to be there prior
         workflowService.execute(request);
         engineClient.startWorkflow(request.getId());
-      } else if (RunPhase.completed.equals(request.getPhase())) {
-        LOGGER.info("Finalizing WorkflowRun...");
-        workflowService.terminate(request);
-        engineClient.finalizeWorkflow(request.getId());
       }
     } catch (BoomerangException e) {
       LOGGER.fatal("A fatal error has occurred while processing the message!", e);

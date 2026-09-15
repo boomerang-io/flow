@@ -23,6 +23,7 @@ function buildSchedulesData(): PaginatedSchedulesResponse {
         timezone: "UTC",
         workflowRef: "wf-1",
         nextScheduleDate: "2026-08-25T00:00:00Z",
+        labels: { level: "important" },
       },
       {
         id: "2",
@@ -95,6 +96,26 @@ describe("SchedulePanelList", () => {
     renderList({ includeStatusFilter: false });
 
     await userEvent.type(screen.getByPlaceholderText("Search Schedules"), "Nightly");
+
+    expect(await screen.findByText("Nightly Backup")).toBeInTheDocument();
+    expect(screen.queryByText("One-off Migration")).not.toBeInTheDocument();
+  });
+
+  // Regression (#387): labels arrive as a string map (backend WorkflowSchedule.labels is a
+  // Map<String,String>), and each entry renders as a key=value tag - the old rendering assumed
+  // the retired [{key, value}] array shape and showed nothing.
+  test("renders a schedule's labels as key=value tags", () => {
+    renderList({ includeStatusFilter: false });
+    expect(screen.getByText("level=important")).toBeInTheDocument();
+  });
+
+  // Regression (#387): the fuzzy-search keys used to be "labels.0.key"/"labels.0.value" (array
+  // shape), so searching by label never matched; they now iterate the map entries in the same
+  // key=value form the tags render.
+  test("searching by a label's key=value form filters the list", async () => {
+    renderList({ includeStatusFilter: false });
+
+    await userEvent.type(screen.getByPlaceholderText("Search Schedules"), "level=important");
 
     expect(await screen.findByText("Nightly Backup")).toBeInTheDocument();
     expect(screen.queryByText("One-off Migration")).not.toBeInTheDocument();

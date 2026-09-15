@@ -87,7 +87,6 @@ class WorkflowRunWorkspaceAuthorizationTest extends AbstractEngineIntegrationTes
     assertRefused(() -> workflowRunService.get(MY_WORKSPACE, foreignRunId, false), "get");
     assertRefused(
         () -> workflowRunService.start(MY_WORKSPACE, foreignRunId, Optional.empty()), "start");
-    assertRefused(() -> workflowRunService.finalize(MY_WORKSPACE, foreignRunId), "finalize");
     assertRefused(() -> workflowRunService.cancel(MY_WORKSPACE, foreignRunId), "cancel");
     assertRefused(() -> workflowRunService.pause(MY_WORKSPACE, foreignRunId), "pause");
     assertRefused(() -> workflowRunService.resume(MY_WORKSPACE, foreignRunId), "resume");

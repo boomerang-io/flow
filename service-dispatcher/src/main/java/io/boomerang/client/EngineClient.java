@@ -31,8 +31,8 @@ public class EngineClient {
   @Value("${flow.engine.workflowrun.start.url}")
   private String startWorkflowRunURL;
 
-  @Value("${flow.engine.workflowrun.finalize.url}")
-  private String finalizeWorkflowRunURL;
+  @Value("${flow.engine.workspace.releasable.url}")
+  private String releasableWorkspacesURL;
 
   @Value("${flow.engine.taskrun.start.url}")
   private String startTaskRunURL;
@@ -79,27 +79,36 @@ public class EngineClient {
     }
   }
 
-  public void finalizeWorkflow(String wfRunId) {
+  /**
+   * Ask the engine which of the workspace volumes this dispatcher holds may be released: a
+   * workflowRunRef comes back once its run is completed or gone, a workflowRef once its workflow is
+   * deleted or gone. A failure is not fatal - the volumes stay held and the next tick asks again.
+   */
+  public WorkspaceReleaseResponse releasableWorkspaces(WorkspaceReleaseQuery query) {
     try {
-      String url = finalizeWorkflowRunURL.replace("{workflowRunId}", wfRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
-
-      LOGGER.info(response.getStatusCode());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
+      HttpEntity<WorkspaceReleaseQuery> entity = new HttpEntity<>(query, headers);
+      ResponseEntity<WorkspaceReleaseResponse> response =
+          restTemplate.exchange(
+              releasableWorkspacesURL, HttpMethod.POST, entity, WorkspaceReleaseResponse.class);
+      return (response.getBody() != null ? response.getBody() : new WorkspaceReleaseResponse());
+    } catch (Exception e) {
+      LOGGER.warn("Error retrieving releasable workspaces: {}", e.getMessage());
+      return new WorkspaceReleaseResponse();
     }
   }
 
+  // Start and end carry this dispatcher's registered id so the engine can fence a request from a
+  // dispatcher whose claim has since been superseded (claim.by no longer matches).
   public void startTask(String taskRunId) {
     try {
       String url = startTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
+      TaskRunStartRequest startRequest = new TaskRunStartRequest();
+      startRequest.setDispatcherRef(dispatcherId);
+      HttpEntity<TaskRunStartRequest> entity = new HttpEntity<>(startRequest, headers);
       ResponseEntity<Void> response =
           restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
 
@@ -114,6 +123,7 @@ public class EngineClient {
       String url = endTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
+      endRequest.setDispatcherRef(dispatcherId);
       HttpEntity<TaskRunEndRequest> entity = new HttpEntity<TaskRunEndRequest>(endRequest, headers);
       ResponseEntity<Void> response =
           restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);

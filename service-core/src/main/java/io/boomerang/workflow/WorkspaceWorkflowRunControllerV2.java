@@ -80,7 +80,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       @Parameter(
               name = "phase",
               description = "List of phases to filter for. Defaults to all.",
-              example = "completed,finalized",
+              example = "running,completed",
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> phase,
@@ -254,34 +254,6 @@ public class WorkspaceWorkflowRunControllerV2 {
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
     return workflowRunService.start(workspace, workflowRunId, runRequest);
-  }
-
-  @PutMapping(value = "/{workflowRunId}/finalize")
-  @AuthCriteria(
-      action = PermissionAction.ACTION,
-      resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "End a WorkflowRun")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
-      })
-  public ResponseEntity<WorkflowRun> finalize(
-      @Parameter(
-              name = "workspace",
-              description = "Owning workspace name.",
-              example = "my-amazing-workspace",
-              required = true)
-          @PathVariable
-          String workspace,
-      @Parameter(
-              name = "workflowRunId",
-              description = "ID of WorkflowRun to Finalize",
-              required = true)
-          @PathVariable(required = true)
-          String workflowRunId) {
-    return workflowRunService.finalize(workspace, workflowRunId);
   }
 
   @DeleteMapping(value = "/{workflowRunId}/cancel")

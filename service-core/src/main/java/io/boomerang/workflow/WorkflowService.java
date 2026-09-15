@@ -10,6 +10,7 @@ import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
 import io.boomerang.common.entity.TaskRevisionEntity;
+import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -673,7 +674,14 @@ public class WorkflowService {
     executionAnnotations.put("boomerang.io/workspace-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
-    WorkflowRun wfRun = submit(workflowId, request, start, initiatedByRef);
+    // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
+    // are re-read (now including this run), and a run that pushed a count over its limit is
+    // discarded - simultaneous submits cannot each slip past the pre-admission count above.
+    boolean enforceQuotas = quotasEnforced();
+    WorkflowRun wfRun = submit(workflowId, request, start && !enforceQuotas, initiatedByRef);
+    if (enforceQuotas) {
+      guardQuotasAfterAdmission(team, wfRun.getId());
+    }
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -686,6 +694,13 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
+    // A run with Workspaces stays ready/pending for the dispatcher to provision and start -
+    // the same rule WorkflowRunService.run applies on the un-enforced path.
+    if (enforceQuotas
+        && start
+        && (wfRun.getWorkspaces() == null || wfRun.getWorkspaces().isEmpty())) {
+      wfRun = workflowRunService.start(wfRun.getId(), Optional.empty());
+    }
     return wfRun;
   }
 
@@ -712,11 +727,10 @@ public class WorkflowService {
   }
 
   /*
-   * Delete the Workflows, WorkflowRuns, and TaskRuns by calling Engine.
-   *
-   * Engine takes care of deleting Triggers & Workspaces
-   *
-   * We have to delete the Actions, Schedules, Tokens, and Relationships
+   * Scoped delete: tombstones the Workflow, then cleans up what only this layer knows about -
+   * Schedules, the principal's Tokens, open Actions, and the relationship node. The documents
+   * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the watcher's
+   * prune sweep once in-flight runs finalise.
    */
   public void delete(String team, String name) {
     if (name == null || name.isBlank()) {
@@ -731,7 +745,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      // Deletes the Workflow and associated WorkflowRuns, and TaskRuns
+      // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
       // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
       // schedules to delete.
@@ -928,13 +942,15 @@ public class WorkflowService {
     if (quotasEnforced()) {
       CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
-      if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
+      // The run being submitted is not counted yet, so at-the-limit already means it would
+      // exceed the limit.
+      if (quotas.getCurrentConcurrentRuns() >= quotas.getMaxConcurrentRuns()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Concurrent runs (executions)",
             quotas.getCurrentConcurrentRuns(),
             quotas.getMaxConcurrentRuns());
-      } else if (quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
+      } else if (quotas.getCurrentRuns() >= quotas.getMaxWorkflowRunMonthly()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Number of runs (executions)",
@@ -979,6 +995,42 @@ public class WorkflowService {
                 });
       }
     }
+  }
+
+  /*
+   * Re-checks the run quotas after a WorkflowRun has been admitted. The counts now include the
+   * run itself, so a burst of simultaneous submits cannot each pass the pre-admission count:
+   * every run that pushed a count over its limit removes itself and its submit fails.
+   */
+  private void guardQuotasAfterAdmission(String team, String workflowRunId) {
+    CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
+    if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
+      discardRun(workflowRunId);
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED,
+          "Concurrent runs (executions)",
+          quotas.getCurrentConcurrentRuns(),
+          quotas.getMaxConcurrentRuns());
+    } else if (quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
+      discardRun(workflowRunId);
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED,
+          "Number of runs (executions)",
+          quotas.getCurrentRuns(),
+          quotas.getMaxWorkflowRunMonthly());
+    }
+  }
+
+  /*
+   * Removes a quota-rejected WorkflowRun and its materialised TaskRuns. The run was never
+   * started and no relationship edge exists yet, so removing the documents is the whole undo -
+   * and keeps a rejected submit from consuming quota itself.
+   */
+  private void discardRun(String workflowRunId) {
+    mongoTemplate.remove(
+        Query.query(Criteria.where("workflowRunRef").is(workflowRunId)), TaskRunEntity.class);
+    mongoTemplate.remove(
+        Query.query(Criteria.where("_id").is(workflowRunId)), WorkflowRunEntity.class);
   }
 
   /*
@@ -1877,7 +1929,7 @@ public class WorkflowService {
   /*
    * Tombstones the Workflow: a single status change to deleted, never a cascade. Submit already
    * rejects a non-active Workflow, so new runs stop immediately; the watcher winds down in-flight
-   * runs of a deleted Workflow, and a retention sweep prunes once runs finalise. Nothing is
+   * runs of a deleted Workflow, and the prune sweep hard-deletes once runs finalise. Nothing is
    * destroyed here, so running work is never orphaned.
    */
   public void delete(String workflowId) {

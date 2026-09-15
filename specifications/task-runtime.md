@@ -9,19 +9,22 @@ so a `generic` task waits in the queue until a dispatcher registers that type.
 
 ## Dispatcher protocol
 
-The dispatcher registers once, polls two queues every 5 seconds, sends one lease heartbeat every 30 seconds, and calls four lifecycle routes.
+The dispatcher registers once, polls two queues every 5 seconds, sends one lease heartbeat every 30 seconds, calls three lifecycle routes, and asks one reconciliation question.
 
-| Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:41-159`) | Direction | Payload |
+| Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:50-180`) | Direction | Payload |
 | --- | --- | --- |
-| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:70-96`) |
-| `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning or teardown; 204 = none (`DispatcherService.java:110-145`) |
-| `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:207-221`) |
-| `PUT /workflowrun/{id}/start`, `/finalize` | dispatcher → engine | Called after workspaces are provisioned, and after run-scoped storage is deleted (`QueueService.java:47-58`) |
+| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:88-114`) |
+| `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none (`DispatcherService.java:154-200`) |
+| `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:212-271`) |
+| `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:47-58`) |
+| `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:288`) |
 | `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed |
 | `PUT /{id}/heartbeat` | dispatcher → engine, every `flow.dispatcher.lease.beat-ms` (30 s) | `ids` of the task runs whose executor threads stamped `LeaseRegistry` since the last beat (`dispatcher/LeaseHeartbeat.java`); the engine renews `claim.leaseExpiresAt` for the ids this dispatcher owns (`DispatcherService.heartbeat`, `flow.dispatcher.lease-ms` 90 s) |
 
 Claims are compare-and-set per document, so two dispatchers never receive the same run
-(`DispatcherService.java:202-210`). A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
+(`DispatcherService.java:176-182`). Releasing storage is not claimed work and carries no run state: the
+dispatcher lists what it holds from the cluster and the engine answers which owners are finished, so the same
+question asked twice gets the same answer. A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
 is a termination order: the dispatcher cancels the runtime object and reports nothing (`QueueService.java:88-95`).
 
 **Token.** The dispatcher sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on every engine
@@ -124,8 +127,8 @@ volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPat
 (`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A task mounts only the workspaces it
 declares: `DAGUtility` copies the node's `workspaces` onto the TaskRun (`engine/DAGUtility.java:214`) and the
 executor mounts by type. A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
-and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted at finalize
-(`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
+and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted when the
+dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
 `mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
 against the workspace quota in Gi (`workflow/WorkflowService.java:448`,
 `lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to

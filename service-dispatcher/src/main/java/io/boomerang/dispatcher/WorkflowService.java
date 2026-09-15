@@ -77,39 +77,4 @@ public class WorkflowService {
     }
     return response;
   }
-
-  /*
-   * Ends the workflow, removes the resources used by the WorkflowRun and moves the phase from
-   * completed to finalized, respecting the status based on the Workflow.
-   *
-   * At this point in time the resources are Workspaces and this only removes the 'workflowRun'
-   * Workspaces as 'workflow' Workspaces persist across executions.
-   */
-  public Response terminate(WorkflowRun workflow) {
-    Response response =
-        new Response(
-            "0", "WorkflowRun (" + workflow.getId() + ") has been terminated successfully.");
-    if (workflow.getWorkspaces() != null && !workflow.getWorkspaces().isEmpty()) {
-      workflow.getWorkspaces().stream()
-          .filter(
-              ws ->
-                  StorageType.fromLabel(ws.getType())
-                      .filter(type -> type == StorageType.workflowRun)
-                      .isPresent())
-          .forEach(
-              ws -> {
-                WorkspaceRequest request = new WorkspaceRequest();
-                request.setType(ws.getType());
-                request.setWorkflowRef(workflow.getWorkflowRef());
-                request.setWorkflowRunRef(workflow.getId());
-                workspaceService.delete(request);
-              });
-    } else {
-      response =
-          new Response(
-              "0",
-              "WorkflowRun (" + workflow.getId() + ") terminated without removing Workspaces.");
-    }
-    return response;
-  }
 }

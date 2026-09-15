@@ -7,6 +7,8 @@ import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunRequest;
+import io.boomerang.common.model.WorkspaceReleaseQuery;
+import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,8 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * The whole v1 dispatcher protocol — registration, the two queue polls, and the four lifecycle
- * callbacks — served under the single {@code /api/v1/dispatcher} path root.
+ * The whole v1 dispatcher protocol — registration, the two queue polls, the lifecycle callbacks and
+ * the workspace release query — served under the single {@code /api/v1/dispatcher} path root.
  *
  * <p>The callbacks previously lived on {@code /api/v1/workflowrun} and {@code /api/v1/taskrun} in
  * separate {@code WorkflowRunControllerV1}/{@code TaskRunControllerV1} classes — v4 residue from
@@ -132,21 +134,18 @@ public class DispatcherControllerV1 {
     return workflowRunService.start(workflowRunId, runRequest);
   }
 
-  @PutMapping(value = "/workflowrun/{workflowRunId}/finalize")
-  @Operation(summary = "End a WorkflowRun")
+  @PostMapping(value = "/workspaces/releasable")
+  @Operation(
+      summary =
+          "Ask which owners of the workspace volumes a dispatcher holds are finished, so those"
+              + " volumes can be released.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public WorkflowRun finalize(
-      @Parameter(
-              name = "workflowRunId",
-              description = "ID of WorkflowRun to Finalize",
-              required = true)
-          @PathVariable(required = true)
-          String workflowRunId) {
-    return workflowRunService.finalize(workflowRunId);
+  public WorkspaceReleaseResponse releasableWorkspaces(@RequestBody WorkspaceReleaseQuery query) {
+    return dispatcherService.releasable(query);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/start")

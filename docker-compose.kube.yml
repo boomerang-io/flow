@@ -27,6 +27,9 @@ services:
       FLOW_ENGINE_SERVICE_HOST: service-core:7700
       FLOW_ENGINE_DISPATCHER_TOKEN: ""
       FLOW_DISPATCHER_LEASE_ENABLED: "true"
+      # Release run-scoped storage promptly so an end-to-end run can assert the claim is gone.
+      FLOW_DISPATCHER_WORKSPACE_RECONCILE_ENABLED: "true"
+      FLOW_DISPATCHER_WORKSPACE_RECONCILE_MS: "10000"
       KUBECONFIG: /kube/config
       KUBERNETES_TRUST_CERTIFICATES: "true"
       # OrbStack's default StorageClass is ReadWriteOnce-only.

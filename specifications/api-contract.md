@@ -57,14 +57,14 @@ public shapes; the entities are separate classes and MUST NOT be returned from a
 
 | Rule | Where |
 | --- | --- |
-| No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:43-76` |
+| No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:48-81` |
 | Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApproved`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
-| Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:80-87` |
+| Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:85-92` |
 | `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `lib-common/.../enums/RunStatus.java` |
-| **Exception:** `phase` (`queued, pending, running, completed, finalized`) is serialised on both models because the dispatcher receives the same classes and branches on it | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:93,142,157`; `service-dispatcher/.../dispatcher/QueueService.java:47-55`; tripwire `PublicRunModelSerialisationTest.java:110-121` |
+| **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models because the dispatcher receives the same classes and branches on it. `queued` is now the only position `status` cannot express, so it is the whole remaining reason the field is exposed | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:83,97,126`; `service-dispatcher/.../dispatcher/QueueService.java:47-55`; tripwire `PublicRunModelSerialisationTest.java:117-129`, phase set pinned at `:137-141` |
 
 `TaskRun` is `@JsonInclude(NON_NULL)`, so a null field is absent rather than `null`
-(`PublicRunModelSerialisationTest.java:92-94`).
+(`PublicRunModelSerialisationTest.java:97-99`).
 
 ## YAML content negotiation
 
@@ -136,9 +136,9 @@ The browser never calls `/api/*`; every request is made server-side by a React R
 the inbound session `Cookie`, and rewrites `/api/...` to `/api/v2/...`
 (`client-web/src/Config/serverFetch.ts:24,64-72`). Binary or streamed reads (task YAML, run logs,
 workflow export) go through the webapp's own `/res/*` resource routes
-(`client-web/src/Config/resourceRoutes.ts:19-39`). `CORE_SERVICE_ENV_URL`/`PRODUCT_SERVICE_ENV_URL`
-(default `/api`, injected into `window._SERVER_DATA` in production) are used only for URLs the UI
-displays, such as the copyable webhook trigger URL (`client-web/src/Config/servicesConfig.ts:14-29`).
+(`client-web/src/Config/resourceRoutes.ts:19-39`). `PRODUCT_SERVICE_ENV_URL`
+(default `/api`, injected into `window._SERVER_DATA` in production) is used only for URLs the UI
+displays, such as the copyable webhook trigger URL (`client-web/src/Config/servicesConfig.ts:18-24`).
 In `docker-compose.yml` the webapp's SSR server on `:3000` is the single browser-facing origin and
 `service-core` on `:7700` stays reachable for integrations, the dispatcher and direct API use
 (`docker-compose.yml:3-8,166-176`); there is no separate gateway.

@@ -129,8 +129,7 @@ public class TaskExecutionService {
           RunPhase.completed,
           Optional.of("Unable to find WorkflowRun"));
       return;
-    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.get().getPhase())) {
+    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())) {
       // Set duration. If in Queued. There will be no start time.
       long duration =
           taskExecution.getStartTime() != null
@@ -268,8 +267,7 @@ public class TaskExecutionService {
           RunPhase.completed,
           Optional.of("Unable to find WorkflowRun"));
       return;
-    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.get().getPhase())) {
+    } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())) {
       // Set duration. If in Queued. There will be no start time.
       long duration =
           taskExecution.getStartTime() != null
@@ -446,8 +444,7 @@ public class TaskExecutionService {
       return;
     }
     WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
-    if (RunPhase.completed.equals(wfRunEntity.getPhase())
-        || RunPhase.finalized.equals(wfRunEntity.getPhase())) {
+    if (RunPhase.completed.equals(wfRunEntity.getPhase())) {
       String statusMessage =
           MessageFormatter.arrayFormat(
                   "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion.",
@@ -948,8 +945,16 @@ public class TaskExecutionService {
   private boolean processWaitForEventTask(TaskRunEntity taskExecution) {
     LOGGER.debug(
         "[{}] Processing Wait for Event task: {}", taskExecution.getId(), taskExecution.getName());
+    // Field-scoped arm, then re-read: an event that arrived since execute()'s entry read has
+    // already set preApproved/status/results through applyEventDelivery and must not be lost.
+    if (!taskRunService.tryArmEventWait(taskExecution.getId())) {
+      LOGGER.debug("[{}] Eventwait no longer running; not armed.", taskExecution.getId());
+    }
+    TaskRunEntity armed = taskRunRepository.findById(taskExecution.getId()).orElse(taskExecution);
     taskExecution.setStatus(RunStatus.waiting);
-    taskExecution = taskRunRepository.save(taskExecution);
+    taskExecution.setPreApproved(armed.isPreApproved());
+    taskExecution.setAnnotations(armed.getAnnotations());
+    taskExecution.setResults(armed.getResults());
 
     if (taskExecution.isPreApproved()) {
       if (taskExecution.getAnnotations().get("boomerang.io/status") != null) {

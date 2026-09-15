@@ -85,6 +85,10 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
         "The following quotas have been set for the workspace - only administrators have access to adjust these.",
       ),
     ).toBeInTheDocument();
+    // The monthly execution counter is audit-backed, so it keeps counting deleted Workflows' runs.
+    expect(
+      screen.getByText("Monthly counts include Workflows and runs that have since been deleted."),
+    ).toBeInTheDocument();
     // The Members tab's own body must NOT be mounted - each tab is its own route now.
     expect(screen.queryByText("These are the people who have access to this Workspace.")).not.toBeInTheDocument();
   });
