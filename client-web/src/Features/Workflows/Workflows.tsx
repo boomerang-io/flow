@@ -57,8 +57,7 @@ export async function loader({
 // (WorkflowCard.tsx: delete/duplicate/execute; Components/CreateWorkflow/CreateWorkflow.tsx:
 // create/import; WorkflowCard/UpdateWorkflow/UpdateWorkflow.tsx: update). All of those components
 // render as descendants of this route's element (no nested <Route>), so their `useFetcher()`
-// calls resolve to this action without an explicit path - same as WorkflowTemplateCard.tsx /
-// CreateWorkflowTemplate.tsx do against TemplateWorkflows.tsx's action.
+// calls resolve to this action without an explicit path.
 //
 // Field convention: "workflow" always carries a JSON-stringified payload (a CreateWorkflowSummary,
 // a full Workflow, or an execute body); "workflowName" always carries a bare identifier string.
@@ -152,18 +151,15 @@ export async function action({ params, request }: { params: { workspace?: string
 
   // "create" | "import" - both post the same payload shape (a CreateWorkflowSummary for create, a
   // full Workflow for import) to the same endpoint; only the resulting notification differs, which
-  // the component derives from `intent`. viewType mirrors the two branches CreateWorkflow.tsx has
-  // always supported (Workflow vs Template) even though only Workflow is exercised by this route
-  // today (Components/CreateWorkflow is only ever rendered here) - kept for parity rather than
-  // dropped, since narrowing it isn't this conversion's call to make.
+  // the component derives from `intent`. viewType only labels that notification.
   const viewType = String(formData.get("viewType"));
   const workflow = JSON.parse(String(formData.get("workflow")));
   const createIntent: "create" | "import" = intent === "import" ? "import" : "create";
   try {
-    const response =
-      viewType === WorkflowView.Template
-        ? await serverFetch(request).post(serviceUrl.template.postWorkflowTemplate(), workflow)
-        : await serverFetch(request).post(serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }), workflow);
+    const response = await serverFetch(request).post(
+      serviceUrl.workspace.workflow.postCreateWorkflow({ workspace }),
+      workflow,
+    );
     return { intent: createIntent, workflow: response.data };
   } catch (error) {
     return actionError({

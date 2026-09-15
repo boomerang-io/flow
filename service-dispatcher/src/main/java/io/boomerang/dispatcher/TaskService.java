@@ -13,7 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,10 @@ public class TaskService {
 
   private static final Logger LOGGER = LogManager.getLogger(TaskService.class);
 
+  // The runtime object is deleted once the Task has already finished, so the grace before the
+  // delete is time no caller should be made to wait for.
+  private static final long DELETE_GRACE_MS = 1000;
+
   @Value("${kube.task.deletion}")
   private TaskDeletion taskDeletion;
 
@@ -29,6 +35,10 @@ public class TaskService {
   private Long taskTimeout;
 
   private final TaskExecutor executor;
+
+  // Proxy to self so the delete goes through the @Async proxy and hops threads; a plain self-call
+  // is not intercepted and would run the delete, grace included, on the dispatch thread.
+  @Autowired @Lazy private TaskService self;
 
   public TaskService(TaskExecutor executor) {
     this.executor = executor;
@@ -65,7 +75,7 @@ public class TaskService {
         results = executor.watch(task, timeout);
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
           // This will only delete on success as failure throws an Exception.
-          this.deleteTaskRun(task);
+          self.deleteTaskRun(task);
         }
       } catch (KubernetesClientException e) {
         // KubernetesClientException handles the case where an internal admission
@@ -86,7 +96,7 @@ public class TaskService {
       } finally {
         response.setResults(results);
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
-          this.deleteTaskRun(task);
+          self.deleteTaskRun(task);
         }
         LOGGER.info("Task (" + task.getId() + ") has completed with code " + response.getCode());
       }
@@ -94,12 +104,18 @@ public class TaskService {
     return response;
   }
 
+  /**
+   * Delete the Task's runtime object, off the caller's thread. The grace before the delete keeps it
+   * clear of the executor's own closing reads on the Job/TaskRun it has just watched to completion;
+   * it is a fixed wait, not a signal that those reads are done.
+   */
   @Async
-  private void deleteTaskRun(TaskRun task) {
+  public void deleteTaskRun(TaskRun task) {
     try {
-      Thread.sleep(1000);
+      Thread.sleep(DELETE_GRACE_MS);
     } catch (InterruptedException e) {
-      e.printStackTrace();
+      // Still delete: an undeleted Job outlives the dispatcher and leaks cluster resources.
+      Thread.currentThread().interrupt();
     }
     executor.delete(task);
   }

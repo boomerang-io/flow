@@ -67,12 +67,33 @@ No interval is set in `application.properties`; the defaults come from the `@Sch
 
 ## Virtual threads
 
-Request handling runs on virtual threads (`spring.threads.virtual.enabled=true`, `application.properties:64`)
-because each connected dispatcher parks one request thread for its 30 s poll. **Measured**:
-`service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java` drives 200
-pollers through 10 cycles under Java Flight Recorder and asserts zero carrier-pinning events on the claim
-path, so dispatcher count is not bound by the platform-thread pool. **Not measured**: any before/after
-throughput comparison; the idle poll's database load (above) is the remaining known cost.
+Request handling runs on virtual threads (`spring.threads.virtual.enabled=true`,
+`application.properties:75`) because each connected dispatcher parks one request thread for its 30 s poll.
+**Measured**: `service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java`
+drives 200 pollers through 10 cycles under Java Flight Recorder and asserts zero carrier-pinning events on
+the claim path, so dispatcher count is not bound by the platform-thread pool. **Not measured**: any
+before/after throughput comparison; the idle poll's database load (above) is the remaining known cost.
+
+`@Async` work runs on virtual threads too, one thread per hand-off, from three named
+`SimpleAsyncTaskExecutor` beans. The property alone does not reach them: Boot's virtual-thread
+`applicationTaskExecutor` backs off whenever the context already declares an `Executor` bean, so each of
+these beans has to ask for virtual threads itself.
+
+| Bean | Where | Carries |
+| --- | --- | --- |
+| `asyncTaskExecutor` | `engine/config/AsyncConfig.java:20-23` | Task-run transitions (`TaskExecutionService`), audit writes |
+| `asyncWorkflowExecutor` | `engine/config/AsyncConfig.java:25-28` | Workflow-run execution and timeout (`WorkflowExecutionService:125,155`) |
+| `logStreamExecutor` | `core/config/AsyncConfiguration.java:24-30` | The default `@Async` executor, and Spring MVC's async dispatch — a log stream parks its thread for the life of the stream |
+| `applicationTaskExecutor` (dispatcher) | `service-dispatcher/.../config/ThreadConfig.java:33-40` | Every dispatcher `@Async` method: `QueueService.processWorkflowRun`, `processTaskRun` (blocks for the whole life of the Task), `TaskService.deleteTaskRun` |
+
+The dispatcher bean has to stay `@Primary`. Spring resolves `@Async` by asking for the one `TaskExecutor`
+bean, and a `ThreadPoolTaskScheduler` is itself a `TaskExecutor` — so while the 3-thread `taskScheduler`
+(`ThreadConfig.java:15-22`) was the module's only one, every hand-off landed on the scheduler's threads,
+behind the queue polls and the lease heartbeat. `AsyncExecutorResolutionTest` pins the resolution.
+
+Nothing caps how many tasks run at once on any of them — the fixed pools these replaced bounded only the
+queue (100 000 deep), and a full queue rejected with an exception nothing handled. What shapes load is the
+admission gate in `TaskExecutionService.queue`, the dispatcher's 20-per-poll claim limit, and quotas.
 
 ## HTTP client timeouts and the custom client requirement
 
@@ -184,6 +205,8 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Retry rate-limit and deterministic-terminal classes | One `Backoff`; `retry` carries only `after`/`count`; a dispatcher-reported failure is not retried | A runtime that returns typed rate-limit signals is integrated |
 | Worker leases and renewal | Absolute `timeoutAt` at claim; gone-dispatcher sweep at 60 s | Worker-crash recovery latency is shown to matter |
+| A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`kube/TektonServiceImpl.java`, `executor/JobWatcher.java`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
+| An event-driven dispatcher poll | A 1 s sleep loop between claims and a 30 s long-poll on the engine side (`client/EngineClient.java`) | A measured idle-query cost at the dispatcher count in use — the per-poll claim query against Mongo, multiplied by connected dispatchers, is what would justify it |
 
 ## Also worth knowing
 

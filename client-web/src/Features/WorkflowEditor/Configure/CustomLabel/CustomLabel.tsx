@@ -6,6 +6,7 @@ import { Edit } from "@carbon/react/icons";
 import { Button, ModalBody, ModalFooter } from "@carbon/react";
 import { ComposedModal, ModalForm, TextInput } from "@boomerang-io/carbon-addons-boomerang-react";
 import { ConfigureWorkflowFormValues } from "Types";
+import { LABEL_KEY_PREFIX_REGEX, LABEL_NAME_AND_VALUE_REGEX } from "Constants";
 import styles from "./CustomLabel.module.scss";
 
 interface AddLabelProps {
@@ -15,9 +16,6 @@ interface AddLabelProps {
   editTrigger?: React.ComponentType<{ openModal: () => void }>;
   selectedLabel?: { key: string; value: string; index: number };
 }
-
-const keyPrefixRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,62}([.\1][a-zA-Z0-9-]{1,63})*$/;
-const keyNameAndValueRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,61}[a-zA-Z0-9]$/;
 
 const CustomLabel: React.FC<AddLabelProps> = ({
   formikPropsSetFieldValue,
@@ -92,8 +90,8 @@ const AddLabelModalContent: React.FC<AddLabelModalContentProps> = ({ closeModal,
     const name = keyParts[1];
 
     const isValidPrefix =
-      key?.includes("/") && keyParts?.length === 2 ? keyPrefixRegex.test(prefix) && prefix?.length <= 253 : true;
-    const isValidName = keyParts.length === 2 ? keyNameAndValueRegex.test(name) : keyNameAndValueRegex.test(key);
+      key?.includes("/") && keyParts?.length === 2 ? LABEL_KEY_PREFIX_REGEX.test(prefix) && prefix?.length <= 253 : true;
+    const isValidName = keyParts.length === 2 ? LABEL_NAME_AND_VALUE_REGEX.test(name) : LABEL_NAME_AND_VALUE_REGEX.test(key);
     if (isValidPrefix && isValidName) return true;
     else if (!isValidPrefix)
       return this.createError({
@@ -108,7 +106,7 @@ const AddLabelModalContent: React.FC<AddLabelModalContentProps> = ({ closeModal,
   }
 
   const validateValue = (value) => {
-    return keyNameAndValueRegex.test(value);
+    return LABEL_NAME_AND_VALUE_REGEX.test(value);
   };
 
   return (

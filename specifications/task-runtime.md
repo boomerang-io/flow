@@ -40,9 +40,12 @@ and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClien
 
 `TaskExecutor` has four methods — `create`, `watch`, `cancel`, `delete`
 (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-27`). `TaskService` requires an
-image (`dispatcher/TaskService.java:60-62`), defaults the timeout to `kube.task.timeout` (60 minutes, `:43-45`),
+image (`dispatcher/TaskService.java:69-71`), defaults the timeout to `kube.task.timeout` (60 minutes, `:52-54`),
 runs `create` then `watch`, and deletes the runtime object per `kube.task.deletion` (`Never` default,
-`OnSuccess`, `Always` — `:64-68,93,109`). `dispatcher.executor` picks one implementation:
+`OnSuccess`, `Always` — `:48-50,76-79,98-100`). The delete waits a one-second grace before calling `delete`, and
+runs off the caller's thread: `TaskService` reaches its own `@Async` method through a self proxy
+(`:41,112-119`), so the dispatch thread is free as soon as the Task itself has finished.
+`dispatcher.executor` picks one implementation:
 
 | `dispatcher.executor` | Class | Runtime object | Timeout | Results channel | Cancel |
 | --- | --- | --- | --- | --- | --- |

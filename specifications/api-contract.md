@@ -13,8 +13,15 @@ Every public route is under `/api/v2`; resources owned by a workspace sit under
 | --- | --- | --- |
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workspace/WorkspaceInsightsControllerV2.java:27` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
-| Global | `/api/v2/{auth,user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/AuthControllerV2.java:37`, `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:31`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
+| Global | `/api/v2/{auth,user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/AuthControllerV2.java:37`, `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
 | Dispatcher | `/api/v1/dispatcher` | `dispatcher/DispatcherControllerV1.java:41` |
+
+`/api/v2/workflowtemplate` is read-only: `GET /{name}` and `GET /query` are the whole surface
+(`workflow/WorkflowTemplateControllerV2.java:57,84`). Templates are content, not a managed
+resource — the loader seeds them and a v3 upgrade imports them — so there is no route to create,
+change or delete one. A client creates a Workflow from a template by reading the template and
+posting its body to `POST /api/v2/workspace/{workspace}/workflow`
+(`client-web/src/Features/Home/Home.tsx:61-78`).
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered
@@ -142,6 +149,10 @@ displays, such as the copyable webhook trigger URL (`client-web/src/Config/servi
 In `docker-compose.yml` the webapp's SSR server on `:3000` is the single browser-facing origin and
 `service-core` on `:7700` stays reachable for integrations, the dispatcher and direct API use
 (`docker-compose.yml:3-8,166-176`); there is no separate gateway.
+
+Browser routes are keyed by workspace — `/:workspace/...` (`client-web/src/Config/appConfig.ts:80-134`) —
+and v4's `/:team/...` URLs are not redirected, so bookmarks and pasted links from v4 break at this
+major.
 
 ## Open contract decisions
 

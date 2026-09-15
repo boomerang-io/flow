@@ -1,7 +1,7 @@
-import TemplateWorkflows, { action, loader } from "Features/TemplateWorkflows/TemplateWorkflows";
+import TemplateWorkflows, { loader } from "Features/TemplateWorkflows/TemplateWorkflows";
 import { Protected } from "Features/App/AppRoutes";
 
-export { loader, action };
+export { loader };
 
 export default function TemplateWorkflowsRoute() {
   return (
