@@ -774,6 +774,9 @@ export interface WorkflowRun {
   duration: number;
   id: string;
   initiatedByRef: string;
+  // The run that owns the TaskRun in initiatedByRef, resolved server-side for a task-triggered
+  // (child) run so the header can link back to the parent. Absent on every other trigger.
+  initiatedByWorkflowRunRef?: string;
   labels: Record<string, string>;
   params: Array<Param>;
   // Populated on the wire (WorkflowRunService#get copies the entity's phase across).

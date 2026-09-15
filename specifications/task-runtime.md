@@ -159,8 +159,8 @@ their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `task
 inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
-(`workflowRef`; plus `futureIn`, `futurePeriod`, `timezone`, `time`), added to an existing catalogue by
-`_0040__DeclareRunWorkflowParams`.
+(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`), added to an existing
+catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWaitParam`.
 
 ## Task types handled inside the engine
 
@@ -172,7 +172,8 @@ The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare t
 | `template`, `custom`, `script`, `generic` | Wait for a dispatcher |
 | `decision` | Evaluates the branch and ends `succeeded` |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
-| `runworkflow`, `runscheduledworkflow` | Start another workflow now or on a schedule, then end |
+| `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status (see `execution-model.md`) |
+| `runscheduledworkflow` | Schedule another workflow to run later, then end |
 | `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
 | `approval`, `manual` | Create an action and wait for a person |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |

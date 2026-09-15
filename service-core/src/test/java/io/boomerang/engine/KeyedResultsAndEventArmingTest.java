@@ -103,7 +103,7 @@ class KeyedResultsAndEventArmingTest extends AbstractEngineIntegrationTest {
               return invocation.callRealMethod();
             })
         .when(spiedTaskRunService)
-        .tryArmEventWait(any());
+        .tryArmWait(any());
 
     taskExecutionService.execute(taskRunId);
 

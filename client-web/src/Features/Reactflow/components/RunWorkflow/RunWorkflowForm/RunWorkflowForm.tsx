@@ -38,16 +38,18 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
   const workflowsMapped = workflows?.map((workflow) => ({ label: workflow.displayName, value: workflow.name })) ?? [];
   const selectedWorkflowConfg = workflows.find((workflow) => workflow.name === selectedWorkflowRef)?.params ?? [];
 
+  // The run-workflow task's own declared params, minus workflowRef which the picker below renders.
+  // Driven from the catalogue so a param added there (wait) needs no change here.
+  const taskDeclaredInputs = (props.task?.spec?.params ?? []).filter((param) => param.name !== "workflowRef");
+
   const activeInputs: Record<string, string> = {};
-  if (selectedWorkflowConfg) {
-    selectedWorkflowConfg.forEach((item) => {
-      const name = item.name;
-      if (name) {
-        //@ts-ignore
-        activeInputs[name] = item.default;
-      }
-    });
-  }
+  [...taskDeclaredInputs, ...selectedWorkflowConfg].forEach((item) => {
+    const name = item.name;
+    if (name) {
+      //@ts-ignore
+      activeInputs[name] = item.default;
+    }
+  });
 
   const handleOnSave = (values: any) => {
     props.node.name = values.taskName;
@@ -105,6 +107,7 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
       helperText: "The Workflow you wish to run",
       customComponent: WorkflowSelectionInput,
     },
+    ...taskDeclaredInputs,
     ...selectedWorkflowConfg,
   ];
 

@@ -484,6 +484,7 @@ public class WorkflowRunService {
     if (wfRunEntity.isPresent()) {
       WorkflowRun wfRun = ConvertUtil.entityToModel(wfRunEntity.get(), WorkflowRun.class);
       updateWorkflowDetails(wfRunEntity.get(), wfRun);
+      resolveInitiatingRun(wfRunEntity.get(), wfRun);
       if (withTasks) {
         wfRun.setTasks(getTaskRuns(wfRunId));
       }
@@ -984,6 +985,20 @@ public class WorkflowRunService {
       }
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
+  }
+
+  /*
+   * A child run's initiatedByRef is the submitting TaskRun; resolve the run that owns it so a
+   * client can link back to the parent. Derived on read, exactly like workflowName, and only on
+   * the single-run read - the query page has no use for it and would pay a lookup per row.
+   */
+  private void resolveInitiatingRun(WorkflowRunEntity wfRunEntity, WorkflowRun wfRun) {
+    if (TriggerEnum.task.getTrigger().equals(wfRunEntity.getTrigger())
+        && wfRunEntity.getInitiatedByRef() != null) {
+      taskRunRepository
+          .findById(wfRunEntity.getInitiatedByRef())
+          .ifPresent(taskRun -> wfRun.setInitiatedByWorkflowRunRef(taskRun.getWorkflowRunRef()));
     }
   }
 

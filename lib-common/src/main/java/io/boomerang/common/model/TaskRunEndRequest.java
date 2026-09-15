@@ -24,7 +24,8 @@ public class TaskRunEndRequest {
    * Typed cause paired with {@code status}/{@code statusMessage}, for the engine to decide on and
    * the UI to filter by; {@code statusMessage} stays the human-readable text. Closed set:
    * DeadlineExceeded, JobDeleted, JobFailed, OOMKilled, ImagePull, AdmissionDenied,
-   * ResultsTooLarge, DispatchError, DispatcherGone, LeaseExpired.
+   * ResultsTooLarge, DispatchError, DispatcherGone, LeaseExpired, ChildRunFailed,
+   * NestingDepthExceeded.
    */
   private String statusReason;
 
