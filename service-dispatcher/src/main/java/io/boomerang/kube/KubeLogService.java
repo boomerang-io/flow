@@ -1,5 +1,6 @@
 package io.boomerang.kube;
 
+import io.boomerang.dispatcher.TaskLogStore;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -13,11 +14,16 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+// The Docker executor reads its logs from the daemon, not from a cluster; this bean - and the
+// Kubernetes client it would build - exists only for the two Kubernetes runtimes.
 @Component
-public class KubeLogService {
+@ConditionalOnExpression("'${dispatcher.executor}' != 'docker'")
+public class KubeLogService implements TaskLogStore {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeLogService.class);
 
@@ -31,7 +37,7 @@ public class KubeLogService {
 
   KubernetesClient client = null;
 
-  public KubeLogService(KubeHelperService helperKubeService, KubernetesClient client) {
+  public KubeLogService(KubeHelperService helperKubeService, @Lazy KubernetesClient client) {
     this.helperKubeService = helperKubeService;
     this.client = client;
   }
@@ -39,6 +45,17 @@ public class KubeLogService {
   // Tests swap in the mock-server client after the context is up.
   public void setClient(KubernetesClient client) {
     this.client = client;
+  }
+
+  @Override
+  public String get(String workflowRef, String workflowRunRef, String taskRunRef) {
+    return getPodLog(workflowRef, workflowRunRef, taskRunRef, null);
+  }
+
+  @Override
+  public StreamingResponseBody stream(
+      HttpServletResponse response, String workflowRef, String workflowRunRef, String taskRunRef) {
+    return streamPodLog(response, workflowRef, workflowRunRef, taskRunRef, null);
   }
 
   public String getPodLog(
