@@ -1,6 +1,7 @@
 // Look for the data injected into the HTML file from the Express app
 // See server/app.js for implementation
-import { StringifyOptions } from "query-string";
+import queryString, { StringifyOptions } from "query-string";
+import { generatePath } from "react-router-dom";
 import { Envs } from "Constants";
 
 // Framework mode's ssr:false build still runs this module once in Node (to prerender
@@ -159,60 +160,93 @@ interface ExecutionArgs {
   runId: string;
 }
 
+/**
+ * Query-string options shared by every page that reads or writes its filters through `query-string`,
+ * and by the two `appLink` builders below that carry a query.
+ */
+
+/**
+ * Query-string options shared by every page that reads or writes its filters through `query-string`,
+ * and by the two `appLink` builders below that carry a query.
+ */
+export const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skipEmptyString: true };
+
+/**
+ * `appLink` is derived from `AppPath` - the single table of route patterns above - so a route is
+ * written down exactly once. `generatePath` fills the `:params` in and URL-encodes each value, and
+ * the two builders that carry a query string stringify it with `queryStringOptions` rather than
+ * interpolating raw values into the URL.
+ */
 export const appLink = {
-  activity: ({ workspace }: WorkspaceArg) => `/${workspace}/activity`,
-  actions: ({ workspace }: WorkspaceArg) => `/${workspace}/actions`,
-  actionsApprovals: ({ workspace }: WorkspaceArg) => `/${workspace}/actions/approvals`,
-  actionsManual: ({ workspace }: WorkspaceArg) => `/${workspace}/actions/manual`,
-  editorCanvas: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/canvas`,
-  editorConfigure: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure`,
-  editorConfigureGeneral: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure/general`,
-  editorConfigureTriggers: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure/triggers`,
-  editorConfigureRun: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure/run`,
-  editorConfigureParams: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure/parameters`,
-  editorConfigureWorkspaces: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure/workspaces`,
-  editorConfigureTokens: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/configure/tokens`,
-  editorChangelog: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/changelog`,
-  editorProperties: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/parameters`,
-  editorSchedule: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/editor/${workflow}/schedule`,
-  execution: ({ workspace, runId }: WorkspaceArg & ExecutionArgs) => `/${workspace}/activity/${runId}`,
-  home: () => "/home",
-  profile: () => "/profile",
-  insights: ({ workspace }: WorkspaceArg) => `/${workspace}/insights`,
-  integrations: ({ workspace }: WorkspaceArg) => `/${workspace}/integrations`,
-  manageTasks: ({ workspace }: WorkspaceArg) => `/${workspace}/task-manager`,
-  manageTasksEdit: ({ workspace, name, version }: ManageTaskTemplateArgs) => `/${workspace}/task-manager/${name}/${version}`,
+  activity: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Activity, { workspace }),
+  actions: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Actions, { workspace }),
+  actionsApprovals: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ActionsApprovals, { workspace }),
+  actionsManual: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ActionsManual, { workspace }),
+  editorCanvas: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorCanvas, { workspace, workflow }),
+  editorConfigure: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigure, { workspace, workflow }),
+  editorConfigureGeneral: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureGeneral, { workspace, workflow }),
+  editorConfigureTriggers: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureTriggers, { workspace, workflow }),
+  editorConfigureRun: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureRun, { workspace, workflow }),
+  editorConfigureParams: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureParams, { workspace, workflow }),
+  editorConfigureWorkspaces: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureWorkspaces, { workspace, workflow }),
+  editorConfigureTokens: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureTokens, { workspace, workflow }),
+  editorChangelog: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorChangelog, { workspace, workflow }),
+  editorProperties: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorProperties, { workspace, workflow }),
+  editorSchedule: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorSchedule, { workspace, workflow }),
+  execution: ({ workspace, runId }: WorkspaceArg & ExecutionArgs) => generatePath(AppPath.Run, { workspace, runId }),
+  home: () => AppPath.Home,
+  profile: () => AppPath.Profile,
+  insights: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Insights, { workspace }),
+  integrations: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Integrations, { workspace }),
+  manageTasks: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageTasks, { workspace }),
+  manageTasksEdit: ({ workspace, name, version }: ManageTaskTemplateArgs) =>
+    generatePath(AppPath.ManageTasksDetail, { workspace, name, version }),
   manageTasksYaml: ({ workspace, name, version }: ManageTaskTemplateArgs) =>
-    `/${workspace}/task-manager/${name}/${version}/editor`,
-  manageWorkspace: ({ workspace }: WorkspaceArg) => `/${workspace}/manage`,
-  manageWorkspaceApprovers: ({ workspace }: WorkspaceArg) => `/${workspace}/manage/approver-groups`,
-  manageWorkspaceWorkflows: ({ workspace }: WorkspaceArg) => `/${workspace}/manage/workflows`,
-  manageWorkspaceLabels: ({ workspace }: WorkspaceArg) => `/${workspace}/manage/labels`,
-  manageWorkspaceQuotas: ({ workspace }: WorkspaceArg) => `/${workspace}/manage/quotas`,
-  manageWorkspaceSettings: ({ workspace }: WorkspaceArg) => `/${workspace}/manage/settings`,
-  manageWorkspaceTokens: ({ workspace }: WorkspaceArg) => `/${workspace}/manage/tokens`,
-  manageWorkspaceParameters: ({ workspace }: WorkspaceArg) => `/${workspace}/parameters`,
-  manageUsers: () => "/admin/users",
-  properties: () => "/admin/parameters",
-  schedule: () => "/schedule",
-  schedules: ({ workspace }: WorkspaceArg) => `/${workspace}/schedules`,
+    generatePath(AppPath.ManageTasksEditor, { workspace, name, version }),
+  manageWorkspace: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspace, { workspace }),
+  manageWorkspaceApprovers: ({ workspace }: WorkspaceArg) =>
+    generatePath(AppPath.ManageWorkspaceApprovers, { workspace }),
+  manageWorkspaceWorkflows: ({ workspace }: WorkspaceArg) =>
+    generatePath(AppPath.ManageWorkspaceWorkflows, { workspace }),
+  manageWorkspaceLabels: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspaceLabels, { workspace }),
+  manageWorkspaceQuotas: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspaceQuotas, { workspace }),
+  manageWorkspaceSettings: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspaceSettings, { workspace }),
+  manageWorkspaceTokens: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspaceTokens, { workspace }),
+  manageWorkspaceParameters: ({ workspace }: WorkspaceArg) =>
+    generatePath(AppPath.ManageWorkspaceParameters, { workspace }),
+  manageUsers: () => AppPath.UserList,
+  properties: () => AppPath.Properties,
+  schedules: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Schedules, { workspace }),
   // Deep-links into the schedules page's existing "workflows" FilterableMultiSelect (matched
   // against Workflow.name - see Features/Schedules/Schedules.tsx's selectedWorkflowRefs) rather
   // than a new per-schedule focus mechanism, which the page does not have.
-  schedulesForWorkflow: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/schedules?workflows=${workflow}`,
-  settings: () => "/admin/settings",
-  templateWorkflows: () => "/admin/template-workflows",
-  adminTasks: () => "/admin/task-manager",
-  adminTasksDetail: ({ name, version }: AdminTaskTemplateArgs) => `/admin/task-manager/${name}/${version}`,
-  adminTasksEditor: ({ name, version }: AdminTaskTemplateArgs) => `/admin/task-manager/${name}/${version}/editor`,
-  workspaceList: () => "/admin/workspaces",
-  tokens: () => `/admin/tokens`,
-  user: ({ userId }: UserIdArg) => `/admin/users/${userId}`,
-  userLabels: ({ userId }: UserIdArg) => `/admin/users/${userId}/labels`,
-  userSettings: ({ userId }: UserIdArg) => `/admin/users/${userId}/settings`,
-  userList: () => "/admin/users",
-  workflows: ({ workspace }: WorkspaceArg) => `/${workspace}/workflows`,
-  workflowActivity: ({ workspace, workflow }: WorkspaceRouteArgs) => `/${workspace}/activity?page=0&size=10&workflows=${workflow}`,
+  schedulesForWorkflow: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    `${generatePath(AppPath.Schedules, { workspace })}?${queryString.stringify({ workflows: workflow }, queryStringOptions)}`,
+  settings: () => AppPath.Settings,
+  templateWorkflows: () => AppPath.TemplateWorkflows,
+  adminTasks: () => AppPath.Tasks,
+  adminTasksDetail: ({ name, version }: AdminTaskTemplateArgs) => generatePath(AppPath.TasksDetail, { name, version }),
+  adminTasksEditor: ({ name, version }: AdminTaskTemplateArgs) => generatePath(AppPath.TasksEditor, { name, version }),
+  workspaceList: () => AppPath.WorkspaceList,
+  tokens: () => AppPath.Tokens,
+  user: ({ userId }: UserIdArg) => generatePath(AppPath.User, { userId }),
+  userLabels: ({ userId }: UserIdArg) => generatePath(AppPath.UserLabels, { userId }),
+  userSettings: ({ userId }: UserIdArg) => generatePath(AppPath.UserSettings, { userId }),
+  userList: () => AppPath.UserList,
+  workflows: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Workflows, { workspace }),
+  workflowActivity: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    `${generatePath(AppPath.Activity, { workspace })}?${queryString.stringify({ page: 0, size: 10, workflows: workflow }, queryStringOptions)}`,
   //external apps
   docsWorkflowEditor: () => `${BASE_DOCUMENTATION_URL}/fundamentals/triggers`,
 };
@@ -234,4 +268,3 @@ export enum FeatureFlag {
   WorkflowTriggersEnabled = "WorkflowTriggersEnabled",
 }
 
-export const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skipEmptyString: true };
