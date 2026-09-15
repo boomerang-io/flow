@@ -120,6 +120,20 @@ merged into a TaskRun, Job or volume's labels — one place all executors share.
 Every alteration is logged at debug. So `team/name=platform/flow` is written as `team/name=platform_flow`
 rather than failing the volume with a 422.
 
+## Task versions on a workflow node
+
+A workflow node's `taskVersion` is pinned when the workflow is saved, not when it runs:
+`WorkflowService.createWorkflowRevisionEntity` resolves each non-start/end node through
+`TaskService.retrieveAndValidateTask` and stamps the resolved version onto the node — the version the node asked
+for, or the catalogue's latest when it asked for none. At run time `DAGUtility.createTaskList` resolves the same
+way and records the result on the TaskRun (`engine/DAGUtility.java:140-142`), so a stored node with no version
+still resolves latest. Publishing a new Task version therefore changes nothing for workflows already saved
+against an older one, which is the point: a run is reproducible from its revision. To move a workflow forward,
+save it again with the node's `taskVersion` set to the target version (or omitted, to take latest); the editor
+surfaces this per node as a "New version available" prompt, driven by the `upgradesAvailable` flag
+`WorkflowService.areTaskUpgradesAvailable` sets
+(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:58-64,133`).
+
 ## Parameter names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
