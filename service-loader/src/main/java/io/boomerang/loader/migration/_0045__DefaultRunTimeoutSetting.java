@@ -26,11 +26,11 @@ import org.slf4j.LoggerFactory;
  * seed already contains it, or a second run of this unit) is matched out by the {@code config.key}
  * guard and left alone, so an operator's own value is never overwritten.
  */
-@Change(id = "0044-default-run-timeout-setting", author = "boomerang", transactional = false)
+@Change(id = "0045-default-run-timeout-setting", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0044__DefaultRunTimeoutSetting {
+public class _0045__DefaultRunTimeoutSetting {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0044__DefaultRunTimeoutSetting.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0045__DefaultRunTimeoutSetting.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
