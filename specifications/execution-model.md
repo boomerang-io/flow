@@ -114,7 +114,14 @@ jitter (`lib-common/.../util/Backoff.java:12-21`). The result is stored as `retr
 | Task run times out or its dispatcher disappears, type is requeueable, attempts < 3 | yes, requeued with backoff | `WorkflowWatcher.java:55-58`, `:157-163`, `:336-345` |
 | Task run reported `failed`/`invalid` by the dispatcher | no — the run advances or fails | `TaskExecutionService.java:463-473` |
 | Gate, wait or inline system task times out | no — terminal `timedout` | `WorkflowWatcher.java:53-56` |
-| Workflow run times out and `retries` > 0 | yes, as a NEW workflow run (`trigger=retry`, `initiatedByRef`) | `WorkflowExecutionService.java:245-255`, `WorkflowRunService.java:920-976` |
+| Workflow run times out and `retries` > 0 | yes, as a NEW workflow run (`trigger=retry`, `initiatedByRef`) | `WorkflowExecutionService.java:245-264`, `WorkflowRunService.java:941-1010` |
+
+A retried workflow run is a new run, so it clears the same quotas a submit clears and is clamped to the
+run-duration ceiling as it stands now, which may have been lowered since the original submit
+(`WorkflowRunService.java:965-977`). The floor is not re-checked: a retry re-runs the same revision with the same
+request, so its critical path cannot have moved. When the quota refuses an automatic retry the source run is already
+terminal, so the timeout path logs and stops rather than failing (`WorkflowExecutionService.java:250-263`); a
+user-initiated retry gets the 400 `QUOTA_EXCEEDED`.
 
 A requeue of a claimed attempt keeps `claim.by` (a pod may still be alive) and bumps `claim.seq`, so the stale attempt cannot report and the next
 attempt cannot start until the dispatcher's termination poll releases the claim (`TaskRunService.java:530-592`, `tryClaimForTermination` `:155`).

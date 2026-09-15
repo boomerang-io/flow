@@ -123,7 +123,7 @@ import tools.jackson.databind.ObjectMapper;
  * guarded:
  *
  * <ul>
- *   <li>quotas (canCreateWithQuotas, canRunWithQuotas, and the run-duration ceiling the chokepoint
+ *   <li>quotas (canCreateWithQuotas, assertRunQuotas, and the run-duration ceiling the chokepoint
  *       submit hands RunTimeoutPolicy) run only when the quota subsystem is on - see
  *       workspace.FlowQuotaProperties. Off in engine mode, where the run-duration ceiling falls
  *       back to the platform default in the "workspaces" settings.
@@ -260,7 +260,7 @@ public class WorkflowService {
    * A Workflow no workspace owns has no quota to apply, so it has no ceiling - only the floor and
    * the platform default constrain its runs.
    */
-  private long maxWorkflowDuration(String team) {
+  public long maxWorkflowDuration(String team) {
     if (team == null) {
       return 0;
     }
@@ -666,7 +666,7 @@ public class WorkflowService {
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
     // Check Quotas - Throws Exception
-    canRunWithQuotas(team, Optional.of(request.getWorkspaces()));
+    assertRunQuotas(team, Optional.of(request.getWorkspaces()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -961,10 +961,13 @@ public class WorkflowService {
     }
   }
 
-  /*
-   * Check if the Workspace Quotas allow a Workflow to run
+  /**
+   * Refuses, with {@code QUOTA_EXCEEDED}, a run the workspace's quotas have no room for:
+   * concurrent runs, runs this month, and the size of any Workspace it asks for. Public because a
+   * retry is a new run and has to clear the same limits a submit does - WorkflowRunService.retry
+   * calls this before it saves the clone.
    */
-  private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
+  public void assertRunQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
     if (quotasEnforced()) {
       CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
