@@ -298,7 +298,7 @@ public class DockerExecutor implements TaskExecutor {
         if (isTerminal(state)) {
           return endOf(task, containerId, state);
         }
-        if (Instant.now().isAfter(deadline)) {
+        if (!Instant.now().isBefore(deadline)) {
           stopQuietly(containerId);
           throw new TaskExecutionException(
               "DeadlineExceeded",
