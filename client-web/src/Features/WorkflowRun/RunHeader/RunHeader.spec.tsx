@@ -142,6 +142,27 @@ describe("RunHeader --- Initiated by", () => {
     expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "robot" })).toBeInTheDocument();
   });
+
+  // A child run started by a runworkflow task: initiatedByRef holds the submitting TaskRun's id,
+  // and the run that owns it comes back separately as initiatedByWorkflowRunRef.
+  it("links a task-triggered run back to the run that started it", () => {
+    renderRunHeader({
+      trigger: "task",
+      initiatedByRef: "651e4789ab1cb56bc8976b01",
+      initiatedByWorkflowRunRef: "651e4789ab1cb56bc8976b02",
+    });
+
+    const link = screen.getByTestId("initiated-by-parent-run-link");
+    expect(link).toHaveTextContent("651e4789ab1cb56bc8976b02");
+    expect(link).toHaveAttribute("href", `/${workspace}/activity/651e4789ab1cb56bc8976b02`);
+  });
+
+  it("keeps a task-triggered run's initiatedByRef as plain text when the parent run is unresolved", () => {
+    renderRunHeader({ trigger: "task", initiatedByRef: "651e4789ab1cb56bc8976b01" });
+
+    expect(screen.queryByTestId("initiated-by-parent-run-link")).not.toBeInTheDocument();
+    expect(screen.getByText("651e4789ab1cb56bc8976b01")).toBeInTheDocument();
+  });
 });
 
 // The Advanced detail modal builds the `kubectl`/`tkn` label selectors the user is invited to
