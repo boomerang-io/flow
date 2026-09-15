@@ -109,6 +109,7 @@ class LoaderMigrationTest {
     seedOrphanedFieldResidue();
     seedLegacyTeamQuotaSettings();
     seedLegacyFeatureFlagSettings();
+    seedLegacyWorkflowRunSettings();
   }
 
   /**
@@ -173,6 +174,31 @@ class LoaderMigrationTest {
                 .append("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString())
                 .append("version", 1)
                 .append("spec", new Document("params", List.of()).append("arguments", List.of("runworkflow"))));
+  }
+
+  /**
+   * A pre-{@code _0044} {@code workflowrun} settings document under the seed's own {@code _id}:
+   * {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
+   * _0044__ChildWorkflowWaitAndNesting} must add {@code max.nesting.depth} to the config list it
+   * already carries rather than leaving the key absent.
+   */
+  private static final ObjectId LEGACY_WORKFLOWRUN_SETTINGS_ID =
+      new ObjectId("60245957226920beece4fdf9");
+
+  private static void seedLegacyWorkflowRunSettings() {
+    collection("settings")
+        .insertOne(
+            new Document("_id", LEGACY_WORKFLOWRUN_SETTINGS_ID)
+                .append("key", "workflowrun")
+                .append("name", "Workspace Configuration - Activity Storage")
+                .append("type", "ValuesList")
+                .append(
+                    "config",
+                    List.of(
+                        new Document("key", "storage.size").append("value", "1Gi"),
+                        new Document("key", "storage.class").append("value", ""),
+                        new Document("key", "storage.accessMode").append("value", "ReadWriteMany"),
+                        new Document("key", "max.storage.size").append("value", "5Gi"))));
   }
 
   private static void seedOrphanedFieldResidue() {
@@ -296,7 +322,8 @@ class LoaderMigrationTest {
             .find(Filters.eq("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString()))
             .first();
     assertThat(runWorkflowRevision).isNotNull();
-    assertThat(paramNames(runWorkflowRevision)).contains("workflowRef");
+    // workflowRef from _0040, wait from _0044 - both appended to the same surviving revision.
+    assertThat(paramNames(runWorkflowRevision)).contains("workflowRef", "wait");
 
     Document runScheduledWorkflowRevision =
         collection("task_revisions")
@@ -361,6 +388,7 @@ class LoaderMigrationTest {
     assertV4ResidualCollectionsDropped();
     assertWorkerFlowImagesRepointed();
     assertRunWorkflowParamsDeclared();
+    assertChildWorkflowNestingCapAndIndex();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -1385,6 +1413,23 @@ class LoaderMigrationTest {
                 .map(config -> config.getString("key"))
                 .toList())
         .containsExactlyInAnyOrder("enabled", "level", "retentionDays");
+  }
+
+  /**
+   * {@code _0044}: the nesting cap lands in the {@code workflowrun} settings document the legacy
+   * fixture already occupied, and the cascade cancel's child-run lookup gets its index.
+   */
+  private void assertChildWorkflowNestingCapAndIndex() {
+    Document workflowRun = collection("settings").find(Filters.eq("key", "workflowrun")).first();
+    assertThat(workflowRun).isNotNull();
+    Document cap =
+        workflowRun.getList("config", Document.class).stream()
+            .filter(config -> "max.nesting.depth".equals(config.getString("key")))
+            .findFirst()
+            .orElse(null);
+    assertThat(cap).isNotNull();
+    assertThat(cap.getString("value")).isEqualTo("5");
+    assertIndex("workflow_runs", "initiated_by_phase", List.of("initiatedByRef", "phase"));
   }
 
   private void assertRelationshipAndAuditIndexes() {
