@@ -63,16 +63,18 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
 
     // A workflow-level password param, referenced by the node: the shape the engine substitutes
     // and the shape the sensitive-value filter recognises (the revision's param spec is the type
-    // authority - decision 0043).
+    // authority - decision 0043). It carries a different name from the node param that references
+    // it, because the task's own params are the innermost layer - $(params.token) inside a param
+    // named token would resolve against itself.
     Workflow workflow = new Workflow();
     workflow.setName("ai-task-type-run");
-    workflow.setParams(new LinkedList<>(List.of(password("token", TOKEN_VALUE))));
+    workflow.setParams(new LinkedList<>(List.of(password("aiToken", TOKEN_VALUE))));
     WorkflowTask ask = node("ask", TaskType.ai, aiTaskId, "start");
     ask.setParams(
         new LinkedList<>(
             List.of(
                 new RunParam("endpoint", "https://models.example.test/v1"),
-                new RunParam("token", "$(params.token)"),
+                new RunParam("token", "$(params.aiToken)"),
                 new RunParam("model", "test-model"),
                 new RunParam("prompt", "Summarise the release notes."))));
     workflow.setTasks(
@@ -141,7 +143,7 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
         DataAdapterUtil.REDACTED,
         paramValue(publicTask.getParams(), "token"),
         "the resolved token must not survive into a consumer-facing model");
-    assertEquals("", paramValue(publicRun.getParams(), "token"));
+    assertEquals("", paramValue(publicRun.getParams(), "aiToken"));
 
     // End with the six declared results; the graph advance finishes the run.
     taskRunService.start(taskRunId, Optional.empty());
