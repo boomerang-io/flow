@@ -3,6 +3,7 @@ package io.boomerang.event;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.event.config.EventSinkProperties;
+import io.boomerang.event.config.EventSinkProperties.Destination;
 import io.boomerang.event.model.TaskRunStatusEvent;
 import io.boomerang.event.model.WorkflowRunStatusEvent;
 import io.cloudevents.CloudEvent;
@@ -81,11 +82,21 @@ public class EventSinkService {
   // Delivery to every configured sink - transport failures propagate so the outbox dispatcher can
   // retry the row.
   private void httpSinkStrict(CloudEvent cloudEvent) {
+    final byte[] body = CEFormat.serialize(cloudEvent);
+    for (Destination sink : properties.sinks()) {
+      restTemplate.exchange(
+          sink.url(), HttpMethod.POST, new HttpEntity<>(body, headers(sink)), String.class);
+    }
+  }
+
+  // A sink's secret travels in its own header, on its own request, and is never logged. A bare URL
+  // sink sends the content type alone, exactly as before.
+  private static HttpHeaders headers(Destination sink) {
     final HttpHeaders headers = new HttpHeaders();
     headers.add("Content-Type", JsonFormat.CONTENT_TYPE);
-    final HttpEntity<byte[]> req = new HttpEntity<>(CEFormat.serialize(cloudEvent), headers);
-    for (String sinkUrl : properties.urls()) {
-      restTemplate.exchange(sinkUrl, HttpMethod.POST, req, String.class);
+    if (sink.authenticated()) {
+      headers.add(sink.headerName(), sink.headerValue());
     }
+    return headers;
   }
 }
