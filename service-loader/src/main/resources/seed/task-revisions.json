@@ -11343,7 +11343,7 @@
   "displayName": "AI",
   "description": "Send a prompt to an OpenAI-compatible model and capture its response as a result.",
   "category": "AI",
-  "icon": "Machine learning model",
+  "icon": "AI",
   "version": 1,
   "changelog": {
    "reason": "Initial Task Template",

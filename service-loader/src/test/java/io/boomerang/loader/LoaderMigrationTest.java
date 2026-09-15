@@ -645,6 +645,8 @@ class LoaderMigrationTest {
             .first();
     assertThat(revision).isNotNull();
     assertThat(revision.getString("category")).isEqualTo("AI");
+    // The icon key client-web maps (Utils/taskIcons.tsx); anything else renders a generic node.
+    assertThat(revision.getString("icon")).isEqualTo("AI");
     Document spec = revision.get("spec", Document.class);
     assertThat(spec.getString("image")).as("the dispatcher resolves the AI worker image").isEmpty();
 
