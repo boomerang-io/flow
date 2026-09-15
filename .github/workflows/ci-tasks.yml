@@ -1,0 +1,48 @@
+name: CI Tasks
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Only the task images live here, so the paths are narrow: a change anywhere else in the
+  # monorepo has nothing to verify in this workflow.
+  push:
+    branches:
+      - main
+    paths:
+      - 'tasks/**'
+      - '.github/workflows/ci-tasks.yml'
+  pull_request:
+    paths:
+      - 'tasks/**'
+      - '.github/workflows/ci-tasks.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-task-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      # bash, curl, jq and python3 are all on the runner; the test drives commands/prompt.sh
+      # against a local mock endpoint, so it needs no image build and no network.
+      - name: Test the ai task command
+        run: bash tasks/ai/test/run.sh
+      - name: Build the image
+        # A build-only check that the Dockerfile still works; the push happens on the product tag
+        # in ci-release.yml.
+        uses: docker/build-push-action@v6
+        with:
+          context: tasks/ai
+          file: tasks/ai/Dockerfile
+          push: false
+          tags: boomerangio/flow-task-ai:ci
+      - name: Slack
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,ref,workflow,took,job
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+# Release (Docker build + push) lives in ci-release.yml, triggered by the product tag — one tag
+# builds every image, this one included.
