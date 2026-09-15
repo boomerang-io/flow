@@ -609,6 +609,30 @@ public class TaskService {
     throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
   }
 
+  /*
+   * Deletes a global Task. Same shape as the workspace-scoped delete above - the name is resolved
+   * through the caller's own relationship and the shared delete refuses while a run still
+   * references it - so the catalogue is manageable from the global surface rather than only by
+   * making a Task inactive.
+   */
+  public void deleteGlobal(String name) {
+    if (Objects.isNull(name) || name.isBlank()) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
+    }
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(name)),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!refs.isEmpty()) {
+      delete(refs.get(0));
+      return;
+    }
+    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+  }
+
   // ── Unscoped operations (engine, workflow-definition and template callers) ─
 
   public Task get(String ref, Optional<Integer> version) {
