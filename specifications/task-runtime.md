@@ -96,6 +96,14 @@ The engine enforces both caps so the failure is one message on every executor; a
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:161-175`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
 | Results | `flow.engine.task.results.max-bytes=4096` | In `TaskRunService.end` (`TaskRunService.java:765-773`) | Status becomes `failed` with `RESULTS_TOO_LARGE`; the oversize results are not persisted |
 
+An oversize payload usually never reaches that engine check, because Kubernetes truncates a container
+termination message at 4096 bytes and the truncated prefix is broken JSON. `TerminationMessageParser` reports an
+unparseable message as absent rather than as "no results", and `KubeJobsExecutor.readResults` fails the task with
+`ResultsTooLarge` when the pod log carries Kubernetes' own too-large line or when the unparseable message is at
+the ceiling; a short unparseable message is a task writing something that is not a results payload, so it is
+logged and carries no results. On Tekton the overflow fails the TaskRun itself and is mapped the same way
+(`TektonServiceImpl.java:606`).
+
 ## Run labels on Kubernetes objects
 
 Run labels are user metadata and reach the dispatcher unchecked, but Kubernetes rejects an entire object when one
