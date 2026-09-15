@@ -92,6 +92,16 @@ smaller of the workflow's `boomerang.io/task-timeout` annotation and the task's 
 A task timeout on the final write times out the whole run (`TaskExecutionService.java:487-490`); a workflow timeout
 cancels every queued, running and pending task (`engine/WorkflowExecutionService.java:259-292`).
 
+A run's timeout is settled at submit, in the one method every path that creates a run passes through
+(`workflow/WorkflowService.java:1864-1870`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
+wins, else the revision's, else the platform default in the `workflowrun` settings document's `default.timeout`
+(`RunTimeoutPolicy.java:152-166`) - a run is never created unguarded just because nobody named a budget. That value
+must be at least the revision's critical path, the longest chain of declared task timeouts through the graph
+(`RunTimeoutPolicy.java:100-114`); below it the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306) rather
+than admitting a run whose guard fires beneath its own tasks. The owning workspace's `max.workflowrun.duration` quota
+is the ceiling, clamped after the floor is cleared, and a ceiling below the floor is refused with the same error
+naming the quota (`RunTimeoutPolicy.java:81-91`).
+
 ## Retry
 
 One backoff class exists: `Backoff.nextRetryAt` gives 10 s doubling per attempt, capped at 5 min, plus up to 5 s
