@@ -2,10 +2,10 @@
 
 A task runs when the engine in `service-core` admits it to the claim-based queue, a `service-dispatcher`
 instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image on Kubernetes and
-reports the results back. Only `template`, `custom`, `script` and `generic` tasks go to a dispatcher
-(`engine/TaskExecutionService.java:189-194`); every other type runs inside the engine. The shipped dispatcher
+reports the results back. Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
+(`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the engine. The shipped dispatcher
 registers `template`, `custom` and `script` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
-so a `generic` task waits in the queue until a dispatcher registers that type.
+so a `generic` or `ai` task waits in the queue until a dispatcher registers that type.
 
 ## Dispatcher protocol
 
@@ -151,12 +151,54 @@ the API server (`KubeHelperService.java:240`). Tasks, claims and ConfigMaps are 
 or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
 (`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either executor.
 
+## AI tasks
+
+An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references the
+seeded `ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher resolves the
+Flow-shipped worker image from `flow.dispatcher.ai.image` because the catalogue entry declares none. Everything
+the model call needs is a declared param.
+
+| Param | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `endpoint` | `text`, required | — | An OpenAI-compatible base URL: OpenRouter, LiteLLM, Azure AI Foundry, Ollama |
+| `token` | `password`, required | — | The endpoint's API token |
+| `model` | `text`, required | — | The model identifier the endpoint expects |
+| `systemPrompt` | `texteditor::text` | empty | Sent as the system message |
+| `prompt` | `texteditor::text`, required | — | Supports `$(params.x)` and `$(tasks.x.results.y)` |
+| `temperature` | `slider` 0–2 step 0.1 | `0.7` | Sampling temperature |
+| `maxTokens` | `number` | `1024` | Upper bound on generated tokens |
+| `responseFormat` | `select` `text`\|`json` | `text` | Free text or a JSON object |
+| `seed` | `number` | empty | Sampling seed, where the endpoint honours one |
+| `files` | `text` | empty | Comma-separated paths on the run workspace, read into context |
+| `maxContextBytes` | `number` | `65536` | Byte budget for `files` |
+
+`slider` is the only param type with a numeric range, so `AbstractParam` carries nullable `min`, `max` and
+`step` beside `options` (`lib-common/.../model/AbstractParam.java`).
+
+The task declares six results — `output`, `promptTokens`, `completionTokens`, `totalTokens`, `finishReason`,
+`model` — as flat typed results on the TaskRun under the same 4 KB cap as every other task (decision 0041). A
+long `output` therefore fails the run with `RESULTS_TOO_LARGE` rather than truncating. There is no usage field
+and no meter: a platform sums `totalTokens` across task runs through the existing query API.
+
+**Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
+(`DispatcherService.java:212-271`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
+deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
+isolation tiers. No configuration separates zones inside one dispatcher.
+
+**Token delivery.** `token` is password-typed, so it is blanked and value-scrubbed on the workspace-scoped run
+reads and the log stream (decision 0043). Downward it is a plain `PARAM_TOKEN` environment variable on the
+pod, like every other param — there are no per-task secrets yet, so anyone who can read the pod spec or exec
+into the pod can read the token.
+
 ## Task catalogue
 
 Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image
-(`service-loader/.../migration/_0039__RepointWorkerFlowImages.java:21-22,54`). The loader seeds 87 tasks and
+(`service-loader/.../migration/_0039__RepointWorkerFlowImages.java:21-22,54`). The loader seeds 88 tasks and
 their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and `task_revisions`,
-inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). A `template` or `script` task without
+inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). That unit runs once per install, so a
+task added to the seed afterwards needs a change unit of its own to reach an existing database — `ai` has
+`_0047__SeedAiTask`, which reads the same two seed documents and inserts the task, its revision and its root
+edge if absent. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`), added to an existing
@@ -169,7 +211,7 @@ catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWai
 | Type | Behaviour |
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
-| `template`, `custom`, `script`, `generic` | Wait for a dispatcher |
+| `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
 | `decision` | Evaluates the branch and ends `succeeded` |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status (see `execution-model.md`) |

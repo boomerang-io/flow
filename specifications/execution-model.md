@@ -69,7 +69,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 
 | Sweep (`WorkflowWatcher.java`) | Selects | Does |
 | --- | --- | --- |
-| `reapTaskTimeouts` `:160` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:445`) | requeues a `template`/`custom`/`script`/`generic` task with attempts < 3 (`tryRequeue` `:548`); otherwise marks it `timedout` (`tryTimeout` `:485`) and ends it |
+| `reapTaskTimeouts` `:160` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:445`) | requeues a dispatched task — `template`, `custom`, `script`, `generic`, `ai` — with attempts < 3 (`tryRequeue` `:548`); otherwise marks it `timedout` (`tryTimeout` `:485`) and ends it |
 | `reapWorkflowTimeouts` `:190` | running, unpaused workflow runs past `timeoutAt` (`findTimedOut` `:206`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:893`) |
 | `recoverStalledRuns` `:203` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
 | `resumeDueWaitingTasks` `:225` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:771`) |
