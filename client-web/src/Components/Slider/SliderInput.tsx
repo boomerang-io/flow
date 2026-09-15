@@ -15,7 +15,9 @@ import BasicSlider from "./Slider";
  * params as strings and `WorkflowNodeData.params` is `Array<{ name: string; value: string }>`.
  */
 interface SliderInputProps {
-  formikProps: FormikProps<any>;
+  // Optional because the task-update modal renders both columns' params through DataDrivenInput
+  // directly, without a Formik context - those are read-only, so nothing is ever written back.
+  formikProps?: FormikProps<any>;
   id?: string;
   name?: string;
   label?: string;
@@ -53,8 +55,8 @@ export default function SliderInput(props: SliderInputProps) {
       step={step}
       sliderValue={toNumber(props.value, min)}
       onChange={(value: number) => {
-        formikProps.setFieldTouched(fieldKey, true, false);
-        formikProps.setFieldValue(fieldKey, String(value));
+        formikProps?.setFieldTouched(fieldKey, true, false);
+        formikProps?.setFieldValue(fieldKey, String(value));
       }}
     />
   );

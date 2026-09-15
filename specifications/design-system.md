@@ -151,7 +151,7 @@ status colour ad hoc.
 
 A catalogue task's parameters are rendered generically: the editor's config modal hands
 `task.spec.params` to the add-ons' `DynamicFormik`, which dispatches on each param's `type`
-(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:92`).
+(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:95`).
 The type vocabulary is `InputType` (`client-web/src/Constants/index.ts:86`); the Task Manager's
 add/edit-field form offers the same list
 (`client-web/src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:22`).
@@ -171,7 +171,7 @@ component through its `customComponent` escape hatch
 (`client-web/src/Utils/paramsHelper.ts:11`). Two rules hold for it:
 
 - The value is written back to the form as a **string**, like every other param value
-  (`client-web/src/Components/Slider/SliderInput.tsx:37`).
+  (`client-web/src/Components/Slider/SliderInput.tsx:39`).
 - The value is clamped to `[min, max]` and snapped to `step`, with the floating-point residue of
   fractional steps trimmed (`client-web/src/Components/Slider/Slider.tsx:23`).
 
