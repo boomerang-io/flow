@@ -1291,7 +1291,27 @@ public class WorkflowService {
             });
   }
 
+  /*
+   * Every node other than start and end must name the Task it runs. Without a reference there is
+   * nothing to resolve at save time and nothing to execute at run time, so the workflow is
+   * rejected here - at save and again at submit, because a workflow saved before this check
+   * could still carry one.
+   */
+  private static void validateTaskRefsPresent(List<WorkflowTask> tasks) {
+    if (tasks == null) {
+      return;
+    }
+    for (WorkflowTask task : tasks) {
+      if (!"start".equals(task.getName())
+          && !"end".equals(task.getName())
+          && (task.getTaskRef() == null || task.getTaskRef().isBlank())) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_MISSING_TASK_REF, task.getName());
+      }
+    }
+  }
+
   private void convertTaskSlugsToRefs(String team, Workflow workflow) {
+    validateTaskRefsPresent(workflow.getTasks());
     workflow
         .getTasks()
         .forEach(
@@ -1836,6 +1856,7 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
     }
     WorkflowRevisionEntity wfRevision = optWorkflowRevisionEntity.get();
+    validateTaskRefsPresent(wfRevision.getTasks());
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
     wfRunEntity.setWorkflowRevisionRef(wfRevision.getId());
