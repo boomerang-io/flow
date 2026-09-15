@@ -14,6 +14,7 @@ Every public route is under `/api/v2`; resources owned by a workspace sit under
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workspace/WorkspaceInsightsControllerV2.java:27` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
 | Global | `/api/v2/{auth,user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/AuthControllerV2.java:37`, `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
+| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox` | `core/SystemControllerV2.java:35`, `event/OutboxControllerV2.java` |
 | Dispatcher | `/api/v1/dispatcher` | `dispatcher/DispatcherControllerV1.java:41` |
 
 `/api/v2/workflowtemplate` is read-only: `GET /{name}` and `GET /query` are the whole surface
@@ -22,6 +23,13 @@ resource — the loader seeds them and a v3 upgrade imports them — so there is
 change or delete one. A client creates a Workflow from a template by reading the template and
 posting its body to `POST /api/v2/workspace/{workspace}/workflow`
 (`client-web/src/Features/Home/Home.tsx:61-78`).
+
+The global Task catalogue carries the same operations as the workspace-scoped one, `DELETE /api/v2/task/{name}`
+included (`workflow/TaskControllerV2.java`); it refuses with `TASK_DELETE_IN_USE` (`409`) while a run in flight
+still references the Task. Two system routes serve the outbound event outbox: `GET /api/v2/system/outbox`
+(`?status=`, default `dead`, plus `page`/`limit`) lists rows, and `PUT /api/v2/system/outbox/replay`
+(`?ids=`, `?status=`, `?olderThan=` epoch milliseconds) puts them back in the queue and answers
+`{"replayed": n}`. Both need `system` permission and a `global` token.
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered
@@ -45,6 +53,14 @@ Every API error, including authentication failures, is a `RestErrorResponse`
 | `code`, `reason`, HTTP status | The `BoomerangError` enum constant (`lib-common/.../error/BoomerangError.java`); code ranges: 0–999 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter (`BoomerangError.java:13-17`) |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:12`); an explicit exception message wins (`RestExceptionHandler.java:42-50`) |
 | `cause` | Present only when the exception has a cause (`:53-55`) |
+
+A `*_INVALID_REF*` code answers `404` and means the resource the request path addresses does not exist; blank,
+missing or unusable input answers `400` under the matching `*_INVALID_REQ` code (`TEAM_INVALID_REQ`,
+`WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ`, `WORKFLOWRUN_INVALID_REQ`,
+`TASKRUN_INVALID_REQ`, `SCHEDULE_INVALID_REQ`). A reference that fails to resolve *inside a body* stays `400` —
+the route exists and the payload is wrong — which is why a workflow node naming a Task that does not exist is
+`WORKFLOW_INVALID_TASK_REF` on `400`, and a node carrying no task reference at all is `WORKFLOW_MISSING_TASK_REF`
+on `400` at both save and submit. Decision 0080 states the rule.
 
 ## Pagination and sorting
 
