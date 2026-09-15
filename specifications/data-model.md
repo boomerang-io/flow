@@ -149,7 +149,6 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0040__DeclareRunWorkflowParams` | all | Declares the params the `run-workflow` and `run-scheduled-workflow` catalogue tasks read |
 | `_0042__AuditEventRestructure` | all | Drops the per-object `audit` records and their indexes, creates the flat-event indexes (table above), seeds the `audit` settings document |
 | `_0043__RunPhaseFinalizedIsCompleted` | all | Rewrites the retired `finalized` phase to `completed` on `workflow_runs` and `task_runs`; `completed` is terminal and `RunPhase` no longer has the old member |
-| `_0045__DefaultRunTimeoutSetting` | all | Adds `default.timeout` to the `workflowrun` settings document - the timeout a run gets when neither the request nor the revision declares one. Set-if-absent, so an operator's own value survives |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

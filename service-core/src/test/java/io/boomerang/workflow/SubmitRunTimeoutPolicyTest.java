@@ -12,14 +12,11 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
-import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.core.model.SettingConfig;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -40,9 +37,10 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "run-timeout-policy-task";
 
-  // The default this test seeds into the "workflowrun" settings document, deliberately different
-  // from any quota ceiling below so the two cannot be confused for one another.
-  private static final long PLATFORM_DEFAULT = 30L;
+  // The run-duration quota the default-case workspaces below are created with - deliberately not
+  // the seeded platform default (30), so a run that lands on it can only have come from the
+  // workspace's own quota.
+  private static final long WORKSPACE_RUN_DURATION = 120L;
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
@@ -53,7 +51,6 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
     seedRelationshipRoot();
     seedTeamQuotaSettings();
     seedTaskSettings();
-    seedRunTimeoutSetting();
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     setFeatureSetting("workspaceQuotas", false);
@@ -61,20 +58,20 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aRunWithNoDeclaredTimeoutGetsThePlatformDefault() {
-    String workspace = createWorkspace("timeout-default", 120);
+  void aRunWithNoDeclaredTimeoutGetsTheWorkspacesRunDurationQuota() {
+    String workspace = createWorkspace("timeout-default", (int) WORKSPACE_RUN_DURATION);
     workflowService.create(workspace, workflow("timeout-default-workflow", 0, 0));
 
     WorkflowRun run =
         workflowService.submit(workspace, "timeout-default-workflow", request(null), false);
 
-    // The default, not the 120 minute ceiling the run used to be created at.
-    assertEquals(PLATFORM_DEFAULT, run.getTimeout());
+    // The workspace's own quota, not the platform default every workspace starts from.
+    assertEquals(WORKSPACE_RUN_DURATION, run.getTimeout());
   }
 
   @Test
   void aTimeoutBelowTheCriticalPathOfTaskBudgetsIsRejected() {
-    String workspace = createWorkspace("timeout-floor", 120);
+    String workspace = createWorkspace("timeout-floor", (int) WORKSPACE_RUN_DURATION);
     workflowService.create(workspace, workflow("timeout-floor-workflow", 20, 30));
 
     BoomerangException ex =
@@ -90,7 +87,7 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aTimeoutAtTheCriticalPathIsAccepted() {
-    String workspace = createWorkspace("timeout-floor-met", 120);
+    String workspace = createWorkspace("timeout-floor-met", (int) WORKSPACE_RUN_DURATION);
     workflowService.create(workspace, workflow("timeout-floor-met-workflow", 20, 30));
 
     WorkflowRun run =
@@ -132,7 +129,7 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
   void anInternalSubmitTakesTheSamePath() {
     // Schedules, webhooks and events all reach a run through internalSubmit, which skips the
     // relationship walk the public submit does - the policy has to sit below both.
-    String workspace = createWorkspace("timeout-internal", 120);
+    String workspace = createWorkspace("timeout-internal", (int) WORKSPACE_RUN_DURATION);
     workflowService.create(workspace, workflow("timeout-internal-budgets", 20, 30));
     workflowService.create(workspace, workflow("timeout-internal-no-budgets", 0, 0));
 
@@ -147,7 +144,7 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
     WorkflowRun run =
         workflowService.internalSubmit(
             workspace, refOf(workspace, "timeout-internal-no-budgets"), request(null), false);
-    assertEquals(PLATFORM_DEFAULT, run.getTimeout());
+    assertEquals(WORKSPACE_RUN_DURATION, run.getTimeout());
   }
 
   private String refOf(String workspace, String name) {
@@ -208,33 +205,5 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
       task.setDependencies(new LinkedList<>(List.of(dependency)));
     }
     return task;
-  }
-
-  // The platform default run timeout the loader seeds into the "workflowrun" settings document.
-  // Merges rather than replaces - the shared Testcontainers Mongo means other classes may have
-  // seeded their own keys into this one document.
-  private void seedRunTimeoutSetting() {
-    SettingEntity settings = settingsRepository.findOneByKey(RunTimeoutPolicy.WORKFLOWRUN_SETTINGS_KEY);
-    if (settings == null) {
-      settings = new SettingEntity();
-      settings.setKey(RunTimeoutPolicy.WORKFLOWRUN_SETTINGS_KEY);
-      settings.setName("WorkflowRun");
-      settings.setConfig(new ArrayList<>());
-    }
-    List<SettingConfig> config = new ArrayList<>(settings.getConfig());
-    config.stream()
-        .filter(c -> RunTimeoutPolicy.DEFAULT_TIMEOUT.equals(c.getKey()))
-        .findFirst()
-        .ifPresentOrElse(
-            c -> c.setValue(Long.toString(PLATFORM_DEFAULT)),
-            () -> {
-              SettingConfig added = new SettingConfig();
-              added.setKey(RunTimeoutPolicy.DEFAULT_TIMEOUT);
-              added.setType("number");
-              added.setValue(Long.toString(PLATFORM_DEFAULT));
-              config.add(added);
-            });
-    settings.setConfig(config);
-    settingsRepository.save(settings);
   }
 }

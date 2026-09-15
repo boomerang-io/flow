@@ -513,14 +513,6 @@
           "type": "text",
           "value": "5Gi",
           "readOnly": false
-        },
-        {
-          "description": "The timeout in minutes applied to a WorkflowRun when neither the request nor the Workflow declares one. 0 leaves such a run unguarded.",
-          "key": "default.timeout",
-          "label": "Default Run Timeout",
-          "type": "number",
-          "value": "30",
-          "readOnly": false
         }
       ],
       "description": "Define how the system utilizes and interacts with storage.",

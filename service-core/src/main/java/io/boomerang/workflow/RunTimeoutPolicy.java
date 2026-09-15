@@ -5,6 +5,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.SettingsService;
+import io.boomerang.workspace.WorkspaceService;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -21,9 +22,11 @@ import org.springframework.stereotype.Service;
  * <p>Three rules, applied in order to every submit:
  *
  * <ol>
- *   <li><b>Default.</b> The request's timeout wins, else the revision's, else the platform default
- *       in the {@code workflowrun} settings document. A run can no longer be created unguarded
- *       just because neither the caller nor the Workflow named a budget.
+ *   <li><b>Default.</b> The request's timeout wins, else the revision's, else the run-duration
+ *       quota itself - the workspace's own {@code maxWorkflowRunDuration} override when it has
+ *       one, else the platform {@code workspaces}/{@code max.workflowrun.duration} setting. A run
+ *       can no longer be created unguarded just because neither the caller nor the Workflow named
+ *       a budget.
  *   <li><b>Floor.</b> The timeout must be at least the critical path of the revision's task
  *       budgets - the longest chain of explicit task timeouts through the graph. A run guard
  *       beneath the budget of the work it guards reaps healthy tasks.
@@ -40,9 +43,6 @@ import org.springframework.stereotype.Service;
 public class RunTimeoutPolicy {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  public static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
-  public static final String DEFAULT_TIMEOUT = "default.timeout";
-
   private static final String SOURCE_REQUEST = "requested run timeout";
   private static final String SOURCE_WORKFLOW = "Workflow's run timeout";
   private static final String SOURCE_DEFAULT = "default run timeout";
@@ -58,7 +58,8 @@ public class RunTimeoutPolicy {
    * @param requested the submit request's timeout, null or 0 when the caller named none
    * @param revisionTimeout the Workflow revision's timeout, null or 0 when it declares none
    * @param tasks the revision's tasks, the graph the floor is measured over
-   * @param ceiling the workspace's maximum run duration in minutes, 0 or less for no ceiling
+   * @param ceiling the workspace's maximum run duration in minutes, 0 or less when no workspace
+   *     owns the Workflow - which is also the default when nobody declares a timeout
    * @return the timeout to stamp on the run, in minutes
    * @throws BoomerangException {@code WORKFLOWRUN_TIMEOUT_TOO_SHORT} when no value satisfies both
    *     the floor and the ceiling
@@ -146,20 +147,26 @@ public class RunTimeoutPolicy {
   }
 
   /**
-   * The platform default run timeout. An install whose settings predate this key falls back to the
-   * ceiling, which is the value a run with no declared timeout used to be created with.
+   * The default for a run nobody declared a timeout for: the run-duration quota itself. The
+   * workspace's own ceiling when it has one, and otherwise - a Workflow no workspace owns - the
+   * platform setting every workspace quota starts from. An install missing that setting has no
+   * quota to apply at all, so such a run stays unguarded rather than failing to submit.
    */
   private long defaultTimeout(long ceiling) {
+    if (ceiling > 0) {
+      return ceiling;
+    }
     try {
       return Long.parseLong(
-          settingsService.getSettingConfig(WORKFLOWRUN_SETTINGS_KEY, DEFAULT_TIMEOUT).getValue());
+          settingsService
+              .getSettingConfig(
+                  WorkspaceService.WORKSPACES_SETTINGS_KEY,
+                  WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
+              .getValue());
     } catch (RuntimeException e) {
-      LOGGER.warn(
-          "No {}.{} setting; defaulting a run with no declared timeout to the ceiling ({}).",
-          WORKFLOWRUN_SETTINGS_KEY,
-          DEFAULT_TIMEOUT,
-          ceiling);
-      return Math.max(ceiling, 0);
+      LOGGER.warn("No {} quota settings; a run with no declared timeout stays unguarded.",
+          WorkspaceService.WORKSPACES_SETTINGS_KEY);
+      return 0;
     }
   }
 
