@@ -123,10 +123,10 @@ import tools.jackson.databind.ObjectMapper;
  * guarded:
  *
  * <ul>
- *   <li>quotas (canCreateWithQuotas, canRunWithQuotas, the run-duration ceiling in internalSubmit)
- *       run only when the quota subsystem is on - see workspace.FlowQuotaProperties. Off in engine
- *       mode, where the run-duration ceiling falls back to the platform default in the "workspaces"
- *       settings.
+ *   <li>quotas (canCreateWithQuotas, canRunWithQuotas, and the run-duration ceiling the chokepoint
+ *       submit hands RunTimeoutPolicy) run only when the quota subsystem is on - see
+ *       workspace.FlowQuotaProperties. Off in engine mode, where the run-duration ceiling falls
+ *       back to the platform default in the "workspaces" settings.
  *   <li>schedules (delete, updateScheduleTriggers) are skipped when no ScheduleService bean is
  *       present, because engine mode has no schedule management at all (ruling I2).
  * </ul>
@@ -164,6 +164,7 @@ public class WorkflowService {
   private final ActionRepository actionRepository;
   private final TokenService tokenService;
   private final ObjectProvider<WorkspaceService> workspaceService;
+  private final RunTimeoutPolicy runTimeoutPolicy;
   private final boolean quotasEnabled;
   private final ObjectMapper objectMapper;
 
@@ -187,6 +188,7 @@ public class WorkflowService {
       ActionRepository actionRepository,
       TokenService tokenService,
       ObjectProvider<WorkspaceService> workspaceService,
+      RunTimeoutPolicy runTimeoutPolicy,
       Environment environment,
       ObjectMapper objectMapper) {
     this.workflowRepository = workflowRepository;
@@ -202,6 +204,7 @@ public class WorkflowService {
     this.actionRepository = actionRepository;
     this.tokenService = tokenService;
     this.workspaceService = workspaceService;
+    this.runTimeoutPolicy = runTimeoutPolicy;
     this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
     this.objectMapper = objectMapper;
   }
@@ -224,15 +227,30 @@ public class WorkflowService {
   }
 
   /*
+   * The workspace that owns a Workflow, or null when the relationship graph records none. The
+   * run-duration ceiling is a property of the owner, not of the path a caller arrived on, so the
+   * chokepoint submit resolves it here rather than trusting a team segment - and callers that
+   * carry no team at all (the engine running a runworkflow task) get the same ceiling as everyone
+   * else.
+   */
+  private String owningWorkspaceOrNull(String workflowId) {
+    String workspace =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowId);
+    return workspace == null || workspace.isBlank() ? null : workspace;
+  }
+
+  /*
    * The ceiling for a WorkflowRun's timeout, in minutes.
    *
    * With the quota subsystem on this is the workspace's max run duration (its own quota override
    * if set, else the platform default). In engine mode there is no WorkspaceService and no
    * per-workspace quota record, so the platform default in the "workspaces" settings document
    * stands on its own - the same value WorkspaceService.getWorkflowMaxDurationForTeam starts from.
+   * An unowned Workflow falls back to that same platform default.
    */
   private long maxWorkflowDuration(String team) {
-    if (quotasEnabled) {
+    if (quotasEnabled && team != null) {
       return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
     }
     return Long.parseLong(
@@ -645,12 +663,6 @@ public class WorkflowService {
       request.setDebug(Boolean.valueOf(enableDebug));
       LOGGER.info("Setting debug = " + enableDebug);
     }
-    // Set Workflow Timeout
-    Long timeout = maxWorkflowDuration(team);
-    if (!Objects.isNull(request.getTimeout()) && request.getTimeout() < timeout) {
-      timeout = request.getTimeout();
-    }
-    request.setTimeout(Long.valueOf(timeout));
     // These annotations are processed by the DAGUtility in the Engine
     Map<String, Object> executionAnnotations = new HashMap<>();
     executionAnnotations.put(
@@ -1847,9 +1859,15 @@ public class WorkflowService {
     wfRunEntity.setParams(ParameterUtil.abstractParamToRunParam(wfRevision.getParams()));
 
     wfRunEntity.setWorkspaces(wfRevision.getWorkspaces());
-    if (!Objects.isNull(wfRevision.getTimeout()) && wfRevision.getTimeout() != 0) {
-      wfRunEntity.setTimeout(wfRevision.getTimeout());
-    }
+    // Every submit path reaches here, so this is where the run timeout is settled: defaulted when
+    // nobody declared one, floored at the revision's critical path of task budgets, then clamped
+    // by the owning workspace's run-duration quota.
+    wfRunEntity.setTimeout(
+        runTimeoutPolicy.resolve(
+            request.getTimeout(),
+            wfRevision.getTimeout(),
+            wfRevision.getTasks(),
+            maxWorkflowDuration(owningWorkspaceOrNull(workflowId))));
     if (!Objects.isNull(wfRevision.getRetries()) && wfRevision.getRetries() != 0) {
       wfRunEntity.setRetries(wfRevision.getRetries());
     }
@@ -1867,9 +1885,6 @@ public class WorkflowService {
     }
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       wfRunEntity.getWorkspaces().addAll(request.getWorkspaces());
-    }
-    if (!Objects.isNull(request.getTimeout()) && request.getTimeout() != 0) {
-      wfRunEntity.setTimeout(request.getTimeout());
     }
     if (!Objects.isNull(request.getRetries()) && request.getRetries() != 0) {
       wfRunEntity.setRetries(request.getRetries());
