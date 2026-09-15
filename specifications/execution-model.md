@@ -167,8 +167,9 @@ A `runworkflow` task submits another workflow as a child run (`engine/TaskExecut
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and
 `initiatedByRef` = the submitting TaskRun's id — the same typed pair the retry path uses
 (`WorkflowRunEntity.trigger`/`initiatedByRef`, decision 0020). There is no `parentRef` field. The public
-`WorkflowRun` model resolves the run that owns that TaskRun onto `initiatedByWorkflowRunRef` at read time, so a
-client can link a child back to its parent without a TaskRun lookup (`workflow/WorkflowRunService.java:990-1010`).
+`WorkflowRun` model resolves the run that owns that TaskRun onto `initiatedByWorkflowRunRef` on the single-run read,
+so a client can link a child back to its parent without a TaskRun lookup of its own
+(`workflow/WorkflowRunService.java:990-1002`).
 
 **Wait.** The catalogue task declares a boolean `wait` param, default `false`. With `wait=false` the task records
 the child's id as the `workflowRunRef` result and ends `succeeded` at once. With `wait=true` the task parks as
