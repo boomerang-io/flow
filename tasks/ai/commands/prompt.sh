@@ -264,7 +264,9 @@ if [ -d "$RESULTS_PATH" ]; then
   write_result_file finishReason "$FINISH_REASON"
   write_result_file model "$SERVED_MODEL"
 else
-  jq -n \
+  # -c: the file channel is the 4096-byte termination message, so every byte of indentation is a
+  # byte of answer that does not fit.
+  jq -cn \
     --arg output "$OUTPUT" \
     --arg promptTokens "$PROMPT_TOKENS" \
     --arg completionTokens "$COMPLETION_TOKENS" \
