@@ -33,7 +33,7 @@ against the `workflowrun` setting `max.nesting.depth` (default 5) before any chi
 
 - Composition works with no new run field, no held thread and no new engine→workflow synchronous call; the
   parent's own `timeoutAt` remains the only bound on a wait.
-- A cascade needs `workflow_runs {initiatedByRef, phase}` (`_0044__ChildWorkflowWaitAndNesting`), and the depth
+- A cascade needs `workflow_runs {initiatedByRef, phase}` (`_0046__DeclareRunWorkflowWaitParam`), and the depth
   check costs two lookups per ancestor level, capped by the limit itself.
 - Pause deliberately does not cascade — it is an admission flag on one run (decision 0013). Revisit if a paused
   parent leaving a child running is reported as a real operational problem.

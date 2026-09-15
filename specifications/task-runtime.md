@@ -157,7 +157,7 @@ inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). A `templ
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`), added to an existing
-catalogue by `_0040__DeclareRunWorkflowParams` and `_0044__ChildWorkflowWaitAndNesting`.
+catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWaitParam`.
 
 ## Task types handled inside the engine
 

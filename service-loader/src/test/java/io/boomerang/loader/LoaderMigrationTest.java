@@ -177,9 +177,9 @@ class LoaderMigrationTest {
   }
 
   /**
-   * A pre-{@code _0044} {@code workflowrun} settings document under the seed's own {@code _id}:
+   * A pre-{@code _0046} {@code workflowrun} settings document under the seed's own {@code _id}:
    * {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
-   * _0044__ChildWorkflowWaitAndNesting} must add {@code max.nesting.depth} to the config list it
+   * _0046__DeclareRunWorkflowWaitParam} must add {@code max.nesting.depth} to the config list it
    * already carries rather than leaving the key absent.
    */
   private static final ObjectId LEGACY_WORKFLOWRUN_SETTINGS_ID =
@@ -322,7 +322,7 @@ class LoaderMigrationTest {
             .find(Filters.eq("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString()))
             .first();
     assertThat(runWorkflowRevision).isNotNull();
-    // workflowRef from _0040, wait from _0044 - both appended to the same surviving revision.
+    // workflowRef from _0040, wait from _0046 - both appended to the same surviving revision.
     assertThat(paramNames(runWorkflowRevision)).contains("workflowRef", "wait");
 
     Document runScheduledWorkflowRevision =
@@ -1416,7 +1416,7 @@ class LoaderMigrationTest {
   }
 
   /**
-   * {@code _0044}: the nesting cap lands in the {@code workflowrun} settings document the legacy
+   * {@code _0046}: the nesting cap lands in the {@code workflowrun} settings document the legacy
    * fixture already occupied, and the cascade cancel's child-run lookup gets its index.
    */
   private void assertChildWorkflowNestingCapAndIndex() {

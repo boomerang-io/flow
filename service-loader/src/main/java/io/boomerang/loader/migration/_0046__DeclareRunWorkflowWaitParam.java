@@ -45,12 +45,12 @@ import org.slf4j.LoggerFactory;
  * install picks all of it up from {@code seed/task-revisions.json} and {@code seed/settings.json}
  * instead and finds nothing to do here.
  */
-@Change(id = "0044-child-workflow-wait-and-nesting", author = "boomerang", transactional = false)
+@Change(id = "0046-declare-run-workflow-wait-param", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0044__ChildWorkflowWaitAndNesting {
+public class _0046__DeclareRunWorkflowWaitParam {
 
   private static final Logger LOG =
-      LoggerFactory.getLogger(_0044__ChildWorkflowWaitAndNesting.class);
+      LoggerFactory.getLogger(_0046__DeclareRunWorkflowWaitParam.class);
 
   static final String RUN_WORKFLOW_PARENT_REF = "603591f5c267b8ce33782571";
 
