@@ -142,7 +142,13 @@ public class DockerExecutor implements TaskExecutor {
       command.withCmd(spec.getArguments());
     }
 
-    String containerId = command.exec().getId();
+    String containerId;
+    try {
+      containerId = command.exec().getId();
+    } catch (NotFoundException e) {
+      // The only thing create can fail to find is the image itself.
+      throw new TaskExecutionException("ImagePull", "IMAGE_NOT_FOUND - " + spec.getImage());
+    }
     if (script != null && !script.isBlank()) {
       copyScript(containerId, script);
     }
