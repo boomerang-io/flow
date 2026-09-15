@@ -69,7 +69,7 @@ public class SecurityConfiguration {
   // password is compared via PasswordEncoder.matches - constant-time - rather than a raw
   // String.equals. There is one operator-wide password, not a per-user credential store, so this
   // stays a plain bean rather than a full http.httpBasic()/UserDetailsService setup - see decision
-  // 0069.
+  // 0074.
   @Bean
   PasswordEncoder passwordEncoder() {
     return PasswordEncoderFactories.createDelegatingPasswordEncoder();

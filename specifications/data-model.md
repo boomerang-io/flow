@@ -95,6 +95,7 @@ Indexes exist only because a loader change unit created them (`MigrationUtils.en
 | `_0030__WorkspaceSearchIndexes` | `workspaces` | `name_lookup`, `display_name_lookup` |
 | `_0033__DefinitionIndexes` | `workflows`, `workflow_revisions`, `workflow_templates`, `tasks`, `task_revisions`, `workflow_schedules` | `name_lookup`, `(parent, version)` lookups, `fire_sweep` |
 | `_0036__RelationshipAndAuditIndexes` | `rel_nodes`, `rel_edges`, `audit`, `users` | `type_ref`, `type_slug`, `from_label`, `to_label`, `email_lookup` (its audit scope lookups are dropped again by `_0042`) |
+| `_0041__QuotaCountIndexes` | `workflow_runs` | `workflow_ref_creation` (monthly quota count and the insights date windows), `workflow_ref_status` (concurrent quota count) |
 | `_0042__AuditEventRestructure` | `audit` | `createdAt_ttl` (365-day TTL; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `_0037__SweepIndexes` | `task_runs`, `workflow_runs`, `actions` | `status_sweep`, `claimed_sweep` for the watcher and dispatcher polls |
 
@@ -147,8 +148,10 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0038__NormaliseUserEmails` | all | Lower-cases every `users.email` so the equality index serves lookups |
 | `_0039__RepointWorkerFlowImages` | all | Repoints catalogue tasks off the retired `worker-flow` image |
 | `_0040__DeclareRunWorkflowParams` | all | Declares the params the `run-workflow` and `run-scheduled-workflow` catalogue tasks read |
+| `_0041__QuotaCountIndexes` | all | Index unit (table above) |
 | `_0042__AuditEventRestructure` | all | Drops the per-object `audit` records and their indexes, creates the flat-event indexes (table above), seeds the `audit` settings document |
 | `_0043__RunPhaseFinalizedIsCompleted` | all | Rewrites the retired `finalized` phase to `completed` on `workflow_runs` and `task_runs`; `completed` is terminal and `RunPhase` no longer has the old member |
+| `_0044__ReencryptSettingsAesGcm` | all | Completes encryption at rest for `settings.config[]` entries typed `secured`: rewrites values under the retired static-IV AES/CBC label to AES-256-GCM, and encrypts values that were never encrypted at all |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

@@ -162,7 +162,7 @@ public class SettingsService {
       return value;
     }
 
-    // Only the AESGCM label exists in storage: the loader's _0041 change unit rewrites the
+    // Only the AESGCM label exists in storage: the loader's _0044 change unit rewrites the
     // retired CBC scheme before service-core starts.
     String replacedValue = value.replace("crypt_v1{AESGCM|", "").replace("}", "");
     return AESAlgorithm.decrypt(

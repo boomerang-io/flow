@@ -1,4 +1,4 @@
-# 0069 — Spring Security's native model replaces hand-rolled authentication and authorization mechanics
+# 0074 — Spring Security's native model replaces hand-rolled authentication and authorization mechanics
 
 **Status:** accepted · **Date:** 2026-09-02
 
@@ -24,7 +24,7 @@ AES/CBC with one hardcoded IV and no authentication tag.
 Options as above. A2 (permission-to-`GrantedAuthority` mapping) and A5 (`http.anonymous()`) had no live
 alternative to weigh - both are direct native replacements. Scheme versioning for the A6 migration is done at the
 application level (`crypt_v1{AESGCM|...}` vs the retired `crypt_v1{AES|...}`) since the library does not tag it;
-`service-loader`'s `_0041__ReencryptSettingsAesGcm` re-encrypts every stored value still under the old label,
+`service-loader`'s `_0044__ReencryptSettingsAesGcm` re-encrypts every stored value still under the old label,
 reproducing the retired cipher verbatim since the loader has no dependency on `service-core`.
 
 ## Consequences

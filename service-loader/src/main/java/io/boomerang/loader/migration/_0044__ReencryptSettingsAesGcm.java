@@ -37,11 +37,11 @@ import org.springframework.security.crypto.encrypt.Encryptors;
  * <p>Idempotent - only values carrying the legacy prefix are touched, so reruns and databases with
  * no encrypted settings are no-ops.
  */
-@Change(id = "0041-reencrypt-settings-aes-gcm", author = "boomerang", transactional = false)
+@Change(id = "0044-reencrypt-settings-aes-gcm", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0041__ReencryptSettingsAesGcm {
+public class _0044__ReencryptSettingsAesGcm {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0041__ReencryptSettingsAesGcm.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0044__ReencryptSettingsAesGcm.class);
 
   private static final String SECURED_TYPE = "secured";
   private static final String LEGACY_PREFIX = "crypt_v1{AES|";
