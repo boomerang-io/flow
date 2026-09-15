@@ -60,7 +60,7 @@ workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its 
 `PUT /api/v1/dispatcher/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:784`). A run submitted with
 `start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it; `start` defaults to true
 on the submit route, so parking is the explicit opt-out. A `runworkflow` task submits its
-child with `start=true`, so the child follows the same rule (`engine/TaskExecutionService.java:825`).
+child with `start=true`, so the child follows the same rule (see Child workflows below).
 
 ## The watcher sweeps
 
@@ -158,6 +158,41 @@ Cron and run-once schedules fire from `ScheduleWatcher`, standalone mode only, o
 (`schedule/ScheduleWatcher.java:34`, `:69-77`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
 `ScheduleService.tryClaimFire`, a CAS that advances `nextFireAt` to the next occurrence computed from now (`schedule/ScheduleService.java:459-472`),
 so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:137-161`).
+
+## Child workflows
+
+A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:794-900`).
+
+**Lineage.** The child is submitted through the lineage-stamping overload
+`WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and
+`initiatedByRef` = the submitting TaskRun's id — the same typed pair the retry path uses
+(`WorkflowRunEntity.trigger`/`initiatedByRef`, decision 0020). There is no `parentRef` field. The public
+`WorkflowRun` model resolves the run that owns that TaskRun onto `initiatedByWorkflowRunRef` at read time, so a
+client can link a child back to its parent without a TaskRun lookup (`workflow/WorkflowRunService.java:990-1010`).
+
+**Wait.** The catalogue task declares a boolean `wait` param, default `false`. With `wait=false` the task records
+the child's id as the `workflowRunRef` result and ends `succeeded` at once. With `wait=true` the task parks as
+`waiting` with **no** `waitUntil` (`TaskRunService.tryArmWait`), exactly like an `eventwait` — so the watcher's
+time-based resume never picks it up, and only the child's completion or the task's own `timeoutAt` ends it. The
+arm happens *before* the submit, so a child that finishes immediately always finds a parent already waiting.
+
+**Ending the parent.** `ChildWorkflowRunListener` listens on the `WorkflowRunTransition` event every CAS winner
+publishes. On a transition into the `completed` phase it re-reads the run and, when `trigger == task` and the
+named TaskRun is still `waiting`, calls `TaskRunService.end` — the same wire-level end the dispatcher uses, so all
+its fencing applies and a re-delivered transition ends the task once. A `succeeded` child succeeds the task; any
+other terminal status fails it with `statusMessage` "Child run `<id>` ended `<status>`" and
+`statusReason = ChildRunFailed`. The engine never calls back into the workflow side synchronously for this.
+
+**Cascade cancel.** The same listener, when a run ends `cancelled` or `timedout`, cancels every child run whose
+`initiatedByRef` is one of that run's TaskRun ids and whose phase is still `pending`/`queued`/`running` (served by
+the `workflow_runs {initiatedByRef, phase}` index). Cancelling a child republishes its own transition, so a nested
+chain unwinds from the top. **Pause does not cascade**: it is an admission flag on one run, so a paused parent
+leaves a running child alone.
+
+**Nesting depth.** Before submitting, the engine walks `initiatedByRef` up — TaskRun, then the run that owns it —
+counting levels, and fails the task with `statusReason = NestingDepthExceeded` without creating a child when the
+count has reached the cap. The cap is the `workflowrun` settings group's `max.nesting.depth` (default 5); the walk
+itself stops at the cap, so a broken lineage cannot make it unbounded.
 
 ## Task locks
 
