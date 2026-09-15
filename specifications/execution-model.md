@@ -93,7 +93,7 @@ A task timeout on the final write times out the whole run (`TaskExecutionService
 cancels every queued, running and pending task (`engine/WorkflowExecutionService.java:259-292`).
 
 A run's timeout is settled at submit, in the one method every path that creates a run passes through
-(`workflow/WorkflowService.java:1864-1870`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
+(`workflow/WorkflowService.java:1878-1884`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
 wins, else the revision's, else the platform default in the `workflowrun` settings document's `default.timeout`
 (`RunTimeoutPolicy.java:152-166`) - a run is never created unguarded just because nobody named a budget. That value
 must be at least the revision's critical path, the longest chain of declared task timeouts through the graph

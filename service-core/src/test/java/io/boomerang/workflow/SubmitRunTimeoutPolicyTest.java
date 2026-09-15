@@ -133,17 +133,20 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
     // Schedules, webhooks and events all reach a run through internalSubmit, which skips the
     // relationship walk the public submit does - the policy has to sit below both.
     String workspace = createWorkspace("timeout-internal", 120);
-    workflowService.create(workspace, workflow("timeout-internal-workflow", 20, 30));
-    String workflowId = refOf(workspace, "timeout-internal-workflow");
+    workflowService.create(workspace, workflow("timeout-internal-budgets", 20, 30));
+    workflowService.create(workspace, workflow("timeout-internal-no-budgets", 0, 0));
 
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
-            () -> workflowService.internalSubmit(workspace, workflowId, request(10L), false));
+            () ->
+                workflowService.internalSubmit(
+                    workspace, refOf(workspace, "timeout-internal-budgets"), request(10L), false));
     assertEquals("WORKFLOWRUN_TIMEOUT_TOO_SHORT", ex.getReason());
 
     WorkflowRun run =
-        workflowService.internalSubmit(workspace, workflowId, request(null), false);
+        workflowService.internalSubmit(
+            workspace, refOf(workspace, "timeout-internal-no-budgets"), request(null), false);
     assertEquals(PLATFORM_DEFAULT, run.getTimeout());
   }
 

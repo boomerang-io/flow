@@ -234,10 +234,19 @@ public class WorkflowService {
    * else.
    */
   private String owningWorkspaceOrNull(String workflowId) {
-    String workspace =
+    String ref =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowId);
-    return workspace == null || workspace.isBlank() ? null : workspace;
+    if (ref == null || ref.isBlank()) {
+      return null;
+    }
+    // The edge records the workspace's ref; the quota lookup is by name.
+    try {
+      return relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, ref);
+    } catch (RuntimeException e) {
+      LOGGER.warn("[{}] Owning workspace {} has no relationship node.", workflowId, ref);
+      return null;
+    }
   }
 
   /*
@@ -247,10 +256,15 @@ public class WorkflowService {
    * if set, else the platform default). In engine mode there is no WorkspaceService and no
    * per-workspace quota record, so the platform default in the "workspaces" settings document
    * stands on its own - the same value WorkspaceService.getWorkflowMaxDurationForTeam starts from.
-   * An unowned Workflow falls back to that same platform default.
+   *
+   * A Workflow no workspace owns has no quota to apply, so it has no ceiling - only the floor and
+   * the platform default constrain its runs.
    */
   private long maxWorkflowDuration(String team) {
-    if (quotasEnabled && team != null) {
+    if (team == null) {
+      return 0;
+    }
+    if (quotasEnabled) {
       return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
     }
     return Long.parseLong(
