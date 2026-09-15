@@ -14,7 +14,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.6</version>
+		<version>4.1.1</version>
 		<relativePath />
 	</parent>
 
@@ -23,18 +23,19 @@
 		<java.version>21</java.version>
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
-		<spring-framework.version>7.0.8</spring-framework.version>
+		<spring-framework.version>7.0.9</spring-framework.version>
 		<http.proxyHost />
 		<http.proxyPort />
 		<jacoco.out.paths>${project.build.directory}</jacoco.out.paths>
 		<sonar.jacoco.reportPath>${jacoco.out.path}/jacoco.exec</sonar.jacoco.reportPath>
 		<jacoco.version>0.8.9</jacoco.version>
 		<jsonwebtoken.version>0.11.5</jsonwebtoken.version>
-		<spring-security.version>6.5.11</spring-security.version>
+		<spring-security.version>7.1.1</spring-security.version>
+		<httpclient5.version>5.6.4</httpclient5.version>
 		<httpcomponents.core5.version>5.4.3</httpcomponents.core5.version>
 		<!-- <jackson.databind.version>2.13.4</jackson.databind.version> -->
 		<!-- <log4j2.version>2.17.1</log4j2.version> -->
-		<jackson.version>2.18.8</jackson.version>
+		<jackson.version>2.21.4</jackson.version>
 		<jackson3.version>3.1.4</jackson3.version>
 	</properties>
 	<dependencyManagement>
@@ -90,6 +91,11 @@
 				<groupId>com.fasterxml.jackson.core</groupId>
 				<artifactId>jackson-core</artifactId>
 				<version>${jackson.version}</version>
+			</dependency>
+			<dependency>
+    			<groupId>com.fasterxml.jackson.core</groupId>
+    			<artifactId>jackson-annotations</artifactId>
+    			<version>${jackson.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.maven</groupId>
@@ -189,6 +195,11 @@
 				<artifactId>httpcore5-h2</artifactId>
 				<version>${httpcomponents.core5.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>org.apache.httpcomponents.client5</groupId>
+				<artifactId>httpclient5</artifactId>
+				<version>${httpclient5.version}</version>
+			</dependency>
 
 		</dependencies>
 
@@ -235,7 +246,7 @@
 			<artifactId>jackson-dataformat-yaml</artifactId>
 		</dependency>
 		<dependency>
-                        <groupId>com.github.alturkovic.distributed-lock</groupId>
+            <groupId>com.github.alturkovic.distributed-lock</groupId>
 			<artifactId>distributed-lock-mongo</artifactId>
 			<version>3.0.0</version>
 		</dependency>
