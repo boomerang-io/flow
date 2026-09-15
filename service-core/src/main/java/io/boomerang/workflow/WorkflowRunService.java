@@ -995,6 +995,14 @@ public class WorkflowRunService {
       wfRun.setWorkflowName(optWorkflow.get().getName());
       wfRun.setWorkflowDisplayName(optWorkflow.get().getDisplayName());
     }
+    // A child run's initiatedByRef is the submitting TaskRun; resolve the run that owns it so the
+    // client can link back to the parent. Derived on read, exactly like workflowName above.
+    if (TriggerEnum.task.getTrigger().equals(wfRunEntity.getTrigger())
+        && wfRunEntity.getInitiatedByRef() != null) {
+      taskRunRepository
+          .findById(wfRunEntity.getInitiatedByRef())
+          .ifPresent(taskRun -> wfRun.setInitiatedByWorkflowRunRef(taskRun.getWorkflowRunRef()));
+    }
     // Remove Annotations
     // TODO determine if this should be done elsewhere
     wfRun.getAnnotations().remove("boomerang.io/global-params");
