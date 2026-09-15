@@ -348,7 +348,7 @@ public class WorkflowRunService {
    */
   public StreamingResponseBody streamTaskRunLog(String taskRunId) {
     if (Objects.isNull(taskRunId) || taskRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REQ);
     }
     TaskRun taskRun = taskRunService.get(taskRunId).getBody();
     if (!relationshipService.check(
@@ -399,7 +399,7 @@ public class WorkflowRunService {
    * owner, because a global-scope token passes {@link RelationshipService#check} for any workspace
    * (RelationshipService:417-419) - which is precisely how such a caller reaches a graph-orphaned
    * run - and adopting it is the wrong-owner bug this resolution exists to fix. So this refuses
-   * with the mapped {@link BoomerangError#TEAM_INVALID_REF} (400) the rest of the product already
+   * with the mapped {@link BoomerangError#TEAM_INVALID_REF} (404) the rest of the product already
    * uses for an unresolvable workspace, rather than minting a run no workspace owns.
    */
   private String owningWorkspace(String workflowRunId) {
@@ -478,7 +478,7 @@ public class WorkflowRunService {
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {
     if (wfRunId == null || wfRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     Optional<WorkflowRunEntity> wfRunEntity = workflowRunRepository.findById(wfRunId);
     if (wfRunEntity.isPresent()) {
@@ -801,7 +801,7 @@ public class WorkflowRunService {
 
   public WorkflowRun start(String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
@@ -840,7 +840,7 @@ public class WorkflowRunService {
 
   public WorkflowRun cancel(String workflowRunId) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
@@ -856,7 +856,7 @@ public class WorkflowRunService {
 
   public WorkflowRun pause(String workflowRunId) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
     // admission and the recovery sweeps exclude it from here on.
@@ -872,7 +872,7 @@ public class WorkflowRunService {
 
   public WorkflowRun resume(String workflowRunId) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
     if (workflowRunStateHelper.tryResume(workflowRunId)) {
@@ -893,7 +893,7 @@ public class WorkflowRunService {
    */
   public WorkflowRun timeout(String workflowRunId, boolean taskRunTimeout) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
     // can never overwrite a terminal status. Only the winner drives the timeout to completion.
@@ -920,7 +920,7 @@ public class WorkflowRunService {
 
   public WorkflowRun retry(String workflowRunId, boolean start, long retryCount) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Ownership travels with creation: user retries and the engine's auto-retry both come through
     // here, so both record the same owner through this one path. Resolved BEFORE the clone is
@@ -1022,7 +1022,7 @@ public class WorkflowRunService {
    */
   public void event(String workflowRunId, WorkflowRunEventRequest request) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
 
     final Optional<WorkflowRunEntity> optWfRunEntity =

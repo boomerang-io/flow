@@ -592,7 +592,7 @@ public class TaskService {
    */
   public void delete(String team, String name) {
     if (Objects.isNull(name) || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
     }
     List<String> refs =
         relationshipService.filter(
@@ -617,7 +617,7 @@ public class TaskService {
    */
   public void deleteGlobal(String name) {
     if (Objects.isNull(name) || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
     }
     List<String> refs =
         relationshipService.filter(
@@ -711,7 +711,7 @@ public class TaskService {
     validateDeclaredParamNames(request);
 
     if (!uniqueNamesEnabled && request.getId().isEmpty()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ, request.getName(), "latest");
     }
 
     // Does it already exist?
