@@ -8917,6 +8917,17 @@
       "helpertext": "The reference (or slug) of the Workflow to run.",
       "readOnly": false,
       "name": "workflowRef"
+     },
+     {
+      "description": "",
+      "label": "Wait for the child run to finish",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "When enabled, this task waits for the child run and takes its terminal status: the task succeeds only if the child run succeeds.",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "wait"
      }
     ],
     "arguments": [

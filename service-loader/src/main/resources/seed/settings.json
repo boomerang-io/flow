@@ -513,6 +513,14 @@
           "type": "text",
           "value": "5Gi",
           "readOnly": false
+        },
+        {
+          "description": "How many levels of child workflows a run may nest. A runworkflow task at the cap fails instead of submitting another child.",
+          "key": "max.nesting.depth",
+          "label": "Maximum Child Workflow Nesting Depth",
+          "type": "number",
+          "value": "5",
+          "readOnly": false
         }
       ],
       "description": "Define how the system utilizes and interacts with storage.",
