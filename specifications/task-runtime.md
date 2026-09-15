@@ -111,8 +111,14 @@ are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PAR
 ## Sensitive parameters
 
 A param is sensitive when its spec has `type=password` (`DataAdapterUtil.java:22`); there is no separate
-marker, and values are filtered on the way up only. The workspace-scoped `get` and `query` reads blank
-password-typed params by name and scrub their resolved values from task params, spec fields and results
+marker, and values are filtered on the way up only. The spec consulted is the **workflow revision's** param
+list, not the catalogue task's: `filterSensitiveValues` joins the run's own params against
+`revision.getParams()` (`workflow/WorkflowRunService.java:162-172`). So a password-typed value is blanked and
+scrubbed when the workflow declares it and the node references it as `$(params.x)` — the supported pattern —
+and NOT when a literal is typed straight into a node param whose password type is declared only on the
+catalogue task. That is true of every catalogue task with a password param, `ai`'s `token` included. The
+workspace-scoped `get` and `query` reads blank password-typed params by name and scrub their resolved values
+from task params, spec fields and results
 (`workflow/WorkflowRunService.java:145-149,160-170,209`), and the task log stream is wrapped in
 `FilterValuesOutputStream`, a line-buffered scrub of the same values (`:339-346`;
 `lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher ends the stream when the pod is already
@@ -185,10 +191,11 @@ and no meter: a platform sums `totalTokens` across task runs through the existin
 deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
 isolation tiers. No configuration separates zones inside one dispatcher.
 
-**Token delivery.** `token` is password-typed, so it is blanked and value-scrubbed on the workspace-scoped run
-reads and the log stream (decision 0043). Downward it is a plain `PARAM_TOKEN` environment variable on the
-pod, like every other param — there are no per-task secrets yet, so anyone who can read the pod spec or exec
-into the pod can read the token.
+**Token delivery.** `token` is password-typed, so declaring it as a workflow param and referencing it from
+the node blanks and scrubs it on the workspace-scoped run reads and the log stream (decision 0043); a literal
+typed into the node is not scrubbed, per "Sensitive parameters" above. Downward it is a plain `PARAM_TOKEN`
+environment variable on the pod, like every other param — there are no per-task secrets yet, so anyone who
+can read the pod spec or exec into the pod can read the token.
 
 ## Task catalogue
 

@@ -29,9 +29,11 @@ zone — one deployment, one network policy, no new concept (decision 0042).
 ## Consequences
 
 - An author declares eleven params and gets a model call; the canvas renders them from the seeded revision.
-- `token` is password-typed, so it is blanked and scrubbed upward (decision 0043), but it still reaches the
-  pod as a plain `PARAM_TOKEN` environment variable. Per-task secrets would close that; revisit when a
-  customer needs the token withheld from anyone who can read the pod spec.
+- `token` is password-typed, so it is blanked and scrubbed upward when declared as a workflow param and
+  referenced from the node — a literal typed into the node is not, because the filter's type authority is the
+  workflow revision's param spec (decision 0043, true of all 84 catalogue password params). Downward it
+  reaches the pod as a plain `PARAM_TOKEN` environment variable. Per-task secrets would close both; revisit
+  when a customer needs the token withheld from anyone who can read the pod spec.
 - `output` is an ordinary result under the 4 KB cap (decision 0041), so a long response fails the task with
   `RESULTS_TOO_LARGE`. Revisit with the artefact store (decision 0045), not by raising the cap.
 - Token usage is six flat results, not an entity field: a platform meters by summing `totalTokens` over task
