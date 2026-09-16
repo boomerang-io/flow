@@ -145,10 +145,11 @@ CAS winners publish an in-process `TaskRunTransition`/`WorkflowRunTransition` ev
 status change records a CREATE audit event and reaching the completed phase records an UPDATE event carrying the
 terminal status and duration — the events the monthly run quota and the workspace insights read. TaskRun transitions
 are not audited (volume; no consumer reads them). Emission is best-effort and never fails the transition. When
-`flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:38`),
+`flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:50`),
 `CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching `completed` with a status the caller persisted directly (`event/CloudEventsBridge.java:32-71`)
 and `OutboxDispatcher` drains it every 5 s on every instance, delivering at least once, marking rows `sent` by CAS,
 and marking them `dead` after 3 failed attempts (`event/OutboxDispatcher.java:41`, `:59-85`). There is no broker, no partitioning and no leader.
+Each delivery carries the run's identity and lifecycle, not its params and results, unless `flow.events.sink.payload=full` (decision 0079); the payload shape and the sink configuration are in `api-contract.md`.
 Accepted limitation: no transaction spans the CAS commit and the outbox insert (`event/entity/EventOutboxEntity.java:13-17`), so a crash
 between them loses that one notification. The engine never reads the outbox, so a lost row cannot stall a run.
 A dead row is kept, never dropped, and an operator can put it back in the queue: `GET /api/v2/system/outbox`

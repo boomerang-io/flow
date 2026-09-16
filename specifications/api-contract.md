@@ -100,6 +100,8 @@ emitted as `|` blocks (`workflow/config/YamlJacksonHttpMessageConverter.java:11-
 
 ## Webhook and event endpoints
 
+### Events in
+
 All three routes require `webhook/action` permission and accept `session`, `user`, `key` and
 `global` tokens (`event/WebhookEventControllerV2.java:73-76`).
 
@@ -123,6 +125,60 @@ Accepted CloudEvent shape (structured mode):
 
 A caller with no relationship to the workflow gets `PERMISSION_DENIED`
 (`WebhookEventService.java:94-97`); a rejected request creates no run.
+
+### Events out
+
+Every externally visible run status change is POSTed to each configured sink as a structured
+CloudEvent 1.0 (`application/cloudevents+json`). Egress is off by default
+(`flow.events.sink.enabled=false`, `application.properties:50`); delivery is at-least-once through the
+outbox, so a consumer MUST treat duplicates as benign (decision 0012).
+
+| Envelope field | Value |
+| --- | --- |
+| `type` | `io.boomerang.event.status.workflowrun`, `io.boomerang.event.status.taskrun` (`event/enums/EventType.java:9-11`) |
+| `source` | `/apis/v1/events` |
+| `subject` | `/workflowrun/{id}/status/{status}` or `/taskrun/{id}/status/{status}` (`event/EventFactory.java:54-58,79-83`) |
+| `id` | a fresh UUID per delivery, not a run id |
+| `initiatorcontext` (extension) | the run's `initiatorContext` label, when set (task events only, `event/model/TaskRunStatusEvent.java:37-40`) |
+
+`data` carries the run, in one of two shapes chosen by `flow.events.sink.payload`
+(`event/config/EventSinkProperties.java:22`). The envelope is identical either way, so routing and
+filtering built on `type` and `subject` are unaffected by the setting.
+
+| `payload` | `data` | Use |
+| --- | --- | --- |
+| `thin` (default) | The run's identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason` (task events), `phase`, `labels`, `creationDate`, `startTime`, `duration`. Absent fields are omitted, never `null` | A consumer triggers on the event and reads the run back over the API |
+| `full` | The whole public `WorkflowRun` / `TaskRun` model, `params`, `results` and `annotations` included | A consumer processes result values without calling back |
+
+One projection step builds both (`event/model/RunStatusSummary.java:46-53`); the shapes are pinned by
+`service-core/src/test/java/io/boomerang/event/StatusEventPayloadTest.java`. `thin` never carries
+`params`, `results` or `annotations` — see decision 0079.
+
+```json
+{ "specversion": "1.0", "type": "io.boomerang.event.status.taskrun",
+  "source": "/apis/v1/events", "subject": "/taskrun/68b1.../status/failed",
+  "id": "9f1c...", "time": "2026-09-16T04:21:07Z", "datacontenttype": "application/json",
+  "data": { "id": "68b1...", "workflowRef": "66aa...", "workflowRunRef": "67cc...",
+            "status": "failed", "statusReason": "JobFailed", "phase": "completed",
+            "labels": { "initiatorId": "user-1" },
+            "creationDate": 1758000000000, "startTime": 1758000001000, "duration": 4210 } }
+```
+
+A sink is configured either as a bare URL or as a destination that authenticates with a request
+header. Prefer the header: a URL secret is recorded by every proxy and access log on the way, a
+header value is not. Bare URLs stay supported unchanged for receivers that can only be given a URL.
+
+| Property | Meaning |
+| --- | --- |
+| `flow.events.sink.urls` | Comma-separated sink URLs; any secret rides in the query string (`...?token=xyz`) |
+| `flow.events.sink.destinations[n].url` | A sink that authenticates with a header |
+| `flow.events.sink.destinations[n].header-name` | Header to send; defaults to `Authorization` (`EventSinkProperties.java:42`) |
+| `flow.events.sink.destinations[n].header-value` | The secret, supplied from the environment; sent only to its own sink and never logged (`EventSinkService.java:94-100`) |
+
+Both lists are delivered to; every request goes through the configured internal `RestTemplate`, so
+proxy routing and the per-template timeouts apply (decision 0062). The receiver's own
+authentication is its business: Flow sends the header verbatim and treats any non-2xx as a
+delivery failure to retry.
 
 ## Labels and annotations
 
