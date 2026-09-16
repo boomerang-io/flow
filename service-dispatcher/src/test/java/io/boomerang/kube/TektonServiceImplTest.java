@@ -38,7 +38,7 @@ import io.fabric8.tekton.v1.TaskRunResult;
 @TestPropertySource(
     properties = {
       "dispatcher.tasks.runtimeClassName=kata-qemu",
-      "flow.dispatcher.ai.image=boomerangio/flow-task-ai:5.1.0"
+      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3"
     })
 public class TektonServiceImplTest {
 
@@ -86,7 +86,7 @@ public class TektonServiceImplTest {
   @Test
   public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
     // An `ai` task is authored with params only - no image, no command, no script - and the
-    // dispatcher supplies the Flow-shipped worker image and its `prompt` command. Everything else
+    // dispatcher supplies the configured worker image and its `prompt` command. Everything else
     // (PARAM_<NAME> env, RESULTS_PATH) is what every other type gets.
     TaskRun task = new TaskRun();
     task.setId("taskrun-tekton-ai");
@@ -116,7 +116,7 @@ public class TektonServiceImplTest {
         tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
     assertEquals(1, taskRuns.size());
     Step step = taskRuns.get(0).getSpec().getTaskSpec().getSteps().get(0);
-    assertEquals("boomerangio/flow-task-ai:5.1.0", step.getImage());
+    assertEquals("boomerangio/task-ai:1.2.3", step.getImage());
     assertEquals(List.of("prompt"), step.getCommand());
     assertNull(step.getScript());
 

@@ -1,4 +1,4 @@
-# 0078 — An `ai` task is a first-class type executed as a pod from a Flow-shipped worker image
+# 0078 — An `ai` task is a first-class type executed as a pod from a Boomerang-published worker image
 
 **Status:** accepted · **Date:** 2026-09-16
 
@@ -20,11 +20,11 @@ is declaring it, not packaging it. The question was where the call runs.
 ## Decision
 
 C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
-(`service-core/src/main/java/io/boomerang/engine/TaskExecutionService.java:208-212,340`), the seeded `ai`
-catalogue task declares no image, and the dispatcher resolves `flow.dispatcher.ai.image` for the type. Two
-things decided it: untrusted prompt content must not be parsed in the same process that holds the
-dispatcher's engine credential, and a dispatcher registered with `taskTypes=[ai]` is by itself the egress
-zone — one deployment, one network policy, no new concept (decision 0042).
+(`engine/TaskExecutionService.java:208-212,340`), the seeded `ai` catalogue task declares no image, and the dispatcher
+resolves `flow.dispatcher.ai.image` for the type — `boomerangio/task-ai`, released from `boomerang-io/tasks`, not a
+product image (decision 0006 stands). Two things decided it: untrusted prompt content must not be parsed in the same
+process that holds the dispatcher's engine credential, and a dispatcher registered with `taskTypes=[ai]` is by itself
+the egress zone — one deployment, one network policy, no new concept (decision 0042).
 
 ## Consequences
 

@@ -57,7 +57,7 @@ import io.fabric8.kubernetes.api.model.Toleration;
 @TestPropertySource(
     properties = {
       "dispatcher.executor=kube-jobs",
-      "flow.dispatcher.ai.image=boomerangio/flow-task-ai:5.1.0"
+      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3"
     })
 public class KubeJobsExecutorTest {
 
@@ -117,7 +117,7 @@ public class KubeJobsExecutorTest {
   @Test
   public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
     // An `ai` task is authored with params only - no image, no command, no script - and the
-    // dispatcher supplies the Flow-shipped worker image and its `prompt` command.
+    // dispatcher supplies the configured worker image and its `prompt` command.
     TaskRun task = new TaskRun();
     task.setId("taskrun-ai");
     task.setName("Ask the model");
@@ -139,7 +139,7 @@ public class KubeJobsExecutorTest {
 
     Container container =
         soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
-    assertEquals("boomerangio/flow-task-ai:5.1.0", container.getImage());
+    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
     assertEquals(List.of("prompt"), container.getCommand());
 
     // Params reach the worker exactly as they reach any other type: PARAM_<NAME>, upper-cased.
@@ -171,7 +171,7 @@ public class KubeJobsExecutorTest {
 
     Container container =
         soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
-    assertEquals("boomerangio/flow-task-ai:5.1.0", container.getImage());
+    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
     assertEquals(List.of("prompt"), container.getCommand());
   }
 

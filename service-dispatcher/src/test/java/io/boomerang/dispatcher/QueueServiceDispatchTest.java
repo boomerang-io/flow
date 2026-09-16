@@ -92,7 +92,7 @@ class QueueServiceDispatchTest {
 
   @Test
   void queuedAiTaskIsDispatchedLikeAnyOtherContainerType() {
-    // `ai` runs as a pod from the Flow-shipped worker image, so it takes the same path as
+    // `ai` runs as a pod from the resolved worker image, so it takes the same path as
     // template/custom/script - only the image and command are resolved rather than authored.
     when(taskService.execute(any())).thenReturn(new TaskResponse());
 

@@ -29,7 +29,7 @@ const aiTask = {
   spec: {
     arguments: [],
     command: [],
-    image: "boomerangio/flow-task-ai:latest",
+    image: "boomerangio/task-ai:latest",
     params: [
       {
         name: "endpoint",

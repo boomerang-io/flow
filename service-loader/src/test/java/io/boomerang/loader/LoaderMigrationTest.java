@@ -627,7 +627,7 @@ class LoaderMigrationTest {
   /**
    * The {@code ai} catalogue task: a first-class dispatched type whose params are the whole
    * authoring surface, so the seed is the contract. Declares no image - the dispatcher resolves
-   * the Flow-shipped worker image for the type - and its {@code token} param is password-typed,
+   * the configured worker image for the type - and its {@code token} param is password-typed,
    * which is the only marker the sensitive-value filter reads.
    */
   private static void assertAiTaskPresent(MongoDatabase database) {

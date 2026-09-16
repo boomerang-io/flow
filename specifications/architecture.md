@@ -93,6 +93,11 @@ and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 | `boomerangio/flow-service-loader` | `service-loader/target/service-loader.jar` | same base, runs to completion | `build-loader`/`deploy-loader` (`:180,:206`) |
 | `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:22-alpine`, port 3000 | `deploy-webapp` (`:256`) |
 
+Task images are not product images and are not on this list: the catalogue images and the `ai` worker
+(`boomerangio/task-ai`) are built and released from the `boomerang-io/tasks` repository on their own version
+lines, and the dispatcher resolves the `ai` one at runtime from `flow.dispatcher.ai.image` (see
+`task-runtime.md`). One product tag still builds every product image (decision 0006).
+
 The dispatcher reaches core at `flow.engine.service.host` and authenticates with `flow.engine.dispatcher.token`
 (`service-dispatcher/src/main/resources/application.properties:64-77`); core runs the dispatcher's `/api/v1/**`
 chain first (`dispatcher/DispatcherSecurityConfiguration.java:42-46`) and the product chain second

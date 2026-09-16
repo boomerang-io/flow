@@ -163,8 +163,9 @@ or the kubeconfig context's namespace when it is blank; the dispatcher refuses t
 
 An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references the
 seeded `ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher resolves the
-Flow-shipped worker image from `flow.dispatcher.ai.image` because the catalogue entry declares none. Everything
-the model call needs is a declared param.
+worker image from `flow.dispatcher.ai.image` because the catalogue entry declares none
+(`service-dispatcher/.../executor/TaskImageResolver.java:35-43`). Everything the model call needs is a declared
+param.
 
 | Param | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -187,6 +188,17 @@ The task declares six results — `output`, `promptTokens`, `completionTokens`, 
 `model` — as flat typed results on the TaskRun under the same 4 KB cap as every other task (decision 0041). A
 long `output` therefore fails the run with `RESULTS_TOO_LARGE` rather than truncating. There is no usage field
 and no meter: a platform sums `totalTokens` across task runs through the existing query API.
+
+**Worker image.** The worker is a task image, not a product image. It is built and released from the
+`boomerang-io/tasks` repository (`tasks/ai`) as `boomerangio/task-ai`, tagged from that repository's own
+`@boomerang-io/task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
+below). The product tag builds the four service and web images and not this one, so the worker and the product
+version lines move independently; `flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest` and an
+operator pins `boomerangio/task-ai:<version>`
+(`service-dispatcher/src/main/resources/application.properties:87-93`). What ties the two together is the
+contract, not the tag: the eleven params above reach the image as `PARAM_<NAME>` environment variables and the
+six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`
+catalogue revision in this repository — a param or result added on one side has to land on the other.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
 (`DispatcherService.java:212-271`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher

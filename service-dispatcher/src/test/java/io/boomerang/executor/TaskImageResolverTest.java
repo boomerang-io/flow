@@ -16,7 +16,9 @@ import org.springframework.test.util.ReflectionTestUtils;
  */
 class TaskImageResolverTest {
 
-  private static final String AI_IMAGE = "boomerangio/flow-task-ai:5.1.0";
+  // The worker image is released from boomerang-io/tasks on its own version line, not the product
+  // tag, so the pinned tag under test is deliberately not a 5.x product version.
+  private static final String AI_IMAGE = "boomerangio/task-ai:1.2.3";
 
   private final TaskImageResolver resolver = resolver();
 

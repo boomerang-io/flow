@@ -71,7 +71,7 @@ public class TaskService {
         new TaskResponse("0", "Task (" + task.getId() + ") has been executed successfully.", null);
     List<RunResult> results = new ArrayList<>();
     // Resolved, not read off the spec: an `ai` task carries no image of its own and the
-    // dispatcher supplies the Flow-shipped worker image for it (TaskImageResolver).
+    // dispatcher supplies the worker image for it (TaskImageResolver).
     if (imageResolver.image(task) == null) {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
     } else {

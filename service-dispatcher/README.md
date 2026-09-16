@@ -23,22 +23,28 @@ by default — add it explicitly to a deployment that should run it:
 | ---- | ----------------- | ------------- |
 | `template`, `custom`, `script` | Authored on the task or workflow node | Default |
 | `generic` | Authored | `flow.dispatcher.task-types=template,custom,script,generic` |
-| `ai` | Resolved by the dispatcher: `flow.dispatcher.ai.image` and the command `prompt` | Default |
+| `ai` | Resolved by the dispatcher: `flow.dispatcher.ai.image` (`boomerangio/task-ai`) and the command `prompt` | Default |
 
 An `ai` task's author never builds a container and never names an image. `TaskImageResolver`
 (`io.boomerang.executor.TaskImageResolver`) supplies the image and command for type `ai` and ignores
 any image, command or script that reached the spec, so a definition cannot point the AI worker at a
 different container. Both executors ask the resolver instead of reading `spec.image` directly,
 so the behaviour is identical on Tekton and on Kubernetes Jobs. Params and results are unchanged:
-`PARAM_<NAME>` in, `RESULTS_PATH` out. The image is built from `tasks/ai/` in this repository and
-shipped on the product tag; its contract is in `tasks/ai/README.md`.
+`PARAM_<NAME>` in, `RESULTS_PATH` out.
 
-`flow.dispatcher.ai.image` defaults to `boomerangio/flow-task-ai:latest` rather than
-`boomerangio/flow-task-ai:${flow.version}`, because `flow.version` is `0.0.0` until a deployment
-sets it and `0.0.0` is not a published tag. A versioned deployment SHOULD pin it:
+**Where the image comes from.** The worker is an ordinary task image, not a product image: it is
+built and released from the [`boomerang-io/tasks`](https://github.com/boomerang-io/tasks) repository
+(`tasks/ai`) and published as `boomerangio/task-ai`, on its own version line from
+`@boomerang-io/task-ai@<version>` tags. The product tag (`5.x.y`) does not build it, so the two move
+independently — but the param and result contract is shared between that image and the seeded `ai`
+catalogue task in this repository, so a change to either side has to land on both. The contract is
+documented in that repository's `tasks/ai/README.md`.
+
+`flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest`. A deployment that wants a
+reproducible worker SHOULD pin a version:
 
 ```properties
-flow.dispatcher.ai.image=boomerangio/flow-task-ai:${flow.version}
+flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3
 ```
 
 **An AI network zone.** A dispatcher deployment registered with `flow.dispatcher.task-types=ai`
