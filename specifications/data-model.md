@@ -24,7 +24,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `workflow_schedules` | Cron and one-off schedules: `nextFireAt`, `lastFiredAt`, `retryCount` | `WorkflowScheduleEntity` (`lib-common`; `schedule`) |
 | `actions` | Manual approvals and task actions awaiting a person | `ActionEntity` (`lib-common`; `workflow`) |
 | `task_locks` | Per-key lock documents for the `acquirelock` / `releaselock` tasks | `TaskLockEntity` (`engine`) |
-| `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (transactional outbox); inbound event receipts with processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
+| `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (transactional outbox): `status`, `attempts`, `retry.after`, `sentAt`, and on a failure `lastError` (capped at 1024 characters) and `deadAt`; inbound event receipts with processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
 | `dispatchers` | Registered dispatcher workers and the task types they serve | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (personal, team, system): settings, quotas, parameters | `WorkspaceEntity` (`workspace`) |
 | `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
@@ -42,6 +42,11 @@ on read by the domain services (`service-core/src/main/java/io/boomerang/workflo
 points at its parent: `WorkflowRevisionEntity.workflowRef` + `version` (`lib-common/src/main/java/io/boomerang/common/entity/WorkflowRevisionEntity.java:30-31`),
 `TaskRevisionEntity.parentRef` + `version` (`TaskRevisionEntity.java:27,32`). A new version is a new child insert.
 `workflow_templates` keeps `version` on the one document (`WorkflowTemplateEntity.java:31`).
+
+A revision's declared params are `AbstractParam` (`lib-common/.../model/AbstractParam.java`), which carries the
+value alongside the UI metadata the canvas renders: `type` (a `ConfigType` label), `options` for `select`, and
+nullable `min` / `max` / `step` for `slider`. The three range fields are absent from every param of any other
+type, so no stored document changed when they were added.
 
 ## Runs: control state, labels, annotations
 Anything the engine reads to decide, or queries on, MUST be a typed field; labels and annotations MUST NOT carry control state.
@@ -151,6 +156,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0042__AuditEventRestructure` | all | Drops the per-object `audit` records and their indexes, creates the flat-event indexes (table above), seeds the `audit` settings document |
 | `_0043__RunPhaseFinalizedIsCompleted` | all | Rewrites the retired `finalized` phase to `completed` on `workflow_runs` and `task_runs`; `completed` is terminal and `RunPhase` no longer has the old member |
 | `_0046__DeclareRunWorkflowWaitParam` | all | Declares the `wait` param on the `run-workflow` catalogue task, adds `max.nesting.depth` to the `workflowrun` settings document, creates the child-run index (table above) |
+| `_0047__SeedAiTask` | all | Inserts the `ai` catalogue task, its version 1 revision and its `root:root --hasTask-->` edge from the same seed documents `_0022` reads — the upgrade path for a catalogue entry added after `_0022` was already recorded as applied |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

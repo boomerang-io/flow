@@ -31,6 +31,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.dispatcher.LeaseRegistry;
+import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.kube.KubeHelperService;
@@ -77,7 +78,7 @@ class DockerExecutorTest {
     ReflectionTestUtils.setField(helperKubeService, "flowVersion", "5.0.0");
     ReflectionTestUtils.setField(helperKubeService, "proxyEnabled", Boolean.FALSE);
 
-    executor = new DockerExecutor(client, helperKubeService, workspaceStore, leaseRegistry);
+    executor = new DockerExecutor(client, helperKubeService, workspaceStore, leaseRegistry, new TaskImageResolver());
     ReflectionTestUtils.setField(executor, "imagePullPolicy", "IfNotPresent");
     ReflectionTestUtils.setField(executor, "taskStorageDataMemory", Boolean.FALSE);
     ReflectionTestUtils.setField(executor, "pollSeconds", 0L);

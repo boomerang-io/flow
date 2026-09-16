@@ -58,7 +58,8 @@ public class WorkflowWatcher {
   // Only agent-executed types are requeued on timeout - that is the crash recovery for a killed
   // claimant. Gates, waits and inline system tasks time out terminally, as they always have.
   private static final Set<TaskType> REQUEUEABLE_TYPES =
-      EnumSet.of(TaskType.template, TaskType.custom, TaskType.script, TaskType.generic);
+      EnumSet.of(
+          TaskType.template, TaskType.custom, TaskType.script, TaskType.generic, TaskType.ai);
 
   private static final int MAX_RETRIES = 3;
 

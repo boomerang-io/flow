@@ -580,10 +580,10 @@ class LoaderMigrationTest {
   }
 
   private void assertTaskCatalogueSeeded() {
-    assertThat(collection("tasks").countDocuments()).isEqualTo(87);
-    // 130 seeded + the pre-seeded legacy worker-flow pin from seedLegacyWorkerFlowRevision()
+    assertThat(collection("tasks").countDocuments()).isEqualTo(88);
+    // 131 seeded + the pre-seeded legacy worker-flow pin from seedLegacyWorkerFlowRevision()
     // (repointed in place by _0039, not removed).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(131);
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(132);
 
     Document sleep = collection("tasks").find(Filters.eq("name", "sleep")).first();
     assertThat(sleep).isNotNull();
@@ -609,17 +609,94 @@ class LoaderMigrationTest {
     assertThat(duration.getString("label")).isEqualTo("Duration");
 
     // Global catalogue graph: every task is a task: node reachable from root by hasTask.
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(87);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(88);
     assertThat(
             collection("rel_edges")
                 .countDocuments(
                     Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(87);
+        .isEqualTo(88);
     Document sleepNode =
         collection("rel_nodes").find(Filters.eq("_id", "task:" + sleepId)).first();
     assertThat(sleepNode).isNotNull();
     assertThat(sleepNode.getString("slug")).isEqualTo("sleep");
     assertThat(sleepNode.getString("ref")).isEqualTo(sleepId);
+
+    assertAiTaskPresent(db);
+  }
+
+  /**
+   * The {@code ai} catalogue task: a first-class dispatched type whose params are the whole
+   * authoring surface, so the seed is the contract. Declares no image - the dispatcher resolves
+   * the configured worker image for the type - and its {@code token} param is password-typed,
+   * which is the only marker the sensitive-value filter reads.
+   */
+  private static void assertAiTaskPresent(MongoDatabase database) {
+    MongoCollection<Document> tasks = database.getCollection(PREFIX + "_tasks");
+    Document ai = tasks.find(Filters.eq("name", "ai")).first();
+    assertThat(ai).isNotNull();
+    assertThat(ai.getString("type")).isEqualTo("ai");
+    assertThat(ai.getString("status")).isEqualTo("active");
+    String aiId = ai.get("_id").toString();
+
+    Document revision =
+        database
+            .getCollection(PREFIX + "_task_revisions")
+            .find(Filters.and(Filters.eq("parentRef", aiId), Filters.eq("version", 1)))
+            .first();
+    assertThat(revision).isNotNull();
+    assertThat(revision.getString("category")).isEqualTo("AI");
+    // The icon key client-web maps (Utils/taskIcons.tsx); anything else renders a generic node.
+    assertThat(revision.getString("icon")).isEqualTo("AI");
+    Document spec = revision.get("spec", Document.class);
+    assertThat(spec.getString("image")).as("the dispatcher resolves the AI worker image").isEmpty();
+
+    List<Document> params = spec.getList("params", Document.class);
+    assertThat(params.stream().map(p -> p.getString("name")))
+        .containsExactly(
+            "endpoint",
+            "token",
+            "model",
+            "systemPrompt",
+            "prompt",
+            "temperature",
+            "maxTokens",
+            "responseFormat",
+            "seed",
+            "files",
+            "maxContextBytes");
+    Document token =
+        params.stream().filter(p -> "token".equals(p.getString("name"))).findFirst().orElseThrow();
+    assertThat(token.getString("type")).isEqualTo("password");
+    Document temperature =
+        params.stream()
+            .filter(p -> "temperature".equals(p.getString("name")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(temperature.getString("type")).isEqualTo("slider");
+    assertThat(temperature.getDouble("min")).isEqualTo(0.0);
+    assertThat(temperature.getDouble("max")).isEqualTo(2.0);
+    assertThat(temperature.getDouble("step")).isEqualTo(0.1);
+
+    assertThat(spec.getList("results", Document.class).stream().map(r -> r.getString("name")))
+        .containsExactly(
+            "output",
+            "promptTokens",
+            "completionTokens",
+            "totalTokens",
+            "finishReason",
+            "model");
+
+    assertThat(database.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "task:" + aiId)).first())
+        .isNotNull();
+    assertThat(
+            database
+                .getCollection(PREFIX + "_rel_edges")
+                .countDocuments(
+                    Filters.and(
+                        Filters.eq("from", "root:root"),
+                        Filters.eq("label", "hasTask"),
+                        Filters.eq("to", "task:" + aiId))))
+        .isEqualTo(1);
   }
 
   private void assertTemplatesSeeded() {
@@ -670,26 +747,27 @@ class LoaderMigrationTest {
 
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
     assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
-    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
-    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
+    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(88);
+    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(131);
     assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
     assertThat(fresh.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
     // Every task is in the global catalogue: a task: node reachable from root by hasTask.
     assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments(Filters.eq("type", "task")))
-        .isEqualTo(87);
+        .isEqualTo(88);
     assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("label", "hasTask")))
-        .isEqualTo(87);
+        .isEqualTo(88);
+    assertAiTaskPresent(fresh);
 
     // Re-running the change units against the seeded database inserts nothing.
     fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
     assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
-    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(87);
-    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(130);
+    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(88);
+    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(131);
     assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
-    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(89);
-    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(88);
+    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(90);
+    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(89);
   }
 
   /**
@@ -809,16 +887,16 @@ class LoaderMigrationTest {
 
     // _0006__V3MigrateTaskCatalogue (Phase 2) migrated the 2 fixture docs (2 tasks, 1 revision -
     // the minimal doc has none) directly and dropped task_templates. _0022__SeedTaskCatalogue
-    // (Phase 5, ungated) then reconciles the 87-task/130-revision seed catalogue on top by NAME:
-    // neither fixture task's name ("legacy-task"/"custom-task-example") matches any of the 87
-    // canonical catalogue names, so none of the 87 pre-exist under this fixture and all 87 tasks
-    // + 130 revisions are freshly inserted by the seed - 89 tasks / 131 revisions total, the same
+    // (Phase 5, ungated) then reconciles the 88-task/131-revision seed catalogue on top by NAME:
+    // neither fixture task's name ("legacy-task"/"custom-task-example") matches any of the 88
+    // canonical catalogue names, so none of the 88 pre-exist under this fixture and all 88 tasks
+    // + 131 revisions are freshly inserted by the seed - 90 tasks / 132 revisions total, the same
     // outcome the former _0034__V3ReconcileCatalogue unit (dropped, folded into this seed's own
     // insert-if-absent logic - see _0022's javadoc) used to produce by matching on _id instead.
     MongoCollection<Document> tasks = v3.getCollection(PREFIX + "_tasks");
     MongoCollection<Document> taskRevisions = v3.getCollection(PREFIX + "_task_revisions");
-    assertThat(tasks.countDocuments()).isEqualTo(89);
-    assertThat(taskRevisions.countDocuments()).isEqualTo(131);
+    assertThat(tasks.countDocuments()).isEqualTo(90);
+    assertThat(taskRevisions.countDocuments()).isEqualTo(132);
     assertThat(v3.getCollection(PREFIX + "_task_templates").countDocuments()).isZero();
 
     // The minimal fixture doc (every optional field absent) migrated without throwing.
@@ -882,8 +960,8 @@ class LoaderMigrationTest {
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(settings.countDocuments()).isEqualTo(9);
-    assertThat(tasks.countDocuments()).isEqualTo(89);
-    assertThat(taskRevisions.countDocuments()).isEqualTo(131);
+    assertThat(tasks.countDocuments()).isEqualTo(90);
+    assertThat(taskRevisions.countDocuments()).isEqualTo(132);
     Document taskRunAfterSecondRun =
         v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
     assertThat(taskRunAfterSecondRun.getString("taskRef")).isEqualTo(customTaskId.toString());
@@ -1166,6 +1244,64 @@ class LoaderMigrationTest {
     assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
     assertThat(users.countDocuments()).isEqualTo(5);
     assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
+  }
+
+  /**
+   * The upgrade path {@code _0047__SeedAiTask} exists for: an install whose audit log already
+   * records {@code _0022__SeedTaskCatalogue}, so the catalogue seed never runs again and a task
+   * added to {@code seed/tasks.json} afterwards would otherwise never arrive.
+   */
+  @Test
+  void existingInstallGainsTheAiTask() {
+    String uri = MONGO.getReplicaSetUrl("aitaskupgrade");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+
+    MongoDatabase upgraded = client.getDatabase("aitaskupgrade");
+    assertAiTaskPresent(upgraded);
+
+    // Rewind to the state of an install deployed before the ai task existed: the task, its
+    // revision and its graph edge are gone, and only this unit's audit row is forgotten - every
+    // other change unit, _0022 included, stays recorded and will not run again.
+    String aiId =
+        upgraded.getCollection(PREFIX + "_tasks").find(Filters.eq("name", "ai")).first().get("_id").toString();
+    upgraded.getCollection(PREFIX + "_tasks").deleteOne(Filters.eq("name", "ai"));
+    upgraded.getCollection(PREFIX + "_task_revisions").deleteMany(Filters.eq("parentRef", aiId));
+    upgraded.getCollection(PREFIX + "_rel_nodes").deleteOne(Filters.eq("_id", "task:" + aiId));
+    upgraded.getCollection(PREFIX + "_rel_edges").deleteMany(Filters.eq("to", "task:" + aiId));
+    forgetChangeUnit(upgraded, "0047-seed-ai-task");
+    long tasksWithoutAi = upgraded.getCollection(PREFIX + "_tasks").countDocuments();
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertAiTaskPresent(upgraded);
+    assertThat(upgraded.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(tasksWithoutAi + 1);
+
+    // A second run inserts nothing further, whether or not the audit row is there to stop it.
+    forgetChangeUnit(upgraded, "0047-seed-ai-task");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertAiTaskPresent(upgraded);
+    assertThat(upgraded.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(tasksWithoutAi + 1);
+    assertThat(upgraded.getCollection(PREFIX + "_task_revisions").countDocuments(Filters.eq("parentRef", aiId)))
+        .isEqualTo(1);
+    assertThat(upgraded.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("to", "task:" + aiId)))
+        .isEqualTo(1);
+  }
+
+  /**
+   * Drop one change unit's audit rows so the next run applies it again. Matched on the rendered
+   * document rather than a named field, because the audit entry's shape belongs to Flamingock.
+   */
+  private static void forgetChangeUnit(MongoDatabase database, String changeId) {
+    MongoCollection<Document> changelog = database.getCollection(PREFIX + "_sys_changelog_loader");
+    List<Object> stale = new ArrayList<>();
+    changelog
+        .find()
+        .forEach(entry -> {
+          if (entry.toJson().contains(changeId)) {
+            stale.add(entry.get("_id"));
+          }
+        });
+    assertThat(stale).as("audit rows for " + changeId).isNotEmpty();
+    changelog.deleteMany(Filters.in("_id", stale));
   }
 
   private static ObjectId insertPlainUser(MongoCollection<Document> users, String email) {

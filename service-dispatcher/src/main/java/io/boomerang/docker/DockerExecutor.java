@@ -21,6 +21,7 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.executor.TerminationMessageParser;
 import io.boomerang.kube.KubeHelperService;
 import io.fabric8.kubernetes.api.model.EnvVar;
@@ -96,15 +97,19 @@ public class DockerExecutor implements TaskExecutor {
 
   private final LeaseRegistry leaseRegistry;
 
+  private final TaskImageResolver imageResolver;
+
   public DockerExecutor(
       DockerClient client,
       KubeHelperService helperKubeService,
       DockerWorkspaceStore workspaceStore,
-      LeaseRegistry leaseRegistry) {
+      LeaseRegistry leaseRegistry,
+      TaskImageResolver imageResolver) {
     this.client = client;
     this.helperKubeService = helperKubeService;
     this.workspaceStore = workspaceStore;
     this.leaseRegistry = leaseRegistry;
+    this.imageResolver = imageResolver;
   }
 
   @Override
@@ -119,15 +124,19 @@ public class DockerExecutor implements TaskExecutor {
     }
 
     TaskRunSpec spec = task.getSpec();
-    pullImage(spec.getImage());
+    // Image, command and script come from the resolver, not the spec: an `ai` task carries none of
+    // them and the dispatcher supplies the worker image for it, exactly as the Kubernetes
+    // executors do (TaskImageResolver).
+    String image = imageResolver.image(task);
+    pullImage(image);
 
-    String script = spec.getScript();
+    String script = imageResolver.script(task);
     List<String> entrypoint =
-        (script != null && !script.isBlank()) ? List.of(SCRIPT_PATH) : spec.getCommand();
+        (script != null && !script.isBlank()) ? List.of(SCRIPT_PATH) : imageResolver.command(task);
 
     CreateContainerCmd command =
         client
-            .createContainerCmd(spec.getImage())
+            .createContainerCmd(image)
             .withName(helperKubeService.getPrefixTask() + "-" + task.getId())
             .withLabels(taskLabels)
             .withEnv(environment(task))
@@ -147,7 +156,7 @@ public class DockerExecutor implements TaskExecutor {
       containerId = command.exec().getId();
     } catch (NotFoundException e) {
       // The only thing create can fail to find is the image itself.
-      throw new TaskExecutionException("ImagePull", "IMAGE_NOT_FOUND - " + spec.getImage());
+      throw new TaskExecutionException("ImagePull", "IMAGE_NOT_FOUND - " + image);
     }
     if (script != null && !script.isBlank()) {
       copyScript(containerId, script);
@@ -354,6 +363,11 @@ public class DockerExecutor implements TaskExecutor {
   /**
    * Copy the results file back out of the exited container. An absent file means the Task wrote no
    * Results; the 4096-byte cap is the engine's, applied when the Task ends.
+   *
+   * <p>Unlike the Kubernetes termination message there is no ceiling here - the file is read whole
+   * off the container filesystem - so an unparseable payload is never a truncation symptom. It is
+   * a Task writing something that is not a results payload: no results, logged, not a failure. An
+   * oversize but well-formed payload is the engine's to reject at {@code end}.
    */
   private List<RunResult> readResults(String containerId, List<RunResult> declaredResults) {
     try (InputStream archive = client.copyArchiveFromContainerCmd(containerId, RESULTS_PATH).exec();
@@ -361,7 +375,14 @@ public class DockerExecutor implements TaskExecutor {
       if (tar.getNextEntry() == null) {
         return List.of();
       }
-      return TerminationMessageParser.parse(new String(tar.readAllBytes(), StandardCharsets.UTF_8), declaredResults);
+      String payload = new String(tar.readAllBytes(), StandardCharsets.UTF_8);
+      Optional<List<RunResult>> parsed = TerminationMessageParser.parse(payload, declaredResults);
+      if (parsed.isEmpty()) {
+        LOGGER.warn(
+            "Results file is not a Result Parameter payload ({} bytes); no Results recorded.",
+            payload.length());
+      }
+      return parsed.orElseGet(List::of);
     } catch (NotFoundException e) {
       return List.of();
     } catch (IOException | DockerException e) {

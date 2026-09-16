@@ -19,6 +19,23 @@
     },
     {
       "_id": {
+        "$oid": "5eed00000000000000002001"
+      },
+      "name": "ai",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-09-16T00:00:00Z"
+      },
+      "type": "ai"
+    },
+    {
+      "_id": {
         "$oid": "605863857a38c63898cc4de7"
       },
       "name": "add-box-folder",

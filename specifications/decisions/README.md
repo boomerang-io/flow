@@ -62,5 +62,6 @@ things by name, not by code.
 | 0075 | [A child workflow run waits, cascades and nests to a capped depth, all on the existing lineage pair](0075-child-workflow-runs-wait-cascade-and-nesting-depth.md) | accepted | 2026-09-15 |
 | 0076 | [A Docker executor runs tasks on one host, for the no-Kubernetes quickstart](0076-a-docker-executor-runs-tasks-on-one-host-for-the-no-kubernetes-quickstart.md) | accepted | 2026-09-15 |
 | 0077 | [Workflow Templates are seeded, read-only content](0077-workflow-templates-are-seeded-read-only-content.md) | accepted | 2026-09-15 |
+| 0078 | [An `ai` task is a first-class type executed as a pod from a Boomerang-published worker image](0078-an-ai-task-type-runs-a-boomerang-published-worker-as-a-pod.md) | accepted | 2026-09-16 |
 | 0079 | [A status CloudEvent carries a run's identity and lifecycle, not the run model](0079-status-events-carry-identity-and-lifecycle-not-the-run-model.md) | accepted | 2026-09-16 |
 | 0080 | [An unknown reference is 404; a malformed request stays 400](0080-an-unknown-reference-is-404-a-malformed-one-is-400.md) | accepted | 2026-09-16 |

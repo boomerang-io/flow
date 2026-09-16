@@ -29,7 +29,9 @@ included (`workflow/TaskControllerV2.java`); it refuses with `TASK_DELETE_IN_USE
 still references the Task. Two system routes serve the outbound event outbox: `GET /api/v2/system/outbox`
 (`?status=`, default `dead`, plus `page`/`limit`) lists rows, and `PUT /api/v2/system/outbox/replay`
 (`?ids=`, `?status=`, `?olderThan=` epoch milliseconds) puts them back in the queue and answers
-`{"replayed": n}`. Both need `system` permission and a `global` token.
+`{"replayed": n}`. A listed row that has failed delivery carries `lastError` (the exception type and message,
+capped at 1024 characters) and, once dead, `deadAt`; a replay clears both. Both routes need `system` permission
+and a `global` token.
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered
@@ -60,7 +62,10 @@ missing or unusable input answers `400` under the matching `*_INVALID_REQ` code 
 `TASKRUN_INVALID_REQ`, `SCHEDULE_INVALID_REQ`). A reference that fails to resolve *inside a body* stays `400` —
 the route exists and the payload is wrong — which is why a workflow node naming a Task that does not exist is
 `WORKFLOW_INVALID_TASK_REF` on `400`, and a node carrying no task reference at all is `WORKFLOW_MISSING_TASK_REF`
-on `400` at both save and submit. Decision 0080 states the rule.
+on `400` at both save and submit. Decision 0080 states the rule. `TASK_INVALID_NAME` (`1403`, `400`) means the
+supplied name is blank or breaks the slug rules and nothing else: every scoped Task lookup, changelog and delete
+answers `TASK_INVALID_REFERENCE` (`1401`, `404`) when the named Task does not exist or the caller cannot reach it
+(`workflow/TaskService.java`).
 
 ## Pagination and sorting
 
