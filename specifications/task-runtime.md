@@ -229,10 +229,10 @@ and no meter: a platform sums `totalTokens` across task runs through the existin
 
 **Worker image.** The worker is a task image, not a product image. It is built and released from the
 `boomerang-io/tasks` repository (`tasks/ai`) as `boomerangio/task-ai`, tagged from that repository's own
-`@boomerang-io/task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
+`task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
 below). The product tag builds the four service and web images and not this one, so the worker and the product
-version lines move independently; `flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest` and an
-operator pins `boomerangio/task-ai:<version>`
+version lines move independently; `flow.dispatcher.ai.image` defaults to an exact version,
+`boomerangio/task-ai:1.0.0`, and an operator moves it to another `boomerangio/task-ai:<version>`
 (`service-dispatcher/src/main/resources/application.properties:87-93`). What ties the two together is the
 contract, not the tag: the eleven params above reach the image as `PARAM_<NAME>` environment variables and the
 six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`

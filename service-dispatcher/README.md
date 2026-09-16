@@ -35,13 +35,13 @@ so the behaviour is identical on Tekton and on Kubernetes Jobs. Params and resul
 **Where the image comes from.** The worker is an ordinary task image, not a product image: it is
 built and released from the [`boomerang-io/tasks`](https://github.com/boomerang-io/tasks) repository
 (`tasks/ai`) and published as `boomerangio/task-ai`, on its own version line from
-`@boomerang-io/task-ai@<version>` tags. The product tag (`5.x.y`) does not build it, so the two move
+`task-ai@<version>` tags. The product tag (`5.x.y`) does not build it, so the two move
 independently — but the param and result contract is shared between that image and the seeded `ai`
 catalogue task in this repository, so a change to either side has to land on both. The contract is
 documented in that repository's `tasks/ai/README.md`.
 
-`flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest`. A deployment that wants a
-reproducible worker SHOULD pin a version:
+`flow.dispatcher.ai.image` defaults to an exact version, `boomerangio/task-ai:1.0.0`, so a deployment
+runs a reproducible worker. Move it deliberately:
 
 ```properties
 flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3
