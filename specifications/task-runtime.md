@@ -149,15 +149,31 @@ are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PAR
 ## Sensitive parameters
 
 A param is sensitive when its spec has `type=password` (`DataAdapterUtil.java:22`); there is no separate
-marker, and values are filtered on the way up only. The workspace-scoped `get` and `query` reads blank
-password-typed params by name and scrub their resolved values from task params, spec fields and results
-(`workflow/WorkflowRunService.java:145-149,160-170,209`), and the task log stream is wrapped in
-`FilterValuesOutputStream`, a line-buffered scrub of the same values (`:339-346`;
-`lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher ends the stream when the pod is already
+marker, no field on the run, and values are filtered on the way up only. A `RunParam` carries no type on
+the wire, so the type comes from the definition - and two definitions can declare it:
+
+| Declared on | Reached through | Example |
+| --- | --- | --- |
+| The workflow revision's param spec | `WorkflowRun.workflowRevisionRef` | a workflow param referenced as `$(params.apiKey)` |
+| The catalogue task's own spec | `TaskRun.taskRef` + `TaskRun.taskVersion` | a value typed straight into a task node's `apiKey` field |
+
+`WorkflowRunService.filterSensitiveValues` consults both (`workflow/WorkflowRunService.java:172-229`):
+each blanks its own password-typed params by name, and the **union** of the values they resolve to is then
+scrubbed run-wide - from the run's results and from every task's params, spec fields (script, command,
+arguments, envs) and results, because substitution moves a value into any of them under another name
+(`DataAdapterUtil.java:139-211`). The task-spec lookup is batched: the distinct `(taskRef, taskVersion)`
+pairs on a response are resolved together by `TaskService.getSpecs`, two queries regardless of task count.
+Tasks are attached only by `get(id, withTasks=true)` (`WorkflowRunService.java:552-553`), so the paged
+`query` - which returns no tasks - issues no task lookup at all.
+
+The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
+(`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the
+owning run rather than the streamed task alone. The dispatcher ends the stream when the pod is already
 finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
 asynchronous completion of a streamed response without re-running authorization on it
 (`core/security/SecurityConfiguration.java:81`, `SecurityInterceptor.java:45`). Engine and dispatcher reads, and delivery into the
-container, carry the real values.
+container, carry the real values. A resolved value shorter than four characters is blanked by name but not
+value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
 
 ## Volumes and workspaces
 

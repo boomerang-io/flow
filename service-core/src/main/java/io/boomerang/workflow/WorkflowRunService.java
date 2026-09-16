@@ -41,6 +41,7 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +98,7 @@ public class WorkflowRunService {
   private final TaskRunRepository taskRunRepository;
   private final ActionRepository actionRepository;
   private final TaskRunService taskRunService;
+  private final TaskService taskService;
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
   private final EventInboxRepository eventInboxRepository;
@@ -112,6 +114,7 @@ public class WorkflowRunService {
       TaskRunRepository taskRunRepository,
       ActionRepository actionRepository,
       TaskRunService taskRunService,
+      TaskService taskService,
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
       EventInboxRepository eventInboxRepository,
@@ -125,6 +128,7 @@ public class WorkflowRunService {
     this.taskRunRepository = taskRunRepository;
     this.actionRepository = actionRepository;
     this.taskRunService = taskRunService;
+    this.taskService = taskService;
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
     this.eventInboxRepository = eventInboxRepository;
@@ -154,21 +158,74 @@ public class WorkflowRunService {
   /*
    * Sensitive params are sensitive UPWARD (engine to UI/API consumer), so filtering happens on
    * the workspace-scoped v2 surface only - never on the unscoped reads the engine and dispatcher
-   * use, which must see real values. Password-typed params (the workflow revision's param spec is
-   * the type authority; RunParam carries no type on the wire) are blanked by name, and their
-   * resolved values are scrubbed from task params, spec fields and results, where they can appear
-   * under any name after substitution. Mutates the response model only.
+   * use, which must see real values. RunParam carries no type on the wire, so the type comes from
+   * the definition - and there are TWO definitions that can declare it:
+   *
+   *   - the workflow revision's param spec, for a workflow-level param referenced as $(params.x);
+   *   - the CATALOGUE TASK's own spec, for a value typed straight into a task node's param, which
+   *     has no workflow-level param to join against at all.
+   *
+   * Both are blanked by name, and the UNION of the values they resolve to is then scrubbed
+   * run-wide - substitution moves a task-declared secret into a downstream task's param or result
+   * under another name, so the scrub cannot be per task. Mutates the response model only.
    */
   void filterSensitiveValues(WorkflowRun wfRun) {
-    if (wfRun == null || wfRun.getWorkflowRevisionRef() == null) {
+    if (wfRun == null) {
       return;
     }
-    workflowRevisionRepository
-        .findById(wfRun.getWorkflowRevisionRef())
-        .ifPresent(
-            revision ->
-                DataAdapterUtil.filterWorkflowRunValueByFieldType(
-                    wfRun, revision.getParams(), FieldType.PASSWORD.value()));
+    // Collected first, while the values are still raw: the workflow pass below scrubs, and a
+    // value read back after it would be collected as the redaction marker instead of the secret.
+    Set<String> secrets = new HashSet<>(filterTaskDeclaredSensitiveValues(wfRun.getTasks()));
+    if (wfRun.getWorkflowRevisionRef() != null) {
+      workflowRevisionRepository
+          .findById(wfRun.getWorkflowRevisionRef())
+          .ifPresent(
+              revision ->
+                  secrets.addAll(
+                      DataAdapterUtil.filterWorkflowRunValueByFieldType(
+                          wfRun, revision.getParams(), FieldType.PASSWORD.value())));
+    }
+    DataAdapterUtil.scrubWorkflowRunValues(wfRun, secrets);
+  }
+
+  /**
+   * Blanks every password-typed param each TaskRun's OWN catalogue task declares, and returns the
+   * values they resolved to. The join is what the TaskRun already records - {@code taskRef} and
+   * {@code taskVersion} - so no field, wire change or migration is involved.
+   *
+   * <p>The lookup is BATCHED: the distinct (taskRef, taskVersion) pairs across the whole response
+   * are resolved in one call to {@link TaskService#getSpecs}, never one query per task. Tasks are
+   * attached only by {@code get(id, withTasks=true)}; the paged {@code query} leaves them null, so
+   * a list page reaches the early return here and issues no lookup at all.
+   *
+   * <p>Mutates the given models - callers pass response models or throwaway reads, never
+   * something they will persist.
+   */
+  private Set<String> filterTaskDeclaredSensitiveValues(List<TaskRun> tasks) {
+    if (tasks == null || tasks.isEmpty()) {
+      return Set.of();
+    }
+    Set<TaskService.TaskRef> refs =
+        tasks.stream()
+            .filter(t -> t.getTaskRef() != null && t.getTaskVersion() != null)
+            .map(t -> new TaskService.TaskRef(t.getTaskRef(), t.getTaskVersion()))
+            .collect(Collectors.toSet());
+    if (refs.isEmpty()) {
+      return Set.of();
+    }
+    Map<TaskService.TaskRef, TaskSpec> specs = taskService.getSpecs(refs);
+    Set<String> secrets = new HashSet<>();
+    tasks.forEach(
+        task -> {
+          TaskSpec spec =
+              specs.get(new TaskService.TaskRef(task.getTaskRef(), task.getTaskVersion()));
+          if (spec != null) {
+            secrets.addAll(
+                DataAdapterUtil.filterTaskRunValueByFieldType(
+                    task, spec.getParams(), FieldType.PASSWORD.value()));
+          }
+        });
+    return secrets;
   }
 
   /*
@@ -370,22 +427,29 @@ public class WorkflowRunService {
     return outputStream -> body.writeTo(new FilterValuesOutputStream(outputStream, secrets));
   }
 
-  // The resolved values of the owning run's password-typed params, per DataAdapterUtil's
-  // name-join against the workflow revision's param spec (the type authority).
+  // The resolved values of every password-typed param on the owning run, per DataAdapterUtil's
+  // name-join against BOTH type authorities filterSensitiveValues uses: the workflow revision's
+  // param spec, and each task's own catalogue spec. Every task of the run is included, not just
+  // the one being streamed - substitution can carry a sibling task's declared secret into this
+  // task's script, and a script that echoes either shows it in this log.
   private Set<String> taskRunSensitiveValues(String workflowRunRef) {
-    return workflowRunRepository
+    Set<String> secrets = new HashSet<>();
+    workflowRunRepository
         .findById(workflowRunRef)
-        .flatMap(
+        .ifPresent(
             run ->
                 Optional.ofNullable(run.getWorkflowRevisionRef())
                     .flatMap(workflowRevisionRepository::findById)
-                    .map(
+                    .ifPresent(
                         revision ->
-                            DataAdapterUtil.sensitiveValues(
-                                revision.getParams(),
-                                run.getParams(),
-                                FieldType.PASSWORD.value())))
-        .orElse(Set.of());
+                            secrets.addAll(
+                                DataAdapterUtil.sensitiveValues(
+                                    revision.getParams(),
+                                    run.getParams(),
+                                    FieldType.PASSWORD.value()))));
+    // Throwaway models, read only to collect the values - the blanking they undergo is discarded.
+    secrets.addAll(filterTaskDeclaredSensitiveValues(getTaskRuns(workflowRunRef)));
+    return secrets;
   }
 
   /**
