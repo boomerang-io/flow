@@ -66,6 +66,9 @@ class TaskCatalogueDeleteTest extends AbstractEngineIntegrationTest {
         BoomerangException.class, () -> taskService.deleteGlobal("catalogue-delete-unknown"));
   }
 
+  // Returns the Task's ref - the id a TaskRun carries and the id the delete resolves to.
+  // createGlobal nulls the id on the way out and the two-argument filter answers slugs, so the
+  // ref has to come from the relationship itself.
   private String createTask(String name) {
     Task task = new Task();
     task.setName(name);
@@ -74,7 +77,12 @@ class TaskCatalogueDeleteTest extends AbstractEngineIntegrationTest {
     task.getSpec().setCommand(List.of("echo"));
     taskService.createGlobal(task);
     return relationshipService
-        .filter(RelationshipType.TASK, Optional.of(List.of(name)))
+        .filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(name)),
+            Optional.empty(),
+            Optional.empty(),
+            false)
         .get(0);
   }
 }

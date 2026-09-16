@@ -11,8 +11,10 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.util.LinkedList;
 import java.util.List;
@@ -32,13 +34,23 @@ class WorkflowTaskRefValidationTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
+  @Autowired private WorkflowRepository workflowRepository;
 
   @BeforeEach
   void seedFixtures() {
     seedRelationshipRoot();
-    relationshipService.createNode(RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, Optional.empty());
+    // The workspace needs its edge from root, not just a node: the relationship walk for a global
+    // principal starts at root, so a workspace with no incoming edge owns nothing it can reach.
+    relationshipService.createNodeAndEdge(
+        RelationshipType.ROOT,
+        "root",
+        RelationshipLabel.CONTAINS,
+        RelationshipType.WORKSPACE,
+        WORKSPACE,
+        WORKSPACE,
+        Optional.empty(),
+        Optional.empty());
     setFeatureSetting("workspaceQuotas", false);
-    seedTaskSettings();
     seedGlobalTask("task-ref-validation-task");
   }
 
@@ -88,15 +100,13 @@ class WorkflowTaskRefValidationTest extends AbstractEngineIntegrationTest {
     Workflow workflow =
         workflowWithNodeTaskRef("task-ref-validation-submit-wf", "task-ref-validation-task");
     Workflow created = workflowService.create(WORKSPACE, workflow);
+    // create() nulls the id on the way out, and the name is unique to this test.
     String workflowRef =
-        relationshipService
-            .filter(
-                RelationshipType.WORKFLOW,
-                Optional.of(List.of(created.getName())),
-                Optional.of(RelationshipType.WORKSPACE),
-                Optional.of(List.of(WORKSPACE)),
-                false)
-            .get(0);
+        workflowRepository.findAll().stream()
+            .filter(entity -> created.getName().equals(entity.getName()))
+            .findFirst()
+            .orElseThrow()
+            .getId();
 
     WorkflowRevisionEntity revision =
         workflowRevisionRepository.findByWorkflowRefAndLatestVersion(workflowRef).orElseThrow();
@@ -105,12 +115,12 @@ class WorkflowTaskRefValidationTest extends AbstractEngineIntegrationTest {
         .forEach(t -> t.setTaskRef(null));
     workflowRevisionRepository.save(revision);
 
+    // The unscoped submit is where the guard sits and where the workspace-scoped route funnels
+    // into (WorkflowService.submit(team, name, ...) resolves the ref and calls this).
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
-            () ->
-                workflowService.submit(
-                    WORKSPACE, created.getName(), new WorkflowSubmitRequest(), false));
+            () -> workflowService.submit(workflowRef, new WorkflowSubmitRequest(), false));
 
     assertEquals("WORKFLOW_MISSING_TASK_REF", ex.getReason());
     assertTrue(List.of(ex.getArgs()).contains("work"), "the exception must name the node");
