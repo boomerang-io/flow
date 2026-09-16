@@ -561,8 +561,7 @@ public class TaskService {
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   public List<ChangeLogVersion> changelogGlobal(String name) {
@@ -576,8 +575,7 @@ public class TaskService {
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   private List<ChangeLogVersion> internalChangelog(String id) {
@@ -592,7 +590,7 @@ public class TaskService {
    */
   public void delete(String team, String name) {
     if (Objects.isNull(name) || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
     }
     List<String> refs =
         relationshipService.filter(
@@ -603,10 +601,38 @@ public class TaskService {
             false);
     if (!refs.isEmpty()) {
       delete(refs.get(0));
+      // Mirrors the TEAMTASK node create() writes - the Task is gone, so its node and the
+      // workspace's edge to it go with it rather than dangling in the relationship graph.
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TEAMTASK, refs.get(0));
       return;
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
+  }
+
+  /*
+   * Deletes a global Task. Same shape as the workspace-scoped delete above - the name is resolved
+   * through the caller's own relationship and the shared delete refuses while a run still
+   * references it - so the catalogue is manageable from the global surface rather than only by
+   * making a Task inactive.
+   */
+  public void deleteGlobal(String name) {
+    if (Objects.isNull(name) || name.isBlank()) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
+    }
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(name)),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!refs.isEmpty()) {
+      delete(refs.get(0));
+      // Mirrors the TASK node createGlobal() writes, under the root node.
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TASK, refs.get(0));
+      return;
+    }
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   // ── Unscoped operations (engine, workflow-definition and template callers) ─
@@ -687,7 +713,7 @@ public class TaskService {
     validateDeclaredParamNames(request);
 
     if (!uniqueNamesEnabled && request.getId().isEmpty()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ, request.getName(), "latest");
     }
 
     // Does it already exist?

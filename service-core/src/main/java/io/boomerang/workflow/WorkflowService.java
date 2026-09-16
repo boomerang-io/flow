@@ -250,7 +250,7 @@ public class WorkflowService {
    */
   public Workflow get(String team, String name, Optional<Integer> version, boolean withTasks) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     Workflow workflow = internalGet(team, name, version, withTasks);
 
@@ -379,7 +379,7 @@ public class WorkflowService {
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));
     } else {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     // Fill in displayName if not set
@@ -395,7 +395,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!existingWorkflowRefs.isEmpty()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     // Check creation quotas
@@ -547,7 +547,7 @@ public class WorkflowService {
       workflow.setId(null);
       return this.create(team, workflow);
     }
-    throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
   }
 
   /*
@@ -570,7 +570,7 @@ public class WorkflowService {
       String team, String name, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
@@ -709,7 +709,7 @@ public class WorkflowService {
    */
   public ResponseEntity<List<ChangeLogVersion>> changelog(String team, String name) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
@@ -734,7 +734,7 @@ public class WorkflowService {
    */
   public void delete(String team, String name) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
@@ -812,7 +812,7 @@ public class WorkflowService {
    */
   public WorkflowCanvas composeGet(String team, String name, Optional<Integer> version) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     final Workflow response = this.internalGet(team, name, version, true);
@@ -828,7 +828,7 @@ public class WorkflowService {
    */
   public WorkflowCanvas composeApply(String team, WorkflowCanvas canvas, boolean replace) {
     if (canvas == null) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     Workflow workflow = convertCanvasToWorkflow(canvas);
@@ -845,7 +845,7 @@ public class WorkflowService {
    */
   public List<String> getAvailableParameters(String team, String name) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     final Workflow workflow = this.get(team, name, Optional.empty(), true);
@@ -1282,7 +1282,9 @@ public class WorkflowService {
                                     Optional.of(List.of(team)));
                             if (slugs == null || slugs.isEmpty()) {
                               throw new BoomerangException(
-                                  BoomerangError.TASK_INVALID_REF, t.getName());
+                                  BoomerangError.WORKFLOW_INVALID_TASK_REF,
+                                  t.getName(),
+                                  param.getValue());
                             }
                             param.setValue(slugs.get(0));
                           }
@@ -1291,7 +1293,27 @@ public class WorkflowService {
             });
   }
 
+  /*
+   * Every node other than start and end must name the Task it runs. Without a reference there is
+   * nothing to resolve at save time and nothing to execute at run time, so the workflow is
+   * rejected here - at save and again at submit, because a workflow saved before this check
+   * could still carry one.
+   */
+  private static void validateTaskRefsPresent(List<WorkflowTask> tasks) {
+    if (tasks == null) {
+      return;
+    }
+    for (WorkflowTask task : tasks) {
+      if (!"start".equals(task.getName())
+          && !"end".equals(task.getName())
+          && (task.getTaskRef() == null || task.getTaskRef().isBlank())) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_MISSING_TASK_REF, task.getName());
+      }
+    }
+  }
+
   private void convertTaskSlugsToRefs(String team, Workflow workflow) {
+    validateTaskRefsPresent(workflow.getTasks());
     workflow
         .getTasks()
         .forEach(
@@ -1337,7 +1359,9 @@ public class WorkflowService {
                                     false);
                             if (refs == null || refs.isEmpty()) {
                               throw new BoomerangException(
-                                  BoomerangError.TASK_INVALID_REF, t.getName());
+                                  BoomerangError.WORKFLOW_INVALID_TASK_REF,
+                                  t.getName(),
+                                  param.getValue());
                             }
                             param.setValue(refs.get(0));
                           }
@@ -1351,7 +1375,7 @@ public class WorkflowService {
   public ResponseEntity<Workflow> get(
       String workflowId, Optional<Integer> version, boolean withTasks) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     final Optional<WorkflowEntity> optWfEntity = workflowRepository.findById(workflowId);
     Optional<WorkflowRevisionEntity> optWfRevisionEntity;
@@ -1548,7 +1572,7 @@ public class WorkflowService {
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));
     } else {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     wfEntity.setName(request.getName());
     if (request.getDisplayName() == null || request.getDisplayName().isEmpty()) {
@@ -1807,7 +1831,7 @@ public class WorkflowService {
   public WorkflowRun submit(
       String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     LOGGER.debug("[{}] Workflow Submit Request Received.", workflowId);
     logPayload(request);
@@ -1836,6 +1860,7 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
     }
     WorkflowRevisionEntity wfRevision = optWorkflowRevisionEntity.get();
+    validateTaskRefsPresent(wfRevision.getTasks());
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
     wfRunEntity.setWorkflowRevisionRef(wfRevision.getId());
@@ -1901,7 +1926,7 @@ public class WorkflowService {
    */
   public ResponseEntity<List<ChangeLogVersion>> changelog(String workflowId) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     final Optional<WorkflowEntity> optWfEntity = workflowRepository.findById(workflowId);
     if (optWfEntity.isPresent()) {
@@ -1934,7 +1959,7 @@ public class WorkflowService {
    */
   public void delete(String workflowId) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     if (!workflowRepository.existsById(workflowId)) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);

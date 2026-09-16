@@ -14,6 +14,7 @@ Every public route is under `/api/v2`; resources owned by a workspace sit under
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workspace/WorkspaceInsightsControllerV2.java:27` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
 | Global | `/api/v2/{auth,user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/AuthControllerV2.java:37`, `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
+| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox` | `core/SystemControllerV2.java:35`, `event/OutboxControllerV2.java` |
 | Dispatcher | `/api/v1/dispatcher` | `dispatcher/DispatcherControllerV1.java:41` |
 
 `/api/v2/workflowtemplate` is read-only: `GET /{name}` and `GET /query` are the whole surface
@@ -22,6 +23,15 @@ resource — the loader seeds them and a v3 upgrade imports them — so there is
 change or delete one. A client creates a Workflow from a template by reading the template and
 posting its body to `POST /api/v2/workspace/{workspace}/workflow`
 (`client-web/src/Features/Home/Home.tsx:61-78`).
+
+The global Task catalogue carries the same operations as the workspace-scoped one, `DELETE /api/v2/task/{name}`
+included (`workflow/TaskControllerV2.java`); it refuses with `TASK_DELETE_IN_USE` (`409`) while a run in flight
+still references the Task. Two system routes serve the outbound event outbox: `GET /api/v2/system/outbox`
+(`?status=`, default `dead`, plus `page`/`limit`) lists rows, and `PUT /api/v2/system/outbox/replay`
+(`?ids=`, `?status=`, `?olderThan=` epoch milliseconds) puts them back in the queue and answers
+`{"replayed": n}`. A listed row that has failed delivery carries `lastError` (the exception type and message,
+capped at 1024 characters) and, once dead, `deadAt`; a replay clears both. Both routes need `system` permission
+and a `global` token.
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered
@@ -45,6 +55,17 @@ Every API error, including authentication failures, is a `RestErrorResponse`
 | `code`, `reason`, HTTP status | The `BoomerangError` enum constant (`lib-common/.../error/BoomerangError.java`); code ranges: 0–999 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter (`BoomerangError.java:13-17`) |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:12`); an explicit exception message wins (`RestExceptionHandler.java:42-50`) |
 | `cause` | Present only when the exception has a cause (`:53-55`) |
+
+A `*_INVALID_REF*` code answers `404` and means the resource the request path addresses does not exist; blank,
+missing or unusable input answers `400` under the matching `*_INVALID_REQ` code (`TEAM_INVALID_REQ`,
+`WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ`, `WORKFLOWRUN_INVALID_REQ`,
+`TASKRUN_INVALID_REQ`, `SCHEDULE_INVALID_REQ`). A reference that fails to resolve *inside a body* stays `400` —
+the route exists and the payload is wrong — which is why a workflow node naming a Task that does not exist is
+`WORKFLOW_INVALID_TASK_REF` on `400`, and a node carrying no task reference at all is `WORKFLOW_MISSING_TASK_REF`
+on `400` at both save and submit. Decision 0080 states the rule. `TASK_INVALID_NAME` (`1403`, `400`) means the
+supplied name is blank or breaks the slug rules and nothing else: every scoped Task lookup, changelog and delete
+answers `TASK_INVALID_REFERENCE` (`1401`, `404`) when the named Task does not exist or the caller cannot reach it
+(`workflow/TaskService.java`).
 
 ## Pagination and sorting
 
@@ -84,6 +105,8 @@ emitted as `|` blocks (`workflow/config/YamlJacksonHttpMessageConverter.java:11-
 
 ## Webhook and event endpoints
 
+### Events in
+
 All three routes require `webhook/action` permission and accept `session`, `user`, `key` and
 `global` tokens (`event/WebhookEventControllerV2.java:73-76`).
 
@@ -107,6 +130,60 @@ Accepted CloudEvent shape (structured mode):
 
 A caller with no relationship to the workflow gets `PERMISSION_DENIED`
 (`WebhookEventService.java:94-97`); a rejected request creates no run.
+
+### Events out
+
+Every externally visible run status change is POSTed to each configured sink as a structured
+CloudEvent 1.0 (`application/cloudevents+json`). Egress is off by default
+(`flow.events.sink.enabled=false`, `application.properties:50`); delivery is at-least-once through the
+outbox, so a consumer MUST treat duplicates as benign (decision 0012).
+
+| Envelope field | Value |
+| --- | --- |
+| `type` | `io.boomerang.event.status.workflowrun`, `io.boomerang.event.status.taskrun` (`event/enums/EventType.java:9-11`) |
+| `source` | `/apis/v1/events` |
+| `subject` | `/workflowrun/{id}/status/{status}` or `/taskrun/{id}/status/{status}` (`event/EventFactory.java:54-58,79-83`) |
+| `id` | a fresh UUID per delivery, not a run id |
+| `initiatorcontext` (extension) | the run's `initiatorContext` label, when set (task events only, `event/model/TaskRunStatusEvent.java:37-40`) |
+
+`data` carries the run, in one of two shapes chosen by `flow.events.sink.payload`
+(`event/config/EventSinkProperties.java:22`). The envelope is identical either way, so routing and
+filtering built on `type` and `subject` are unaffected by the setting.
+
+| `payload` | `data` | Use |
+| --- | --- | --- |
+| `thin` (default) | The run's identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason` (task events), `phase`, `labels`, `creationDate`, `startTime`, `duration`. Absent fields are omitted, never `null` | A consumer triggers on the event and reads the run back over the API |
+| `full` | The whole public `WorkflowRun` / `TaskRun` model, `params`, `results` and `annotations` included | A consumer processes result values without calling back |
+
+One projection step builds both (`event/model/RunStatusSummary.java:46-53`); the shapes are pinned by
+`service-core/src/test/java/io/boomerang/event/StatusEventPayloadTest.java`. `thin` never carries
+`params`, `results` or `annotations` — see decision 0079.
+
+```json
+{ "specversion": "1.0", "type": "io.boomerang.event.status.taskrun",
+  "source": "/apis/v1/events", "subject": "/taskrun/68b1.../status/failed",
+  "id": "9f1c...", "time": "2026-09-16T04:21:07Z", "datacontenttype": "application/json",
+  "data": { "id": "68b1...", "workflowRef": "66aa...", "workflowRunRef": "67cc...",
+            "status": "failed", "statusReason": "JobFailed", "phase": "completed",
+            "labels": { "initiatorId": "user-1" },
+            "creationDate": 1758000000000, "startTime": 1758000001000, "duration": 4210 } }
+```
+
+A sink is configured either as a bare URL or as a destination that authenticates with a request
+header. Prefer the header: a URL secret is recorded by every proxy and access log on the way, a
+header value is not. Bare URLs stay supported unchanged for receivers that can only be given a URL.
+
+| Property | Meaning |
+| --- | --- |
+| `flow.events.sink.urls` | Comma-separated sink URLs; any secret rides in the query string (`...?token=xyz`) |
+| `flow.events.sink.destinations[n].url` | A sink that authenticates with a header |
+| `flow.events.sink.destinations[n].header-name` | Header to send; defaults to `Authorization` (`EventSinkProperties.java:42`) |
+| `flow.events.sink.destinations[n].header-value` | The secret, supplied from the environment; sent only to its own sink and never logged (`EventSinkService.java:94-100`) |
+
+Both lists are delivered to; every request goes through the configured internal `RestTemplate`, so
+proxy routing and the per-template timeouts apply (decision 0062). The receiver's own
+authentication is its business: Flow sends the header verbatim and treats any non-2xx as a
+delivery failure to retry.
 
 ## Labels and annotations
 

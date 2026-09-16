@@ -88,13 +88,15 @@ class TaskWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
         "TASK_INVALID_REFERENCE",
         "get");
     assertRefused(
-        () -> taskService.changelog(MY_WORKSPACE, FOREIGN_TASK), "TASK_INVALID_NAME", "changelog");
+        () -> taskService.changelog(MY_WORKSPACE, FOREIGN_TASK),
+        "TASK_INVALID_REFERENCE",
+        "changelog");
     assertRefused(
         () -> taskService.getAsTekton(MY_WORKSPACE, FOREIGN_TASK, Optional.empty()),
         "TASK_INVALID_REFERENCE",
         "getAsTekton");
     assertRefused(
-        () -> taskService.delete(MY_WORKSPACE, FOREIGN_TASK), "TASK_INVALID_NAME", "delete");
+        () -> taskService.delete(MY_WORKSPACE, FOREIGN_TASK), "TASK_INVALID_REFERENCE", "delete");
 
     // Refused before any work: the foreign Task is untouched.
     assertTrue(
