@@ -561,8 +561,7 @@ public class TaskService {
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   public List<ChangeLogVersion> changelogGlobal(String name) {
@@ -576,8 +575,7 @@ public class TaskService {
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   private List<ChangeLogVersion> internalChangelog(String id) {
@@ -608,8 +606,7 @@ public class TaskService {
       relationshipService.removeNodeAndEdgeByRef(RelationshipType.TEAMTASK, refs.get(0));
       return;
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   /*
@@ -635,7 +632,7 @@ public class TaskService {
       relationshipService.removeNodeAndEdgeByRef(RelationshipType.TASK, refs.get(0));
       return;
     }
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   // ── Unscoped operations (engine, workflow-definition and template callers) ─
