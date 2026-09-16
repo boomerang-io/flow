@@ -195,7 +195,38 @@ tolerations, host aliases and the image pull secret are likewise per deployment
 Empty toleration or host-alias entries are dropped before dispatch, so a `[]` or `[{}]` default never reaches
 the API server (`KubeHelperService.java:240`). Tasks, claims and ConfigMaps are created in `kube.namespace`,
 or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
-(`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either executor.
+(`config/KubeClientConfig.java:21,40`).
+
+## Container resources
+
+Every task container carries the requests and limits one shared resolver reads from configuration
+(`executor/TaskResourceResolver.java`), so the sizing is the same on both executors: the Jobs executor sets it on
+the task container (`KubeJobsExecutor.java:200`) and the Tekton executor on the step's `computeResources`
+(`TektonServiceImpl.java:389`).
+
+| Property | Default | Applied as |
+| --- | --- | --- |
+| `kube.resource.request.memory` | `2Gi` | `requests.memory` |
+| `kube.resource.limit.memory` | `16Gi` | `limits.memory` |
+| `kube.resource.request.ephemeral-storage` | `2Gi` | `requests.ephemeral-storage` |
+| `kube.resource.limit.ephemeral-storage` | `16Gi` | `limits.ephemeral-storage` |
+| `kube.resource.request.cpu` | empty | `requests.cpu` |
+| `kube.resource.limit.cpu` | empty | `limits.cpu` |
+
+Each value is a Kubernetes quantity and each tolerates being blank: blank sets that request or limit not at all,
+never an empty quantity and never a zero limit, so a deployment can run with memory limits and no CPU limit. With
+all six blank the container carries no resources block. Both CPU values ship blank because a CPU limit throttles a
+task rather than failing it, which is a worse default than no limit; memory and ephemeral-storage ship with values
+because a container without them can take a node. A memory-backed `/data` is a tmpfs, so what a task writes there
+counts against the memory limit rather than against ephemeral-storage — that is how a container that would breach
+the ephemeral-storage limit keeps running, and a deployment that enables it sizes memory to cover the data too.
+
+The sizing is per dispatcher deployment, not per task, the same shape as the isolation tier (decision 0042): a
+workflow author cannot ask for a bigger container, and a workload that needs different sizing runs a second
+dispatcher deployment with its own task types. A runtime that takes a byte or CPU count rather than a quantity
+string — the planned Docker executor — reads the same configured values through the resolver (`memoryLimitBytes`,
+`cpuLimitNanos`, a CPU count in nano-CPUs); Docker has no ephemeral-storage concept, so that pair is
+Kubernetes-only.
 
 ## AI tasks
 
