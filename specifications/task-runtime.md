@@ -2,10 +2,12 @@
 
 A task runs when the engine in `service-core` admits it to the claim-based queue, a `service-dispatcher`
 instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image on Kubernetes and
-reports the results back. Only `template`, `custom`, `script` and `generic` tasks go to a dispatcher
-(`engine/TaskExecutionService.java:189-194`); every other type runs inside the engine. The shipped dispatcher
-registers `template`, `custom` and `script` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
-so a `generic` task waits in the queue until a dispatcher registers that type.
+reports the results back. Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
+(`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the engine. The shipped dispatcher
+registers `template`, `custom`, `script` and `ai` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
+so a `generic` task waits in the queue until a dispatcher registers that type. To give AI tasks their own network
+zone, remove `ai` from the general dispatcher's list and run a second dispatcher deployment with
+`flow.dispatcher.task-types=ai`.
 
 ## Dispatcher protocol
 
@@ -149,8 +151,14 @@ are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PAR
 ## Sensitive parameters
 
 A param is sensitive when its spec has `type=password` (`DataAdapterUtil.java:22`); there is no separate
-marker, and values are filtered on the way up only. The workspace-scoped `get` and `query` reads blank
-password-typed params by name and scrub their resolved values from task params, spec fields and results
+marker, and values are filtered on the way up only. The spec consulted is the **workflow revision's** param
+list, not the catalogue task's: `filterSensitiveValues` joins the run's own params against
+`revision.getParams()` (`workflow/WorkflowRunService.java:162-172`). So a password-typed value is blanked and
+scrubbed when the workflow declares it and the node references it as `$(params.x)` — the supported pattern —
+and NOT when a literal is typed straight into a node param whose password type is declared only on the
+catalogue task. That is true of every catalogue task with a password param, `ai`'s `token` included. The
+workspace-scoped `get` and `query` reads blank password-typed params by name and scrub their resolved values
+from task params, spec fields and results
 (`workflow/WorkflowRunService.java:145-149,160-170,209`), and the task log stream is wrapped in
 `FilterValuesOutputStream`, a line-buffered scrub of the same values (`:339-346`;
 `lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher ends the stream when the pod is already
@@ -189,12 +197,67 @@ the API server (`KubeHelperService.java:240`). Tasks, claims and ConfigMaps are 
 or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
 (`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either executor.
 
+## AI tasks
+
+An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references the
+seeded `ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher resolves the
+worker image from `flow.dispatcher.ai.image` because the catalogue entry declares none
+(`service-dispatcher/.../executor/TaskImageResolver.java:35-43`). Everything the model call needs is a declared
+param.
+
+| Param | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `endpoint` | `text`, required | — | An OpenAI-compatible base URL: OpenRouter, LiteLLM, Azure AI Foundry, Ollama |
+| `token` | `password`, required | — | The endpoint's API token |
+| `model` | `text`, required | — | The model identifier the endpoint expects |
+| `systemPrompt` | `texteditor::text` | empty | Sent as the system message |
+| `prompt` | `texteditor::text`, required | — | Supports `$(params.x)` and `$(tasks.x.results.y)` |
+| `temperature` | `slider` 0–2 step 0.1 | `0.7` | Sampling temperature |
+| `maxTokens` | `number` | `1024` | Upper bound on generated tokens |
+| `responseFormat` | `select` `text`\|`json` | `text` | Free text or a JSON object |
+| `seed` | `number` | empty | Sampling seed, where the endpoint honours one |
+| `files` | `text` | empty | Comma-separated paths on the run workspace, read into context |
+| `maxContextBytes` | `number` | `65536` | Byte budget for `files` |
+
+`slider` is the only param type with a numeric range, so `AbstractParam` carries nullable `min`, `max` and
+`step` beside `options` (`lib-common/.../model/AbstractParam.java`).
+
+The task declares six results — `output`, `promptTokens`, `completionTokens`, `totalTokens`, `finishReason`,
+`model` — as flat typed results on the TaskRun under the same 4 KB cap as every other task (decision 0041). A
+long `output` therefore fails the run with `RESULTS_TOO_LARGE` rather than truncating. There is no usage field
+and no meter: a platform sums `totalTokens` across task runs through the existing query API.
+
+**Worker image.** The worker is a task image, not a product image. It is built and released from the
+`boomerang-io/tasks` repository (`tasks/ai`) as `boomerangio/task-ai`, tagged from that repository's own
+`@boomerang-io/task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
+below). The product tag builds the four service and web images and not this one, so the worker and the product
+version lines move independently; `flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest` and an
+operator pins `boomerangio/task-ai:<version>`
+(`service-dispatcher/src/main/resources/application.properties:87-93`). What ties the two together is the
+contract, not the tag: the eleven params above reach the image as `PARAM_<NAME>` environment variables and the
+six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`
+catalogue revision in this repository — a param or result added on one side has to land on the other.
+
+**Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
+(`DispatcherService.java:212-271`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
+deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
+isolation tiers. No configuration separates zones inside one dispatcher.
+
+**Token delivery.** `token` is password-typed, so declaring it as a workflow param and referencing it from
+the node blanks and scrubs it on the workspace-scoped run reads and the log stream (decision 0043); a literal
+typed into the node is not scrubbed, per "Sensitive parameters" above. Downward it is a plain `PARAM_TOKEN`
+environment variable on the pod, like every other param — there are no per-task secrets yet, so anyone who
+can read the pod spec or exec into the pod can read the token.
+
 ## Task catalogue
 
 Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image
-(`service-loader/.../migration/_0039__RepointWorkerFlowImages.java:21-22,54`). The loader seeds 87 tasks and
+(`service-loader/.../migration/_0039__RepointWorkerFlowImages.java:21-22,54`). The loader seeds 88 tasks and
 their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and `task_revisions`,
-inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). A `template` or `script` task without
+inserting only what is absent (`_0022__SeedTaskCatalogue.java:88-130`). That unit runs once per install, so a
+task added to the seed afterwards needs a change unit of its own to reach an existing database — `ai` has
+`_0047__SeedAiTask`, which reads the same two seed documents and inserts the task, its revision and its root
+edge if absent. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`), added to an existing
@@ -207,7 +270,7 @@ catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWai
 | Type | Behaviour |
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
-| `template`, `custom`, `script`, `generic` | Wait for a dispatcher |
+| `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
 | `decision` | Evaluates the branch and ends `succeeded` |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status (see `execution-model.md`) |

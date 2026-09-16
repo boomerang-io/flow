@@ -28,6 +28,7 @@ public enum TaskType {
   runworkflow("runworkflow"),
   runscheduledworkflow("runscheduledworkflow"),
   script("script"), // NOSONAR
+  ai("ai"),
   setwfstatus("setwfstatus"),
   sleep("sleep"); // NOSONAR
 

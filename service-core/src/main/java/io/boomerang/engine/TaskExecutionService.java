@@ -208,7 +208,8 @@ public class TaskExecutionService {
       if (!TaskType.template.equals(taskExecution.getType())
           && !TaskType.script.equals(taskExecution.getType())
           && !TaskType.custom.equals(taskExecution.getType())
-          && !TaskType.generic.equals(taskExecution.getType())) {
+          && !TaskType.generic.equals(taskExecution.getType())
+          && !TaskType.ai.equals(taskExecution.getType())) {
         LOGGER.debug("[{}] Moving task to Executing: {}", taskExecutionId, taskExecution.getName());
         self.execute(taskExecutionId);
       }
@@ -336,7 +337,7 @@ public class TaskExecutionService {
     // TaskRunEntities are typically only updated and then passed to end
     // If not ending, then they may save a waiting status.
     switch (taskType) {
-      case template, script, custom, generic -> {
+      case template, script, custom, generic, ai -> {
         // Nothing to do here. These types wait for a Handler.
         getTaskWorkspaces(taskExecution, wfRunEntity);
       }

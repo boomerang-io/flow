@@ -3,7 +3,7 @@
 This service acts as a mechanism to execute tasks in a secure and highly performant way and connects to the Engine
 service to register and request a queue using a long poll mechanism.
 
-It executes template, script, and custom tasks in a Kubernetes cluster using the
+It executes template, script, custom and ai tasks in a Kubernetes cluster using the
 [Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client). The per-task runtime sits behind
 the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher.executor`:
 
@@ -11,6 +11,50 @@ the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher
 | ---------------- | -------------- | -------------- | ----- |
 | `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
 | `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. |
+
+## Task types and the `ai` type
+
+`flow.dispatcher.task-types` is the list this deployment registers with the engine at startup; the
+engine hands it claims for those types only. It defaults to `template,custom,script,ai`, so a
+single-dispatcher install runs AI tasks out of the box. `generic` is dispatchable but not registered
+by default — add it explicitly to a deployment that should run it:
+
+| Type | Image and command | Register with |
+| ---- | ----------------- | ------------- |
+| `template`, `custom`, `script` | Authored on the task or workflow node | Default |
+| `generic` | Authored | `flow.dispatcher.task-types=template,custom,script,generic` |
+| `ai` | Resolved by the dispatcher: `flow.dispatcher.ai.image` (`boomerangio/task-ai`) and the command `prompt` | Default |
+
+An `ai` task's author never builds a container and never names an image. `TaskImageResolver`
+(`io.boomerang.executor.TaskImageResolver`) supplies the image and command for type `ai` and ignores
+any image, command or script that reached the spec, so a definition cannot point the AI worker at a
+different container. Both executors ask the resolver instead of reading `spec.image` directly,
+so the behaviour is identical on Tekton and on Kubernetes Jobs. Params and results are unchanged:
+`PARAM_<NAME>` in, `RESULTS_PATH` out.
+
+**Where the image comes from.** The worker is an ordinary task image, not a product image: it is
+built and released from the [`boomerang-io/tasks`](https://github.com/boomerang-io/tasks) repository
+(`tasks/ai`) and published as `boomerangio/task-ai`, on its own version line from
+`@boomerang-io/task-ai@<version>` tags. The product tag (`5.x.y`) does not build it, so the two move
+independently — but the param and result contract is shared between that image and the seeded `ai`
+catalogue task in this repository, so a change to either side has to land on both. The contract is
+documented in that repository's `tasks/ai/README.md`.
+
+`flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest`. A deployment that wants a
+reproducible worker SHOULD pin a version:
+
+```properties
+flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3
+```
+
+**An AI network zone.** A dispatcher deployment registered with `flow.dispatcher.task-types=ai`
+receives `ai` claims and nothing else, so every pod it creates is the AI worker image talking to the
+configured endpoint. Run it in a namespace whose egress policy allows that endpoint and nothing
+else, and set the general deployment to `template,custom,script` (dropping `ai`): no other task type
+can then reach the AI network path, and no AI task can run outside it. This is the same shape as the
+isolation tier (decision 0042) — one property per deployment, a second deployment for a second
+zone — and needs no per-task field or routing rule, because the engine already routes claims by
+registered task type.
 
 `dispatcher.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
 task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.

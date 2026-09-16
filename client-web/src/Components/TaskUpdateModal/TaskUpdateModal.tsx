@@ -6,6 +6,7 @@ import cx from "classnames";
 import EmptyState from "Components/EmptyState";
 import TextEditorModal from "Components/TextEditorModal";
 import { TEXT_AREA_TYPES } from "Constants/formInputTypes";
+import { attachCustomInputComponents } from "Utils/paramsHelper";
 import { resourceRoute } from "Config/resourceRoutes";
 import { DataDrivenInput as DataDrivenInputConfig, ObjectValues, Task, WorkflowNode } from "Types";
 import styles from "./taskUpdateModal.module.scss";
@@ -123,8 +124,10 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
     );
   }
   const currentTaskTemplate = current.task;
-  const currentTaskConfig = currentTaskTemplate.spec.params ?? [];
-  const latestTaskConfig = latestTaskTemplate.spec.params ?? [];
+  // Both columns render params straight through DataDrivenInput, which has no branch for the
+  // `slider` type - without this wiring a slider param renders as nothing on either side.
+  const currentTaskConfig = attachCustomInputComponents(currentTaskTemplate.spec.params ?? []);
+  const latestTaskConfig = attachCustomInputComponents(latestTaskTemplate.spec.params ?? []);
 
   const removedInputs = currentTaskConfig
     .filter((input) => !latestTaskConfig.find((newInput) => newInput.key === input.key))

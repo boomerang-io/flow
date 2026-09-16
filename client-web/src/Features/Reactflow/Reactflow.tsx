@@ -31,6 +31,7 @@ import * as GraphComps from "./components";
 import "./styles.scss";
 
 export const markerTypes: { [K in NodeTypeType]: string } = {
+  ai: "task-marker",
   approval: "task-marker",
   acquirelock: "task-marker",
   custom: "task-marker",
@@ -59,6 +60,7 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
 // widening scoped to where xyflow itself put it, instead of us re-deriving it locally.
 const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   acquirelock: GraphComps.TemplateEdge,
+  ai: GraphComps.TemplateEdge,
   approval: GraphComps.TemplateEdge,
   custom: GraphComps.TemplateEdge,
   decision: GraphComps.DecisionEdge,
@@ -79,6 +81,7 @@ const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
 
 const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   acquirelock: GraphComps.TemplateNode,
+  ai: GraphComps.AiNode,
   approval: GraphComps.ApprovalNode,
   custom: GraphComps.CustomTaskNode,
   decision: GraphComps.DecisionNode,

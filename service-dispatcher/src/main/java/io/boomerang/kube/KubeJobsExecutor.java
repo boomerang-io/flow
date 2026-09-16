@@ -14,6 +14,7 @@ import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.executor.TerminationMessageParser;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
@@ -86,6 +87,8 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Autowired protected KubeServiceImpl kubeService;
 
   @Autowired private WorkspaceService workspaceService;
+
+  @Autowired protected TaskImageResolver imageResolver;
 
   @Value("${kube.timeout.watchGraceMinutes}")
   private long watchGraceMinutes;
@@ -169,11 +172,16 @@ public class KubeJobsExecutor implements TaskExecutor {
     addWorkspaceVolumes(volumes, volumeMounts, workflowRef, workflowRunRef, task.getWorkspaces());
 
     List<String> containerCommand =
-        addScriptOrCommand(volumes, volumeMounts, taskLabels, spec.getScript(), spec.getCommand());
+        addScriptOrCommand(
+            volumes,
+            volumeMounts,
+            taskLabels,
+            imageResolver.script(task),
+            imageResolver.command(task));
 
     Container container = new Container();
     container.setName("task");
-    container.setImage(spec.getImage());
+    container.setImage(imageResolver.image(task));
     container.setImagePullPolicy(kubeImagePullPolicy);
     container.setWorkingDir(spec.getWorkingDir());
     container.setArgs(spec.getArguments());
