@@ -15,6 +15,7 @@ import io.boomerang.executor.JobWatcher;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.boomerang.executor.TerminationMessageParser;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
@@ -89,6 +90,8 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Autowired private WorkspaceService workspaceService;
 
   @Autowired protected TaskImageResolver imageResolver;
+
+  @Autowired protected TaskResourceResolver resourceResolver;
 
   @Value("${kube.timeout.watchGraceMinutes}")
   private long watchGraceMinutes;
@@ -193,6 +196,8 @@ public class KubeJobsExecutor implements TaskExecutor {
             spec.getEnvs(),
             helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log")));
     container.setVolumeMounts(volumeMounts);
+    // Null when nothing is configured, so the container carries no resources block at all.
+    container.setResources(resourceResolver.requirements());
     container.setTerminationMessagePath("/dev/termination-log");
     container.setTerminationMessagePolicy("File");
 
