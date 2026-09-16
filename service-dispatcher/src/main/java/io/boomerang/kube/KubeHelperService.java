@@ -84,7 +84,7 @@ public class KubeHelperService {
     return bmrgProduct + "-cfg";
   }
 
-  protected String getPrefixVol() {
+  public String getPrefixVol() {
     return bmrgProduct + "-vol";
   }
 
@@ -107,7 +107,7 @@ public class KubeHelperService {
     return proxyEnvVars;
   }
 
-  protected EnvVar createEnvVar(String key, String value) {
+  public EnvVar createEnvVar(String key, String value) {
     EnvVar envVar = new EnvVar();
     envVar.setName(key);
     envVar.setValue(value);
@@ -122,7 +122,7 @@ public class KubeHelperService {
    * rather than silently overwrite each other), then the Task-defined envVars. $(params.x)
    * references in script/args are substituted by the engine.
    */
-  protected List<EnvVar> createTaskEnvVars(
+  public List<EnvVar> createTaskEnvVars(
       Boolean debug, List<RunParam> params, List<TaskEnvVar> envVars, EnvVar... runtimeVars) {
     Map<String, EnvVar> byName = new LinkedHashMap<>();
     createProxyEnvVars().forEach(var -> byName.put(var.getName(), var));
@@ -264,7 +264,7 @@ public class KubeHelperService {
     return labels;
   }
 
-  protected Map<String, String> getBaseLabels(String tier) {
+  public Map<String, String> getBaseLabels(String tier) {
     Map<String, String> labels = new HashMap<>();
     labels.put("app.kubernetes.io/name", bmrgProduct);
     labels.put("app.kubernetes.io/instance", bmrgInstance);
@@ -380,7 +380,7 @@ public class KubeHelperService {
         || (character >= '0' && character <= '9');
   }
 
-  protected Map<String, String> getTaskLabels(
+  public Map<String, String> getTaskLabels(
       String workflowRef,
       String workflowRunRef,
       String taskRunRef,
@@ -393,7 +393,7 @@ public class KubeHelperService {
     return getLabels("workflow", workflowRef, workflowRunRef, null, customLabels);
   }
 
-  protected Map<String, String> getWorkspaceLabels(
+  public Map<String, String> getWorkspaceLabels(
       String workflowRef,
       String workspaceRef,
       String workspaceType,

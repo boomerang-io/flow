@@ -1,11 +1,13 @@
 package io.boomerang.kube;
 
+import io.boomerang.dispatcher.WorkspaceStore;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.util.List;
 import java.util.Map;
 
-public interface KubeService {
+/** The Kubernetes-backed workspace store, plus the two reads that return the claims themselves. */
+public interface KubeService extends WorkspaceStore {
 
   PersistentVolumeClaim createWorkspacePVC(
       String workflowRef,
@@ -18,10 +20,5 @@ public interface KubeService {
       long waitSeconds)
       throws KubernetesClientException, InterruptedException;
 
-  void deleteWorkspacePVC(String workspaceRef, String workspaceType);
-
   List<PersistentVolumeClaim> listWorkspacePVCs();
-
-  boolean checkWorkspacePVCExists(
-      String workspaceRef, String workspaceType, boolean failIfNotBound);
 }

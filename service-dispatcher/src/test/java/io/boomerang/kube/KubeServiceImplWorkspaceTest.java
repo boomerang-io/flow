@@ -73,6 +73,6 @@ class KubeServiceImplWorkspaceTest {
 
   @Test
   void deletingAClaimThatIsAlreadyGoneIsNotAnError() {
-    assertDoesNotThrow(() -> kubeService.deleteWorkspacePVC("run-never-existed", "workflowrun"));
+    assertDoesNotThrow(() -> kubeService.delete("run-never-existed", "workflowrun"));
   }
 }

@@ -4,8 +4,7 @@ import io.boomerang.client.EngineClient;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
-import io.boomerang.kube.KubeService;
-import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
+import io.boomerang.dispatcher.model.HeldWorkspace;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
@@ -20,8 +19,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Releases workspace storage by reconciling the cluster against the engine: the cluster says which
- * workspace claims this dispatcher's namespace holds, and the engine says which of their owners are
+ * Releases workspace storage by reconciling the runtime against the engine: the {@link
+ * WorkspaceStore} says which workspaces this dispatcher holds storage for - Kubernetes claims or
+ * Docker volumes, the same labels either way - and the engine says which of their owners are
  * finished. Nothing on the run records the release, so an interrupted tick costs only a delay - the
  * next tick asks the same question again.
  */
@@ -34,22 +34,18 @@ public class WorkspaceReconciler {
 
   private static final Logger LOGGER = LogManager.getLogger(WorkspaceReconciler.class);
 
-  private static final String WORKSPACE_REF_LABEL = "boomerang.io/workspace-ref";
-
-  private static final String WORKSPACE_TYPE_LABEL = "boomerang.io/workspace-type";
-
   // The engine caps each list of a release query at this many ids, so a tick pages.
   private static final int PAGE_SIZE = 500;
 
-  private final KubeService kubeService;
+  private final WorkspaceStore workspaceStore;
 
   private final WorkspaceService workspaceService;
 
   private final EngineClient engineClient;
 
   public WorkspaceReconciler(
-      KubeService kubeService, WorkspaceService workspaceService, EngineClient engineClient) {
-    this.kubeService = kubeService;
+      WorkspaceStore workspaceStore, WorkspaceService workspaceService, EngineClient engineClient) {
+    this.workspaceStore = workspaceStore;
     this.workspaceService = workspaceService;
     this.engineClient = engineClient;
   }
@@ -82,16 +78,12 @@ public class WorkspaceReconciler {
     }
   }
 
-  /** The workspace refs this dispatcher's namespace holds a claim for, grouped by storage type. */
+  /** The workspace refs this dispatcher holds storage for, grouped by storage type. */
   private Map<StorageType, List<String>> held() {
     Map<StorageType, Set<String>> refs = new EnumMap<>(StorageType.class);
-    for (PersistentVolumeClaim claim : kubeService.listWorkspacePVCs()) {
-      Map<String, String> labels =
-          (claim.getMetadata() != null && claim.getMetadata().getLabels() != null)
-              ? claim.getMetadata().getLabels()
-              : Map.of();
-      String ref = labels.get(WORKSPACE_REF_LABEL);
-      StorageType type = StorageType.fromLabel(labels.get(WORKSPACE_TYPE_LABEL)).orElse(null);
+    for (HeldWorkspace workspace : workspaceStore.held()) {
+      String ref = workspace.workspaceRef();
+      StorageType type = StorageType.fromLabel(workspace.workspaceType()).orElse(null);
       if (ref != null && type != null) {
         refs.computeIfAbsent(type, key -> new LinkedHashSet<>()).add(ref);
       }

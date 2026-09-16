@@ -1,13 +1,13 @@
 # Task runtime
 
 A task runs when the engine in `service-core` admits it to the claim-based queue, a `service-dispatcher`
-instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image on Kubernetes and
-reports the results back. Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
-(`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the engine. The shipped dispatcher
-registers `template`, `custom`, `script` and `ai` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
-so a `generic` task waits in the queue until a dispatcher registers that type. To give AI tasks their own network
-zone, remove `ai` from the general dispatcher's list and run a second dispatcher deployment with
-`flow.dispatcher.task-types=ai`.
+instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image - on Kubernetes,
+or on one Docker host - and reports the results back. Only `template`, `custom`, `script`, `generic` and `ai`
+tasks go to a dispatcher (`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the
+engine. The shipped dispatcher registers `template`, `custom`, `script` and `ai`
+(`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`), so a `generic` task waits in the queue
+until a dispatcher registers that type. To give AI tasks their own network zone, remove `ai` from the general
+dispatcher's list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`.
 
 ## Dispatcher protocol
 
@@ -25,7 +25,7 @@ The dispatcher registers once, polls two queues every 5 seconds, sends one lease
 
 Claims are compare-and-set per document, so two dispatchers never receive the same run
 (`DispatcherService.java:176-182`). Releasing storage is not claimed work and carries no run state: the
-dispatcher lists what it holds from the cluster and the engine answers which owners are finished, so the same
+dispatcher lists what it holds from its own runtime and the engine answers which owners are finished, so the same
 question asked twice gets the same answer. A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
 is a termination order: the dispatcher cancels the runtime object and reports nothing (`QueueService.java:88-95`).
 
@@ -53,8 +53,13 @@ runs off the caller's thread: `TaskService` reaches its own `@Async` method thro
 | --- | --- | --- | --- | --- | --- |
 | `tekton` (default) | `kube/TektonServiceImpl.java:53` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`:454,492`) | `spec.timeout` in minutes (`:440`) | `status.results` (`:571`); a 4096-byte overflow is detected from the pod log tail (`:552`) | Overwrite the status condition with `TaskRunCancelled` (`:617-632`) |
 | `kube-jobs` | `kube/KubeJobsExecutor.java:65` | One `batch/v1` `Job` (`:199`); `restartPolicy`, `backoffLimit`, TTL from `kube.task.*` (`:162,183-184`) | `activeDeadlineSeconds = minutes × 60` (`:185`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`:156-158,393-402`; `executor/TerminationMessageParser.java:15-17`) | Delete the Job and its script ConfigMap (`:424-461`) |
+| `docker` | `docker/DockerExecutor.java:61` | One container on the daemon at `DOCKER_HOST` or the local socket (`config/DockerConfig.java:25`); Kubernetes `command`/`arguments` become Docker's entrypoint and cmd | Enforced by the executor: at `timeout` it stops the container and reports `DeadlineExceeded`, because Docker has no deadline of its own | A single file at `RESULTS_PATH=/results.json`, copied out of the exited container and parsed by the same `TerminationMessageParser` | Stop, then remove the container |
 
-Both executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every
+The Docker executor holds the same one thread per task, inspecting the container every
+`dispatcher.docker.pollSeconds` (2) and stamping the lease registry on each pass; a non-zero exit is
+`JobFailed`, or `OOMKilled` when the daemon says so, and a container that has gone is `JobDeleted`. A script
+reaches the container as a tar copied in before it starts, landing at the same `/scripts/script`. The two
+Kubernetes executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every
 `kube.timeout.reconcileSeconds` (default 30) the loop re-lists the object by label, applies the same terminal
 logic, stamps the lease registry, and re-opens the watch if it was closed (`KubeJobsExecutor.java`, `watch`;
 `TektonServiceImpl.java`, `watchTaskRun`); it gives up at `timeout + kube.timeout.watchGraceMinutes` (default 2,
@@ -82,7 +87,7 @@ The dispatcher then sets these environment variables (`kube/KubeHelperService.ja
 | --- | --- |
 | `PARAM_<NAME>` | One per param; the name upper-cased with any character outside `[A-Za-z0-9_]` replaced by `_` (`ParameterUtil.java:91-95`); non-string values JSON-encoded (`service-dispatcher/README.md`) |
 | `PARAM_NAMES` | The original names, comma-separated, so a library can map `PARAM_PRIVATEKEY` back to `privateKey` |
-| `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
+| `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs; `/results.json` (one file) on Docker — it cannot live under `/dev` or on a mount, because it is copied out of the exited container |
 | `DEBUG`, `CI=true`, `FLOW_VERSION`, proxy vars | Debug flag, CI marker, the dispatcher's `flow.version`, and the `HTTP_PROXY` family when `proxy.enable=true` |
 
 Explicitly declared task env vars win on a name collision (`KubeHelperService.java:145-147`). There is no
@@ -120,7 +125,10 @@ merged into a TaskRun, Job or volume's labels — one place all executors share.
 | A key the dispatcher already set (`boomerang.io/*`, `app.kubernetes.io/*`) | — | The dispatcher's value wins; these are the selectors every lookup, watch and delete runs on |
 
 Every alteration is logged at debug. So `team/name=platform/flow` is written as `team/name=platform_flow`
-rather than failing the volume with a 422.
+rather than failing the volume with a 422. The Docker executor reads its container and volume labels from the
+same helper (`docker/DockerWorkspaceStore.java:52`, `docker/DockerLogService.java:113`), so the same coercion
+applies there — Docker itself accepts more than Kubernetes does, but a run labelled once is labelled the same
+way on both runtimes.
 
 ## Task versions on a workflow node
 
@@ -161,8 +169,10 @@ workspace-scoped `get` and `query` reads blank password-typed params by name and
 from task params, spec fields and results
 (`workflow/WorkflowRunService.java:145-149,160-170,209`), and the task log stream is wrapped in
 `FilterValuesOutputStream`, a line-buffered scrub of the same values (`:339-346`;
-`lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher ends the stream when the pod is already
-finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
+`lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher serves a task's own log through `TaskLogStore`, one implementation per
+runtime: on Kubernetes it ends the stream when the pod is already finished or as soon as it finishes
+(`kube/KubeLogService.java:26`), and on Docker it follows a running container's log, which ends when the
+container exits, or reads a finished one once (`docker/DockerLogService.java:27`). The engine permits the
 asynchronous completion of a streamed response without re-running authorization on it
 (`core/security/SecurityConfiguration.java:81`, `SecurityInterceptor.java:45`). Engine and dispatcher reads, and delivery into the
 container, carry the real values.
@@ -175,9 +185,16 @@ Shared storage is a workflow-level opt-in with two types (`StorageType.java:12-1
 volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPath`
 (`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A task mounts only the workspaces it
 declares: `DAGUtility` copies the node's `workspaces` onto the TaskRun (`engine/DAGUtility.java:214`) and the
-executor mounts by type. A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
-and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted when the
-dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
+executor mounts by type. A `workflow` claim is keyed by `workflowRef`, created at the first run's start if absent
+and never deleted by a run; a `workflowrun` claim is keyed by the run id, created at start and deleted when the
+dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:37-79`). Which runtime
+provides that storage sits behind `WorkspaceStore` — create, exists, delete, and the held ref/type pairs the
+reconciler releases (`dispatcher/WorkspaceStore.java:14`), so one release path serves both runtimes.
+On Docker each workspace is a named volume (`bmrg-flow-vol-ws-<type>-<ref>`) carrying exactly the labels the
+claim carries — `boomerang.io/tier=workspace`, `boomerang.io/workspace-ref`, `boomerang.io/workspace-type`,
+`boomerang.io/product` — and bound at the same paths; `/data` needs no mount there, because a container's own
+writable layer already is the per-task scratch space an `emptyDir` provides
+(`docker/DockerWorkspaceStore.java:25`). The authored spec (`size`, `accessMode`, `className`,
 `mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
 against the workspace quota in Gi (`workflow/WorkflowService.java:448`,
 `lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to
@@ -193,9 +210,13 @@ different tier is a second dispatcher deployment with its own name and task type
 tolerations, host aliases and the image pull secret are likewise per deployment
 (`application.properties:22-23,43-46`; `KubeJobsExecutor.java:165-166`; `TektonServiceImpl.java:471-474`).
 Empty toleration or host-alias entries are dropped before dispatch, so a `[]` or `[{}]` default never reaches
-the API server (`KubeHelperService.java:240`). Tasks, claims and ConfigMaps are created in `kube.namespace`,
+the API server (`KubeHelperService.java:240`). None of these exist on a Docker host: the `docker` executor
+applies no runtime class, node selector, tolerations, host aliases or image pull secret, and a size, storage
+class or access mode authored on a workspace is recorded on the run and ignored, because a local Docker volume
+has none. What it does apply, when set, is `dispatcher.docker.memory` and `dispatcher.docker.cpus` (Docker CLI
+sizes; blank applies none, as on Kubernetes). Tasks, claims and ConfigMaps are created in `kube.namespace`,
 or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
-(`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either executor.
+(`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either Kubernetes executor.
 
 ## AI tasks
 
@@ -283,4 +304,5 @@ catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWai
 ## Not built
 
 A pass-by-reference artefact store for payloads above the caps is designed but deferred (trigger conditions in
-boomerang-io/flow#319); a local Docker runtime and a serverless-container (sandbox) dispatcher are planned executors.
+boomerang-io/flow#319); a serverless-container (sandbox) dispatcher is a planned executor. Azure Container Apps
+was considered alongside the Docker executor and deferred.

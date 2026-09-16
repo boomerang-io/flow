@@ -1,5 +1,6 @@
 package io.boomerang.kube;
 
+import io.boomerang.dispatcher.model.HeldWorkspace;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
@@ -16,10 +17,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+// The Docker executor has its own workspace store and no cluster to talk to, so this bean - and
+// the Kubernetes client it would build - exists only for the two Kubernetes runtimes.
 @Component
-// @Configurable
+@ConditionalOnExpression("'${dispatcher.executor}' != 'docker'")
 public class KubeServiceImpl implements KubeService {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeServiceImpl.class);
@@ -66,7 +71,7 @@ public class KubeServiceImpl implements KubeService {
 
   protected KubernetesClient client = null;
 
-  public KubeServiceImpl(KubernetesClient client) {
+  public KubeServiceImpl(@Lazy KubernetesClient client) {
     this.client = client;
   }
 
@@ -77,31 +82,21 @@ public class KubeServiceImpl implements KubeService {
   }
 
   @Override
-  public boolean checkWorkspacePVCExists(
-      String workspaceRef, String workspaceType, boolean failIfNotBound) {
-    return workspaceRef != null && workspaceType != null
-        ? checkPVCExists(
-            helperKubeService.getWorkspaceLabels(null, workspaceRef, workspaceType, null),
-            failIfNotBound)
-        : false;
-  }
-
-  private boolean checkPVCExists(Map<String, String> labelSelector, boolean failIfNotBound) {
-    boolean pvcExists = false;
+  public boolean exists(String workspaceRef, String workspaceType) {
+    if (workspaceRef == null || workspaceType == null) {
+      return false;
+    }
+    Map<String, String> labelSelector =
+        helperKubeService.getWorkspaceLabels(null, workspaceRef, workspaceType, null);
     try {
       PersistentVolumeClaimList pvcList =
           client.persistentVolumeClaims().withLabels(labelSelector).list();
-
       LOGGER.info("PVC List: " + pvcList);
-
-      pvcExists = isPVCAvailable(failIfNotBound, pvcList);
-
-      LOGGER.info("Is PVC Available: " + pvcExists);
+      return !pvcList.getItems().isEmpty();
     } catch (KubernetesClientException e) {
       LOGGER.error("No PVC found matching selector: " + labelSelector, e);
       return false;
     }
-    return pvcExists;
   }
 
   protected String getPVCName(Map<String, String> labels) {
@@ -137,6 +132,21 @@ public class KubeServiceImpl implements KubeService {
     }
     LOGGER.debug(" Chosen PVC Name: " + name);
     return name;
+  }
+
+  @Override
+  public void create(
+      String workflowRef,
+      String workspaceRef,
+      String workspaceType,
+      Map<String, String> customLabels,
+      String size,
+      String className,
+      String accessMode,
+      long waitSeconds)
+      throws InterruptedException {
+    createWorkspacePVC(
+        workflowRef, workspaceRef, workspaceType, customLabels, size, className, accessMode, waitSeconds);
   }
 
   @Override
@@ -214,35 +224,6 @@ public class KubeServiceImpl implements KubeService {
     return result;
   }
 
-  private boolean isPVCAvailable(
-      boolean failIfNotBound, PersistentVolumeClaimList persistentVolumeClaimList) {
-    if (!persistentVolumeClaimList.getItems().isEmpty()) {
-      persistentVolumeClaimList
-          .getItems()
-          .forEach(
-              pvc ->
-                  LOGGER.info(
-                      "PVC: "
-                          + pvc.getMetadata().getName()
-                          + " ("
-                          + pvc.getStatus().getPhase()
-                          + ")"));
-      if (failIfNotBound) {
-        if (persistentVolumeClaimList.getItems().stream()
-                .filter(pvc -> "Bound".equalsIgnoreCase(pvc.getStatus().getPhase()))
-                .count()
-            > 0) {
-          // TODO update to check if they are terminating (even though they are still bound)
-          return true;
-        }
-      } else {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   /**
    * Return every workspace claim this dispatcher's namespace holds, whoever created it. The
    * cluster is the source of truth for what exists; the engine is asked separately whose owner is
@@ -264,7 +245,23 @@ public class KubeServiceImpl implements KubeService {
   }
 
   @Override
-  public void deleteWorkspacePVC(String workspaceRef, String workspaceType) {
+  public List<HeldWorkspace> held() {
+    return listWorkspacePVCs().stream()
+        .map(
+            claim ->
+                (claim.getMetadata() != null && claim.getMetadata().getLabels() != null)
+                    ? claim.getMetadata().getLabels()
+                    : Map.<String, String>of())
+        .map(
+            labels ->
+                new HeldWorkspace(
+                    labels.get("boomerang.io/workspace-ref"),
+                    labels.get("boomerang.io/workspace-type")))
+        .toList();
+  }
+
+  @Override
+  public void delete(String workspaceRef, String workspaceType) {
     deletePVC(helperKubeService.getWorkspaceLabels(null, workspaceRef, workspaceType, null));
   }
 
