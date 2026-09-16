@@ -59,4 +59,8 @@ things by name, not by code.
 | 0071 | [Deletion completes: the prune sweep hard-deletes once runs finalise, with no flag](0071-deletion-completes-the-prune-sweep-hard-deletes-once-runs-finalise.md) | accepted | 2026-09-03 |
 | 0072 | [Monthly run quotas count audit events so deletion cannot reset them](0072-monthly-run-quotas-count-audit-events-so-deletion-cannot-reset-them.md) | accepted | 2026-09-03 |
 | 0073 | [A run ends at `completed`; releasing its storage is the dispatcher's own reconciliation](0073-runs-end-at-completed-storage-release-is-dispatcher-reconciliation.md) | accepted | 2026-09-15 |
+| 0075 | [A child workflow run waits, cascades and nests to a capped depth, all on the existing lineage pair](0075-child-workflow-runs-wait-cascade-and-nesting-depth.md) | accepted | 2026-09-15 |
 | 0076 | [A Docker executor runs tasks on one host, for the no-Kubernetes quickstart](0076-a-docker-executor-runs-tasks-on-one-host-for-the-no-kubernetes-quickstart.md) | accepted | 2026-09-15 |
+| 0077 | [Workflow Templates are seeded, read-only content](0077-workflow-templates-are-seeded-read-only-content.md) | accepted | 2026-09-15 |
+| 0079 | [A status CloudEvent carries a run's identity and lifecycle, not the run model](0079-status-events-carry-identity-and-lifecycle-not-the-run-model.md) | accepted | 2026-09-16 |
+| 0080 | [An unknown reference is 404; a malformed request stays 400](0080-an-unknown-reference-is-404-a-malformed-one-is-400.md) | accepted | 2026-09-16 |

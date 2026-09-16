@@ -136,15 +136,26 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
         "the guard must not refuse a TaskRun whose owning run the caller can reach");
   }
 
+  /*
+   * Both halves are refused with a reference error rather than PERMISSION_DENIED, which is what
+   * "before any relationship call" looks like from outside: the caller here is a session
+   * principal scoped to one workspace, so a guard that ran first would answer differently. The
+   * two halves carry different codes - a blank id is a malformed request (400), an id nobody has
+   * is not found (404).
+   */
   @Test
-  void anUnknownOrBlankTaskRunIsRejectedBeforeAnyRelationshipCall() {
-    // The reason string, not the enum constant name - they differ here
-    // (TASKRUN_INVALID_REF carries the reason "TASKRUN_INVALID_REFERENCE"), and assertRefused
-    // compares the reason. Read it off the enum so the two cannot drift apart again.
-    String reason = BoomerangError.TASKRUN_INVALID_REF.getReason();
-    assertRefused(() -> workflowRunService.streamTaskRunLog("   "), reason, "blank id");
+  void aBlankTaskRunIsA400AndAnUnknownOneA404BeforeAnyRelationshipCall() {
+    // The reason strings, not the enum constant names - they differ here (TASKRUN_INVALID_REF
+    // carries the reason "TASKRUN_INVALID_REFERENCE"). Read them off the enum so the two cannot
+    // drift apart again.
     assertRefused(
-        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"), reason, "unknown id");
+        () -> workflowRunService.streamTaskRunLog("   "),
+        BoomerangError.TASKRUN_INVALID_REQ,
+        "blank id");
+    assertRefused(
+        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"),
+        BoomerangError.TASKRUN_INVALID_REF,
+        "unknown id");
   }
 
   /**
@@ -191,6 +202,14 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
     BoomerangException ex =
         assertThrows(BoomerangException.class, operation, label + " must be refused");
     assertEquals(reason, ex.getReason(), label + " must fail with " + reason);
+  }
+
+  private void assertRefused(Executable operation, BoomerangError error, String label) {
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, operation, label + " must be refused");
+    assertEquals(error.getReason(), ex.getReason(), label + " must fail with " + error.getReason());
+    assertEquals(
+        error.getStatus(), ex.getStatus(), label + " must carry the code's own HTTP status");
   }
 
   // Anchored under root so the seeding identity (global, which anchors at ROOT) can resolve these

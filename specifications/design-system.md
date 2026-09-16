@@ -111,7 +111,7 @@ are the ONLY app-level raw values, and they exist because they encode run status
 | `--flow-wait` | `#491d8b` | Waiting / queued state. |
 | `--flow-failure` | `#a51920` | Failed / error state. |
 | `--flow-darkest-blue` | `#1b2834` | Darkest surface accent (headers, deep chrome). |
-| `--flow-lightest-teal` | (in styles) | Lightest teal accent. |
+| `--flow-lightest-teal` | `#c0f5e8` | Lightest teal accent — the `$teal-1` step of the Boomerang teal ramp. Used on dark chrome (tutorial finish marker, notification-banner links). |
 
 Map new run-status UI to these accents (or the Carbon `support-*` tokens) — never introduce a new
 status colour ad hoc.

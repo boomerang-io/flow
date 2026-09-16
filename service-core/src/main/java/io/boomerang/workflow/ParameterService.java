@@ -11,7 +11,6 @@ import io.boomerang.workflow.repository.GlobalParamRepository;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -53,22 +52,21 @@ public class ParameterService {
   }
 
   public AbstractParam update(AbstractParam param) {
-    if (!Objects.isNull(param) && param.getName() != null) {
-      Optional<GlobalParamEntity> optParamEntity = paramRepository.findOneByName(param.getName());
-      if (!optParamEntity.isEmpty()) {
-        GlobalParamEntity entity = optParamEntity.get();
-        // GET never returns a secured value (it is filtered to null), so an edit to any other
-        // field arrives with the value blank - copying it through would destroy the stored
-        // secret. Preserve the stored value whenever the incoming one carries nothing new.
-        boolean preserveStoredValue =
-            FieldType.PASSWORD.value().equals(entity.getType()) && isBlank(param.getValue());
-        BeanUtils.copyProperties(
-            param, entity, preserveStoredValue ? new String[] {"id", "value"} : new String[] {"id"});
-        entity = paramRepository.save(entity);
-        return convertToAbstractParamAndFilter(entity);
-      }
+    if (Objects.isNull(param) || param.getName() == null) {
+      throw new BoomerangException(BoomerangError.PARAMS_INVALID_REQ);
     }
-    throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
+    GlobalParamEntity entity =
+        paramRepository
+            .findOneByName(param.getName())
+            .orElseThrow(() -> new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE));
+    // GET never returns a secured value (it is filtered to null), so an edit to any other field
+    // arrives with the value blank - copying it through would destroy the stored secret. Preserve
+    // the stored value whenever the incoming one carries nothing new.
+    boolean preserveStoredValue =
+        FieldType.PASSWORD.value().equals(entity.getType()) && isBlank(param.getValue());
+    BeanUtils.copyProperties(
+        param, entity, preserveStoredValue ? new String[] {"id", "value"} : new String[] {"id"});
+    return convertToAbstractParamAndFilter(paramRepository.save(entity));
   }
 
   // Blank covers both a null value (Jackson never emits the omitted field, so it decodes as
@@ -96,14 +94,17 @@ public class ParameterService {
       LOGGER.debug("Saving GlobalParamEntity: " + entity.toString());
       return convertToAbstractParamAndFilter(entity);
     }
-    throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
+    throw new BoomerangException(BoomerangError.PARAMS_INVALID_REQ);
   }
 
   public void delete(String name) {
-    if (!Objects.isNull(name) && name != null && paramRepository.countByName(name) > 0) {
-      paramRepository.deleteByName(name);
+    if (Objects.isNull(name) || name.isBlank()) {
+      throw new BoomerangException(BoomerangError.PARAMS_INVALID_REQ);
     }
-    throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
+    if (paramRepository.countByName(name) == 0) {
+      throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
+    }
+    paramRepository.deleteByName(name);
   }
 
   /*

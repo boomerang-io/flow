@@ -17,7 +17,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | Collection | Holds | Entity (owner package) |
 | --- | --- | --- |
 | `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations) + one document per version (tasks, params, timeout, retries) | `WorkflowEntity`, `WorkflowRevisionEntity` (`lib-common`; used by `workflow`) |
-| `workflow_templates` | Starter workflow templates, `version` on the single document | `WorkflowTemplateEntity` (`lib-common`; `workflow`) |
+| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by the loader (`_0023__SeedTemplates` seeds them, `_0010__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`lib-common`; `workflow`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`lib-common`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`lib-common`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`lib-common`; `engine`) |
@@ -97,6 +97,7 @@ Indexes exist only because a loader change unit created them (`MigrationUtils.en
 | `_0036__RelationshipAndAuditIndexes` | `rel_nodes`, `rel_edges`, `audit`, `users` | `type_ref`, `type_slug`, `from_label`, `to_label`, `email_lookup` (its audit scope lookups are dropped again by `_0042`) |
 | `_0042__AuditEventRestructure` | `audit` | `createdAt_ttl` (365-day TTL; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `_0037__SweepIndexes` | `task_runs`, `workflow_runs`, `actions` | `status_sweep`, `claimed_sweep` for the watcher and dispatcher polls |
+| `_0046__DeclareRunWorkflowWaitParam` | `workflow_runs` | `initiated_by_phase` on `(initiatedByRef, phase)`, the child-run lookup the cascade cancel pages |
 
 ## Migrations
 `service-loader` runs every pending change unit on Flamingock and exits non-zero on failure, so a deployment runs
@@ -149,6 +150,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0040__DeclareRunWorkflowParams` | all | Declares the params the `run-workflow` and `run-scheduled-workflow` catalogue tasks read |
 | `_0042__AuditEventRestructure` | all | Drops the per-object `audit` records and their indexes, creates the flat-event indexes (table above), seeds the `audit` settings document |
 | `_0043__RunPhaseFinalizedIsCompleted` | all | Rewrites the retired `finalized` phase to `completed` on `workflow_runs` and `task_runs`; `completed` is terminal and `RunPhase` no longer has the old member |
+| `_0046__DeclareRunWorkflowWaitParam` | all | Declares the `wait` param on the `run-workflow` catalogue task, adds `max.nesting.depth` to the `workflowrun` settings document, creates the child-run index (table above) |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

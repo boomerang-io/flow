@@ -37,8 +37,7 @@ interface WorkflowCardProps {
 // Matches only the fields this component reads off the Workflows route's action result for the
 // "delete"/"duplicate"/"execute" intents it submits - see Features/Workflows/Workflows.tsx for the
 // actual action. Renders as a descendant of that route's element with no nested <Route> of its
-// own, so `useFetcher()` resolves against it - see WorkflowTemplateCard.tsx for the sibling
-// conversion (Workflow Templates) this mirrors.
+// own, so `useFetcher()` resolves against it.
 type ActionResult =
   | { intent: "delete" | "duplicate" }
   | ({ intent: "delete" | "duplicate" } & ActionError)

@@ -58,12 +58,16 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   // queryClient.invalidateQueries(getWorkflowRun) each of these mutations used to run onSuccess.
   const fetcher = useFetcher<ActionResult>();
 
-  const { initiatedByRef, trigger, creationDate, status, phase, paused, id, workflowName } = workflowRun;
+  const { initiatedByRef, initiatedByWorkflowRunRef, trigger, creationDate, status, phase, paused, id, workflowName } =
+    workflowRun;
   // Ruled design (#359, Option A): a schedule-fired run stamps the firing Schedule's id into the
   // existing initiatedByRef field (mirrors the retry path's convention). The Schedules page has
   // no per-schedule focus route, so this deep-links its existing workflow filter instead of
   // building one - see appLink.schedulesForWorkflow.
   const isScheduleTriggered = trigger === "schedule" && Boolean(initiatedByRef);
+  // A child run: a runworkflow task started it, so initiatedByRef is that TaskRun's id. The run
+  // that owns it comes back on initiatedByWorkflowRunRef, which is what the parent link needs.
+  const isTaskTriggered = trigger === "task" && Boolean(initiatedByWorkflowRunRef);
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status);
@@ -210,6 +214,15 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                   data-testid="initiated-by-schedule-link"
                 >
                   {initiatedByRef}
+                </Link>
+              </dd>
+            ) : isTaskTriggered ? (
+              <dd className={styles.dataValue}>
+                <Link
+                  to={appLink.execution({ workspace: workspace.name, runId: initiatedByWorkflowRunRef as string })}
+                  data-testid="initiated-by-parent-run-link"
+                >
+                  {initiatedByWorkflowRunRef}
                 </Link>
               </dd>
             ) : initiatedByRef ? (

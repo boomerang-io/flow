@@ -60,7 +60,7 @@ workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its 
 `PUT /api/v1/dispatcher/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:784`). A run submitted with
 `start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it; `start` defaults to true
 on the submit route, so parking is the explicit opt-out. A `runworkflow` task submits its
-child with `start=true`, so the child follows the same rule (`engine/TaskExecutionService.java:825`).
+child with `start=true`, so the child follows the same rule (see Child workflows below).
 
 ## The watcher sweeps
 
@@ -145,12 +145,18 @@ CAS winners publish an in-process `TaskRunTransition`/`WorkflowRunTransition` ev
 status change records a CREATE audit event and reaching the completed phase records an UPDATE event carrying the
 terminal status and duration — the events the monthly run quota and the workspace insights read. TaskRun transitions
 are not audited (volume; no consumer reads them). Emission is best-effort and never fails the transition. When
-`flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:38`),
+`flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:50`),
 `CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching `completed` with a status the caller persisted directly (`event/CloudEventsBridge.java:32-71`)
 and `OutboxDispatcher` drains it every 5 s on every instance, delivering at least once, marking rows `sent` by CAS,
 and marking them `dead` after 3 failed attempts (`event/OutboxDispatcher.java:41`, `:59-85`). There is no broker, no partitioning and no leader.
+Each delivery carries the run's identity and lifecycle, not its params and results, unless `flow.events.sink.payload=full` (decision 0079); the payload shape and the sink configuration are in `api-contract.md`.
 Accepted limitation: no transaction spans the CAS commit and the outbox insert (`event/entity/EventOutboxEntity.java:13-17`), so a crash
 between them loses that one notification. The engine never reads the outbox, so a lost row cannot stall a run.
+A dead row is kept, never dropped, and an operator can put it back in the queue: `GET /api/v2/system/outbox`
+lists rows by status (dead by default) and `PUT /api/v2/system/outbox/replay` resets the named ids — or every row
+in a status — to `pending` with the backoff and attempt count cleared, so the next drain retries them
+(`event/OutboxService.java`, `event/OutboxControllerV2.java`). No failure text is stored on the row; the delivery
+error is only in the dispatcher's log.
 
 ## Schedules
 
@@ -158,6 +164,42 @@ Cron and run-once schedules fire from `ScheduleWatcher`, standalone mode only, o
 (`schedule/ScheduleWatcher.java:34`, `:69-77`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
 `ScheduleService.tryClaimFire`, a CAS that advances `nextFireAt` to the next occurrence computed from now (`schedule/ScheduleService.java:459-472`),
 so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:137-161`).
+
+## Child workflows
+
+A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:794-900`).
+
+**Lineage.** The child is submitted through the lineage-stamping overload
+`WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and
+`initiatedByRef` = the submitting TaskRun's id — the same typed pair the retry path uses
+(`WorkflowRunEntity.trigger`/`initiatedByRef`, decision 0020). There is no `parentRef` field. The public
+`WorkflowRun` model resolves the run that owns that TaskRun onto `initiatedByWorkflowRunRef` on the single-run read,
+so a client can link a child back to its parent without a TaskRun lookup of its own
+(`workflow/WorkflowRunService.java:990-1002`).
+
+**Wait.** The catalogue task declares a boolean `wait` param, default `false`. With `wait=false` the task records
+the child's id as the `workflowRunRef` result and ends `succeeded` at once. With `wait=true` the task parks as
+`waiting` with **no** `waitUntil` (`TaskRunService.tryArmWait`), exactly like an `eventwait` — so the watcher's
+time-based resume never picks it up, and only the child's completion or the task's own `timeoutAt` ends it. The
+arm happens *before* the submit, so a child that finishes immediately always finds a parent already waiting.
+
+**Ending the parent.** `ChildWorkflowRunListener` listens on the `WorkflowRunTransition` event every CAS winner
+publishes. On a transition into the `completed` phase it re-reads the run and, when `trigger == task` and the
+named TaskRun is still `waiting`, calls `TaskRunService.end` — the same wire-level end the dispatcher uses, so all
+its fencing applies and a re-delivered transition ends the task once. A `succeeded` child succeeds the task; any
+other terminal status fails it with `statusMessage` "Child run `<id>` ended `<status>`" and
+`statusReason = ChildRunFailed`. The engine never calls back into the workflow side synchronously for this.
+
+**Cascade cancel.** The same listener, when a run ends `cancelled` or `timedout`, cancels every child run whose
+`initiatedByRef` is one of that run's TaskRun ids and whose phase is still `pending`/`queued`/`running` (served by
+the `workflow_runs {initiatedByRef, phase}` index). Cancelling a child republishes its own transition, so a nested
+chain unwinds from the top. **Pause does not cascade**: it is an admission flag on one run, so a paused parent
+leaves a running child alone.
+
+**Nesting depth.** Before submitting, the engine walks `initiatedByRef` up — TaskRun, then the run that owns it —
+counting levels, and fails the task with `statusReason = NestingDepthExceeded` without creating a child when the
+count has reached the cap. The cap is the `workflowrun` settings group's `max.nesting.depth` (default 5); the walk
+itself stops at the cap, so a broken lineage cannot make it unbounded.
 
 ## Task locks
 

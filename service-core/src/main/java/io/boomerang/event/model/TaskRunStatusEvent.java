@@ -1,6 +1,5 @@
 package io.boomerang.event.model;
 
-import io.boomerang.common.model.TaskRun;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.CloudEventData;
 import io.cloudevents.core.builder.CloudEventBuilder;
@@ -16,12 +15,13 @@ public class TaskRunStatusEvent extends Event {
 
   private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
-  private TaskRun taskRun;
+  // The projected payload: a RunStatusSummary, or the full TaskRun when the sink asks for it.
+  private Object data;
 
   @Override
   public CloudEvent toCloudEvent() throws IOException {
 
-    CloudEventData data = PojoCloudEventData.wrap(taskRun, MAPPER::writeValueAsBytes);
+    CloudEventData eventData = PojoCloudEventData.wrap(this.data, MAPPER::writeValueAsBytes);
 
     // @formatter:off
     CloudEventBuilder cloudEventBuilder =
@@ -31,7 +31,7 @@ public class TaskRunStatusEvent extends Event {
             .withSubject(getSubject())
             .withType(getType().getCloudEventType())
             .withTime(getDate().toInstant().atOffset(ZoneOffset.UTC))
-            .withData(MediaType.APPLICATION_JSON.toString(), data);
+            .withData(MediaType.APPLICATION_JSON.toString(), eventData);
     // @formatter:on
 
     if (Strings.isNotEmpty(super.getInitiatorContext())) {
@@ -42,7 +42,7 @@ public class TaskRunStatusEvent extends Event {
     return cloudEventBuilder.build();
   }
 
-  public void setTaskRun(TaskRun taskRun) {
-    this.taskRun = taskRun;
+  public void setData(Object data) {
+    this.data = data;
   }
 }
