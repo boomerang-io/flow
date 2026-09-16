@@ -24,6 +24,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.util.LinkedList;
@@ -50,6 +51,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
+  @Autowired private TaskRepository taskRepository;
   @MockitoSpyBean private TaskRevisionRepository spiedTaskRevisionRepository;
 
   @BeforeEach
@@ -108,7 +110,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void taskDeclaredPasswordParamIsBlankedAndScrubbedRunWide() {
-    Task catalogueTask = seedTaskWithPasswordParam("redaction-task-declared", "apiKey");
+    TaskService.TaskRef catalogueTask = seedTaskWithPasswordParam("redaction-task-declared", "apiKey");
 
     WorkflowRunEntity run =
         savedWorkflowRun("task-declared-wf", RunStatus.succeeded, RunPhase.completed);
@@ -121,8 +123,8 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
             RunPhase.completed,
             run.getWorkflowRef(),
             run.getId());
-    caller.setTaskRef(catalogueTask.getId());
-    caller.setTaskVersion(catalogueTask.getVersion());
+    caller.setTaskRef(catalogueTask.ref());
+    caller.setTaskVersion(catalogueTask.version());
     caller.setParams(new LinkedList<>(List.of(new RunParam("apiKey", TASK_SECRET))));
     caller.getSpec().setScript("curl -H 'X-Api-Key: " + TASK_SECRET + "'");
     taskRunRepository.save(caller);
@@ -163,7 +165,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void taskDeclaredSecretShorterThanFourCharactersIsBlankedByNameButNotValueScrubbed() {
-    Task catalogueTask = seedTaskWithPasswordParam("redaction-task-short", "pin");
+    TaskService.TaskRef catalogueTask = seedTaskWithPasswordParam("redaction-task-short", "pin");
 
     WorkflowRunEntity run =
         savedWorkflowRun("short-secret-wf", RunStatus.succeeded, RunPhase.completed);
@@ -176,8 +178,8 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
             RunPhase.completed,
             run.getWorkflowRef(),
             run.getId());
-    caller.setTaskRef(catalogueTask.getId());
-    caller.setTaskVersion(catalogueTask.getVersion());
+    caller.setTaskRef(catalogueTask.ref());
+    caller.setTaskVersion(catalogueTask.version());
     caller.setParams(new LinkedList<>(List.of(new RunParam("pin", SHORT_SECRET))));
     caller.setResults(new LinkedList<>(List.of(new RunResult("echoed", "pin is " + SHORT_SECRET))));
     taskRunRepository.save(caller);
@@ -194,8 +196,8 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
   /** Two tasks on one response resolve their specs in ONE task-revision query, not one each. */
   @Test
   void taskSpecsForOneResponseAreResolvedInASingleRevisionQuery() {
-    Task first = seedTaskWithPasswordParam("redaction-task-batch-a", "tokenA");
-    Task second = seedTaskWithPasswordParam("redaction-task-batch-b", "tokenB");
+    TaskService.TaskRef first = seedTaskWithPasswordParam("redaction-task-batch-a", "tokenA");
+    TaskService.TaskRef second = seedTaskWithPasswordParam("redaction-task-batch-b", "tokenB");
 
     WorkflowRunEntity run = savedWorkflowRun("batch-wf", RunStatus.succeeded, RunPhase.completed);
     savedReferencingTaskRun(run, "a", first, "tokenA");
@@ -219,7 +221,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void pagedQueryAttachesNoTasksAndIssuesNoTaskRevisionLookup() {
-    Task catalogueTask = seedTaskWithPasswordParam("redaction-task-query", "apiKey");
+    TaskService.TaskRef catalogueTask = seedTaskWithPasswordParam("redaction-task-query", "apiKey");
     WorkflowRunEntity run =
         savedWorkflowRun(QUERY_WORKFLOW, RunStatus.succeeded, RunPhase.completed);
     savedReferencingTaskRun(run, "calls-api", catalogueTask, "apiKey");
@@ -247,7 +249,13 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
-  private Task seedTaskWithPasswordParam(String name, String paramName) {
+  /**
+   * A global catalogue task declaring one password-typed param, returned as the (taskRef,
+   * taskVersion) pair a TaskRun records for it - taskRef is the TaskEntity id, which is what
+   * WorkflowService resolves a workflow's task reference to and DAGUtility stamps on the TaskRun.
+   * {@code createGlobal} nulls the id on the way out, so both halves are read back from the store.
+   */
+  private TaskService.TaskRef seedTaskWithPasswordParam(String name, String paramName) {
     seedRelationshipRoot();
     AbstractParam param = new AbstractParam();
     param.setName(paramName);
@@ -257,11 +265,16 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
     task.setType(TaskType.template);
     task.getSpec().setImage("busybox:latest");
     task.getSpec().setParams(new LinkedList<>(List.of(param)));
-    return taskService.createGlobal(task);
+    taskService.createGlobal(task);
+
+    String ref = taskRepository.findByName(name).orElseThrow().getId();
+    Integer version =
+        spiedTaskRevisionRepository.findByParentRefAndLatestVersion(ref).orElseThrow().getVersion();
+    return new TaskService.TaskRef(ref, version);
   }
 
   private void savedReferencingTaskRun(
-      WorkflowRunEntity run, String name, Task catalogueTask, String paramName) {
+      WorkflowRunEntity run, String name, TaskService.TaskRef catalogueTask, String paramName) {
     TaskRunEntity taskRun =
         savedTaskRun(
             name,
@@ -270,8 +283,8 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
             RunPhase.completed,
             run.getWorkflowRef(),
             run.getId());
-    taskRun.setTaskRef(catalogueTask.getId());
-    taskRun.setTaskVersion(catalogueTask.getVersion());
+    taskRun.setTaskRef(catalogueTask.ref());
+    taskRun.setTaskVersion(catalogueTask.version());
     taskRun.setParams(new LinkedList<>(List.of(new RunParam(paramName, TASK_SECRET))));
     taskRunRepository.save(taskRun);
   }
