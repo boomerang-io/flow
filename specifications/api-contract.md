@@ -29,7 +29,9 @@ included (`workflow/TaskControllerV2.java`); it refuses with `TASK_DELETE_IN_USE
 still references the Task. Two system routes serve the outbound event outbox: `GET /api/v2/system/outbox`
 (`?status=`, default `dead`, plus `page`/`limit`) lists rows, and `PUT /api/v2/system/outbox/replay`
 (`?ids=`, `?status=`, `?olderThan=` epoch milliseconds) puts them back in the queue and answers
-`{"replayed": n}`. Both need `system` permission and a `global` token.
+`{"replayed": n}`. A listed row that has failed delivery carries `lastError` (the exception type and message,
+capped at 1024 characters) and, once dead, `deadAt`; a replay clears both. Both routes need `system` permission
+and a `global` token.
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered

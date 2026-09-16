@@ -24,7 +24,8 @@ import org.springframework.stereotype.Service;
  * Drains the events_outbox: re-reads the referenced run and delivers its status CloudEvent, then
  * marks the row sent via a Compare-And-Set. Runs on every instance; at-least-once - a racing
  * double delivery is possible but only one dispatcher marks the row sent. Rows that exhaust
- * their retries go dead (kept, logged, never silently dropped). Scheduling rides the same
+ * their retries go dead (kept, logged, never silently dropped), with the failure and the time
+ * they gave up recorded on the row for the operator route to show. Scheduling rides the same
  * {@code flow.watcher.enabled} test hook as the watcher; the bean itself only exists when the
  * sink is enabled.
  */
@@ -39,6 +40,9 @@ public class OutboxDispatcher {
 
   private static final int PAGE_SIZE = EngineConstants.SWEEP_PAGE_SIZE;
   private static final int MAX_ATTEMPTS = 3;
+  // Cap on the recorded failure text: a sink that answers with an HTML error page or a stack
+  // trace would otherwise grow the row without bound.
+  private static final int MAX_ERROR_LENGTH = 1024;
 
   private final MongoTemplate mongoTemplate;
   private final TaskRunRepository taskRunRepository;
@@ -68,14 +72,15 @@ public class OutboxDispatcher {
         }
       } catch (Exception ex) {
         int attempts = row.getAttempts() + 1;
+        String error = describe(ex);
         if (attempts >= MAX_ATTEMPTS) {
-          if (tryMarkDead(row.getId()) != null) {
+          if (tryMarkDead(row.getId(), error, new Date()) != null) {
             LOGGER.error(
                 "[{}] Outbox row dead after {} delivery attempts ({} {}): {}",
                 row.getId(), attempts, row.getRefType(), row.getRef(), ex.getMessage());
           }
         } else {
-          tryRequeueDelivery(row.getId(), Backoff.nextRetryAt(attempts), attempts);
+          tryRequeueDelivery(row.getId(), Backoff.nextRetryAt(attempts), attempts, error);
           LOGGER.warn(
               "[{}] Outbox delivery failed (attempt {}), retrying: {}",
               row.getId(), attempts, ex.getMessage());
@@ -124,20 +129,36 @@ public class OutboxDispatcher {
         EventOutboxEntity.class);
   }
 
-  private EventOutboxEntity tryRequeueDelivery(String id, Date retryAfter, int attempts) {
+  private EventOutboxEntity tryRequeueDelivery(
+      String id, Date retryAfter, int attempts, String error) {
     return mongoTemplate.findAndModify(
         pendingById(id),
-        new Update().set("retry.after", retryAfter).set("attempts", attempts),
+        new Update()
+            .set("retry.after", retryAfter)
+            .set("attempts", attempts)
+            .set("lastError", error),
         FindAndModifyOptions.options().returnNew(false),
         EventOutboxEntity.class);
   }
 
-  private EventOutboxEntity tryMarkDead(String id) {
+  private EventOutboxEntity tryMarkDead(String id, String error, Date deadAt) {
     return mongoTemplate.findAndModify(
         pendingById(id),
-        new Update().set("status", OutboxStatus.dead).unset("retry.after"),
+        new Update()
+            .set("status", OutboxStatus.dead)
+            .set("lastError", error)
+            .set("deadAt", deadAt)
+            .unset("retry.after"),
         FindAndModifyOptions.options().returnNew(false),
         EventOutboxEntity.class);
+  }
+
+  // The failure as the operator reads it off the row: type plus message, so a message-less
+  // exception still says something, capped at MAX_ERROR_LENGTH characters.
+  private static String describe(Exception ex) {
+    String detail =
+        ex.getClass().getSimpleName() + ((ex.getMessage() != null) ? ": " + ex.getMessage() : "");
+    return ((detail.length() > MAX_ERROR_LENGTH) ? detail.substring(0, MAX_ERROR_LENGTH) : detail);
   }
 
   private static Query pendingById(String id) {
