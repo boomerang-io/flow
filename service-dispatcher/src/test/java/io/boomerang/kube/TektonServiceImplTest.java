@@ -26,6 +26,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import io.fabric8.kubernetes.api.model.HostAlias;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.tekton.v1.ParamValue;
 import io.fabric8.kubernetes.api.model.EnvVar;
@@ -83,6 +84,41 @@ public class TektonServiceImplTest {
     assertEquals(
         "kata-qemu", taskRuns.get(0).getSpec().getPodTemplate().getRuntimeClassName());
   }
+  @Test
+  public void testCreateTaskRunSizesTheStepFromTheConfiguredResources() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-resources");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of(new RunParam("greeting", "hello")));
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+
+    List<io.fabric8.tekton.v1.TaskRun> taskRuns =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(1, taskRuns.size());
+    Step step = taskRuns.get(0).getSpec().getTaskSpec().getSteps().get(0);
+
+    assertEquals(new Quantity("2Gi"), step.getComputeResources().getRequests().get("memory"));
+    assertEquals(
+        new Quantity("2Gi"), step.getComputeResources().getRequests().get("ephemeral-storage"));
+    assertEquals(new Quantity("16Gi"), step.getComputeResources().getLimits().get("memory"));
+    assertEquals(
+        new Quantity("16Gi"), step.getComputeResources().getLimits().get("ephemeral-storage"));
+    // CPU ships blank - a CPU limit throttles rather than fails, so an operator opts in.
+    assertNull(step.getComputeResources().getRequests().get("cpu"));
+    assertNull(step.getComputeResources().getLimits().get("cpu"));
+  }
+
   @Test
   public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
     // An `ai` task is authored with params only - no image, no command, no script - and the
@@ -339,5 +375,64 @@ class TektonServiceImplEmptyTolerationsHostAliasesTest {
 
     List<HostAlias> hostAliases = taskRuns.get(0).getSpec().getPodTemplate().getHostAliases();
     assertTrue(hostAliases == null || hostAliases.isEmpty());
+  }
+}
+
+/**
+ * Every {@code kube.resource.*} value blank: the step must carry no computeResources block at all,
+ * rather than an empty one or a zero limit.
+ */
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "kube.resource.request.memory=",
+      "kube.resource.limit.memory=",
+      "kube.resource.request.ephemeral-storage=",
+      "kube.resource.limit.ephemeral-storage=",
+      "kube.resource.request.cpu=",
+      "kube.resource.limit.cpu="
+    })
+class TektonServiceImplNoResourcesTest {
+
+  KubernetesClient client;
+
+  @Autowired private TektonServiceImpl tektonService;
+
+  @MockitoBean private EngineClient engineClient;
+
+  private TektonClient tektonClient;
+
+  @BeforeEach
+  public void setUp() {
+    tektonClient = client.adapt(TektonClient.class);
+    tektonService.setClient(tektonClient);
+  }
+
+  @Test
+  public void testCreateTaskRunLeavesResourcesUnsetWhenNothingIsConfigured() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-no-resources");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+
+    List<io.fabric8.tekton.v1.TaskRun> taskRuns =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(1, taskRuns.size());
+    assertNull(
+        taskRuns.get(0).getSpec().getTaskSpec().getSteps().get(0).getComputeResources());
   }
 }

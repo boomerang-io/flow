@@ -201,6 +201,7 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 | Not built | What exists instead | Reopen when |
 | --- | --- | --- |
 | Per-class or per-type concurrency caps | `findClaimable` filters only by task type (`TaskRunService.java:75-95`) | Load testing shows one task type starving others or overrunning the cluster |
+| A per-task resource request or limit | Six deployment-wide `kube.resource.*` values sized by the operator and applied to every task container this dispatcher runs (`executor/TaskResourceResolver.java`), the same per-deployment shape as the isolation tier (decision 0042) | A deployment genuinely needs mixed sizing behind one dispatcher, rather than a second dispatcher deployment with its own task types |
 | Per-class kill switches | One global `flow.queue.enabled` that stops claiming only | An incident needs one class stopped while others run |
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Retry rate-limit and deterministic-terminal classes | One `Backoff`; `retry` carries only `after`/`count`; a dispatcher-reported failure is not retried | A runtime that returns typed rate-limit signals is integrated |
