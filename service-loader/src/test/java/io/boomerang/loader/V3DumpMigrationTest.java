@@ -1284,13 +1284,14 @@ class V3DumpMigrationTest {
     }
 
     // ---- Task graph: every one of the 89 migrated tasks is global/root-scoped - v3 has no
-    // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. ----
-    assertThat(collection("tasks").countDocuments()).isEqualTo(89);
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(89);
+    // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. The seeded ai
+    // task, which no v3 install can hold, is the 90th and is root-scoped the same way. ----
+    assertThat(collection("tasks").countDocuments()).isEqualTo(90);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(90);
     assertThat(
             collection("rel_edges")
                 .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(89);
+        .isEqualTo(90);
     assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "teamtask")))
         .as("v3 task_templates carries no team-scoping field at all")
         .isZero();
