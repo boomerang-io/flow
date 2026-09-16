@@ -152,6 +152,11 @@ and marking them `dead` after 3 failed attempts (`event/OutboxDispatcher.java:41
 Each delivery carries the run's identity and lifecycle, not its params and results, unless `flow.events.sink.payload=full` (decision 0079); the payload shape and the sink configuration are in `api-contract.md`.
 Accepted limitation: no transaction spans the CAS commit and the outbox insert (`event/entity/EventOutboxEntity.java:13-17`), so a crash
 between them loses that one notification. The engine never reads the outbox, so a lost row cannot stall a run.
+A dead row is kept, never dropped, and an operator can put it back in the queue: `GET /api/v2/system/outbox`
+lists rows by status (dead by default) and `PUT /api/v2/system/outbox/replay` resets the named ids — or every row
+in a status — to `pending` with the backoff and attempt count cleared, so the next drain retries them
+(`event/OutboxService.java`, `event/OutboxControllerV2.java`). No failure text is stored on the row; the delivery
+error is only in the dispatcher's log.
 
 ## Schedules
 

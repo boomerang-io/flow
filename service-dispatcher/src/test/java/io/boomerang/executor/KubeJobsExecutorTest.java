@@ -215,7 +215,8 @@ public class KubeJobsExecutorTest {
 
   @Test
   public void testParseTerminationMessageObjectShape() {
-    List<RunResult> results = TerminationMessageParser.parse("{\"greeting\": \"hello\"}", List.of());
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"hello\"}", List.of()).orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals("hello", results.get(0).getValue());
@@ -224,7 +225,8 @@ public class KubeJobsExecutorTest {
   @Test
   public void testParseTerminationMessageArrayShape() {
     List<RunResult> results =
-        TerminationMessageParser.parse("[{\"key\": \"greeting\", \"value\": \"hello\"}]", List.of());
+        TerminationMessageParser.parse("[{\"key\": \"greeting\", \"value\": \"hello\"}]", List.of())
+            .orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals("hello", results.get(0).getValue());
@@ -234,16 +236,19 @@ public class KubeJobsExecutorTest {
   public void testParseTerminationMessageFiltersToDeclaredResults() {
     List<RunResult> declared = List.of(new RunResult("greeting", null));
     List<RunResult> results =
-        TerminationMessageParser.parse("{\"greeting\": \"hello\", \"other\": \"skip\"}", declared);
+        TerminationMessageParser.parse("{\"greeting\": \"hello\", \"other\": \"skip\"}", declared)
+            .orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
   }
 
   @Test
-  public void testParseTerminationMessageTreatsGarbageAsNoResults() {
+  public void testParseTerminationMessageSeparatesGarbageFromNoResults() {
+    // Absent: the message is not a Result Parameter payload at all, which the executor has to
+    // tell apart from a task that simply wrote nothing.
     assertTrue(TerminationMessageParser.parse("not json at all !!", List.of()).isEmpty());
-    assertTrue(TerminationMessageParser.parse("", List.of()).isEmpty());
-    assertTrue(TerminationMessageParser.parse(null, List.of()).isEmpty());
+    assertTrue(TerminationMessageParser.parse("", List.of()).orElseThrow().isEmpty());
+    assertTrue(TerminationMessageParser.parse(null, List.of()).orElseThrow().isEmpty());
   }
 }
 
@@ -301,7 +306,8 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
   public void testParseTerminationMessageHandlesOversizedMessage() {
     // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
     // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
-    // — it should fall back to no Results, exactly like any other malformed message.
+    // — it reports the message as unparseable so the executor can fail the task with
+    // ResultsTooLarge instead of succeeding with every Result silently missing.
     String truncated = "{\"greeting\": \"" + "x".repeat(5000);
     assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
 
@@ -309,7 +315,8 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
     // in practice) still parses correctly — the parser itself imposes no size limit.
     String largeValue = "y".repeat(5000);
     List<RunResult> results =
-        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of());
+        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of())
+            .orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals(largeValue, results.get(0).getValue());
@@ -474,6 +481,61 @@ class KubeJobsExecutorReconcileTest {
     TaskExecutionException ex =
         assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
     assertEquals("OOMKilled", ex.getStatusReason());
+  }
+
+  /*
+   * Kubernetes truncates a termination message above 4096 bytes, so an oversize Result payload
+   * comes back as a broken-JSON prefix. It used to read as "no Results" and the task ended
+   * succeeded with every Result missing and nothing said; it now fails with ResultsTooLarge.
+   */
+  @Test
+  public void testAnOversizedTerminationMessageFailsTheTaskAsResultsTooLarge() throws Exception {
+    TaskRun task = task("taskrun-results-too-large");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    Map<String, String> taskLabels = created.getMetadata().getLabels();
+
+    JobCondition complete = new JobCondition();
+    complete.setType("Complete");
+    complete.setStatus("True");
+    complete.setReason("JobComplete");
+    complete.setMessage("The Job completed successfully.");
+    JobStatus status = new JobStatus();
+    status.setSucceeded(1);
+    status.setConditions(List.of(complete));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    seedTerminationMessage(taskLabels, "{\"greeting\": \"" + "x".repeat(5000));
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("ResultsTooLarge", ex.getStatusReason());
+  }
+
+  private void seedTerminationMessage(Map<String, String> taskLabels, String message) {
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setMessage(message);
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(taskLabels)
+            .endMetadata()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
   }
 
   @Test

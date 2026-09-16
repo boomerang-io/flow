@@ -110,6 +110,59 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
         "a sent row is never redelivered");
   }
 
+  /*
+   * A row that exhausted its attempts is kept, not dropped, and the operator route is the way back:
+   * replay puts it in the queue with a fresh budget and the next drain delivers it.
+   */
+  @Test
+  void aDeadRowIsReplayedAndThenDelivered() {
+    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    OutboxDispatcher dispatcher =
+        new OutboxDispatcher(
+            mongoTemplate, taskRunRepository, workflowRunRepository, eventSinkService);
+    OutboxService outboxService = new OutboxService(mongoTemplate);
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("outbox-replay-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity taskRun =
+        savedTaskRun(
+            "replaying",
+            TaskType.template,
+            RunStatus.running,
+            RunPhase.running,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    bridge.onTaskRunTransition(
+        new TaskRunTransition(
+            taskRun.getId(),
+            wfRun.getId(),
+            RunStatus.running,
+            RunPhase.running,
+            RunStatus.succeeded,
+            RunPhase.completed));
+    EventOutboxEntity row = rowsFor(taskRun.getId()).get(0);
+    row.setStatus(OutboxStatus.dead);
+    row.setAttempts(3);
+    eventOutboxRepository.save(row);
+
+    assertTrue(
+        outboxService.query(OutboxStatus.dead, 0, 100).getContent().stream()
+            .anyMatch(r -> row.getId().equals(r.getId())),
+        "the dead row must be listable before it is replayed");
+
+    assertEquals(1, outboxService.replay(List.of(row.getId()), OutboxStatus.dead, null));
+
+    EventOutboxEntity replayed = eventOutboxRepository.findById(row.getId()).orElseThrow();
+    assertEquals(OutboxStatus.pending, replayed.getStatus());
+    assertEquals(0, replayed.getAttempts());
+
+    dispatcher.drain();
+
+    assertEquals(
+        OutboxStatus.sent,
+        eventOutboxRepository.findById(row.getId()).orElseThrow().getStatus(),
+        "the next drain delivers the replayed row");
+  }
+
   private List<EventOutboxEntity> rowsFor(String ref) {
     return eventOutboxRepository.findAll().stream().filter(r -> ref.equals(r.getRef())).toList();
   }

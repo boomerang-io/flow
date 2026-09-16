@@ -30,7 +30,7 @@ engine image: the same jar runs in either mode (`.github/workflows/ci-release.ym
 | `flow.security.enabled` default | `true` | `false` (`core/security/FlowSecurityProperties.java:23-29`) |
 | `flow.quotas.enabled` default | `true` | `false` (`application.properties:21-28`) |
 | Packages loaded | All eight. | `workspace`, `schedule`, `integrations` and the sign-in surface (`core/AuthControllerV2.java:43`, `core/security/AuthExchangeService.java:25`) do not load — 18 classes carry the standalone gate. |
-| Workspace | Any workspace. | Only `system`; other `{workspace}` path values are refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). |
+| Workspace | Any workspace. | `system` is the only workspace and is the `{workspace}` path value every workspace-scoped route takes; any other value is refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). The workspace resource itself resolves too — `EngineWorkspaceControllerV2` reads `GET /api/v2/workspace/{workspace}` and `/query` straight off the workspaces collection (`workspace/EngineWorkspaceService.java`), because `WorkspaceService` composes members, quotas and insights that engine mode does not have. Creating, patching and deleting a workspace stay standalone-only. |
 | Web app | Deployed alongside core. | None — `client-web` is never deployed with engine mode. |
 | Dispatcher API | `/api/v1/dispatcher/**` behind `DispatcherAuthFilter` in both modes; `flow.dispatcher.auth.enabled` (`application.properties:31-34`) is independent of `flow.security.enabled`. | Same. |
 

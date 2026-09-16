@@ -96,6 +96,44 @@ The engine enforces both caps so the failure is one message on every executor; a
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:161-175`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
 | Results | `flow.engine.task.results.max-bytes=4096` | In `TaskRunService.end` (`TaskRunService.java:765-773`) | Status becomes `failed` with `RESULTS_TOO_LARGE`; the oversize results are not persisted |
 
+An oversize payload usually never reaches that engine check, because Kubernetes truncates a container
+termination message at 4096 bytes and the truncated prefix is broken JSON. `TerminationMessageParser` reports an
+unparseable message as absent rather than as "no results", and `KubeJobsExecutor.readResults` fails the task with
+`ResultsTooLarge` when the pod log carries Kubernetes' own too-large line or when the unparseable message is at
+the ceiling; a short unparseable message is a task writing something that is not a results payload, so it is
+logged and carries no results. On Tekton the overflow fails the TaskRun itself and is mapped the same way
+(`TektonServiceImpl.java:606`).
+
+## Run labels on Kubernetes objects
+
+Run labels are user metadata and reach the dispatcher unchecked, but Kubernetes rejects an entire object when one
+label breaks its rules, so `KubeHelperService` coerces every user-supplied key and value into shape before it is
+merged into a TaskRun, Job or volume's labels — one place all executors share.
+
+| Part | Rule applied | Mapping |
+| --- | --- | --- |
+| Value, and the name half of a key | At most 63 characters of `[A-Za-z0-9._-]`, alphanumeric at both ends | Any other character becomes `_`, the string is truncated to 63, then trimmed to alphanumeric ends |
+| The optional `prefix/` half of a key | A DNS subdomain: at most 253 characters of `[a-z0-9.-]`, each dot-separated part alphanumeric at both ends | Lower-cased, any other character becomes `-`, truncated to 253, empty parts dropped |
+| A key with no usable name | — | Dropped; nothing can be written under it |
+| A key the dispatcher already set (`boomerang.io/*`, `app.kubernetes.io/*`) | — | The dispatcher's value wins; these are the selectors every lookup, watch and delete runs on |
+
+Every alteration is logged at debug. So `team/name=platform/flow` is written as `team/name=platform_flow`
+rather than failing the volume with a 422.
+
+## Task versions on a workflow node
+
+A workflow node's `taskVersion` is pinned when the workflow is saved, not when it runs:
+`WorkflowService.createWorkflowRevisionEntity` resolves each non-start/end node through
+`TaskService.retrieveAndValidateTask` and stamps the resolved version onto the node — the version the node asked
+for, or the catalogue's latest when it asked for none. At run time `DAGUtility.createTaskList` resolves the same
+way and records the result on the TaskRun (`engine/DAGUtility.java:140-142`), so a stored node with no version
+still resolves latest. Publishing a new Task version therefore changes nothing for workflows already saved
+against an older one, which is the point: a run is reproducible from its revision. To move a workflow forward,
+save it again with the node's `taskVersion` set to the target version (or omitted, to take latest); the editor
+surfaces this per node as a "New version available" prompt, driven by the `upgradesAvailable` flag
+`WorkflowService.areTaskUpgradesAvailable` sets
+(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:58-64,133`).
+
 ## Parameter names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
