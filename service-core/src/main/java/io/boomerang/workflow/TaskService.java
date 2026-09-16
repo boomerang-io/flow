@@ -603,6 +603,9 @@ public class TaskService {
             false);
     if (!refs.isEmpty()) {
       delete(refs.get(0));
+      // Mirrors the TEAMTASK node create() writes - the Task is gone, so its node and the
+      // workspace's edge to it go with it rather than dangling in the relationship graph.
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TEAMTASK, refs.get(0));
       return;
     }
     // TODO - change error to don't have access
@@ -628,6 +631,8 @@ public class TaskService {
             false);
     if (!refs.isEmpty()) {
       delete(refs.get(0));
+      // Mirrors the TASK node createGlobal() writes, under the root node.
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TASK, refs.get(0));
       return;
     }
     throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
