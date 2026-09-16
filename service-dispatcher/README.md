@@ -15,15 +15,15 @@ the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher
 ## Task types and the `ai` type
 
 `flow.dispatcher.task-types` is the list this deployment registers with the engine at startup; the
-engine hands it claims for those types only. It defaults to `template,custom,script`. Two more types
-are dispatchable but deliberately not registered by default — add them explicitly to a deployment
-that should run them:
+engine hands it claims for those types only. It defaults to `template,custom,script,ai`, so a
+single-dispatcher install runs AI tasks out of the box. `generic` is dispatchable but not registered
+by default — add it explicitly to a deployment that should run it:
 
 | Type | Image and command | Register with |
 | ---- | ----------------- | ------------- |
 | `template`, `custom`, `script` | Authored on the task or workflow node | Default |
 | `generic` | Authored | `flow.dispatcher.task-types=template,custom,script,generic` |
-| `ai` | Resolved by the dispatcher: `flow.dispatcher.ai.image` and the command `prompt` | `flow.dispatcher.task-types=...,ai` |
+| `ai` | Resolved by the dispatcher: `flow.dispatcher.ai.image` and the command `prompt` | Default |
 
 An `ai` task's author never builds a container and never names an image. `TaskImageResolver`
 (`io.boomerang.executor.TaskImageResolver`) supplies the image and command for type `ai` and ignores
@@ -44,7 +44,7 @@ flow.dispatcher.ai.image=boomerangio/flow-task-ai:${flow.version}
 **An AI network zone.** A dispatcher deployment registered with `flow.dispatcher.task-types=ai`
 receives `ai` claims and nothing else, so every pod it creates is the AI worker image talking to the
 configured endpoint. Run it in a namespace whose egress policy allows that endpoint and nothing
-else, and leave the default deployment registered for `template,custom,script`: no other task type
+else, and set the general deployment to `template,custom,script` (dropping `ai`): no other task type
 can then reach the AI network path, and no AI task can run outside it. This is the same shape as the
 isolation tier (decision 0042) — one property per deployment, a second deployment for a second
 zone — and needs no per-task field or routing rule, because the engine already routes claims by

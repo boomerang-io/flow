@@ -4,8 +4,10 @@ A task runs when the engine in `service-core` admits it to the claim-based queue
 instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image on Kubernetes and
 reports the results back. Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
 (`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the engine. The shipped dispatcher
-registers `template`, `custom` and `script` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
-so a `generic` or `ai` task waits in the queue until a dispatcher registers that type.
+registers `template`, `custom`, `script` and `ai` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
+so a `generic` task waits in the queue until a dispatcher registers that type. To give AI tasks their own network
+zone, remove `ai` from the general dispatcher's list and run a second dispatcher deployment with
+`flow.dispatcher.task-types=ai`.
 
 ## Dispatcher protocol
 
