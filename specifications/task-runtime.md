@@ -76,6 +76,17 @@ task's declared params merged with the values authored on the workflow node (`en
 A `custom` task takes its runtime from its own params — `image`, `command` and `arguments` (newline-split)
 and `shellScript` — rather than from the catalogue entry, which declares no image
 (`DAGUtility.java:247,302`).
+
+Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$`
+characters are inserted verbatim: a multi-line prompt, a JSON body, a shell script or a task result with a
+trailing newline reaches the container byte for byte
+(`ParameterManager.replaceStringInObject`). One pass, left to right; a reference that matches nothing is left
+as written. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
+(`{"k":"v"}`), matching how the dispatcher encodes a non-string param value; a reference that is the whole
+value of an `object`-typed param returns the structure itself instead (`ParameterManager.resolveParam`). If
+substitution fails for any reason — a value that resolves to itself, say — the original value is passed
+through unchanged and the failure is logged with the value's shape, never its content, because a
+password-typed param resolves through the same path.
 The dispatcher then sets these environment variables (`kube/KubeHelperService.java:111-149`):
 
 | Variable | Value |
