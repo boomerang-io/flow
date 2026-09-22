@@ -170,6 +170,169 @@ class ParameterManagerTest {
     assertEquals(List.of("echo", "$(params.unknown)"), task.getSpec().getCommand());
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // boomerang-io/flow#439: a replacement containing a quote, a newline or a backslash used to be
+  // spliced unescaped into a JSON-encoded copy of the value, the re-parse failed, and the param
+  // resolved to null. Every case below must resolve to exactly the input value, byte for byte.
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void resolvesValueContainingADoubleQuote() {
+    String value = "He said \"hello\" and left";
+    WorkflowRunEntity run = run(str("src", value), str("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(value, resolved(run, "ref"));
+  }
+
+  @Test
+  void resolvesValueContainingADoubleQuoteInsideALargerString() {
+    WorkflowRunEntity run =
+        run(str("src", "a \"quoted\" word"), str("ref", "before $(params.src) after"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("before a \"quoted\" word after", resolved(run, "ref"));
+  }
+
+  @Test
+  void resolvesMultiLineValue() {
+    String value = "line one\nline two\nline three";
+    WorkflowRunEntity run = run(str("src", value), str("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(value, resolved(run, "ref"));
+  }
+
+  @Test
+  void resolvesValueWithQuotesNewlinesAndABackslash() {
+    String value = "copy C:\\tmp\\out then say \"done\"\nand stop";
+    WorkflowRunEntity run = run(str("src", value), str("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(value, resolved(run, "ref"));
+  }
+
+  @Test
+  void resolvesValueWithWindowsLineEndings() {
+    String value = "first\r\nsecond\r\n";
+    WorkflowRunEntity run = run(str("src", value), str("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(value, resolved(run, "ref"));
+  }
+
+  @Test
+  void resolvesValueContainingALiteralDollar() {
+    String value = "cost is $5 per unit";
+    WorkflowRunEntity run = run(str("src", value), str("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(value, resolved(run, "ref"));
+  }
+
+  // A replacement that itself contains a $( sequence is inserted, and the sequence is left alone
+  // because nothing in the parameter layers is named after it - no second substitution pass on it.
+  @Test
+  void resolvesValueContainingADollarParenSequence() {
+    String value = "echo $(date) > /tmp/now";
+    WorkflowRunEntity run = run(str("src", value), str("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(value, resolved(run, "ref"));
+  }
+
+  // A value that resolves to itself cannot terminate; the fallback is the original value, not null.
+  @Test
+  void selfReferencingValueFallsBackToTheOriginalValue() {
+    WorkflowRunEntity run = run(str("loop", "$(params.loop)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("$(params.loop)", resolved(run, "loop"));
+  }
+
+  // The realistic "pass a body through" case: a JSON document carried in a string param.
+  @Test
+  void resolvesJsonDocumentValue() {
+    String json = "{\"name\":\"widget\",\"tags\":[\"a\",\"b\"],\"nested\":{\"count\":1}}";
+    WorkflowRunEntity run = run(str("body", json), str("ref", "$(params.body)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(json, resolved(run, "ref"));
+  }
+
+  // The case from the issue, end to end: a multi-line prompt with embedded quotes.
+  @Test
+  void resolvesMultiLinePromptWithEmbeddedQuotes() {
+    String prompt =
+        "You are a helpful assistant.\n\n"
+            + "Summarise the text between the markers.\n"
+            + "\"The quick brown fox jumps over the lazy dog.\"\n"
+            + "Answer as JSON: {\"summary\": \"...\"}\n";
+    WorkflowRunEntity run = run(str("prompt", prompt), str("ref", "$(params.prompt)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(prompt, resolved(run, "ref"));
+  }
+
+  // Multiple references in one value, each carrying a quote and a newline.
+  @Test
+  void resolvesMultipleReferencesInOneValue() {
+    WorkflowRunEntity run =
+        run(
+            str("a", "one \"1\"\n"),
+            str("b", "two \"2\"\n"),
+            str("ref", "[$(params.a)|$(params.b)]"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("[one \"1\"\n|two \"2\"\n]", resolved(run, "ref"));
+  }
+
+  // A task result carrying a trailing newline - what `echo` writes - used to null the param.
+  @Test
+  void resolvesTaskResultValueWithATrailingNewline() {
+    stubTask("lookup", new RunResult("ref", "65b0a1f2c3d4e5f60718293a\n"));
+    WorkflowRunEntity run = run(str("workflowRef", "$(tasks.lookup.results.ref)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    // A null here is what TaskExecutionService.runWorkflow reports three components away as
+    // "Parameter 'workflowRef' resolved to no value" (TaskExecutionService.java:828-832).
+    assertEquals("65b0a1f2c3d4e5f60718293a\n", resolved(run, "workflowRef"));
+  }
+
+  // Judgement call (boomerang-io/flow#439): a Map or List interpolated INTO a larger string is
+  // rendered as JSON, not as Java's Map.toString() ("{k=v}"). A token that is the whole value of
+  // an object-typed param still returns the structure itself, untouched - see below.
+  @Test
+  void rendersAStructuredReplacementAsJsonWhenInterpolatedIntoAString() {
+    WorkflowRunEntity run =
+        run(object("obj", Map.of("k", "v")), str("ref", "payload: $(params.obj)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("payload: {\"k\":\"v\"}", resolved(run, "ref"));
+  }
+
+  @Test
+  void rendersAListReplacementAsJsonWhenInterpolatedIntoAString() {
+    WorkflowRunEntity run =
+        run(object("list", List.of("a", "b")), str("ref", "items=$(params.list)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("items=[\"a\",\"b\"]", resolved(run, "ref"));
+  }
+
+  // An object-typed param whose value IS a single reference keeps the structure (resolveParam's
+  // ParamType.object branch returns before any string substitution).
+  @Test
+  void objectTypedParamKeepsTheStructureOfItsReplacement() {
+    WorkflowRunEntity run =
+        run(object("src", Map.of("k", "v")), object("ref", "$(params.src)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(Map.of("k", "v"), value(run, "ref"));
+  }
+
+  // Spec fields take the same literal value: this is what the dispatcher writes into the
+  // container's script and environment.
+  @Test
+  void resolvesQuotedMultiLineValueIntoSpecFields() {
+    String prompt = "say \"hello\"\nthen stop";
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("prompt", prompt)));
+    task.getSpec().setScript("#!/bin/sh\ncat <<'EOF'\n$(params.prompt)\nEOF");
+    task.getSpec().setEnvs(List.of(new TaskEnvVar("PROMPT", "$(params.prompt)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF", task.getSpec().getScript());
+    assertEquals(prompt, task.getSpec().getEnvs().get(0).getValue());
+  }
+
   private void stubTask(String name, RunResult result) {
     TaskRunEntity task = new TaskRunEntity();
     task.setResults(List.of(result));
@@ -192,12 +355,15 @@ class ParameterManagerTest {
     return new RunParam(name, value, ParamType.object);
   }
 
+  private static Object value(WorkflowRunEntity run, String name) {
+    return run.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getValue();
+  }
+
   private static String resolved(WorkflowRunEntity run, String name) {
-    return (String)
-        run.getParams().stream()
-            .filter(p -> name.equals(p.getName()))
-            .findFirst()
-            .orElseThrow()
-            .getValue();
+    return (String) value(run, name);
   }
 }
