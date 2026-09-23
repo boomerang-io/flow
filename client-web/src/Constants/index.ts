@@ -20,6 +20,14 @@ export const WorkflowScope = {
  */
 export const CREATED_DATE_FORMAT = "MMMM DD, YYYY";
 export const PROPERTY_KEY_REGEX = /^[a-zA-Z_]([a-zA-Z0-9-_])*$/;
+/**
+ * Kubernetes label syntax, used by both label editors (Components/LabelModal and
+ * Features/WorkflowEditor/Configure/CustomLabel).
+ * A key is `[prefix/]name`: the optional prefix is a DNS subdomain (max 253 chars, checked by the
+ * caller), and the name - like the value - is at most 63 alphanumeric-bounded characters.
+ */
+export const LABEL_KEY_PREFIX_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,62}([.\1][a-zA-Z0-9-]{1,63})*$/;
+export const LABEL_NAME_AND_VALUE_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,61}[a-zA-Z0-9]$/;
 export const PASSWORD_CONSTANT = "******";
 
 /**
@@ -65,10 +73,13 @@ export const InputProperty = {
   HelperText: "helperText",
   Name: "name",
   Label: "label",
+  Max: "max",
+  Min: "min",
   Options: "options",
   Placeholder: "placeholder",
   ReadOnly: "readOnly",
   Required: "required",
+  Step: "step",
   Type: "type",
 } as const;
 
@@ -78,6 +89,10 @@ export const InputType = {
   Number: "number",
   Password: "password",
   Select: "select",
+  // Renders Components/Slider through DataDrivenInput's customComponent escape hatch (see
+  // Utils/paramsHelper#attachCustomInputComponents); the numeric value is still stored as a
+  // string, like every other task param value.
+  Slider: "slider",
   TextArea: "textarea",
   Text: "text",
   TextEditor: "texteditor",
@@ -94,6 +109,7 @@ export const InputTypeCopy = {
   [InputType.Number]: "Number",
   [InputType.Password]: "Password",
   [InputType.Select]: "Select",
+  [InputType.Slider]: "Slider",
   [InputType.TextArea]: "Text Area",
   [InputType.Text]: "Text",
   [InputType.URL]: "URL",
@@ -101,6 +117,7 @@ export const InputTypeCopy = {
 
 export const NodeType = {
   Acquirelock: "acquirelock",
+  Ai: "ai",
   Approval: "approval",
   CustomTask: "custom",
   Decision: "decision",

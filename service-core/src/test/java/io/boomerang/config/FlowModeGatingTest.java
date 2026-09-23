@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.integrations.IntegrationControllerV2;
 import io.boomerang.schedule.WorkspaceScheduleControllerV2;
+import io.boomerang.workspace.EngineWorkspaceControllerV2;
+import io.boomerang.workspace.EngineWorkspaceService;
 import io.boomerang.workspace.WorkspaceControllerV2;
 import io.boomerang.core.security.EngineWorkspaceInterceptorConfiguration;
 import io.boomerang.dispatcher.DispatcherService;
@@ -58,6 +60,12 @@ class FlowModeGatingTest extends AbstractEngineIntegrationTest {
     assertFalse(context.getBeansOfType(WorkflowRunService.class).isEmpty());
     assertFalse(context.getBeansOfType(DispatcherService.class).isEmpty());
     assertFalse(context.getBeansOfType(WorkflowService.class).isEmpty());
+  }
+
+  @Test
+  void theEngineModeWorkspaceReadIsAbsentInStandaloneMode() {
+    assertTrue(context.getBeansOfType(EngineWorkspaceControllerV2.class).isEmpty());
+    assertTrue(context.getBeansOfType(EngineWorkspaceService.class).isEmpty());
   }
 
   @Test

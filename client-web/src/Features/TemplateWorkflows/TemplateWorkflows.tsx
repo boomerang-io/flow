@@ -1,22 +1,18 @@
 import queryString from "query-string";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
-import { formatErrorMessage } from "@boomerang-io/utils";
-import CreateWorkflowTemplate from "Components/CreateWorkflowTemplate";
 import EmptyState from "Components/EmptyState";
 import ErrorDragon from "Components/ErrorDragon";
 import WorkflowTemplateCard from "Components/WorkflowTemplateCard";
 import WorkflowsHeader from "Components/WorkflowsHeader";
-import { WorkflowView, HttpMethod } from "Constants";
+import { WorkflowView } from "Constants";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { PaginatedWorkflowResponse, Workflow } from "Types";
-import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./TemplateWorkflows.module.scss";
 
-// Workflow Templates are static content served read-only from backend resources (not a managed
-// entity with its own CRUD lifecycle) - the read here is a simple list fetch, same shape as
-// before, just moved server-side. See Features/Parameters/GlobalParameters/GlobalParameters.tsx
-// for the reference conversion this follows.
+// Workflow Templates are seeded, read-only content - the loader seeds them and a v3 upgrade
+// imports them, so this screen only browses. A Workflow is created from a template on the Home
+// screen (Components/WorkflowTemplateHomeCard).
 type LoaderData = {
   templates: PaginatedWorkflowResponse | null;
   errorLoading: boolean;
@@ -28,50 +24,6 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
     return { templates: response.data, errorLoading: false };
   } catch (error) {
     return { templates: null, errorLoading: true };
-  }
-}
-
-// Single action, keyed by intent, for both remaining writes against Workflow Templates: import
-// (create) from CreateWorkflowTemplate.tsx and delete from WorkflowTemplateCard.tsx. Both of
-// those components render as descendants of this route's element (no nested <Route>), so their
-// `useFetcher()` calls resolve to this action without needing an explicit `action` path - same
-// as a <Form> with no action defaults to the closest route in context.
-type ActionResult =
-  | { intent: "create" | "delete"; name?: string }
-  | ({ intent: "create" | "delete"; name?: string } & ActionError);
-
-export async function action({ request }: { request: Request }) {
-  const formData = await request.formData();
-  const intent = String(formData.get("intent"));
-
-  if (intent === "delete") {
-    const name = String(formData.get("name"));
-    try {
-      await serverFetch(request).delete(serviceUrl.template.getWorkflowTemplate({ name }));
-      return { intent: "delete" as const, name };
-    } catch (error) {
-      return actionError({
-        intent: "delete" as const,
-        name,
-        error: formatErrorMessage({ error, defaultMessage: "Delete Workflow Template Failed" }),
-      });
-    }
-  }
-
-  const workflow = JSON.parse(String(formData.get("workflow")));
-  try {
-    const response = await serverFetch(request)({
-      url: serviceUrl.template.postWorkflowTemplate(),
-      data: workflow,
-      method: HttpMethod.Post,
-    });
-    return { intent: "create" as const, name: response.data.name };
-  } catch (error) {
-    return actionError({
-      intent: "create" as const,
-      name: workflow.name,
-      error: formatErrorMessage({ error, defaultMessage: "Import Template Failed" }),
-    });
   }
 }
 
@@ -107,7 +59,7 @@ export default function TemplateWorkflows() {
       <div className={styles.container}>
         <WorkflowsHeader
           title="Workflow Templates"
-          subtitle="Define reuseable Workflows available to all workspaces as Templates."
+          subtitle="Reuseable Workflows available to all workspaces. Start one from the Home screen."
           handleUpdateFilter={handleUpdateFilter}
           searchQuery={searchQuery}
           workflowList={workflows}
@@ -117,7 +69,6 @@ export default function TemplateWorkflows() {
           <section className={styles.sectionContainer}>
             <RenderTemplates
               errorLoading={errorLoading}
-              workflows={workflows}
               filteredWorkflows={filteredWorkflows}
               searchQuery={searchQuery}
             />
@@ -130,7 +81,6 @@ export default function TemplateWorkflows() {
 
 type TemplatesProps = {
   errorLoading: boolean;
-  workflows: Workflow[];
   filteredWorkflows: Workflow[];
   searchQuery: string | string[] | null;
 };
@@ -138,7 +88,7 @@ type TemplatesProps = {
 // No `isLoading` branch: the loader resolves before this component renders (see
 // GlobalParameters.tsx for the same "isLoading={false}, errorLoading flag instead" shift away
 // from react-query's fetch-state trio).
-const RenderTemplates = ({ errorLoading, workflows, filteredWorkflows, searchQuery }: TemplatesProps) => {
+const RenderTemplates = ({ errorLoading, filteredWorkflows, searchQuery }: TemplatesProps) => {
   if (errorLoading) {
     return <ErrorDragon />;
   }
@@ -151,7 +101,6 @@ const RenderTemplates = ({ errorLoading, workflows, filteredWorkflows, searchQue
       {filteredWorkflows.map((workflow) => (
         <WorkflowTemplateCard key={workflow.name} workflow={workflow} />
       ))}
-      {<CreateWorkflowTemplate workflows={workflows} />}
     </div>
   );
 };

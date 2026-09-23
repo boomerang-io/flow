@@ -15,9 +15,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Seed the out-of-the-box task catalogue — 87 tasks and their 130 revisions, the set the legacy
- * loader ends up with after its full {@code flow_task_templates} chain. Without it a fresh install
- * has an empty task palette and no workflow can be composed.
+ * Seed the out-of-the-box task catalogue — 88 tasks and their 131 revisions: the 87 tasks / 130
+ * revisions the legacy loader ends up with after its full {@code flow_task_templates} chain, plus
+ * the v5-native {@code ai} task, which has no legacy counterpart. Without it a fresh install has
+ * an empty task palette and no workflow can be composed. An install that ran this unit before the
+ * {@code ai} entry existed gets it from {@code _0047__SeedAiTask}, because Flamingock records this
+ * unit as applied and never re-runs it.
  *
  * <p>v5 splits what v4 called a task template across two collections, and the legacy loader's own
  * v4 changesets already produced that split: {@code tasks} holds the stable identity ({@code
@@ -50,10 +53,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>No longer generation-gated</b> (formerly skipped entirely on a v3 install: on v3 the
  * catalogue lived in {@code task_templates} — the pre-v4-split collection — and {@code tasks} was
- * empty at the point this seed used to run, so it would otherwise have inserted all 87 seed tasks
- * under the very {@code _id}s the v3 install still held in {@code task_templates}, verified 87/87
- * overlap, blocking the migration that turns {@code task_templates} into {@code tasks}/{@code
- * task_revisions}). Running strictly AFTER {@code _0006__V3MigrateTaskCatalogue} (Phase 5 vs Phase
+ * empty at the point this seed used to run, so it would otherwise have inserted the legacy seed
+ * tasks under the very {@code _id}s the v3 install still held in {@code task_templates}, verified
+ * 87/87 overlap, blocking the migration that turns {@code task_templates} into {@code
+ * tasks}/{@code task_revisions}). Running strictly AFTER {@code _0006__V3MigrateTaskCatalogue} (Phase 5 vs Phase
  * 2) removes that hazard entirely: {@code tasks} already holds the v3-migrated catalogue by the
  * time this unit runs, so {@link #seedTasks}'s name-match naturally finds every one of the 87
  * already-migrated tasks (resolving to their preserved v3 {@code _id}s, never re-inserting under
@@ -63,7 +66,8 @@ import org.slf4j.LoggerFactory;
  * job in full: verified against the real v3 dump (89 tasks / 132 revisions, unchanged — the sole
  * gap, seed {@code Manual Approval} v2, is inserted here exactly as {@code _0034} used to insert
  * it) and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions,
- * unchanged).
+ * unchanged). Both totals gain one task and one revision from the {@code ai} entry, which no v3
+ * install can hold.
  */
 @Change(id = "0022-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")

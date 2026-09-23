@@ -9,6 +9,7 @@ import io.boomerang.common.enums.*;
 import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.core.SettingsService;
 import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.common.model.ChildWorkflowRunCreated;
 import io.boomerang.common.model.ScheduleRequested;
@@ -68,6 +69,13 @@ public class TaskExecutionService {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+  // The child-workflow nesting cap, and the typed cause written when a task trips it. The cap
+  // keeps a workflow that runs itself from recursing until it exhausts the workspace quota.
+  static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
+  static final String MAX_NESTING_DEPTH = "max.nesting.depth";
+  static final int DEFAULT_MAX_NESTING_DEPTH = 5;
+  static final String NESTING_DEPTH_EXCEEDED = "NestingDepthExceeded";
+
   @Value("${flow.engine.task.params.max-bytes:16384}")
   private int paramsMaxBytes;
 
@@ -92,6 +100,8 @@ public class TaskExecutionService {
   @Autowired private ApplicationEventPublisher eventPublisher;
 
   @Autowired private ParameterManager paramManager;
+
+  @Autowired private SettingsService settingsService;
 
   // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
   @Autowired @Lazy private TaskExecutionService self;
@@ -198,7 +208,8 @@ public class TaskExecutionService {
       if (!TaskType.template.equals(taskExecution.getType())
           && !TaskType.script.equals(taskExecution.getType())
           && !TaskType.custom.equals(taskExecution.getType())
-          && !TaskType.generic.equals(taskExecution.getType())) {
+          && !TaskType.generic.equals(taskExecution.getType())
+          && !TaskType.ai.equals(taskExecution.getType())) {
         LOGGER.debug("[{}] Moving task to Executing: {}", taskExecutionId, taskExecution.getName());
         self.execute(taskExecutionId);
       }
@@ -326,7 +337,7 @@ public class TaskExecutionService {
     // TaskRunEntities are typically only updated and then passed to end
     // If not ending, then they may save a waiting status.
     switch (taskType) {
-      case template, script, custom, generic -> {
+      case template, script, custom, generic, ai -> {
         // Nothing to do here. These types wait for a Handler.
         getTaskWorkspaces(taskExecution, wfRunEntity);
       }
@@ -344,8 +355,9 @@ public class TaskExecutionService {
         endTask = true;
       }
       case runworkflow -> {
-        this.runWorkflow(taskExecution, wfRunEntity);
-        endTask = true;
+        // Ends now for a fire-and-forget child; with wait=true the task parks as waiting and the
+        // child's own completion ends it.
+        endTask = this.runWorkflow(taskExecution, wfRunEntity);
       }
       case runscheduledworkflow -> {
         this.runScheduledWorkflow(taskExecution, wfRunEntity);
@@ -799,54 +811,129 @@ public class TaskExecutionService {
     }
   }
 
-  private void runWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+  /*
+   * Submit a child WorkflowRun. Returns true when the task ends now - a fire-and-forget child, or
+   * a failure - and false when it parked as waiting for the child to finish.
+   *
+   * Lineage is the typed pair the retry path already uses: the child's trigger is "task" and its
+   * initiatedByRef is this TaskRun's id. ChildWorkflowRunListener walks it back to end this task,
+   * the cascade cancel walks it forward, and the nesting count climbs it.
+   */
+  private boolean runWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
     LOGGER.debug("[{}] RunWorkflow Request received.", taskExecution.getId());
     Object workflowRefValue =
         taskExecution.getParams() != null
             ? ParameterUtil.getValue(taskExecution.getParams(), "workflowRef")
             : null;
-    if (workflowRefValue != null && !workflowRefValue.toString().isBlank()) {
-      try {
-        String workflowRef = workflowRefValue.toString();
-        WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-        request.setTrigger(TriggerEnum.task);
-        request.setParams(wfRunEntity.getParams());
-        request.setAnnotations(wfRunEntity.getAnnotations());
-        request.setWorkspaces(wfRunEntity.getWorkspaces());
-        request.setTimeout(wfRunEntity.getTimeout());
-        request.setRetries(wfRunEntity.getRetries());
-        request.setLabels(wfRunEntity.getLabels());
-        request.setDebug(wfRunEntity.getDebug());
-        // TODO figure out how to set version
-        //        request.setWorkflowVersion();
-        LOGGER.debug(
-            "[{}] Submitting RunWorkflow Request for ref: {}.", taskExecution.getId(), workflowRef);
-        WorkflowRun wfRunResponse = workflowService.submit(workflowRef, request, true);
-        eventPublisher.publishEvent(
-            new ChildWorkflowRunCreated(workflowRef, wfRunResponse.getId()));
-        List<RunResult> wfRunResultResponse = new LinkedList<>();
-        RunResult runResult = new RunResult();
-        runResult.setName("workflowRunRef");
-        runResult.setValue(wfRunResponse.getId());
-        wfRunResultResponse.add(runResult);
-        taskExecution.setResults(wfRunResultResponse);
-        taskExecution.setStatus(RunStatus.succeeded);
-      } catch (Exception ex) {
-        LOGGER.error(
-            "[{}] Unable to execute RunWorkflow task. Error: {}",
-            taskExecution.getId(),
-            ex.getMessage());
-        taskExecution.setStatusMessage(ex.getMessage());
-        taskExecution.setStatus(RunStatus.failed);
-      }
-    } else {
+    if (workflowRefValue == null || workflowRefValue.toString().isBlank()) {
       // Empty is a valid stored value (it may be substituted or deliberately blank) - the
       // requirement belongs to this task, so the failure names the parameter here.
       taskExecution.setStatusMessage(
           "Parameter 'workflowRef' resolved to no value; provide the workflow to run.");
       taskExecution.setStatus(RunStatus.failed);
+      return true;
     }
-    // No save here - the execute() endTask branch persists this same taskExecution.
+
+    int cap = maxNestingDepth();
+    if (nestingDepth(wfRunEntity, cap) >= cap) {
+      taskExecution.setStatusMessage(
+          "Child workflow nesting depth of "
+              + cap
+              + " reached; the child workflow was not submitted.");
+      taskExecution.setStatusReason(NESTING_DEPTH_EXCEEDED);
+      taskExecution.setStatus(RunStatus.failed);
+      return true;
+    }
+
+    boolean wait =
+        Boolean.parseBoolean(
+            String.valueOf(ParameterUtil.getValue(taskExecution.getParams(), "wait")));
+    // Park BEFORE submitting: a child that completes immediately must find a parent already
+    // waiting, or its transition listener would skip a parent still marked running and the task
+    // would sit parked until its timeout.
+    if (wait && !taskRunService.tryArmWait(taskExecution.getId())) {
+      LOGGER.debug("[{}] RunWorkflow no longer running; not armed.", taskExecution.getId());
+    }
+    try {
+      String workflowRef = workflowRefValue.toString();
+      WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+      request.setTrigger(TriggerEnum.task);
+      request.setParams(wfRunEntity.getParams());
+      request.setAnnotations(wfRunEntity.getAnnotations());
+      request.setWorkspaces(wfRunEntity.getWorkspaces());
+      request.setTimeout(wfRunEntity.getTimeout());
+      request.setRetries(wfRunEntity.getRetries());
+      request.setLabels(wfRunEntity.getLabels());
+      request.setDebug(wfRunEntity.getDebug());
+      // TODO figure out how to set version
+      //        request.setWorkflowVersion();
+      LOGGER.debug(
+          "[{}] Submitting RunWorkflow Request for ref: {}.", taskExecution.getId(), workflowRef);
+      WorkflowRun wfRunResponse =
+          workflowService.submit(workflowRef, request, true, taskExecution.getId());
+      eventPublisher.publishEvent(new ChildWorkflowRunCreated(workflowRef, wfRunResponse.getId()));
+      RunResult childRef = new RunResult("workflowRunRef", wfRunResponse.getId());
+      if (wait) {
+        // A parked TaskRun never reaches execute()'s save, so the child link is written
+        // field-scoped rather than lost.
+        ResultUtil.upsertResultByName(
+            mongoTemplate, taskExecution.getId(), TaskRunEntity.class, childRef);
+        taskExecution.setStatus(RunStatus.waiting);
+        return false;
+      }
+      taskExecution.setResults(new LinkedList<>(List.of(childRef)));
+      taskExecution.setStatus(RunStatus.succeeded);
+    } catch (Exception ex) {
+      LOGGER.error(
+          "[{}] Unable to execute RunWorkflow task. Error: {}",
+          taskExecution.getId(),
+          ex.getMessage());
+      taskExecution.setStatusMessage(ex.getMessage());
+      taskExecution.setStatus(RunStatus.failed);
+    }
+    // No save here - the execute() endTask branch persists this same taskExecution, writing the
+    // failure over an arm that a failed submit left behind.
+    return true;
+  }
+
+  /*
+   * The child nesting cap: the configured value, or the platform default when the key is not
+   * seeded (an engine whose database predates it still has a cap).
+   */
+  private int maxNestingDepth() {
+    try {
+      String value =
+          settingsService.getSettingConfig(WORKFLOWRUN_SETTINGS_KEY, MAX_NESTING_DEPTH).getValue();
+      return NumberUtils.isDigits(value) ? Integer.parseInt(value) : DEFAULT_MAX_NESTING_DEPTH;
+    } catch (RuntimeException notConfigured) {
+      return DEFAULT_MAX_NESTING_DEPTH;
+    }
+  }
+
+  /*
+   * Levels of runworkflow nesting above this run: 0 for a run nothing else started, 1 for the
+   * child of a root run, and so on. Each hop is the two lookups the lineage records - the
+   * initiating TaskRun, then the WorkflowRun that owns it. The walk stops at the cap, so a broken
+   * lineage can never make it unbounded.
+   */
+  private int nestingDepth(WorkflowRunEntity wfRunEntity, int cap) {
+    int depth = 0;
+    WorkflowRunEntity current = wfRunEntity;
+    while (depth < cap
+        && TriggerEnum.task.getTrigger().equals(current.getTrigger())
+        && current.getInitiatedByRef() != null) {
+      TaskRunEntity initiator =
+          taskRunRepository.findById(current.getInitiatedByRef()).orElse(null);
+      if (initiator == null) {
+        return depth;
+      }
+      current = workflowRunRepository.findById(initiator.getWorkflowRunRef()).orElse(null);
+      if (current == null) {
+        return depth;
+      }
+      depth++;
+    }
+    return depth;
   }
 
   private void runScheduledWorkflow(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
@@ -947,7 +1034,7 @@ public class TaskExecutionService {
         "[{}] Processing Wait for Event task: {}", taskExecution.getId(), taskExecution.getName());
     // Field-scoped arm, then re-read: an event that arrived since execute()'s entry read has
     // already set preApproved/status/results through applyEventDelivery and must not be lost.
-    if (!taskRunService.tryArmEventWait(taskExecution.getId())) {
+    if (!taskRunService.tryArmWait(taskExecution.getId())) {
       LOGGER.debug("[{}] Eventwait no longer running; not armed.", taskExecution.getId());
     }
     TaskRunEntity armed = taskRunRepository.findById(taskExecution.getId()).orElse(taskExecution);

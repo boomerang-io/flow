@@ -1,31 +1,27 @@
 package io.boomerang.event.model;
 
-import io.boomerang.common.model.WorkflowRun;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.CloudEventData;
 import io.cloudevents.core.builder.CloudEventBuilder;
 import io.cloudevents.core.data.PojoCloudEventData;
 import java.io.IOException;
 import java.time.ZoneOffset;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.http.MediaType;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 public class WorkflowRunStatusEvent extends Event {
-  private static final Logger LOGGER = LogManager.getLogger();
 
   private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
-  private WorkflowRun workflowRun;
+  // The projected payload: a RunStatusSummary, or the full WorkflowRun when the sink asks for it.
+  private Object data;
 
   @Override
   public CloudEvent toCloudEvent() throws IOException {
 
-    //    JsonNode node = MAPPER.convertValue(workflowRunEntity, JsonNode.class);
-    CloudEventData data = PojoCloudEventData.wrap(this.workflowRun, MAPPER::writeValueAsBytes);
-    LOGGER.info("Data: " + new String(data.toBytes()));
+    CloudEventData eventData = PojoCloudEventData.wrap(this.data, MAPPER::writeValueAsBytes);
+
     // @formatter:off
     CloudEventBuilder cloudEventBuilder =
         CloudEventBuilder.v1()
@@ -34,14 +30,13 @@ public class WorkflowRunStatusEvent extends Event {
             .withSubject(getSubject())
             .withType(getType().getCloudEventType())
             .withTime(getDate().toInstant().atOffset(ZoneOffset.UTC))
-            //        .withData(MediaType.APPLICATION_JSON_VALUE, node.toString().getBytes());
-            .withData(MediaType.APPLICATION_JSON_VALUE, data);
+            .withData(MediaType.APPLICATION_JSON_VALUE, eventData);
     // @formatter:on
 
     return cloudEventBuilder.build();
   }
 
-  public void setWorkflowRun(WorkflowRun workflowRun) {
-    this.workflowRun = workflowRun;
+  public void setData(Object data) {
+    this.data = data;
   }
 }

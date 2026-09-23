@@ -18,6 +18,8 @@ export { default as platformConfig } from "./platformConfig";
 export { default as flowNavigation } from "./flowNavigation";
 export { default as profile } from "./profile";
 export { default as task } from "./task";
+// The seeded `ai` catalogue task. Kept out of `task`'s content list on purpose - see aiTask.js.
+export { default as aiTask } from "./aiTask";
 export { default as taskYaml } from "./taskYaml";
 export { default as settings } from "./settings";
 export { default as summaries } from "./summaries";

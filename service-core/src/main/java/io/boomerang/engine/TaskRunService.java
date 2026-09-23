@@ -671,11 +671,14 @@ public class TaskRunService {
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
-  // Arm an eventwait: status -> waiting as a field-scoped Compare-And-Set fenced on the running
-  // phase. An event delivered between execute()'s entry read and this write lands through
-  // applyEventDelivery (preApproved, status annotation, results) and survives; the whole-document
-  // save this replaces rolled those fields back. Returns whether the arm was applied.
-  public boolean tryArmEventWait(String id) {
+  // Arm a wait with no wake time - an eventwait, or a runworkflow task waiting on its child.
+  // status -> waiting as a field-scoped Compare-And-Set fenced on the running phase, leaving
+  // waitUntil absent so the watcher's time-based resume never picks the row up: only the arriving
+  // event, the child's completion, or the timeout reap ends it. An event delivered between
+  // execute()'s entry read and this write lands through applyEventDelivery (preApproved, status
+  // annotation, results) and survives; the whole-document save this replaces rolled those fields
+  // back. Returns whether the arm was applied.
+  public boolean tryArmWait(String id) {
     Query query =
         Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
     Update update = new Update().set("status", RunStatus.waiting);

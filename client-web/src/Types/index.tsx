@@ -147,8 +147,12 @@ export interface DataDrivenInput {
   required?: boolean;
   value: string | Array<string> | Array<{ key: string; value: string }> | Object;
   type: string;
+  // `min`/`max`/`step` mirror the backend param model's nullable numeric bounds. They govern the
+  // `slider` input type (Constants#InputType.Slider); `min`/`max` are also read by
+  // DynamicFormik's yup generation for `number` inputs.
   min?: number;
   max?: number;
+  step?: number;
 }
 
 export interface ResultParameter {
@@ -774,6 +778,9 @@ export interface WorkflowRun {
   duration: number;
   id: string;
   initiatedByRef: string;
+  // The run that owns the TaskRun in initiatedByRef, resolved server-side for a task-triggered
+  // (child) run so the header can link back to the parent. Absent on every other trigger.
+  initiatedByWorkflowRunRef?: string;
   labels: Record<string, string>;
   params: Array<Param>;
   // Populated on the wire (WorkflowRunService#get copies the entity's phase across).

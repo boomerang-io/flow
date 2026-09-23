@@ -1,0 +1,15 @@
+/**
+ * The AI node reuses the Template node wholesale and only re-tints its chrome, the same way
+ * CustomTaskNode does. Boomerang purple (--flow-switch-primary) is the product's primary/active
+ * accent - see specifications/design-system.md, "Flow accent tokens".
+ */
+.node {
+  border-color: var(--flow-switch-primary);
+}
+
+.editButton {
+  position: absolute;
+  right: 1.75rem;
+  top: -0.75rem;
+  width: 1.5rem;
+}

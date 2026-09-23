@@ -12,6 +12,8 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.Duration;
@@ -64,6 +66,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Autowired private WorkspaceService workspaceService;
 
+  @Autowired protected TaskImageResolver imageResolver;
+
+  @Autowired protected TaskResourceResolver resourceResolver;
+
   protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
 
   @Value("${kube.timeout.waitUntil}")
@@ -84,9 +90,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         task.getId(),
         task.getName(),
         task.getLabels(),
-        task.getSpec().getImage(),
-        task.getSpec().getCommand(),
-        task.getSpec().getScript(),
+        imageResolver.image(task),
+        imageResolver.command(task),
+        imageResolver.script(task),
         task.getSpec().getArguments(),
         task.getParams(),
         task.getSpec().getEnvs(),
@@ -133,18 +139,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Value("${kube.task.ttlDays}")
   protected Integer kubeJobTTLDays;
-
-  @Value("${kube.resource.limit.ephemeral-storage}")
-  private String kubeResourceLimitEphemeralStorage;
-
-  @Value("${kube.resource.request.ephemeral-storage}")
-  private String kubeResourceRequestEphemeralStorage;
-
-  @Value("${kube.resource.limit.memory}")
-  private String kubeResourceLimitMemory;
-
-  @Value("${kube.resource.request.memory}")
-  private String kubeResourceRequestMemory;
 
   @Value("${kube.task.storage.data.memory}")
   private Boolean kubeTaskStorageDataMemory;
@@ -211,34 +205,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     //    securityContext.setPrivileged(true);
 
     /*
-     * Create a resource request and limit for ephemeral-storage Defaults to application.properties,
-     * can be overridden by user property.
-     * Create a resource request and limit for memory Defaults to application.properties, can be
-     * overridden by user property. Maximum of 32Gi.
-     */
-    //    ResourceRequirements resources = new ResourceRequirements();
-    //    Map<String, Quantity> resourceRequests = new HashMap<>();
-    //    resourceRequests.put("ephemeral-storage", new
-    // Quantity(kubeResourceRequestEphemeralStorage));
-    //    resourceRequests.put("memory", new Quantity(kubeResourceRequestMemory));
-    //    Map<String, Quantity> resourceLimits = new HashMap<>();
-    //    resourceLimits.put("ephemeral-storage", new Quantity(kubeResourceLimitEphemeralStorage));
-    //    String kubeResourceLimitMemoryQuantity =
-    // taskProperties.get("worker.resource.memory.size");
-    //    if (kubeResourceLimitMemoryQuantity != null &&
-    // !(Integer.valueOf(kubeResourceLimitMemoryQuantity.replace("Gi", "")) > 32)) {
-    //      LOGGER.info("Setting Resource Memory Limit to " + kubeResourceLimitMemoryQuantity +
-    // "...");
-    //      resourceLimits.put("memory", new Quantity(kubeResourceLimitMemoryQuantity));
-    //    } else {
-    //      LOGGER
-    //          .info("Setting Resource Memory Limit to default of: " + kubeResourceLimitMemory + "
-    // ...");
-    //      resourceLimits.put("memory", new Quantity(kubeResourceLimitMemory));
-    //    }
-    //    resources.setLimits(resourceLimits);
-
-    /*
      * Create Workspaces and PVCs
      * - /workspace for cross workflow persistence such as caches (optional if mounted prior)
      * - /workflow for workflow based sharing between tasks (optional if mounted prior)
@@ -295,12 +261,11 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     }
 
     /*
-     * The following code is integrated to the helm chart and CICD properties It allows for
-     * containers that breach the standard ephemeral-storage size by off-loading to memory See:
-     * https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
-     *
      * Create volumes and Volume Mounts
-     * - /data for task storage (optional - needed if using in memory storage)
+     * - /data for task storage. Memory-backed when the deployment and the task both ask for it,
+     *   which is how a container that would breach the ephemeral-storage limit off-loads to memory
+     *   instead - a tmpfs counts against the memory limit, not against ephemeral-storage.
+     *   See: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
      */
     List<VolumeMount> volumeMounts = new ArrayList<>();
     List<Volume> volumes = new ArrayList<>();
@@ -419,8 +384,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     taskStep.setEnv(tknEnvVars);
     taskStep.setVolumeMounts(volumeMounts);
     taskStep.setWorkingDir(workingDir);
+    // Null when nothing is configured, so the step carries no computeResources block at all.
+    taskStep.setComputeResources(resourceResolver.requirements());
     //    taskStep.setSecurityContext(securityContext);
-    //    taskContainer.setResources(resources);
     taskSteps.add(taskStep);
 
     /*

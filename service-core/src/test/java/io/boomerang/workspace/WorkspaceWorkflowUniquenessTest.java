@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * Workflow-name uniqueness within a workspace used to be checked with {@code
  * RelationshipService.check()}, which answers "may this caller act on this?", not "does this
  * already exist?" - with no principal on the SecurityContext (as here) it always answers true, so
- * creation failed with WORKFLOW_INVALID_REF on every single call. The fix is a pure existence
+ * creation failed with the duplicate-name error on every single call. The fix is a pure existence
  * lookup: creation must succeed with no collision and still reject a real duplicate name within
  * the same workspace.
  */
@@ -55,7 +55,7 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
         assertThrows(
             BoomerangException.class,
             () -> workflowService.create(workspace, newWorkflow("duplicate-workflow")));
-    assertEquals("WORKFLOW_INVALID_REFERENCE", ex.getReason());
+    assertEquals("WORKFLOW_INVALID_REQ", ex.getReason());
   }
 
   @Test

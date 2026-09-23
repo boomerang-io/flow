@@ -8917,6 +8917,17 @@
       "helpertext": "The reference (or slug) of the Workflow to run.",
       "readOnly": false,
       "name": "workflowRef"
+     },
+     {
+      "description": "",
+      "label": "Wait for the child run to finish",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "When enabled, this task waits for the child run and takes its terminal status: the task succeeds only if the child run succeeds.",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "wait"
      }
     ],
     "arguments": [
@@ -11324,6 +11335,194 @@
     "workingDir": null
    },
    "parentRef": "5f7dcf1ce1d3ce8d52ea45d4"
-  }
+  },
+ {
+  "_id": {
+   "$oid": "5eed00000000000000001082"
+  },
+  "displayName": "AI",
+  "description": "Send a prompt to an OpenAI-compatible model and capture its response as a result.",
+  "category": "AI",
+  "icon": "AI",
+  "version": 1,
+  "changelog": {
+   "reason": "Initial Task Template",
+   "date": {
+    "$date": "2026-09-16T00:00:00Z"
+   },
+   "author": ""
+  },
+  "spec": {
+   "params": [
+    {
+     "description": "",
+     "label": "Endpoint",
+     "type": "text",
+     "required": true,
+     "placeholder": "",
+     "helpertext": "An OpenAI-compatible base URL - OpenRouter, LiteLLM, Azure AI Foundry or Ollama.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "endpoint"
+    },
+    {
+     "description": "",
+     "label": "API token",
+     "type": "password",
+     "required": true,
+     "placeholder": "",
+     "helpertext": "Blanked on every workspace-scoped read. It reaches the task pod as an environment variable.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "token"
+    },
+    {
+     "description": "",
+     "label": "Model",
+     "type": "text",
+     "required": true,
+     "placeholder": "",
+     "helpertext": "The model identifier the endpoint expects, for example openai/gpt-4o-mini.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "model"
+    },
+    {
+     "description": "",
+     "label": "System prompt",
+     "type": "texteditor::text",
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Sent as the system message ahead of the prompt.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "systemPrompt"
+    },
+    {
+     "description": "",
+     "label": "Prompt",
+     "type": "texteditor::text",
+     "required": true,
+     "placeholder": "",
+     "helpertext": "Supports $(params.x) and $(tasks.x.results.y) references.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "prompt"
+    },
+    {
+     "description": "",
+     "label": "Temperature",
+     "type": "slider",
+     "min": 0.0,
+     "max": 2.0,
+     "step": 0.1,
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Sampling temperature. Lower is more deterministic.",
+     "defaultValue": "0.7",
+     "readOnly": false,
+     "name": "temperature"
+    },
+    {
+     "description": "",
+     "label": "Max tokens",
+     "type": "number",
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Upper bound on the tokens the model may generate.",
+     "defaultValue": "1024",
+     "readOnly": false,
+     "name": "maxTokens"
+    },
+    {
+     "description": "",
+     "label": "Response format",
+     "type": "select",
+     "options": [
+      {
+       "key": "text",
+       "value": "text"
+      },
+      {
+       "key": "json",
+       "value": "json"
+      }
+     ],
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Ask the model for free text or a JSON object.",
+     "defaultValue": "text",
+     "readOnly": false,
+     "name": "responseFormat"
+    },
+    {
+     "description": "",
+     "label": "Seed",
+     "type": "number",
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Optional sampling seed, for endpoints that honour one.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "seed"
+    },
+    {
+     "description": "",
+     "label": "Files",
+     "type": "text",
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Comma-separated paths on the run workspace, read into the prompt context.",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "files"
+    },
+    {
+     "description": "",
+     "label": "Max context bytes",
+     "type": "number",
+     "required": false,
+     "placeholder": "",
+     "helpertext": "Byte budget for the files read into context. Reading stops at the budget.",
+     "defaultValue": "65536",
+     "readOnly": false,
+     "name": "maxContextBytes"
+    }
+   ],
+   "arguments": [],
+   "command": [],
+   "envs": null,
+   "image": "",
+   "results": [
+    {
+     "description": "The model's response text",
+     "name": "output"
+    },
+    {
+     "description": "Tokens consumed by the prompt",
+     "name": "promptTokens"
+    },
+    {
+     "description": "Tokens generated in the response",
+     "name": "completionTokens"
+    },
+    {
+     "description": "Prompt plus completion tokens, the value a platform sums to meter usage",
+     "name": "totalTokens"
+    },
+    {
+     "description": "Why the model stopped, as the endpoint reported it",
+     "name": "finishReason"
+    },
+    {
+     "description": "The model the endpoint actually served",
+     "name": "model"
+    }
+   ],
+   "script": null,
+   "workingDir": null
+  },
+  "parentRef": "5eed00000000000000002001"
+ }
  ]
 }

@@ -3,6 +3,7 @@ import { Button, ModalBody } from "@carbon/react";
 import { View } from "@carbon/react/icons";
 import React from "react";
 import TextEditorModal from "Components/TextEditorModal";
+import { attachCustomInputComponents } from "Utils/paramsHelper";
 import { TEXT_AREA_TYPES } from "Constants/formInputTypes";
 import { DataDrivenInput, ModalTriggerProps } from "Types";
 
@@ -43,7 +44,9 @@ const PreviewConfigForm: React.FC<PreviewConfigFormProps> = ({ templateConfig })
     <DynamicFormik
       allowCustomPropertySyntax
       validateOnMount
-      inputs={templateConfig}
+      // A `slider` param has no DataDrivenInput branch of its own, so the preview needs the same
+      // customComponent wiring the real task forms get from normaliseInputs.
+      inputs={attachCustomInputComponents(templateConfig)}
       dataDrivenInputProps={{
         TextEditor: TextEditorInput,
       }}

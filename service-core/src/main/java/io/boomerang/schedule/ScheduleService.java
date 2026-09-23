@@ -193,7 +193,7 @@ public class ScheduleService {
         return response;
       }
     }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
   }
 
   public WorkflowScheduleEntity internalCreate(final String team, final WorkflowSchedule schedule) {
@@ -406,7 +406,7 @@ public class ScheduleService {
       request.setId(null);
       return this.create(team, request);
     }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
   }
 
   /*

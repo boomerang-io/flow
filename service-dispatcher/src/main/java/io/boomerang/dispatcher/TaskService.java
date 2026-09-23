@@ -6,6 +6,7 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.text.ParseException;
@@ -13,7 +14,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +24,10 @@ import org.springframework.stereotype.Service;
 public class TaskService {
 
   private static final Logger LOGGER = LogManager.getLogger(TaskService.class);
+
+  // The runtime object is deleted once the Task has already finished, so the grace before the
+  // delete is time no caller should be made to wait for.
+  private static final long DELETE_GRACE_MS = 1000;
 
   @Value("${kube.task.deletion}")
   private TaskDeletion taskDeletion;
@@ -30,8 +37,15 @@ public class TaskService {
 
   private final TaskExecutor executor;
 
-  public TaskService(TaskExecutor executor) {
+  private final TaskImageResolver imageResolver;
+
+  // Proxy to self so the delete goes through the @Async proxy and hops threads; a plain self-call
+  // is not intercepted and would run the delete, grace included, on the dispatch thread.
+  @Autowired @Lazy private TaskService self;
+
+  public TaskService(TaskExecutor executor, TaskImageResolver imageResolver) {
     this.executor = executor;
+    this.imageResolver = imageResolver;
     LOGGER.info("Task executor: " + executor.getClass().getSimpleName());
   }
 
@@ -56,7 +70,9 @@ public class TaskService {
     TaskResponse response =
         new TaskResponse("0", "Task (" + task.getId() + ") has been executed successfully.", null);
     List<RunResult> results = new ArrayList<>();
-    if (task.getSpec().getImage() == null) {
+    // Resolved, not read off the spec: an `ai` task carries no image of its own and the
+    // dispatcher supplies the worker image for it (TaskImageResolver).
+    if (imageResolver.image(task) == null) {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
     } else {
       Long timeout = getTaskTimeout(task.getTimeout());
@@ -65,7 +81,7 @@ public class TaskService {
         results = executor.watch(task, timeout);
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
           // This will only delete on success as failure throws an Exception.
-          this.deleteTaskRun(task);
+          self.deleteTaskRun(task);
         }
       } catch (KubernetesClientException e) {
         // KubernetesClientException handles the case where an internal admission
@@ -86,7 +102,7 @@ public class TaskService {
       } finally {
         response.setResults(results);
         if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
-          this.deleteTaskRun(task);
+          self.deleteTaskRun(task);
         }
         LOGGER.info("Task (" + task.getId() + ") has completed with code " + response.getCode());
       }
@@ -94,12 +110,18 @@ public class TaskService {
     return response;
   }
 
+  /**
+   * Delete the Task's runtime object, off the caller's thread. The grace before the delete keeps it
+   * clear of the executor's own closing reads on the Job/TaskRun it has just watched to completion;
+   * it is a fixed wait, not a signal that those reads are done.
+   */
   @Async
-  private void deleteTaskRun(TaskRun task) {
+  public void deleteTaskRun(TaskRun task) {
     try {
-      Thread.sleep(1000);
+      Thread.sleep(DELETE_GRACE_MS);
     } catch (InterruptedException e) {
-      e.printStackTrace();
+      // Still delete: an undeleted Job outlives the dispatcher and leaks cluster resources.
+      Thread.currentThread().interrupt();
     }
     executor.delete(task);
   }

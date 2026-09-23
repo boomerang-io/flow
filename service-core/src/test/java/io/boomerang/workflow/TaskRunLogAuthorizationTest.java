@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import io.boomerang.common.entity.TaskEntity;
+import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -28,6 +30,8 @@ import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.LogClient;
+import io.boomerang.workflow.repository.TaskRepository;
+import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -68,9 +72,13 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
   private static final String FOREIGN_WORKSPACE = "trlog-authz-foreign-ws";
   private static final String PASSWORD_PARAM = "trlogToken";
   private static final String SECRET = "trlog-p4ssw0rd";
+  private static final String TASK_PARAM = "trlogApiKey";
+  private static final String TASK_SECRET = "trlog-task-declared-k3y";
 
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
+  @Autowired private TaskRepository taskRepository;
+  @Autowired private TaskRevisionRepository taskRevisionRepository;
 
   // The only external the stream touches: the agent's log endpoint. Stubbed so the served path
   // produces real bytes to assert on without an agent.
@@ -136,15 +144,26 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
         "the guard must not refuse a TaskRun whose owning run the caller can reach");
   }
 
+  /*
+   * Both halves are refused with a reference error rather than PERMISSION_DENIED, which is what
+   * "before any relationship call" looks like from outside: the caller here is a session
+   * principal scoped to one workspace, so a guard that ran first would answer differently. The
+   * two halves carry different codes - a blank id is a malformed request (400), an id nobody has
+   * is not found (404).
+   */
   @Test
-  void anUnknownOrBlankTaskRunIsRejectedBeforeAnyRelationshipCall() {
-    // The reason string, not the enum constant name - they differ here
-    // (TASKRUN_INVALID_REF carries the reason "TASKRUN_INVALID_REFERENCE"), and assertRefused
-    // compares the reason. Read it off the enum so the two cannot drift apart again.
-    String reason = BoomerangError.TASKRUN_INVALID_REF.getReason();
-    assertRefused(() -> workflowRunService.streamTaskRunLog("   "), reason, "blank id");
+  void aBlankTaskRunIsA400AndAnUnknownOneA404BeforeAnyRelationshipCall() {
+    // The reason strings, not the enum constant names - they differ here (TASKRUN_INVALID_REF
+    // carries the reason "TASKRUN_INVALID_REFERENCE"). Read them off the enum so the two cannot
+    // drift apart again.
     assertRefused(
-        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"), reason, "unknown id");
+        () -> workflowRunService.streamTaskRunLog("   "),
+        BoomerangError.TASKRUN_INVALID_REQ,
+        "blank id");
+    assertRefused(
+        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"),
+        BoomerangError.TASKRUN_INVALID_REF,
+        "unknown id");
   }
 
   /**
@@ -174,6 +193,58 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
     assertFalse(streamed.contains(SECRET), "the raw secret must not reach the caller: " + streamed);
   }
 
+  /**
+   * The catalogue task is the second type authority here too. The value is declared nowhere at the
+   * workflow level - only on the spec of the task a SIBLING TaskRun of the same run references -
+   * so the removal list has to reach it through that task's taskRef/taskVersion, and has to cover
+   * every task of the run rather than the streamed one: substitution carries a sibling's declared
+   * value into this task's script.
+   */
+  @Test
+  void theServedStreamAlsoReplacesAValueDeclaredOnlyByACatalogueTask() throws IOException {
+    TaskEntity catalogueTask = new TaskEntity();
+    catalogueTask.setName("trlog-secret-task");
+    catalogueTask.setType(TaskType.template);
+    catalogueTask = taskRepository.save(catalogueTask);
+
+    AbstractParam taskParam = new AbstractParam();
+    taskParam.setName(TASK_PARAM);
+    taskParam.setType(FieldType.PASSWORD.value());
+    TaskRevisionEntity revision = new TaskRevisionEntity();
+    revision.setParentRef(catalogueTask.getId());
+    revision.setVersion(1);
+    revision.getSpec().setParams(List.of(taskParam));
+    taskRevisionRepository.save(revision);
+
+    String workflowRunRef = taskRunRepository.findById(myTaskRunId).orElseThrow().getWorkflowRunRef();
+    TaskRunEntity sibling =
+        savedTaskRun(
+            "trlog-mine-sibling",
+            TaskType.template,
+            RunStatus.succeeded,
+            RunPhase.completed,
+            "trlog-mine-wf",
+            workflowRunRef);
+    sibling.setTaskRef(catalogueTask.getId());
+    sibling.setTaskVersion(1);
+    sibling.setParams(List.of(new RunParam(TASK_PARAM, TASK_SECRET)));
+    taskRunRepository.save(sibling);
+
+    when(logClient.streamLog(any(), any(), any()))
+        .thenReturn(
+            (StreamingResponseBody)
+                out -> out.write(("calling with " + TASK_SECRET + "\n").getBytes(StandardCharsets.UTF_8)));
+
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    workflowRunService.streamTaskRunLog(myTaskRunId).writeTo(sink);
+    String streamed = sink.toString(StandardCharsets.UTF_8);
+
+    assertFalse(
+        streamed.contains(TASK_SECRET),
+        "a value typed into a catalogue-declared password param must not reach the log: " + streamed);
+    assertTrue(streamed.contains(DataAdapterUtil.REDACTED), streamed);
+  }
+
   private void installGlobalIdentity() {
     Token global = new Token(AuthScope.global);
     global.setPrincipal("trlog-authz-global");
@@ -191,6 +262,14 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
     BoomerangException ex =
         assertThrows(BoomerangException.class, operation, label + " must be refused");
     assertEquals(reason, ex.getReason(), label + " must fail with " + reason);
+  }
+
+  private void assertRefused(Executable operation, BoomerangError error, String label) {
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, operation, label + " must be refused");
+    assertEquals(error.getReason(), ex.getReason(), label + " must fail with " + error.getReason());
+    assertEquals(
+        error.getStatus(), ex.getStatus(), label + " must carry the code's own HTTP status");
   }
 
   // Anchored under root so the seeding identity (global, which anchors at ROOT) can resolve these

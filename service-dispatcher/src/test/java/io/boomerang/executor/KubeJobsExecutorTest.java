@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.client.EngineClient;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
@@ -23,6 +24,7 @@ import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.Volume;
@@ -53,7 +55,13 @@ import io.fabric8.kubernetes.api.model.Toleration;
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = "dispatcher.executor=kube-jobs")
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3",
+      "kube.resource.request.cpu=100m",
+      "kube.resource.limit.cpu=500m"
+    })
 public class KubeJobsExecutorTest {
 
   KubernetesClient client;
@@ -107,6 +115,92 @@ public class KubeJobsExecutorTest {
         client.batch().v1().jobs().withLabels(Map.of("boomerang.io/taskrun-ref", taskRunRef)).list().getItems();
     assertEquals(1, jobs.size());
     return jobs.get(0);
+  }
+
+  @Test
+  public void testCreateSizesTheTaskContainerFromTheConfiguredResources() throws Exception {
+    // The same six deployment-wide values the Tekton executor applies to its step.
+    TaskRun task = commandTask("taskrun-jobs-resources", false);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor("taskrun-jobs-resources")
+            .getSpec()
+            .getTemplate()
+            .getSpec()
+            .getContainers()
+            .get(0);
+
+    assertEquals(new Quantity("2Gi"), container.getResources().getRequests().get("memory"));
+    assertEquals(
+        new Quantity("2Gi"), container.getResources().getRequests().get("ephemeral-storage"));
+    assertEquals(new Quantity("100m"), container.getResources().getRequests().get("cpu"));
+    assertEquals(new Quantity("16Gi"), container.getResources().getLimits().get("memory"));
+    assertEquals(
+        new Quantity("16Gi"), container.getResources().getLimits().get("ephemeral-storage"));
+    assertEquals(new Quantity("500m"), container.getResources().getLimits().get("cpu"));
+  }
+
+  @Test
+  public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
+    // An `ai` task is authored with params only - no image, no command, no script - and the
+    // dispatcher supplies the configured worker image and its `prompt` command.
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-ai");
+    task.setName("Ask the model");
+    task.setType(TaskType.ai);
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(
+        List.of(
+            new RunParam("endpoint", "https://api.example.com/v1"),
+            new RunParam("model", "gpt-4o-mini"),
+            new RunParam("maxTokens", 1024),
+            new RunParam("prompt", "Summarise the run")));
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    task.setSpec(new TaskRunSpec());
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
+    assertEquals(List.of("prompt"), container.getCommand());
+
+    // Params reach the worker exactly as they reach any other type: PARAM_<NAME>, upper-cased.
+    List<EnvVar> env = container.getEnv();
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "PARAM_ENDPOINT".equals(e.getName())
+                        && "https://api.example.com/v1".equals(e.getValue())));
+    assertTrue(
+        env.stream().anyMatch(e -> "PARAM_MAXTOKENS".equals(e.getName()) && "1024".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "RESULTS_PATH".equals(e.getName())
+                        && "/dev/termination-log".equals(e.getValue())));
+  }
+
+  @Test
+  public void testCreateAiTaskIgnoresAnImageOrCommandOnItsSpec() throws Exception {
+    TaskRun task = commandTask("taskrun-ai-override", false);
+    task.setType(TaskType.ai);
+    task.getSpec().setImage("evil:latest");
+    task.getSpec().setCommand(List.of("sh", "-c", "id"));
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
+    assertEquals(List.of("prompt"), container.getCommand());
   }
 
   @Test
@@ -215,7 +309,8 @@ public class KubeJobsExecutorTest {
 
   @Test
   public void testParseTerminationMessageObjectShape() {
-    List<RunResult> results = TerminationMessageParser.parse("{\"greeting\": \"hello\"}", List.of());
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"hello\"}", List.of()).orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals("hello", results.get(0).getValue());
@@ -224,7 +319,8 @@ public class KubeJobsExecutorTest {
   @Test
   public void testParseTerminationMessageArrayShape() {
     List<RunResult> results =
-        TerminationMessageParser.parse("[{\"key\": \"greeting\", \"value\": \"hello\"}]", List.of());
+        TerminationMessageParser.parse("[{\"key\": \"greeting\", \"value\": \"hello\"}]", List.of())
+            .orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals("hello", results.get(0).getValue());
@@ -234,16 +330,19 @@ public class KubeJobsExecutorTest {
   public void testParseTerminationMessageFiltersToDeclaredResults() {
     List<RunResult> declared = List.of(new RunResult("greeting", null));
     List<RunResult> results =
-        TerminationMessageParser.parse("{\"greeting\": \"hello\", \"other\": \"skip\"}", declared);
+        TerminationMessageParser.parse("{\"greeting\": \"hello\", \"other\": \"skip\"}", declared)
+            .orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
   }
 
   @Test
-  public void testParseTerminationMessageTreatsGarbageAsNoResults() {
+  public void testParseTerminationMessageSeparatesGarbageFromNoResults() {
+    // Absent: the message is not a Result Parameter payload at all, which the executor has to
+    // tell apart from a task that simply wrote nothing.
     assertTrue(TerminationMessageParser.parse("not json at all !!", List.of()).isEmpty());
-    assertTrue(TerminationMessageParser.parse("", List.of()).isEmpty());
-    assertTrue(TerminationMessageParser.parse(null, List.of()).isEmpty());
+    assertTrue(TerminationMessageParser.parse("", List.of()).orElseThrow().isEmpty());
+    assertTrue(TerminationMessageParser.parse(null, List.of()).orElseThrow().isEmpty());
   }
 }
 
@@ -301,7 +400,8 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
   public void testParseTerminationMessageHandlesOversizedMessage() {
     // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
     // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
-    // — it should fall back to no Results, exactly like any other malformed message.
+    // — it reports the message as unparseable so the executor can fail the task with
+    // ResultsTooLarge instead of succeeding with every Result silently missing.
     String truncated = "{\"greeting\": \"" + "x".repeat(5000);
     assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
 
@@ -309,7 +409,8 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
     // in practice) still parses correctly — the parser itself imposes no size limit.
     String largeValue = "y".repeat(5000);
     List<RunResult> results =
-        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of());
+        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of())
+            .orElseThrow();
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals(largeValue, results.get(0).getValue());
@@ -474,6 +575,61 @@ class KubeJobsExecutorReconcileTest {
     TaskExecutionException ex =
         assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
     assertEquals("OOMKilled", ex.getStatusReason());
+  }
+
+  /*
+   * Kubernetes truncates a termination message above 4096 bytes, so an oversize Result payload
+   * comes back as a broken-JSON prefix. It used to read as "no Results" and the task ended
+   * succeeded with every Result missing and nothing said; it now fails with ResultsTooLarge.
+   */
+  @Test
+  public void testAnOversizedTerminationMessageFailsTheTaskAsResultsTooLarge() throws Exception {
+    TaskRun task = task("taskrun-results-too-large");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    Map<String, String> taskLabels = created.getMetadata().getLabels();
+
+    JobCondition complete = new JobCondition();
+    complete.setType("Complete");
+    complete.setStatus("True");
+    complete.setReason("JobComplete");
+    complete.setMessage("The Job completed successfully.");
+    JobStatus status = new JobStatus();
+    status.setSucceeded(1);
+    status.setConditions(List.of(complete));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    seedTerminationMessage(taskLabels, "{\"greeting\": \"" + "x".repeat(5000));
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("ResultsTooLarge", ex.getStatusReason());
+  }
+
+  private void seedTerminationMessage(Map<String, String> taskLabels, String message) {
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setMessage(message);
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(taskLabels)
+            .endMetadata()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
   }
 
   @Test
