@@ -49,6 +49,16 @@ one-second grace before calling `delete`, and runs off the caller's thread: `Tas
 `@Async` method through a self proxy (`:41,112-119`), so the dispatch thread is free as soon as the Task itself
 has finished.
 
+Whatever `kube.task.deletion` says, a finished runtime object is removed `kube.task.ttlDays` (default 7) days
+after completion, so retention means the same on both executors. The Jobs executor stamps
+`ttlSecondsAfterFinished` and Kubernetes collects the Job natively (`kube/KubeJobsExecutor.java:227`). Tekton
+ships no TTL controller, so `dispatcher/TaskRuntimeReconciler.java` sweeps instead: on the `tekton` executor,
+every `flow.dispatcher.task.reconcile-ms` (hourly default; off via `flow.dispatcher.task.reconcile.enabled=false`)
+a tick lists the TaskRuns carrying this dispatcher's own product and tier labels
+(`kube/KubeHelperService.java:387`), deletes those with a terminal `Succeeded` condition whose `completionTime`
+is older than the TTL (`TaskRuntimeReconciler.java:96`), and logs one `held/deleted` summary; a failed tick
+warns and the next tick asks again.
+
 The timeout the TaskRun arrives with is settled by the engine, not here: it is the smallest of the platform
 setting stamped as `boomerang.io/task-timeout`, the task's own declared timeout, and the run's timeout, with 0
 meaning unguarded (`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:196-222`). The seed ships the
@@ -60,7 +70,7 @@ dispatcher unguarded still gets `kube.task.timeout` as a per-pod backstop.
 
 | `dispatcher.executor` | Class | Runtime object | Timeout | Results channel | Cancel |
 | --- | --- | --- | --- | --- | --- |
-| `tekton` (default) | `kube/TektonServiceImpl.java:53` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`:454,492`) | `spec.timeout` in minutes (`:440`) | `status.results` (`:571`); a 4096-byte overflow is detected from the pod log tail (`:552`) | Overwrite the status condition with `TaskRunCancelled` (`:617-632`) |
+| `tekton` (default) | `kube/TektonServiceImpl.java:59` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`:370,453-460`) | `spec.timeout` in minutes (`:414,452`) | `status.results` (`:523,547`); a 4096-byte overflow is detected from the pod log tail (`:567`) | Overwrite the status condition with `TaskRunCancelled` (`:609-646`) |
 | `kube-jobs` | `kube/KubeJobsExecutor.java:65` | One `batch/v1` `Job` (`:199`); `restartPolicy`, `backoffLimit`, TTL from `kube.task.*` (`:162,183-184`) | `activeDeadlineSeconds = minutes × 60` (`:185`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`:156-158,393-402`; `executor/TerminationMessageParser.java:15-17`) | Delete the Job and its script ConfigMap (`:424-461`) |
 
 Both executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every

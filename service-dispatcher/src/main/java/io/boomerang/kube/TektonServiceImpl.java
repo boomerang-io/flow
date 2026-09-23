@@ -70,8 +70,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Autowired protected TaskResourceResolver resourceResolver;
 
-  protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
-
   @Value("${kube.timeout.waitUntil}")
   protected long waitUntilTimeout;
 
@@ -136,9 +134,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Value("${kube.task.restartPolicy}")
   protected String kubeJobRestartPolicy;
-
-  @Value("${kube.task.ttlDays}")
-  protected Integer kubeJobTTLDays;
 
   @Value("${kube.task.storage.data.memory}")
   private Boolean kubeTaskStorageDataMemory;

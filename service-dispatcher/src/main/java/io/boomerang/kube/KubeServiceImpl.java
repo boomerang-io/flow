@@ -26,8 +26,6 @@ public class KubeServiceImpl implements KubeService {
 
   @Autowired protected KubeHelperService helperKubeService;
 
-  protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
-
   @Value("${kube.image.pullPolicy}")
   protected String kubeImagePullPolicy;
 
@@ -39,9 +37,6 @@ public class KubeServiceImpl implements KubeService {
 
   @Value("${kube.task.restartPolicy}")
   protected String kubeJobRestartPolicy;
-
-  @Value("${kube.task.ttlDays}")
-  protected Integer kubeJobTTLDays;
 
   @Value("${dispatcher.tasks.serviceaccount}")
   protected String kubeJobServiceAccount;
