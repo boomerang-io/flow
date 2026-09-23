@@ -121,14 +121,14 @@ it guards (decision 0063).
 
 Quotas are enforced at workflow create and run submit in `standalone` mode only; nothing in the engine
 path re-checks them. `flow.quotas.enabled` defaults from `flow.mode` (`workspace/FlowQuotaProperties.java:32-38`),
-and enforcement additionally requires the `features.workspaceQuotas` setting (`workflow/WorkflowService.java:209-214`).
+and enforcement additionally requires the `features.workspaceQuotas` setting (`workflow/WorkflowService.java:218-223`).
 
 | Quota (settings key, `workspace/WorkspaceService.java:81-86`) | Enforced at | Code |
 | --- | --- | --- |
-| `max.workflow.count` | Workflow create | `WorkflowService.java:392,888-899` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit | `WorkflowService.java:611,905-920` |
-| `max.workflow.storage`, `max.workflowrun.storage` | Run submit (workspace size ≤ quota, else `QUOTA_EXCEEDED`) | `WorkflowService.java:445-491,921-950` |
-| `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout | `WorkflowService.java:224-234` |
+| `max.workflow.count` | Workflow create | `WorkflowService.java:401,923-937` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit | `WorkflowService.java:636,940-963` |
+| `max.workflow.storage`, `max.workflowrun.storage` | Workflow create and run submit (workspace size ≤ quota in Gi, else `QUOTA_EXCEEDED`) | `WorkflowService.java:448-497,971-988` |
+| `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout | `WorkflowService.java:233-243` |
 
 The two run counters come from different sources (decision 0071). Concurrent = the live count of
 non-terminal runs (`notstarted`/`ready`/`running`/`waiting`) over the workspace's Workflows

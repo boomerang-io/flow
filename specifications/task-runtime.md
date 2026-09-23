@@ -226,7 +226,8 @@ read, and a workspace whose `spec` is absent or does not convert leaves it null 
 and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted when the
 dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
 `mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
-against the workspace quota in Gi (`workflow/WorkflowService.java:448`,
+against the workspace quota in Gi both when the Workflow is saved and when a run that carries its own
+workspaces is submitted (`workflow/WorkflowService.java:483-497,971-988`,
 `lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to
 `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves `storageClassName` unset so the cluster
 default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:175`).

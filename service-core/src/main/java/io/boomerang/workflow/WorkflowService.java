@@ -48,7 +48,6 @@ import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Field;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -992,44 +991,34 @@ public class WorkflowService {
             "Number of runs (executions)",
             quotas.getCurrentRuns(),
             quotas.getMaxWorkflowRunMonthly());
-      } else if (workspaces.isPresent()
-          && !workspaces.get().isEmpty()
-          && workspaces.get().size() > 0) {
-        workspaces
-            .get()
-            .forEach(
-                ws -> {
-                  if (ws.getType().equals("workflow") && ws.getSpec() != null) {
-                    try {
-                      Field sizeField = ws.getSpec().getClass().getDeclaredField("size");
-                      String size = (String) sizeField.get(ws.getSpec());
-                      if (Integer.valueOf(size) > quotas.getMaxWorkflowStorage()) {
-                        throw new BoomerangException(
-                            BoomerangError.QUOTA_EXCEEDED,
-                            "Requested Workspace size",
-                            size,
-                            quotas.getMaxWorkflowStorage());
-                      }
-                    } catch (NoSuchFieldException | IllegalAccessException ex) {
-                      // Do nothing
-                    }
-                  } else if (ws.getType().equals("workflowrun") && ws.getSpec() != null) {
-                    try {
-                      Field sizeField = ws.getSpec().getClass().getDeclaredField("size");
-                      String size = (String) sizeField.get(ws.getSpec());
-                      if (Integer.valueOf(size) > quotas.getMaxWorkflowRunStorage()) {
-                        throw new BoomerangException(
-                            BoomerangError.QUOTA_EXCEEDED,
-                            "Requested Workspace size",
-                            size,
-                            quotas.getMaxWorkflowRunStorage());
-                      }
-                    } catch (NoSuchFieldException | IllegalAccessException ex) {
-                      // Do nothing
-                    }
-                  }
-                });
+      } else if (workspaces.isPresent() && !workspaces.get().isEmpty()) {
+        workspaces.get().forEach(ws -> checkWorkspaceStorageQuota(ws, quotas));
       }
+    }
+  }
+
+  /*
+   * Refuses a Workspace on a run submission whose requested size is over the storage quota for
+   * its type. The spec is typed Object and arrives as a Map over JSON, so it is converted before
+   * the size is read, and the size is a Kubernetes quantity ("1Gi", "500Mi") compared in Gi -
+   * the same rule resolveWorkspaceSpec applies at save. A spec naming no size takes the quota
+   * default and cannot breach it.
+   */
+  private void checkWorkspaceStorageQuota(WorkflowWorkspace ws, CurrentQuotas quotas) {
+    Integer maxSizeGi =
+        switch (ws.getType()) {
+          case "workflow" -> quotas.getMaxWorkflowStorage();
+          case "workflowrun" -> quotas.getMaxWorkflowRunStorage();
+          case null, default -> null;
+        };
+    if (maxSizeGi == null || ws.getSpec() == null) {
+      return;
+    }
+    String size =
+        this.objectMapper.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class).getSize();
+    if (size != null && StorageQuantityUtil.toGi(size) > maxSizeGi) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, "Requested Workspace size", size, maxSizeGi);
     }
   }
 
