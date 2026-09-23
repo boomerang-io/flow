@@ -56,6 +56,36 @@ isolation tier (decision 0042) — one property per deployment, a second deploym
 zone — and needs no per-task field or routing rule, because the engine already routes claims by
 registered task type.
 
+## Container resources
+
+Every task container is sized by six deployment-wide properties, read in one place
+(`io.boomerang.executor.TaskResourceResolver`) and applied by both executors — on the `task` container for
+`kube-jobs`, on the step's `computeResources` for `tekton`:
+
+| Property | Default | Applied as |
+| -------- | ------- | ---------- |
+| `kube.resource.request.memory` | `2Gi` | `requests.memory` |
+| `kube.resource.limit.memory` | `16Gi` | `limits.memory` |
+| `kube.resource.request.ephemeral-storage` | `2Gi` | `requests.ephemeral-storage` |
+| `kube.resource.limit.ephemeral-storage` | `16Gi` | `limits.ephemeral-storage` |
+| `kube.resource.request.cpu` | *(empty)* | `requests.cpu` |
+| `kube.resource.limit.cpu` | *(empty)* | `limits.cpu` |
+
+Each value is a Kubernetes quantity (`16Gi`, `500m`) and each may be blank. Blank sets that request or limit not
+at all — never an empty quantity, never a zero limit — so a deployment can run with memory limits and no CPU
+limit, or with nothing at all, in which case the container carries no resources block. CPU ships blank on purpose:
+a CPU limit throttles a task rather than failing it, so an operator opts in.
+
+Sizing is per deployment, not per task — the same shape as the isolation tier (decision 0042). A workload that
+needs a bigger container runs a second dispatcher deployment with its own task types.
+
+A memory-backed `/data` (`kube.task.storage.data.memory` plus the task's `worker.storage.data.memory` param) is a
+tmpfs: what the task writes there counts against the **memory** limit, not against ephemeral-storage. That is how
+a container that would breach the ephemeral-storage limit keeps running, so a deployment that enables it sizes
+memory to cover the data as well. A non-Kubernetes runtime reads the same values as a byte count and a CPU count
+(`memoryLimitBytes()`, `cpuLimitNanos()`); Docker has no ephemeral-storage concept, so that pair is
+Kubernetes-only.
+
 `dispatcher.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
 task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.
 One setting per agent deployment; run a second agent deployment for a different isolation tier.
