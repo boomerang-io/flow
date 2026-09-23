@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.client.EngineClient;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
@@ -27,12 +28,18 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import io.fabric8.kubernetes.api.model.HostAlias;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.tekton.v1.ParamValue;
+import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.tekton.v1.Step;
 import io.fabric8.tekton.v1.TaskRunResult;
 
 @SpringBootTest
 @ActiveProfiles("local")
 @EnableKubernetesMockClient(crud = true)
-@TestPropertySource(properties = "dispatcher.tasks.runtimeClassName=kata-qemu")
+@TestPropertySource(
+    properties = {
+      "dispatcher.tasks.runtimeClassName=kata-qemu",
+      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3"
+    })
 public class TektonServiceImplTest {
 
   KubernetesClient client;
@@ -76,6 +83,58 @@ public class TektonServiceImplTest {
     assertEquals(
         "kata-qemu", taskRuns.get(0).getSpec().getPodTemplate().getRuntimeClassName());
   }
+  @Test
+  public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
+    // An `ai` task is authored with params only - no image, no command, no script - and the
+    // dispatcher supplies the configured worker image and its `prompt` command. Everything else
+    // (PARAM_<NAME> env, RESULTS_PATH) is what every other type gets.
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-ai");
+    task.setName("Ask the model");
+    task.setType(TaskType.ai);
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(
+        List.of(
+            new RunParam("endpoint", "https://api.example.com/v1"),
+            new RunParam("maxTokens", 1024),
+            new RunParam("prompt", "Summarise the run")));
+    task.setResults(List.of());
+    task.setWorkspaces(List.of());
+    // The spec an `ai` TaskRun actually carries: empty. An image or command that somehow reached
+    // it must not be able to redirect the AI worker at another container.
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("evil:latest");
+    spec.setCommand(List.of("sh", "-c", "id"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+
+    List<io.fabric8.tekton.v1.TaskRun> taskRuns =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(1, taskRuns.size());
+    Step step = taskRuns.get(0).getSpec().getTaskSpec().getSteps().get(0);
+    assertEquals("boomerangio/task-ai:1.2.3", step.getImage());
+    assertEquals(List.of("prompt"), step.getCommand());
+    assertNull(step.getScript());
+
+    List<EnvVar> env = step.getEnv();
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "PARAM_ENDPOINT".equals(e.getName())
+                        && "https://api.example.com/v1".equals(e.getValue())));
+    assertTrue(
+        env.stream().anyMatch(e -> "PARAM_MAXTOKENS".equals(e.getName()) && "1024".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e -> "RESULTS_PATH".equals(e.getName()) && "/tekton/results".equals(e.getValue())));
+  }
+
   @Test
   public void testToRunResultsConvertsTektonResultsRegardlessOfTaskOutcome() {
     // watchTaskRun() calls this on both the success return and the failure throw - a failed Task

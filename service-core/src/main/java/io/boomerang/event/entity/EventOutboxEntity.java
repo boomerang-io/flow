@@ -14,7 +14,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * Outbox row for one externally-visible status transition. Written by the transition winner
  * (after its Compare-And-Set, not transactionally - a crash in that window loses the event, the
  * database remains the source of truth). The dispatcher delivers rows at-least-once and marks
- * them sent; rows that exhaust their retries are marked dead, never silently dropped.
+ * them sent; rows that exhaust their retries are marked dead, never silently dropped, carrying
+ * the failure that killed them.
  */
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -37,6 +38,11 @@ public class EventOutboxEntity {
   // Only retry.after is used - the delivery attempt counter is the attempts field.
   private RunRetry retry;
   private Date sentAt;
+
+  // Why the last delivery attempt failed, and when the row gave up. Both are operator-facing
+  // only - the dispatcher never reads them - and both are cleared when a replay requeues the row.
+  private String lastError;
+  private Date deadAt;
 
   public record RunState(RunStatus status, RunPhase phase) {}
 

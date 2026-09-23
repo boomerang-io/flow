@@ -416,9 +416,10 @@ class V3DumpMigrationTest {
 
     // _0022__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
     // populated by this point (by _0006__V3MigrateTaskCatalogue), so its name-matching insert-if-
-    // absent logic finds every one of the 87 catalogue tasks already present and reconciles only
-    // the genuine gaps (the former _0034__V3ReconcileCatalogue unit's job, now dropped as
-    // redundant - see _0022's own javadoc) - asserted in detail in assertTaskCatalogueMigrated()
+    // absent logic finds every one of the 87 legacy catalogue tasks already present and
+    // reconciles only the genuine gaps (the former _0034__V3ReconcileCatalogue unit's job, now
+    // dropped as redundant - see _0022's own javadoc) plus the v5-native ai task, which no v3
+    // install can hold - asserted in detail in assertTaskCatalogueMigrated()
     // below.
     assertThat(collection("tasks").countDocuments()).isGreaterThan(0);
     assertThat(collection("task_revisions").countDocuments()).isGreaterThan(0);
@@ -583,15 +584,16 @@ class V3DumpMigrationTest {
     assertThat(names).as("task_templates dropped after migration").doesNotContain(prefixed("task_templates"));
 
     // 89 real v3 task_templates documents, all migrated (none dropped) - see _0006's javadoc.
-    // _0022__SeedTaskCatalogue (Phase 5) reconciles the 87-task seed catalogue against them by
-    // name (all 87 already present by legacy _id/name) and inserts nothing new at the task level;
-    // the install's own extra 2 (Kubernetes CLI, Tysons Test Task) are untouched additions.
-    assertThat(collection("tasks").countDocuments()).isEqualTo(89);
+    // _0022__SeedTaskCatalogue (Phase 5) reconciles the 88-task seed catalogue against them by
+    // name (all 87 legacy ones already present by legacy _id/name) and inserts exactly one new
+    // task, the v5-native ai entry; the install's own extra 2 (Kubernetes CLI, Tysons Test Task)
+    // are untouched additions.
+    assertThat(collection("tasks").countDocuments()).isEqualTo(90);
 
-    // 131 real v3 revisions migrated 1:1, plus exactly one reconciled addition (by _0022, Phase
-    // 5): the seed catalogue's Manual Approval v2, absent from this install's own (older)
-    // snapshot.
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(132);
+    // 131 real v3 revisions migrated 1:1, plus two reconciled additions (by _0022, Phase 5): the
+    // seed catalogue's Manual Approval v2, absent from this install's own (older) snapshot, and
+    // the ai task's version 1.
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(133);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();
@@ -1282,13 +1284,14 @@ class V3DumpMigrationTest {
     }
 
     // ---- Task graph: every one of the 89 migrated tasks is global/root-scoped - v3 has no
-    // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. ----
-    assertThat(collection("tasks").countDocuments()).isEqualTo(89);
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(89);
+    // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. The seeded ai
+    // task, which no v3 install can hold, is the 90th and is root-scoped the same way. ----
+    assertThat(collection("tasks").countDocuments()).isEqualTo(90);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(90);
     assertThat(
             collection("rel_edges")
                 .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(89);
+        .isEqualTo(90);
     assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "teamtask")))
         .as("v3 task_templates carries no team-scoping field at all")
         .isZero();

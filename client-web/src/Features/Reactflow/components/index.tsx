@@ -1,3 +1,4 @@
+export { AiNode } from "./Ai";
 export { ApprovalNode } from "./Approval";
 export { CustomTaskNode } from "./CustomTask";
 export { DecisionEdge, DecisionNode } from "./Decision";

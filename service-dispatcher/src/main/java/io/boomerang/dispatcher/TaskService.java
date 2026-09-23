@@ -6,6 +6,7 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.text.ParseException;
@@ -36,12 +37,15 @@ public class TaskService {
 
   private final TaskExecutor executor;
 
+  private final TaskImageResolver imageResolver;
+
   // Proxy to self so the delete goes through the @Async proxy and hops threads; a plain self-call
   // is not intercepted and would run the delete, grace included, on the dispatch thread.
   @Autowired @Lazy private TaskService self;
 
-  public TaskService(TaskExecutor executor) {
+  public TaskService(TaskExecutor executor, TaskImageResolver imageResolver) {
     this.executor = executor;
+    this.imageResolver = imageResolver;
     LOGGER.info("Task executor: " + executor.getClass().getSimpleName());
   }
 
@@ -66,7 +70,9 @@ public class TaskService {
     TaskResponse response =
         new TaskResponse("0", "Task (" + task.getId() + ") has been executed successfully.", null);
     List<RunResult> results = new ArrayList<>();
-    if (task.getSpec().getImage() == null) {
+    // Resolved, not read off the spec: an `ai` task carries no image of its own and the
+    // dispatcher supplies the worker image for it (TaskImageResolver).
+    if (imageResolver.image(task) == null) {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
     } else {
       Long timeout = getTaskTimeout(task.getTimeout());

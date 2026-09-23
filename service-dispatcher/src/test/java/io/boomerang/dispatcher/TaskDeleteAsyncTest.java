@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import io.boomerang.common.enums.TaskDeletion;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -70,9 +71,15 @@ class TaskDeleteAsyncTest {
         .addFirst(
             new MapPropertySource(
                 "task-service",
-                Map.of("kube.task.deletion", "Never", "kube.task.timeout", "60")));
+                Map.of(
+                    "kube.task.deletion",
+                    "Never",
+                    "kube.task.timeout",
+                    "60",
+                    "flow.dispatcher.ai.image",
+                    "boomerangio/task-ai:latest")));
     context.registerBean("taskRuntimeExecutor", TaskExecutor.class, () -> executor);
-    context.register(AsyncTestConfig.class, TaskService.class);
+    context.register(AsyncTestConfig.class, TaskImageResolver.class, TaskService.class);
     context.refresh();
     return context;
   }

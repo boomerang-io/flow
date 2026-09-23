@@ -43,7 +43,12 @@ public class OutboxControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.global})
-  @Operation(summary = "List outbox rows, dead ones by default.")
+  @Operation(
+      summary = "List outbox rows, dead ones by default.",
+      description =
+          "A row that failed delivery carries lastError, the most recent failure; a dead row also "
+              + "carries deadAt, when it gave up. Rows that died before these were recorded carry "
+              + "neither.")
   @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
   public Page<EventOutboxEntity> query(
       @Parameter(name = "status", description = "Delivery status to list", example = "dead")

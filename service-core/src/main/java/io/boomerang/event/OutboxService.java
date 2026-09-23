@@ -20,9 +20,10 @@ import org.springframework.stereotype.Service;
 /**
  * Operator view of the events outbox. A row that exhausts its delivery attempts is kept as dead
  * rather than dropped, and until now the only way back was editing the collection by hand: this
- * lists dead rows and puts them back in the queue, which the next {@link OutboxDispatcher} pass
- * picks up. Reading and replaying are independent of the sink being enabled - an operator has to
- * be able to see and requeue rows a disabled sink left behind.
+ * lists dead rows - with the failure that killed each one and when it gave up - and puts them
+ * back in the queue, which the next {@link OutboxDispatcher} pass picks up. Reading and replaying
+ * are independent of the sink being enabled - an operator has to be able to see and requeue rows a
+ * disabled sink left behind.
  */
 @Service
 public class OutboxService {
@@ -49,9 +50,11 @@ public class OutboxService {
 
   /**
    * Requeue rows for delivery: status back to pending, the backoff cleared to now and the attempt
-   * count reset so the dispatcher gives them the full retry budget again. Named rows are replayed
-   * whatever their status; with no ids, every row in {@code status} (optionally only those that
-   * occurred before {@code olderThan}) is replayed. Returns how many rows changed.
+   * count reset so the dispatcher gives them the full retry budget again, and the previous
+   * failure and give-up time cleared - the row is back in the queue, so neither describes it any
+   * more. Named rows are replayed whatever their status; with no ids, every row in {@code status}
+   * (optionally only those that occurred before {@code olderThan}) is replayed. Returns how many
+   * rows changed.
    */
   public long replay(List<String> ids, OutboxStatus status, Date olderThan) {
     Criteria criteria =
@@ -70,7 +73,9 @@ public class OutboxService {
                     .set("status", OutboxStatus.pending)
                     .set("attempts", 0)
                     .set("retry.after", now)
-                    .unset("sentAt"),
+                    .unset("sentAt")
+                    .unset("lastError")
+                    .unset("deadAt"),
                 EventOutboxEntity.class)
             .getModifiedCount();
     LOGGER.info("Outbox replay requeued {} row(s).", replayed);

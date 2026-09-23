@@ -147,8 +147,12 @@ export interface DataDrivenInput {
   required?: boolean;
   value: string | Array<string> | Array<{ key: string; value: string }> | Object;
   type: string;
+  // `min`/`max`/`step` mirror the backend param model's nullable numeric bounds. They govern the
+  // `slider` input type (Constants#InputType.Slider); `min`/`max` are also read by
+  // DynamicFormik's yup generation for `number` inputs.
   min?: number;
   max?: number;
+  step?: number;
 }
 
 export interface ResultParameter {
