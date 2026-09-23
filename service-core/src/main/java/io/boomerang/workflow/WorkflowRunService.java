@@ -106,6 +106,9 @@ public class WorkflowRunService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final ObjectMapper objectMapper;
+  // @Lazy for the same reason as TaskExecutionService above: WorkflowService holds this service,
+  // so an eager injection closes the cycle at construction time.
+  private final WorkflowService workflowService;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -121,7 +124,8 @@ public class WorkflowRunService {
       WorkflowRunStateHelper workflowRunStateHelper,
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      @Lazy WorkflowService workflowService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
@@ -136,6 +140,7 @@ public class WorkflowRunService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.objectMapper = objectMapper;
+    this.workflowService = workflowService;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -472,6 +477,22 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
     return workspace;
+  }
+
+  /**
+   * The workspace's name for the ref an ownership edge records. The quota lookups are by name, so
+   * the ref the graph stores has to be resolved before either can answer for this workspace.
+   */
+  private String workspaceNameOrNull(String workspaceRef) {
+    if (workspaceRef == null || workspaceRef.isBlank()) {
+      return null;
+    }
+    try {
+      return relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspaceRef);
+    } catch (RuntimeException e) {
+      LOGGER.warn("Owning workspace {} has no relationship node.", workspaceRef);
+      return null;
+    }
   }
 
   /**
@@ -1001,6 +1022,23 @@ public class WorkflowRunService {
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isPresent()) {
       WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
+      // The clone is a new run, so it clears the same quotas a submit clears, and it is clamped
+      // to the ceiling as it stands now - which may have been lowered since the original submit.
+      // The floor cannot have moved: a retry re-runs the same revision with the same request.
+      // Checked before anything is written, so a refusal leaves the source run untouched. A run
+      // no workspace owns has no quotas to check and no ceiling to clamp to.
+      String ownerName = workspaceNameOrNull(owner);
+      if (ownerName != null) {
+        workflowService.assertRunQuotas(
+            ownerName, Optional.ofNullable(wfRunEntity.getWorkspaces()));
+        long ceiling = workflowService.maxWorkflowDuration(ownerName);
+        if (ceiling > 0
+            && (wfRunEntity.getTimeout() == null
+                || wfRunEntity.getTimeout() == 0
+                || wfRunEntity.getTimeout() > ceiling)) {
+          wfRunEntity.setTimeout(ceiling);
+        }
+      }
       wfRunEntity.setCreationDate(new Date());
       wfRunEntity.setStatus(RunStatus.notstarted);
       wfRunEntity.setPhase(RunPhase.pending);

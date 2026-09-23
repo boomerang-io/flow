@@ -13,6 +13,7 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.GraphProcessor;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -250,8 +251,19 @@ public class WorkflowExecutionService {
       long retryCount = wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
       if (retryCount < wfRunEntity.getRetries()) {
         retryCount++;
-        // An automatic retry always starts - a queued-but-unstarted retry would stall.
-        workflowRunService.retry(wfRunId, true, retryCount);
+        try {
+          // An automatic retry always starts - a queued-but-unstarted retry would stall.
+          workflowRunService.retry(wfRunId, true, retryCount);
+        } catch (BoomerangException e) {
+          // The retry is a new run and the workspace's quotas may have no room for it. The source
+          // run is already terminal at this point, so refusing the retry is the whole outcome -
+          // throwing here would only fail the timeout path that got us here.
+          LOGGER.warn(
+              "[{}] Retry refused: {} {}",
+              wfRunId,
+              e.getReason(),
+              Arrays.toString(e.getArgs()));
+        }
       }
     }
   }

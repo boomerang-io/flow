@@ -92,6 +92,17 @@ smaller of the workflow's `boomerang.io/task-timeout` annotation and the task's 
 A task timeout on the final write times out the whole run (`TaskExecutionService.java:487-490`); a workflow timeout
 cancels every queued, running and pending task (`engine/WorkflowExecutionService.java:259-292`).
 
+A run's timeout is settled at submit, in the one method every path that creates a run passes through
+(`workflow/WorkflowService.java:1878-1884`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
+wins, else the revision's, else the run-duration quota itself - the workspace's own `maxWorkflowRunDuration`
+override when it has one, else the platform `workspaces`/`max.workflowrun.duration` setting
+(`RunTimeoutPolicy.java:152-170`) - so a run is never created unguarded just because nobody named a budget. That value
+must be at least the revision's critical path, the longest chain of declared task timeouts through the graph
+(`RunTimeoutPolicy.java:100-114`); below it the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306) rather
+than admitting a run whose guard fires beneath its own tasks. The owning workspace's `max.workflowrun.duration` quota
+is the ceiling, clamped after the floor is cleared, and a ceiling below the floor is refused with the same error
+naming the quota (`RunTimeoutPolicy.java:81-91`).
+
 ## Retry
 
 One backoff class exists: `Backoff.nextRetryAt` gives 10 s doubling per attempt, capped at 5 min, plus up to 5 s
@@ -103,7 +114,14 @@ jitter (`lib-common/.../util/Backoff.java:12-21`). The result is stored as `retr
 | Task run times out or its dispatcher disappears, type is requeueable, attempts < 3 | yes, requeued with backoff | `WorkflowWatcher.java:55-58`, `:157-163`, `:336-345` |
 | Task run reported `failed`/`invalid` by the dispatcher | no — the run advances or fails | `TaskExecutionService.java:463-473` |
 | Gate, wait or inline system task times out | no — terminal `timedout` | `WorkflowWatcher.java:53-56` |
-| Workflow run times out and `retries` > 0 | yes, as a NEW workflow run (`trigger=retry`, `initiatedByRef`) | `WorkflowExecutionService.java:245-255`, `WorkflowRunService.java:920-976` |
+| Workflow run times out and `retries` > 0 | yes, as a NEW workflow run (`trigger=retry`, `initiatedByRef`) | `WorkflowExecutionService.java:245-264`, `WorkflowRunService.java:941-1010` |
+
+A retried workflow run is a new run, so it clears the same quotas a submit clears and is clamped to the
+run-duration ceiling as it stands now, which may have been lowered since the original submit
+(`WorkflowRunService.java:965-977`). The floor is not re-checked: a retry re-runs the same revision with the same
+request, so its critical path cannot have moved. When the quota refuses an automatic retry the source run is already
+terminal, so the timeout path logs and stops rather than failing (`WorkflowExecutionService.java:250-263`); a
+user-initiated retry gets the 400 `QUOTA_EXCEEDED`.
 
 A requeue of a claimed attempt keeps `claim.by` (a pod may still be alive) and bumps `claim.seq`, so the stale attempt cannot report and the next
 attempt cannot start until the dispatcher's termination poll releases the claim (`TaskRunService.java:530-592`, `tryClaimForTermination` `:155`).
