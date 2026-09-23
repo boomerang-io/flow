@@ -10,6 +10,7 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.TaskSpec;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
@@ -30,8 +31,12 @@ import io.boomerang.common.error.BoomerangException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
 import io.boomerang.common.util.ParameterUtil;
 import java.util.List;
 import java.util.Objects;
@@ -915,6 +920,78 @@ public class TaskService {
           changelogs.add(cl);
         });
     return changelogs;
+  }
+
+  /**
+   * A catalogue task exactly as a TaskRun records it: {@code taskRef} plus the version resolved at
+   * creation ({@code TaskRunEntity.taskRef/taskVersion}).
+   */
+  public record TaskRef(String ref, Integer version) {}
+
+  /**
+   * The specs of the given catalogue task references, resolved in TWO queries however many
+   * references are asked for - one for the tasks, one for their revisions - so a run response with
+   * many tasks never costs one lookup per task. Ref resolution is the same switch {@link
+   * #get(String, Optional)} uses (by name or by id, per {@code flow.uniquenames.enabled}); a
+   * reference the catalogue no longer holds is simply absent from the result.
+   *
+   * <p>A reference carrying no version is skipped - it cannot be joined in a batch, and {@code
+   * DAGUtility.createTaskList} stamps the resolved version beside {@code taskRef} on every TaskRun
+   * it creates, so one does not occur.
+   */
+  public Map<TaskRef, TaskSpec> getSpecs(Collection<TaskRef> refs) {
+    if (refs == null || refs.isEmpty()) {
+      return Map.of();
+    }
+    Set<TaskRef> wanted =
+        refs.stream()
+            .filter(r -> r != null && r.ref() != null && r.version() != null)
+            .collect(Collectors.toSet());
+    if (wanted.isEmpty()) {
+      return Map.of();
+    }
+    Set<String> taskRefs = wanted.stream().map(TaskRef::ref).collect(Collectors.toSet());
+    List<TaskEntity> tasks =
+        uniqueNamesEnabled
+            ? taskRepository.findByNameIn(taskRefs)
+            : taskRepository.findAllById(taskRefs);
+    // The revisions hang off the TaskEntity id, which is the taskRef itself unless unique names
+    // are on - in which case the TaskRun records the name and the id has to be looked up.
+    Map<String, String> parentRefByTaskRef =
+        tasks.stream()
+            .collect(
+                Collectors.toMap(
+                    t -> uniqueNamesEnabled ? t.getName() : t.getId(),
+                    TaskEntity::getId,
+                    (a, b) -> a));
+    if (parentRefByTaskRef.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, TaskRevisionEntity> revisions =
+        taskRevisionRepository
+            .findByParentRefInAndVersionIn(
+                Set.copyOf(parentRefByTaskRef.values()),
+                wanted.stream().map(TaskRef::version).collect(Collectors.toSet()))
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    r -> revisionKey(r.getParentRef(), r.getVersion()), r -> r, (a, b) -> a));
+    Map<TaskRef, TaskSpec> specs = new HashMap<>();
+    for (TaskRef ref : wanted) {
+      String parentRef = parentRefByTaskRef.get(ref.ref());
+      if (parentRef == null) {
+        continue;
+      }
+      TaskRevisionEntity revision = revisions.get(revisionKey(parentRef, ref.version()));
+      if (revision != null && revision.getSpec() != null) {
+        specs.put(ref, revision.getSpec());
+      }
+    }
+    return specs;
+  }
+
+  private static String revisionKey(String parentRef, Integer version) {
+    return parentRef + "@" + version;
   }
 
   public Task retrieveAndValidateTask(final WorkflowTask wfTask) {
