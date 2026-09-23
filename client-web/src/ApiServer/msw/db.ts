@@ -38,6 +38,15 @@ interface GlobalParam extends Record<string, unknown> {
   name?: string;
 }
 
+interface AuditEvent extends Record<string, unknown> {
+  id?: string;
+  actorId?: string;
+  actorName?: string;
+  action?: string;
+  outcome?: string;
+  level?: string;
+}
+
 interface User extends Record<string, unknown> {
   id?: string;
   name?: string;
@@ -58,6 +67,7 @@ export function createDb() {
     workspaces: clone<Workspace>(fixtures.workspaces.content),
     globalParams: clone<GlobalParam>(fixtures.globalParams),
     users: clone<User>(fixtures.users.content),
+    auditEvents: clone<AuditEvent>(fixtures.audit.content),
     settings: clone<Record<string, unknown>>(fixtures.settings),
     tokens: clone<NamedRecord>(fixtures.tokens.content),
     approverGroups: clone<NamedRecord>(fixtures.approverGroups),

@@ -412,6 +412,26 @@ export const handlers: HttpHandler[] = [
   }),
 
   /**
+   * Audit trail. The screen sends every filter on both calls, so the mock narrows the same way
+   * the API does - that is what lets a spec assert a filter round-tripped through the URL.
+   */
+  http.get(serviceUrl.getAuditStats({ query: "" }), () => HttpResponse.json(fixtures.auditStats)),
+  http.get(serviceUrl.getAuditEvents({ query: "" }), ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const actor = params.get("actor")?.toLowerCase();
+    const content = db.auditEvents.filter(
+      (event) =>
+        (!actor ||
+          event.actorId?.toLowerCase().includes(actor) ||
+          event.actorName?.toLowerCase().includes(actor)) &&
+        (!params.get("action") || event.action === params.get("action")) &&
+        (!params.get("outcome") || event.outcome === params.get("outcome")) &&
+        (!params.get("level") || event.level === params.get("level")),
+    );
+    return HttpResponse.json(paginatedResponse(content));
+  }),
+
+  /**
    * Manage Users
    */
   // Users.tsx's table reads `number`/`size`/`totalElements` off this response (see its

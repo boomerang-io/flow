@@ -100,6 +100,13 @@ Every protected controller method declares `resource`, `action` and `assignableS
 3. Token class not in `assignableScopes` → 401, counted in `flow.security.denied` (`:61-71`).
 4. No grant action matching `(**|<resource>)/(**|<action>)` → 403, counted in `flow.security.denied` (`:77-94`).
 
+Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
+workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore
+re-check the scope themselves: `GET /api/v2/audit` and `/api/v2/audit/stats`
+(`core/audit/AuditControllerV2.java:217-232`) and `PATCH`/`DELETE /api/v2/user/{userId}`'s non-self path
+(`core/UserService.java:537-555`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
+(HTTP 401) otherwise.
+
 ### Layer 2 — `RelationshipService` on the data
 
 Services then ask whether the caller's node can reach the target through `rel_nodes`/`rel_edges` (node id =
@@ -156,5 +163,4 @@ The rest of `/api/v1/**` is `permitAll` and relies on network isolation.
 ## Known gaps
 
 - **Machine tokens cannot approve group approvals.** `ActionService.action` resolves the current *user*; a `key`/`global` token resolves none and is denied membership, so an automation must be given a real user identity placed in the approver group (`workflow/ActionService.java:137-146`). The controller's `assignableScopes` still admit machine tokens.
-- **`PATCH`/`DELETE /api/v2/user/{userId}` have no self-scoping.** Any token holding `user/write` or `user/delete` may edit or delete any user (`core/UserControllerV2.java:128-165`).
 - **Proxy-forwarded JWTs are trusted unverified.** Row 1b parses the bearer JWT and mints a session for its `email` claim without checking a signature (`AuthenticationFilter.java:164-165,188-206`); deployments MUST ensure only an authenticating proxy can reach the service on that path.

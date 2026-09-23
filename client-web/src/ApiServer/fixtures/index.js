@@ -1,6 +1,8 @@
 export { default as workflowRuns } from "./workflowRuns";
 export { default as workflowRunCount } from "./workflowRunCount";
 export { default as activity } from "./activity";
+export { default as audit } from "./audit";
+export { default as auditStats } from "./auditStats";
 export { default as actionsSummary } from "./actionsSummary";
 export { default as approvals } from "./approvals";
 export { default as approverGroups } from "./approverGroups";

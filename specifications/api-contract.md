@@ -14,7 +14,7 @@ Every public route is under `/api/v2`; resources owned by a workspace sit under
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workspace/WorkspaceInsightsControllerV2.java:27` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
 | Global | `/api/v2/{auth,user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/AuthControllerV2.java:37`, `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
-| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox` | `core/SystemControllerV2.java:35`, `event/OutboxControllerV2.java` |
+| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:35`, `event/OutboxControllerV2.java`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/api/v1/dispatcher` | `dispatcher/DispatcherControllerV1.java:41` |
 
 `/api/v2/workflowtemplate` is read-only: `GET /{name}` and `GET /query` are the whole surface
@@ -32,6 +32,25 @@ still references the Task. Two system routes serve the outbound event outbox: `G
 `{"replayed": n}`. A listed row that has failed delivery carries `lastError` (the exception type and message,
 capped at 1024 characters) and, once dead, `deadAt`; a replay clears both. Both routes need `system` permission
 and a `global` token.
+
+Two routes read the audit trail, both instance-wide and both admin-only
+(`core/audit/AuditControllerV2.java:92,166`). `GET /api/v2/audit` returns a `Page<AuditEvent>` newest first;
+`GET /api/v2/audit/stats` counts the same filters and window by outcome and adds the configured
+`captureEnabled`, `level` and `retentionDays`. Both take the same filters:
+
+| Parameter | Accepts | Default |
+| --- | --- | --- |
+| `actor` | any part of an actor id or display name, ignoring case | none |
+| `action`, `outcome`, `level` | comma-separated `AuditAction` / `AuditOutcome` / `AuditLevel` names | none (all) |
+| `resourceType` | comma-separated resource types (`workflow`, `token`, …) | none |
+| `resourceId`, `workspaceId` | a single resource id; comma-separated workspace ids | none |
+| `from`, `to` | ISO-8601 instants, `to` exclusive | `from` = now − 30 days; `to` = now |
+| `page`, `limit`, `order` (listing only) | 0-based page; page size, capped at 100; `ASC`/`DESC` on `time` | `0`, `25`, `DESC` |
+
+The `from` default is load-bearing rather than cosmetic: it keeps both the page and its count on the
+`time` index of an insert-only collection. Sorting is by `time` only — there is no `sort` parameter.
+`AuditEvent` is the entity minus the CloudEvents envelope (`type`, `source`, `subject`) and the TTL anchor
+`createdAt`; `payload` is passed through as captured and holds request discriminators only, never content.
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered

@@ -74,6 +74,10 @@ export const serviceUrl = {
   // Resources/actions/role presets a token's permission grid is allowed to offer - server-driven
   // so the picker can't drift from what is actually enforced.
   getTokenCatalog: ({ query }) => `${BASE_URL}/token/catalog${query ? "?" + query : ""}`,
+  // Audit trail. Both take the same filter set; the listing pages, the stats endpoint counts the
+  // same window by outcome and reports the configured capture state.
+  getAuditEvents: ({ query }: QueryArg) => `${BASE_URL}/audit${query ? "?" + query : ""}`,
+  getAuditStats: ({ query }: QueryArg) => `${BASE_URL}/audit/stats${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserWorkspaces: ({ userId }) => `${BASE_URL}/user/${userId}/workspaces`,

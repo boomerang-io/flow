@@ -302,10 +302,55 @@ type Pageable<T> = {
 };
 
 export type PaginatedUserResponse = Pageable<FlowUser>;
+export type PaginatedAuditResponse = Pageable<AuditEvent>;
 export type PaginatedWorkspaceResponse = Pageable<FlowWorkspace>;
 export type PaginatedTaskResponse = Pageable<Task>;
 export type PaginatedWorkflowResponse = Pageable<Workflow>;
 export type PaginatedSchedulesResponse = Pageable<ScheduleUnion>;
+
+/**
+ * One audited attempt as `GET /api/v2/audit` returns it: the server's AuditEvent minus the
+ * CloudEvents envelope and the TTL anchor. `payload` carries request discriminators only -
+ * source IP, user agent, method, path, duration, an error summary - never request content.
+ */
+export interface AuditEvent {
+  id: string;
+  time: string;
+  actorId?: string;
+  actorName?: string;
+  actorType?: string;
+  workspaceId?: string;
+  action?: string;
+  resourceType?: string;
+  resourceId?: string;
+  resourceName?: string;
+  outcome?: AuditOutcome;
+  level?: AuditLevel;
+  payload?: Record<string, unknown>;
+}
+
+export enum AuditOutcome {
+  Success = "SUCCESS",
+  Failed = "FAILED",
+  Denied = "DENIED",
+}
+
+export enum AuditLevel {
+  Destructive = "DESTRUCTIVE",
+  Write = "WRITE",
+  All = "ALL",
+}
+
+/** Counts for the same window and filters the listing carries, plus the capture configuration. */
+export interface AuditStats {
+  from: string;
+  to: string | null;
+  total: number;
+  outcomes: Record<AuditOutcome, number>;
+  captureEnabled: boolean;
+  level: AuditLevel;
+  retentionDays: number;
+}
 
 export type WorkflowNodeData = {
   name: string;

@@ -49,6 +49,22 @@ public class AuditEventEmitter {
     return enabled && siteLevel.enabledAt(configured);
   }
 
+  /** True when capture is on at all, whatever the level - what a reader of the trail asks. */
+  public boolean captureEnabled() {
+    SettingEntity settings = settingsRepository.findOneByKey(SETTINGS_KEY);
+    return settings != null
+        && settings.getConfig() != null
+        && !"false".equalsIgnoreCase(configValue(settings, "enabled", "true"));
+  }
+
+  /** The configured capture verbosity; WRITE on an unseeded or unparseable setting. */
+  public AuditLevel configuredLevel() {
+    SettingEntity settings = settingsRepository.findOneByKey(SETTINGS_KEY);
+    return (settings == null || settings.getConfig() == null)
+        ? AuditLevel.WRITE
+        : AuditLevel.fromString(configValue(settings, "level", null));
+  }
+
   /** Emit with the actor resolved from the SecurityContext. Gate-checked. */
   public void emit(
       AuditAction action,
