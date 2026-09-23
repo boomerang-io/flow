@@ -380,6 +380,14 @@ public class KubeHelperService {
         || (character >= '0' && character <= '9');
   }
 
+  /**
+   * Return the product and tier labels every task runtime object this dispatcher creates carries;
+   * the TTL reconciler scopes its listing by them so it never touches a foreign object.
+   */
+  public Map<String, String> getTaskRuntimeLabels() {
+    return createAntiAffinityLabels("task");
+  }
+
   protected Map<String, String> getTaskLabels(
       String workflowRef,
       String workflowRunRef,
