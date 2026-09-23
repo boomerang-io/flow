@@ -154,7 +154,9 @@ public abstract class AbstractEngineIntegrationTest {
             settingConfig("debug", "boolean", "false"),
             settingConfig("default.image", "string", "boomerangio/worker-flow:2.11.15"),
             settingConfig("deletion.policy", "string", "Never"),
-            settingConfig("default.timeout", "number", "90")));
+            // 0 = no platform ceiling, which is what the seed now ships: internalSubmit stamps
+            // no boomerang.io/task-timeout annotation and a task inherits its run's timeout.
+            settingConfig("default.timeout", "number", "0")));
     settingsRepository.save(settings);
   }
 

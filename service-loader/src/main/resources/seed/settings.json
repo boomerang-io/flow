@@ -325,11 +325,11 @@
           "value": "false"
         },
         {
-          "description": "Task Timeout Configuration specified in minutes",
+          "description": "Maximum minutes any single task may run, whatever its run allows. Set to 0 to let tasks inherit the run's timeout.",
           "key": "default.timeout",
-          "label": "Task Timeout Configuration",
+          "label": "Maximum task duration",
           "type": "number",
-          "value": "90",
+          "value": "0",
           "readOnly": false
         }
       ],
