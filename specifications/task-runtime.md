@@ -205,8 +205,11 @@ task param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:208-227`,
 Shared storage is a workflow-level opt-in with two types (`StorageType.java:12-13`), each a persistent
 volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPath`
 (`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A task mounts only the workspaces it
-declares: `DAGUtility` copies the node's `workspaces` onto the TaskRun (`engine/DAGUtility.java:214`) and the
-executor mounts by type. A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
+declares, and that list is set once: `DAGUtility` copies the node's `workspaces` onto the TaskRun
+(`engine/DAGUtility.java:214`) and nothing later in the run widens it to the run's whole set. The executor
+mounts by type and takes `mountPath` from the task's own declaration, falling back to `/workspace/<type>`
+when it is blank (`KubeJobsExecutor.java:307-310`, `TektonServiceImpl.java:230-234`) - the workflow-level
+`spec.mountPath` is stored but read by nothing. A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
 and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted when the
 dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
 `mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked

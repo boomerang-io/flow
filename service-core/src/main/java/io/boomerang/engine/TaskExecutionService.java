@@ -338,8 +338,8 @@ public class TaskExecutionService {
     // If not ending, then they may save a waiting status.
     switch (taskType) {
       case template, script, custom, generic, ai -> {
-        // Nothing to do here. These types wait for a Handler.
-        getTaskWorkspaces(taskExecution, wfRunEntity);
+        // Nothing to do here. These types wait for a Handler. The workspaces this task mounts
+        // were materialised from its own declaration when the TaskRun was created.
       }
       case decision -> {
         processDecision(taskExecution, wfRunId);
@@ -613,24 +613,6 @@ public class TaskExecutionService {
     // TODO: figure out what to return
     LOGGER.info("[{}] No task activity ids found for topic: {}", workflowRunId, topic);
     return ids;
-  }
-
-  private void getTaskWorkspaces(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    List<TaskWorkspace> taskWorkspaces = new LinkedList<>();
-    wfRunEntity
-        .getWorkspaces()
-        .forEach(
-            ws -> {
-              TaskWorkspace tw = new TaskWorkspace();
-              WorkflowWorkspaceSpec spec =
-                  OBJECT_MAPPER.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class);
-              tw.setName(ws.getName());
-              tw.setMountPath(spec.getMountPath());
-              tw.setOptional(ws.isOptional());
-              tw.setType(ws.getType());
-              taskWorkspaces.add(tw);
-            });
-    taskExecution.setWorkspaces(taskWorkspaces);
   }
 
   private void updatePendingApprovalStatus(WorkflowRunEntity wfRunEntity) {
