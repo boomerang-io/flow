@@ -93,6 +93,11 @@ and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 | `boomerangio/flow-service-loader` | `service-loader/target/service-loader.jar` | same base, runs to completion | `build-loader`/`deploy-loader` (`:180,:206`) |
 | `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:22-alpine`, port 3000 | `deploy-webapp` (`:256`) |
 
+Every product image is built for `linux/amd64` and `linux/arm64` (`ci-release.yml`, `platforms:` on each
+build step; the QEMU and Buildx setup steps each job already ran were doing nothing without it). A tag
+therefore runs on an Apple-silicon laptop as well as an x86 cluster, and a Kubernetes pod spec has no
+per-platform escape, so a single-architecture image simply fails to pull on the other.
+
 Task images are not product images and are not on this list: the catalogue images and the `ai` worker
 (`boomerangio/task-ai`) are built and released from the `boomerang-io/tasks` repository on their own version
 lines, and the dispatcher resolves the `ai` one at runtime from `flow.dispatcher.ai.image` (see

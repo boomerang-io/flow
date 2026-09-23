@@ -15,8 +15,11 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.text.StringSubstitutor;
+import org.apache.commons.text.lookup.StringLookup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
@@ -45,6 +49,12 @@ public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String REGEX_DOT_NOTATION = "(?<=\\$\\().+?(?=\\))";
+  // One compiled form of the reference pattern, shared by the discovery loop and the
+  // single-reference test, so the two cannot drift apart.
+  private static final Pattern DOT_NOTATION_PATTERN = Pattern.compile(REGEX_DOT_NOTATION);
+  // Ceiling on the structural walk in replaceStringInObject: only string leaves are substituted,
+  // so a pathological nesting cannot exhaust the stack.
+  private static final int MAX_SUBSTITUTION_DEPTH = 32;
   private final String[] reservedScope = {"global", "team", "workflow", "context"};
 
   private final WorkflowRunRepository workflowRunRepository;
@@ -240,12 +250,18 @@ public class ParameterManager {
     // rejection of case/separator-variant duplicates (ParameterUtil.paramNameCollisions).
     Map<String, Object> flatParamLayers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     flatParamLayers.putAll(paramLayers.getFlatMap());
-    Pattern pattern = Pattern.compile(REGEX_DOT_NOTATION);
     if (Objects.isNull(originalValue)) {
       return originalValue;
     }
-    Matcher m = pattern.matcher(originalValue.toString());
+    // References are discovered over the value's flattened text, which is how a reference nested
+    // inside a Map or a List is found at all; substitution then walks the real structure.
+    Matcher m = DOT_NOTATION_PATTERN.matcher(originalValue.toString());
     Object resolvedValue = originalValue;
+    // An object-typed param resolves to the referenced structure only when its value is exactly
+    // one reference and nothing else. Returning on the first match regardless collapsed
+    // {"url": "$(params.host)/api", "retries": 3} to the host string - the structure, the "/api"
+    // suffix and every other key were dropped and an object silently became a string.
+    boolean singleReference = ParamType.object.equals(type) && isSingleReference(originalValue);
     Map<String, Object> foundKeyValues = new HashMap<>();
     while (m.find()) {
       String foundKey = m.group(0);
@@ -275,12 +291,11 @@ public class ParameterManager {
         foundValue = taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
       }
       if (!Objects.isNull(foundValue)) {
-        if (ParamType.object.equals(type)) {
+        if (singleReference) {
           return foundValue;
-        } else {
-          LOGGER.debug("Pattern Matched: " + foundKey + " = " + foundValue.toString());
-          foundKeyValues.put(foundKey, foundValue);
         }
+        LOGGER.debug("Pattern Matched: " + foundKey + " = " + foundValue.toString());
+        foundKeyValues.put(foundKey, foundValue);
       }
     }
     if (!foundKeyValues.isEmpty()) {
@@ -340,27 +355,168 @@ public class ParameterManager {
     return result.get().getValue();
   }
 
+  /*
+   * Whether a value is a String whose whole content is one reference - "$(params.config)" and
+   * nothing else. Tested with the same pattern the discovery loop uses: exactly one match, opening
+   * on the first character (the lookbehind guarantees the two characters before a match are "$(")
+   * and closing on the last (the lookahead guarantees the character after a match is ")").
+   *
+   * Surrounding whitespace is ignored. A structure cannot carry leading or trailing spaces, so
+   * trimming loses nothing, whereas counting them as surrounding text would turn
+   * " $(params.config)" into a JSON string - the silent object-to-string change this guard exists
+   * to prevent.
+   */
+  private static boolean isSingleReference(Object value) {
+    if (!(value instanceof String string)) {
+      return false;
+    }
+    String trimmed = string.trim();
+    Matcher matcher = DOT_NOTATION_PATTERN.matcher(trimmed);
+    return matcher.find()
+        && matcher.start() == 2
+        && matcher.end() == trimmed.length() - 1
+        && !matcher.find();
+  }
+
   private boolean isReservedScope(String scope) {
     // Case-insensitive like the rest of reference matching (ruled 2026-08-26).
     return List.of(reservedScope).stream().anyMatch(s -> s.equalsIgnoreCase(scope));
   }
 
+  /*
+   * Substitute $(...) references into the string leaves of a value.
+   *
+   * Strings are substituted directly. This method used to JSON-encode the whole value first,
+   * splice each replacement's raw toString() into that encoded text, and re-parse it - so any
+   * replacement carrying a double quote or a newline made the re-parse fail and the parameter
+   * resolved to null (boomerang-io/flow#439). In a string leaf, quotes and newlines are not
+   * special, so there is nothing to escape and nothing to re-parse.
+   *
+   * A replacement that is not a String and is interpolated INTO a larger string is rendered as
+   * JSON, the same encoding the dispatcher gives a non-string param on its way into a container -
+   * not Java's Map.toString() ("{k=v}"), which nothing downstream can read. A reference that is
+   * the whole value of an object-typed param never reaches here: resolveParam returns the
+   * referenced structure itself. An object-typed param whose value CONTAINS references does reach
+   * here, and its Map and Collection are walked.
+   *
+   * Any unexpected failure returns the value unchanged - verbatim passthrough, the same fallback
+   * an unmatched reference takes - rather than null, which surfaces components away as a missing
+   * parameter. The log names the shape of the value and never its content, because a
+   * password-typed param flows through here.
+   */
   private Object replaceStringInObject(Object object, Map<String, Object> replacements) {
     try {
-      String objectString = objectMapper.writeValueAsString(object);
-      // objectString.replaceAll(replaceKey, replaceValueString);
-      final StringSubstitutor substitutor = new StringSubstitutor(replacements, "$(", ")");
+      StringSubstitutor substitutor =
+          new StringSubstitutor(
+              (StringLookup) key -> renderReplacement(replacements.get(key)),
+              "$(",
+              ")",
+              StringSubstitutor.DEFAULT_ESCAPE);
       substitutor.setEnableSubstitutionInVariables(true);
       substitutor.setEnableUndefinedVariableException(false);
-      // return substitutor.replace(objectString);
-      String replacedObjectString = substitutor.replace(objectString);
-      LOGGER.debug("Substitutor: " + replacedObjectString);
-      return objectMapper.readValue(replacedObjectString, Object.class);
+      return substituteInLeaves(object, substitutor, 0);
     } catch (Exception e) {
-      // Log and drop exception. We want the workflow to continue execution.
-      LOGGER.error(e.toString());
+      // The workflow continues; the value is passed through untouched. The exception message can
+      // quote the value, so only its type is logged.
+      LOGGER.error(
+          "Parameter substitution failed ({}) on a value of shape {}; the original value is used unchanged.",
+          e.getClass().getName(),
+          describeShape(object));
+      return object;
     }
-    return null;
+  }
+
+  /*
+   * Walk a value's structure and substitute only its string leaves. Depth-guarded so a
+   * pathological structure cannot exhaust the stack; a Map's keys are substituted too, matching
+   * the whole-document substitution this replaced.
+   */
+  private Object substituteInLeaves(Object value, StringSubstitutor substitutor, int depth) {
+    if (value instanceof String string) {
+      return substitutor.replace(string);
+    }
+    if (value == null) {
+      return null;
+    }
+    if (!isStructured(value)) {
+      // A number, a boolean or anything else has no string leaf to substitute into.
+      return value;
+    }
+    if (depth >= MAX_SUBSTITUTION_DEPTH) {
+      LOGGER.warn(
+          "Parameter substitution stopped at depth {} on a value of shape {}.",
+          depth,
+          describeShape(value));
+      return value;
+    }
+    if (value instanceof Map<?, ?> map) {
+      Map<Object, Object> substituted = new LinkedHashMap<>();
+      map.forEach(
+          (key, entry) ->
+              substituted.put(
+                  key instanceof String stringKey ? substitutor.replace(stringKey) : key,
+                  substituteInLeaves(entry, substitutor, depth + 1)));
+      return substituted;
+    }
+    if (value instanceof Collection<?> collection) {
+      List<Object> substituted = new ArrayList<>(collection.size());
+      collection.forEach(
+          entry -> substituted.add(substituteInLeaves(entry, substitutor, depth + 1)));
+      return substituted;
+    }
+    // An array becomes a List, which is what the JSON round trip this replaced also produced.
+    int length = Array.getLength(value);
+    List<Object> substituted = new ArrayList<>(length);
+    for (int i = 0; i < length; i++) {
+      substituted.add(substituteInLeaves(Array.get(value, i), substitutor, depth + 1));
+    }
+    return substituted;
+  }
+
+  /*
+   * How a replacement is written into a surrounding string. Absent is null, which leaves the
+   * reference verbatim.
+   */
+  private String renderReplacement(Object value) {
+    if (value == null || value instanceof String) {
+      return (String) value;
+    }
+    if (isStructured(value)) {
+      try {
+        return objectMapper.writeValueAsString(value);
+      } catch (Exception e) {
+        LOGGER.error(
+            "Could not render a {} replacement as JSON ({}); its toString() is used.",
+            value.getClass().getName(),
+            e.getClass().getName());
+        return value.toString();
+      }
+    }
+    return value.toString();
+  }
+
+  private static boolean isStructured(Object value) {
+    return value instanceof Map || value instanceof Collection || value.getClass().isArray();
+  }
+
+  /*
+   * A value's shape for logging: type and size, never content - a password-typed param resolves
+   * through this class.
+   */
+  private static String describeShape(Object value) {
+    if (value == null) {
+      return "null";
+    }
+    if (value instanceof String string) {
+      return "string[" + string.length() + " chars]";
+    }
+    if (value instanceof Map<?, ?> map) {
+      return "object[" + map.size() + " entries]";
+    }
+    if (value instanceof Collection<?> collection) {
+      return "array[" + collection.size() + " elements]";
+    }
+    return value.getClass().getName();
   }
 
   private Object reduceObjectByJsonPath(String path, Object object) {

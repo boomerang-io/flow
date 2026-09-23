@@ -81,6 +81,27 @@ task's declared params merged with the values authored on the workflow node (`en
 A `custom` task takes its runtime from its own params — `image`, `command` and `arguments` (newline-split)
 and `shellScript` — rather than from the catalogue entry, which declares no image
 (`DAGUtility.java:247,302`).
+
+Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$`
+characters are inserted verbatim: a multi-line prompt, a JSON body, a shell script or a task result with a
+trailing newline reaches the container byte for byte
+(`ParameterManager.replaceStringInObject`). One pass, left to right; a reference that matches nothing is left
+as written. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
+(`{"k":"v"}`), matching how the dispatcher encodes a non-string param value.
+
+An `object`-typed param resolves to the referenced structure itself only when its value is **exactly one
+reference and nothing else** — `"$(params.config)"`, ignoring surrounding whitespace
+(`ParameterManager.isSingleReference`). Any other `object` value keeps its shape: the engine walks the Map,
+Collection or array, substitutes the string leaves and the string keys in place, and leaves numbers and
+booleans untouched, so `{"url": "$(params.host)/api", "retries": 3}` resolves to
+`{"url": "https://example.com/api", "retries": 3}`. References are discovered over the value's flattened
+text, so a reference nested in any leaf is still found; substitution then walks the real structure. A leaf
+that is itself a whole reference to an object follows the interpolation rule above and is written as JSON.
+
+If substitution fails for any reason — a value that resolves to itself, say — the original value is passed
+through unchanged and the failure is logged with the value's shape, never its content, because a
+password-typed param resolves through the same path.
+
 The dispatcher then sets these environment variables (`kube/KubeHelperService.java:111-149`):
 
 | Variable | Value |
@@ -159,23 +180,33 @@ are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PAR
 ## Sensitive parameters
 
 A param is sensitive when its spec has `type=password` (`DataAdapterUtil.java:22`); there is no separate
-marker, and values are filtered on the way up only. The spec consulted is the **workflow revision's** param
-list, not the catalogue task's: `filterSensitiveValues` joins the run's own params against
-`revision.getParams()` (`workflow/WorkflowRunService.java:162-172`). So a password-typed value is blanked and
-scrubbed when the workflow declares it and the node references it as `$(params.x)` — the supported pattern —
-and NOT when a literal is typed straight into a node param whose password type is declared only on the
-catalogue task. That is true of every catalogue task with a password param, `ai`'s `token` included. The
-workspace-scoped `get` and `query` reads blank password-typed params by name and scrub their resolved values
-from task params, spec fields and results
-(`workflow/WorkflowRunService.java:145-149,160-170,209`), and the task log stream is wrapped in
-`FilterValuesOutputStream`, a line-buffered scrub of the same values (`:339-346`;
-`lib-common/.../FilterValuesOutputStream.java:21`). The dispatcher serves a task's own log through `TaskLogStore`, one implementation per
-runtime: on Kubernetes it ends the stream when the pod is already finished or as soon as it finishes
-(`kube/KubeLogService.java:26`), and on Docker it follows a running container's log, which ends when the
-container exits, or reads a finished one once (`docker/DockerLogService.java:27`). The engine permits the
+marker, no field on the run, and values are filtered on the way up only. A `RunParam` carries no type on
+the wire, so the type comes from the definition - and two definitions can declare it:
+
+| Declared on | Reached through | Example |
+| --- | --- | --- |
+| The workflow revision's param spec | `WorkflowRun.workflowRevisionRef` | a workflow param referenced as `$(params.apiKey)` |
+| The catalogue task's own spec | `TaskRun.taskRef` + `TaskRun.taskVersion` | a value typed straight into a task node's `apiKey` field |
+
+`WorkflowRunService.filterSensitiveValues` consults both (`workflow/WorkflowRunService.java:172-229`):
+each blanks its own password-typed params by name, and the **union** of the values they resolve to is then
+scrubbed run-wide - from the run's results and from every task's params, spec fields (script, command,
+arguments, envs) and results, because substitution moves a value into any of them under another name
+(`DataAdapterUtil.java:139-211`). The task-spec lookup is batched: the distinct `(taskRef, taskVersion)`
+pairs on a response are resolved together by `TaskService.getSpecs`, two queries regardless of task count.
+Tasks are attached only by `get(id, withTasks=true)` (`WorkflowRunService.java:552-553`), so the paged
+`query` - which returns no tasks - issues no task lookup at all.
+
+The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
+(`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the
+owning run rather than the streamed task alone. The dispatcher serves a task's own log through `TaskLogStore`, one
+implementation per runtime: on Kubernetes it ends the stream when the pod is already finished or as soon
+as it finishes (`kube/KubeLogService.java:26`), and on Docker it follows a running container's log, which
+ends when the container exits, or reads a finished one once (`docker/DockerLogService.java:28`). The engine permits the
 asynchronous completion of a streamed response without re-running authorization on it
 (`core/security/SecurityConfiguration.java:81`, `SecurityInterceptor.java:45`). Engine and dispatcher reads, and delivery into the
-container, carry the real values.
+container, carry the real values. A resolved value shorter than four characters is blanked by name but not
+value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
 
 ## Volumes and workspaces
 
@@ -216,7 +247,38 @@ class or access mode authored on a workspace is recorded on the run and ignored,
 has none. What it does apply, when set, is `dispatcher.docker.memory` and `dispatcher.docker.cpus` (Docker CLI
 sizes; blank applies none, as on Kubernetes). Tasks, claims and ConfigMaps are created in `kube.namespace`,
 or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
-(`config/KubeClientConfig.java:21,40`). Resource requests and limits are not applied by either Kubernetes executor.
+(`config/KubeClientConfig.java:21,40`).
+
+## Container resources
+
+Every task container carries the requests and limits one shared resolver reads from configuration
+(`executor/TaskResourceResolver.java`), so the sizing is the same on both executors: the Jobs executor sets it on
+the task container (`KubeJobsExecutor.java:200`) and the Tekton executor on the step's `computeResources`
+(`TektonServiceImpl.java:389`).
+
+| Property | Default | Applied as |
+| --- | --- | --- |
+| `kube.resource.request.memory` | `2Gi` | `requests.memory` |
+| `kube.resource.limit.memory` | `16Gi` | `limits.memory` |
+| `kube.resource.request.ephemeral-storage` | `2Gi` | `requests.ephemeral-storage` |
+| `kube.resource.limit.ephemeral-storage` | `16Gi` | `limits.ephemeral-storage` |
+| `kube.resource.request.cpu` | empty | `requests.cpu` |
+| `kube.resource.limit.cpu` | empty | `limits.cpu` |
+
+Each value is a Kubernetes quantity and each tolerates being blank: blank sets that request or limit not at all,
+never an empty quantity and never a zero limit, so a deployment can run with memory limits and no CPU limit. With
+all six blank the container carries no resources block. Both CPU values ship blank because a CPU limit throttles a
+task rather than failing it, which is a worse default than no limit; memory and ephemeral-storage ship with values
+because a container without them can take a node. A memory-backed `/data` is a tmpfs, so what a task writes there
+counts against the memory limit rather than against ephemeral-storage — that is how a container that would breach
+the ephemeral-storage limit keeps running, and a deployment that enables it sizes memory to cover the data too.
+
+The sizing is per dispatcher deployment, not per task, the same shape as the isolation tier (decision 0042): a
+workflow author cannot ask for a bigger container, and a workload that needs different sizing runs a second
+dispatcher deployment with its own task types. A runtime that takes a byte or CPU count rather than a quantity
+string — the planned Docker executor — reads the same configured values through the resolver (`memoryLimitBytes`,
+`cpuLimitNanos`, a CPU count in nano-CPUs); Docker has no ephemeral-storage concept, so that pair is
+Kubernetes-only.
 
 ## AI tasks
 
@@ -250,10 +312,10 @@ and no meter: a platform sums `totalTokens` across task runs through the existin
 
 **Worker image.** The worker is a task image, not a product image. It is built and released from the
 `boomerang-io/tasks` repository (`tasks/ai`) as `boomerangio/task-ai`, tagged from that repository's own
-`@boomerang-io/task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
+`task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
 below). The product tag builds the four service and web images and not this one, so the worker and the product
-version lines move independently; `flow.dispatcher.ai.image` defaults to `boomerangio/task-ai:latest` and an
-operator pins `boomerangio/task-ai:<version>`
+version lines move independently; `flow.dispatcher.ai.image` defaults to an exact version,
+`boomerangio/task-ai:1.0.0`, and an operator moves it to another `boomerangio/task-ai:<version>`
 (`service-dispatcher/src/main/resources/application.properties:87-93`). What ties the two together is the
 contract, not the tag: the eleven params above reach the image as `PARAM_<NAME>` environment variables and the
 six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`

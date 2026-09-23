@@ -68,7 +68,9 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 - No execution-state field (`claim`, `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`) appears in a public
   model; pinned by `PublicRunModelSerialisationTest`. `phase` is exposed beside `status` for now because the
   dispatcher dispatches on it — do not remove it without a dispatcher-side replacement.
-- The engine never calls the flow side synchronously; engine → flow is events.
+- The engine never calls the **platform** side (`core`, `workspace`, `schedule`, `integrations`) synchronously;
+  it publishes `ApplicationEvent`s those packages listen to. `engine` ↔ `workflow` are the two halves of one
+  bounded context (runs and definitions) and do call each other directly.
 - The custom HTTP client configuration (`RestConfig`: proxy, trust-all option, per-template timeouts, streaming
   template) is a product requirement for enterprises behind proxies and internal CAs. Framework upgrades MUST
   preserve it.

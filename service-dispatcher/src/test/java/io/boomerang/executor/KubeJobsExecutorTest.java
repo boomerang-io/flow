@@ -24,6 +24,7 @@ import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.Volume;
@@ -57,7 +58,9 @@ import io.fabric8.kubernetes.api.model.Toleration;
 @TestPropertySource(
     properties = {
       "dispatcher.executor=kube-jobs",
-      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3"
+      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3",
+      "kube.resource.request.cpu=100m",
+      "kube.resource.limit.cpu=500m"
     })
 public class KubeJobsExecutorTest {
 
@@ -112,6 +115,31 @@ public class KubeJobsExecutorTest {
         client.batch().v1().jobs().withLabels(Map.of("boomerang.io/taskrun-ref", taskRunRef)).list().getItems();
     assertEquals(1, jobs.size());
     return jobs.get(0);
+  }
+
+  @Test
+  public void testCreateSizesTheTaskContainerFromTheConfiguredResources() throws Exception {
+    // The same six deployment-wide values the Tekton executor applies to its step.
+    TaskRun task = commandTask("taskrun-jobs-resources", false);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor("taskrun-jobs-resources")
+            .getSpec()
+            .getTemplate()
+            .getSpec()
+            .getContainers()
+            .get(0);
+
+    assertEquals(new Quantity("2Gi"), container.getResources().getRequests().get("memory"));
+    assertEquals(
+        new Quantity("2Gi"), container.getResources().getRequests().get("ephemeral-storage"));
+    assertEquals(new Quantity("100m"), container.getResources().getRequests().get("cpu"));
+    assertEquals(new Quantity("16Gi"), container.getResources().getLimits().get("memory"));
+    assertEquals(
+        new Quantity("16Gi"), container.getResources().getLimits().get("ephemeral-storage"));
+    assertEquals(new Quantity("500m"), container.getResources().getLimits().get("cpu"));
   }
 
   @Test
