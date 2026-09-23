@@ -13,6 +13,7 @@ export type RoutePermissions = {
   canReadTokens: boolean;
   canReadWorkspaces: boolean;
   canReadUsers: boolean;
+  canReadAudit: boolean;
   activityEnabled: boolean;
   insightsEnabled: boolean;
   workspaceParametersEnabled: boolean;

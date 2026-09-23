@@ -1,5 +1,5 @@
 import moment from "moment";
-import { ApprovalStatus, RunStatus } from "Types";
+import { AuditLevel, AuditOutcome, ApprovalStatus, RunStatus } from "Types";
 
 const oneMonthAgo = moment().subtract(1, "month");
 const monthAgoInDays = moment().diff(oneMonthAgo, "days");
@@ -45,4 +45,33 @@ export const approvalStatusOptions = [
   { label: "Approved", value: ApprovalStatus.Approved },
   { label: "Rejected", value: ApprovalStatus.Rejected },
   { label: "Submitted", value: ApprovalStatus.Submitted },
+];
+
+/**
+ * Audit filters. `action` is what the actor did; `level` is the verbosity the call site declared
+ * and the instance was configured at - they narrow independently, so the screen offers both.
+ */
+export const auditActionOptions = [
+  { label: "Create", value: "CREATE" },
+  { label: "Read", value: "READ" },
+  { label: "Update", value: "UPDATE" },
+  { label: "Delete", value: "DELETE" },
+  { label: "Duplicate", value: "DUPLICATE" },
+  { label: "Submit", value: "SUBMIT" },
+  { label: "Export", value: "EXPORT" },
+  { label: "Import", value: "IMPORT" },
+  { label: "Token created", value: "TOKEN_CREATE" },
+  { label: "Token revoked", value: "TOKEN_REVOKE" },
+];
+
+export const auditOutcomeOptions: Array<{ label: string; value: AuditOutcome }> = [
+  { label: "Success", value: AuditOutcome.Success },
+  { label: "Failed", value: AuditOutcome.Failed },
+  { label: "Denied", value: AuditOutcome.Denied },
+];
+
+export const auditLevelOptions: Array<{ label: string; value: AuditLevel }> = [
+  { label: "Destructive", value: AuditLevel.Destructive },
+  { label: "Write", value: AuditLevel.Write },
+  { label: "All", value: AuditLevel.All },
 ];

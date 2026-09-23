@@ -30,6 +30,7 @@ type AppPathKey =
   | "Root"
   | "Error"
   | "Activity"
+  | "Audit"
   | "Actions"
   | "ActionsApprovals"
   | "ActionsManual"
@@ -120,6 +121,7 @@ export const AppPath: Record<AppPathKey, string> = {
   ManageWorkspaceApprovers: `/:workspace/manage/approver-groups`,
 
   //admin
+  Audit: "/admin/audit",
   Properties: "/admin/parameters",
   Settings: "/admin/settings",
   TemplateWorkflows: "/admin/template-workflows",
@@ -180,6 +182,7 @@ export const queryStringOptions: StringifyOptions = { arrayFormat: "comma", skip
 export const appLink = {
   activity: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Activity, { workspace }),
   actions: ({ workspace }: WorkspaceArg) => generatePath(AppPath.Actions, { workspace }),
+  audit: () => AppPath.Audit,
   actionsApprovals: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ActionsApprovals, { workspace }),
   actionsManual: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ActionsManual, { workspace }),
   editorCanvas: ({ workspace, workflow }: WorkspaceRouteArgs) =>

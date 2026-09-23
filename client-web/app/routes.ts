@@ -42,6 +42,7 @@ export default [
   layout("../src/Features/App/index.tsx", [
     route("/home", "routes/home.tsx"),
     route("/profile", "routes/profile.tsx"),
+    route("/admin/audit", "routes/audit.tsx"),
     route("/admin/settings", "routes/settings.tsx"),
     route("/admin/parameters", "routes/globalParameters.tsx"),
     route("/admin/template-workflows", "routes/templateWorkflows.tsx"),

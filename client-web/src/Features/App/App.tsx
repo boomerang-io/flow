@@ -440,6 +440,9 @@ const AppFeatures = React.memo(function AppFeatures() {
   const canReadTokens = hasPermission(user, "token", "read");
   const canReadWorkspaces = hasPermission(user, "workspace", "read");
   const canReadUsers = hasPermission(user, "user", "read");
+  // The audit trail spans every workspace, so it rides the same global system/read grant the
+  // settings screen does - hasPermission with no workspaceRef only matches a global grant.
+  const canReadAudit = hasPermission(user, "system", "read");
 
   // The route tree itself now lives in the router config (AppRoutes.tsx / Root.tsx) so that
   // loaders/actions can attach to it. These permission/feature-flag gates depend on hooks
@@ -454,6 +457,7 @@ const AppFeatures = React.memo(function AppFeatures() {
     canReadTokens,
     canReadWorkspaces,
     canReadUsers,
+    canReadAudit,
     activityEnabled: Boolean(activityEnabled),
     insightsEnabled: Boolean(insightsEnabled),
     workspaceParametersEnabled: Boolean(workspaceParametersEnabled),

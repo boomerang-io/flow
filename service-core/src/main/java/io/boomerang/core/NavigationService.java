@@ -196,6 +196,12 @@ public class NavigationService {
         settings.setType(NavigationType.link);
         admin.getChildLinks().add(settings);
 
+        Navigation audit = new Navigation();
+        audit.setName("Audit");
+        audit.setLink(flowAppsUrl + "/admin/audit");
+        audit.setType(NavigationType.link);
+        admin.getChildLinks().add(audit);
+
         Navigation taskManager = new Navigation();
         taskManager.setName("Task Manager");
         taskManager.setLink(flowAppsUrl + "/admin/task-manager");
