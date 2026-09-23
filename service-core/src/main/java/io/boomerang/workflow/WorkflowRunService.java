@@ -249,7 +249,20 @@ public class WorkflowRunService {
 
     List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
     if (wfRefs.isEmpty()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      // No reachable Workflow. A workspace the caller cannot reach (or that does not exist) is a
+      // 404 like every other unresolvable workspace reference; a reachable workspace with nothing
+      // to list - new, emptied, or a workflows= filter that matches none - is an empty page, the
+      // same answer insight and count already give for the same input.
+      if (!relationshipService.check(
+          RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      }
+      Sort sort = Sort.by(new Order(queryOrder.orElse(Direction.ASC), "creationDate"));
+      Pageable pageable =
+          queryLimit.isPresent()
+              ? PageRequest.of(queryPage.orElse(0), queryLimit.get(), sort)
+              : Pageable.unpaged();
+      return new WorkflowRunResponsePage(List.of(), pageable, 0);
     }
     // The run-id filter is applied on top of the workspace's workflows, so a caller cannot reach
     // a run outside the workspace by naming its id.
