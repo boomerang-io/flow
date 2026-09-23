@@ -22,6 +22,7 @@ import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.boomerang.executor.TerminationMessageParser;
 import io.boomerang.kube.KubeHelperService;
 import io.fabric8.kubernetes.api.model.EnvVar;
@@ -55,7 +56,9 @@ import org.springframework.stereotype.Component;
  * <p>Docker has no deadline of its own, so this executor enforces the Task's timeout itself: it
  * stops the container and reports {@code DeadlineExceeded}. There is no node selector, toleration,
  * host alias or runtime class on a Docker host - a different isolation tier is a different
- * dispatcher deployment.
+ * dispatcher deployment. Sizing is shared with them: {@link TaskResourceResolver} turns the same
+ * {@code kube.resource.limit.memory} and {@code kube.resource.limit.cpu} into the byte and
+ * nano-CPU counts Docker takes, and ephemeral-storage has no meaning here.
  */
 @Component
 @ConditionalOnProperty(name = "dispatcher.executor", havingValue = "docker")
@@ -83,12 +86,6 @@ public class DockerExecutor implements TaskExecutor {
   @Value("${dispatcher.docker.pollSeconds}")
   private long pollSeconds;
 
-  @Value("${dispatcher.docker.memory}")
-  private String memoryLimit;
-
-  @Value("${dispatcher.docker.cpus}")
-  private String cpuLimit;
-
   private final DockerClient client;
 
   private final KubeHelperService helperKubeService;
@@ -99,17 +96,21 @@ public class DockerExecutor implements TaskExecutor {
 
   private final TaskImageResolver imageResolver;
 
+  private final TaskResourceResolver resourceResolver;
+
   public DockerExecutor(
       DockerClient client,
       KubeHelperService helperKubeService,
       DockerWorkspaceStore workspaceStore,
       LeaseRegistry leaseRegistry,
-      TaskImageResolver imageResolver) {
+      TaskImageResolver imageResolver,
+      TaskResourceResolver resourceResolver) {
     this.client = client;
     this.helperKubeService = helperKubeService;
     this.workspaceStore = workspaceStore;
     this.leaseRegistry = leaseRegistry;
     this.imageResolver = imageResolver;
+    this.resourceResolver = resourceResolver;
   }
 
   @Override
@@ -185,12 +186,15 @@ public class DockerExecutor implements TaskExecutor {
       LOGGER.info("Setting data to in memory storage...");
       hostConfig.withTmpFs(Map.of("/data", "rw"));
     }
-    Long memoryBytes = bytes(memoryLimit);
+    // The same kube.resource.limit.* values the Kubernetes executors apply, as the byte and
+    // nano-CPU counts Docker takes. Unset stays unset - Docker then imposes no limit.
+    Long memoryBytes = resourceResolver.memoryLimitBytes();
     if (memoryBytes != null) {
       hostConfig.withMemory(memoryBytes);
     }
-    if (cpuLimit != null && !cpuLimit.isBlank()) {
-      hostConfig.withNanoCPUs((long) (Double.parseDouble(cpuLimit) * 1_000_000_000L));
+    Long cpuNanos = resourceResolver.cpuLimitNanos();
+    if (cpuNanos != null) {
+      hostConfig.withNanoCPUs(cpuNanos);
     }
     return hostConfig;
   }
@@ -438,24 +442,5 @@ public class DockerExecutor implements TaskExecutor {
     } catch (DockerException e) {
       LOGGER.debug("Container {} was already removed: {}", containerId, e.getMessage());
     }
-  }
-
-  /** Docker CLI sizes - a plain byte count, or one suffixed b/k/m/g. Blank means no limit. */
-  static Long bytes(String size) {
-    if (size == null || size.isBlank()) {
-      return null;
-    }
-    String value = size.trim().toLowerCase();
-    long multiplier =
-        switch (value.charAt(value.length() - 1)) {
-          case 'g' -> 1024L * 1024L * 1024L;
-          case 'm' -> 1024L * 1024L;
-          case 'k' -> 1024L;
-          case 'b' -> 1L;
-          default -> 0L;
-        };
-    return (multiplier == 0L)
-        ? Long.parseLong(value)
-        : Long.parseLong(value.substring(0, value.length() - 1)) * multiplier;
   }
 }

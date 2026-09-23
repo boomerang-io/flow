@@ -1,6 +1,7 @@
 package io.boomerang.docker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +33,7 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.kube.KubeHelperService;
@@ -63,6 +65,8 @@ class DockerExecutorTest {
 
   private final LeaseRegistry leaseRegistry = mock(LeaseRegistry.class);
 
+  private final TaskResourceResolver resourceResolver = new TaskResourceResolver();
+
   private DockerExecutor executor;
 
   private CreateContainerCmd createCmd;
@@ -78,12 +82,14 @@ class DockerExecutorTest {
     ReflectionTestUtils.setField(helperKubeService, "flowVersion", "5.0.0");
     ReflectionTestUtils.setField(helperKubeService, "proxyEnabled", Boolean.FALSE);
 
-    executor = new DockerExecutor(client, helperKubeService, workspaceStore, leaseRegistry, new TaskImageResolver());
+    limits("", "");
+
+    executor =
+        new DockerExecutor(
+            client, helperKubeService, workspaceStore, leaseRegistry, new TaskImageResolver(), resourceResolver);
     ReflectionTestUtils.setField(executor, "imagePullPolicy", "IfNotPresent");
     ReflectionTestUtils.setField(executor, "taskStorageDataMemory", Boolean.FALSE);
     ReflectionTestUtils.setField(executor, "pollSeconds", 0L);
-    ReflectionTestUtils.setField(executor, "memoryLimit", "");
-    ReflectionTestUtils.setField(executor, "cpuLimit", "");
 
     listCmd = mock(ListContainersCmd.class);
     when(client.listContainersCmd()).thenReturn(listCmd);
@@ -205,9 +211,7 @@ class DockerExecutorTest {
 
     executor.create(task(true), 30L);
 
-    ArgumentCaptor<HostConfig> hostConfig = ArgumentCaptor.forClass(HostConfig.class);
-    verify(createCmd).withHostConfig(hostConfig.capture());
-    Bind[] binds = hostConfig.getValue().getBinds();
+    Bind[] binds = capturedHostConfig().getBinds();
     assertEquals(1, binds.length);
     assertEquals("bmrg-flow-vol-ws-workflow-wf-1", binds[0].getPath());
     assertEquals("/workspace/workflow", binds[0].getVolume().getPath());
@@ -350,10 +354,36 @@ class DockerExecutorTest {
   }
 
   @Test
-  void dockerCliSizesBecomeByteCounts() {
-    assertEquals(2L * 1024 * 1024 * 1024, DockerExecutor.bytes("2g"));
-    assertEquals(512L * 1024 * 1024, DockerExecutor.bytes("512M"));
-    assertEquals(1024L, DockerExecutor.bytes("1024"));
-    assertEquals(null, DockerExecutor.bytes(""));
+  void theConfiguredLimitsSizeTheContainer() throws Exception {
+    // The same properties the Kubernetes executors apply, as the counts Docker takes.
+    limits("2Gi", "500m");
+
+    executor.create(task(false), 30L);
+
+    HostConfig hostConfig = capturedHostConfig();
+    assertEquals(2L * 1024 * 1024 * 1024, hostConfig.getMemory());
+    assertEquals(500_000_000L, hostConfig.getNanoCPUs());
+  }
+
+  @Test
+  void blankLimitsSizeNothing() throws Exception {
+    limits("", "");
+
+    executor.create(task(false), 30L);
+
+    HostConfig hostConfig = capturedHostConfig();
+    assertNull(hostConfig.getMemory());
+    assertNull(hostConfig.getNanoCPUs());
+  }
+
+  private void limits(String memory, String cpu) {
+    ReflectionTestUtils.setField(resourceResolver, "limitMemory", memory);
+    ReflectionTestUtils.setField(resourceResolver, "limitCpu", cpu);
+  }
+
+  private HostConfig capturedHostConfig() {
+    ArgumentCaptor<HostConfig> hostConfig = ArgumentCaptor.forClass(HostConfig.class);
+    verify(createCmd).withHostConfig(hostConfig.capture());
+    return hostConfig.getValue();
   }
 }

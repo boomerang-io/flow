@@ -16,6 +16,7 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.boomerang.dispatcher.model.HeldWorkspace;
 import io.boomerang.kube.KubeHelperService;
 import java.time.Duration;
@@ -66,12 +67,14 @@ class DockerExecutorOnDockerHostTest {
   }
 
   private DockerExecutor executor(DockerClient client, DockerWorkspaceStore store, KubeHelperService helper) {
-    DockerExecutor executor = new DockerExecutor(client, helper, store, new LeaseRegistry(), new TaskImageResolver());
+    TaskResourceResolver resourceResolver = new TaskResourceResolver();
+    ReflectionTestUtils.setField(resourceResolver, "limitMemory", "");
+    ReflectionTestUtils.setField(resourceResolver, "limitCpu", "");
+    DockerExecutor executor =
+        new DockerExecutor(client, helper, store, new LeaseRegistry(), new TaskImageResolver(), resourceResolver);
     ReflectionTestUtils.setField(executor, "imagePullPolicy", "IfNotPresent");
     ReflectionTestUtils.setField(executor, "taskStorageDataMemory", Boolean.FALSE);
     ReflectionTestUtils.setField(executor, "pollSeconds", 1L);
-    ReflectionTestUtils.setField(executor, "memoryLimit", "");
-    ReflectionTestUtils.setField(executor, "cpuLimit", "");
     return executor;
   }
 

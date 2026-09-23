@@ -244,17 +244,17 @@ Empty toleration or host-alias entries are dropped before dispatch, so a `[]` or
 the API server (`KubeHelperService.java:240`). None of these exist on a Docker host: the `docker` executor
 applies no runtime class, node selector, tolerations, host aliases or image pull secret, and a size, storage
 class or access mode authored on a workspace is recorded on the run and ignored, because a local Docker volume
-has none. What it does apply, when set, is `dispatcher.docker.memory` and `dispatcher.docker.cpus` (Docker CLI
-sizes; blank applies none, as on Kubernetes). Tasks, claims and ConfigMaps are created in `kube.namespace`,
+has none. What it does apply is the same container sizing as the Kubernetes executors, below. Tasks, claims and ConfigMaps are created in `kube.namespace`,
 or the kubeconfig context's namespace when it is blank; the dispatcher refuses to start when neither resolves
 (`config/KubeClientConfig.java:21,40`).
 
 ## Container resources
 
 Every task container carries the requests and limits one shared resolver reads from configuration
-(`executor/TaskResourceResolver.java`), so the sizing is the same on both executors: the Jobs executor sets it on
-the task container (`KubeJobsExecutor.java:200`) and the Tekton executor on the step's `computeResources`
-(`TektonServiceImpl.java:389`).
+(`executor/TaskResourceResolver.java`), so one property set sizes every runtime: the Jobs executor sets it on
+the task container (`KubeJobsExecutor.java:200`), the Tekton executor on the step's `computeResources`
+(`TektonServiceImpl.java:389`), and the Docker executor on the container's host config
+(`docker/DockerExecutor.java:189-196`). There is no second, runtime-specific set of sizing properties.
 
 | Property | Default | Applied as |
 | --- | --- | --- |
@@ -275,10 +275,12 @@ the ephemeral-storage limit keeps running, and a deployment that enables it size
 
 The sizing is per dispatcher deployment, not per task, the same shape as the isolation tier (decision 0042): a
 workflow author cannot ask for a bigger container, and a workload that needs different sizing runs a second
-dispatcher deployment with its own task types. A runtime that takes a byte or CPU count rather than a quantity
-string — the planned Docker executor — reads the same configured values through the resolver (`memoryLimitBytes`,
-`cpuLimitNanos`, a CPU count in nano-CPUs); Docker has no ephemeral-storage concept, so that pair is
-Kubernetes-only.
+dispatcher deployment with its own task types. Docker takes a byte count and a CPU count rather than a quantity
+string, so the executor reads the same configured values through the resolver's `memoryLimitBytes` and
+`cpuLimitNanos` (nano-CPUs, so `500m` is `500000000`) and sets them as the container's memory and NanoCPUs;
+blank means Docker imposes no limit, exactly as blank sets no Kubernetes limit. Docker ignores
+`kube.resource.limit.ephemeral-storage` and `kube.resource.request.ephemeral-storage`, which have no
+counterpart on a Docker host, and requests, which need a scheduler to mean anything.
 
 ## AI tasks
 

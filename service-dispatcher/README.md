@@ -12,7 +12,7 @@ using [docker-java](https://github.com/docker-java/docker-java). The per-task ru
 | ---------------- | -------------- | -------------- | ----- |
 | `tekton` (default) | `io.boomerang.kube.TektonServiceImpl` | Tekton `TaskRun` (v1) | Results via Tekton results; needs Tekton Pipelines installed. |
 | `kube-jobs` | `io.boomerang.kube.KubeJobsExecutor` | `batch/v1` `Job` | No Tekton dependency. `kube.task.backOffLimit` / `restartPolicy` / `ttlDays` apply; the task timeout becomes `activeDeadlineSeconds`. Results are read from the `task` container's termination message (`RESULTS_PATH=/dev/termination-log`, JSON object or Tekton `[{key,value}]` array, 4096-byte Kubernetes cap). Scripts are mounted at `/scripts/script` and MUST start with a shebang. |
-| `docker` | `io.boomerang.docker.DockerExecutor` | One container on the host daemon | No Kubernetes at all — the quickstart runtime. Reaches the daemon via `dispatcher.docker.host`, then `DOCKER_HOST`, then the local socket. The executor enforces the task timeout itself (Docker has no deadline) and reports `DeadlineExceeded`. Results are read from `RESULTS_PATH=/results.json`, copied out of the exited container. Scripts land at `/scripts/script` and MUST start with a shebang. Workspaces are labelled named volumes. No runtime class, node selector, tolerations, host aliases or image pull secret; `dispatcher.docker.memory` / `dispatcher.docker.cpus` apply when set. |
+| `docker` | `io.boomerang.docker.DockerExecutor` | One container on the host daemon | No Kubernetes at all — the quickstart runtime. Reaches the daemon via `dispatcher.docker.host`, then `DOCKER_HOST`, then the local socket. The executor enforces the task timeout itself (Docker has no deadline) and reports `DeadlineExceeded`. Results are read from `RESULTS_PATH=/results.json`, copied out of the exited container. Scripts land at `/scripts/script` and MUST start with a shebang. Workspaces are labelled named volumes. No runtime class, node selector, tolerations, host aliases or image pull secret; sizing comes from the same `kube.resource.limit.*` as the Kubernetes executors. |
 
 ## Task types and the `ai` type
 
@@ -61,8 +61,9 @@ registered task type.
 ## Container resources
 
 Every task container is sized by six deployment-wide properties, read in one place
-(`io.boomerang.executor.TaskResourceResolver`) and applied by both executors — on the `task` container for
-`kube-jobs`, on the step's `computeResources` for `tekton`:
+(`io.boomerang.executor.TaskResourceResolver`) and applied by all three executors — on the `task` container for
+`kube-jobs`, on the step's `computeResources` for `tekton`, and on the container's host config for `docker`.
+There is one property set for every runtime:
 
 | Property | Default | Applied as |
 | -------- | ------- | ---------- |
@@ -84,9 +85,14 @@ needs a bigger container runs a second dispatcher deployment with its own task t
 A memory-backed `/data` (`kube.task.storage.data.memory` plus the task's `worker.storage.data.memory` param) is a
 tmpfs: what the task writes there counts against the **memory** limit, not against ephemeral-storage. That is how
 a container that would breach the ephemeral-storage limit keeps running, so a deployment that enables it sizes
-memory to cover the data as well. A non-Kubernetes runtime reads the same values as a byte count and a CPU count
-(`memoryLimitBytes()`, `cpuLimitNanos()`); Docker has no ephemeral-storage concept, so that pair is
-Kubernetes-only.
+memory to cover the data as well.
+
+The `docker` executor reads the same values through the same resolver, as the counts Docker takes rather than
+quantity strings: `memoryLimitBytes()` becomes the container's memory limit and `cpuLimitNanos()` its nano-CPUs,
+so `16Gi` and `500m` mean on Docker exactly what they mean on Kubernetes. Blank means the same thing there too —
+Docker imposes no limit. Docker has no ephemeral-storage concept, so that pair is ignored by the `docker`
+executor and applies to the two Kubernetes executors only; requests have no meaning on a single host either,
+because there is no scheduler to inform.
 
 `dispatcher.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
 task on BOTH Kubernetes executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun
