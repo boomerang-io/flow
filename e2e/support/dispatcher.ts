@@ -1,7 +1,8 @@
 import type { APIRequestContext } from "@playwright/test";
 
 /*
- * Helpers for the dispatcher-backed scenarios (tests/dispatcher-kube.spec.ts): create a workflow
+ * Helpers for the dispatcher-backed scenarios (tests/dispatcher-kube.spec.ts and
+ * tests/dispatcher-docker.spec.ts): create a workflow
  * from an explicit task graph, submit it with start=true so the engine admits it immediately, and
  * poll the run until it reaches a terminal status. Everything goes straight to service-core's
  * REST API on API_ORIGIN, authenticated by the flow_session cookie the auth.setup project saved.

@@ -123,7 +123,12 @@ host daemon and the whole product runs with no Kubernetes at all — that contai
 of the host daemon, which suits a laptop and not a deployment. `docker-compose.kube.yml` runs it with
 `kube-jobs` against a laptop Kubernetes (OrbStack). Build the jars with Maven and the web app with pnpm first
 (`:18-33`); the Playwright suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`, see
-`performance.md`) run against this stack.
+`performance.md`) run against this stack. Each overlay has its own dispatcher scenarios, skipped unless their
+flag is set: `E2E_DISPATCHER=true` runs `e2e/tests/dispatcher-kube.spec.ts` against the Kubernetes overlay
+(`E2E_KUBECTL_CONTEXT` additionally enables the claim-release and pod-kill scenarios), and
+`E2E_DOCKER_DISPATCHER=true` runs `e2e/tests/dispatcher-docker.spec.ts` against the Docker overlay — a task
+container, the `PARAM_` and `RESULTS_PATH` contract, a labelled workspace volume released by reconciliation,
+and a typed failure reason.
 
 ## Not built
 
