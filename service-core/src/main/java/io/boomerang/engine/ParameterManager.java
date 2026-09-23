@@ -48,10 +48,9 @@ import org.springframework.stereotype.Service;
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  private static final String REGEX_DOT_NOTATION = "(?<=\\$\\().+?(?=\\))";
   // One compiled form of the reference pattern, shared by the discovery loop and the
   // single-reference test, so the two cannot drift apart.
-  private static final Pattern DOT_NOTATION_PATTERN = Pattern.compile(REGEX_DOT_NOTATION);
+  private static final Pattern DOT_NOTATION_PATTERN = Pattern.compile("(?<=\\$\\().+?(?=\\))");
   // Ceiling on the structural walk in replaceStringInObject: only string leaves are substituted,
   // so a pathological nesting cannot exhaust the stack.
   private static final int MAX_SUBSTITUTION_DEPTH = 32;
