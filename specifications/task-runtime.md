@@ -213,12 +213,16 @@ Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storag
 task param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:208-227`, `TektonServiceImpl.java:301`).
 Shared storage is a workflow-level opt-in with two types (`StorageType.java:12-13`), each a persistent
 volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPath`
-(`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). A task mounts only the workspaces it
-declares, and that list is set once: `DAGUtility` copies the node's `workspaces` onto the TaskRun
-(`engine/DAGUtility.java:214`) and nothing later in the run widens it to the run's whole set. The executor
-mounts by type and takes `mountPath` from the task's own declaration, falling back to `/workspace/<type>`
-when it is blank (`KubeJobsExecutor.java:307-310`, `TektonServiceImpl.java:230-234`) - the workflow-level
-`spec.mountPath` is stored but read by nothing. A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
+(`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). What a task mounts is decided once, when
+`DAGUtility` materialises the TaskRun, by a three-way rule on the node's `workspaces`
+(`engine/DAGUtility.java:230-249`): a declared list mounts exactly that list, an empty list is an explicit
+opt-out that mounts none, and no list at all - the canvas offers no way to declare them, so this is the
+ordinary case - inherits every workspace the run carries, in the run's order. Nothing later in the run
+changes that list. The executor mounts by type and takes `mountPath` from the task's own entry, falling back
+to `/workspace/<type>` when it is blank (`KubeJobsExecutor.java:307-310`, `TektonServiceImpl.java:230-234`);
+an inherited entry gets its `mountPath` from the workflow-level `spec.mountPath`, which is how that field is
+read, and a workspace whose `spec` is absent or does not convert leaves it null for that same fallback
+(`engine/DAGUtility.java:573-582`). A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
 and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted when the
 dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
 `mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
