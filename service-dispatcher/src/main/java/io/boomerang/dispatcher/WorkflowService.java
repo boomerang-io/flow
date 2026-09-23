@@ -5,7 +5,6 @@ import io.boomerang.dispatcher.model.WorkspaceRequest;
 import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.kube.KubeService;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.apache.logging.log4j.LogManager;
@@ -18,12 +17,12 @@ public class WorkflowService {
 
   private static final Logger LOGGER = LogManager.getLogger(WorkflowService.class);
 
-  private final KubeService kubeService;
+  private final WorkspaceStore workspaceStore;
 
   private final WorkspaceService workspaceService;
 
-  public WorkflowService(KubeService kubeService, WorkspaceService workspaceService) {
-    this.kubeService = kubeService;
+  public WorkflowService(WorkspaceStore workspaceStore, WorkspaceService workspaceService) {
+    this.workspaceStore = workspaceStore;
     this.workspaceService = workspaceService;
   }
 
@@ -50,9 +49,8 @@ public class WorkflowService {
                   String workspaceRef =
                       workspaceService.getWorkspaceRef(
                           ws.getType(), workflow.getWorkflowRef(), workflow.getId());
-                  boolean pvcExists =
-                      kubeService.checkWorkspacePVCExists(workspaceRef, ws.getType(), false);
-                  if (!pvcExists && ws.getSpec() != null) {
+                  boolean storageExists = workspaceStore.exists(workspaceRef, ws.getType());
+                  if (!storageExists && ws.getSpec() != null) {
                     WorkspaceRequest request = new WorkspaceRequest();
                     request.setName(ws.getName());
                     request.setLabels(workflow.getLabels());
@@ -62,8 +60,8 @@ public class WorkflowService {
                     request.setWorkflowRef(workflow.getWorkflowRef());
                     request.setWorkflowRunRef(workflow.getId());
                     workspaceService.create(request);
-                  } else if (pvcExists) {
-                    LOGGER.debug("Workspace (" + ws.getName() + ") PVC already existed.");
+                  } else if (storageExists) {
+                    LOGGER.debug("Workspace (" + ws.getName() + ") storage already existed.");
                   }
                 } catch (KubeRuntimeException | KubernetesClientException e) {
                   LOGGER.error(e.getMessage());

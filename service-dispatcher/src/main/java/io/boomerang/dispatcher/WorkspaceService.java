@@ -7,7 +7,6 @@ import io.boomerang.common.enums.StorageType;
 import io.boomerang.common.model.WorkflowWorkspaceSpec;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
-import io.boomerang.kube.KubeServiceImpl;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.apache.logging.log4j.LogManager;
@@ -33,10 +32,10 @@ public class WorkspaceService {
   @Value("${kube.timeout.waitUntil}")
   protected long waitUntilTimeout;
 
-  private final KubeServiceImpl kubeService;
+  private final WorkspaceStore workspaceStore;
 
-  public WorkspaceService(KubeServiceImpl kubeService) {
-    this.kubeService = kubeService;
+  public WorkspaceService(WorkspaceStore workspaceStore) {
+    this.workspaceStore = workspaceStore;
   }
 
   /*
@@ -56,9 +55,8 @@ public class WorkspaceService {
         String workspaceRef =
             getWorkspaceRef(
                 workspace.getType(), workspace.getWorkflowRef(), workspace.getWorkflowRunRef());
-        boolean pvcExists =
-            kubeService.checkWorkspacePVCExists(workspaceRef, workspace.getType(), false);
-        if (!pvcExists && workspace.getSpec() != null) {
+        boolean storageExists = workspaceStore.exists(workspaceRef, workspace.getType());
+        if (!storageExists && workspace.getSpec() != null) {
           WorkflowWorkspaceSpec spec =
               mapper.convertValue(workspace.getSpec(), WorkflowWorkspaceSpec.class);
           String size =
@@ -71,7 +69,7 @@ public class WorkspaceService {
               spec.getAccessMode() == null || spec.getAccessMode().isEmpty()
                   ? storageAccessMode
                   : spec.getAccessMode();
-          kubeService.createWorkspacePVC(
+          workspaceStore.create(
               workspace.getWorkflowRef(),
               workspaceRef,
               workspace.getType(),
@@ -80,7 +78,7 @@ public class WorkspaceService {
               className,
               accessMode,
               waitUntilTimeout);
-        } else if (pvcExists) {
+        } else if (storageExists) {
           LOGGER.debug("Workspace (" + workspace.getName() + ") already exists.");
         }
       } catch (KubeRuntimeException | KubernetesClientException | InterruptedException e) {
@@ -93,6 +91,10 @@ public class WorkspaceService {
         } else {
           throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+      } catch (RuntimeException e) {
+        // Whatever the store's own client throws - a Docker daemon error has no Kubernetes type.
+        LOGGER.error(e.getMessage());
+        throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } else {
       throw new BoomerangException(
@@ -123,8 +125,8 @@ public class WorkspaceService {
           (StorageType.fromLabel(workspace.getType()).orElse(null) == StorageType.workflow)
               ? workspace.getWorkflowRef()
               : workspace.getWorkflowRunRef();
-      kubeService.deleteWorkspacePVC(workspaceRef, workspace.getType());
-    } catch (KubeRuntimeException e) {
+      workspaceStore.delete(workspaceRef, workspace.getType());
+    } catch (RuntimeException e) {
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
     LOGGER.info("deleteWorkspace() - " + response.getMessage());
@@ -134,8 +136,8 @@ public class WorkspaceService {
   public Response delete(String type, String ref) {
     Response response = new Response("0", "Workspace has been successfully deleted.");
     try {
-      kubeService.deleteWorkspacePVC(ref, type);
-    } catch (KubeRuntimeException e) {
+      workspaceStore.delete(ref, type);
+    } catch (RuntimeException e) {
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
     LOGGER.info("deleteWorkspace() - " + response.getMessage());

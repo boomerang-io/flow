@@ -14,39 +14,28 @@ import static org.mockito.Mockito.when;
 import io.boomerang.client.EngineClient;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
-import io.boomerang.kube.KubeService;
-import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
-import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
+import io.boomerang.dispatcher.model.HeldWorkspace;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 /**
- * Pins the release contract: the cluster says which workspace claims are held, the engine says
+ * Pins the release contract: the workspace store says which workspaces are held, the engine says
  * whose owner is finished, and only the refs the engine names are deleted. Nothing on the run
- * records the release, so a failed tick must leave every claim held rather than guess.
+ * records the release, so a failed tick must leave every workspace held rather than guess.
  */
 class WorkspaceReconcilerTest {
 
-  private final KubeService kubeService = mock(KubeService.class);
+  private final WorkspaceStore workspaceStore = mock(WorkspaceStore.class);
   private final WorkspaceService workspaceService = mock(WorkspaceService.class);
   private final EngineClient engineClient = mock(EngineClient.class);
 
   private final WorkspaceReconciler reconciler =
-      new WorkspaceReconciler(kubeService, workspaceService, engineClient);
+      new WorkspaceReconciler(workspaceStore, workspaceService, engineClient);
 
-  private static PersistentVolumeClaim claim(String workspaceRef, String workspaceType) {
-    return new PersistentVolumeClaimBuilder()
-        .withNewMetadata()
-        .withName("bmrg-pvc-" + workspaceRef)
-        .withLabels(
-            Map.of(
-                "boomerang.io/workspace-ref", workspaceRef,
-                "boomerang.io/workspace-type", workspaceType))
-        .endMetadata()
-        .build();
+  private static HeldWorkspace claim(String workspaceRef, String workspaceType) {
+    return new HeldWorkspace(workspaceRef, workspaceType);
   }
 
   private static WorkspaceReleaseResponse response(
@@ -59,12 +48,12 @@ class WorkspaceReconcilerTest {
 
   @Test
   void refsAreGroupedByStorageTypeAndPagedAtFiveHundred() {
-    List<PersistentVolumeClaim> claims = new ArrayList<>();
+    List<HeldWorkspace> claims = new ArrayList<>();
     for (int i = 0; i < 600; i++) {
       claims.add(claim("run-" + i, "workflowrun"));
     }
     claims.add(claim("wf-1", "workflow"));
-    when(kubeService.listWorkspacePVCs()).thenReturn(claims);
+    when(workspaceStore.held()).thenReturn(claims);
     when(engineClient.releasableWorkspaces(any())).thenReturn(new WorkspaceReleaseResponse());
 
     reconciler.reconcile();
@@ -84,7 +73,7 @@ class WorkspaceReconcilerTest {
 
   @Test
   void onlyTheRefsTheEngineReturnsAreDeleted() {
-    when(kubeService.listWorkspacePVCs())
+    when(workspaceStore.held())
         .thenReturn(
             List.of(
                 claim("run-1", "workflowrun"),
@@ -101,10 +90,8 @@ class WorkspaceReconcilerTest {
   }
 
   @Test
-  void aClaimWithoutTheWorkspaceLabelsIsIgnored() {
-    PersistentVolumeClaim unlabelled =
-        new PersistentVolumeClaimBuilder().withNewMetadata().withName("stray").endMetadata().build();
-    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(unlabelled));
+  void aHeldWorkspaceWithoutItsLabelsIsIgnored() {
+    when(workspaceStore.held()).thenReturn(List.of(new HeldWorkspace(null, null)));
 
     reconciler.reconcile();
 
@@ -114,7 +101,7 @@ class WorkspaceReconcilerTest {
 
   @Test
   void anEngineFailureLeavesEveryClaimHeld() {
-    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1", "workflowrun")));
+    when(workspaceStore.held()).thenReturn(List.of(claim("run-1", "workflowrun")));
     when(engineClient.releasableWorkspaces(any())).thenThrow(new RuntimeException("engine down"));
 
     assertDoesNotThrow(reconciler::reconcile);
@@ -124,7 +111,7 @@ class WorkspaceReconcilerTest {
 
   @Test
   void anEmptyAnswerLeavesEveryClaimHeld() {
-    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1", "workflowrun")));
+    when(workspaceStore.held()).thenReturn(List.of(claim("run-1", "workflowrun")));
     when(engineClient.releasableWorkspaces(any())).thenReturn(new WorkspaceReleaseResponse());
 
     reconciler.reconcile();
@@ -134,7 +121,7 @@ class WorkspaceReconcilerTest {
 
   @Test
   void oneClaimThatWillNotDeleteDoesNotAbortTheTick() {
-    when(kubeService.listWorkspacePVCs())
+    when(workspaceStore.held())
         .thenReturn(List.of(claim("run-1", "workflowrun"), claim("run-2", "workflowrun")));
     when(engineClient.releasableWorkspaces(any()))
         .thenReturn(response(List.of("run-1", "run-2"), List.of()));

@@ -19,6 +19,8 @@
         <jacoco.version>0.8.15</jacoco.version>
         <kubernetes.version>7.8.0</kubernetes.version>
         <tekton.version>7.8.0</tekton.version>
+        <!-- Not managed by the Spring Boot BOM; pinned to the latest stable docker-java. -->
+        <docker-java.version>3.7.1</docker-java.version>
     </properties>
     <parent>
         <groupId>io.boomerang</groupId>
@@ -120,6 +122,19 @@
             <artifactId>kubernetes-server-mock</artifactId>
             <version>${kubernetes.version}</version>
             <scope>test</scope>
+        </dependency>
+        <!-- Docker Engine API client for the docker executor. docker-java-core plus the
+             httpclient5 transport only; the aggregate docker-java artifact drags in the Jersey and
+             Netty transports as well. -->
+        <dependency>
+            <groupId>com.github.docker-java</groupId>
+            <artifactId>docker-java-core</artifactId>
+            <version>${docker-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.docker-java</groupId>
+            <artifactId>docker-java-transport-httpclient5</artifactId>
+            <version>${docker-java.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.fge</groupId>

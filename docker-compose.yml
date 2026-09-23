@@ -7,13 +7,15 @@
 # service-core needs no CORS. service-core's own http://localhost:7700 stays reachable for
 # integrations, the dispatcher, and direct API use. No extra web servers locally.
 #
-# service-dispatcher is deliberately NOT part of this stack. It drives Tekton on a real Kubernetes
-# cluster (see specifications/task-runtime.md) - there is no docker-based dispatcher yet
-# (a local runtime is planned but not built). Without a cluster to talk to, an agent container here would
-# just crash-loop for zero E2E value: every journey this stack can prove (create a workspace,
-# create a workflow, submit a run and see it reach a real `ready`/`invalid` status, exercise an
-# admin screen) resolves entirely inside service-core. Only reaching `running`/`succeeded` on a
-# run needs a connected agent - out of scope until a local runtime exists.
+# service-dispatcher is not part of THIS file, because its default executor drives Tekton on a real
+# Kubernetes cluster (see specifications/task-runtime.md). Every journey this stack can prove on its
+# own (create a workspace, create a workflow, submit a run and see it reach a real `ready`/`invalid`
+# status, exercise an admin screen) resolves entirely inside service-core; only reaching
+# `running`/`succeeded` needs a connected dispatcher. Two overlays add one:
+#
+#   docker-compose.docker.yml  the docker executor - task containers on the host daemon, no
+#                              Kubernetes at all. This is the five-minute quickstart.
+#   docker-compose.kube.yml    the kube-jobs executor against a laptop Kubernetes (OrbStack).
 #
 # service-core and service-loader are Java services built by Maven, NOT by this compose file.
 # Build the jars first, then build/run the stack:
