@@ -87,8 +87,14 @@ Timeouts are deadline-based: `timeoutAt` = start time + budget in minutes + 5 s 
 timers; the sweeps above are the only reaper. A crashed dispatcher, a dead executor thread or a pod that died while the dispatcher's watch was closed is recovered by
 the same path: the claimed task's lease lapses (90 s without a heartbeat), or its dispatcher goes stale (60 s), or
 it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fenced on the
-observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.java:659-664`). A task's budget is the
-smaller of the workflow's `boomerang.io/task-timeout` annotation and the task's own timeout (`engine/DAGUtility.java:194-207`).
+observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.java:659-664`). A task's budget, in
+minutes, is the smallest of three ceilings — the platform setting stamped as the run's `boomerang.io/task-timeout`
+annotation, the task's own declared timeout, and the run's timeout — with 0 at any step meaning unguarded
+(`engine/DAGUtility.java:196-222`). The run is a ceiling because of decision 0063: a guard must cover the work
+beneath it, so a task can never outlive the run containing it. By default a task simply inherits its run's
+timeout: the seed ships `task`/`default.timeout` at 0, so no annotation is stamped at all
+(`workflow/WorkflowService.java:654-668`), and the per-task ceiling is an optional operator control for capping a
+single pod inside a long-running graph rather than a budget every task is entitled to spend.
 A task timeout on the final write times out the whole run (`TaskExecutionService.java:487-490`); a workflow timeout
 cancels every queued, running and pending task (`engine/WorkflowExecutionService.java:259-292`).
 
