@@ -6,8 +6,11 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowWorkspace;
+import io.boomerang.common.model.WorkflowWorkspaceSpec;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.common.error.BoomerangError;
@@ -40,10 +43,13 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class DAGUtility {
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final TaskRunRepository taskRunRepository;
   private final TaskService taskService;
@@ -221,10 +227,25 @@ public class DAGUtility {
           }
           taskRunEntity.setTimeout(timeout);
 
-          // Workspaces this Task mounts - the executor resolves each by type and honours its
-          // mountPath. Absent on the Workflow Task leaves the TaskRun's default (none mounted).
+          // Workspaces this Task mounts, decided once here by a three-way rule: a declared list
+          // mounts exactly that list; an empty list is an explicit opt-out and mounts none; no
+          // list at all inherits every workspace the run carries, which is what a Task authored
+          // on the canvas gets because there is no way to declare workspaces on it. An inherited
+          // workspace takes its mountPath from the workflow-level spec when that converts, and
+          // otherwise leaves it null for the executor's /workspace/<type> fallback.
           if (wfRevisionTask.getWorkspaces() != null) {
             taskRunEntity.setWorkspaces(wfRevisionTask.getWorkspaces());
+          } else if (wfRunEntity.getWorkspaces() != null) {
+            List<TaskWorkspace> inherited = new LinkedList<>();
+            for (WorkflowWorkspace workspace : wfRunEntity.getWorkspaces()) {
+              TaskWorkspace taskWorkspace = new TaskWorkspace();
+              taskWorkspace.setName(workspace.getName());
+              taskWorkspace.setType(workspace.getType());
+              taskWorkspace.setOptional(workspace.isOptional());
+              taskWorkspace.setMountPath(mountPathOf(workspace.getSpec()));
+              inherited.add(taskWorkspace);
+            }
+            taskRunEntity.setWorkspaces(inherited);
           }
 
           // Set TaskRun Spec from Task Spec - Debug and Deletion come from an alternate
@@ -544,6 +565,20 @@ public class DAGUtility {
 
   private TaskRunEntity getTaskById(List<TaskRunEntity> tasks, String id) {
     return tasks.stream().filter(tsk -> id.equals(tsk.getId())).findAny().orElse(null);
+  }
+
+  // The workflow-level workspace spec is an untyped Object: absent on every workflow created
+  // through the engine, and free-form enough that it need not carry a mountPath at all. Neither
+  // case is an error - the executor falls back to /workspace/<type> for a null mountPath.
+  private String mountPathOf(Object workspaceSpec) {
+    try {
+      WorkflowWorkspaceSpec spec =
+          OBJECT_MAPPER.convertValue(workspaceSpec, WorkflowWorkspaceSpec.class);
+      return spec != null ? spec.getMountPath() : null;
+    } catch (IllegalArgumentException | JacksonException e) {
+      LOGGER.warn("Unable to read a mountPath from the workspace spec, defaulting it.", e);
+      return null;
+    }
   }
 
   public List<TaskRunEntity> getTasksDependants(
