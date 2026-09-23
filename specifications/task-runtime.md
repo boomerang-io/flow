@@ -82,11 +82,21 @@ characters are inserted verbatim: a multi-line prompt, a JSON body, a shell scri
 trailing newline reaches the container byte for byte
 (`ParameterManager.replaceStringInObject`). One pass, left to right; a reference that matches nothing is left
 as written. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
-(`{"k":"v"}`), matching how the dispatcher encodes a non-string param value; a reference that is the whole
-value of an `object`-typed param returns the structure itself instead (`ParameterManager.resolveParam`). If
-substitution fails for any reason — a value that resolves to itself, say — the original value is passed
+(`{"k":"v"}`), matching how the dispatcher encodes a non-string param value.
+
+An `object`-typed param resolves to the referenced structure itself only when its value is **exactly one
+reference and nothing else** — `"$(params.config)"`, ignoring surrounding whitespace
+(`ParameterManager.isSingleReference`). Any other `object` value keeps its shape: the engine walks the Map,
+Collection or array, substitutes the string leaves and the string keys in place, and leaves numbers and
+booleans untouched, so `{"url": "$(params.host)/api", "retries": 3}` resolves to
+`{"url": "https://example.com/api", "retries": 3}`. References are discovered over the value's flattened
+text, so a reference nested in any leaf is still found; substitution then walks the real structure. A leaf
+that is itself a whole reference to an object follows the interpolation rule above and is written as JSON.
+
+If substitution fails for any reason — a value that resolves to itself, say — the original value is passed
 through unchanged and the failure is logged with the value's shape, never its content, because a
 password-typed param resolves through the same path.
+
 The dispatcher then sets these environment variables (`kube/KubeHelperService.java:111-149`):
 
 | Variable | Value |

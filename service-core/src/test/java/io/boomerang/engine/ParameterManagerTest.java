@@ -306,14 +306,98 @@ class ParameterManagerTest {
     assertEquals("items=[\"a\",\"b\"]", resolved(run, "ref"));
   }
 
-  // An object-typed param whose value IS a single reference keeps the structure (resolveParam's
-  // ParamType.object branch returns before any string substitution).
+  // An object-typed param whose value IS a single reference keeps the structure - the one case
+  // resolveParam returns the referenced value instead of substituting into string leaves.
   @Test
   void objectTypedParamKeepsTheStructureOfItsReplacement() {
     WorkflowRunEntity run =
         run(object("src", Map.of("k", "v")), object("ref", "$(params.src)"));
     parameterManager.resolveParamLayers(run, Optional.empty());
     assertEquals(Map.of("k", "v"), value(run, "ref"));
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // An object-typed param whose value is a STRUCTURE containing references used to resolve to the
+  // first reference's value alone: resolveParam returned on the first match for any object param,
+  // so every other key, every literal around the reference, and the object shape itself were
+  // dropped. The short-circuit now applies only to a value that is exactly one reference, and
+  // everything else walks the structure through replaceStringInObject.
+  // ---------------------------------------------------------------------------------------------
+
+  // The reported shape: a reference with a literal suffix beside an unrelated key.
+  @Test
+  void objectParamKeepsEveryKeyWhenAReferenceHasSurroundingText() {
+    WorkflowRunEntity run =
+        run(
+            str("host", "https://example.com"),
+            object("cfg", Map.of("url", "$(params.host)/api", "retries", 3)));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(Map.of("url", "https://example.com/api", "retries", 3), value(run, "cfg"));
+  }
+
+  // Surrounding whitespace does not make a value "text around a reference": an object-typed param
+  // still resolves to the structure, because a structure cannot carry the spaces anyway.
+  @Test
+  void objectTypedParamKeepsTheStructureDespiteSurroundingWhitespace() {
+    WorkflowRunEntity run =
+        run(object("src", Map.of("k", "v")), object("ref", "  $(params.src)  "));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(Map.of("k", "v"), value(run, "ref"));
+  }
+
+  // Two references in different leaves both resolve - the old short-circuit returned on the first.
+  @Test
+  void objectParamResolvesAReferenceInEveryLeaf() {
+    WorkflowRunEntity run =
+        run(
+            str("host", "example.com"),
+            str("port", "8443"),
+            object(
+                "cfg",
+                Map.of("host", "$(params.host)", "address", "$(params.host):$(params.port)")));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(Map.of("host", "example.com", "address", "example.com:8443"), value(run, "cfg"));
+  }
+
+  // A reference two levels down: a Map inside a List inside a Map.
+  @Test
+  void objectParamResolvesAReferenceNestedTwoLevelsDeep() {
+    WorkflowRunEntity run =
+        run(
+            str("host", "example.com"),
+            object("cfg", Map.of("servers", List.of(Map.of("url", "https://$(params.host)/v1")))));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(
+        Map.of("servers", List.of(Map.of("url", "https://example.com/v1"))), value(run, "cfg"));
+  }
+
+  // Map KEYS are substituted too, the same as they were under the whole-document substitution.
+  @Test
+  void objectParamResolvesAReferenceInAMapKey() {
+    WorkflowRunEntity run =
+        run(str("env", "production"), object("cfg", Map.of("$(params.env)", "on")));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(Map.of("production", "on"), value(run, "cfg"));
+  }
+
+  // A leaf that is itself a whole reference to an object renders as JSON, the same rule a
+  // structured replacement takes anywhere inside a string. Only the param's OWN value being
+  // exactly one reference returns the structure.
+  @Test
+  void objectParamRendersAStructuredLeafReplacementAsJson() {
+    WorkflowRunEntity run =
+        run(object("src", Map.of("k", "v")), object("cfg", Map.of("nested", "$(params.src)")));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(Map.of("nested", "{\"k\":\"v\"}"), value(run, "cfg"));
+  }
+
+  // A List-valued object param is walked as well as a Map-valued one.
+  @Test
+  void objectParamResolvesAReferenceInsideAList() {
+    WorkflowRunEntity run =
+        run(str("host", "example.com"), object("hosts", List.of("$(params.host):80", "localhost")));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals(List.of("example.com:80", "localhost"), value(run, "hosts"));
   }
 
   // Spec fields take the same literal value: this is what the dispatcher writes into the

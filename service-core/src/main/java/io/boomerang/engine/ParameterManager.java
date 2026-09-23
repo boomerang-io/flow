@@ -49,6 +49,9 @@ public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String REGEX_DOT_NOTATION = "(?<=\\$\\().+?(?=\\))";
+  // One compiled form of the reference pattern, shared by the discovery loop and the
+  // single-reference test, so the two cannot drift apart.
+  private static final Pattern DOT_NOTATION_PATTERN = Pattern.compile(REGEX_DOT_NOTATION);
   // Ceiling on the structural walk in replaceStringInObject: only string leaves are substituted,
   // so a pathological nesting cannot exhaust the stack.
   private static final int MAX_SUBSTITUTION_DEPTH = 32;
@@ -247,12 +250,18 @@ public class ParameterManager {
     // rejection of case/separator-variant duplicates (ParameterUtil.paramNameCollisions).
     Map<String, Object> flatParamLayers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     flatParamLayers.putAll(paramLayers.getFlatMap());
-    Pattern pattern = Pattern.compile(REGEX_DOT_NOTATION);
     if (Objects.isNull(originalValue)) {
       return originalValue;
     }
-    Matcher m = pattern.matcher(originalValue.toString());
+    // References are discovered over the value's flattened text, which is how a reference nested
+    // inside a Map or a List is found at all; substitution then walks the real structure.
+    Matcher m = DOT_NOTATION_PATTERN.matcher(originalValue.toString());
     Object resolvedValue = originalValue;
+    // An object-typed param resolves to the referenced structure only when its value is exactly
+    // one reference and nothing else. Returning on the first match regardless collapsed
+    // {"url": "$(params.host)/api", "retries": 3} to the host string - the structure, the "/api"
+    // suffix and every other key were dropped and an object silently became a string.
+    boolean singleReference = ParamType.object.equals(type) && isSingleReference(originalValue);
     Map<String, Object> foundKeyValues = new HashMap<>();
     while (m.find()) {
       String foundKey = m.group(0);
@@ -282,12 +291,11 @@ public class ParameterManager {
         foundValue = taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
       }
       if (!Objects.isNull(foundValue)) {
-        if (ParamType.object.equals(type)) {
+        if (singleReference) {
           return foundValue;
-        } else {
-          LOGGER.debug("Pattern Matched: " + foundKey + " = " + foundValue.toString());
-          foundKeyValues.put(foundKey, foundValue);
         }
+        LOGGER.debug("Pattern Matched: " + foundKey + " = " + foundValue.toString());
+        foundKeyValues.put(foundKey, foundValue);
       }
     }
     if (!foundKeyValues.isEmpty()) {
@@ -347,6 +355,29 @@ public class ParameterManager {
     return result.get().getValue();
   }
 
+  /*
+   * Whether a value is a String whose whole content is one reference - "$(params.config)" and
+   * nothing else. Tested with the same pattern the discovery loop uses: exactly one match, opening
+   * on the first character (the lookbehind guarantees the two characters before a match are "$(")
+   * and closing on the last (the lookahead guarantees the character after a match is ")").
+   *
+   * Surrounding whitespace is ignored. A structure cannot carry leading or trailing spaces, so
+   * trimming loses nothing, whereas counting them as surrounding text would turn
+   * " $(params.config)" into a JSON string - the silent object-to-string change this guard exists
+   * to prevent.
+   */
+  private static boolean isSingleReference(Object value) {
+    if (!(value instanceof String string)) {
+      return false;
+    }
+    String trimmed = string.trim();
+    Matcher matcher = DOT_NOTATION_PATTERN.matcher(trimmed);
+    return matcher.find()
+        && matcher.start() == 2
+        && matcher.end() == trimmed.length() - 1
+        && !matcher.find();
+  }
+
   private boolean isReservedScope(String scope) {
     // Case-insensitive like the rest of reference matching (ruled 2026-08-26).
     return List.of(reservedScope).stream().anyMatch(s -> s.equalsIgnoreCase(scope));
@@ -365,7 +396,8 @@ public class ParameterManager {
    * JSON, the same encoding the dispatcher gives a non-string param on its way into a container -
    * not Java's Map.toString() ("{k=v}"), which nothing downstream can read. A reference that is
    * the whole value of an object-typed param never reaches here: resolveParam returns the
-   * structure itself.
+   * referenced structure itself. An object-typed param whose value CONTAINS references does reach
+   * here, and its Map and Collection are walked.
    *
    * Any unexpected failure returns the value unchanged - verbatim passthrough, the same fallback
    * an unmatched reference takes - rather than null, which surfaces components away as a missing
