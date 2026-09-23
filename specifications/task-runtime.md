@@ -42,11 +42,20 @@ and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClien
 
 `TaskExecutor` has four methods — `create`, `watch`, `cancel`, `delete`
 (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-27`). `TaskService` requires an
-image (`dispatcher/TaskService.java:69-71`), defaults the timeout to `kube.task.timeout` (60 minutes, `:52-54`),
-runs `create` then `watch`, and deletes the runtime object per `kube.task.deletion` (`Never` default,
-`OnSuccess`, `Always` — `:48-50,76-79,98-100`). The delete waits a one-second grace before calling `delete`, and
-runs off the caller's thread: `TaskService` reaches its own `@Async` method through a self proxy
-(`:41,112-119`), so the dispatch thread is free as soon as the Task itself has finished.
+image (`dispatcher/TaskService.java:69-71`), falls back to `kube.task.timeout` (60 minutes, `:52-54`) whenever the
+TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per
+`kube.task.deletion` (`Never` default, `OnSuccess`, `Always` — `:48-50,76-79,98-100`). The delete waits a
+one-second grace before calling `delete`, and runs off the caller's thread: `TaskService` reaches its own
+`@Async` method through a self proxy (`:41,112-119`), so the dispatch thread is free as soon as the Task itself
+has finished.
+
+The timeout the TaskRun arrives with is settled by the engine, not here: it is the smallest of the platform
+setting stamped as `boomerang.io/task-timeout`, the task's own declared timeout, and the run's timeout, with 0
+meaning unguarded (`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:196-222`). The seed ships the
+platform setting (`task`/`default.timeout`) at 0, so by default a task inherits its run's timeout and the setting
+is an optional operator ceiling for capping one pod inside a long-running graph; a TaskRun that reaches the
+dispatcher unguarded still gets `kube.task.timeout` as a per-pod backstop.
+
 `dispatcher.executor` picks one implementation:
 
 | `dispatcher.executor` | Class | Runtime object | Timeout | Results channel | Cancel |

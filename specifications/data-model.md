@@ -157,6 +157,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0043__RunPhaseFinalizedIsCompleted` | all | Rewrites the retired `finalized` phase to `completed` on `workflow_runs` and `task_runs`; `completed` is terminal and `RunPhase` no longer has the old member |
 | `_0046__DeclareRunWorkflowWaitParam` | all | Declares the `wait` param on the `run-workflow` catalogue task, adds `max.nesting.depth` to the `workflowrun` settings document, creates the child-run index (table above) |
 | `_0047__SeedAiTask` | all | Inserts the `ai` catalogue task, its version 1 revision and its `root:root --hasTask-->` edge from the same seed documents `_0022` reads — the upgrade path for a catalogue entry added after `_0022` was already recorded as applied |
+| `_0048__TaskDefaultTimeoutInheritsTheRun` | all | Sets `task`/`default.timeout` to `0` (no per-task ceiling, a task inherits its run's timeout) — but only where the value is still the shipped `90`; any other number is an operator's choice and stays. Brings the entry's `label`/`description` to the seed's wording either way |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

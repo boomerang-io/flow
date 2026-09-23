@@ -1304,6 +1304,89 @@ class LoaderMigrationTest {
     changelog.deleteMany(Filters.in("_id", stale));
   }
 
+  /**
+   * {@code _0048__TaskDefaultTimeoutInheritsTheRun}: the shipped 90-minute per-task default
+   * becomes 0 - "no ceiling, inherit the run's timeout" - but only where it is still the seeded
+   * 90. An install whose operator chose their own number keeps it, and the display wording tracks
+   * the seed either way.
+   */
+  @Test
+  void taskDefaultTimeoutDropsTheSeededNinetyAndLeavesOperatorValuesAlone() {
+    String uri = MONGO.getReplicaSetUrl("tasktimeoutdefault");
+    MongoDatabase upgraded = client.getDatabase("tasktimeoutdefault");
+    // A pre-_0048 task settings document under the seed's own _id, so _0021__SeedSettings skips
+    // it (matched by _id) and the legacy 90 is what _0048 has to find.
+    upgraded
+        .getCollection(PREFIX + "_settings")
+        .insertOne(
+            new Document("_id", SEEDED_TASK_SETTINGS_ID)
+                .append("key", "task")
+                .append("name", "Task Configuration")
+                .append("type", "ValuesList")
+                .append(
+                    "config",
+                    List.of(
+                        new Document("key", "debug").append("value", "false"),
+                        new Document("key", "default.timeout")
+                            .append("label", "Task Timeout Configuration")
+                            .append("description", "Task Timeout Configuration specified in minutes")
+                            .append("type", "number")
+                            .append("value", "90"))));
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(taskDefaultTimeout(upgraded).getString("value"))
+        .as("the seeded 90 becomes 0 - a task inherits its run's timeout")
+        .isEqualTo("0");
+    assertThat(taskDefaultTimeout(upgraded).getString("label")).isEqualTo("Maximum task duration");
+    assertThat(taskDefaultTimeout(upgraded).getString("description"))
+        .contains("Set to 0 to let tasks inherit");
+    assertThat(taskDefaultTimeout(upgraded).getString("type"))
+        .as("only value/label/description move - the input type is untouched")
+        .isEqualTo("number");
+
+    // A second run changes nothing, whether or not the audit row is there to stop it: 0 is not
+    // the seeded 90, so the value gate declines it.
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    forgetChangeUnit(upgraded, "0048-task-default-timeout-inherits-the-run");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(taskDefaultTimeout(upgraded).getString("value")).isEqualTo("0");
+
+    // An operator's own number is theirs: 45 survives a re-run untouched, wording and all.
+    setTaskDefaultTimeout(upgraded, "45");
+    forgetChangeUnit(upgraded, "0048-task-default-timeout-inherits-the-run");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(taskDefaultTimeout(upgraded).getString("value"))
+        .as("45 is an operator choice, not the seeded default")
+        .isEqualTo("45");
+    assertThat(taskDefaultTimeout(upgraded).getString("label")).isEqualTo("Maximum task duration");
+
+    // And the gate is the value, not the run count: put 90 back and it is rewritten again.
+    setTaskDefaultTimeout(upgraded, "90");
+    forgetChangeUnit(upgraded, "0048-task-default-timeout-inherits-the-run");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(taskDefaultTimeout(upgraded).getString("value")).isEqualTo("0");
+  }
+
+  /** {@code seed/settings.json}'s _id for the task configuration document. */
+  private static final ObjectId SEEDED_TASK_SETTINGS_ID =
+      new ObjectId("5f32cb19d09662744c0df51d");
+
+  @SuppressWarnings("unchecked")
+  private static Document taskDefaultTimeout(MongoDatabase database) {
+    Document task =
+        database.getCollection(PREFIX + "_settings").find(Filters.eq("key", "task")).first();
+    return ((List<Document>) task.get("config"))
+        .stream().filter(c -> "default.timeout".equals(c.getString("key"))).findFirst().orElseThrow();
+  }
+
+  private static void setTaskDefaultTimeout(MongoDatabase database, String value) {
+    database
+        .getCollection(PREFIX + "_settings")
+        .updateOne(
+            Filters.and(Filters.eq("key", "task"), Filters.eq("config.key", "default.timeout")),
+            Updates.set("config.$.value", value));
+  }
+
   private static ObjectId insertPlainUser(MongoCollection<Document> users, String email) {
     ObjectId id = new ObjectId();
     users.insertOne(new Document("_id", id).append("email", email).append("type", "user"));

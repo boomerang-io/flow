@@ -193,8 +193,16 @@ public class DAGUtility {
             taskRunEntity.setParams(wfRevisionTask.getParams());
           }
           LOGGER.debug("[{}] Task Run Params: {}", wfRunEntity.getId(), taskRunEntity.getParams());
-          // Timeout = the platform default (boomerang.io/task-timeout), or the task's own
-          // value when set and not greater. 0 = unguarded.
+          // Timeout, in minutes, is the smallest of three ceilings, in this order:
+          //   1. the platform default (the boomerang.io/task-timeout annotation),
+          //   2. the task's own declared timeout, when set and not greater,
+          //   3. the run's own timeout, when set and not greater.
+          // 0 at any step means "unguarded" and imposes no ceiling; a task ends up at 0 only when
+          // all three are 0. The run is a ceiling because of decision 0063: a guard must cover the
+          // work beneath it, so a task must never outlive the run guard around it. Without this the
+          // run watcher reaps a healthy task at the run deadline while that task still believes it
+          // has budget left — and on a fresh install it would, because the seeded per-task ceiling
+          // is a per-pod limit, not a budget each task is entitled to spend.
           long timeout =
               wfRunEntity.getAnnotations() != null
                       && wfRunEntity.getAnnotations().get("boomerang.io/task-timeout") != null
@@ -205,6 +213,11 @@ public class DAGUtility {
               && wfRevisionTask.getTimeout() > 0
               && (timeout <= 0 || wfRevisionTask.getTimeout() < timeout)) {
             timeout = wfRevisionTask.getTimeout();
+          }
+          if (wfRunEntity.getTimeout() != null
+              && wfRunEntity.getTimeout() > 0
+              && (timeout <= 0 || wfRunEntity.getTimeout() < timeout)) {
+            timeout = wfRunEntity.getTimeout();
           }
           taskRunEntity.setTimeout(timeout);
 

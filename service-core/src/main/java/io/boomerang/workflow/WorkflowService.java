@@ -685,9 +685,16 @@ public class WorkflowService {
     executionAnnotations.put(
         "boomerang.io/task-default-image",
         this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.image").getValue());
-    executionAnnotations.put(
-        "boomerang.io/task-timeout",
-        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue());
+    // The per-task ceiling is an optional operator control, not a budget every task is entitled
+    // to spend: the seed ships it at 0 so a task inherits its run's timeout, and an operator who
+    // wants a hard per-pod limit sets a number. A blank value means the same as 0 - an install
+    // whose setting was cleared by hand or arrived blank from a v3 migration stamps no annotation
+    // at all rather than handing DAGUtility a string Long.parseLong cannot read.
+    String taskTimeoutSetting =
+        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue();
+    if (taskTimeoutSetting != null && !taskTimeoutSetting.isBlank()) {
+      executionAnnotations.put("boomerang.io/task-timeout", taskTimeoutSetting);
+    }
 
     // Add Context, Global, and Workspace parameters to the WorkflowRun request
     ParamLayers paramLayers = paramLayerService.buildParamLayers(team, workflow);
