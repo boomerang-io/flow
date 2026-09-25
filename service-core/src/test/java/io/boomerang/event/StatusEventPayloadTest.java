@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -78,6 +79,24 @@ class StatusEventPayloadTest {
     JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun(), EventPayload.full));
     assertThat(taskRunData.propertyNames()).contains("params", "results", "spec", "name");
     assertThat(taskRunData.get("results").get(0).get("value").asString()).isEqualTo("result-value");
+  }
+
+  // The full model leaves the platform, so a secret-typed param goes out as the redaction marker,
+  // and the entity the event was built from keeps its real value.
+  @Test
+  void theFullPayloadRedactsSecretTypedParams() throws Exception {
+    WorkflowRunEntity wfRun = workflowRun();
+    wfRun.setParams(List.of(new RunParam("dbPassword", "s3cret-value", ParamType.secret)));
+    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, EventPayload.full));
+    assertThat(workflowRunData.get("params").get(0).get("value").asString()).isEqualTo("*****");
+    assertThat(workflowRunData.get("params").get(0).get("type").asString()).isEqualTo("secret");
+    assertThat(wfRun.getParams().get(0).getValue()).isEqualTo("s3cret-value");
+
+    TaskRunEntity taskRun = taskRun();
+    taskRun.setParams(List.of(new RunParam("dsn", "postgres://app:pw@db", ParamType.secret)));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, EventPayload.full));
+    assertThat(taskRunData.toString()).doesNotContain("postgres://app:pw@db");
+    assertThat(taskRun.getParams().get(0).getValue()).isEqualTo("postgres://app:pw@db");
   }
 
   @Test

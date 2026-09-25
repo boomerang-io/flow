@@ -417,6 +417,91 @@ class ParameterManagerTest {
     assertEquals(prompt, task.getSpec().getEnvs().get(0).getValue());
   }
 
+  // ── Taint: a string that takes in a secret becomes a secret ────────────────
+
+  @Test
+  void aStringParamThatSubstitutesASecretBecomesASecret() {
+    WorkflowRunEntity run =
+        run(
+            secret("dbPassword", "s3cr3t-pa55"),
+            str("dsn", "postgres://app:$(params.dbPassword)@db"),
+            str("host", "db"),
+            str("url", "https://$(params.host)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("postgres://app:s3cr3t-pa55@db", resolved(run, "dsn"));
+    assertEquals(ParamType.secret, type(run, "dsn"));
+    assertEquals("https://db", resolved(run, "url"));
+    assertEquals(ParamType.string, type(run, "url"), "no secret in, no taint");
+  }
+
+  @Test
+  void theScopedWorkflowReferenceTaintsToo() {
+    WorkflowRunEntity run =
+        run(secret("token", "tok-123456"), str("header", "Bearer $(workflow.params.token)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("Bearer tok-123456", resolved(run, "header"));
+    assertEquals(ParamType.secret, type(run, "header"));
+  }
+
+  // Absent type is string, as it always was: substituted, and tainted like any string.
+  @Test
+  void anUntypedParamResolvesAsAStringAndCanBeTainted() {
+    WorkflowRunEntity run =
+        run(secret("pw", "hunter2-long"), new RunParam("plain", "x-$(params.pw)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("x-hunter2-long", resolved(run, "plain"));
+    assertEquals(ParamType.secret, type(run, "plain"));
+  }
+
+  @Test
+  void aSecretParamResolvesItsOwnReferencesAndStaysSecret() {
+    WorkflowRunEntity run = run(str("user", "app"), secret("login", "$(params.user):pw-9999"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("app:pw-9999", resolved(run, "login"));
+    assertEquals(ParamType.secret, type(run, "login"));
+  }
+
+  // A secret is a string only: an array or object that takes one in keeps its type, and the
+  // value scrub on the way out covers it.
+  @Test
+  void anArrayOrObjectThatSubstitutesASecretKeepsItsType() {
+    WorkflowRunEntity run =
+        run(
+            secret("pw", "hunter2-long"),
+            new RunParam("args", new java.util.ArrayList<>(List.of("--pw=$(params.pw)")), ParamType.array),
+            object("cfg", Map.of("auth", "$(params.pw)")));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals(List.of("--pw=hunter2-long"), value(run, "args"));
+    assertEquals(ParamType.array, type(run, "args"));
+    assertEquals(Map.of("auth", "hunter2-long"), value(run, "cfg"));
+    assertEquals(ParamType.object, type(run, "cfg"));
+  }
+
+  // The task layer: a task param referencing a workflow secret becomes a secret; a task param of
+  // the same name shadows the workflow secret, exactly as it shadows its value.
+  @Test
+  void aTaskParamTakesTheTaintOfTheLayerThatWins() {
+    WorkflowRunEntity run = run(secret("apiKey", "sk-live-0001"), secret("shadowed", "wf-secret-1"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("header", "X-Key: $(params.apiKey)"),
+            str("shadowed", "task-value"),
+            str("uses", "$(params.shadowed)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("X-Key: sk-live-0001", taskValue(task, "header"));
+    assertEquals(ParamType.secret, taskType(task, "header"));
+    assertEquals("task-value", taskValue(task, "uses"));
+    assertEquals(ParamType.string, taskType(task, "uses"));
+  }
+
   private void stubTask(String name, RunResult result) {
     TaskRunEntity task = new TaskRunEntity();
     task.setResults(List.of(result));
@@ -433,6 +518,34 @@ class ParameterManagerTest {
 
   private static RunParam str(String name, String value) {
     return new RunParam(name, value, ParamType.string);
+  }
+
+  private static RunParam secret(String name, String value) {
+    return new RunParam(name, value, ParamType.secret);
+  }
+
+  private static ParamType type(WorkflowRunEntity run, String name) {
+    return run.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getType();
+  }
+
+  private static Object taskValue(TaskRunEntity task, String name) {
+    return task.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getValue();
+  }
+
+  private static ParamType taskType(TaskRunEntity task, String name) {
+    return task.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getType();
   }
 
   private static RunParam object(String name, Object value) {

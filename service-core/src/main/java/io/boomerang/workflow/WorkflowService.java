@@ -14,6 +14,7 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
@@ -612,7 +613,11 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      return this.internalSubmit(team, refs.get(0), request, start, initiatedByRef);
+      WorkflowRun wfRun = this.internalSubmit(team, refs.get(0), request, start, initiatedByRef);
+      // The submit response is a consumer read like any other: secret-typed params go out
+      // redacted. The filter copies the params, so the run the engine holds is untouched.
+      DataAdapterUtil.filterWorkflowRunValueByFieldType(wfRun, ParamType.secret);
+      return wfRun;
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -1921,6 +1926,7 @@ public class WorkflowService {
       wfRunEntity.setParams(
           ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams()));
     }
+    rejectNonStringSecrets(wfRunEntity.getParams());
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       wfRunEntity.getWorkspaces().addAll(request.getWorkspaces());
     }
@@ -1947,6 +1953,25 @@ public class WorkflowService {
     annotations.put("boomerang.io/kind", "WorkflowRun");
     wfRunEntity.getAnnotations().putAll(annotations);
     return workflowRunService.run(wfRunEntity, start);
+  }
+
+  /*
+   * A secret is a string only: substitution, redaction and the container environment all treat
+   * it as one. Checked on the merged params, so a declared secret and one sent as a secret on the
+   * request are held to the same rule. An absent value is allowed, as it is for any param.
+   */
+  private static void rejectNonStringSecrets(List<RunParam> params) {
+    if (params == null) {
+      return;
+    }
+    params.stream()
+        .filter(p -> ParamType.secret.equals(p.getType()))
+        .filter(p -> p.getValue() != null && !(p.getValue() instanceof String))
+        .findFirst()
+        .ifPresent(
+            p -> {
+              throw new BoomerangException(BoomerangError.PARAM_SECRET_NOT_STRING, p.getName());
+            });
   }
 
   /*

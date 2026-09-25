@@ -1,11 +1,13 @@
 package io.boomerang.common.util;
 
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.WorkflowRun;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -128,6 +130,82 @@ public class DataAdapterUtil {
         .map(Object::toString)
         .filter(v -> !v.isBlank())
         .collect(Collectors.toSet());
+  }
+
+  /**
+   * The values of the run params whose OWN type is {@code paramType} - the run-time counterpart of
+   * the spec join above. A secret-typed param needs no definition to be recognised: it may have
+   * been sent as a secret on the run request, or become one when a secret was substituted into it.
+   */
+  public static Set<String> sensitiveValues(List<RunParam> runParams, ParamType paramType) {
+    if (runParams == null || paramType == null) {
+      return Set.of();
+    }
+    return runParams.stream()
+        .filter(p -> paramType.equals(p.getType()))
+        .map(RunParam::getValue)
+        .filter(Objects::nonNull)
+        .map(Object::toString)
+        .filter(v -> !v.isBlank())
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * The values of every {@code paramType} param on a WorkflowRun MODEL and on each of its tasks, so
+   * a caller can scrub them from free text (results, scripts, logs) where they appear under no
+   * param at all. Read-only.
+   */
+  public static Set<String> sensitiveValues(WorkflowRun run, ParamType paramType) {
+    if (run == null) {
+      return Set.of();
+    }
+    Set<String> values = new HashSet<>(sensitiveValues(run.getParams(), paramType));
+    if (run.getTasks() != null) {
+      run.getTasks().forEach(task -> values.addAll(sensitiveValues(task.getParams(), paramType)));
+    }
+    return values;
+  }
+
+  /**
+   * Redact by type: every param of {@code paramType} has its value replaced with {@link #REDACTED}.
+   * Returns a NEW list of new params rather than mutating in place, because a model built with
+   * BeanUtils.copyProperties shares its param list with the entity it came from - so this is safe
+   * on a model whose entity is still in use (a submit response, a status event). The type check is
+   * authoritative for params; the value scrub stays for free text.
+   */
+  public static List<RunParam> filterRunParamValueByFieldType(
+      List<RunParam> params, ParamType paramType) {
+    if (params == null || paramType == null) {
+      return params;
+    }
+    return params.stream()
+        .map(
+            p ->
+                paramType.equals(p.getType())
+                    ? new RunParam(p.getName(), REDACTED, p.getType())
+                    : p)
+        .collect(Collectors.toList());
+  }
+
+  /** {@link #filterRunParamValueByFieldType(List, ParamType)} on one TaskRun MODEL's params. */
+  public static void filterTaskRunValueByFieldType(TaskRun task, ParamType paramType) {
+    if (task != null) {
+      task.setParams(filterRunParamValueByFieldType(task.getParams(), paramType));
+    }
+  }
+
+  /**
+   * {@link #filterRunParamValueByFieldType(List, ParamType)} on a WorkflowRun MODEL's own params
+   * and on the params of every task attached to it.
+   */
+  public static void filterWorkflowRunValueByFieldType(WorkflowRun run, ParamType paramType) {
+    if (run == null) {
+      return;
+    }
+    run.setParams(filterRunParamValueByFieldType(run.getParams(), paramType));
+    if (run.getTasks() != null) {
+      run.getTasks().forEach(task -> filterTaskRunValueByFieldType(task, paramType));
+    }
   }
 
   /**
