@@ -6,7 +6,9 @@ import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.model.ParamLayers;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +26,11 @@ import org.springframework.stereotype.Component;
 public class ParamLayerCache {
 
   private record Layers(
-      Map<String, Object> global, Map<String, Object> workspace, Map<String, Object> context) {}
+      Map<String, Object> global,
+      Map<String, Object> workspace,
+      Map<String, Object> context,
+      Set<String> secretGlobal,
+      Set<String> secretWorkspace) {}
 
   private final boolean enabled;
   private final Cache<String, Layers> layers;
@@ -55,12 +61,16 @@ public class ParamLayerCache {
               return new Layers(
                   built.getGlobalParams(),
                   built.getWorkspaceParams(),
-                  built.getContextParams());
+                  built.getContextParams(),
+                  built.getSecretGlobalParams(),
+                  built.getSecretWorkspaceParams());
             });
     ParamLayers copy = new ParamLayers();
     copy.setGlobalParams(new HashMap<>(cached.global()));
     copy.setWorkspaceParams(new HashMap<>(cached.workspace()));
     copy.setContextParams(new HashMap<>(cached.context()));
+    copy.setSecretGlobalParams(new HashSet<>(cached.secretGlobal()));
+    copy.setSecretWorkspaceParams(new HashSet<>(cached.secretWorkspace()));
     return copy;
   }
 

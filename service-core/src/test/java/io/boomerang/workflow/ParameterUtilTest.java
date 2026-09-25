@@ -3,6 +3,8 @@ package io.boomerang.workflow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.util.ParameterUtil;
 import java.util.ArrayList;
@@ -59,5 +61,40 @@ class ParameterUtilTest {
   @Test
   void paramNameCollisionsIsEmptyForDistinctNames() {
     assertTrue(ParameterUtil.paramNameCollisions(List.of("alpha", "beta-name", "gamma")).isEmpty());
+  }
+
+  // A secret is a parameter type derived from the password field; a Tekton export keeps string.
+  @Test
+  void aPasswordFieldBecomesASecretRunParam() {
+    AbstractParam password = new AbstractParam();
+    password.setName("dbPassword");
+    password.setType("password");
+    AbstractParam text = new AbstractParam();
+    text.setName("host");
+    text.setType("text");
+
+    List<RunParam> params = ParameterUtil.abstractParamToRunParam(List.of(password, text));
+
+    assertEquals(ParamType.secret, params.get(0).getType());
+    assertEquals(ParamType.string, params.get(1).getType());
+    assertEquals(ParamType.string, ParameterUtil.getTektonParamType("password"));
+  }
+
+  // A value sent as a secret raises the declared type; nothing lowers a declared secret.
+  @Test
+  void addUniqueParamRaisesToSecretButNeverLowers() {
+    List<RunParam> declared =
+        new ArrayList<>(
+            List.of(
+                new RunParam("note", "default", ParamType.string),
+                new RunParam("token", "default", ParamType.secret)));
+
+    ParameterUtil.addUniqueParam(declared, new RunParam("note", "private", ParamType.secret));
+    ParameterUtil.addUniqueParam(declared, new RunParam("token", "override", ParamType.string));
+    ParameterUtil.addUniqueParam(declared, new RunParam("token", "untyped"));
+
+    assertEquals(ParamType.secret, declared.get(0).getType());
+    assertEquals(ParamType.secret, declared.get(1).getType());
+    assertEquals("untyped", declared.get(1).getValue());
   }
 }

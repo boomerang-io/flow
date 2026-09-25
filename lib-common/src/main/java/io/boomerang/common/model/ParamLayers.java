@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,6 +50,32 @@ public class ParamLayers {
 
   @JsonIgnore
   private Map<String, Object> taskParams = new HashMap<>();
+
+  // The names of the password-typed global and workspace parameters: their values are secrets, so
+  // a string param that takes one in becomes a secret (ParameterManager).
+  @JsonIgnore
+  private Set<String> secretGlobalParams = new HashSet<>();
+
+  @JsonIgnore
+  private Set<String> secretWorkspaceParams = new HashSet<>();
+
+  @JsonIgnore
+  public Set<String> getSecretGlobalParams() {
+    return secretGlobalParams;
+  }
+
+  public void setSecretGlobalParams(Set<String> secretGlobalParams) {
+    this.secretGlobalParams = secretGlobalParams;
+  }
+
+  @JsonIgnore
+  public Set<String> getSecretWorkspaceParams() {
+    return secretWorkspaceParams;
+  }
+
+  public void setSecretWorkspaceParams(Set<String> secretWorkspaceParams) {
+    this.secretWorkspaceParams = secretWorkspaceParams;
+  }
 
   @JsonIgnore
   public Map<String, Object> getTaskParams() {
