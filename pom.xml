@@ -473,6 +473,18 @@
 			<groupId>io.boomerang</groupId>
 			<artifactId>lib-eventing</artifactId>
 			<version>0.2.5</version>
+			<exclusions>
+				<exclusion>
+					<groupId>net.i2p.crypto</groupId>
+					<artifactId>eddsa</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>net.i2p</groupId>
+			<artifactId>i2p</artifactId>
+			<version>0.9.39</version>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.boomerang</groupId>
