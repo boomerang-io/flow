@@ -1,6 +1,7 @@
 import React from "react";
 import { screen } from "@testing-library/react";
-import { NodeType } from "Constants";
+import userEvent from "@testing-library/user-event";
+import { NodeType, PASSWORD_CONSTANT } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import { renderWithRouter } from "Utils/testing/render";
 import TaskItem from "./index";
@@ -102,5 +103,25 @@ describe("TaskItem --- RTL", () => {
 
     expect(screen.getByText("Start time")).toBeInTheDocument();
     expect(screen.getByText("Duration")).toBeInTheDocument();
+  });
+
+  it("Masks a secret param in the details and renders the other types", async () => {
+    const withParams: TaskRun = {
+      ...taskRun,
+      params: [
+        { name: "dbPassword", value: "*****", type: "secret" },
+        { name: "emptySecret", value: "", type: "secret" },
+        { name: "greeting", value: "hello", type: "string" },
+        { name: "untyped", value: "plain" },
+      ],
+    };
+    renderWithRouter(<TaskItem {...props} taskRun={withParams} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View Details" }));
+
+    expect(await screen.findByText("dbPassword")).toBeInTheDocument();
+    expect(screen.getAllByText(PASSWORD_CONSTANT)).toHaveLength(2);
+    expect(screen.getByText("hello")).toBeInTheDocument();
+    expect(screen.getByText("plain")).toBeInTheDocument();
   });
 });

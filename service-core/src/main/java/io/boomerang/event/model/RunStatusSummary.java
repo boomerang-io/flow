@@ -2,10 +2,12 @@ package io.boomerang.event.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.event.enums.EventPayload;
 import java.util.Date;
 import java.util.Map;
@@ -43,12 +45,22 @@ public record RunStatusSummary(
     Date startTime,
     long duration) {
 
+  // The full model leaves the platform, so its secret-typed params go out redacted. The filter
+  // copies the params, leaving the entity the model was copied from untouched.
   public static Object project(WorkflowRun run, EventPayload payload) {
-    return EventPayload.full == payload ? run : of(run);
+    if (EventPayload.full != payload) {
+      return of(run);
+    }
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType.secret);
+    return run;
   }
 
   public static Object project(TaskRun run, EventPayload payload) {
-    return EventPayload.full == payload ? run : of(run);
+    if (EventPayload.full != payload) {
+      return of(run);
+    }
+    DataAdapterUtil.filterTaskRunValueByFieldType(run, ParamType.secret);
+    return run;
   }
 
   // A workflow run is its own run: it carries no workflowRunRef, and no typed statusReason.

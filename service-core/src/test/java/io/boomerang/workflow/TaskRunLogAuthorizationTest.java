@@ -20,6 +20,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -242,6 +243,30 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
     assertFalse(
         streamed.contains(TASK_SECRET),
         "a value typed into a catalogue-declared password param must not reach the log: " + streamed);
+    assertTrue(streamed.contains(DataAdapterUtil.REDACTED), streamed);
+  }
+
+  /**
+   * A secret-typed param needs no definition: a value sent as a secret on the run request, or a
+   * string tainted by one, is removed from the log by its type alone.
+   */
+  @Test
+  void theServedStreamAlsoReplacesASecretTypedValueThatNoDefinitionDeclares() throws IOException {
+    String typedSecret = "trlog-typed-s3cret";
+    TaskRunEntity mine = taskRunRepository.findById(myTaskRunId).orElseThrow();
+    mine.setParams(List.of(new RunParam("dsn", typedSecret, ParamType.secret)));
+    taskRunRepository.save(mine);
+
+    when(logClient.streamLog(any(), any(), any()))
+        .thenReturn(
+            (StreamingResponseBody)
+                out -> out.write(("dsn is " + typedSecret + "\n").getBytes(StandardCharsets.UTF_8)));
+
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    workflowRunService.streamTaskRunLog(myTaskRunId).writeTo(sink);
+    String streamed = sink.toString(StandardCharsets.UTF_8);
+
+    assertFalse(streamed.contains(typedSecret), streamed);
     assertTrue(streamed.contains(DataAdapterUtil.REDACTED), streamed);
   }
 

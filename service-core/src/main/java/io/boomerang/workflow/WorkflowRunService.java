@@ -9,6 +9,7 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ActionStatus;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -180,7 +181,9 @@ public class WorkflowRunService {
     }
     // Collected first, while the values are still raw: the workflow pass below scrubs, and a
     // value read back after it would be collected as the redaction marker instead of the secret.
-    Set<String> secrets = new HashSet<>(filterTaskDeclaredSensitiveValues(wfRun.getTasks()));
+    // The secret-typed params come first of all - their values are scrubbed from free text too.
+    Set<String> secrets = new HashSet<>(DataAdapterUtil.sensitiveValues(wfRun, ParamType.secret));
+    secrets.addAll(filterTaskDeclaredSensitiveValues(wfRun.getTasks()));
     if (wfRun.getWorkflowRevisionRef() != null) {
       workflowRevisionRepository
           .findById(wfRun.getWorkflowRevisionRef())
@@ -191,6 +194,19 @@ public class WorkflowRunService {
                           wfRun, revision.getParams(), FieldType.PASSWORD.value())));
     }
     DataAdapterUtil.scrubWorkflowRunValues(wfRun, secrets);
+    // Last, and authoritative for params: whatever the passes above left, a secret-typed param
+    // reads as the redaction marker. The name join stays for runs stored before params carried
+    // a type.
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(wfRun, ParamType.secret);
+  }
+
+  /*
+   * The lifecycle responses (start, cancel, pause, resume, retry) are consumer reads too. They
+   * carry no tasks, so the type check alone covers them, and it copies rather than mutates.
+   */
+  private static WorkflowRun redactSecrets(WorkflowRun wfRun) {
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(wfRun, ParamType.secret);
+    return wfRun;
   }
 
   /**
@@ -355,7 +371,7 @@ public class WorkflowRunService {
   public ResponseEntity<WorkflowRun> start(
       String team, String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
     requireWorkspaceRelationship(team, workflowRunId);
-    return ResponseEntity.ok(start(workflowRunId, optRunRequest));
+    return ResponseEntity.ok(redactSecrets(start(workflowRunId, optRunRequest)));
   }
 
   /*
@@ -368,7 +384,7 @@ public class WorkflowRunService {
     // deleted WorkspaceActionService.cancelAllByWorkflowRun, which was a one-line delegation to
     // this repository call and had no other caller.
     actionRepository.updateStatusByWorkflowRunRef(workflowRunId, ActionStatus.cancelled);
-    return ResponseEntity.ok(wfRun);
+    return ResponseEntity.ok(redactSecrets(wfRun));
   }
 
   /*
@@ -376,7 +392,7 @@ public class WorkflowRunService {
    */
   public ResponseEntity<WorkflowRun> pause(String team, String workflowRunId) {
     requireWorkspaceRelationship(team, workflowRunId);
-    return ResponseEntity.ok(pause(workflowRunId));
+    return ResponseEntity.ok(redactSecrets(pause(workflowRunId)));
   }
 
   /*
@@ -384,7 +400,7 @@ public class WorkflowRunService {
    */
   public ResponseEntity<WorkflowRun> resume(String team, String workflowRunId) {
     requireWorkspaceRelationship(team, workflowRunId);
-    return ResponseEntity.ok(resume(workflowRunId));
+    return ResponseEntity.ok(redactSecrets(resume(workflowRunId)));
   }
 
   /*
@@ -401,7 +417,7 @@ public class WorkflowRunService {
     // owners permanently.
     owningWorkspace(workflowRunId);
 
-    return ResponseEntity.ok(retry(workflowRunId, false, 1));
+    return ResponseEntity.ok(redactSecrets(retry(workflowRunId, false, 1)));
   }
 
   /**
@@ -465,8 +481,16 @@ public class WorkflowRunService {
                                     revision.getParams(),
                                     run.getParams(),
                                     FieldType.PASSWORD.value()))));
+    // The run's own secret-typed params, which need no definition to be recognised.
+    workflowRunRepository
+        .findById(workflowRunRef)
+        .ifPresent(
+            run -> secrets.addAll(DataAdapterUtil.sensitiveValues(run.getParams(), ParamType.secret)));
     // Throwaway models, read only to collect the values - the blanking they undergo is discarded.
-    secrets.addAll(filterTaskDeclaredSensitiveValues(getTaskRuns(workflowRunRef)));
+    List<TaskRun> taskRuns = getTaskRuns(workflowRunRef);
+    taskRuns.forEach(
+        task -> secrets.addAll(DataAdapterUtil.sensitiveValues(task.getParams(), ParamType.secret)));
+    secrets.addAll(filterTaskDeclaredSensitiveValues(taskRuns));
     return secrets;
   }
 

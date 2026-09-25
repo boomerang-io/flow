@@ -190,32 +190,56 @@ are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PAR
 
 ## Sensitive parameters
 
-A param is sensitive when its spec has `type=password` (`DataAdapterUtil.java:22`); there is no separate
-marker, no field on the run, and values are filtered on the way up only. A `RunParam` carries no type on
-the wire, so the type comes from the definition - and two definitions can declare it:
+A secret is a parameter type: `ParamType.secret` beside `string`, `array` and `object`
+(`lib-common/.../enums/ParamType.java:15`), carried on every `RunParam` on the wire
+(`common/model/RunParam.java:17`; absent means `string`). A secret is a string only. Values are filtered
+on the way up only; the engine, the claim and the container see the real value.
 
-| Declared on | Reached through | Example |
-| --- | --- | --- |
-| The workflow revision's param spec | `WorkflowRun.workflowRevisionRef` | a workflow param referenced as `$(params.apiKey)` |
-| The catalogue task's own spec | `TaskRun.taskRef` + `TaskRun.taskVersion` | a value typed straight into a task node's `apiKey` field |
+| How a param becomes `secret` | Where |
+| --- | --- |
+| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`ParameterUtil.java:53`), used when the run and each TaskRun are built |
+| Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:83`) |
+| A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:393`) |
 
-`WorkflowRunService.filterSensitiveValues` consults both (`workflow/WorkflowRunService.java:172-229`):
-each blanks its own password-typed params by name, and the **union** of the values they resolve to is then
-scrubbed run-wide - from the run's results and from every task's params, spec fields (script, command,
-arguments, envs) and results, because substitution moves a value into any of them under another name
-(`DataAdapterUtil.java:139-211`). The task-spec lookup is batched: the distinct `(taskRef, taskVersion)`
-pairs on a response are resolved together by `TaskService.getSpecs`, two queries regardless of task count.
-Tasks are attached only by `get(id, withTasks=true)` (`WorkflowRunService.java:552-553`), so the paged
-`query` - which returns no tasks - issues no task lookup at all.
+Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:235`): a
+reference is a secret when the workflow or task layer that wins `params.<name>` holds a secret, so
+`dsn = "postgres://app:$(params.dbPassword)@db"` becomes a secret with the resolved value. Arrays and
+objects keep their type when a secret is substituted into them - a secret is a string only - and rely on
+the value scrub below. The global and workspace layers carry values without types, so a reference to one
+of those does not taint. At submit, a secret whose value is not a string is rejected with
+`PARAM_SECRET_NOT_STRING` (1214, `WorkflowService.rejectNonStringSecrets`), and an unknown `type` with
+`PARAM_INVALID_TYPE` (1213, `core/RestExceptionHandler.java:100`).
+
+Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
+with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:201`).
+It copies the param list rather than mutating it, because a model built with `BeanUtils.copyProperties`
+shares that list with its entity.
+
+| Read | Filter |
+| --- | --- |
+| Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:178-201`) |
+| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:619`, `WorkflowRunService.java:207`) |
+| `full` status events | Type (`event/model/RunStatusSummary.java:54,62`) |
+| Task log stream | Value scrub (`WorkflowRunService.java:480-494`) |
+
+The name join and value scrub remain for runs stored before params carried a type and for secrets that
+land in free text. The join takes the definitions: the workflow revision's param spec and each
+catalogue task's own spec (reached through `TaskRun.taskRef` + `taskVersion`, resolved in one batch by
+`TaskService.getSpecs`); each blanks its own password-typed params by name. The **union** of those values
+and of every secret-typed param's value is scrubbed run-wide - from results and from every task's params,
+spec fields (script, command, arguments, envs) and results, because substitution moves a value into any of
+them under another name (`DataAdapterUtil.java:139-211`).
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
-(`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the
-owning run rather than the streamed task alone. The dispatcher ends the stream when the pod is already
-finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
-asynchronous completion of a streamed response without re-running authorization on it
-(`core/security/SecurityConfiguration.java:81`, `SecurityInterceptor.java:45`). Engine and dispatcher reads, and delivery into the
-container, carry the real values. A resolved value shorter than four characters is blanked by name but not
+(`lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the owning run rather than
+the streamed task alone. The dispatcher ends the stream when the pod is already finished or as soon as it
+finishes (`kube/KubeLogService.java:24`), and the engine permits the asynchronous completion of a
+streamed response without re-running authorization on it (`core/security/SecurityConfiguration.java:81`,
+`SecurityInterceptor.java:45`). A resolved value shorter than four characters is blanked but not
 value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
+
+Downward, the dispatcher reads `type` and builds `PARAM_<NAME>` for a secret exactly as for a string. There
+is no encryption at rest and no per-task Kubernetes Secret yet; see decision 0082.
 
 ## Volumes and workspaces
 
@@ -332,9 +356,9 @@ catalogue revision in this repository — a param or result added on one side ha
 deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
 isolation tiers. No configuration separates zones inside one dispatcher.
 
-**Token delivery.** `token` is password-typed, so declaring it as a workflow param and referencing it from
-the node blanks and scrubs it on the workspace-scoped run reads and the log stream (decision 0043); a literal
-typed into the node is not scrubbed, per "Sensitive parameters" above. Downward it is a plain `PARAM_TOKEN`
+**Token delivery.** `token` is password-typed, so it is a `secret` param: a literal typed into the node or a
+reference to a workflow param reads as `*****` on the run reads and is scrubbed from the log stream, per
+"Sensitive parameters" above. Downward it is a plain `PARAM_TOKEN`
 environment variable on the pod, like every other param — there are no per-task secrets yet, so anyone who
 can read the pod spec or exec into the pod can read the token.
 

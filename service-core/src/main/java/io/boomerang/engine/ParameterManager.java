@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -70,10 +72,17 @@ public class ParameterManager {
   }
 
   /*
+   * The outcome of resolving one value: the value, and whether a reference to a secret was
+   * substituted into it. The flag is how a string param inherits the secret type.
+   */
+  private record Resolution(Object value, boolean secret) {}
+
+  /*
    * Resolve all RunParams for either WorkflowRun or TaskRun
    */
   public void resolveParamLayers(WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
     ParamLayers paramLayers = buildParameterLayering(wfRun, optTaskRun);
+    Set<String> secretKeys = secretReferenceKeys(wfRun, optTaskRun, paramLayers);
     // Memo of upstream TaskRun lookups for the duration of one resolution: a param string can
     // reference the same task's results many times, and upstream results are final by now.
     Map<String, Optional<TaskRunEntity>> taskRunMemo = new HashMap<>();
@@ -87,31 +96,60 @@ public class ParameterManager {
     runParams.stream()
         .forEach(
             p -> {
+              // Name and type only: a secret's value must never reach a log.
               LOGGER.debug(
-                  "Resolving Parameters: " + p.getName() + "(" + p.getType() == null
-                      ? "string"
-                      : p.getType() + ") = " + p.getValue());
-              if (ParamType.string.equals(p.getType()) || p.getType() == null) {
+                  "Resolving Parameter: {} ({})",
+                  p.getName(),
+                  p.getType() == null ? ParamType.string : p.getType());
+              if (ParamType.string.equals(p.getType())
+                  || ParamType.secret.equals(p.getType())
+                  || p.getType() == null) {
                 // Default to String replacement. This also allows recursive use of Params and
-                // multiple Param replacement
-                p.setValue(
+                // multiple Param replacement. A secret is a string and resolves the same way.
+                Resolution resolution =
                     resolveParam(
                         ParamType.string,
                         p.getValue() != null ? p.getValue().toString() : "",
                         wfRunId,
-                        paramLayers, taskRunMemo));
+                        paramLayers,
+                        taskRunMemo,
+                        secretKeys);
+                p.setValue(resolution.value());
+                // Taint: a string that now carries a secret's value is itself a secret. Arrays
+                // and objects keep their type - a secret is a string only - and rely on the value
+                // scrub on the way out (DataAdapterUtil.scrubWorkflowRunValues).
+                if (resolution.secret()) {
+                  p.setType(ParamType.secret);
+                }
               } else if (ParamType.array.equals(p.getType()) && p.getValue() instanceof List) {
                 // Type safety. If you attempt to convert a string or object (JSON = HashMap) then
                 // this causes an exception
                 ArrayList<String> valueList = (ArrayList<String>) p.getValue();
                 p.setValue(
                     valueList.stream()
-                        .map(v -> resolveParam(ParamType.string, v, wfRunId, paramLayers, taskRunMemo))
+                        .map(
+                            v ->
+                                resolveParam(
+                                        ParamType.string,
+                                        v,
+                                        wfRunId,
+                                        paramLayers,
+                                        taskRunMemo,
+                                        secretKeys)
+                                    .value())
                         .collect(Collectors.toList()));
               } else if (ParamType.object.equals(p.getType())) {
                 // Replace Param with Object. Treated as JSON and allows for the extra JSONPath
                 // retrieval.
-                p.setValue(resolveParam(p.getType(), p.getValue(), wfRunId, paramLayers, taskRunMemo));
+                p.setValue(
+                    resolveParam(
+                            p.getType(),
+                            p.getValue(),
+                            wfRunId,
+                            paramLayers,
+                            taskRunMemo,
+                            secretKeys)
+                        .value());
               }
             });
     // Return WorkflowRun or TaskRun RunParams
@@ -120,7 +158,8 @@ public class ParameterManager {
       // The spec is part of the contract too: $(params.x) in script/command/arguments/envs must
       // resolve identically on every executor, so it happens here rather than relying on
       // Tekton's controller-side substitution (which Kubernetes Jobs and Docker do not have).
-      resolveSpec(optTaskRun.get().getSpec(), wfRun.getId(), paramLayers, taskRunMemo);
+      resolveSpec(
+          optTaskRun.get().getSpec(), wfRun.getId(), paramLayers, taskRunMemo, secretKeys);
     } else {
       wfRun.setParams(runParams);
     }
@@ -134,29 +173,40 @@ public class ParameterManager {
       TaskRunSpec spec,
       String wfRunId,
       ParamLayers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Map<String, Optional<TaskRunEntity>> taskRunMemo,
+      Set<String> secretKeys) {
     if (spec == null) {
       return;
     }
-    spec.setScript(resolveString(spec.getScript(), wfRunId, paramLayers, taskRunMemo));
-    spec.setCommand(resolveStrings(spec.getCommand(), wfRunId, paramLayers, taskRunMemo));
-    spec.setArguments(resolveStrings(spec.getArguments(), wfRunId, paramLayers, taskRunMemo));
+    spec.setScript(resolveString(spec.getScript(), wfRunId, paramLayers, taskRunMemo, secretKeys));
+    spec.setCommand(
+        resolveStrings(spec.getCommand(), wfRunId, paramLayers, taskRunMemo, secretKeys));
+    spec.setArguments(
+        resolveStrings(spec.getArguments(), wfRunId, paramLayers, taskRunMemo, secretKeys));
     if (spec.getEnvs() != null) {
       spec.getEnvs()
           .forEach(
-              env -> env.setValue(resolveString(env.getValue(), wfRunId, paramLayers, taskRunMemo)));
+              env ->
+                  env.setValue(
+                      resolveString(
+                          env.getValue(), wfRunId, paramLayers, taskRunMemo, secretKeys)));
     }
   }
 
+  // Spec fields are not params and carry no type; a secret substituted into one is covered by
+  // the value scrub on the way out, so the taint flag is not needed here.
   private String resolveString(
       String value,
       String wfRunId,
       ParamLayers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Map<String, Optional<TaskRunEntity>> taskRunMemo,
+      Set<String> secretKeys) {
     if (value == null) {
       return null;
     }
-    Object resolved = resolveParam(ParamType.string, value, wfRunId, paramLayers, taskRunMemo);
+    Object resolved =
+        resolveParam(ParamType.string, value, wfRunId, paramLayers, taskRunMemo, secretKeys)
+            .value();
     return resolved != null ? resolved.toString() : null;
   }
 
@@ -164,13 +214,60 @@ public class ParameterManager {
       List<String> values,
       String wfRunId,
       ParamLayers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Map<String, Optional<TaskRunEntity>> taskRunMemo,
+      Set<String> secretKeys) {
     if (values == null) {
       return null;
     }
     return values.stream()
-        .map(v -> resolveString(v, wfRunId, paramLayers, taskRunMemo))
+        .map(v -> resolveString(v, wfRunId, paramLayers, taskRunMemo, secretKeys))
         .collect(Collectors.toList());
+  }
+
+  /*
+   * The flat reference keys whose value is a secret, following the same precedence
+   * ParamLayers.getFlatMap applies to the values: global, workspace, workflow, task, then context,
+   * each later layer winning `params.<name>`, and a null value never written (so never winning).
+   * Only the workflow and task layers carry a type; the global and workspace layers are value maps
+   * with no type, so a reference to one of those is not a secret here (the display filter's name
+   * join and value scrub still apply to the definitions that declare them).
+   */
+  private static Set<String> secretReferenceKeys(
+      WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun, ParamLayers paramLayers) {
+    Map<String, Boolean> secretByKey = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    markSecretKeys(secretByKey, wfRun.getParams(), "workflow");
+    optTaskRun.ifPresent(taskRun -> markSecretKeys(secretByKey, taskRun.getParams(), null));
+    paramLayers.getContextParams().forEach(
+        (name, value) -> {
+          if (value != null) {
+            secretByKey.put("params." + name, false);
+          }
+        });
+    Set<String> secretKeys = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    secretByKey.forEach(
+        (key, secret) -> {
+          if (secret) {
+            secretKeys.add(key);
+          }
+        });
+    return secretKeys;
+  }
+
+  private static void markSecretKeys(
+      Map<String, Boolean> secretByKey, List<RunParam> params, String prefix) {
+    if (params == null) {
+      return;
+    }
+    for (RunParam p : params) {
+      if (p.getName() == null || p.getValue() == null) {
+        continue;
+      }
+      boolean secret = ParamType.secret.equals(p.getType());
+      if (prefix != null) {
+        secretByKey.put(prefix + ".params." + p.getName(), secret);
+      }
+      secretByKey.put("params." + p.getName(), secret);
+    }
   }
 
   /*
@@ -238,19 +335,20 @@ public class ParameterManager {
    * - Handles JSONPath tree searching using simple dot notation
    * - Handles resolving multiple param inheritance layers.
    */
-  private Object resolveParam(
+  private Resolution resolveParam(
       ParamType type,
       Object originalValue,
       String wfRunId,
       ParamLayers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Map<String, Optional<TaskRunEntity>> taskRunMemo,
+      Set<String> secretKeys) {
     // Case-insensitive matching (ruled 2026-08-26): $(params.myparam) resolves a param declared
     // MyParam. The GitHub Actions model - insensitive lookup paired with the definition-side
     // rejection of case/separator-variant duplicates (ParameterUtil.paramNameCollisions).
     Map<String, Object> flatParamLayers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     flatParamLayers.putAll(paramLayers.getFlatMap());
     if (Objects.isNull(originalValue)) {
-      return originalValue;
+      return new Resolution(originalValue, false);
     }
     // References are discovered over the value's flattened text, which is how a reference nested
     // inside a Map or a List is found at all; substitution then walks the real structure.
@@ -262,6 +360,8 @@ public class ParameterManager {
     // suffix and every other key were dropped and an object silently became a string.
     boolean singleReference = ParamType.object.equals(type) && isSingleReference(originalValue);
     Map<String, Object> foundKeyValues = new HashMap<>();
+    // Set where a reference is known to have resolved: whether any of them named a secret.
+    boolean secret = false;
     while (m.find()) {
       String foundKey = m.group(0);
       String[] separatedKey = foundKey.split("\\.");
@@ -290,10 +390,13 @@ public class ParameterManager {
         foundValue = taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
       }
       if (!Objects.isNull(foundValue)) {
+        boolean foundSecret = secretKeys.contains(foundKey);
         if (singleReference) {
-          return foundValue;
+          return new Resolution(foundValue, foundSecret);
         }
-        LOGGER.debug("Pattern Matched: " + foundKey + " = " + foundValue.toString());
+        secret |= foundSecret;
+        // The key only: the value may be a secret.
+        LOGGER.debug("Pattern Matched: {}", foundKey);
         foundKeyValues.put(foundKey, foundValue);
       }
     }
@@ -301,8 +404,7 @@ public class ParameterManager {
       flatParamLayers.putAll(foundKeyValues);
       resolvedValue = replaceStringInObject(resolvedValue, flatParamLayers);
     }
-    LOGGER.debug("Resolved Value: " + resolvedValue);
-    return resolvedValue;
+    return new Resolution(resolvedValue, secret);
   }
 
   /*

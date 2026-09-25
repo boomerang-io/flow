@@ -11,6 +11,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.error.RestErrorResponse;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.security.FlowAuthenticationException;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import jakarta.validation.Valid;
@@ -130,6 +131,38 @@ class RestExceptionHandlerRegistrationTest extends AbstractEngineIntegrationTest
         .andExpect(jsonPath("$.reason").value("PARAM_INVALID_NAME"));
   }
 
+  /*
+   * A param type Jackson cannot read is a 400 in the platform shape, not a silent string and not
+   * Spring's default body.
+   */
+  @Test
+  void unknownParamTypeRendersParamInvalidType() throws Exception {
+    mockMvc()
+        .perform(
+            post("/test-run-request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"params\": [{\"name\": \"pw\", \"value\": \"x\", \"type\": \"password\"}]}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value(1213))
+        .andExpect(jsonPath("$.reason").value("PARAM_INVALID_TYPE"))
+        .andExpect(jsonPath("$.status").value("400 BAD_REQUEST"));
+  }
+
+  @Test
+  void secretAndAbsentParamTypesAreRead() throws Exception {
+    mockMvc()
+        .perform(
+            post("/test-run-request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"params\": [{\"name\": \"pw\", \"value\": \"x\", \"type\": \"secret\"},"
+                        + " {\"name\": \"plain\", \"value\": \"y\"}]}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.params[0].type").value("secret"))
+        .andExpect(jsonPath("$.params[1].type").doesNotExist());
+  }
+
   private MockMvc mockMvc() {
     return MockMvcBuilders.standaloneSetup(new ThrowingController())
         .setControllerAdvice(context.getBean(RestExceptionHandler.class))
@@ -155,6 +188,12 @@ class RestExceptionHandlerRegistrationTest extends AbstractEngineIntegrationTest
 
     // Mirrors TaskControllerV2#create's @Valid @RequestBody Task wiring, driving the real Task
     // model's @ResourceName/@ParamName constraints without depending on TaskService.
+    // Mirrors the submit route's @RequestBody WorkflowSubmitRequest, whose params carry a type.
+    @PostMapping("/test-run-request")
+    WorkflowSubmitRequest runRequest(@RequestBody WorkflowSubmitRequest request) {
+      return request;
+    }
+
     @PostMapping("/test-valid-task")
     Task validTask(@Valid @RequestBody Task task) {
       return task;

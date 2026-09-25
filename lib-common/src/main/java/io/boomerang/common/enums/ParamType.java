@@ -5,5 +5,12 @@ package io.boomerang.common.enums;
 public enum ParamType {
   string,
   array,
-  object
+  object,
+  /*
+   * A string whose value is never shown to a consumer. Substituted exactly like a string; a
+   * run response carries DataAdapterUtil.REDACTED in its place. Derived from the `password`
+   * field type (ParameterUtil.abstractParamToRunParam), sent explicitly on a run request, or
+   * acquired by a string param whose resolution substitutes in a secret (ParameterManager).
+   */
+  secret
 }
