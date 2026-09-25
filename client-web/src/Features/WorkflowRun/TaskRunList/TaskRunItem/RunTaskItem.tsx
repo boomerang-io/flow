@@ -4,8 +4,8 @@ import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
 import dateHelper from "Utils/dateHelper";
-import { ExecutionStatusCopy, NodeType, executionStatusIcon } from "Constants";
-import { Action, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
+import { ExecutionStatusCopy, NodeType, PASSWORD_CONSTANT, executionStatusIcon } from "Constants";
+import { Action, Param, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
 import ManualTaskModal from "./ManualTaskModal";
 import PropertiesTable from "./PropertiesTable";
 import ResultsTable from "./ResultsTable";
@@ -290,6 +290,24 @@ function ManualResult({ taskRun, action }: ManualResultProps) {
   );
 }
 
+// A secret is masked whatever its value - the server already sends "*****", so this only
+// guarantees that an empty or unexpected value cannot show through.
+function formatParamValue(param: Param): string {
+  switch (param.type) {
+    case "secret":
+      return PASSWORD_CONSTANT;
+    case "string":
+    case "array":
+    case "object":
+    default:
+      return !param.value
+        ? "---"
+        : Array.isArray(param.value) || typeof param.value === "string"
+          ? param.value
+          : JSON.stringify(param.value);
+  }
+}
+
 interface TaskRunDetailModalProps {
   taskRun: TaskRun;
 }
@@ -300,11 +318,7 @@ function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
     paramList.push({
       id: `${result.name}-${index}`,
       key: result.name,
-      value: !result.value
-        ? "---"
-        : Array.isArray(result.value) || typeof result.value === "string"
-        ? result.value
-        : JSON.stringify(result.value),
+      value: formatParamValue(result),
     }),
   );
 

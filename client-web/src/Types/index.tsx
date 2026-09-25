@@ -882,9 +882,14 @@ export interface RunAnnototations {
   "boomerang.io/generation": string;
 }
 
+// A run param's type. `secret` is a string whose value the server never returns: it arrives
+// as "*****". Absent means string.
+export type ParamType = "string" | "array" | "object" | "secret";
+
 export interface Param {
   name: string;
   value: string;
+  type?: ParamType;
 }
 
 export interface TaskAnnotations {
