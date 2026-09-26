@@ -151,12 +151,12 @@ window always holds (`core/audit/AuditRetentionService.java`).
 
 ## Payload caps
 
-Two byte caps bound what every executor must carry (`application.properties:149-155`): resolved params
+Two byte caps bound what the engine stores (`application.properties:171-177`): resolved params
 ≤ `flow.engine.task.params.max-bytes` (16384) at admission — oversize invalidates the task before it is
-claimable (`engine/TaskExecutionService.java:61-62,161-175`) — and results ≤
-`flow.engine.task.results.max-bytes` (4096, the portable Kubernetes termination-message ceiling) at end —
-oversize fails the task and keeps the prior results (`TaskRunService.java:48-49,764-774`). Large values
-pass by reference (a workspace path or a URI).
+claimable (`engine/TaskExecutionService.java:205-219`) — and results ≤
+`flow.engine.task.results.max-bytes` (1 MB) at end, a storage guard behind each dispatcher's own limit
+(4096 bytes, Kubernetes' termination message) — oversize fails the task and keeps the prior results
+(`TaskRunService.java:48-49,909-919`). Large values pass by reference (a workspace path or a URI).
 
 ## Storage
 

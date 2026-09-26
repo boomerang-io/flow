@@ -273,4 +273,4 @@ means "held" (`TaskExecutionService.java:711-740`). A task that cannot acquire p
 ## Also worth knowing
 
 - `flow.watcher.enabled` gates the outbox drain as well as the sweeps; schedules fire only in `standalone` mode.
-- Result payloads are capped at 4096 bytes at task end and parameters at 16384 bytes at admission (see `task-runtime.md`).
+- Results are limited by the dispatcher (4096 bytes on Kubernetes) behind a 1 MB engine storage guard at task end, and parameters are capped at 16384 bytes at admission (see `task-runtime.md`).

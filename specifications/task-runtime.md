@@ -138,14 +138,18 @@ so all items of a run share the run's workspace.
 
 ## Results and payload caps
 
-The engine enforces both caps so the failure is one message on every executor; a task reports only the result names its definition declares (`TerminationMessageParser.java:24-27,72-73`).
+The params cap is the engine's, identical on every executor. The results limit belongs to the dispatcher that
+runs the task: on Kubernetes it is the 4096-byte container termination message, enforced by the dispatcher. The
+engine's results setting is only a storage guard, so a faulty dispatcher cannot grow a task run toward MongoDB's
+16 MB document limit. A task reports only the result names its definition declares
+(`TerminationMessageParser.java:24-27,72-73`).
 
-| Cap | Property (`service-core/.../application.properties:154-155`) | Where checked | Effect |
+| Cap | Property (`service-core/.../application.properties:176-177`) | Where checked | Effect |
 | --- | --- | --- | --- |
-| Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:161-175`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
-| Results | `flow.engine.task.results.max-bytes=4096` | In `TaskRunService.end` (`TaskRunService.java:765-773`) | Status becomes `failed` with `RESULTS_TOO_LARGE`; the oversize results are not persisted |
+| Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:205-219`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
+| Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`TaskRunService.java:909-919`) | Status becomes `failed` with `RESULTS_TOO_LARGE` and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
 
-An oversize payload usually never reaches that engine check, because Kubernetes truncates a container
+On Kubernetes an oversize payload never reaches the engine, because Kubernetes truncates a container
 termination message at 4096 bytes and the truncated prefix is broken JSON. `TerminationMessageParser` reports an
 unparseable message as absent rather than as "no results", and `KubeJobsExecutor.readResults` fails the task with
 `ResultsTooLarge` when the pod log carries Kubernetes' own too-large line or when the unparseable message is at

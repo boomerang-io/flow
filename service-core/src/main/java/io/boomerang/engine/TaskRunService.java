@@ -45,7 +45,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  @Value("${flow.engine.task.results.max-bytes:4096}")
+  @Value("${flow.engine.task.results.max-bytes:1048576}")
   private int resultsMaxBytes;
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
@@ -903,9 +903,9 @@ public class TaskRunService {
           } else {
             taskRunEntity.setStatus(optRunRequest.get().getStatus());
           }
-          // Engine-enforced results cap, identical on every executor (4096 bytes is the portable
-          // Kubernetes termination-message ceiling). Oversize fails the task and keeps the
-          // pre-merge results rather than persisting a payload every downstream reader re-reads.
+          // Storage guard on results, so a faulty dispatcher cannot grow a TaskRun toward Mongo's
+          // document limit; each executor enforces its own limit before this. Oversize fails the
+          // task and keeps the pre-merge results rather than persisting them.
           byte[] resultBytes = objectMapper.writeValueAsBytes(taskRunEntity.getResults());
           if (resultBytes.length > resultsMaxBytes) {
             taskRunEntity.setResults(priorResults);
