@@ -84,7 +84,6 @@ function ForeachFields({ formikProps }: { formikProps: FormikProps<any> }) {
   return (
     <div className={styles.configure}>
       <Toggle
-        reversed
         id={FOREACH_ENABLED_KEY}
         label="Run for each item"
         onToggle={(checked: boolean) => {

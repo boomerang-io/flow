@@ -232,6 +232,10 @@
 }
 
 .data {
+  align-items: center;
+  column-gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
   margin-left: 2.5rem;
   margin-top: 2rem;
   white-space: nowrap;

@@ -3,6 +3,11 @@
 
 .tabList {
   margin-top: $spacing-05;
+
+  // The modal resets button padding, which runs the two tab labels together.
+  :global(.cds--tabs__nav-link) {
+    padding: $spacing-04 $spacing-05 $spacing-03;
+  }
 }
 
 .tabLabel {
