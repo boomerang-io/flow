@@ -54,6 +54,8 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | --- | --- | --- |
 | Control state (typed, `@JsonIgnore`, never on the public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count}` (task), `waitUntil` (task), `pauseRequestedAt`, `retryCount` (workflow) | `WorkflowRunEntity.java:53-77`, `TaskRunEntity.java:65-81`, `RunClaim.java:19-22`, `RunRetry.java:17-18` |
 | Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retried run points at the run it retries) | `WorkflowRunEntity.java:72-73` |
+| For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `TaskRunEntity.java:68-69` |
+| For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `TaskRunEntity.java:72`, `lib-common/.../model/WorkflowTaskForeach.java` |
 | Status (typed, serialised) | `status` (closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (task runs only; a closed string set of causes such as `OOMKilled`, `DeadlineExceeded`, `LeaseExpired`), `statusOverride` | `WorkflowRunEntity.java:41-44`, `TaskRunEntity.java:54` |
 | User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
 | Annotations | `annotations: Map<String,Object>` in the `boomerang.io/*` namespace | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
@@ -103,6 +105,7 @@ Indexes exist only because a loader change unit created them (`MigrationUtils.en
 | `_0042__AuditEventRestructure` | `audit` | `createdAt_ttl` (365-day TTL; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `_0037__SweepIndexes` | `task_runs`, `workflow_runs`, `actions` | `status_sweep`, `claimed_sweep` for the watcher and dispatcher polls |
 | `_0046__DeclareRunWorkflowWaitParam` | `workflow_runs` | `initiated_by_phase` on `(initiatedByRef, phase)`, the child-run lookup the cascade cancel pages |
+| `_0049__ForeachItems` | `task_runs` | sparse `parent_index` on `(parentRef, index)`, the item-order read every item end makes; only items carry `parentRef`. `node_uniqueness` is unchanged: items are distinct names |
 
 ## Migrations
 `service-loader` runs every pending change unit on Flamingock and exits non-zero on failure, so a deployment runs
@@ -158,6 +161,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0046__DeclareRunWorkflowWaitParam` | all | Declares the `wait` param on the `run-workflow` catalogue task, adds `max.nesting.depth` to the `workflowrun` settings document, creates the child-run index (table above) |
 | `_0047__SeedAiTask` | all | Inserts the `ai` catalogue task, its version 1 revision and its `root:root --hasTask-->` edge from the same seed documents `_0022` reads — the upgrade path for a catalogue entry added after `_0022` was already recorded as applied |
 | `_0048__TaskDefaultTimeoutInheritsTheRun` | all | Sets `task`/`default.timeout` to `0` (no per-task ceiling, a task inherits its run's timeout) — but only where the value is still the shipped `90`; any other number is an operator's choice and stays. Brings the entry's `label`/`description` to the seed's wording either way |
+| `_0049__ForeachItems` | all | Creates the `parent_index` index (table above) and adds `max.foreach.items` (default 256) to the `workflowrun` settings document when absent |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

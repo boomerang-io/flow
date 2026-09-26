@@ -31,6 +31,11 @@ dispatcher's registered types, `claim.by` absent, and `retry.after` absent or el
 attempt, 5 min ceiling, up to 5 s jitter (`lib-common/src/main/java/io/boomerang/common/util/Backoff.java:12-22`),
 with a budget of 3 requeues (`WorkflowWatcher.java:58`).
 
+A for-each task adds up to `max.foreach.items` (default 256) claimable items at once, created with their
+parent's `creationDate` order, so a large fan-out queues behind older work and ahead of newer work like any
+other burst. Each item end reads its siblings once to decide whether the parent is done, so a fan-out of n items
+costs n indexed reads of at most n documents.
+
 Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`DispatcherService.java:34-36`).
 Each connected dispatcher therefore costs about 4 indexed queries per second when idle (task claim,
 task termination, run provision, run teardown). `flow.queue.enabled=false` stops claiming only; sweeps
@@ -45,6 +50,7 @@ Indexes are loader-owned; entity annotations are inert (`spring.data.mongodb.aut
 | `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0017__RunIndexes.java:84-87` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
 | `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0017__RunIndexes.java:164-181` | Run provision claim page; `reapWorkflowTimeouts` |
 | `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0037__SweepIndexes.java:76-93` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns` |
+| `parent_index` (sparse) | `task_runs {parentRef, index}` | `_0049__ForeachItems.java` | A for-each parent's items in order, read on every item end; `recoverForeachTasks` pages parents on `{status, phase}` |
 | `claimed_sweep` | `task_runs {phase, claim.at}` | `_0037__SweepIndexes.java:95-100` | `reapClaimsFromGoneDispatchers` |
 | `status_sweep` | `actions {status, creationDate}` | `_0037__SweepIndexes.java:102-107` | `closeStrayActions` |
 | `dispatch_page`, `sent_ttl` (7-day expiry) | `events_outbox {status, occurredAt}`, `{sentAt}` | `_0018__EventAndLockIndexes.java:44-55` | Outbox drain; delivered rows expire |

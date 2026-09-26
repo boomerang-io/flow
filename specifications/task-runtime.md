@@ -129,6 +129,13 @@ Explicitly declared task env vars win on a name collision (`KubeHelperService.ja
 `/params` file directory and no `PARAMS` JSON variable; large inputs belong on a workspace mount, with the
 param carrying the path.
 
+An item of a for-each task is an ordinary TaskRun to the dispatcher: it is claimed by `id` and run like any
+other of its type. It carries the parent's params plus `item` (the element; an object or array arrives
+JSON-encoded) and `index` (its position from 0, as text), so the container sees `PARAM_ITEM` and `PARAM_INDEX`,
+and `$(params.item)` resolves in the spec. Its params and spec resolve when the item is admitted, not when the
+parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspaces as the parent,
+so all items of a run share the run's workspace.
+
 ## Results and payload caps
 
 The engine enforces both caps so the failure is one message on every executor; a task reports only the result names its definition declares (`TerminationMessageParser.java:24-27,72-73`).
@@ -145,6 +152,12 @@ unparseable message as absent rather than as "no results", and `KubeJobsExecutor
 the ceiling; a short unparseable message is a task writing something that is not a results payload, so it is
 logged and carries no results. On Tekton the overflow fails the TaskRun itself and is mapped the same way
 (`TektonServiceImpl.java:606`).
+
+A for-each task's results are not checked again. Each item is capped where it returns its results, like any task;
+the parent's results are the per-item values collected into arrays by the engine
+(`TaskExecutionService.completeParentIfItemsTerminal` `:709`), so on Kubernetes they are bounded by
+`max.foreach.items` × 4096 bytes (256 × 4 KB, about 1 MB), well under MongoDB's 16 MB document limit. A task that
+consumes the array still meets the params cap at its own admission.
 
 ## Run labels on Kubernetes objects
 
@@ -179,7 +192,9 @@ surfaces this per node as a "New version available" prompt, driven by the `upgra
 ## Parameter names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
-to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). Matching is case-insensitive everywhere:
+to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
+the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
+with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1782-1819`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:238`), and the node-value
 merge keeps the declared casing (`ParameterUtil.java:57-66`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
 substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
