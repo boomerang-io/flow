@@ -12,6 +12,8 @@ import { taskIcons } from "Utils/taskIcons";
 import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
+import { findTaskRunByName, foreachItemRuns, summarizeForeachItems } from "Utils/taskRunHelper";
+import type { ForeachSummary } from "Utils/taskRunHelper";
 import { splitForeachValues } from "../../shared/foreach";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
@@ -172,7 +174,11 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
     }
   };
 
-  const status = workflowRun.tasks.find((task) => task.name === props.data.name)?.status;
+  // The node stands for the task's own run; for a for-each task that is the parent, never an item.
+  const taskRun = findTaskRunByName(workflowRun.tasks, props.data.name);
+  const status = taskRun?.status;
+  const foreachProgress =
+    props.data.foreach && taskRun ? summarizeForeachItems(foreachItemRuns(workflowRun.tasks, taskRun.id)) : undefined;
 
   return (
     <BaseNode
@@ -180,6 +186,7 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
       icon={props.taskTemplate.icon}
       isConnectable={false}
       mode={WorkflowEngineMode.Run}
+      foreachProgress={foreachProgress}
       nodeProps={props}
       onClick={scrollToTask}
       status={status}
@@ -212,6 +219,8 @@ function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>
 interface BaseNodeProps {
   children?: React.ReactNode;
   className?: string;
+  // Run mode only: how a for-each task's items have fared so far, shown in its badge.
+  foreachProgress?: ForeachSummary;
   icon?: string;
   isConnectable: boolean;
   mode: WorkflowEngineModeType;
@@ -223,7 +232,7 @@ interface BaseNodeProps {
 }
 
 function BaseNode(props: BaseNodeProps) {
-  const { isConnectable, children, className, icon, onClick, status, subtitle, title } = props;
+  const { isConnectable, children, className, foreachProgress, icon, onClick, status, subtitle, title } = props;
   const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
   let Icon = () => <Bee style={{ willChange: "auto" }} />;
 
@@ -250,7 +259,11 @@ function BaseNode(props: BaseNodeProps) {
     >
       {isForeach ? (
         <div className={cx(styles.badgeContainer, styles.foreachBadge)}>
-          <p className={styles.badgeText}>For each</p>
+          <p className={styles.badgeText} data-testid="foreach-badge">
+            {foreachProgress && foreachProgress.total > 0
+              ? `For each · ${foreachProgress.succeeded} of ${foreachProgress.total} succeeded`
+              : "For each"}
+          </p>
         </div>
       ) : null}
       {isEditor ? (
