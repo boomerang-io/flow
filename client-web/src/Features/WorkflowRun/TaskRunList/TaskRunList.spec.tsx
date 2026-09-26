@@ -189,6 +189,8 @@ describe("ExecutionTaskLog --- for each", () => {
     const parent = screen.getAllByRole("listitem")[1];
     expect(within(parent).getByTestId("taskitem-name")).toHaveTextContent("locate");
     expect(within(parent).queryAllByTestId("foreach-item")).toHaveLength(0);
+    // The parent never ran a pod, so it offers no log of its own.
+    expect(within(parent).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
 
     const toggle = within(parent).getByRole("button", { name: "Show items" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");

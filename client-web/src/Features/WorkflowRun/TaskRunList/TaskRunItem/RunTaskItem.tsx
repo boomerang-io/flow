@@ -118,7 +118,8 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, item
         >
           {() => <TaskRunDetail taskRun={taskRun} />}
         </ComposedModal>
-        {hasLog(taskRun) && <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />}
+        {/* A for-each parent never runs a pod of its own; each item below has the log. */}
+        {hasLog(taskRun) && !isForeach && <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />}
         {isForeach && (
           <Button
             aria-controls={`task-${taskRun.name}-items`}
