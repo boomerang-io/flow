@@ -31,6 +31,7 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.schedule.ScheduleService;
 import io.boomerang.workflow.ConvertUtil;
@@ -52,14 +53,18 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.EnumUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -143,6 +148,11 @@ public class WorkflowService {
   private static final String ANNOTATION_KIND = "Workflow";
 
   private static final String TASK_REF_SEPERATOR = "/";
+  // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns.
+  private static final Set<TaskType> FOREACH_TASK_TYPES =
+      EnumSet.of(TaskType.template, TaskType.script, TaskType.custom, TaskType.ai, TaskType.generic);
+  // One whole-value reference such as $(tasks.stage.results.batches) or $(params.repos).
+  private static final Pattern FOREACH_REFERENCE_PATTERN = Pattern.compile("^\\$\\([^()\\s]+\\)$");
   public static final String FEATURES_SETTINGS_KEY = "features";
   public static final String FEATURES_WORKSPACE_QUOTA = "workspaceQuotas";
   public static final String QUOTA_MAX_WORKFLOW_DURATION = "max.workflow.duration";
@@ -1167,6 +1177,7 @@ public class WorkflowService {
           nodeData.setTaskRef(task.getTaskRef());
           nodeData.setTaskVersion(task.getTaskVersion());
           nodeData.setUpgradesAvailable(task.getUpgradesAvailable());
+          nodeData.setForeach(task.getForeach());
           node.setData(nodeData);
           nodes.add(node);
           taskNameToNodeId.put(task.getName(), node.getId());
@@ -1235,6 +1246,7 @@ public class WorkflowService {
           task.setResults(node.getData().getResults());
           task.setTaskRef(node.getData().getTaskRef());
           task.setTaskVersion(node.getData().getTaskVersion());
+          task.setForeach(node.getData().getForeach());
 
           List<WorkflowTaskDependency> dependencies = new LinkedList<>();
           edges.stream()
@@ -1674,6 +1686,15 @@ public class WorkflowService {
     if (filteredNames.size() != uniqueFilteredNames.size()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_NON_UNIQUE_TASK_NAME);
     }
+    // A foreach task's items are named <name>[<index>], so a task name with a bracket could collide
+    // with another task's item on the (workflowRunRef, name) unique index.
+    filteredNames.stream()
+        .filter(name -> name != null && (name.contains("[") || name.contains("]")))
+        .findFirst()
+        .ifPresent(
+            name -> {
+              throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_TASK_NAME, name);
+            });
 
     // Check Task Template references are valid
     for (WorkflowTask wfTask : wfRevisionEntity.getTasks()) {
@@ -1685,6 +1706,7 @@ public class WorkflowService {
 
         // Reject node params the Task Template does not declare
         validateDeclaredParams(wfTask, taskTemplate);
+        validateForeach(wfTask, taskTemplate);
       }
     }
     return wfRevisionEntity;
@@ -1747,6 +1769,67 @@ public class WorkflowService {
           BoomerangError.WORKFLOW_INVALID_TASK_PARAM,
           wfTask.getName(),
           undeclaredNames.toString());
+    }
+  }
+
+  /*
+   * Rejects a foreach setting the engine could not fan out. Items must be a JSON array literal
+   * within the item cap, or one reference that resolves to an array when the task runs (checked
+   * against the cap then). Only the types a dispatcher runs repeat per item, and the task must
+   * not declare item or index itself: the engine adds both to each item, and they would collide as
+   * PARAM_ITEM and PARAM_INDEX.
+   */
+  private void validateForeach(WorkflowTask wfTask, Task taskTemplate) {
+    if (wfTask.getForeach() == null) {
+      return;
+    }
+    if (!FOREACH_TASK_TYPES.contains(wfTask.getType())) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "A " + wfTask.getType() + " task cannot run for each item.");
+    }
+    Object items = wfTask.getForeach().getItems();
+    boolean singleReference =
+        items instanceof String string && FOREACH_REFERENCE_PATTERN.matcher(string.trim()).matches();
+    if (!singleReference && !(items instanceof List)) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "Items must be a JSON array or a single reference such as $(params.items).");
+    }
+    int cap = maxForeachItems();
+    if (items instanceof List<?> list && list.size() > cap) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "Items has " + list.size() + " entries, over the cap of " + cap + ".");
+    }
+    List<AbstractParam> declaredParams = taskTemplate.getSpec().getParams();
+    if (declaredParams != null
+        && declaredParams.stream()
+            .map(AbstractParam::getName)
+            .anyMatch(name -> "item".equalsIgnoreCase(name) || "index".equalsIgnoreCase(name))) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "The task declares a parameter named item or index, which each item receives from the"
+              + " engine.");
+    }
+  }
+
+  // The foreach item cap the engine enforces, or its default when the key is not seeded.
+  private int maxForeachItems() {
+    try {
+      String value =
+          settingsService
+              .getSettingConfig("workflowrun", TaskExecutionService.MAX_FOREACH_ITEMS)
+              .getValue();
+      return NumberUtils.isDigits(value)
+          ? Integer.parseInt(value)
+          : TaskExecutionService.DEFAULT_MAX_FOREACH_ITEMS;
+    } catch (RuntimeException notConfigured) {
+      return TaskExecutionService.DEFAULT_MAX_FOREACH_ITEMS;
     }
   }
 
