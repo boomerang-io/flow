@@ -214,6 +214,15 @@ export interface WorkflowTask {
   params?: Array<Param>;
   results?: Array<{ name: string; description: string }>;
   workspaces?: Array<WorkflowTaskWorkspace>;
+  foreach?: WorkflowTaskForeach;
+}
+
+/**
+ * Run the task once per item. `items` is either one reference such as
+ * `$(tasks.stage.results.batches)` or a JSON array literal.
+ */
+export interface WorkflowTaskForeach {
+  items: string | Array<unknown>;
 }
 
 export interface Workflow {
@@ -359,6 +368,7 @@ export type WorkflowNodeData = {
   upgradesAvailable: boolean;
   params: Array<{ name: string; value: string }>;
   results: Array<{ name: string; description: string }>;
+  foreach?: WorkflowTaskForeach;
 };
 // xyflow's `Node<Data>`/`Edge<Data>` require `Data extends Record<string, unknown>`. The
 // intersection is applied here (at the xyflow boundary) rather than on `WorkflowNodeData`/
@@ -872,6 +882,10 @@ export interface TaskRun {
   workflowRunRef: string;
   workflowName: string;
   workspaces: Array<WorkflowWorkspace>;
+  /** Set on an item of a for-each task: the id of the parent task run. */
+  parentRef?: string;
+  /** Set on an item of a for-each task: the item's position, from 0. */
+  index?: number;
 }
 
 export interface RunAnnototations {
