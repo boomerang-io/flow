@@ -874,6 +874,8 @@ export interface TaskRun {
   startTime: string;
   status: RunStatus;
   statusMessage: string;
+  /** Why the task run ended as it did, e.g. `OOMKilled`; absent while it is running. */
+  statusReason?: string;
   taskRef: string;
   timeout: number;
   type: string;
