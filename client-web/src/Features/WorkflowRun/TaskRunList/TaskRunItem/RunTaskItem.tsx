@@ -1,9 +1,11 @@
-import { Button, ModalBody } from "@carbon/react";
-import { ArrowRight } from "@carbon/react/icons";
+import { useState } from "react";
+import { Button, ModalBody, Tag } from "@carbon/react";
+import { ArrowRight, ChevronDown, ChevronUp } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
 import dateHelper from "Utils/dateHelper";
+import { foreachItemSuffix, formatForeachSummary, summarizeForeachItems } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, NodeType, executionStatusIcon } from "Constants";
 import { Action, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
 import ManualTaskModal from "./ManualTaskModal";
@@ -16,6 +18,19 @@ import styles from "./runTaskItem.module.scss";
 const logTaskTypes = ["customtask", "template", "script"];
 const logStatusTypes = [RunStatus.Succeeded, RunStatus.Failed, RunStatus.Running];
 
+function hasLog(taskRun: TaskRun) {
+  return (
+    (taskRun.status === RunStatus.Cancelled && taskRun.duration > 0) ||
+    (logTaskTypes.includes(taskRun.type) && logStatusTypes.includes(taskRun.status))
+  );
+}
+
+function taskRunDuration(taskRun: TaskRun) {
+  return taskRun.duration
+    ? dateHelper.timeMillisecondsToTimeUnit(taskRun.duration)
+    : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
+}
+
 type Props = {
   taskRun: TaskRun;
   workflowRun: WorkflowRun;
@@ -26,24 +41,28 @@ type Props = {
   // every list item fetching its own.
   action?: Action;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
+  // The item task runs of a for-each task, in item order, when this task run is their parent.
+  items?: Array<TaskRun>;
 };
 
-function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Props) {
+function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, items = [] }: Props) {
+  const [isItemsExpanded, setIsItemsExpanded] = useState(false);
+  const isForeach = items.length > 0;
   const Icon = executionStatusIcon[taskRun.status];
   const statusClassName = styles[taskRun.status];
   // START/END are synthetic graph markers, not executed tasks - they render "slim", without the
   // start time/duration block below, which has no meaningful value for them.
   const isSlim = taskRun.type === NodeType.Start || taskRun.type === NodeType.End;
 
-  const calculatedDuration = taskRun.duration
-    ? dateHelper.timeMillisecondsToTimeUnit(taskRun.duration)
-    : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
+  const calculatedDuration = taskRunDuration(taskRun);
 
   return (
     <li
       key={taskRun.name}
       id={`task-${taskRun.name}`}
-      className={[styles.taskitem, statusClassName, isSlim && styles.slim].filter(Boolean).join(" ")}
+      className={[styles.taskitem, statusClassName, isSlim && styles.slim, isForeach && styles.foreach]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className={styles.progressBar} />
       <section className={styles.header}>
@@ -58,6 +77,16 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Pr
           <p>{ExecutionStatusCopy[taskRun.status]}</p>
         </div>
       </section>
+      {isForeach && (
+        <section className={styles.foreachSummary}>
+          <Tag className={styles.foreachTag} size="sm" type="purple">
+            For each
+          </Tag>
+          <p className={styles.foreachSummaryText} data-testid="foreach-summary">
+            {formatForeachSummary(summarizeForeachItems(items))}
+          </p>
+        </section>
+      )}
       {!isSlim && (
         <section className={styles.data}>
           <div className={styles.time}>
@@ -89,9 +118,18 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Pr
         >
           {() => <TaskRunDetail taskRun={taskRun} />}
         </ComposedModal>
-        {((taskRun.status === RunStatus.Cancelled && taskRun.duration > 0) ||
-          (logTaskTypes.includes(taskRun.type) && logStatusTypes.includes(taskRun.status))) && (
-          <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />
+        {hasLog(taskRun) && <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />}
+        {isForeach && (
+          <Button
+            aria-controls={`task-${taskRun.name}-items`}
+            aria-expanded={isItemsExpanded}
+            kind="ghost"
+            onClick={() => setIsItemsExpanded(!isItemsExpanded)}
+            renderIcon={isItemsExpanded ? ChevronUp : ChevronDown}
+            size="sm"
+          >
+            {isItemsExpanded ? "Hide items" : "Show items"}
+          </Button>
         )}
         {taskRun.status === RunStatus.Waiting && taskRun.type === NodeType.Approval && (
           <ComposedModal
@@ -188,11 +226,59 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect }: Pr
           </ComposedModal>
         )}
       </section>
+      {isForeach && isItemsExpanded && (
+        <ol className={styles.itemList} id={`task-${taskRun.name}-items`} aria-label={`${taskRun.name} items`}>
+          {items.map((item) => (
+            <ForeachItemRow key={item.id} item={item} parentName={taskRun.name} />
+          ))}
+        </ol>
+      )}
     </li>
   );
 }
 
 export default RunTaskItem;
+
+const itemFailedStatuses = [RunStatus.Failed, RunStatus.Cancelled, RunStatus.TimedOut, RunStatus.Invalid];
+
+function itemValue(item: TaskRun) {
+  const value = item.params.find((param) => param.name === "item")?.value;
+  if (value === undefined || value === null) {
+    return "";
+  }
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+// One item of a for-each task: its index, the item it ran for, its own status and - once it
+// fails - why, its duration, and its own log (logs are per task run id, so items need nothing new).
+function ForeachItemRow({ item, parentName }: { item: TaskRun; parentName: string }) {
+  const Icon = executionStatusIcon[item.status];
+  const value = itemValue(item);
+  const isFailed = itemFailedStatuses.includes(item.status);
+  return (
+    <li className={styles.item} data-testid="foreach-item">
+      <div className={styles.itemHeader}>
+        <p className={styles.itemName} title={value ? `${item.name} ${value}` : item.name}>
+          <span className={styles.itemIndex}>{foreachItemSuffix(item, parentName)}</span>
+          {value ? <span className={styles.itemValue}>{value}</span> : null}
+        </p>
+        <div className={`${styles.status} ${styles[item.status]}`}>
+          <Icon aria-label={item.status} className={styles.statusIcon} />
+          <p>{ExecutionStatusCopy[item.status]}</p>
+        </div>
+      </div>
+      {isFailed && item.statusReason ? (
+        <p className={styles.itemReason} data-testid="foreach-item-reason">
+          {item.statusReason}
+        </p>
+      ) : null}
+      <div className={styles.itemFooter}>
+        <time className={styles.itemDuration}>{taskRunDuration(item)}</time>
+        {hasLog(item) && <TaskExecutionLog taskrunId={item.id} taskName={item.name} />}
+      </div>
+    </li>
+  );
+}
 
 // An Action is actioned by potentially MANY approvers (`numberOfApprovers` on the backend
 // entity), each recording their own verdict, comment and timestamp - so every actioner is
