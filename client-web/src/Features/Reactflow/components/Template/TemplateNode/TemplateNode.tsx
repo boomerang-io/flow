@@ -41,6 +41,7 @@ interface TaskTemplateNodeEditorProps extends TaskTemplateNodeProps {
 
 function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   const { taskTemplate, TaskForm = DefaultTaskForm } = props;
+  const { nodeToEdit, clearNodeToEdit } = useWorkflowContext();
   const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
 
   const { availableParameters } = useEditorContext();
@@ -104,6 +105,10 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       subtitle={taskTemplate.description}
     >
       <ComposedModal
+        isOpen={nodeToEdit === props.id}
+        onCloseModal={() => {
+          if (nodeToEdit === props.id) clearNodeToEdit?.();
+        }}
         modalHeaderProps={{
           title: `Edit ${taskTemplate.displayName}`,
           subtitle: taskTemplate.description || "Configure the task",

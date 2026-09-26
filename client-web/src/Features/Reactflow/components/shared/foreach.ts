@@ -1,4 +1,5 @@
 import * as Yup from "yup";
+import { NodeType } from "Constants";
 import type { WorkflowTaskForeach } from "Types";
 
 /**
@@ -10,6 +11,20 @@ export const FOREACH_MAX_ITEMS = 256;
 export const FOREACH_ENABLED_KEY = "foreachEnabled";
 export const FOREACH_ITEMS_KEY = "foreachItems";
 export const FOREACH_KEYS = [FOREACH_ENABLED_KEY, FOREACH_ITEMS_KEY];
+
+/** The `type` the palette's synthetic "For each" entry carries on drag; never a node type. */
+export const FOREACH_PALETTE_TYPE = "foreach";
+
+/**
+ * The task types the "Repeat a task for each item" picker offers: the ones the dispatcher runs.
+ * Control tasks (decision, approval, wait, locks, run workflow, ...) make no sense repeated.
+ */
+export const FOREACH_TASK_TYPES: ReadonlyArray<string> = [
+  NodeType.Template,
+  NodeType.Script,
+  NodeType.CustomTask,
+  NodeType.Ai,
+];
 
 const REFERENCE_PATTERN = /^\$\([^()\s]+\)$/;
 
