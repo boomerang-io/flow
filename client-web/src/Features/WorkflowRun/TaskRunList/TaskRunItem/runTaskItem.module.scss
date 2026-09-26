@@ -72,7 +72,13 @@
 
   // START/END markers skip the time/duration section, so they only need room for the header.
   &.slim {
-    height: 4.5rem;
+    height: auto;
+    min-height: 4.5rem;
+    padding-bottom: 0.5rem;
+
+    .data {
+      margin-top: 0.5rem;
+    }
   }
 
   // A for-each task grows to fit its summary line and, once expanded, its items.
@@ -232,13 +238,17 @@
 }
 
 .data {
+  margin-left: 2.5rem;
+  margin-top: 2rem;
+  white-space: nowrap;
+}
+
+// The entry's actions (View Details, View Log, Show items) sit on one row with a gap between them.
+.actions {
   align-items: center;
   column-gap: 1rem;
   display: flex;
   flex-wrap: wrap;
-  margin-left: 2.5rem;
-  margin-top: 2rem;
-  white-space: nowrap;
 }
 
 .modalTrigger {

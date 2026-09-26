@@ -422,7 +422,7 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                 </div>
               </section>
               <section
-                class="_data_fe6a3c"
+                class="_data_fe6a3c _actions_fe6a3c"
               >
                 <button
                   class="_modalTrigger_fe6a3c cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"

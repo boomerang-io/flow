@@ -101,7 +101,7 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, item
           </div>
         </section>
       )}
-      <section className={styles.data}>
+      <section className={`${styles.data} ${styles.actions}`}>
         <ComposedModal
           composedModalProps={{
             containerClassName: styles.actionManualTaskModalContainer,
