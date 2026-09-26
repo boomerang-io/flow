@@ -228,6 +228,7 @@ function BaseNode(props: BaseNodeProps) {
   }
 
   const isEditor = props.mode === WorkflowEngineMode.Edit;
+  const isForeach = Boolean(props.nodeProps.data?.foreach);
   // See StartNode.tsx for why this is typed via `IsValidConnection` rather than `Connection`.
   // Declared here (rather than after the `return`, as the pre-migration `function` declaration
   // was) because a `const` isn't hoisted the way a `function` declaration is, and it's
@@ -235,7 +236,18 @@ function BaseNode(props: BaseNodeProps) {
   const isValidHandle: IsValidConnection = (connection) => connection.source !== connection.target;
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <div className={cx(styles.node, className, styles[status ?? ""], { [styles.locked]: !isEditor })} onClick={onClick}>
+    <div
+      className={cx(styles.node, className, styles[status ?? ""], {
+        [styles.locked]: !isEditor,
+        [styles.foreach]: isForeach,
+      })}
+      onClick={onClick}
+    >
+      {isForeach ? (
+        <div className={cx(styles.badgeContainer, styles.foreachBadge)}>
+          <p className={styles.badgeText}>For each</p>
+        </div>
+      ) : null}
       {isEditor ? (
         <div style={{ position: "absolute", top: "-1rem", right: "-0.875rem", display: "flex", gap: "0.25rem" }}>
           <WorkflowCloseButton
