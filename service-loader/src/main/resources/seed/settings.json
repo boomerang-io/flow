@@ -521,6 +521,14 @@
           "type": "number",
           "value": "5",
           "readOnly": false
+        },
+        {
+          "description": "How many items a for-each task may run. A task whose items resolve to more fails instead of running any.",
+          "key": "max.foreach.items",
+          "label": "Maximum For-Each Items",
+          "type": "number",
+          "value": "256",
+          "readOnly": false
         }
       ],
       "description": "Define how the system utilizes and interacts with storage.",

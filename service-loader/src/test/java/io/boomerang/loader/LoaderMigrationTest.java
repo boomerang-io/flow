@@ -389,6 +389,7 @@ class LoaderMigrationTest {
     assertWorkerFlowImagesRepointed();
     assertRunWorkflowParamsDeclared();
     assertChildWorkflowNestingCapAndIndex();
+    assertForeachCapAndIndex();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -1649,6 +1650,23 @@ class LoaderMigrationTest {
     assertThat(cap).isNotNull();
     assertThat(cap.getString("value")).isEqualTo("5");
     assertIndex("workflow_runs", "initiated_by_phase", List.of("initiatedByRef", "phase"));
+  }
+
+  /**
+   * {@code _0049}: the foreach item cap lands in the same legacy {@code workflowrun} document, and
+   * a parent's items get their sparse lookup index.
+   */
+  private void assertForeachCapAndIndex() {
+    Document workflowRun = collection("settings").find(Filters.eq("key", "workflowrun")).first();
+    Document cap =
+        workflowRun.getList("config", Document.class).stream()
+            .filter(config -> "max.foreach.items".equals(config.getString("key")))
+            .findFirst()
+            .orElse(null);
+    assertThat(cap).isNotNull();
+    assertThat(cap.getString("value")).isEqualTo("256");
+    assertIndex("task_runs", "parent_index", List.of("parentRef", "index"));
+    assertThat(indexesByName("task_runs").get("parent_index").getBoolean("sparse")).isTrue();
   }
 
   private void assertRelationshipAndAuditIndexes() {
