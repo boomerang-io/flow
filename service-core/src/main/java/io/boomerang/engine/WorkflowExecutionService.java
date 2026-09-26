@@ -272,12 +272,12 @@ public class WorkflowExecutionService {
     // Cancel Running & Queued Tasks. The run's TaskRuns are all materialised at start, so the
     // stored set is the graph; the revision is only needed to materialise a task that does not
     // exist yet. When the revision is gone (deleted workflow), wind down what is stored rather
-    // than throw after the run is already terminal and orphan its in-flight TaskRuns.
-    List<TaskRunEntity> tasks =
-        workflowRevisionRepository
-            .findById(wfRunEntity.getWorkflowRevisionRef())
-            .map(revision -> dagUtility.createTaskList(revision, wfRunEntity))
-            .orElseGet(() -> taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId()));
+    // than throw after the run is already terminal and orphan its in-flight TaskRuns. The stored
+    // set includes the items of a foreach task, which are not graph vertices.
+    workflowRevisionRepository
+        .findById(wfRunEntity.getWorkflowRevisionRef())
+        .ifPresent(revision -> dagUtility.createTaskList(revision, wfRunEntity));
+    List<TaskRunEntity> tasks = taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId());
 
     // Running and queued (claimed but not yet started) tasks get the same treatment: end() ends
     // up completing them as cancelled through the completion Compare-And-Set, which is

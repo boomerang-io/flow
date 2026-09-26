@@ -127,6 +127,20 @@ public class ParameterManager {
   }
 
   /*
+   * Resolve one value against the TaskRun's parameter layers, as an object-typed param resolves: a
+   * value that is exactly one reference becomes the referenced value itself (a result array stays
+   * an array), and references inside a structure are substituted into its string leaves.
+   */
+  public Object resolveParamValue(WorkflowRunEntity wfRun, TaskRunEntity taskRun, Object value) {
+    return resolveParam(
+        ParamType.object,
+        value,
+        wfRun.getId(),
+        buildParameterLayering(wfRun, Optional.of(taskRun)),
+        new HashMap<>());
+  }
+
+  /*
    * Resolve $(params.x) references inside the TaskRun spec's string fields. Same one-pass
    * semantics as a param value referencing another param; unresolved references are left as-is.
    */

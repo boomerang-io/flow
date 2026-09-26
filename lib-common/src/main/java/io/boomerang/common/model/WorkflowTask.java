@@ -46,6 +46,8 @@ public class WorkflowTask {
   // Optional - the default is that the workspace goes to all Tasks
   // Not supported by all integrations
   private List<TaskWorkspace> workspaces;
+  // Optional - run this task once per item of a list. Absent runs the task once.
+  private WorkflowTaskForeach foreach;
   private Map<String, Object> unknownFields = new HashMap<>();
 
   @JsonAnyGetter

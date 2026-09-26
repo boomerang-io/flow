@@ -412,6 +412,86 @@ public class TaskRunService {
     return preImage;
   }
 
+  // Fan-out Compare-And-Set for a foreach parent: notstarted/pending becomes running with the given
+  // start time, recording the resolved item array (null when it failed to resolve) in the same
+  // guarded write. The parent never passes through ready, so it is never claimable, and it carries
+  // no claim and no timeoutAt, so no lease, orphan or timeout sweep ever reaps it - its items carry
+  // the timeouts. Returns the pre-image, or null when another caller already fanned it out.
+  public TaskRunEntity tryStartForeach(String id, Date startTime, List<Object> items) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(RunStatus.notstarted)
+                .and("phase")
+                .is(RunPhase.pending));
+    Update update =
+        new Update()
+            .set("status", RunStatus.running)
+            .set("phase", RunPhase.running)
+            .set("startTime", startTime)
+            .set("foreach.items", items);
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.running, RunPhase.running);
+    }
+    return preImage;
+  }
+
+  // Record a foreach parent's outcome - its status, message, typed reason and, when given, the
+  // per-item result arrays - field-scoped and fenced on the running phase, for end() to complete it
+  // through the ordinary completion Compare-And-Set. Concurrent last-item enders compute the same
+  // outcome from the same terminal items, so a repeated write is harmless, and a completed parent
+  // is never touched.
+  public void tryRecordForeachOutcome(
+      String id, RunStatus status, String statusMessage, String statusReason, List<RunResult> results) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", status).set("statusMessage", statusMessage);
+    if (statusReason != null) {
+      update.set("statusReason", statusReason);
+    }
+    if (results != null) {
+      update.set("results", results);
+    }
+    mongoTemplate.updateFirst(query, update, TaskRunEntity.class);
+  }
+
+  // Return the page of foreach parents running since before the given time - the candidates for
+  // recovering a fan-out or a parent completion that a crash cut short.
+  public List<TaskRunEntity> findRunningForeachParents(Date startedBefore, int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("status")
+                    .is(RunStatus.running)
+                    .and("phase")
+                    .is(RunPhase.running)
+                    .and("foreach")
+                    .exists(true)
+                    .and("startTime")
+                    .lte(startedBefore))
+            .with(Sort.by(Sort.Direction.ASC, "startTime"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    query.fields().include("_id");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Whether a foreach parent has an item in flight, by the same test as
+  // existsInFlightByWorkflowRunRef. None in flight on a running parent means its items are all
+  // terminal or never queued, and the fan-out must be recovered.
+  public boolean existsInFlightItem(String parentRef) {
+    Query query =
+        Query.query(
+                Criteria.where("parentRef")
+                    .is(parentRef)
+                    .orOperator(
+                        Criteria.where("phase").in(RunPhase.queued, RunPhase.running),
+                        Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
+            .maxTimeMsec(5000);
+    return mongoTemplate.exists(query, TaskRunEntity.class);
+  }
+
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
   // set only when provided; claimant identity enforced as fencing when provided. Returns the
   // pre-image, or null when already completed - a terminal status is never overwritten.

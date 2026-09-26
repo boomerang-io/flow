@@ -25,7 +25,7 @@ public class TaskRunEndRequest {
    * the UI to filter by; {@code statusMessage} stays the human-readable text. Closed set:
    * DeadlineExceeded, JobDeleted, JobFailed, OOMKilled, ImagePull, AdmissionDenied,
    * ResultsTooLarge, DispatchError, DispatcherGone, LeaseExpired, ChildRunFailed,
-   * NestingDepthExceeded.
+   * NestingDepthExceeded, ItemFailed, ForeachItemsInvalid, ForeachTooManyItems.
    */
   private String statusReason;
 

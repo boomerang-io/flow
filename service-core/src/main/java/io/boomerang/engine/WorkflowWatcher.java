@@ -140,6 +140,7 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverForeachTasks", this::recoverForeachTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
@@ -216,6 +217,29 @@ public class WorkflowWatcher {
         },
         (wfRun, ex) ->
             LOGGER.error("[{}] Stalled-run recovery failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * Recover foreach tasks running with no item in flight - a crash between the parent's fan-out
+   * and its last item, or between its last item ending and the parent completing. A running parent
+   * counts as in flight, so {@link #recoverStalledRuns} never reaches it. The recovery is the same
+   * idempotent fan-out the live path runs: missing items are created, unqueued items queued, and a
+   * parent whose items are all terminal completed.
+   */
+  public void recoverForeachTasks() {
+    Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
+    SweepRunner.forEachIsolated(
+        taskRunService.findRunningForeachParents(startedBefore, PAGE_SIZE),
+        parent -> {
+          if (!taskRunService.existsInFlightItem(parent.getId())) {
+            LOGGER.info(
+                "[{}] Running foreach TaskRun has no item in flight. Recovering its fan-out.",
+                parent.getId());
+            taskExecutionService.fanOutItems(parent.getId());
+          }
+        },
+        (parent, ex) ->
+            LOGGER.error("[{}] Foreach recovery failed: {}", parent.getId(), ex.getMessage()));
   }
 
   /**
