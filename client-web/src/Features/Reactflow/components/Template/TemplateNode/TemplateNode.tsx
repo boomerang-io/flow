@@ -12,6 +12,7 @@ import { taskIcons } from "Utils/taskIcons";
 import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
+import { splitForeachValues } from "../../shared/foreach";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
 
@@ -75,12 +76,14 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
     inputs: Record<string, string>,
     results: Array<{ name: string; description: string }> = [],
   ) => {
-    const nameAndParamListRecord = inputRecordToNameAndParamListRecord(inputs);
+    // The for-each setting shares the form with the params but is not a param.
+    const { foreach, rest } = splitForeachValues(inputs);
+    const nameAndParamListRecord = inputRecordToNameAndParamListRecord(rest);
     const newNodes = nodes.map((node) => {
       if (node.id === props.id) {
         return {
           ...node,
-          data: { ...node.data, ...nameAndParamListRecord, results },
+          data: { ...node.data, ...nameAndParamListRecord, results, foreach },
         };
       } else {
         return node;

@@ -1,8 +1,9 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { aiTask } from "ApiServer/fixtures";
 import { renderWithContext } from "Utils/testing/render";
 import type { Task, WorkflowNodeData } from "Types";
+import { splitForeachValues } from "../../../shared/foreach";
 import TaskForm from "./TaskForm";
 
 // The seeded `ai` task exercises the whole generic path in one go: text, password, text-editor,
@@ -64,5 +65,101 @@ describe("Task config form --- the seeded ai task", () => {
     for (const result of ["output", "promptTokens", "completionTokens", "totalTokens", "finishReason", "model"]) {
       expect(screen.getByText(new RegExp(`^${result}:`))).toBeInTheDocument();
     }
+  });
+});
+
+// The four required ai params filled in, so the form is valid and Apply is enabled.
+const validNode = {
+  ...node,
+  params: [
+    { name: "endpoint", value: "https://models.example.com" },
+    { name: "token", value: "secret" },
+    { name: "model", value: "a-model" },
+    { name: "prompt", value: "Summarise $(params.item)" },
+  ],
+} as unknown as WorkflowNodeData;
+
+function renderTabbedTaskForm(overrides: Partial<React.ComponentProps<typeof TaskForm>> = {}) {
+  return renderWithContext(
+    <TaskForm
+      availableParameters={[]}
+      closeModal={() => {}}
+      node={validNode}
+      onSave={() => {}}
+      otherTaskNames={[]}
+      task={task}
+      {...overrides}
+    />,
+  );
+}
+
+describe("Task config form --- Parameters and Settings tabs", () => {
+  it("keeps Task Name above the tabs and opens on Parameters", () => {
+    renderTabbedTaskForm();
+
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Parameters", "Settings"]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Task Name")).toBeVisible();
+    expect(screen.queryByText("Specifics")).not.toBeInTheDocument();
+  });
+
+  it("shows Items and the For each tag once Run for each item is on", async () => {
+    renderTabbedTaskForm();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(screen.queryByLabelText("Items")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch"));
+
+    expect(await screen.findByLabelText("Items")).toBeInTheDocument();
+    expect(within(screen.getByRole("tab", { name: /Settings/ })).getByText("For each")).toBeInTheDocument();
+    expect(screen.getByText(/is the current item/)).toBeInTheDocument();
+  });
+
+  it("marks the Settings tab with an error icon while Items is invalid", async () => {
+    renderTabbedTaskForm();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.change(await screen.findByLabelText("Items"), { target: { value: "not a list" } });
+
+    expect(await screen.findByLabelText("Settings has an error")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Parameters has an error")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Items"), { target: { value: "$(tasks.stage.results.batches)" } });
+    await waitFor(() => expect(screen.queryByLabelText("Settings has an error")).not.toBeInTheDocument());
+  });
+
+  it("marks the Parameters tab with an error icon when a required parameter is empty", async () => {
+    renderTaskForm();
+
+    expect(await screen.findByLabelText("Parameters has an error")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Settings has an error")).not.toBeInTheDocument();
+  });
+
+  it("saves the for-each items with the params on Apply", async () => {
+    const onSave = vi.fn();
+    renderTabbedTaskForm({ onSave });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.change(await screen.findByLabelText("Items"), { target: { value: '["a", "b"]' } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const values = onSave.mock.calls[0][0];
+    expect(values).toMatchObject({ foreachEnabled: true, foreachItems: '["a", "b"]', model: "a-model" });
+    expect(splitForeachValues(values).foreach).toEqual({ items: ["a", "b"] });
+  });
+
+  it("loads a saved for-each setting back into the Settings tab", async () => {
+    renderTabbedTaskForm({ node: { ...validNode, foreach: { items: "$(params.repos)" } } });
+
+    expect(within(screen.getByRole("tab", { name: /Settings/ })).getByText("For each")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Settings/ }));
+    expect(await screen.findByLabelText("Items")).toHaveValue("$(params.repos)");
   });
 });

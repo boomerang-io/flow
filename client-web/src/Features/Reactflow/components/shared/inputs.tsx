@@ -45,12 +45,9 @@ export const TaskNameTextInput = ({ formikProps, ...input }: DataDrivenInput & {
   // rather than at the vendor TextInput.
   const defaultValue = typeof input.defaultValue === "string" ? input.defaultValue : undefined;
   const value = typeof input.value === "string" ? input.value : undefined;
+  // The Parameters | Settings tabs (TaskFormTabs) follow directly below this input.
   return (
-    <>
-      <TextInput {...input} defaultValue={defaultValue} value={value} invalid={hasError} invalidText={isTouched} onChange={formikProps.handleChange} />
-      <hr className={styles.divider} />
-      <h2 className={styles.inputsTitle}>Specifics</h2>
-    </>
+    <TextInput {...input} defaultValue={defaultValue} value={value} invalid={hasError} invalidText={isTouched} onChange={formikProps.handleChange} />
   );
 };
 

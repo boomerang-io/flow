@@ -7,6 +7,8 @@ import { useEditorContext } from "Hooks";
 import { timezoneOptions, defaultTimeZone, transformTimeZone } from "Utils/dateHelper";
 import { normaliseInputs } from "Utils/paramsHelper";
 import { DataDrivenInput, Task, WorkflowNodeData } from "Types";
+import TaskFormTabs from "../../shared/TaskFormTabs";
+import { foreachInitialValues, foreachValidationShape } from "../../shared/foreach";
 import {
   AutoSuggestInput,
   TextAreaSuggestInput,
@@ -233,6 +235,7 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
       },
       {} as Record<string, string>,
     ),
+    ...foreachInitialValues(node.foreach),
   };
 
   return (
@@ -244,6 +247,7 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
         taskName: Yup.string()
           .required("Enter a task name")
           .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        ...foreachValidationShape,
         time: Yup.string().test("timeRequired", "Time is required", (value, ctx) => {
           const futurePeriod = ctx.parent.futurePeriod;
           if (!value && (futurePeriod === "days" || futurePeriod === "weeks" || futurePeriod === "months")) {
@@ -275,7 +279,9 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
     >
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
-          <ModalBody aria-label="inputs">{inputs}</ModalBody>
+          <ModalBody aria-label="inputs">
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} />
+          </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>
               Cancel

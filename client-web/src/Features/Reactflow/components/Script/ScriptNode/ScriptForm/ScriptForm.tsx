@@ -4,6 +4,8 @@ import { DynamicFormik, ModalForm } from "@boomerang-io/carbon-addons-boomerang-
 import * as Yup from "yup";
 import { normaliseInputs } from "Utils/paramsHelper";
 import { Task, WorkflowNodeData } from "Types";
+import TaskFormTabs from "../../../shared/TaskFormTabs";
+import { foreachInitialValues, foreachValidationShape } from "../../../shared/foreach";
 import {
   AutoSuggestInput,
   ResultsInput,
@@ -76,6 +78,7 @@ function ScriptForm(props: ScriptFormProps) {
       },
       {} as Record<string, string>,
     ),
+    ...foreachInitialValues(node.foreach),
   };
 
   return (
@@ -86,6 +89,7 @@ function ScriptForm(props: ScriptFormProps) {
         taskName: Yup.string()
           .required("Enter a task name")
           .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        ...foreachValidationShape,
         results: Yup.array(),
       })}
       initialValues={initialValues}
@@ -103,7 +107,9 @@ function ScriptForm(props: ScriptFormProps) {
     >
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
-          <ModalBody aria-label="inputs">{inputs}</ModalBody>
+          <ModalBody aria-label="inputs">
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} />
+          </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>
               Cancel

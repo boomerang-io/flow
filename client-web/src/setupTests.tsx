@@ -134,6 +134,22 @@ beforeEach(() => {
   }
 });
 
+// jsdom has no `window.matchMedia`; Carbon's TabList reads it on mount (useMatchMedia) to pick
+// its small-screen layout, so any spec rendering Carbon Tabs (the task edit forms) needs it.
+// Reports "no match" for every query. Guarded like the block above for node-environment specs.
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = (query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  });
+}
+
 const originalConsoleError = console.error;
 console.error = (message, ...rest) => {
   if (
