@@ -132,6 +132,15 @@ describe("Task config form --- Parameters and Configure tabs", () => {
     await waitFor(() => expect(screen.queryByLabelText("Configure has an error")).not.toBeInTheDocument());
   });
 
+  it("rejects [ and ] in the task name, which name the items of a for-each task", async () => {
+    renderTabbedTaskForm();
+
+    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ask the model[0]" } });
+
+    expect(await screen.findByText("Task names cannot contain [ or ]")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
   it("marks the Parameters tab with an error icon when a required parameter is empty", async () => {
     renderTaskForm();
 

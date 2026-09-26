@@ -8,7 +8,7 @@ import { timezoneOptions, defaultTimeZone, transformTimeZone } from "Utils/dateH
 import { normaliseInputs } from "Utils/paramsHelper";
 import { DataDrivenInput, Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../shared/TaskFormTabs";
-import { foreachInitialValues, foreachValidationShape } from "../../shared/foreach";
+import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../shared/foreach";
 import {
   AutoSuggestInput,
   TextAreaSuggestInput,
@@ -244,9 +244,7 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
       validationSchemaExtension={Yup.object().shape({
         futureIn: Yup.number().required("Interval is required ").min(1, "Must be at least one interval in future"),
         futurePeriod: Yup.string().required("Interval period is required"),
-        taskName: Yup.string()
-          .required("Enter a task name")
-          .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        taskName: taskNameSchema(otherTaskNames),
         ...foreachValidationShape,
         time: Yup.string().test("timeRequired", "Time is required", (value, ctx) => {
           const futurePeriod = ctx.parent.futurePeriod;

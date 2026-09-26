@@ -1,4 +1,4 @@
-import { foreachInitialValues, foreachItemsError, splitForeachValues } from "./foreach";
+import { foreachInitialValues, foreachItemsError, splitForeachValues, taskNameSchema } from "./foreach";
 
 describe("for-each items", () => {
   it("accepts one reference or a JSON array", () => {
@@ -30,5 +30,15 @@ describe("for-each items", () => {
   it("reads a stored setting back into the form", () => {
     expect(foreachInitialValues(undefined)).toEqual({ foreachEnabled: false, foreachItems: "" });
     expect(foreachInitialValues({ items: ["a", "b"] })).toEqual({ foreachEnabled: true, foreachItems: '["a","b"]' });
+  });
+});
+
+describe("task names", () => {
+  it("reserves [ and ] for the items of a for-each task", async () => {
+    const schema = taskNameSchema(["Existing"]);
+    await expect(schema.validate("Build 2")).resolves.toBe("Build 2");
+    await expect(schema.validate("Build[0]")).rejects.toThrow("Task names cannot contain [ or ]");
+    await expect(schema.validate("Build ]")).rejects.toThrow("Task names cannot contain [ or ]");
+    await expect(schema.validate("Existing")).rejects.toThrow("Enter a unique value for task name");
   });
 });

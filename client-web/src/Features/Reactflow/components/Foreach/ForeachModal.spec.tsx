@@ -51,6 +51,13 @@ describe("Repeat a task for each item", () => {
     await waitFor(() => expect(next).toBeDisabled());
     fireEvent.change(screen.getByLabelText("Items"), { target: { value: "$(params.urls)" } });
     await waitFor(() => expect(next).toBeEnabled());
+
+    // [ and ] name the items of a for-each task, so a task name cannot use them.
+    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Call[0]" } });
+    expect(await screen.findByText("Task names cannot contain [ or ]")).toBeInTheDocument();
+    expect(next).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: httpTask.displayName } });
+    await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
 
     await waitFor(() =>

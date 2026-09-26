@@ -5,7 +5,7 @@ import * as Yup from "yup";
 import { normaliseInputs } from "Utils/paramsHelper";
 import { Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../../shared/TaskFormTabs";
-import { foreachInitialValues, foreachValidationShape } from "../../../shared/foreach";
+import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../../shared/foreach";
 import {
   AutoSuggestInput,
   ResultsInput,
@@ -86,9 +86,7 @@ function ScriptForm(props: ScriptFormProps) {
       allowCustomPropertySyntax
       validateOnMount
       validationSchemaExtension={Yup.object().shape({
-        taskName: Yup.string()
-          .required("Enter a task name")
-          .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        taskName: taskNameSchema(otherTaskNames),
         ...foreachValidationShape,
         results: Yup.array(),
       })}

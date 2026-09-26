@@ -5,7 +5,7 @@ import { Formik } from "formik";
 import * as Yup from "yup";
 import { TaskTemplateStatus } from "Constants";
 import type { Task } from "Types";
-import { FOREACH_MAX_ITEMS, FOREACH_TASK_TYPES, foreachItemsError } from "../shared/foreach";
+import { FOREACH_MAX_ITEMS, FOREACH_TASK_TYPES, foreachItemsError, taskNameSchema } from "../shared/foreach";
 import styles from "./ForeachModal.module.scss";
 
 interface ForeachModalProps {
@@ -62,9 +62,7 @@ export default function ForeachModal(props: ForeachModalProps) {
               const message = foreachItemsError(value);
               return message ? this.createError({ message }) : true;
             }),
-            taskName: Yup.string()
-              .required("Enter a task name")
-              .notOneOf(takenNames, "Enter a unique value for task name"),
+            taskName: taskNameSchema(takenNames),
           })}
           onSubmit={(values) => {
             const task = repeatableTasks.find((candidate) => candidate.name === values.taskRef);

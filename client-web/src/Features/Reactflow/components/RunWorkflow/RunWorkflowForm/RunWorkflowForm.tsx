@@ -7,7 +7,7 @@ import { useEditorContext } from "Hooks";
 import { normaliseInputs } from "Utils/paramsHelper";
 import { DataDrivenInput, Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../shared/TaskFormTabs";
-import { foreachInitialValues, foreachValidationShape } from "../../shared/foreach";
+import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../shared/foreach";
 import {
   AutoSuggestInput,
   TextAreaSuggestInput,
@@ -136,9 +136,7 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
       enableReinitialize
       validateOnMount
       validationSchemaExtension={Yup.object().shape({
-        taskName: Yup.string()
-          .required("Enter a task name")
-          .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        taskName: taskNameSchema(otherTaskNames),
         ...foreachValidationShape,
         workflowRef: Yup.string().required("Select a workflow"),
       })}

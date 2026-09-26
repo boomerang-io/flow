@@ -1,7 +1,7 @@
 import React from "react";
 import { TextInput, TextArea, Creatable } from "@boomerang-io/carbon-addons-boomerang-react";
 import { json } from "d3";
-import { FormikProps } from "formik";
+import { FormikProps, getIn } from "formik";
 import TextEditorModal from "Components/TextEditorModal";
 import { INPUT_TYPES, TEXT_AREA_TYPES } from "Constants/formInputTypes";
 import { DataDrivenInput } from "Types";
@@ -37,9 +37,10 @@ export const TextEditorInput = (props: any) => {
 };
 
 export const TaskNameTextInput = ({ formikProps, ...input }: DataDrivenInput & { formikProps: FormikProps<any> }) => {
-  const { errors, touched } = formikProps;
-  const hasError = Boolean(errors[input.id]);
-  const isTouched = Boolean(touched[input.id]);
+  const { errors } = formikProps;
+  // DynamicFormik ids its inputs `['taskName']` unless the form sets its own id; getIn reads both.
+  const error = getIn(errors, input.id);
+  const hasError = Boolean(error);
   // The task name is always a plain string; DataDrivenInput#value/#defaultValue are
   // typed broadly (they also cover list/key-value inputs), so narrow them here
   // rather than at the vendor TextInput.
@@ -47,7 +48,7 @@ export const TaskNameTextInput = ({ formikProps, ...input }: DataDrivenInput & {
   const value = typeof input.value === "string" ? input.value : undefined;
   // The Parameters | Configure tabs (TaskFormTabs) follow directly below this input.
   return (
-    <TextInput {...input} defaultValue={defaultValue} value={value} invalid={hasError} invalidText={isTouched} onChange={formikProps.handleChange} />
+    <TextInput {...input} defaultValue={defaultValue} value={value} invalid={hasError} invalidText={typeof error === "string" ? error : undefined} onChange={formikProps.handleChange} />
   );
 };
 
