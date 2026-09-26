@@ -17,7 +17,7 @@ interface TaskFormTabsProps {
 
 /**
  * The body of every task edit form: "Task Name" above two tabs, Parameters (the task's own
- * inputs and its results) and Settings (run the task for each item of a list). One Formik form
+ * inputs and its results) and Configure (run the task for each item of a list). One Formik form
  * spans both tabs, so Apply saves both.
  */
 export default function TaskFormTabs({ inputs, formikProps }: TaskFormTabsProps) {
@@ -27,7 +27,7 @@ export default function TaskFormTabs({ inputs, formikProps }: TaskFormTabsProps)
   const parameterInputs = inputs.filter((input) => !isNameInput(input));
 
   const errorKeys = Object.keys(errors).filter((key) => Boolean(errors[key]));
-  const hasSettingsError = errorKeys.some((key) => FOREACH_KEYS.includes(key));
+  const hasConfigureError = errorKeys.some((key) => FOREACH_KEYS.includes(key));
   const hasParametersError = errorKeys.some((key) => key !== TASK_NAME_KEY && !FOREACH_KEYS.includes(key));
   const isForeachEnabled = Boolean(values[FOREACH_ENABLED_KEY]);
 
@@ -44,20 +44,20 @@ export default function TaskFormTabs({ inputs, formikProps }: TaskFormTabsProps)
           </Tab>
           <Tab>
             <span className={styles.tabLabel}>
-              Settings
+              Configure
               {isForeachEnabled ? (
                 <Tag as="span" className={styles.tag} size="sm" type="purple">
                   For each
                 </Tag>
               ) : null}
-              {hasSettingsError ? <TabErrorIcon tabName="Settings" /> : null}
+              {hasConfigureError ? <TabErrorIcon tabName="Configure" /> : null}
             </span>
           </Tab>
         </TabList>
         <TabPanels>
           <TabPanel className={styles.tabPanel}>{parameterInputs}</TabPanel>
           <TabPanel className={styles.tabPanel}>
-            <ForeachSettings formikProps={formikProps} />
+            <ForeachFields formikProps={formikProps} />
           </TabPanel>
         </TabPanels>
       </Tabs>
@@ -76,13 +76,13 @@ function TabErrorIcon({ tabName }: { tabName: string }) {
   );
 }
 
-function ForeachSettings({ formikProps }: { formikProps: FormikProps<any> }) {
+function ForeachFields({ formikProps }: { formikProps: FormikProps<any> }) {
   const { errors, handleBlur, handleChange, setFieldTouched, setFieldValue, touched, values } = formikProps;
   const isEnabled = Boolean(values[FOREACH_ENABLED_KEY]);
   const itemsError = errors[FOREACH_ITEMS_KEY];
 
   return (
-    <div className={styles.settings}>
+    <div className={styles.configure}>
       <Toggle
         reversed
         id={FOREACH_ENABLED_KEY}

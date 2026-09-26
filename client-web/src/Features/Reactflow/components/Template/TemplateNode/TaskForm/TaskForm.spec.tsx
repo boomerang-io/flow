@@ -93,12 +93,12 @@ function renderTabbedTaskForm(overrides: Partial<React.ComponentProps<typeof Tas
   );
 }
 
-describe("Task config form --- Parameters and Settings tabs", () => {
+describe("Task config form --- Parameters and Configure tabs", () => {
   it("keeps Task Name above the tabs and opens on Parameters", () => {
     renderTabbedTaskForm();
 
     const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Parameters", "Settings"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Parameters", "Configure"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText("Task Name")).toBeVisible();
     expect(screen.queryByText("Specifics")).not.toBeInTheDocument();
@@ -107,43 +107,43 @@ describe("Task config form --- Parameters and Settings tabs", () => {
   it("shows Items and the For each tag once Run for each item is on", async () => {
     renderTabbedTaskForm();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Configure" }));
     expect(screen.queryByLabelText("Items")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch"));
 
     expect(await screen.findByLabelText("Items")).toBeInTheDocument();
-    expect(within(screen.getByRole("tab", { name: /Settings/ })).getByText("For each")).toBeInTheDocument();
+    expect(within(screen.getByRole("tab", { name: /Configure/ })).getByText("For each")).toBeInTheDocument();
     expect(screen.getByText(/is the current item/)).toBeInTheDocument();
   });
 
-  it("marks the Settings tab with an error icon while Items is invalid", async () => {
+  it("marks the Configure tab with an error icon while Items is invalid", async () => {
     renderTabbedTaskForm();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Configure" }));
     fireEvent.click(screen.getByRole("switch"));
     fireEvent.change(await screen.findByLabelText("Items"), { target: { value: "not a list" } });
 
-    expect(await screen.findByLabelText("Settings has an error")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Configure has an error")).toBeInTheDocument();
     expect(screen.queryByLabelText("Parameters has an error")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Items"), { target: { value: "$(tasks.stage.results.batches)" } });
-    await waitFor(() => expect(screen.queryByLabelText("Settings has an error")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByLabelText("Configure has an error")).not.toBeInTheDocument());
   });
 
   it("marks the Parameters tab with an error icon when a required parameter is empty", async () => {
     renderTaskForm();
 
     expect(await screen.findByLabelText("Parameters has an error")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Settings has an error")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Configure has an error")).not.toBeInTheDocument();
   });
 
   it("saves the for-each items with the params on Apply", async () => {
     const onSave = vi.fn();
     renderTabbedTaskForm({ onSave });
 
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Configure" }));
     fireEvent.click(screen.getByRole("switch"));
     fireEvent.change(await screen.findByLabelText("Items"), { target: { value: '["a", "b"]' } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled());
@@ -155,11 +155,11 @@ describe("Task config form --- Parameters and Settings tabs", () => {
     expect(splitForeachValues(values).foreach).toEqual({ items: ["a", "b"] });
   });
 
-  it("loads a saved for-each setting back into the Settings tab", async () => {
+  it("loads a saved for-each setting back into the Configure tab", async () => {
     renderTabbedTaskForm({ node: { ...validNode, foreach: { items: "$(params.repos)" } } });
 
-    expect(within(screen.getByRole("tab", { name: /Settings/ })).getByText("For each")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: /Settings/ }));
+    expect(within(screen.getByRole("tab", { name: /Configure/ })).getByText("For each")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Configure/ }));
     expect(await screen.findByLabelText("Items")).toHaveValue("$(params.repos)");
   });
 });
