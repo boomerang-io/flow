@@ -477,6 +477,25 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
+  // Whether every item of a foreach parent is completed and all the expected items exist - an
+  // exists and a count on the parent's items, so no item document is loaded until the last ends.
+  public boolean allItemsCompleted(String parentRef, int expected) {
+    Query unfinished =
+        Query.query(Criteria.where("parentRef").is(parentRef).and("phase").ne(RunPhase.completed));
+    return !mongoTemplate.exists(unfinished, TaskRunEntity.class)
+        && mongoTemplate.count(Query.query(Criteria.where("parentRef").is(parentRef)), TaskRunEntity.class)
+            >= expected;
+  }
+
+  // A foreach parent's items in item order, holding only what the parent's outcome is built from.
+  public List<TaskRunEntity> findItemOutcomes(String parentRef) {
+    Query query =
+        Query.query(Criteria.where("parentRef").is(parentRef))
+            .with(Sort.by(Sort.Direction.ASC, "index"));
+    query.fields().include("index").include("status").include("results");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
   // Whether a foreach parent has an item in flight, by the same test as
   // existsInFlightByWorkflowRunRef. None in flight on a running parent means its items are all
   // terminal or never queued, and the fan-out must be recovered.

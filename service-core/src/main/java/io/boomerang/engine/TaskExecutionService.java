@@ -714,11 +714,11 @@ public class TaskExecutionService {
         || !(parent.getForeach().getItems() instanceof List<?> expected)) {
       return;
     }
-    List<TaskRunEntity> items = taskRunRepository.findByParentRefOrderByIndexAsc(parentRef);
-    if (items.size() < expected.size()
-        || items.stream().anyMatch(item -> !RunPhase.completed.equals(item.getPhase()))) {
+    // Each item end asks first whether any item is unfinished, and only the last loads them all.
+    if (!taskRunService.allItemsCompleted(parentRef, expected.size())) {
       return;
     }
+    List<TaskRunEntity> items = taskRunService.findItemOutcomes(parentRef);
     long failed = items.stream().filter(item -> !RunStatus.succeeded.equals(item.getStatus())).count();
     List<RunResult> results = new LinkedList<>();
     for (RunResult declared : parent.getResults()) {
