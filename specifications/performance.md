@@ -50,7 +50,7 @@ Indexes are loader-owned; entity annotations are inert (`spring.data.mongodb.aut
 | `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0017__RunIndexes.java:84-87` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
 | `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0017__RunIndexes.java:164-181` | Run provision claim page; `reapWorkflowTimeouts` |
 | `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0037__SweepIndexes.java:76-93` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns` |
-| `parent_index` (sparse) | `task_runs {parentRef, index}` | `_0049__ForeachItems.java` | A for-each parent's items in order, read on every item end; `recoverForeachTasks` pages parents on `{status, phase}` |
+| `parent_index` (sparse) | `task_runs {parentRef, index}` | `_0049__ForeachItems.java` | A for-each parent's items: an item end checks for an unfinished or missing item with an `exists` and a `count`, and only the last loads them, projected; `recoverForeachTasks` pages parents by `phase` |
 | `claimed_sweep` | `task_runs {phase, claim.at}` | `_0037__SweepIndexes.java:95-100` | `reapClaimsFromGoneDispatchers` |
 | `status_sweep` | `actions {status, creationDate}` | `_0037__SweepIndexes.java:102-107` | `closeStrayActions` |
 | `dispatch_page`, `sent_ttl` (7-day expiry) | `events_outbox {status, occurredAt}`, `{sentAt}` | `_0018__EventAndLockIndexes.java:44-55` | Outbox drain; delivered rows expire |

@@ -118,8 +118,8 @@ A for-each task appears in a run's task list as one parent `TaskRun` under the t
 both fields are absent on every other task run (`TaskRun.java:55-56`). Items keep their own `status`,
 `statusReason` and logs. The parent's `foreach` setting and resolved item array stay on the entity; items expose no
 execution state (`PublicRunModelSerialisationTest.aForeachItemExposesItsParentAndIndexButNoExecutionState`). The
-parent's `statusReason` is `ItemFailed`, `ForeachItemsInvalid` or `ForeachTooManyItems` when it fails for a
-for-each cause (`TaskRunEndRequest.java:22-30`).
+parent's `statusReason` is `ItemFailed`, `ForeachItemsInvalid`, `ForeachTooManyItems`, or `ResultsTooLarge` when
+its combined results exceed MongoDB's 16 MB document limit, when it fails for a for-each cause (`TaskRunEndRequest.java:22-30`).
 
 ## YAML content negotiation
 
@@ -242,9 +242,10 @@ literal or one whole-value reference such as `"$(tasks.stage.results.batches)"` 
 or array when it is one) and `index`, so `$(params.item)` and `$(params.index)` resolve inside the task. After the
 task, `$(tasks.<name>.results.<result>)` is a JSON array in item order with `null` for an item that did not succeed.
 Saving refuses, with `WORKFLOW_INVALID_TASK_FOREACH` (1213), items that are neither an array nor one reference, a
-literal array longer than `max.foreach.items`, a task type a dispatcher does not run, and a task whose template
-declares `item` or `index`; it refuses any task name containing `[` or `]` with `WORKFLOW_INVALID_TASK_NAME`
-(1214), since those characters mark items (`workflow/WorkflowService.java:1689-1697`, `:1782-1819`).
+literal array longer than `max.foreach.items`, a task type a dispatcher does not run (including `start` and `end`),
+and a task whose template declares `item` or `index`; it refuses any task name containing `[` or `]` with
+`WORKFLOW_INVALID_TASK_NAME` (1214), since those characters mark items (`workflow/WorkflowService.java:1689-1697`,
+`:1700-1708`, `:1789-1826`).
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in
 the webapp's canvas type and in `DataAdapterUtil.filterRunParamValueByFieldType`'s parameter name
