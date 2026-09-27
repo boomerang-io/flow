@@ -166,6 +166,21 @@ describe("Task config form --- Parameters and Configure tabs", () => {
     expect(splitForeachValues(values).foreach).toEqual({ items: ["a", "b"] });
   });
 
+  it("saves the params without the task's read-only results", async () => {
+    const onSave = vi.fn();
+    renderTabbedTaskForm({ onSave });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    // One argument only: the template's declared results are not the node's to overwrite.
+    expect(onSave.mock.calls[0]).toHaveLength(1);
+    const values = onSave.mock.calls[0][0];
+    expect(values).toMatchObject({ taskName: "Ask the model", model: "a-model" });
+    expect(values).not.toHaveProperty("results");
+  });
+
   it("loads a saved for-each setting back into the Configure tab", async () => {
     renderTabbedTaskForm({ node: { ...validNode, foreach: { items: "$(params.repos)" } } });
 

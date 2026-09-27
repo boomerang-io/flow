@@ -70,9 +70,11 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
     reactFlowInstance.setNodes(newNodes);
   };
 
+  // `results` is passed only by the forms whose results the user defines (custom and script tasks);
+  // any other task keeps the results it has.
   const handleOnSaveTaskConfig = (
     inputs: Record<string, string>,
-    results: Array<{ name: string; description: string }> = [],
+    results?: Array<{ name: string; description: string }>,
   ) => {
     // The for-each setting shares the form with the params but is not a param.
     const { foreach, rest } = splitForeachValues(inputs);
@@ -81,7 +83,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       if (node.id === props.id) {
         return {
           ...node,
-          data: { ...node.data, ...nameAndParamListRecord, results, foreach },
+          data: { ...node.data, ...nameAndParamListRecord, results: results ?? node.data.results, foreach },
         };
       } else {
         return node;
@@ -216,6 +218,8 @@ function mergeFormInputs(taskTemplate: Task, formInputsToMerge?: Array<Partial<D
   return { ...taskTemplate, spec: { ...taskTemplate.spec, params } };
 }
 
+// `results` is never a param: the default form shows a template's declared results read-only, and
+// the custom and script forms hand theirs to onSave separately.
 function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>): {
   name: string;
   params: Array<{ name: string; value: string }>;
@@ -225,9 +229,11 @@ function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>
   const name = inputRecord["taskName"];
   delete inputRecord["taskName"];
 
-  const params = Object.entries(inputRecord).map(([key, value]) => {
-    return { name: key, value };
-  });
+  const params = Object.entries(inputRecord)
+    .filter(([key]) => key !== "results")
+    .map(([key, value]) => {
+      return { name: key, value };
+    });
 
   return { name, params };
 }

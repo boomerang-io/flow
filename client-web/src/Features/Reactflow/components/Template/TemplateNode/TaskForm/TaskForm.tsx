@@ -54,7 +54,9 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
   const taskResults = task.spec.results;
   const handleOnSave = (values: Record<string, string>) => {
     props.node.name = values.taskName;
-    props.onSave(values);
+    // The template's results are shown read-only and are not a param; the node keeps its own.
+    const { results: _results, ...inputs } = values;
+    props.onSave(inputs);
     props.closeModal();
   };
 
@@ -85,7 +87,6 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
 
   const initialValues: Record<string, any> = {
     taskName: node.name,
-    results: taskResults,
     ...node.params.reduce(
       (accum, curr) => {
         accum[curr.name] = curr.value;
