@@ -93,6 +93,12 @@ public class WorkspaceService {
         } else {
           throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+      } catch (BoomerangException e) {
+        throw e;
+      } catch (RuntimeException e) {
+        // Anything unexpected surfaces as the same provisioning failure, never a raw exception.
+        LOGGER.error("Unexpected error creating Workspace ({}).", workspace.getName(), e);
+        throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } else {
       throw new BoomerangException(

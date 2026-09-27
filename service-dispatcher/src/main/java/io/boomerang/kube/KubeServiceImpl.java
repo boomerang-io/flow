@@ -197,16 +197,18 @@ public class KubeServiceImpl implements KubeService {
 
     client
         .resource(result)
-        .waitUntilCondition(
-            r ->
-                r.getStatus() != null
-                    && ("Bound".equals(r.getStatus().getPhase())
-                        || "Pending".equals(r.getStatus().getPhase())),
-            waitSeconds,
-            TimeUnit.SECONDS);
+        .waitUntilCondition(KubeServiceImpl::isClaimSettled, waitSeconds, TimeUnit.SECONDS);
 
     LOGGER.info(result);
     return result;
+  }
+
+  // The watch hands over null while the claim is momentarily absent - keep waiting, never throw.
+  static boolean isClaimSettled(PersistentVolumeClaim claim) {
+    return claim != null
+        && claim.getStatus() != null
+        && ("Bound".equals(claim.getStatus().getPhase())
+            || "Pending".equals(claim.getStatus().getPhase()));
   }
 
   private boolean isPVCAvailable(
