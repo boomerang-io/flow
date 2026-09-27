@@ -89,17 +89,17 @@ test.describe("for each in the editor", () => {
     await dialog.getByRole("combobox", { name: "Task" }).fill("Execute Shell");
     await page.getByRole("option", { name: "Execute Shell" }).first().click();
     await dialog.getByRole("textbox", { name: "Items" }).fill("$(tasks.stage.results.batches)");
-    // A bracket in the name shows the reserved-name error and holds Next.
+    // A name ending in [<digits>] shows the reserved-name error and holds Next.
     const name = dialog.getByRole("textbox", { name: "Task Name" });
     await name.fill("fan[0]");
     await name.blur();
-    await expect(dialog.getByText("Task names cannot contain [ or ]")).toBeVisible();
+    await expect(dialog.getByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeVisible();
     const next = dialog.getByRole("button", { name: "Next: task parameters" });
     await expect(next).toBeDisabled();
     await page.screenshot({ path: `${SHOTS}/2-dialog-invalid-name.png` });
     await name.fill("fan");
     await name.blur();
-    await expect(dialog.getByText("Task names cannot contain [ or ]")).toBeHidden();
+    await expect(dialog.getByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeHidden();
     await expect(next).toBeEnabled();
     await page.screenshot({ path: `${SHOTS}/2-dialog.png` });
     await next.click();
@@ -130,10 +130,10 @@ test.describe("for each in the editor", () => {
     await expect(taskModal.getByRole("textbox", { name: "Items" })).toHaveValue("$(tasks.stage.results.batches)");
     await page.screenshot({ path: `${SHOTS}/3-configure-tab.png` });
 
-    // The same bracket rule holds in the task form.
-    await taskModal.getByRole("textbox", { name: "Task Name" }).fill("fan]");
+    // The same reserved-name rule holds in the task form.
+    await taskModal.getByRole("textbox", { name: "Task Name" }).fill("fan[1]");
     await taskModal.getByRole("textbox", { name: "Task Name" }).blur();
-    await expect(taskModal.getByText("Task names cannot contain [ or ]")).toBeVisible();
+    await expect(taskModal.getByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeVisible();
     await taskModal.getByRole("textbox", { name: "Task Name" }).fill("fan");
     await taskModal.getByRole("textbox", { name: "Task Name" }).blur();
 

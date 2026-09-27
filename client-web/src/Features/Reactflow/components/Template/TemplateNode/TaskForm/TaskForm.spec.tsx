@@ -139,7 +139,7 @@ describe("Task config form --- Parameters and Configure tabs", () => {
 
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ask the model[0]" } });
 
-    expect(await screen.findByText("Task names cannot contain [ or ]")).toBeInTheDocument();
+    expect(await screen.findByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
   });
 

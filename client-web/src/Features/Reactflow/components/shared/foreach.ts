@@ -83,14 +83,18 @@ export function foreachInitialValues(foreach?: WorkflowTaskForeach): ForeachForm
 
 /**
  * The Task Name rule every task form and the "Repeat a task for each item" dialog share: required,
- * unique on the canvas, and free of `[` and `]`, which name the items of a for-each task
+ * unique on the canvas, and not ending in `[<digits>]`, which names the items of a for-each task
  * (`<name>[<index>]`).
  */
 export function taskNameSchema(otherTaskNames: Array<string>) {
   return Yup.string()
     .required("Enter a task name")
     .notOneOf(otherTaskNames, "Enter a unique value for task name")
-    .matches(/^[^[\]]*$/, "Task names cannot contain [ or ]");
+    .test(
+      "not-foreach-item-name",
+      "Task names cannot end in [ and a number ]; that form is reserved for for-each items",
+      (value) => !value || !/\[\d+\]$/.test(value),
+    );
 }
 
 /** Spread into each task form's `validationSchemaExtension` shape. */

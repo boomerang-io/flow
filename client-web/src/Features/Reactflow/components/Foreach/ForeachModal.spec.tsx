@@ -54,7 +54,7 @@ describe("Repeat a task for each item", () => {
 
     // [ and ] name the items of a for-each task, so a task name cannot use them.
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Call[0]" } });
-    expect(await screen.findByText("Task names cannot contain [ or ]")).toBeInTheDocument();
+    expect(await screen.findByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeInTheDocument();
     expect(next).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: httpTask.displayName } });
     await waitFor(() => expect(next).toBeEnabled());

@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -24,8 +25,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * The definition-side guard on a task's foreach setting, and the reservation of "[" and "]" in
- * task names that keeps an item's name, {@code <name>[<index>]}, from colliding with another task.
+ * The definition-side guard on a task's foreach setting, and the reservation of task names ending
+ * in {@code [<digits>]} that keeps an item's name, {@code <name>[<index>]}, from colliding with
+ * another task.
  */
 class WorkflowTaskForeachValidationTest extends AbstractEngineIntegrationTest {
 
@@ -119,7 +121,7 @@ class WorkflowTaskForeachValidationTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aTaskNameWithABracketIsRejected() {
+  void aTaskNameEndingInAnIndexIsRejected() {
     String taskSlug = template("foreach-validation-name", null);
     Workflow workflow = workflowWith("foreach-validation-name-wf", "locate[0]", taskSlug, null);
 
@@ -127,6 +129,15 @@ class WorkflowTaskForeachValidationTest extends AbstractEngineIntegrationTest {
         assertThrows(BoomerangException.class, () -> workflowService.create(WORKSPACE, workflow));
 
     assertEquals("WORKFLOW_INVALID_TASK_NAME", ex.getReason());
+  }
+
+  @Test
+  void aTaskNameWithOtherBracketsIsAccepted() {
+    String taskSlug = template("foreach-validation-brackets", null);
+    Workflow workflow =
+        workflowWith("foreach-validation-brackets-wf", "Deploy [prod]", taskSlug, null);
+
+    assertDoesNotThrow(() -> workflowService.create(WORKSPACE, workflow));
   }
 
   @Test

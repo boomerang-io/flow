@@ -40,8 +40,10 @@ describe("task names", () => {
   it("reserves [ and ] for the items of a for-each task", async () => {
     const schema = taskNameSchema(["Existing"]);
     await expect(schema.validate("Build 2")).resolves.toBe("Build 2");
-    await expect(schema.validate("Build[0]")).rejects.toThrow("Task names cannot contain [ or ]");
-    await expect(schema.validate("Build ]")).rejects.toThrow("Task names cannot contain [ or ]");
+    await expect(schema.validate("Build[0]")).rejects.toThrow("reserved for for-each items");
+    await expect(schema.validate("Build [12]")).rejects.toThrow("reserved for for-each items");
+    await expect(schema.validate("Deploy [prod]")).resolves.toBe("Deploy [prod]");
+    await expect(schema.validate("[0] first")).resolves.toBe("[0] first");
     await expect(schema.validate("Existing")).rejects.toThrow("Enter a unique value for task name");
   });
 });

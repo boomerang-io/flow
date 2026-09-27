@@ -152,6 +152,7 @@ public class WorkflowService {
   private static final Set<TaskType> FOREACH_TASK_TYPES =
       EnumSet.of(TaskType.template, TaskType.script, TaskType.custom, TaskType.ai, TaskType.generic);
   // One whole-value reference such as $(tasks.stage.results.batches) or $(params.repos).
+  private static final Pattern FOREACH_ITEM_NAME_PATTERN = Pattern.compile("^.*\\[\\d+\\]$");
   private static final Pattern FOREACH_REFERENCE_PATTERN = Pattern.compile("^\\$\\([^()\\s]+\\)$");
   public static final String FEATURES_SETTINGS_KEY = "features";
   public static final String FEATURES_WORKSPACE_QUOTA = "workspaceQuotas";
@@ -1686,10 +1687,11 @@ public class WorkflowService {
     if (filteredNames.size() != uniqueFilteredNames.size()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_NON_UNIQUE_TASK_NAME);
     }
-    // A foreach task's items are named <name>[<index>], so a task name with a bracket could collide
-    // with another task's item on the (workflowRunRef, name) unique index.
+    // A foreach task's items are named <name>[<index>], so a task name ending in [<digits>] could
+    // collide with another task's item on the (workflowRunRef, name) unique index. Any other use of
+    // brackets ("Deploy [prod]") is left alone.
     filteredNames.stream()
-        .filter(name -> name != null && (name.contains("[") || name.contains("]")))
+        .filter(name -> name != null && FOREACH_ITEM_NAME_PATTERN.matcher(name).matches())
         .findFirst()
         .ifPresent(
             name -> {

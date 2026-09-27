@@ -243,8 +243,8 @@ or array when it is one) and `index`, so `$(params.item)` and `$(params.index)` 
 task, `$(tasks.<name>.results.<result>)` is a JSON array in item order with `null` for an item that did not succeed.
 Saving refuses, with `WORKFLOW_INVALID_TASK_FOREACH` (1213), items that are neither an array nor one reference, a
 literal array longer than `max.foreach.items`, a task type a dispatcher does not run (including `start` and `end`),
-and a task whose template declares `item` or `index`; it refuses any task name containing `[` or `]` with
-`WORKFLOW_INVALID_TASK_NAME` (1214), since those characters mark items (`workflow/WorkflowService.java:1689-1697`,
+and a task whose template declares `item` or `index`; it refuses a task name ending in `[<digits>]` with
+`WORKFLOW_INVALID_TASK_NAME` (1214), since that suffix marks items (`workflow/WorkflowService.java:1689-1697`,
 `:1700-1708`, `:1789-1826`).
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in

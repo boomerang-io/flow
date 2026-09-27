@@ -250,8 +250,8 @@ An item that times out is a task timeout: it times out the whole run, which canc
 items (`TaskExecutionService.java:529-533`). A cancel reaches every item because the cancel pass reads the stored
 task runs, not the graph (`engine/WorkflowExecutionService.java:276-280`). Downstream,
 `$(tasks.<name>.results.<result>)` finds the parent, since the lookup is by exact name and items carry the
-bracketed suffix; a task name containing `[` or `]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214) so
-no task can collide with another task's item (`workflow/WorkflowService.java:1688-1697`).
+bracketed suffix; a task name ending in `[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214) so
+no task can collide with another task's item, while other brackets (`Deploy [prod]`) are allowed (`workflow/WorkflowService.java:1688-1697`).
 
 ## Task locks
 
