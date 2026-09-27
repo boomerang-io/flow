@@ -94,6 +94,67 @@ public class WorkflowRunStateHelper {
     return preImage;
   }
 
+  // Return the page of provisioning claims taken before claimedBefore that never reached start,
+  // oldest first. Served by claim_page {status, phase, creationDate}; claim.at filters the small
+  // ready/queued bucket.
+  public List<WorkflowRunEntity> findStaleProvisionClaims(Date claimedBefore, int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("status")
+                    .is(RunStatus.ready)
+                    .and("phase")
+                    .is(RunPhase.queued)
+                    .and("claim.at")
+                    .lte(claimedBefore))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, WorkflowRunEntity.class);
+  }
+
+  // Release a stale provisioning claim back to claimable, fenced on the observed claim.seq so a
+  // run released and re-claimed since it was read is left alone.
+  public WorkflowRunEntity tryReleaseProvisionClaim(String id, long observedSeq) {
+    Update update =
+        new Update()
+            .set("phase", RunPhase.pending)
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt");
+    WorkflowRunEntity preImage = findAndModifyPreImage(provisionClaimed(id, observedSeq), update);
+    if (preImage != null) {
+      publish(preImage, preImage.getStatus(), RunPhase.pending);
+    }
+    return preImage;
+  }
+
+  // Fail a run whose provisioning attempts are spent, fenced like the release.
+  public WorkflowRunEntity tryFailProvision(String id, long observedSeq, String statusMessage) {
+    Update update =
+        new Update()
+            .set("status", RunStatus.failed)
+            .set("phase", RunPhase.completed)
+            .set("statusMessage", statusMessage)
+            .set("duration", 0L);
+    WorkflowRunEntity preImage = findAndModifyPreImage(provisionClaimed(id, observedSeq), update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.failed, RunPhase.completed);
+    }
+    return preImage;
+  }
+
+  private static Query provisionClaimed(String id, long observedSeq) {
+    return Query.query(
+        Criteria.where("_id")
+            .is(id)
+            .and("status")
+            .is(RunStatus.ready)
+            .and("phase")
+            .is(RunPhase.queued)
+            .and("claim.seq")
+            .is(observedSeq));
+  }
+
   public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
     Query query =
         Query.query(

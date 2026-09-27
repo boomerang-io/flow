@@ -63,6 +63,9 @@ public class WorkflowWatcher {
 
   private static final int MAX_RETRIES = 3;
 
+  // A run is provisioned at most this many times; a stale claim on the last attempt fails it.
+  private static final int MAX_PROVISION_ATTEMPTS = 3;
+
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
@@ -89,6 +92,11 @@ public class WorkflowWatcher {
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
+
+  // How long a provisioning claim may go without the run starting before it is treated as lost.
+  // Well above the dispatcher's per-claim storage wait (kube.timeout.waitUntil, 30s by default).
+  @Value("${flow.watcher.provision-claim-grace-ms:300000}")
+  private long provisionClaimGraceMillis;
 
   public WorkflowWatcher(
       TaskRunService taskRunService,
@@ -145,6 +153,7 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
@@ -361,20 +370,65 @@ public class WorkflowWatcher {
                 "[{}] WorkflowRun revision {} no longer resolves. Failed outright.",
                 wfRun.getId(),
                 wfRun.getWorkflowRevisionRef());
-            taskRunService
-                .findNonTerminalByWorkflowRunRef(wfRun.getId())
-                .forEach(
-                    t -> {
-                      if (RunPhase.pending.equals(t.getPhase())) {
-                        taskExecutionService.queue(t.getId());
-                      } else {
-                        taskExecutionService.end(t.getId());
-                      }
-                    });
+            windDownTasks(wfRun.getId());
           }
         },
         (wfRun, ex) ->
             LOGGER.error("[{}] Missing-revision reap failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  // Wind down the stored TaskRuns of a run just completed here: a pending one is queued so the
+  // admission gate skips it, anything else is ended - both settle against the completed run.
+  private void windDownTasks(String wfRunId) {
+    taskRunService
+        .findNonTerminalByWorkflowRunRef(wfRunId)
+        .forEach(
+            t -> {
+              if (RunPhase.pending.equals(t.getPhase())) {
+                taskExecutionService.queue(t.getId());
+              } else {
+                taskExecutionService.end(t.getId());
+              }
+            });
+  }
+
+  /**
+   * Recover WorkflowRuns claimed for workspace provisioning that never started - the dispatcher
+   * failed to provision, or died holding the claim. The claim is released back to claimable for the
+   * next dispatcher poll to retry; a run whose last allowed attempt went stale is failed instead.
+   * Both transitions are fenced on the observed claim seq, so a start or a fresh claim wins.
+   */
+  public void recoverStaleProvisionClaims() {
+    Date claimedBefore = new Date(System.currentTimeMillis() - provisionClaimGraceMillis);
+    SweepRunner.forEachIsolated(
+        workflowRunStateHelper.findStaleProvisionClaims(claimedBefore, PAGE_SIZE),
+        wfRun -> {
+          long attempts = wfRun.getClaim().getSeq();
+          if (attempts < MAX_PROVISION_ATTEMPTS) {
+            if (workflowRunStateHelper.tryReleaseProvisionClaim(wfRun.getId(), attempts) != null) {
+              LOGGER.info(
+                  "[{}] Provisioning claim by {} went stale. Released after attempt {}.",
+                  wfRun.getId(),
+                  wfRun.getClaim().getBy(),
+                  attempts);
+            }
+          } else if (workflowRunStateHelper.tryFailProvision(
+                  wfRun.getId(),
+                  attempts,
+                  MessageFormatter.format(
+                          "Workspace provisioning did not complete after {} attempts.", attempts)
+                      .getMessage())
+              != null) {
+            LOGGER.error(
+                "[{}] Workspace provisioning did not complete after {} attempts. Run failed.",
+                wfRun.getId(),
+                attempts);
+            windDownTasks(wfRun.getId());
+          }
+        },
+        (wfRun, ex) ->
+            LOGGER.error(
+                "[{}] Stale provisioning-claim recovery failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**

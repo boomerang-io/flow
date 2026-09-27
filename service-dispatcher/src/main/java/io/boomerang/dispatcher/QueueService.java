@@ -74,11 +74,10 @@ public class QueueService {
         workflowService.execute(request);
         engineClient.startWorkflow(request.getId());
       }
-    } catch (BoomerangException e) {
-      LOGGER.fatal("A fatal error has occurred while processing the message!", e);
-      // TODO catch failure and end workflow with error status
     } catch (Exception e) {
-      LOGGER.fatal("A fatal error has occurred while processing the message!", e);
+      // The run stays claimed; the engine's watcher releases a stale provisioning claim for another
+      // attempt and fails the run once its attempts are spent.
+      LOGGER.fatal("Failed to provision WorkflowRun ({}).", request.getId(), e);
     }
   }
 
