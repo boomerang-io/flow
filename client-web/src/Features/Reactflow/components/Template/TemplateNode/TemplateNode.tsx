@@ -1,19 +1,19 @@
 import React from "react";
 import { Bee } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
-import cx from "classnames";
 import { Handle, IsValidConnection, Position, useReactFlow } from "@xyflow/react";
+import cx from "classnames";
 import TaskUpdateModal from "Components/TaskUpdateModal";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import WorkflowEditButton from "Components/WorkflowEditButton";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 import { useEditorContext, useRunContext, useWorkflowContext } from "Hooks";
 import { taskIcons } from "Utils/taskIcons";
+import { findTaskRunByName, foreachItemRuns, summarizeForeachItems } from "Utils/taskRunHelper";
+import type { ForeachSummary } from "Utils/taskRunHelper";
 import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
-import { findTaskRunByName, foreachItemRuns, summarizeForeachItems } from "Utils/taskRunHelper";
-import type { ForeachSummary } from "Utils/taskRunHelper";
 import { splitForeachValues } from "../../shared/foreach";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
@@ -42,7 +42,7 @@ interface TaskTemplateNodeEditorProps extends TaskTemplateNodeProps {
 }
 
 function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
-  const { taskTemplate, TaskForm = DefaultTaskForm } = props;
+  const { TaskForm = DefaultTaskForm } = props;
   const { nodeToEdit, clearNodeToEdit } = useWorkflowContext();
   const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
 
@@ -52,12 +52,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   // Get the taskNames names from the nodes on the model
   const otherTaskNames = nodes.map((node) => node.data.name).filter((name) => name !== props.data.name);
 
-  props.formInputsToMerge?.forEach((input) => {
-    const foundConfigItemIdx = taskTemplate.spec.params?.findIndex((param) => param.name === input.name) ?? -1;
-    if (foundConfigItemIdx >= 0 && taskTemplate.spec.params) {
-      taskTemplate.spec.params[foundConfigItemIdx] = { ...taskTemplate.spec.params[foundConfigItemIdx], ...input };
-    }
-  });
+  const taskTemplate = mergeFormInputs(props.taskTemplate, props.formInputsToMerge);
 
   const handleOnUpdateTaskVersion = ({ inputs, version }: { inputs: Record<string, string>; version: number }) => {
     const nameAndParamListRecord = inputRecordToNameAndParamListRecord(inputs);
@@ -208,6 +203,17 @@ function foreachBadgeText(progress: ForeachSummary | undefined, status: RunStatu
     return "For each · 0 items";
   }
   return "For each";
+}
+
+// Lays the node type's own settings (such as the workspace's approver groups) over the template's
+// params, matched by name, on a copy so the shared task template is never changed.
+function mergeFormInputs(taskTemplate: Task, formInputsToMerge?: Array<Partial<DataDrivenInput>>): Task {
+  if (!formInputsToMerge?.length || !taskTemplate.spec.params) return taskTemplate;
+  const params = taskTemplate.spec.params.map((param) => {
+    const input = formInputsToMerge.find((candidate) => candidate.name === param.name);
+    return input ? { ...param, ...input } : param;
+  });
+  return { ...taskTemplate, spec: { ...taskTemplate.spec, params } };
 }
 
 function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>): {
