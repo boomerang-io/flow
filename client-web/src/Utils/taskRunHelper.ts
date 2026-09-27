@@ -1,4 +1,4 @@
-import { RunStatus, TaskRun } from "Types";
+import { RunStatus, TaskRun, WorkflowNode } from "Types";
 
 /**
  * A task with `foreach` runs as one parent task run - named after the task, carrying the combined
@@ -8,6 +8,14 @@ import { RunStatus, TaskRun } from "Types";
  */
 export function isForeachItem(taskRun: TaskRun): boolean {
   return Boolean(taskRun.parentRef);
+}
+
+/**
+ * The names of the workflow's for-each tasks. A for-each parent is known by its task definition,
+ * never by its items: one whose items were empty, or that failed before fanning out, has none.
+ */
+export function foreachTaskNames(nodes: Array<WorkflowNode> | undefined): Set<string> {
+  return new Set((nodes ?? []).filter((node) => node.data?.foreach).map((node) => node.data.name));
 }
 
 /** The task run a diagram node or edge stands for: the one named after the task, never an item. */
@@ -59,6 +67,24 @@ export function formatForeachSummary({ total, succeeded, running, failed }: Fore
   if (running > 0) parts.push(`${running} running`);
   if (failed > 0) parts.push(`${failed} failed`);
   return parts.join(" · ");
+}
+
+/**
+ * The summary line on a for-each parent's entry: the items' counts once there are items; with none,
+ * why it failed (e.g. its items were not a JSON array), "0 items" once it ended, and nothing while
+ * it has yet to fan out.
+ */
+export function foreachParentSummary(parent: TaskRun, items: Array<TaskRun>): string | undefined {
+  if (items.length > 0) {
+    return formatForeachSummary(summarizeForeachItems(items));
+  }
+  if (FAILED_STATUSES.includes(parent.status) && (parent.statusMessage || parent.statusReason)) {
+    return parent.statusMessage || parent.statusReason;
+  }
+  if (RUNNING_STATUSES.includes(parent.status)) {
+    return undefined;
+  }
+  return "0 items";
 }
 
 /** The item's own part of its name - `[1]` for `locate[1]`. */

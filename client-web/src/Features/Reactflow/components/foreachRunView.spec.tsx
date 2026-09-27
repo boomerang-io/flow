@@ -5,11 +5,11 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { Position, ReactFlowProvider } from "@xyflow/react";
 import { RunContextProvider, WorkflowProvider } from "State/context";
+import { foreachWithoutItemsWorkflowRun, foreachWorkflowRun } from "Utils/testing/fixtures/foreachRun";
 import { WorkflowEngineMode } from "Constants";
 import { RunStatus, Task, WorkflowCanvas, WorkflowEdgeProps, WorkflowNodeData, WorkflowNodeProps } from "Types";
-import { foreachWorkflowRun } from "Utils/testing/fixtures/foreachRun";
-import { TemplateEdge, TemplateNode } from "./Template";
 import DecisionEdge from "./Decision/DecisionEdge";
+import { TemplateEdge, TemplateNode } from "./Template";
 
 /*
  * The run diagram draws one node per task and colours edges by task status. For a for-each task
@@ -36,11 +36,11 @@ const endNode = { ...locateNode, id: "node-end", data: { ...locateNode.data, nam
 
 const workflow = { nodes: [stageNode, locateNode, endNode], edges: [] } as unknown as WorkflowCanvas;
 
-function renderRun(children: React.ReactNode) {
+function renderRun(children: React.ReactNode, workflowRun = foreachWorkflowRun) {
   return render(
     <ReactFlowProvider>
       <WorkflowProvider value={{ mode: WorkflowEngineMode.Run, tasks: { [taskRef]: [taskTemplate] } }}>
-        <RunContextProvider value={{ workflow, workflowRun: foreachWorkflowRun }}>{children}</RunContextProvider>
+        <RunContextProvider value={{ workflow, workflowRun }}>{children}</RunContextProvider>
       </WorkflowProvider>
     </ReactFlowProvider>,
   );
@@ -75,6 +75,22 @@ describe("Run diagram --- for each", () => {
     expect(node.className).not.toMatch(/_failed_|_succeeded_/);
     expect(node.className).toMatch(/_foreach_/);
     expect(screen.getByTestId("foreach-badge")).toHaveTextContent("For each · 1 of 3 succeeded");
+  });
+
+  it("badges a for-each node that succeeded with no items as 0 items", () => {
+    const scanNode = { ...locateNode, id: "node-scan", data: { ...locateNode.data, name: "scan" } };
+    const { container } = renderRun(<TemplateNode {...nodeProps(scanNode)} />, foreachWithoutItemsWorkflowRun);
+
+    expect((container.firstElementChild as HTMLElement).className).toMatch(/_succeeded_/);
+    expect(screen.getByTestId("foreach-badge")).toHaveTextContent("For each · 0 items");
+  });
+
+  it("badges a for-each node that failed before fanning out as plain For each, coloured failed", () => {
+    const fetchNode = { ...locateNode, id: "node-fetch", data: { ...locateNode.data, name: "fetch" } };
+    const { container } = renderRun(<TemplateNode {...nodeProps(fetchNode)} />, foreachWithoutItemsWorkflowRun);
+
+    expect((container.firstElementChild as HTMLElement).className).toMatch(/_failed_/);
+    expect(screen.getByTestId("foreach-badge")).toHaveTextContent(/^For each$/);
   });
 
   it("draws an ordinary node without a for-each badge", () => {

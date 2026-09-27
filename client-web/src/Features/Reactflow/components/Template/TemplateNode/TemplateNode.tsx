@@ -197,6 +197,19 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
   );
 }
 
+// A for-each node's badge: its items' progress once it has items, "0 items" when it succeeded with
+// none, and plain "For each" otherwise - before it fans out, or when it failed without items (its
+// failed colour and the task log's reason say why).
+function foreachBadgeText(progress: ForeachSummary | undefined, status: RunStatus | undefined) {
+  if (progress && progress.total > 0) {
+    return `For each · ${progress.succeeded} of ${progress.total} succeeded`;
+  }
+  if (progress && status === RunStatus.Succeeded) {
+    return "For each · 0 items";
+  }
+  return "For each";
+}
+
 function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>): {
   name: string;
   params: Array<{ name: string; value: string }>;
@@ -261,9 +274,7 @@ function BaseNode(props: BaseNodeProps) {
       {isForeach ? (
         <div className={cx(styles.badgeContainer, styles.foreachBadge)}>
           <p className={styles.badgeText} data-testid="foreach-badge">
-            {foreachProgress && foreachProgress.total > 0
-              ? `For each · ${foreachProgress.succeeded} of ${foreachProgress.total} succeeded`
-              : "For each"}
+            {foreachBadgeText(foreachProgress, status)}
           </p>
         </div>
       ) : null}

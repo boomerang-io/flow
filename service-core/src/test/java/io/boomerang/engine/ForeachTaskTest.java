@@ -259,6 +259,41 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
   }
 
   /*
+   * A lost end after the outcome is recorded: the parent holds a terminal status in the running
+   * phase. The recovery ends it, and a second pass is a no-op, so the task after it runs exactly
+   * once - one approval record.
+   */
+  @Test
+  void recoveryEndsAParentWhoseOutcomeIsRecordedButWasNeverEnded() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("foreach-lost-end-wf", RunStatus.running, RunPhase.running);
+    savedTaskRun(
+        "start", TaskType.start, RunStatus.succeeded, RunPhase.completed, wfRun.getWorkflowRef(), wfRun.getId());
+    TaskRunEntity parent = savedCrashedParent(wfRun, List.of("x"));
+    TaskRunEntity gate = savedGateAfterParent(wfRun);
+    savedItem(parent, 0, RunStatus.succeeded, RunPhase.completed, "found-x");
+    taskRunService.tryRecordForeachOutcome(
+        parent.getId(),
+        RunStatus.succeeded,
+        "All 1 items succeeded.",
+        null,
+        List.of(new RunResult("found", List.of("found-x"))));
+
+    workflowWatcher.recoverForeachTasks();
+    workflowWatcher.recoverForeachTasks();
+
+    Query byTaskRunRef = new Query(Criteria.where("taskRunRef").is(gate.getId()));
+    awaitEngine("the task after the parent is admitted")
+        .until(() -> mongoTemplate.count(byTaskRunRef, ActionEntity.class) == 1);
+    awaitEngine("no second admission appears")
+        .during(Duration.ofSeconds(2))
+        .until(() -> mongoTemplate.count(byTaskRunRef, ActionEntity.class) == 1);
+    TaskRunEntity completed = taskRunRepository.findById(parent.getId()).orElseThrow();
+    assertEquals(RunPhase.completed, completed.getPhase());
+    assertEquals(RunStatus.succeeded, completed.getStatus());
+    assertEquals(List.of("found-x"), resultValue(completed, "found"));
+  }
+
+  /*
    * Concurrent last-item ends: each end completes its own item, then both may see every item
    * terminal. The parent's completion Compare-And-Set admits one winner, so the task after it runs
    * exactly once - one approval record.
@@ -269,16 +304,7 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     savedTaskRun(
         "start", TaskType.start, RunStatus.succeeded, RunPhase.completed, wfRun.getWorkflowRef(), wfRun.getId());
     TaskRunEntity parent = savedCrashedParent(wfRun, List.of("x", "y"));
-    TaskRunEntity gate =
-        savedTaskRun(
-            "gate", TaskType.approval, RunStatus.notstarted, RunPhase.pending, wfRun.getWorkflowRef(), wfRun.getId());
-    gate.setDependencies(List.of(dependencyOn("locate")));
-    taskRunRepository.save(gate);
-    TaskRunEntity end =
-        savedTaskRun(
-            "end", TaskType.end, RunStatus.notstarted, RunPhase.pending, wfRun.getWorkflowRef(), wfRun.getId());
-    end.setDependencies(List.of(dependencyOn("gate")));
-    taskRunRepository.save(end);
+    TaskRunEntity gate = savedGateAfterParent(wfRun);
     TaskRunEntity first = savedItem(parent, 0, RunStatus.running, RunPhase.running, null);
     TaskRunEntity second = savedItem(parent, 1, RunStatus.running, RunPhase.running, null);
 
@@ -449,6 +475,21 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     parent.setResults(new LinkedList<>(List.of(new RunResult("found", null))));
     parent.setDependencies(List.of(dependencyOn("start")));
     return taskRunRepository.save(parent);
+  }
+
+  /** An approval task after the foreach parent, then the end task - admitting it writes one action. */
+  private TaskRunEntity savedGateAfterParent(WorkflowRunEntity wfRun) {
+    TaskRunEntity gate =
+        savedTaskRun(
+            "gate", TaskType.approval, RunStatus.notstarted, RunPhase.pending, wfRun.getWorkflowRef(), wfRun.getId());
+    gate.setDependencies(List.of(dependencyOn("locate")));
+    taskRunRepository.save(gate);
+    TaskRunEntity end =
+        savedTaskRun(
+            "end", TaskType.end, RunStatus.notstarted, RunPhase.pending, wfRun.getWorkflowRef(), wfRun.getId());
+    end.setDependencies(List.of(dependencyOn("gate")));
+    taskRunRepository.save(end);
+    return gate;
   }
 
   private TaskRunEntity savedItem(

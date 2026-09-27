@@ -17,9 +17,11 @@ type Props = {
   // TaskRun only carries an `actionRef`, never the approver detail itself.
   actions?: Record<string, Action>;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
+  // The names of the workflow's for-each tasks, from its definition - a TaskRun does not say.
+  foreachTaskNames?: ReadonlySet<string>;
 };
 
-function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
+function TaskRunLog({ workflowRun, actions, executionViewRedirect, foreachTaskNames }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [tasksSort, setTasksSort] = useState<"desc" | "asc">("desc");
 
@@ -126,6 +128,7 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
             workflowRun={workflowRun}
             action={actions?.[taskRun.id]}
             executionViewRedirect={executionViewRedirect}
+            isForeach={foreachTaskNames?.has(taskRun.name)}
             items={foreachItemRuns(tasks, taskRun.id)}
           />
         ))}

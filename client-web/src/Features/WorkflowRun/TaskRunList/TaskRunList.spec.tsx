@@ -1,9 +1,9 @@
 import React from "react";
 import { screen, fireEvent, within } from "@testing-library/react";
+import { foreachWithoutItemsWorkflowRun, foreachWorkflowRun } from "Utils/testing/fixtures/foreachRun";
+import { renderWithRouter } from "Utils/testing/render";
 import { NodeType } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
-import { renderWithRouter } from "Utils/testing/render";
-import { foreachWorkflowRun } from "Utils/testing/fixtures/foreachRun";
 import ExecutionTaskLog from "./index";
 
 const baseTaskRun = {
@@ -219,5 +219,46 @@ describe("ExecutionTaskLog --- for each", () => {
 
     fireEvent.click(within(parent).getByRole("button", { name: "Hide items" }));
     expect(within(parent).queryAllByTestId("foreach-item")).toHaveLength(0);
+  });
+});
+
+describe("ExecutionTaskLog --- a for-each task with no items", () => {
+  // Neither parent has item task runs, so only the workflow definition says they are for-each.
+  const props = {
+    workflowRun: foreachWithoutItemsWorkflowRun,
+    executionViewRedirect: () => {},
+    foreachTaskNames: new Set(["scan", "fetch"]),
+  };
+
+  function entry(name: string) {
+    return screen.getAllByRole("listitem").find((item) => within(item).queryByText(name)) as HTMLElement;
+  }
+
+  it("marks a parent whose items were empty as for-each, with 0 items and no log", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const scan = entry("scan");
+    expect(within(scan).getByText("For each")).toBeInTheDocument();
+    expect(within(scan).getByTestId("foreach-summary")).toHaveTextContent("0 items");
+    expect(within(scan).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+    expect(within(scan).queryByRole("button", { name: "Show items" })).not.toBeInTheDocument();
+  });
+
+  it("shows why a parent failed before fanning out, with no log", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const fetch = entry("fetch");
+    expect(within(fetch).getByText("For each")).toBeInTheDocument();
+    expect(within(fetch).getByTestId("foreach-summary")).toHaveTextContent(
+      "The for-each items did not resolve to a JSON array.",
+    );
+    expect(within(fetch).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+  });
+
+  it("treats the same task runs as plain tasks when the workflow does not define them as for-each", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} foreachTaskNames={new Set()} />);
+
+    expect(within(entry("fetch")).queryByText("For each")).not.toBeInTheDocument();
+    expect(within(entry("fetch")).getByRole("button", { name: "View Log" })).toBeInTheDocument();
   });
 });

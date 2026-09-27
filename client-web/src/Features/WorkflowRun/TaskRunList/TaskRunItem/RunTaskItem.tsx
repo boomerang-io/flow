@@ -5,7 +5,7 @@ import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
 import dateHelper from "Utils/dateHelper";
-import { foreachItemSuffix, formatForeachSummary, summarizeForeachItems } from "Utils/taskRunHelper";
+import { foreachItemSuffix, foreachParentSummary } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, NodeType, executionStatusIcon } from "Constants";
 import { Action, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
 import ManualTaskModal from "./ManualTaskModal";
@@ -41,13 +41,24 @@ type Props = {
   // every list item fetching its own.
   action?: Action;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
+  // Whether the workflow defines this task as for-each. A parent with no items - empty, or failed
+  // before fanning out - is still one, so this cannot be read off `items`.
+  isForeach?: boolean;
   // The item task runs of a for-each task, in item order, when this task run is their parent.
   items?: Array<TaskRun>;
 };
 
-function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, items = [] }: Props) {
+function RunTaskItem({
+  taskRun,
+  workflowRun,
+  action,
+  executionViewRedirect,
+  isForeach: isForeachTask,
+  items = [],
+}: Props) {
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
-  const isForeach = items.length > 0;
+  const isForeach = Boolean(isForeachTask) || items.length > 0;
+  const foreachSummary = isForeach ? foreachParentSummary(taskRun, items) : undefined;
   const Icon = executionStatusIcon[taskRun.status];
   const statusClassName = styles[taskRun.status];
   // START/END are synthetic graph markers, not executed tasks - they render "slim", without the
@@ -82,9 +93,11 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, item
           <Tag className={styles.foreachTag} size="sm" type="purple">
             For each
           </Tag>
-          <p className={styles.foreachSummaryText} data-testid="foreach-summary">
-            {formatForeachSummary(summarizeForeachItems(items))}
-          </p>
+          {foreachSummary ? (
+            <p className={styles.foreachSummaryText} data-testid="foreach-summary">
+              {foreachSummary}
+            </p>
+          ) : null}
         </section>
       )}
       {!isSlim && (
@@ -120,7 +133,7 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, item
         </ComposedModal>
         {/* A for-each parent never runs a pod of its own; each item below has the log. */}
         {hasLog(taskRun) && !isForeach && <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />}
-        {isForeach && (
+        {items.length > 0 && (
           <Button
             aria-controls={`task-${taskRun.name}-items`}
             aria-expanded={isItemsExpanded}
@@ -227,7 +240,7 @@ function RunTaskItem({ taskRun, workflowRun, action, executionViewRedirect, item
           </ComposedModal>
         )}
       </section>
-      {isForeach && isItemsExpanded && (
+      {items.length > 0 && isItemsExpanded && (
         <ol className={styles.itemList} id={`task-${taskRun.name}-items`} aria-label={`${taskRun.name} items`}>
           {items.map((item) => (
             <ForeachItemRow key={item.id} item={item} parentName={taskRun.name} />

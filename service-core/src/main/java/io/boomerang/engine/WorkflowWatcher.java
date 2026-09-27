@@ -221,8 +221,10 @@ public class WorkflowWatcher {
 
   /**
    * Recover foreach tasks running with no item in flight - a crash between the parent's fan-out
-   * and its last item, or between its last item ending and the parent completing. A running parent
-   * counts as in flight, so {@link #recoverStalledRuns} never reaches it. The recovery is the same
+   * and its last item, between its last item ending and the parent completing, or between the
+   * parent's outcome being recorded and its end. A running parent counts as in flight, so {@link
+   * #recoverStalledRuns} never reaches it. A parent with its outcome recorded is ended - the
+   * completion Compare-And-Set makes a repeated end a no-op. Any other is recovered by the same
    * idempotent fan-out the live path runs: missing items are created, unqueued items queued, and a
    * parent whose items are all terminal completed.
    */
@@ -231,7 +233,12 @@ public class WorkflowWatcher {
     SweepRunner.forEachIsolated(
         taskRunService.findRunningForeachParents(startedBefore, PAGE_SIZE),
         parent -> {
-          if (!taskRunService.existsInFlightItem(parent.getId())) {
+          if (!RunStatus.running.equals(parent.getStatus())) {
+            LOGGER.info(
+                "[{}] Foreach TaskRun has its outcome recorded but was never ended. Ending it.",
+                parent.getId());
+            taskExecutionService.end(parent.getId(), Optional.empty(), Optional.empty());
+          } else if (!taskRunService.existsInFlightItem(parent.getId())) {
             LOGGER.info(
                 "[{}] Running foreach TaskRun has no item in flight. Recovering its fan-out.",
                 parent.getId());

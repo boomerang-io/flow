@@ -457,14 +457,14 @@ public class TaskRunService {
     mongoTemplate.updateFirst(query, update, TaskRunEntity.class);
   }
 
-  // Return the page of foreach parents running since before the given time - the candidates for
-  // recovering a fan-out or a parent completion that a crash cut short.
+  // Return the page of foreach parents in the running phase since before the given time - the
+  // candidates for recovering a fan-out or a parent completion that a crash cut short. Matched by
+  // phase alone: a parent whose outcome is recorded but whose end was lost keeps a terminal status
+  // in the running phase.
   public List<TaskRunEntity> findRunningForeachParents(Date startedBefore, int limit) {
     Query query =
         Query.query(
-                Criteria.where("status")
-                    .is(RunStatus.running)
-                    .and("phase")
+                Criteria.where("phase")
                     .is(RunPhase.running)
                     .and("foreach")
                     .exists(true)
@@ -473,7 +473,7 @@ public class TaskRunService {
             .with(Sort.by(Sort.Direction.ASC, "startTime"))
             .limit(limit)
             .maxTimeMsec(5000);
-    query.fields().include("_id");
+    query.fields().include("_id").include("status");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 

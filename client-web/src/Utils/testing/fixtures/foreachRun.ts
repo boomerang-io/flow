@@ -134,3 +134,35 @@ export const foreachWorkflowRun: WorkflowRun = {
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
   workflowVersion: 1,
 };
+
+/**
+ * Two for-each parents that never fanned out, so no item task runs exist and the TaskRun alone
+ * cannot say it is for-each: `scan` resolved to an empty array and succeeded at once; `fetch`
+ * resolved to something other than a JSON array and failed with a typed reason.
+ */
+export const foreachEmptyParentTask: TaskRun = {
+  ...baseTaskRun,
+  creationDate: "2026-09-26T10:00:10.000+0000",
+  id: "foreach-scan",
+  name: "scan",
+  startTime: "2026-09-26T10:00:10.000+0000",
+};
+
+export const foreachInvalidParentTask: TaskRun = {
+  ...baseTaskRun,
+  creationDate: "2026-09-26T10:00:12.000+0000",
+  id: "foreach-fetch",
+  name: "fetch",
+  startTime: "2026-09-26T10:00:12.000+0000",
+  status: RunStatus.Failed,
+  statusMessage: "The for-each items did not resolve to a JSON array.",
+  statusReason: "ForeachItemsInvalid",
+};
+
+export const foreachWithoutItemsWorkflowRun: WorkflowRun = {
+  ...foreachWorkflowRun,
+  id: "651e4789ab1cb56bc8976f01",
+  phase: RunPhase.Completed,
+  status: RunStatus.Failed,
+  tasks: [foreachStartTask, foreachStageTask, foreachEmptyParentTask, foreachInvalidParentTask, foreachEndTask],
+};
