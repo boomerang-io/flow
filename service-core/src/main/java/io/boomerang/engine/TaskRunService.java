@@ -473,7 +473,7 @@ public class TaskRunService {
             .with(Sort.by(Sort.Direction.ASC, "startTime"))
             .limit(limit)
             .maxTimeMsec(5000);
-    query.fields().include("_id").include("status");
+    query.fields().include("_id").include("status").include("workflowRunRef");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 

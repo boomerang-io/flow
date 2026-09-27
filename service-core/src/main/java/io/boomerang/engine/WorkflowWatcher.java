@@ -235,7 +235,7 @@ public class WorkflowWatcher {
    * #recoverStalledRuns} never reaches it. A parent with its outcome recorded is ended - the
    * completion Compare-And-Set makes a repeated end a no-op. Any other is recovered by the same
    * idempotent fan-out the live path runs: missing items are created, unqueued items queued, and a
-   * parent whose items are all terminal completed.
+   * parent whose items are all terminal completed. A paused run's fan-out is left to resume.
    */
   public void recoverForeachTasks() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
@@ -247,7 +247,8 @@ public class WorkflowWatcher {
                 "[{}] Foreach TaskRun has its outcome recorded but was never ended. Ending it.",
                 parent.getId());
             taskExecutionService.end(parent.getId(), Optional.empty(), Optional.empty());
-          } else if (!taskRunService.existsInFlightItem(parent.getId())) {
+          } else if (!taskRunService.existsInFlightItem(parent.getId())
+              && !isRunPaused(parent.getWorkflowRunRef())) {
             LOGGER.info(
                 "[{}] Running foreach TaskRun has no item in flight. Recovering its fan-out.",
                 parent.getId());
@@ -256,6 +257,12 @@ public class WorkflowWatcher {
         },
         (parent, ex) ->
             LOGGER.error("[{}] Foreach recovery failed: {}", parent.getId(), ex.getMessage()));
+  }
+
+  // A paused run's pending items are held by the pause gate; fanning out would only queue each one
+  // to be refused again. Resume re-runs the fan-out through advance.
+  private boolean isRunPaused(String wfRunRef) {
+    return workflowRunRepository.findById(wfRunRef).map(WorkflowRunEntity::isPaused).orElse(false);
   }
 
   /**

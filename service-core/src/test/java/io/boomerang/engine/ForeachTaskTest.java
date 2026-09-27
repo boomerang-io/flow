@@ -209,26 +209,20 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
 
   /*
    * A crash between the parent's fan-out and its items: the parent is running with its resolved
-   * items recorded but none created. While the run is paused the recovery creates them and holds
-   * them; resume queues them.
+   * items recorded but none created. While the run is paused the recovery leaves it alone - the
+   * pause gate would refuse every item it queued, on every sweep - and resume runs the fan-out.
    */
   @Test
-  void recoveryCreatesMissingItemsAndResumeQueuesItemsAPauseHeldBack() {
+  void recoverySkipsAPausedRunAndResumeRunsTheFanOut() {
     WorkflowRunEntity wfRun = savedWorkflowRun("foreach-recover-wf", RunStatus.running, RunPhase.running);
     TaskRunEntity parent = savedCrashedParent(wfRun, List.of("x", "y"));
     workflowRunService.pause(wfRun.getId());
 
     workflowWatcher.recoverForeachTasks();
 
-    awaitEngine("both items created and held by the pause")
+    awaitEngine("the paused run's fan-out is not recovered")
         .during(Duration.ofSeconds(1))
-        .untilAsserted(
-            () -> {
-              List<TaskRunEntity> items =
-                  taskRunRepository.findByParentRefOrderByIndexAsc(parent.getId());
-              assertEquals(2, items.size());
-              items.forEach(item -> assertEquals(RunStatus.notstarted, item.getStatus()));
-            });
+        .until(() -> taskRunRepository.findByParentRefOrderByIndexAsc(parent.getId()).isEmpty());
 
     workflowRunService.resume(wfRun.getId());
 
