@@ -294,7 +294,7 @@
           "readOnly": false
         },
         {
-          "description": "Defines the completion state that will lead to worker removal",
+          "description": "When a finished task's worker (its Kubernetes Job or Tekton TaskRun) is removed. A task's logs are read from its worker, so they go with it, and a run's storage is only freed once no worker still holds it. Always: at task end. On Success: at task end if the task succeeded; a failed task's worker stays for its logs. Never: not at task end; the worker, its logs and any storage it holds stay until the retention period (kube.task.ttlDays, 7 days by default) removes it.",
           "key": "deletion.policy",
           "label": "Deletion Policy",
           "type": "select",
@@ -303,15 +303,15 @@
           "options": [
             {
               "key": "Never",
-              "value": "Never"
+              "value": "Never (keep until the retention period)"
             },
             {
               "key": "OnSuccess",
-              "value": "On Success"
+              "value": "On Success (remove when a task succeeds)"
             },
             {
               "key": "Always",
-              "value": "Always"
+              "value": "Always (remove when a task ends)"
             }
           ],
           "value": "Never",
