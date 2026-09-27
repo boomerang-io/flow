@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.workflow.WorkflowRunService;
 import tools.jackson.databind.ObjectMapper;
+import com.mongodb.MongoException;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -34,9 +35,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.BsonMaximumSizeExceededException;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,6 +92,10 @@ public class TaskExecutionService {
   static final String FOREACH_ITEMS_INVALID = "ForeachItemsInvalid";
   static final String FOREACH_TOO_MANY_ITEMS = "ForeachTooManyItems";
   static final String ITEM_FAILED = "ItemFailed";
+  static final String RESULTS_TOO_LARGE = "ResultsTooLarge";
+  // MongoDB's codes for a document that grows past its 16 MB limit: BSONObjectTooLarge, and an
+  // update whose resulting document is too large.
+  private static final Set<Integer> DOCUMENT_TOO_LARGE_CODES = Set.of(10334, 17419);
 
   @Value("${flow.engine.task.params.max-bytes:16384}")
   private int paramsMaxBytes;
@@ -731,15 +738,43 @@ public class TaskExecutionService {
                       : null)));
       results.add(new RunResult(declared.getName(), declared.getDescription(), values));
     }
-    taskRunService.tryRecordForeachOutcome(
-        parentRef,
-        (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
-        (failed == 0
-            ? "All " + items.size() + " items succeeded."
-            : failed + " of " + items.size() + " items did not succeed."),
-        (failed == 0 ? null : ITEM_FAILED),
-        results);
+    try {
+      taskRunService.tryRecordForeachOutcome(
+          parentRef,
+          (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
+          (failed == 0
+              ? "All " + items.size() + " items succeeded."
+              : failed + " of " + items.size() + " items did not succeed."),
+          (failed == 0 ? null : ITEM_FAILED),
+          results);
+    } catch (RuntimeException ex) {
+      if (!isDocumentTooLarge(ex)) {
+        throw ex;
+      }
+      // The combined results cannot be stored, so the task fails without them rather than hang.
+      String message =
+          "The combined results of "
+              + items.size()
+              + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
+              + " (workspace path or URI).";
+      LOGGER.error("[{}] {}", parentRef, message);
+      taskRunService.tryRecordForeachOutcome(
+          parentRef, RunStatus.failed, message, RESULTS_TOO_LARGE, null);
+    }
     self.end(parentRef);
+  }
+
+  // Whether a write failed because the document, or the command carrying it, is over MongoDB's
+  // 16 MB limit - rejected by the driver before sending, or by the server.
+  private static boolean isDocumentTooLarge(Throwable ex) {
+    for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+      if (cause instanceof BsonMaximumSizeExceededException
+          || (cause instanceof MongoException mongoException
+              && DOCUMENT_TOO_LARGE_CODES.contains(mongoException.getCode()))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static Object resultValueOf(TaskRunEntity taskRun, String name) {

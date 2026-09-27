@@ -294,6 +294,36 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
   }
 
   /*
+   * Combined results past MongoDB's 16 MB document limit: seventeen items of about 1 MB each. The
+   * aggregate cannot be stored, so the parent fails with ResultsTooLarge and no results and the
+   * run moves on instead of retrying the same write forever.
+   */
+  @Test
+  void combinedResultsOverTheDocumentLimitFailTheTaskAndTheRunMovesOn() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("foreach-too-large-wf", RunStatus.running, RunPhase.running);
+    savedTaskRun(
+        "start", TaskType.start, RunStatus.succeeded, RunPhase.completed, wfRun.getWorkflowRef(), wfRun.getId());
+    List<Object> elements = new ArrayList<>(IntStream.range(0, 17).boxed().toList());
+    TaskRunEntity parent = savedCrashedParent(wfRun, elements);
+    TaskRunEntity gate = savedGateAfterParent(wfRun);
+    String nearlyOneMegabyte = "x".repeat(1_000_000);
+    for (int index = 0; index < elements.size(); index++) {
+      savedItem(parent, index, RunStatus.succeeded, RunPhase.completed, nearlyOneMegabyte);
+    }
+
+    workflowWatcher.recoverForeachTasks();
+
+    Query byTaskRunRef = new Query(Criteria.where("taskRunRef").is(gate.getId()));
+    awaitEngine("the task after the parent is admitted")
+        .until(() -> mongoTemplate.count(byTaskRunRef, ActionEntity.class) == 1);
+    TaskRunEntity completed = taskRunRepository.findById(parent.getId()).orElseThrow();
+    assertEquals(RunPhase.completed, completed.getPhase());
+    assertEquals(RunStatus.failed, completed.getStatus());
+    assertEquals("ResultsTooLarge", completed.getStatusReason());
+    assertTrue(completed.getResults().stream().allMatch(result -> result.getValue() == null));
+  }
+
+  /*
    * Concurrent last-item ends: each end completes its own item, then both may see every item
    * terminal. The parent's completion Compare-And-Set admits one winner, so the task after it runs
    * exactly once - one approval record.
