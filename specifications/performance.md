@@ -48,7 +48,7 @@ Indexes are loader-owned; entity annotations are inert (`spring.data.mongodb.aut
 | `claim_page` | `task_runs {type, status, phase, creationDate}` | `service-loader/src/main/java/io/boomerang/loader/migration/_0017__RunIndexes.java:66-71` | `findClaimable` page and its sort |
 | `node_uniqueness` (unique) | `task_runs {workflowRunRef, name}` | `_0017__RunIndexes.java:117-122` | One TaskRun per DAG (directed acyclic graph) node; duplicate creation fails at insert |
 | `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0017__RunIndexes.java:84-87` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
-| `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0017__RunIndexes.java:164-181` | Run provision claim page; `reapWorkflowTimeouts` |
+| `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0017__RunIndexes.java:164-181` | Run provision claim page and `recoverStaleProvisionClaims`; `reapWorkflowTimeouts` |
 | `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0037__SweepIndexes.java:76-93` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns` |
 | `parent_index` (sparse) | `task_runs {parentRef, index}` | `_0049__ForeachItems.java` | A for-each parent's items: an item end checks for an unfinished or missing item with an `exists` and a `count`, and only the last loads them, projected; `recoverForeachTasks` pages parents by `phase` |
 | `claimed_sweep` | `task_runs {phase, claim.at}` | `_0037__SweepIndexes.java:95-100` | `reapClaimsFromGoneDispatchers` |
@@ -63,7 +63,7 @@ colliding. Each paged query carries `maxTimeMsec(5000)` so a slow database canno
 
 | Sweeper | Property (default) | Start jitter | Page | Notes |
 | --- | --- | --- | --- | --- |
-| `WorkflowWatcher.sweep` (10 sweeps, `WorkflowWatcher.java:138-148`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true) | up to 30 s (`:125-128`) | 50 (`EngineConstants.java:12`) | Stall grace 60 s (`:55`); dispatcher declared gone after 60 s without a poll (`:73`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finalise (`:284`) |
+| `WorkflowWatcher.sweep` (12 sweeps, `WorkflowWatcher.java:148-159`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:135-138`) | 50 (`EngineConstants.java:12`) | Stall grace 60 s (`:55`); dispatcher declared gone after 60 s without a poll (`:78`); a provisioning claim released after the grace, the run failed on its third (`:67`, `:98`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finalise (`:284`) |
 | `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:69-71`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:41`) |
 | `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:32-35`) | up to 5 s (`:59-61`) | 50 | 3 delivery attempts, then the row is marked dead (`:41`) |
 

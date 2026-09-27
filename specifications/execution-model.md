@@ -19,7 +19,8 @@ released by the dispatcher reconciling what it holds against the engine, never b
 | Transition | Task run (`engine/TaskRunService.java`) | Workflow run (`engine/WorkflowRunStateHelper.java`) |
 | --- | --- | --- |
 | admit (persists resolved params) | `tryAdmit` `:278` | `tryAdmit` `:96` |
-| claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:65` — only for runs that declare workspaces (`findClaimableForProvision` `:47`) |
+| claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:66` — only for runs that declare workspaces (`findClaimableForProvision` `:48`) |
+| release a stale claim | `tryRequeue` `:548` | `tryReleaseProvisionClaim` `:117` — back to `ready/pending`, fenced on `claim.seq` |
 | start (bakes `timeoutAt`) | `tryStartExecution` `:380` | `tryStart` `:113` |
 | complete | `tryComplete` `:415` | `tryComplete` `:148` |
 
@@ -59,7 +60,16 @@ A run without workspaces submitted with `start=true` is started by the engine at
 workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its claims and calls
 `PUT /api/v1/dispatcher/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:784`). A run submitted with
 `start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it; `start` defaults to true
-on the submit route, so parking is the explicit opt-out. A `runworkflow` task submits its
+on the submit route, so parking is the explicit opt-out.
+
+A dispatcher that fails to provision, or dies holding the claim, does not tell the engine; the run stays
+`ready/queued` and claimed (`service-dispatcher/.../dispatcher/QueueService.java:77-81`). The
+`recoverStaleProvisionClaims` sweep recovers it: a claim older than `flow.watcher.provision-claim-grace-ms`
+(default 5 minutes, well above the dispatcher's 30 s wait per storage claim) is released for the next poll, and
+once `claim.seq` shows the third claim went stale the run is completed `failed` with the message "Workspace
+provisioning did not complete after 3 attempts." (`WorkflowWatcher.java:408-440`,
+`WorkflowRunStateHelper.java:100-156`). Both writes are fenced on the observed `claim.seq`, so a start or a fresh
+claim wins. The run has no `statusReason` field, so the cause is carried in `statusMessage` only. A `runworkflow` task submits its
 child with `start=true`, so the child follows the same rule (see Child workflows below).
 
 ## The watcher sweeps
@@ -72,11 +82,12 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 | `reapTaskTimeouts` `:160` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:445`) | requeues a dispatched task — `template`, `custom`, `script`, `generic`, `ai` — with attempts < 3 (`tryRequeue` `:548`); otherwise marks it `timedout` (`tryTimeout` `:485`) and ends it |
 | `reapWorkflowTimeouts` `:190` | running, unpaused workflow runs past `timeoutAt` (`findTimedOut` `:206`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:893`) |
 | `recoverStalledRuns` `:203` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
-| `recoverForeachTasks` `:231` | for-each parents in the `running` phase for > 60 s, whatever their status (`TaskRunService.findRunningForeachParents` `:464`) | a parent whose outcome is recorded (terminal status, phase still `running`) is ended — the completion CAS makes a repeat a no-op; any other with no item in flight (`existsInFlightItem` `:502`) re-runs the idempotent fan-out: creates missing items, queues unqueued ones, completes a parent whose items are all terminal (`TaskExecutionService.fanOutItems` `:636`) |
+| `recoverForeachTasks` `:240` | for-each parents in the `running` phase for > 60 s, whatever their status (`TaskRunService.findRunningForeachParents` `:464`) | a parent whose outcome is recorded (terminal status, phase still `running`) is ended, paused or not — the completion CAS makes a repeat a no-op; any other with no item in flight (`existsInFlightItem` `:502`) and an unpaused run (`:251`, `:264`) re-runs the idempotent fan-out: creates missing items, queues unqueued ones, completes a parent whose items are all terminal (`TaskExecutionService.fanOutItems` `:636`). A paused run is skipped because the pause gate would refuse every item it queued; resume re-runs the fan-out |
 | `resumeDueWaitingTasks` `:225` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:771`) |
 | `cancelDeletedWorkflowRuns` `:242` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
 | `pruneDeletedWorkflows` `:267` | deleted workflows with no in-flight runs | hard-deletes the workflow's task runs, workflow runs, revisions, leftover actions, schedules and relationship node, then the workflow document; audit records are kept |
 | `reapRunsWithMissingRevision` `:299` | in-flight runs whose `workflowRevisionRef` no longer resolves — resolved first as the distinct in-flight revision refs minus the ones that exist, then paged by that set, so a backlog of healthy runs never hides an orphan (`WorkflowRunStateHelper.findInFlightRevisionRefs`, `findInFlightWithRevisionIn`) | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest. A cancel whose revision is gone takes the same fallback: it winds down the stored task runs instead of walking the revision (`WorkflowExecutionService.cancelPendingAndRunningTasks` `:259`) |
+| `recoverStaleProvisionClaims` `:408` | `ready/queued` workflow runs whose provisioning `claim.at` is older than the grace period (`WorkflowRunStateHelper.findStaleProvisionClaims` `:100`, served by the `claim_page` index) | releases the claim to `ready/pending` while `claim.seq` < 3 (`tryReleaseProvisionClaim` `:117`); otherwise completes the run `failed` (`tryFailProvision` `:132`) and winds down its task runs like the missing-revision reap |
 | `reapClaimsFromGoneDispatchers` `:343` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:73`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
 | `reapExpiredLeases` | claimed task runs whose `claim.leaseExpiresAt` has elapsed (`TaskRunService.findLeaseExpired`) | the same requeue-or-abandon treatment, `statusReason=LeaseExpired` |
 | `closeStrayActions` `:420` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
@@ -143,7 +154,8 @@ before admission, since items are queued through the same method. Work already a
 continues and times out on its absolute deadline; the workflow-run deadline is not reaped while paused
 (`findTimedOut` `:206-216`). Resume clears the flag and calls `advance`, which re-queues whatever the gate held
 back, including the unadmitted items of a running for-each task (`TaskExecutionService.java:580-584`,
-`WorkflowRunService.java:971-986`).
+`WorkflowRunService.java:971-986`). The for-each recovery sweep leaves a paused run's fan-out alone for the same
+reason (`WorkflowWatcher.java:251`).
 
 ## The DAG advance
 

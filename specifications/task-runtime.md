@@ -18,7 +18,7 @@ The dispatcher registers once, polls two queues every 5 seconds, sends one lease
 | `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:88-114`) |
 | `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none (`DispatcherService.java:154-200`) |
 | `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:212-271`) |
-| `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:47-58`) |
+| `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:63-82`). A provisioning failure is only logged; the run stays claimed until the engine's watcher releases the stale claim for another attempt, failing the run after three (see `execution-model.md`) |
 | `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:288`) |
 | `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed |
 | `PUT /{id}/heartbeat` | dispatcher → engine, every `flow.dispatcher.lease.beat-ms` (30 s) | `ids` of the task runs whose executor threads stamped `LeaseRegistry` since the last beat (`dispatcher/LeaseHeartbeat.java`); the engine renews `claim.leaseExpiresAt` for the ids this dispatcher owns (`DispatcherService.heartbeat`, `flow.dispatcher.lease-ms` 90 s) |
@@ -261,6 +261,9 @@ workspaces is submitted (`workflow/WorkflowService.java:483-497,971-988`,
 `lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to
 `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves `storageClassName` unset so the cluster
 default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:175`).
+After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for it to reach `Pending` or
+`Bound`, treating a momentarily absent claim as not yet settled (`KubeServiceImpl.isClaimSettled` `:207`); any
+error while creating a workspace surfaces as one provisioning failure (`dispatcher/WorkspaceService.java:86-102`).
 
 ## Isolation and placement
 
