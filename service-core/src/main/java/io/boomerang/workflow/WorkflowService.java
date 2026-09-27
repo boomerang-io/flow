@@ -1698,8 +1698,15 @@ public class WorkflowService {
 
     // Check Task Template references are valid
     for (WorkflowTask wfTask : wfRevisionEntity.getTasks()) {
-      if (!TaskType.start.equals(wfTask.getType()) && !TaskType.end.equals(wfTask.getType())) {
-
+      if (TaskType.start.equals(wfTask.getType()) || TaskType.end.equals(wfTask.getType())) {
+        // Start and end mark the graph's edges and never run, so they cannot run for each item.
+        if (wfTask.getForeach() != null) {
+          throw new BoomerangException(
+              BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+              wfTask.getName(),
+              "A " + wfTask.getType() + " task cannot run for each item.");
+        }
+      } else {
         // Shared utility with DAGUtility
         Task taskTemplate = taskService.retrieveAndValidateTask(wfTask);
         wfTask.setTaskVersion(taskTemplate.getVersion());
@@ -1823,7 +1830,9 @@ public class WorkflowService {
     try {
       String value =
           settingsService
-              .getSettingConfig("workflowrun", TaskExecutionService.MAX_FOREACH_ITEMS)
+              .getSettingConfig(
+                  TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY,
+                  TaskExecutionService.MAX_FOREACH_ITEMS)
               .getValue();
       return NumberUtils.isDigits(value)
           ? Integer.parseInt(value)

@@ -76,7 +76,7 @@ public class TaskExecutionService {
 
   // The child-workflow nesting cap, and the typed cause written when a task trips it. The cap
   // keeps a workflow that runs itself from recursing until it exhausts the workspace quota.
-  static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
+  public static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
   static final String MAX_NESTING_DEPTH = "max.nesting.depth";
   static final int DEFAULT_MAX_NESTING_DEPTH = 5;
   static final String NESTING_DEPTH_EXCEEDED = "NestingDepthExceeded";

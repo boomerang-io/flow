@@ -105,6 +105,20 @@ class WorkflowTaskForeachValidationTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aForeachOnTheStartOrEndTaskIsRejected() {
+    String taskSlug = template("foreach-validation-edges", null);
+    WorkflowTaskForeach foreach = new WorkflowTaskForeach();
+    foreach.setItems(List.of("a"));
+    Workflow onStart = workflowWith("foreach-validation-start-wf", "work", taskSlug, null);
+    workTask(onStart, "start").setForeach(foreach);
+    Workflow onEnd = workflowWith("foreach-validation-end-wf", "work", taskSlug, null);
+    workTask(onEnd, "end").setForeach(foreach);
+
+    assertRejected(onStart);
+    assertRejected(onEnd);
+  }
+
+  @Test
   void aTaskNameWithABracketIsRejected() {
     String taskSlug = template("foreach-validation-name", null);
     Workflow workflow = workflowWith("foreach-validation-name-wf", "locate[0]", taskSlug, null);

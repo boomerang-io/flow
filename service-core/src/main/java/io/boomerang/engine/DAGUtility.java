@@ -138,7 +138,6 @@ public class DAGUtility {
         taskRunEntity.setTaskVersion(wfRevisionTask.getTaskVersion());
         taskRunEntity.setAnnotations(wfRevisionTask.getAnnotations());
         taskRunEntity.setDependencies(wfRevisionTask.getDependencies());
-        taskRunEntity.setForeach(wfRevisionTask.getForeach());
         taskRunEntity.setWorkflowRef(wfRevisionEntity.getWorkflowRef());
         taskRunEntity.setWorkflowRevisionRef(wfRevisionEntity.getId());
         taskRunEntity.setWorkflowRunRef(wfRunEntity.getId());
@@ -148,6 +147,8 @@ public class DAGUtility {
 
           Task task = taskService.retrieveAndValidateTask(wfRevisionTask);
           taskRunEntity.setTaskRef(wfRevisionTask.getTaskRef());
+          // Only a task that runs can run for each item; start and end never carry the setting.
+          taskRunEntity.setForeach(wfRevisionTask.getForeach());
           taskRunEntity.setTaskVersion(task.getVersion());
           LOGGER.debug(
               "[{}] Found Task: {} @ {}", wfRunEntity.getId(), task.getName(), task.getVersion());
