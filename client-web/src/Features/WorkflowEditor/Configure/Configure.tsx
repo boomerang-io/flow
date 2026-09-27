@@ -209,6 +209,7 @@ interface ConfigureProps {
 
 function Configure(props: ConfigureProps) {
   const workflowTokensEnabled = useFeature(FeatureFlag.WorkflowTokensEnabled);
+  const integrationsEnabled = useFeature(FeatureFlag.IntegrationsEnabled);
   // Read off the URL rather than built from props.workflow.name: the two differ (appLink.editorCanvas
   // builds from the name, while specs and older bookmarks address the editor by id - see
   // editorRoute.ts), and the default-panel redirect below must not change which workflow the URL
@@ -613,84 +614,86 @@ function Configure(props: ConfigureProps) {
                   )}
                 </div>
               </Section>
-              <Section title="GitHub" description="" beta>
-                <p className={styles.sectionDescription}>
-                  Listen for and respond to events from GitHub. Filter the events and repositories that will trigger
-                  this Workflow. The GitHub integration must be enabled for this Trigger to work. Learn more about
-                  <a
-                    aria-describedby="new-window-aria-desc-0"
-                    className={styles.link}
-                    href="https://docs.github.com/en/webhooks/webhook-events-and-payloads"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="docs-link"
-                  >
-                    GitHub Events <Launch />
-                  </a>
-                  .
-                </p>
-                <div className={styles.toggleContainer}>
-                  <Toggle
-                    id="triggers.github.enabled"
-                    label="Enable"
-                    toggled={values.triggers.github.enabled}
-                    onToggle={(checked: boolean) => handleOnToggleChange(checked, "triggers.github.enabled")}
-                    reversed
-                    disabled={!props.githubAppInstallation}
-                  />
-                </div>
-                {!props.githubAppInstallation && (
-                  <InlineNotification
-                    lowContrast
-                    kind="warning"
-                    title="Integration Required"
-                    subtitle="The GitHub integration is required for this to be enabled."
-                    style={{ marginTop: "1rem" }}
-                    hideCloseButton
-                  />
-                )}
-                {values.triggers.github.enabled && props.githubAppInstallation && (
-                  <div className={styles.githubTriggerContainer}>
-                    <h2 className={styles.iconTitle}>Repository Filter</h2>
-                    <div style={{ maxWidth: "27.125rem" }}>
-                      <MultiSelect
-                        hideLabel
-                        id="triggers.github.repositories"
-                        label="Choose Repositories"
-                        invalid={false}
-                        onChange={({ selectedItems }: { selectedItems: string[] | null }) => {
-                          const fieldIdx = findConditionIndex("repositories");
-                          const value = { operation: "in", field: "repositories", values: selectedItems ?? [] };
-                          props.formikProps.setFieldValue(`triggers.github.conditions[${fieldIdx}]`, value);
-                        }}
-                        items={props.githubAppInstallation?.repositories}
-                        itemToString={(repository: string) => {
-                          return props.githubAppInstallation.orgSlug + " / " + repository;
-                        }}
-                        initialSelectedItems={
-                          values.triggers.github.conditions.find((condition) => condition.field === "repositories")
-                            ?.values
-                        }
-                        titleText="Filter by Repository"
-                      />
-                    </div>
-                    <h2 className={styles.iconTitle}>Events Filter</h2>
-                    <CheckboxList
-                      id="triggers.github.events"
-                      initialSelectedItems={
-                        values.triggers.github.conditions.find((condition) => condition.field === "events")?.values
-                      }
-                      labelText="Select events that you wish to trigger this Workflow"
-                      onChange={(_, __, ____, checked) => {
-                        const fieldIdx = findConditionIndex("events");
-                        const value = { operation: "in", field: "events", values: checked };
-                        props.formikProps.setFieldValue(`triggers.github.conditions[${fieldIdx}]`, value);
-                      }}
-                      options={githubEvents}
+              {integrationsEnabled && (
+                <Section title="GitHub" description="" beta>
+                  <p className={styles.sectionDescription}>
+                    Listen for and respond to events from GitHub. Filter the events and repositories that will trigger
+                    this Workflow. The GitHub integration must be enabled for this Trigger to work. Learn more about
+                    <a
+                      aria-describedby="new-window-aria-desc-0"
+                      className={styles.link}
+                      href="https://docs.github.com/en/webhooks/webhook-events-and-payloads"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="docs-link"
+                    >
+                      GitHub Events <Launch />
+                    </a>
+                    .
+                  </p>
+                  <div className={styles.toggleContainer}>
+                    <Toggle
+                      id="triggers.github.enabled"
+                      label="Enable"
+                      toggled={values.triggers.github.enabled}
+                      onToggle={(checked: boolean) => handleOnToggleChange(checked, "triggers.github.enabled")}
+                      reversed
+                      disabled={!props.githubAppInstallation}
                     />
                   </div>
-                )}
-              </Section>
+                  {!props.githubAppInstallation && (
+                    <InlineNotification
+                      lowContrast
+                      kind="warning"
+                      title="Integration Required"
+                      subtitle="The GitHub integration is required for this to be enabled."
+                      style={{ marginTop: "1rem" }}
+                      hideCloseButton
+                    />
+                  )}
+                  {values.triggers.github.enabled && props.githubAppInstallation && (
+                    <div className={styles.githubTriggerContainer}>
+                      <h2 className={styles.iconTitle}>Repository Filter</h2>
+                      <div style={{ maxWidth: "27.125rem" }}>
+                        <MultiSelect
+                          hideLabel
+                          id="triggers.github.repositories"
+                          label="Choose Repositories"
+                          invalid={false}
+                          onChange={({ selectedItems }: { selectedItems: string[] | null }) => {
+                            const fieldIdx = findConditionIndex("repositories");
+                            const value = { operation: "in", field: "repositories", values: selectedItems ?? [] };
+                            props.formikProps.setFieldValue(`triggers.github.conditions[${fieldIdx}]`, value);
+                          }}
+                          items={props.githubAppInstallation?.repositories}
+                          itemToString={(repository: string) => {
+                            return props.githubAppInstallation.orgSlug + " / " + repository;
+                          }}
+                          initialSelectedItems={
+                            values.triggers.github.conditions.find((condition) => condition.field === "repositories")
+                              ?.values
+                          }
+                          titleText="Filter by Repository"
+                        />
+                      </div>
+                      <h2 className={styles.iconTitle}>Events Filter</h2>
+                      <CheckboxList
+                        id="triggers.github.events"
+                        initialSelectedItems={
+                          values.triggers.github.conditions.find((condition) => condition.field === "events")?.values
+                        }
+                        labelText="Select events that you wish to trigger this Workflow"
+                        onChange={(_, __, ____, checked) => {
+                          const fieldIdx = findConditionIndex("events");
+                          const value = { operation: "in", field: "events", values: checked };
+                          props.formikProps.setFieldValue(`triggers.github.conditions[${fieldIdx}]`, value);
+                        }}
+                        options={githubEvents}
+                      />
+                    </div>
+                  )}
+                </Section>
+              )}
             </>
           )}
             </>

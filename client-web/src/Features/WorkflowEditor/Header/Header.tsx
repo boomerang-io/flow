@@ -9,9 +9,10 @@ import {
   FeatureNavTab as Tab,
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
+import { useFeature } from "flagged";
 import { Link, useParams } from "react-router-dom";
 import { WorkflowView } from "Constants";
-import { appLink } from "Config/appConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { ModalTriggerProps, WorkflowCanvas, WorkflowViewType, ChangeLog } from "Types";
 import VersionCommentForm from "./VersionCommentForm";
 import VersionSwitcher from "./VersionSwitcher";
@@ -45,6 +46,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
 }) => {
   const rawParams = useParams<{ workspace: string; workflow: string }>();
   const params = { workspace: rawParams.workspace ?? "", workflow: rawParams.workflow ?? "" };
+  const schedulesEnabled = useFeature(FeatureFlag.SchedulesEnabled);
   const { displayName } = revisionState;
   const { version: currentRevision } = revisionState;
   const isPreviousVersion = currentRevision < revisionCount;
@@ -81,7 +83,9 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
           <Tab label="Canvas" to={appLink.editorCanvas({ workspace: params.workspace, workflow: params.workflow })} />
           <Tab label="Parameters" to={appLink.editorProperties({ workspace: params.workspace, workflow: params.workflow })} />
           <Tab label="Configure" to={appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow })} />
-          <Tab label="Schedules" to={appLink.editorSchedule({ workspace: params.workspace, workflow: params.workflow })} />
+          {schedulesEnabled ? (
+            <Tab label="Schedules" to={appLink.editorSchedule({ workspace: params.workspace, workflow: params.workflow })} />
+          ) : null}
           <Tab label="Change Log" to={appLink.editorChangelog({ workspace: params.workspace, workflow: params.workflow })} />
         </Tabs>
       }

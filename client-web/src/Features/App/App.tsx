@@ -137,7 +137,13 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   // hands it to SignedOut (which sign-in surface to server-render), an authenticated bootstrap
   // hands it to the Navbar (the Sign Out affordance). This replaced the browser-side
   // GET /auth/config (the retired useAuthConfig hook) - the BFF direction, 2026-09-01.
-  const authConfigPromise = settle(api.get<AuthConfig>(getAuthConfigUrl));
+  // Skipped only when the flags say there is no sign-in surface (engine mode, or security off) -
+  // a signed-out caller gets a 401 from /features, and then the sign-in surface needs the config.
+  const authConfigPromise = featuresPromise.then((result) =>
+    result.ok && result.data.features?.authentication === false
+      ? ({ ok: false } as const)
+      : settle(api.get<AuthConfig>(getAuthConfigUrl)),
+  );
   const resolveAuthConfig = async () => {
     const result = await authConfigPromise;
     return result.ok ? result.data : null;
@@ -225,6 +231,10 @@ export function buildFeatureFlags(feature: FlowFeatures["features"]) {
     WorkspaceQuotasEnabled: feature["workspace.quotas"],
     WorkflowTokensEnabled: feature["workflow.tokens"],
     WorkflowTriggersEnabled: feature["workflow.triggers"],
+    SingleWorkspaceEnabled: feature["workspace.single"],
+    SchedulesEnabled: feature["schedules"],
+    IntegrationsEnabled: feature["integrations"],
+    AuthenticationEnabled: feature["authentication"],
   };
 }
 
