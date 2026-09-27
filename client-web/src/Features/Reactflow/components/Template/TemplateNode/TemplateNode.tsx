@@ -123,6 +123,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
             additionalFormInputs={props.additionalFormInputs}
             closeModal={closeModal}
             node={props.data}
+            nodeType={props.type}
             onSave={handleOnSaveTaskConfig}
             otherTaskNames={otherTaskNames}
             task={taskTemplate}

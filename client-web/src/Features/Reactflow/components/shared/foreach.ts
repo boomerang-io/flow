@@ -16,14 +16,17 @@ export const FOREACH_KEYS = [FOREACH_ENABLED_KEY, FOREACH_ITEMS_KEY];
 export const FOREACH_PALETTE_TYPE = "foreach";
 
 /**
- * The task types the "Repeat a task for each item" picker offers: the ones the dispatcher runs.
- * Control tasks (decision, approval, wait, locks, run workflow, ...) make no sense repeated.
+ * The task types that can run for each item, matching the backend's check on save: the ones the
+ * dispatcher runs. The "Repeat a task for each item" picker offers only these, and only their edit
+ * forms show the Configure tab. Control tasks (decision, approval, wait, locks, run workflow, ...)
+ * make no sense repeated.
  */
 export const FOREACH_TASK_TYPES: ReadonlyArray<string> = [
   NodeType.Template,
   NodeType.Script,
   NodeType.CustomTask,
   NodeType.Ai,
+  NodeType.Generic,
 ];
 
 const REFERENCE_PATTERN = /^\$\([^()\s]+\)$/;

@@ -25,6 +25,7 @@ function renderTaskForm() {
       availableParameters={[]}
       closeModal={() => {}}
       node={node}
+      nodeType="ai"
       onSave={() => {}}
       otherTaskNames={[]}
       task={task}
@@ -85,6 +86,7 @@ function renderTabbedTaskForm(overrides: Partial<React.ComponentProps<typeof Tas
       availableParameters={[]}
       closeModal={() => {}}
       node={validNode}
+      nodeType="ai"
       onSave={() => {}}
       otherTaskNames={[]}
       task={task}
@@ -170,5 +172,22 @@ describe("Task config form --- Parameters and Configure tabs", () => {
     expect(within(screen.getByRole("tab", { name: /Configure/ })).getByText("For each")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: /Configure/ }));
     expect(await screen.findByLabelText("Items")).toHaveValue("$(params.repos)");
+  });
+});
+
+describe("Task config form --- which task types can run for each item", () => {
+  it.each(["decision", "approval", "sleep", "runworkflow"])("shows a %s task's inputs with no tabs", (nodeType) => {
+    renderTabbedTaskForm({ nodeType });
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(screen.queryByText("Run for each item")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Task Name")).toBeVisible();
+    expect(screen.getByLabelText("Model")).toBeVisible();
+  });
+
+  it.each(["template", "script", "custom", "ai", "generic"])("offers the Configure tab on a %s task", (nodeType) => {
+    renderTabbedTaskForm({ nodeType });
+
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Parameters", "Configure"]);
   });
 });

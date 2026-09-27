@@ -6,6 +6,7 @@ import * as Yup from "yup";
 import { useEditorContext } from "Hooks";
 import { timezoneOptions, defaultTimeZone, transformTimeZone } from "Utils/dateHelper";
 import { normaliseInputs } from "Utils/paramsHelper";
+import { NodeType } from "Constants";
 import { DataDrivenInput, Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../shared/TaskFormTabs";
 import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../shared/foreach";
@@ -278,7 +279,7 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} />
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={NodeType.RunScheduledWorkflow} />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>

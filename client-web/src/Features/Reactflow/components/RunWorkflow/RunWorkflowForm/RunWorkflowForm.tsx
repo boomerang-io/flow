@@ -5,6 +5,7 @@ import { FormikProps } from "formik";
 import * as Yup from "yup";
 import { useEditorContext } from "Hooks";
 import { normaliseInputs } from "Utils/paramsHelper";
+import { NodeType } from "Constants";
 import { DataDrivenInput, Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../shared/TaskFormTabs";
 import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../shared/foreach";
@@ -156,7 +157,7 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} />
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={NodeType.RunWorkflow} />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>

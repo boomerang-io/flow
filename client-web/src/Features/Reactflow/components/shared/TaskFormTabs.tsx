@@ -4,7 +4,7 @@ import { WarningFilled } from "@carbon/react/icons";
 import { TextArea, Toggle } from "@boomerang-io/carbon-addons-boomerang-react";
 import { FormikProps } from "formik";
 import styles from "./TaskFormTabs.module.scss";
-import { FOREACH_ENABLED_KEY, FOREACH_ITEMS_KEY, FOREACH_KEYS, FOREACH_MAX_ITEMS } from "./foreach";
+import { FOREACH_ENABLED_KEY, FOREACH_ITEMS_KEY, FOREACH_KEYS, FOREACH_MAX_ITEMS, FOREACH_TASK_TYPES } from "./foreach";
 
 // The input DynamicFormik renders above the tabs rather than inside them.
 const TASK_NAME_KEY = "taskName";
@@ -13,15 +13,21 @@ interface TaskFormTabsProps {
   /** The rendered inputs DynamicFormik hands its children, each keyed by its input key. */
   inputs: Array<React.ReactNode>;
   formikProps: FormikProps<any>;
+  /** The node type of the task being edited; only FOREACH_TASK_TYPES get the Configure tab. */
+  taskType?: string;
 }
 
 /**
  * The body of every task edit form: "Task Name" above two tabs, Parameters (the task's own
  * inputs and its results) and Configure (run the task for each item of a list). One Formik form
- * spans both tabs, so Apply saves both.
+ * spans both tabs, so Apply saves both. A task type that cannot run for each item has nothing to
+ * configure, so its form is the inputs alone, with no tab bar.
  */
-export default function TaskFormTabs({ inputs, formikProps }: TaskFormTabsProps) {
+export default function TaskFormTabs({ inputs, formikProps, taskType }: TaskFormTabsProps) {
   const { errors, values } = formikProps;
+  if (!taskType || !FOREACH_TASK_TYPES.includes(taskType)) {
+    return <>{inputs}</>;
+  }
   const isNameInput = (input: React.ReactNode) => React.isValidElement(input) && input.key === TASK_NAME_KEY;
   const nameInputs = inputs.filter(isNameInput);
   const parameterInputs = inputs.filter((input) => !isNameInput(input));

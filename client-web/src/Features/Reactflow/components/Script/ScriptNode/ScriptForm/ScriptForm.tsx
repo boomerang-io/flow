@@ -3,6 +3,7 @@ import { Button, ModalBody, ModalFooter } from "@carbon/react";
 import { DynamicFormik, ModalForm } from "@boomerang-io/carbon-addons-boomerang-react";
 import * as Yup from "yup";
 import { normaliseInputs } from "Utils/paramsHelper";
+import { NodeType } from "Constants";
 import { Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../../shared/TaskFormTabs";
 import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../../shared/foreach";
@@ -106,7 +107,7 @@ function ScriptForm(props: ScriptFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} />
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={NodeType.Script} />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>

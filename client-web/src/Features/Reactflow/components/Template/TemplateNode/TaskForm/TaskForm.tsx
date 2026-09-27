@@ -40,6 +40,8 @@ interface WorkflowTaskFormProps {
   availableParameters: Array<string>;
   closeModal: () => void;
   node: WorkflowNodeData;
+  /** The type of the node being edited, which decides whether it can run for each item. */
+  nodeType?: string;
   onSave: (inputs: Record<string, string>, results?: Array<{ name: string; description: string }>) => void;
   otherTaskNames: Array<string>;
   textEditorProps?: any;
@@ -118,7 +120,7 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} />
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={props.nodeType} />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>
