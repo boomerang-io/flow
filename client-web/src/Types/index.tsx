@@ -705,7 +705,11 @@ export type FlowFeatureKey =
   | "user.management"
   | "workspace.quotas"
   | "workflow.tokens"
-  | "workflow.triggers";
+  | "workflow.triggers"
+  | "workspace.single"
+  | "schedules"
+  | "integrations"
+  | "authentication";
 
 export interface FlowFeatures {
   features: {

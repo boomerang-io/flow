@@ -7,10 +7,15 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.Workspace;
+import io.boomerang.workspace.model.WorkspaceSummary;
+import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.WorkspaceRepository;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
@@ -29,9 +34,12 @@ public class EngineWorkspaceService {
   private static final String SYSTEM_WORKSPACE = "system";
 
   private final WorkspaceRepository workspaceRepository;
+  private final RelationshipService relationshipService;
 
-  public EngineWorkspaceService(WorkspaceRepository workspaceRepository) {
+  public EngineWorkspaceService(
+      WorkspaceRepository workspaceRepository, RelationshipService relationshipService) {
     this.workspaceRepository = workspaceRepository;
+    this.relationshipService = relationshipService;
   }
 
   public Workspace get(String name) {
@@ -50,6 +58,33 @@ public class EngineWorkspaceService {
             .findByNameIgnoreCase(SYSTEM_WORKSPACE)
             .map(entity -> List.of(toWorkspace(entity)))
             .orElse(List.of()));
+  }
+
+  /*
+   * The profile's workspace list: the system workspace and its workflow count. Engine mode has no
+   * members, so the member count is zero.
+   */
+  public List<WorkspaceSummary> summaries() {
+    return workspaceRepository
+        .findByNameIgnoreCase(SYSTEM_WORKSPACE)
+        .map(
+            entity -> {
+              WorkspaceSummary summary = new WorkspaceSummary(entity);
+              WorkspaceSummaryInsights insights = new WorkspaceSummaryInsights();
+              insights.setMembers(0L);
+              insights.setWorkflows(
+                  (long)
+                      relationshipService
+                          .filter(
+                              RelationshipType.WORKFLOW,
+                              Optional.empty(),
+                              Optional.of(RelationshipType.WORKSPACE),
+                              Optional.of(List.of(entity.getId())))
+                          .size());
+              summary.setInsights(insights);
+              return List.of(summary);
+            })
+        .orElse(List.of());
   }
 
   private static Workspace toWorkspace(WorkspaceEntity entity) {

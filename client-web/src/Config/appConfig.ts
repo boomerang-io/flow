@@ -269,5 +269,9 @@ export enum FeatureFlag {
   WorkspaceQuotasEnabled = "WorkspaceQuotasEnabled",
   WorkflowTokensEnabled = "WorkflowTokensEnabled",
   WorkflowTriggersEnabled = "WorkflowTriggersEnabled",
+  SingleWorkspaceEnabled = "SingleWorkspaceEnabled",
+  SchedulesEnabled = "SchedulesEnabled",
+  IntegrationsEnabled = "IntegrationsEnabled",
+  AuthenticationEnabled = "AuthenticationEnabled",
 }
 

@@ -30,9 +30,23 @@ engine image: the same jar runs in either mode (`.github/workflows/ci-release.ym
 | `flow.security.enabled` default | `true` | `false` (`core/security/FlowSecurityProperties.java:23-29`) |
 | `flow.quotas.enabled` default | `true` | `false` (`application.properties:21-28`) |
 | Packages loaded | All eight. | `workspace`, `schedule`, `integrations` and the sign-in surface (`core/AuthControllerV2.java:43`, `core/security/AuthExchangeService.java:25`) do not load — 18 classes carry the standalone gate. |
-| Workspace | Any workspace. | `system` is the only workspace and is the `{workspace}` path value every workspace-scoped route takes; any other value is refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). The workspace resource itself resolves too — `EngineWorkspaceControllerV2` reads `GET /api/v2/workspace/{workspace}` and `/query` straight off the workspaces collection (`workspace/EngineWorkspaceService.java`), because `WorkspaceService` composes members, quotas and insights that engine mode does not have. Creating, patching and deleting a workspace stay standalone-only. |
-| Web app | Deployed alongside core. | None — `client-web` is never deployed with engine mode. |
+| Workspace | Any workspace. | `system` is the only workspace and is the `{workspace}` path value every workspace-scoped route takes; any other value is refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). The workspace resource itself resolves too — `EngineWorkspaceControllerV2` reads `GET /api/v2/workspace/{workspace}` and `/query` straight off the workspaces collection (`workspace/EngineWorkspaceService.java`), because `WorkspaceService` composes members, quotas and insights that engine mode does not have. `EngineProfileControllerV2` answers `GET /api/v2/profile` with the caller and the `system` workspace as its only workspace (`workspace/EngineProfileControllerV2.java:56`, `EngineWorkspaceService.java:67`). Creating, patching and deleting a workspace, and updating a profile, stay standalone-only. |
+| Web app | Deployed alongside core. | Optional. `client-web` runs unchanged against engine mode; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 | Dispatcher API | `/api/v1/dispatcher/**` behind `DispatcherAuthFilter` in both modes; `flow.dispatcher.auth.enabled` (`application.properties:31-34`) is independent of `flow.security.enabled`. | Same. |
+
+The webapp never reads `flow.mode`. It renders from the flags `GET /api/v2/features` returns, and a flag is on
+only when its setting is on and the surface behind it is loaded in this mode (`core/FeatureService.java:34-80`):
+
+| Flag | `standalone` | `engine` |
+| --- | --- | --- |
+| `workspace.single` | `false` | `true` — no workspace switcher, no create or leave |
+| `workspace.management`, `workspace.quotas`, `user.management`, `insights` | the setting | `false` |
+| `schedules`, `integrations` | `true` | `false` |
+| `authentication` | `flow.security.enabled` | `false` |
+
+The server-built menu (`core/NavigationService.java`) reads the same flags. When `authentication` is `false` the
+webapp's startup loader never requests `GET /api/v2/auth/config` (`client-web/src/Features/App/App.tsx:142-147`),
+so that public endpoint stays standalone-only.
 
 ## Feature packages inside `service-core`
 
