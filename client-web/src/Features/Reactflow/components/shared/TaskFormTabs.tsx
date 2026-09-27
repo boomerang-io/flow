@@ -4,7 +4,13 @@ import { WarningFilled } from "@carbon/react/icons";
 import { TextArea, Toggle } from "@boomerang-io/carbon-addons-boomerang-react";
 import { FormikProps } from "formik";
 import styles from "./TaskFormTabs.module.scss";
-import { FOREACH_ENABLED_KEY, FOREACH_ITEMS_KEY, FOREACH_KEYS, FOREACH_MAX_ITEMS, FOREACH_TASK_TYPES } from "./foreach";
+import {
+  FOREACH_ENABLED_KEY,
+  FOREACH_ITEMS_HELPER_TEXT,
+  FOREACH_ITEMS_KEY,
+  FOREACH_KEYS,
+  FOREACH_TASK_TYPES,
+} from "./foreach";
 
 // The input DynamicFormik renders above the tabs rather than inside them.
 const TASK_NAME_KEY = "taskName";
@@ -106,7 +112,7 @@ function ForeachFields({ formikProps }: { formikProps: FormikProps<any> }) {
             id={FOREACH_ITEMS_KEY}
             name={FOREACH_ITEMS_KEY}
             labelText="Items"
-            helperText={`A JSON array from a parameter or an earlier task's result. At most ${FOREACH_MAX_ITEMS} items.`}
+            helperText={FOREACH_ITEMS_HELPER_TEXT}
             placeholder="$(tasks.stage.results.batches)"
             invalid={Boolean(itemsError) && Boolean(touched[FOREACH_ITEMS_KEY])}
             invalidText={typeof itemsError === "string" ? itemsError : undefined}

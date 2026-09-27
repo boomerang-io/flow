@@ -1,10 +1,13 @@
 import { screen } from "@testing-library/react";
 import { workspaces } from "ApiServer/fixtures";
+import { server } from "ApiServer/msw/node";
+import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { vi } from "vitest";
-import { AppPath, appLink } from "Config/appConfig";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
+import { AppPath, appLink } from "Config/appConfig";
+import { serviceUrl } from "Config/servicesConfig";
 import { editorAction, editorLoader } from "./editorRoute";
 import Editor from "./index";
 
@@ -149,6 +152,36 @@ describe("Editor --- action", () => {
 
     expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("createRevision");
+  });
+
+  // The backend refuses a version it cannot accept - here a for-each task over the admin's item
+  // cap (error 1213) - and the editor shows its reason rather than a bare "failed".
+  test("keeps the backend's reason when it refuses the new version", async () => {
+    const message = "Invalid for-each setting on a Task. Task name: fan. Items has 300 elements, over the cap of 256.";
+    server.use(
+      http.put(
+        serviceUrl.workspace.workflow.putApplyWorkflowCompose({ workspace: ":workspace", workflow: ":workflow" }),
+        () =>
+          HttpResponse.json(
+            { code: 1213, reason: "WORKFLOW_INVALID_TASK_FOREACH", message, status: "400 BAD_REQUEST" },
+            { status: 400 },
+          ),
+      ),
+    );
+    const request = new Request(`http://localhost${appLink.editorCanvas({ workspace, workflow })}`, {
+      method: "post",
+      body: new URLSearchParams({
+        intent: "createRevision",
+        revision: JSON.stringify({ name: "my-workflow", changelog: { reason: "Update workflow" } }),
+      }),
+    });
+
+    const result = (await editorAction({ request, params: { workspace, workflow } })) as unknown as {
+      data: { intent: string; error: { title: string; message: string } };
+    };
+
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data).toMatchObject({ intent: "createRevision", error: { message } });
   });
 
   // The editor route has one action serving two unrelated groups of write sites, so an intent it

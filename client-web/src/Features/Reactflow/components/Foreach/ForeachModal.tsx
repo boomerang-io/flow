@@ -5,7 +5,7 @@ import { Formik } from "formik";
 import * as Yup from "yup";
 import { TaskTemplateStatus } from "Constants";
 import type { Task } from "Types";
-import { FOREACH_MAX_ITEMS, FOREACH_TASK_TYPES, foreachItemsError, taskNameSchema } from "../shared/foreach";
+import { FOREACH_ITEMS_HELPER_TEXT, FOREACH_TASK_TYPES, foreachItemsError, taskNameSchema } from "../shared/foreach";
 import styles from "./ForeachModal.module.scss";
 
 interface ForeachModalProps {
@@ -107,7 +107,7 @@ export default function ForeachModal(props: ForeachModalProps) {
                   id="items"
                   name="items"
                   labelText="Items"
-                  helperText={`A JSON array from a parameter or an earlier task's result. At most ${FOREACH_MAX_ITEMS} items.`}
+                  helperText={FOREACH_ITEMS_HELPER_TEXT}
                   placeholder="$(tasks.stage.results.batches)"
                   invalid={Boolean(errors.items) && Boolean(touched.items)}
                   invalidText={errors.items}

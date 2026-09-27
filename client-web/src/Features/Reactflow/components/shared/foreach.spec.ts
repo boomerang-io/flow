@@ -7,12 +7,15 @@ describe("for-each items", () => {
     expect(foreachItemsError('["a", {"b": 1}, 3]')).toBeUndefined();
   });
 
-  it("rejects empty values, non-arrays, text around a reference and more than 256 items", () => {
+  it("rejects empty values, non-arrays and text around a reference", () => {
     expect(foreachItemsError("")).toBe("Enter the items");
     expect(foreachItemsError('{"a": 1}')).toMatch(/JSON array/);
     expect(foreachItemsError("prefix $(params.repos)")).toMatch(/JSON array/);
     expect(foreachItemsError("$(params.a) $(params.b)")).toMatch(/JSON array/);
-    expect(foreachItemsError(JSON.stringify(Array.from({ length: 257 }, (_, i) => i)))).toBe("Enter at most 256 items");
+  });
+
+  it("leaves the item count to the backend, which checks it against the admin setting on save", () => {
+    expect(foreachItemsError(JSON.stringify(Array.from({ length: 1000 }, (_, i) => i)))).toBeUndefined();
   });
 
   it("stores a reference as a string and a literal as an array, and drops the setting when off", () => {

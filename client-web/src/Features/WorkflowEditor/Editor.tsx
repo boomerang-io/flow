@@ -183,7 +183,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
     }
 
     if (isActionError(fetcher.data)) {
-      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Failed to create workflow version`} />);
+      notify(<ToastNotification kind="error" title={fetcher.data.error.title} subtitle={fetcher.data.error.message} />);
       return;
     }
 

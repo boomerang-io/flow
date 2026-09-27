@@ -5,9 +5,9 @@ import type { WorkflowTaskForeach } from "Types";
 /**
  * The "Run for each item" task setting. The form carries it as two flat Formik values beside
  * the task's params; the node carries it as `foreach: { items }`, where items is either one
- * reference string or a JSON array literal.
+ * reference string or a JSON array literal. How many items a task may have is an admin setting
+ * (`max.foreach.items`) the backend checks on save, so the form does not count them.
  */
-export const FOREACH_MAX_ITEMS = 256;
 export const FOREACH_ENABLED_KEY = "foreachEnabled";
 export const FOREACH_ITEMS_KEY = "foreachItems";
 export const FOREACH_KEYS = [FOREACH_ENABLED_KEY, FOREACH_ITEMS_KEY];
@@ -36,6 +36,9 @@ export type ForeachFormValues = {
   [FOREACH_ITEMS_KEY]: string;
 };
 
+/** The hint under every Items input. */
+export const FOREACH_ITEMS_HELPER_TEXT = "A JSON array from a parameter or an earlier task's result.";
+
 /** The error for an Items value, or undefined when it is one reference or a JSON array. */
 export function foreachItemsError(value?: string): string | undefined {
   const trimmed = (value ?? "").trim();
@@ -53,9 +56,6 @@ export function foreachItemsError(value?: string): string | undefined {
   }
   if (!Array.isArray(parsed)) {
     return "Enter a JSON array or a single reference such as $(params.items)";
-  }
-  if (parsed.length > FOREACH_MAX_ITEMS) {
-    return `Enter at most ${FOREACH_MAX_ITEMS} items`;
   }
   return undefined;
 }
