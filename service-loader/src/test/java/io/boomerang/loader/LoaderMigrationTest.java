@@ -585,10 +585,10 @@ class LoaderMigrationTest {
   }
 
   private void assertTaskCatalogueSeeded() {
-    assertThat(collection("tasks").countDocuments()).isEqualTo(88);
+    assertThat(collection("tasks").countDocuments()).isEqualTo(90);
     // 131 seeded + the pre-seeded legacy worker-flow pin from seedLegacyWorkerFlowRevision()
     // (repointed in place by _0039, not removed).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(132);
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(134);
 
     Document sleep = collection("tasks").find(Filters.eq("name", "sleep")).first();
     assertThat(sleep).isNotNull();
@@ -614,12 +614,12 @@ class LoaderMigrationTest {
     assertThat(duration.getString("label")).isEqualTo("Duration");
 
     // Global catalogue graph: every task is a task: node reachable from root by hasTask.
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(88);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(90);
     assertThat(
             collection("rel_edges")
                 .countDocuments(
                     Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(88);
+        .isEqualTo(90);
     Document sleepNode =
         collection("rel_nodes").find(Filters.eq("_id", "task:" + sleepId)).first();
     assertThat(sleepNode).isNotNull();
@@ -752,15 +752,15 @@ class LoaderMigrationTest {
 
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
     assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(10);
-    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(88);
-    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(131);
+    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(90);
+    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(133);
     assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
     assertThat(fresh.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
     // Every task is in the global catalogue: a task: node reachable from root by hasTask.
     assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments(Filters.eq("type", "task")))
-        .isEqualTo(88);
+        .isEqualTo(90);
     assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("label", "hasTask")))
-        .isEqualTo(88);
+        .isEqualTo(90);
     assertAiTaskPresent(fresh);
 
     // Re-running the change units against the seeded database inserts nothing.
@@ -768,11 +768,11 @@ class LoaderMigrationTest {
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
     assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(10);
-    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(88);
-    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(131);
+    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(90);
+    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(133);
     assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
-    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(90);
-    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(89);
+    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(92);
+    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(91);
   }
 
   /**
@@ -895,13 +895,14 @@ class LoaderMigrationTest {
     // (Phase 5, ungated) then reconciles the 88-task/131-revision seed catalogue on top by NAME:
     // neither fixture task's name ("legacy-task"/"custom-task-example") matches any of the 88
     // canonical catalogue names, so none of the 88 pre-exist under this fixture and all 88 tasks
-    // + 131 revisions are freshly inserted by the seed - 90 tasks / 132 revisions total, the same
+    // + 131 revisions are freshly inserted by the seed, and _0052 adds the 2 artifact tasks - 92
+    // tasks / 134 revisions total, the same
     // outcome the former _0034__V3ReconcileCatalogue unit (dropped, folded into this seed's own
     // insert-if-absent logic - see _0022's javadoc) used to produce by matching on _id instead.
     MongoCollection<Document> tasks = v3.getCollection(PREFIX + "_tasks");
     MongoCollection<Document> taskRevisions = v3.getCollection(PREFIX + "_task_revisions");
-    assertThat(tasks.countDocuments()).isEqualTo(90);
-    assertThat(taskRevisions.countDocuments()).isEqualTo(132);
+    assertThat(tasks.countDocuments()).isEqualTo(92);
+    assertThat(taskRevisions.countDocuments()).isEqualTo(134);
     assertThat(v3.getCollection(PREFIX + "_task_templates").countDocuments()).isZero();
 
     // The minimal fixture doc (every optional field absent) migrated without throwing.
@@ -965,8 +966,8 @@ class LoaderMigrationTest {
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(settings.countDocuments()).isEqualTo(10);
-    assertThat(tasks.countDocuments()).isEqualTo(90);
-    assertThat(taskRevisions.countDocuments()).isEqualTo(132);
+    assertThat(tasks.countDocuments()).isEqualTo(92);
+    assertThat(taskRevisions.countDocuments()).isEqualTo(134);
     Document taskRunAfterSecondRun =
         v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
     assertThat(taskRunAfterSecondRun.getString("taskRef")).isEqualTo(customTaskId.toString());
