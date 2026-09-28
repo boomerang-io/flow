@@ -1,9 +1,6 @@
 {
   "documents": [
     {
-      "_id": {
-        "$oid": "5eed00000000000000000500"
-      },
       "config": [
         {
           "description": "Days an artifact is kept after upload when neither its workspace nor its upload task sets a retention.",

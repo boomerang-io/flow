@@ -392,6 +392,7 @@ class LoaderMigrationTest {
     assertForeachCapAndIndex();
     assertDeletionPolicyDescribed();
     assertArtifactsAdded();
+    assertArtifactTasksSeeded();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -1716,6 +1717,35 @@ class LoaderMigrationTest {
         .filteredOn(config -> "max.artifact.storage".equals(config.getString("key")))
         .extracting(config -> config.getString("value"))
         .containsExactly("5Gi");
+  }
+
+  /**
+   * {@code _0052}: the two artifact catalogue tasks, typed, each with its version 1 revision
+   * declaring the author params and the read-only link params Flow fills, and reachable from root.
+   */
+  private void assertArtifactTasksSeeded() {
+    for (String[] task :
+        List.of(
+            new String[] {"upload-artifact", "uploadartifact", "name,path,retention-days,url,headers"},
+            new String[] {
+              "download-artifact", "downloadartifact", "name,path,url,headers,sha256,contentType"
+            })) {
+      Document seeded = collection("tasks").find(Filters.eq("name", task[0])).first();
+      assertThat(seeded).as(task[0]).isNotNull();
+      assertThat(seeded.getString("type")).isEqualTo(task[1]);
+      String id = seeded.get("_id").toString();
+      Document revision =
+          collection("task_revisions")
+              .find(Filters.and(Filters.eq("parentRef", id), Filters.eq("version", 1)))
+              .first();
+      assertThat(revision).as(task[0] + " revision").isNotNull();
+      assertThat(
+              revision.get("spec", Document.class).getList("params", Document.class).stream()
+                  .map(param -> param.getString("name"))
+                  .toList())
+          .containsExactly(task[2].split(","));
+      assertThat(collection("rel_nodes").find(Filters.eq("_id", "task:" + id)).first()).isNotNull();
+    }
   }
 
   private void assertRelationshipAndAuditIndexes() {
