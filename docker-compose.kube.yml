@@ -14,6 +14,9 @@ services:
     environment:
       FLOW_DISPATCHER_AUTH_ENABLED: "false"
       FLOW_AGENT_SERVICE_HOST: service-dispatcher:7702
+      # Artifact links are signed for the host task pods use: OrbStack's cluster reaches the
+      # stack's SeaweedFS through the host, not the compose network name.
+      FLOW_ARTIFACTS_STORE_LINK_ENDPOINT: http://host.docker.internal:8333
 
   service-dispatcher:
     build:
@@ -32,7 +35,7 @@ services:
       # (FLOW_DISPATCHER_AI_IMAGE, boomerangio/task-ai:1.0.0 by default), which is released from
       # the boomerang-io/tasks repository, so the tag has to exist in the registry before an ai run
       # will get past the image pull.
-      FLOW_DISPATCHER_TASK_TYPES: template,custom,script,ai
+      FLOW_DISPATCHER_TASK_TYPES: template,custom,script,ai,uploadartifact,downloadartifact
       # Release run-scoped storage promptly so an end-to-end run can assert the claim is gone.
       FLOW_DISPATCHER_WORKSPACE_RECONCILE_ENABLED: "true"
       FLOW_DISPATCHER_WORKSPACE_RECONCILE_MS: "10000"

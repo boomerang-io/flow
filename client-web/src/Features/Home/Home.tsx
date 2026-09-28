@@ -5,6 +5,7 @@ import { formatErrorMessage } from "@boomerang-io/utils";
 import { Api, Parameter } from "@carbon/react/icons";
 import { Gear, PlanningAnalytics, PlayerFlow, Workflows } from "@carbon/pictograms-react";
 import cx from "classnames";
+import { useFeature } from "flagged";
 import kebabcase from "lodash/kebabCase";
 import sortBy from "lodash/sortBy";
 import queryString from "query-string";
@@ -15,6 +16,7 @@ import WorkspaceCard from "Components/WorkspaceCard";
 import WorkspaceCardCreate from "Components/WorkspaceCardCreate";
 import WorkflowTemplateHomeCard from "Components/WorkflowTemplateHomeCard";
 import { useAppContext } from "Hooks";
+import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
@@ -111,6 +113,7 @@ export default function Home() {
   // revalidates every matched loader once a fetcher action settles - so creation refreshes it
   // with no explicit call. Never queryClient.invalidateQueries here (dead against a
   // loader-driven read; see UserLabels/ChangeRole for the bug this already caused).
+  const singleWorkspaceEnabled = useFeature(FeatureFlag.SingleWorkspaceEnabled);
   const location = useLocation();
   const navigate = useNavigate();
   const { action: queryAction, workspaceName } = queryString.parse(location.search);
@@ -172,11 +175,13 @@ export default function Home() {
           <Section title="Your Workspaces">
             <nav className={styles.sectionLinks}>
               {sortedWorkspaces ? sortedWorkspaces?.map((workspace) => <WorkspaceCard key={workspace.name} workspace={workspace} />) : null}
-              <WorkspaceCardCreate
-                createWorkspace={createWorkspace}
-                isError={isCreateWorkspaceError}
-                isLoading={isCreateWorkspaceLoading}
-              />
+              {!singleWorkspaceEnabled ? (
+                <WorkspaceCardCreate
+                  createWorkspace={createWorkspace}
+                  isError={isCreateWorkspaceError}
+                  isLoading={isCreateWorkspaceLoading}
+                />
+              ) : null}
             </nav>
           </Section>
         </Layer>

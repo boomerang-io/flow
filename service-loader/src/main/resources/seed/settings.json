@@ -1,6 +1,38 @@
 {
   "documents": [
     {
+      "config": [
+        {
+          "description": "Days an artifact is kept after upload when neither its workspace nor its upload task sets a retention.",
+          "key": "retention.default.days",
+          "label": "Default Retention (days)",
+          "type": "number",
+          "value": "30",
+          "readOnly": false
+        },
+        {
+          "description": "The longest any workspace or upload task may keep an artifact, in days.",
+          "key": "retention.max.days",
+          "label": "Maximum Retention (days)",
+          "type": "number",
+          "value": "90",
+          "readOnly": false
+        },
+        {
+          "description": "The largest file an upload task may store, in MB. A bigger upload fails its task.",
+          "key": "max.artifact.size",
+          "label": "Largest Artifact (MB)",
+          "type": "number",
+          "value": "1024",
+          "readOnly": false
+        }
+      ],
+      "description": "Files that upload tasks attach to a run. An artifact's file is deleted when it expires; nothing is deleted to make room.",
+      "key": "artifacts",
+      "name": "Artifacts",
+      "type": "ValuesList"
+    },
+    {
       "_id": {
         "$oid": "5eed00000000000000000300"
       },
@@ -392,6 +424,14 @@
           "label": "Max WorkflowRun Storage",
           "type": "text",
           "value": "2Gi",
+          "readOnly": false
+        },
+        {
+          "key": "max.artifact.storage",
+          "description": "Maximum storage the workspace's unexpired artifacts may hold",
+          "label": "Max Artifact Storage",
+          "type": "text",
+          "value": "5Gi",
           "readOnly": false
         }
       ],

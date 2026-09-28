@@ -1,6 +1,6 @@
 # Data Model
 
-Boomerang Flow stores everything in one MongoDB database: 24 application collections owned by `lib-common` and
+Boomerang Flow stores everything in one MongoDB database: 25 application collections owned by `lib-common` and
 the feature packages of `service-core`, plus 3 loader-owned bookkeeping collections. Definitions use the subset
 pattern, runs carry typed control fields, and every index and schema change is applied by `service-loader`.
 
@@ -21,6 +21,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`lib-common`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`lib-common`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`lib-common`; `engine`) |
+| `artifacts` | One file an upload task attached to a run: its run, task run and workflow references, size, SHA-256, store key, status and expiry (see "Artifacts" below) | `ArtifactEntity` (`lib-common`; `workflow`) |
 | `workflow_schedules` | Cron and one-off schedules: `nextFireAt`, `lastFiredAt`, `retryCount` | `WorkflowScheduleEntity` (`lib-common`; `schedule`) |
 | `actions` | Manual approvals and task actions awaiting a person | `ActionEntity` (`lib-common`; `workflow`) |
 | `task_locks` | Per-key lock documents for the `acquirelock` / `releaselock` tasks | `TaskLockEntity` (`engine`) |
@@ -106,6 +107,28 @@ Indexes exist only because a loader change unit created them (`MigrationUtils.en
 | `_0037__SweepIndexes` | `task_runs`, `workflow_runs`, `actions` | `status_sweep`, `claimed_sweep` for the watcher and dispatcher polls |
 | `_0046__DeclareRunWorkflowWaitParam` | `workflow_runs` | `initiated_by_phase` on `(initiatedByRef, phase)`, the child-run lookup the cascade cancel pages |
 | `_0049__ForeachItems` | `task_runs` | sparse `parent_index` on `(parentRef, index)`, the item-order read every item end makes; only items carry `parentRef`. `node_uniqueness` is unchanged: items are distinct names |
+| `_0051__Artifacts` | `artifacts` | unique `run_name_idx` on `(workflowRunRef, name)`, `status_expiration_idx` for the expiry and stale-upload sweeps, `workflow_status_idx` for the workspace list, the storage total and the workflow prune |
+
+## Artifacts
+
+An artifact is a file an upload task attached to its run. Its file lives in an object store; its record lives in
+`artifacts` and is reached only through the run: access is the run's `HAS_WORKFLOWRUN` edge to the workspace,
+and the workspace list and storage total go through the workspace's workflows (`workflowRef`). No artifact
+field is on `WorkflowRun`, and no quota is on the run.
+
+| Status | Written when | File |
+| --- | --- | --- |
+| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams`; `dispatcher/DispatcherService.java` `fillArtifactLink`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
+| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload`, called from `engine/TaskRunService.java` `completeArtifactUpload`); a refusal ends the task failed with `ArtifactRefused` | in the store |
+| `expired` | the watcher passes `expirationDate` (`:324`) | deleted; the record stays so the run still shows what it produced |
+
+A record is removed only by a delete or its workflow's prune (`engine/WorkflowWatcher.java:350`). Limits are
+admin settings: the `artifacts` document (default retention 30 days, maximum 90, largest artifact 1024 MB) and
+the `max.artifact.storage` workspace quota (5Gi), overridable per workspace with `artifactRetentionDays`. A task
+may ask for a shorter retention, never a longer one (`:128`). An upload over the largest artifact or the
+storage quota has its own file deleted and its task refused; no existing artifact is deleted to make room.
+The store is any S3-compatible service (`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*`
+and off unless `flow.artifacts.enabled` (`workflow/config/ArtifactStoreConfiguration.java:28`).
 
 ## Migrations
 `service-loader` runs every pending change unit on Flamingock and exits non-zero on failure, so a deployment runs
@@ -163,6 +186,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0048__TaskDefaultTimeoutInheritsTheRun` | all | Sets `task`/`default.timeout` to `0` (no per-task ceiling, a task inherits its run's timeout) — but only where the value is still the shipped `90`; any other number is an operator's choice and stays. Brings the entry's `label`/`description` to the seed's wording either way |
 | `_0049__ForeachItems` | all | Creates the `parent_index` index (table above) and adds `max.foreach.items` (default 256) to the `workflowrun` settings document when absent |
 | `_0050__DescribeTaskDeletionPolicy` | all | Rewrites the `task`/`deletion.policy` description and option labels to say what each choice does to a task's worker, logs and run storage; the selected value is left as the admin set it |
+| `_0052__SeedArtifactTasks` | all | Inserts the `upload-artifact` and `download-artifact` catalogue tasks with ids assigned on insert (no seed file), each revision declaring its author params and the read-only link params Flow fills |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

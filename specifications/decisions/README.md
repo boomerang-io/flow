@@ -39,7 +39,7 @@ things by name, not by code.
 | 0042 | [One isolation tier per dispatcher deployment, no per-task tier](0042-one-isolation-tier-per-dispatcher-deployment.md) | accepted | 2026-08-25 |
 | 0043 | [Sensitive values are marked by field type and filtered on the way out](0043-sensitive-values-are-marked-by-field-type-and-filtered-on-the-way-out.md) | accepted | 2026-08-25 |
 | 0044 | [Parameter names match case-insensitively and colliding variants are rejected at save](0044-parameter-names-match-case-insensitively-and-colliding-variants-are-rejected.md) | accepted | 2026-08-26 |
-| 0045 | [A pass-by-reference artefact store for large payloads](0045-pass-by-reference-artefact-store-for-large-payloads.md) | proposed | 2026-08-27 |
+| 0045 | [A pass-by-reference artefact store for large payloads](0045-pass-by-reference-artefact-store-for-large-payloads.md) | superseded by 0085 | 2026-08-27 |
 | 0046 | [Task execution runs behind a `TaskExecutor` interface with Tekton and plain Kubernetes Jobs](0046-task-execution-runs-behind-a-taskexecutor-interface.md) | accepted | 2026-08-21 |
 | 0050 | [`status` is the external run field; `phase` stays exposed until the dispatcher gets its own wire model](0050-status-is-the-external-field-phase-stays-exposed-for-now.md) | accepted | 2026-08-18 |
 | 0051 | [Execution-state fields never appear in the public run models](0051-execution-state-fields-never-appear-in-public-models.md) | accepted | 2026-08-18 |
@@ -67,3 +67,5 @@ things by name, not by code.
 | 0081 | [Leftover Tekton runtime objects are cleaned by our own reconciler](0081-leftover-tekton-runtime-objects-are-cleaned-by-our-own-reconciler.md) | accepted | 2026-09-23 |
 | 0082 | [A task runs once per item through a `foreach` setting on the task](0082-foreach-fan-out-of-one-task.md) | accepted | 2026-09-26 |
 | 0083 | [The "For each" palette item is an entry point to the task setting](0083-the-for-each-palette-item-is-an-entry-point-to-the-task-setting.md) | accepted | 2026-09-26 |
+| 0084 | [The webapp renders engine mode from feature flags, not from the mode](0084-the-webapp-renders-engine-mode-from-feature-flags.md) | accepted | 2026-09-28 |
+| 0085 | [Artifacts are uploaded by built-in tasks and expire into a kept record](0085-artifacts-are-uploaded-by-tasks-and-expire-into-a-kept-record.md) | accepted | 2026-09-28 |

@@ -503,12 +503,18 @@ export interface FlowWorkspaceQuotas {
   currentRunMedianDuration: number;
   currentWorkflowStorage: number;
   currentWorkflowRunStorage: number;
+  // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
+  currentArtifactStorage: number;
   maxWorkflowCount: number;
   maxWorkflowRunMonthly: number;
   maxWorkflowStorage: number;
   maxWorkflowRunStorage: number;
   maxWorkflowRunDuration: number;
   maxConcurrentRuns: number;
+  // Gi (integer) - the artifact storage cap for this workspace.
+  maxArtifactStorage: number;
+  // Days an artifact is kept after upload before it expires.
+  artifactRetentionDays: number;
   monthlyResetDate: string;
 }
 
@@ -705,7 +711,11 @@ export type FlowFeatureKey =
   | "user.management"
   | "workspace.quotas"
   | "workflow.tokens"
-  | "workflow.triggers";
+  | "workflow.triggers"
+  | "workspace.single"
+  | "schedules"
+  | "integrations"
+  | "authentication";
 
 export interface FlowFeatures {
   features: {
@@ -888,6 +898,36 @@ export interface TaskRun {
   parentRef?: string;
   /** Set on an item of a for-each task: the item's position, from 0. */
   index?: number;
+}
+
+export enum ArtifactStatus {
+  Uploading = "uploading",
+  Available = "available",
+  Expired = "expired",
+}
+
+/**
+ * A file a task run uploaded during a run (`uploadartifact`), listed/downloaded/deleted through
+ * the workspace-scoped `/workspace/{workspace}/workflowrun/{runId}/artifacts` surface (per-run) or
+ * `/workspace/{workspace}/artifacts` (workspace-wide). `taskRunRef` is the id of the TaskRun that
+ * uploaded it - resolve it against `WorkflowRun.tasks` for a display name, the API does not carry
+ * one. `status` is "uploading" while the upload is in flight (never returned by the list routes),
+ * "available" once complete, and "expired" once `expirationDate` (creationDate + retentionDays)
+ * has passed - an expired artifact is still listed but can no longer be downloaded (410).
+ */
+export interface Artifact {
+  id: string;
+  name: string;
+  workflowRef: string;
+  workflowRunRef: string;
+  taskRunRef: string;
+  size: number;
+  sha256: string;
+  contentType: string;
+  status: ArtifactStatus;
+  creationDate: string;
+  retentionDays: number;
+  expirationDate: string;
 }
 
 export interface RunAnnototations {

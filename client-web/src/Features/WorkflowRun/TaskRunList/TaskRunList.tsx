@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Button } from "@carbon/react";
+import { Button, Tab, TabList, Tabs } from "@carbon/react";
 import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
 import { getSimplifiedDuration } from "Utils/dateHelper";
 import { foreachItemRuns, isForeachItem } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, executionStatusIcon, NodeType } from "Constants";
-import { Action, RunStatus, WorkflowRun } from "Types";
+import { Action, Artifact, RunStatus, WorkflowRun } from "Types";
+import ArtifactsPanel from "./ArtifactsPanel";
 import TaskRunItem from "./TaskRunItem";
 import styles from "./TaskRunList.module.scss";
 
@@ -16,14 +17,22 @@ type Props = {
   // (`Action.taskRunRef`). Resolved once by the route loader - see WorkflowRun.tsx - because a
   // TaskRun only carries an `actionRef`, never the approver detail itself.
   actions?: Record<string, Action>;
+  // This run's artifacts, for the "Artifacts (n)" tab - see WorkflowRun.tsx's loader. Optional so
+  // this component's existing spec (which never touched artifacts) keeps working unchanged.
+  artifacts?: Array<Artifact>;
+  workspace?: string;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
   // The names of the workflow's for-each tasks, from its definition - a TaskRun does not say.
   foreachTaskNames?: ReadonlySet<string>;
 };
 
-function TaskRunLog({ workflowRun, actions, executionViewRedirect, foreachTaskNames }: Props) {
+const TAB_TASK_LOG = 0;
+const TAB_ARTIFACTS = 1;
+
+function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", executionViewRedirect, foreachTaskNames }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [tasksSort, setTasksSort] = useState<"desc" | "asc">("desc");
+  const [activeTab, setActiveTab] = useState<number>(TAB_TASK_LOG);
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
@@ -98,8 +107,13 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect, foreachTaskNa
         </button>
       </section>
       <section className={styles.taskbar}>
-        <p className={styles.taskbarTitle}>Task log</p>
-        {!isCollapsed && (
+        <Tabs selectedIndex={activeTab} onChange={({ selectedIndex }: { selectedIndex: number }) => setActiveTab(selectedIndex)}>
+          <TabList aria-label="Run detail" className={styles.taskbarTabs}>
+            <Tab>Task log</Tab>
+            <Tab>{`Artifacts (${artifacts.length})`}</Tab>
+          </TabList>
+        </Tabs>
+        {!isCollapsed && activeTab === TAB_TASK_LOG && (
           <Button
             data-testid="taskbar-button"
             iconDescription="Change sort direction (by start time)"
@@ -111,37 +125,44 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect, foreachTaskNa
           />
         )}
       </section>
-      <ul className={styles.tasklog}>
-        {startTask && (
-          <TaskRunItem
-            key={startTask.id}
-            taskRun={startTask}
-            workflowRun={workflowRun}
-            action={actions?.[startTask.id]}
-            executionViewRedirect={executionViewRedirect}
-          />
-        )}
-        {sortedTasks.map((taskRun) => (
-          <TaskRunItem
-            key={taskRun.id}
-            taskRun={taskRun}
-            workflowRun={workflowRun}
-            action={actions?.[taskRun.id]}
-            executionViewRedirect={executionViewRedirect}
-            isForeach={foreachTaskNames?.has(taskRun.name)}
-            items={foreachItemRuns(tasks, taskRun.id)}
-          />
-        ))}
-        {endTask && (
-          <TaskRunItem
-            key={endTask.id}
-            taskRun={endTask}
-            workflowRun={workflowRun}
-            action={actions?.[endTask.id]}
-            executionViewRedirect={executionViewRedirect}
-          />
-        )}
-      </ul>
+      {activeTab === TAB_TASK_LOG ? (
+        <ul className={styles.tasklog}>
+          {startTask && (
+            <TaskRunItem
+              key={startTask.id}
+              taskRun={startTask}
+              workflowRun={workflowRun}
+              action={actions?.[startTask.id]}
+              executionViewRedirect={executionViewRedirect}
+            />
+          )}
+          {sortedTasks.map((taskRun) => (
+            <TaskRunItem
+              key={taskRun.id}
+              taskRun={taskRun}
+              workflowRun={workflowRun}
+              action={actions?.[taskRun.id]}
+              executionViewRedirect={executionViewRedirect}
+              isForeach={foreachTaskNames?.has(taskRun.name)}
+              items={foreachItemRuns(tasks, taskRun.id)}
+            />
+          ))}
+          {endTask && (
+            <TaskRunItem
+              key={endTask.id}
+              taskRun={endTask}
+              workflowRun={workflowRun}
+              action={actions?.[endTask.id]}
+              executionViewRedirect={executionViewRedirect}
+            />
+          )}
+        </ul>
+      ) : null}
+      {activeTab === TAB_ARTIFACTS && (
+        <div className={styles.tasklog}>
+          <ArtifactsPanel artifacts={artifacts} workflowRun={workflowRun} workspace={workspace} />
+        </div>
+      )}
     </aside>
   );
 }

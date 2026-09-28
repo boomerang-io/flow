@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router-dom";
 import { InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
-import { appLink } from "Config/appConfig";
+import { useFeature } from "flagged";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { ArrowRight, Checkmark, Close } from "@carbon/react/icons";
 import moment from "moment";
 import { FlowWorkspaceSummary } from "Types";
@@ -49,6 +50,9 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
 
   const isLeaving = fetcher.state !== "idle";
 
+  const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
+  const singleWorkspaceEnabled = useFeature(FeatureFlag.SingleWorkspaceEnabled);
+
   let menuOptions = [
     {
       itemText: "View Workflows",
@@ -62,17 +66,26 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace }) => {
       itemText: "View Activity",
       onClick: () => navigate(appLink.activity({ workspace: workspace.name })),
     },
-    {
-      itemText: "Manage Workspace",
-      onClick: () => navigate(appLink.manageWorkspace({ workspace: workspace.name })),
-    },
-    {
-      hasDivider: true,
-      itemText: "Leave",
-      isDelete: true,
-      onClick: () => setIsLeaveModalOpen(true),
-      disabled: false,
-    },
+    ...(workspaceManagementEnabled
+      ? [
+          {
+            itemText: "Manage Workspace",
+            onClick: () => navigate(appLink.manageWorkspace({ workspace: workspace.name })),
+          },
+        ]
+      : []),
+    // The only workspace cannot be left.
+    ...(!singleWorkspaceEnabled
+      ? [
+          {
+            hasDivider: true,
+            itemText: "Leave",
+            isDelete: true,
+            onClick: () => setIsLeaveModalOpen(true),
+            disabled: false,
+          },
+        ]
+      : []),
   ];
 
   return (

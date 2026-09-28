@@ -3,6 +3,7 @@ package io.boomerang.workspace;
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
 import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
@@ -88,6 +89,7 @@ public class WorkspaceService {
   public static final String QUOTA_MAX_WORKFLOWRUN_MONTHLY = "max.workflowrun.monthly";
   public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
   public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
+  public static final String QUOTA_MAX_ARTIFACT_STORAGE = "max.artifact.storage";
 
   private final WorkspaceRepository workspaceRepository;
   private final IdentityService identityService;
@@ -103,6 +105,7 @@ public class WorkspaceService {
   private final AuditQueryService auditQueryService;
   private final TokenService tokenService;
   private final TaskService taskService;
+  private final ArtifactService artifactService;
 
   public WorkspaceService(
       WorkspaceRepository workspaceRepository,
@@ -118,7 +121,8 @@ public class WorkspaceService {
       WorkflowRunService workflowRunService,
       AuditQueryService auditQueryService,
       TokenService tokenService,
-      TaskService taskService) {
+      TaskService taskService,
+      ArtifactService artifactService) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -133,6 +137,7 @@ public class WorkspaceService {
     this.auditQueryService = auditQueryService;
     this.tokenService = tokenService;
     this.taskService = taskService;
+    this.artifactService = artifactService;
   }
 
   /*
@@ -956,6 +961,13 @@ public class WorkspaceService {
             settingsService
                 .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
                 .getValue()));
+    quotas.setMaxArtifactStorage(
+        Integer.valueOf(
+            settingsService
+                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_ARTIFACT_STORAGE)
+                .getValue()
+                .replace("Gi", "")));
+    quotas.setArtifactRetentionDays(artifactService.defaultRetentionDays());
     return quotas;
   }
 
@@ -984,6 +996,12 @@ public class WorkspaceService {
       }
       if (customQuotas.getMaxConcurrentRuns() != null) {
         quotas.setMaxConcurrentRuns(customQuotas.getMaxConcurrentRuns());
+      }
+      if (customQuotas.getMaxArtifactStorage() != null) {
+        quotas.setMaxArtifactStorage(customQuotas.getMaxArtifactStorage());
+      }
+      if (customQuotas.getArtifactRetentionDays() != null) {
+        quotas.setArtifactRetentionDays(customQuotas.getArtifactRetentionDays());
       }
     }
   }
@@ -1079,6 +1097,8 @@ public class WorkspaceService {
                         RunStatus.ready,
                         RunStatus.running,
                         RunStatus.waiting))));
+
+    currentQuotas.setCurrentArtifactStorage(artifactService.storedBytes(workflowRefs));
 
     WorkflowCount count =
         workflowService.count(

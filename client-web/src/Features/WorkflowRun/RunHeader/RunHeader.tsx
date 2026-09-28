@@ -38,7 +38,7 @@ const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
 // Copy for the toast each transition raises, keyed by the route action's intent - the five
 // handlers below were otherwise identical mutate/notify/notify blocks.
 const TRANSITION_COPY: Record<
-  Exclude<RunActionIntent, "action">,
+  Exclude<RunActionIntent, "action" | "deleteArtifact">,
   { title: string; success: string; failure: string }
 > = {
   retry: { title: "Retry run", success: "Retry successful", failure: "Failed to retry this run" },
@@ -81,7 +81,12 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   // lands rather than from an awaited mutate call. Retry additionally redirects to the run it
   // just created, which is why the redirect fires here too.
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent === "action") {
+    if (
+      fetcher.state !== "idle" ||
+      !fetcher.data ||
+      fetcher.data.intent === "action" ||
+      fetcher.data.intent === "deleteArtifact"
+    ) {
       return;
     }
     const { intent } = fetcher.data;

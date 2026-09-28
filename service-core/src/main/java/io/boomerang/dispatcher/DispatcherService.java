@@ -6,12 +6,14 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
@@ -19,10 +21,12 @@ import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
+import io.boomerang.workflow.ArtifactService;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -61,16 +65,19 @@ public class DispatcherService {
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
+  private final ArtifactService artifactService;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
       WorkflowRunStateHelper workflowRunStateHelper,
       TaskRunService taskRunService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      ArtifactService artifactService) {
     this.agentRepository = agentRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
+    this.artifactService = artifactService;
   }
 
   /**
@@ -209,6 +216,24 @@ public class DispatcherService {
    * @param agentId
    * @return
    */
+  /*
+   * An artifact task leaves with its link params filled. A refusal (bad or taken name, storage
+   * full, artifact expired) ends the task failed with the reason instead of handing it out.
+   */
+  private boolean fillArtifactLink(TaskRun taskRun) {
+    try {
+      artifactService.fillLinkParams(taskRun);
+      return true;
+    } catch (BoomerangException e) {
+      TaskRunEndRequest refused = new TaskRunEndRequest();
+      refused.setStatus(RunStatus.failed);
+      refused.setStatusReason("ArtifactRefused");
+      refused.setStatusMessage(artifactService.refusalMessage(e));
+      taskRunService.end(taskRun.getId(), Optional.of(refused));
+      return false;
+    }
+  }
+
   public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
@@ -244,7 +269,11 @@ public class DispatcherService {
             taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
-            taskRuns.add(new TaskRun(claimed));
+            TaskRun taskRun = new TaskRun(claimed);
+            if (ArtifactService.isArtifactTask(claimed.getType()) && !fillArtifactLink(taskRun)) {
+              continue;
+            }
+            taskRuns.add(taskRun);
           }
         }
         // Second path, mirroring the WorkflowRun provision/teardown pair: a TaskRun a dispatcher

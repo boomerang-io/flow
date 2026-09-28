@@ -11,6 +11,10 @@ const featureFlag = {
     "workspace.quotas": true,
     "workflow.tokens": true,
     "workflow.triggers": true,
+    "workspace.single": false,
+    schedules: true,
+    integrations: true,
+    authentication: true,
   },
 };
 

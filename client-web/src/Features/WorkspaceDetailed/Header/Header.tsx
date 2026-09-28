@@ -101,6 +101,12 @@ function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
           />
           <Tab
             end
+            label="Artifacts"
+            to={appLink.manageWorkspaceArtifacts({ workspace: workspace.name })}
+            state={location.state}
+          />
+          <Tab
+            end
             label="Quotas"
             to={appLink.manageWorkspaceQuotas({ workspace: workspace.name })}
             state={location.state}

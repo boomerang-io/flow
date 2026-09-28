@@ -68,6 +68,7 @@ type AppPathKey =
   | "ManageWorkspaceLabels"
   | "ManageWorkspaceQuotas"
   | "ManageWorkspaceApprovers"
+  | "ManageWorkspaceArtifacts"
   | "ManageWorkspaceParameters"
   | "ManageWorkspaceTokens"
   | "Run"
@@ -119,6 +120,7 @@ export const AppPath: Record<AppPathKey, string> = {
   ManageWorkspaceQuotas: "/:workspace/manage/quotas",
   ManageWorkspaceLabels: "/:workspace/manage/labels",
   ManageWorkspaceApprovers: `/:workspace/manage/approver-groups`,
+  ManageWorkspaceArtifacts: "/:workspace/manage/artifacts",
 
   //admin
   Audit: "/admin/audit",
@@ -220,6 +222,8 @@ export const appLink = {
   manageWorkspace: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspace, { workspace }),
   manageWorkspaceApprovers: ({ workspace }: WorkspaceArg) =>
     generatePath(AppPath.ManageWorkspaceApprovers, { workspace }),
+  manageWorkspaceArtifacts: ({ workspace }: WorkspaceArg) =>
+    generatePath(AppPath.ManageWorkspaceArtifacts, { workspace }),
   manageWorkspaceWorkflows: ({ workspace }: WorkspaceArg) =>
     generatePath(AppPath.ManageWorkspaceWorkflows, { workspace }),
   manageWorkspaceLabels: ({ workspace }: WorkspaceArg) => generatePath(AppPath.ManageWorkspaceLabels, { workspace }),
@@ -269,5 +273,9 @@ export enum FeatureFlag {
   WorkspaceQuotasEnabled = "WorkspaceQuotasEnabled",
   WorkflowTokensEnabled = "WorkflowTokensEnabled",
   WorkflowTriggersEnabled = "WorkflowTriggersEnabled",
+  SingleWorkspaceEnabled = "SingleWorkspaceEnabled",
+  SchedulesEnabled = "SchedulesEnabled",
+  IntegrationsEnabled = "IntegrationsEnabled",
+  AuthenticationEnabled = "AuthenticationEnabled",
 }
 

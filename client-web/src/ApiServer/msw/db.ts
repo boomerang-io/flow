@@ -38,6 +38,13 @@ interface GlobalParam extends Record<string, unknown> {
   name?: string;
 }
 
+interface ArtifactRecord extends Record<string, unknown> {
+  id?: string;
+  name?: string;
+  workflowRunRef?: string;
+  status?: string;
+}
+
 interface AuditEvent extends Record<string, unknown> {
   id?: string;
   actorId?: string;
@@ -74,6 +81,7 @@ export function createDb() {
     workflows: clone<NamedRecord>(fixtures.workflows.content),
     tasks: clone<NamedRecord>(fixtures.task.content),
     schedules: clone<{ id?: string } & Record<string, unknown>>(fixtures.workflowSchedules.content),
+    artifacts: clone<ArtifactRecord>(fixtures.artifacts),
   };
 }
 

@@ -1,6 +1,6 @@
 # 0045 — A pass-by-reference artefact store for large payloads
 
-**Status:** proposed · **Date:** 2026-08-27
+**Status:** superseded by 0085 · **Date:** 2026-08-27
 
 ## Context
 
