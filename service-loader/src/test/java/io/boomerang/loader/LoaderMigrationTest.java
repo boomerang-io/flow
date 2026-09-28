@@ -1746,6 +1746,14 @@ class LoaderMigrationTest {
                   .toList())
           .containsExactly(task[2].split(","));
       assertThat(collection("rel_nodes").find(Filters.eq("_id", "task:" + id)).first()).isNotNull();
+      // _0053: the path help says a relative path resolves against /workspace.
+      assertThat(
+              revision.get("spec", Document.class).getList("params", Document.class).stream()
+                  .filter(param -> "path".equals(param.getString("name")))
+                  .map(param -> param.getString("helpertext"))
+                  .findFirst()
+                  .orElseThrow())
+          .contains("Relative to /workspace");
     }
   }
 
