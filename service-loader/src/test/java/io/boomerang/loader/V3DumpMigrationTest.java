@@ -412,7 +412,7 @@ class V3DumpMigrationTest {
     // fresh-shape duplicate is created alongside the migrated ones. "auth" (the OIDC issuer
     // configuration) and "audit" (the capture gate) have no v3 predecessors, so _0021 inserts
     // them fresh.
-    assertThat(collection("settings").countDocuments()).isEqualTo(9);
+    assertThat(collection("settings").countDocuments()).isEqualTo(10);
 
     // _0022__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
     // populated by this point (by _0006__V3MigrateTaskCatalogue), so its name-matching insert-if-
@@ -453,13 +453,14 @@ class V3DumpMigrationTest {
     // 7 documents remain from the v3 dump (8 v3 minus the deleted "users" one), under the v5
     // seed's keys - proves the v3 documents were migrated in place rather than left under their
     // v3 keys or duplicated alongside a fresh seed insert. Plus "auth" (the OIDC issuer
-    // configuration) and "audit" (the capture gate), which have no v3 predecessors to migrate
-    // from, so _0021__SeedSettings inserts them fresh - 9 total.
-    assertThat(collection("settings").countDocuments()).isEqualTo(9);
+    // configuration), "audit" (the capture gate) and "artifacts" (retention and size limits), which
+    // have no v3 predecessors to migrate from, so _0021__SeedSettings inserts them fresh - 10 total.
+    assertThat(collection("settings").countDocuments()).isEqualTo(10);
     List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(settingsKeys)
         .containsExactlyInAnyOrder(
-            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations", "auth", "audit");
+            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations", "auth", "audit",
+            "artifacts");
 
     // None of the 7 surviving documents carry the stale v3 _class discriminator any more -
     // MappingMongoConverter would fail to resolve io.boomerang.mongo.entity.FlowSettingsEntity
@@ -500,7 +501,7 @@ class V3DumpMigrationTest {
     assertThat(configKeys(integration)).doesNotContain("github.pem");
 
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
-    // max.workflowrun.storage entry legacy 4039 introduced.
+    // max.workflowrun.storage entry legacy 4039 introduced, and the artifact storage default.
     Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
     assertThat(teams.getString("key")).isEqualTo("workspaces");
     assertThat(teams.getString("name")).isEqualTo("Workspace Quotas");
@@ -511,7 +512,8 @@ class V3DumpMigrationTest {
             "max.workflowrun.monthly",
             "max.workflowrun.duration",
             "max.workflow.storage",
-            "max.workflowrun.storage");
+            "max.workflowrun.storage",
+            "max.artifact.storage");
     Document newStorageEntry =
         configOf(teams).stream().filter(c -> "max.workflowrun.storage".equals(c.getString("key"))).findFirst().get();
     assertThat(newStorageEntry.getString("value")).isEqualTo("2Gi");

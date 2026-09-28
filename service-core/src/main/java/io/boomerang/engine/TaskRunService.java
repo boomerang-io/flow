@@ -955,7 +955,7 @@ public class TaskRunService {
   // dispatcherRef is the legacy protocol and passes unfenced (TaskExecutionService applies the
   // same rule on its entry). claim.seq is not on the wire, so a dispatcher that lost and re-won
   // the same claim is not distinguished from its earlier self.
-  private static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
+  public static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
     if (claimedBy.isEmpty() || taskRun.getClaim() == null || taskRun.getClaim().getBy() == null) {
       return;
     }

@@ -12,6 +12,7 @@ import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.workflow.TaskService;
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
@@ -119,6 +120,7 @@ public abstract class AbstractEngineIntegrationTest {
   // seeds. Mirrors the shipped default quota values (seed/settings.json) so a workspace-creating
   // test does not need its own copy.
   protected void seedTeamQuotaSettings() {
+    seedArtifactSettings();
     if (settingsRepository.findOneByKey(WorkspaceService.WORKSPACES_SETTINGS_KEY) != null) {
       return;
     }
@@ -132,7 +134,25 @@ public abstract class AbstractEngineIntegrationTest {
             quotaConfig("max.workflowrun.monthly", "20"),
             quotaConfig("max.workflowrun.duration", "30"),
             quotaConfig("max.workflow.storage", "25Gi"),
-            quotaConfig("max.workflowrun.storage", "2Gi")));
+            quotaConfig("max.workflowrun.storage", "2Gi"),
+            quotaConfig("max.artifact.storage", "5Gi")));
+    settingsRepository.save(settings);
+  }
+
+  // The "artifacts" settings document (retention and the largest artifact) the loader normally
+  // seeds - the workspace quota defaults read its default retention. Mirrors seed/settings.json.
+  protected void seedArtifactSettings() {
+    if (settingsRepository.findOneByKey(ArtifactService.ARTIFACTS_SETTINGS_KEY) != null) {
+      return;
+    }
+    SettingEntity settings = new SettingEntity();
+    settings.setKey(ArtifactService.ARTIFACTS_SETTINGS_KEY);
+    settings.setName("Artifacts");
+    settings.setConfig(
+        List.of(
+            settingConfig(ArtifactService.RETENTION_DEFAULT_DAYS, "number", "30"),
+            settingConfig(ArtifactService.RETENTION_MAX_DAYS, "number", "90"),
+            settingConfig(ArtifactService.MAX_ARTIFACT_SIZE, "number", "1024")));
     settingsRepository.save(settings);
   }
 

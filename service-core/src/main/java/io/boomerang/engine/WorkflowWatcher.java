@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
@@ -21,6 +22,7 @@ import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import java.time.Duration;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -89,6 +91,7 @@ public class WorkflowWatcher {
   private final TaskRunRepository taskRunRepository;
   private final WorkflowScheduleRepository scheduleRepository;
   private final RelationshipService relationshipService;
+  private final ArtifactService artifactService;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
@@ -97,6 +100,11 @@ public class WorkflowWatcher {
   // Well above the dispatcher's per-claim storage wait (kube.timeout.waitUntil, 30s by default).
   @Value("${flow.watcher.provision-claim-grace-ms:300000}")
   private long provisionClaimGraceMillis;
+
+  // How long an upload may stay unconfirmed before its record and any partial file are removed.
+  // Well above the upload link's own lifetime (flow.artifacts.link-ttl-minutes, 15 by default).
+  @Value("${flow.artifacts.upload-grace-minutes:60}")
+  private long artifactUploadGraceMinutes;
 
   public WorkflowWatcher(
       TaskRunService taskRunService,
@@ -110,7 +118,8 @@ public class WorkflowWatcher {
       DispatcherRepository dispatcherRepository,
       TaskRunRepository taskRunRepository,
       WorkflowScheduleRepository scheduleRepository,
-      RelationshipService relationshipService) {
+      RelationshipService relationshipService,
+      ArtifactService artifactService) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
@@ -123,6 +132,7 @@ public class WorkflowWatcher {
     this.taskRunRepository = taskRunRepository;
     this.scheduleRepository = scheduleRepository;
     this.relationshipService = relationshipService;
+    this.artifactService = artifactService;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -157,6 +167,21 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("expireArtifacts", this::expireArtifacts, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapStaleArtifactUploads", this::reapStaleArtifactUploads, WorkflowWatcher::logSweepFailure);
+  }
+
+  /**
+   * Expire artifacts past their expiration date: the file is deleted and the record kept, so the
+   * run still shows what it produced. Does nothing when no artifact store is configured.
+   */
+  public void expireArtifacts() {
+    artifactService.expireArtifacts(PAGE_SIZE);
+  }
+
+  /** Remove uploads that were never confirmed: the upload task died before it finished. */
+  public void reapStaleArtifactUploads() {
+    artifactService.reapStaleUploads(Duration.ofMinutes(artifactUploadGraceMinutes), PAGE_SIZE);
   }
 
   private static void logSweepFailure(String sweep, Exception ex) {
@@ -322,6 +347,7 @@ public class WorkflowWatcher {
               .isEmpty()) {
             return;
           }
+          artifactService.deleteForWorkflow(workflow.getId(), PAGE_SIZE);
           taskRunRepository.deleteByWorkflowRef(workflow.getId());
           workflowRunRepository.deleteByWorkflowRef(workflow.getId());
           workflowRevisionRepository.deleteByWorkflowRef(workflow.getId());
@@ -330,7 +356,7 @@ public class WorkflowWatcher {
           relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, workflow.getId());
           workflowRepository.deleteById(workflow.getId());
           LOGGER.info(
-              "[{}] Pruned deleted Workflow: its runs, revisions, actions, schedules and"
+              "[{}] Pruned deleted Workflow: its runs, artifacts, revisions, actions, schedules and"
                   + " relationship node are removed; audit records are kept.",
               workflow.getId());
         },
