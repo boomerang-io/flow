@@ -126,6 +126,37 @@ services:
     networks: [flow]
     restart: "no"
 
+  # The S3-compatible store for run artifacts (SeaweedFS, Apache-2.0): S3 on :8333, local-only
+  # credentials in docker/seaweedfs/s3.json. Production uses a managed store (S3, Cloud Storage) or
+  # Rook-Ceph through the same flow.artifacts.store.* settings.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.47
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "8333:8333"
+    volumes:
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9333/cluster/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks: [flow]
+
+  # S3 does not create a bucket on first upload; this one-shot creates flow's (a no-op once it exists).
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.47
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - echo "s3.bucket.create -name flow-artifacts" | weed shell -master=seaweedfs:9333
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    restart: "no"
+    networks: [flow]
+
   service-core:
     build:
       context: ./service-core
@@ -139,6 +170,13 @@ services:
       # Secured - see the security posture note above. /health stays permitAll
       # (SecurityConfiguration), so the healthcheck below still passes.
       FLOW_SECURITY_ENABLED: "true"
+      # Artifacts go to the local SeaweedFS below. Task pods reach the store through the signed
+      # links; docker-compose.kube.yml points those at a host the laptop cluster can reach.
+      FLOW_ARTIFACTS_ENABLED: "true"
+      FLOW_ARTIFACTS_STORE_ENDPOINT: http://seaweedfs:8333
+      FLOW_ARTIFACTS_STORE_BUCKET: flow-artifacts
+      FLOW_ARTIFACTS_STORE_ACCESS_KEY: flow-local
+      FLOW_ARTIFACTS_STORE_SECRET_KEY: flow-local-secret
     depends_on:
       mongo:
         condition: service_healthy
@@ -150,6 +188,8 @@ services:
         condition: service_completed_successfully
       idpzero:
         condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7700/health"]
       interval: 5s
@@ -198,6 +238,9 @@ services:
       service-core:
         condition: service_healthy
     networks: [flow]
+
+volumes:
+  seaweedfs_data:
 
 networks:
   flow:
