@@ -229,7 +229,7 @@ public class WorkflowService {
    * flow.mode (FlowQuotaProperties - off in engine mode) AND the operator has to have left the
    * "workspaceQuotas" feature enabled. Short-circuits, so engine mode never reads the setting.
    */
-  private boolean quotasEnforced() {
+  boolean quotasEnforced() {
     return quotasEnabled
         && settingsService
             .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
