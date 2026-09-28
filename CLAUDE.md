@@ -91,7 +91,7 @@ is on an older JDK:
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)      # macOS
 mvn -pl service-core,service-loader -am clean package -DskipTests
 cd client-web && pnpm install && pnpm run build && cd ..
-docker compose up --build                             # Mongo, loader Job, IDPZero, service-core, client-web
+docker compose up --build                             # Mongo, loader Job, IDPZero, SeaweedFS, service-core, client-web
 ```
 
 - Browser-facing origin for manual and end-to-end testing: `http://localhost:3000` — client-web's own
@@ -106,7 +106,8 @@ docker compose up --build                             # Mongo, loader Job, IDPZe
   plain-Jobs executor, layer `docker-compose.kube.yml` (header comment explains the kubeconfig at `docker/kube/config`)
   and run the dispatcher scenarios: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),
-  `cd e2e && npm ci && npx playwright test` against the compose stack.
+  `cd e2e && npm ci && npx playwright test` against the compose stack (CI layers `docker-compose.ci.yml`,
+  which drops the artifact store).
 - Skills: `/spring-module` before any backend Java, `/design-system` before any UI, `/spec-maintenance`
   after any behaviour or design change, `/security-audit`, `/cve-review`, `/release`.
 
