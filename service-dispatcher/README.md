@@ -30,7 +30,7 @@ An `ai` task's author never builds a container and never names an image. `TaskIm
 any image, command or script that reached the spec, so a definition cannot point the AI worker at a
 different container. Both executors ask the resolver instead of reading `spec.image` directly,
 so the behaviour is identical on Tekton and on Kubernetes Jobs. Params and results are unchanged:
-`PARAM_<NAME>` in, `RESULTS_PATH` out.
+`PARAM_<NAME>` in, `RESULTS_PATH` out, with `RESULTS_MAX_BYTES` saying how much fits.
 
 **Where the image comes from.** The worker is an ordinary task image, not a product image: it is
 built and released from the [`boomerang-io/tasks`](https://github.com/boomerang-io/tasks) repository

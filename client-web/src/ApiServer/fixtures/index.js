@@ -1,3 +1,4 @@
+export { default as artifacts } from "./artifacts";
 export { default as workflowRuns } from "./workflowRuns";
 export { default as workflowRunCount } from "./workflowRunCount";
 export { default as activity } from "./activity";

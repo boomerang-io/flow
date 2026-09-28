@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "flow-local",
+      "credentials": [
+        {
+          "accessKey": "flow-local",
+          "secretKey": "flow-local-secret"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

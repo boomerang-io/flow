@@ -150,7 +150,14 @@ public class WorkflowService {
   private static final String TASK_REF_SEPERATOR = "/";
   // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns.
   private static final Set<TaskType> FOREACH_TASK_TYPES =
-      EnumSet.of(TaskType.template, TaskType.script, TaskType.custom, TaskType.ai, TaskType.generic);
+      EnumSet.of(
+          TaskType.template,
+          TaskType.script,
+          TaskType.custom,
+          TaskType.ai,
+          TaskType.generic,
+          TaskType.uploadartifact,
+          TaskType.downloadartifact);
   // One whole-value reference such as $(tasks.stage.results.batches) or $(params.repos).
   private static final Pattern FOREACH_ITEM_NAME_PATTERN = Pattern.compile("^.*\\[\\d+\\]$");
   private static final Pattern FOREACH_REFERENCE_PATTERN = Pattern.compile("^\\$\\([^()\\s]+\\)$");
@@ -229,7 +236,7 @@ public class WorkflowService {
    * flow.mode (FlowQuotaProperties - off in engine mode) AND the operator has to have left the
    * "workspaceQuotas" feature enabled. Short-circuits, so engine mode never reads the setting.
    */
-  private boolean quotasEnforced() {
+  boolean quotasEnforced() {
     return quotasEnabled
         && settingsService
             .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)

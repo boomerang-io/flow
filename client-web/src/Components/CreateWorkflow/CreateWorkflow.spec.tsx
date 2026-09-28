@@ -26,12 +26,15 @@ const quotas: FlowWorkspaceQuotas = {
   currentRunMedianDuration: 0,
   currentWorkflowStorage: 0,
   currentWorkflowRunStorage: 0,
+  currentArtifactStorage: 0,
   maxWorkflowCount: 10,
   maxWorkflowRunMonthly: 100,
   maxWorkflowStorage: 100,
   maxWorkflowRunStorage: 100,
   maxWorkflowRunDuration: 100,
   maxConcurrentRuns: 10,
+  maxArtifactStorage: 5,
+  artifactRetentionDays: 30,
   monthlyResetDate: "2022-01-01T00:00:00.000Z",
 };
 const workspace: FlowWorkspace = {

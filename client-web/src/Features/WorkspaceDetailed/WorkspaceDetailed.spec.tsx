@@ -13,6 +13,7 @@ import WorkspaceLayoutRoute, {
   shouldRevalidate as workspaceLayoutShouldRevalidate,
 } from "../../../app/routes/workspaceLayout";
 import WorkspaceDetailed, { loader, shouldRevalidate } from "./WorkspaceDetailed";
+import Artifacts, { action as artifactsAction, loader as artifactsLoader } from "./Artifacts/Artifacts";
 import ApproverGroups, { action as approverGroupsAction } from "./ApproverGroups/ApproverGroups";
 import Members, { action as membersAction } from "./Members/Members";
 import Quotas, { action as quotasAction, loader as quotasLoader } from "./Quotas/Quotas";
@@ -83,6 +84,7 @@ function renderWorkspaceDetailed(
         <Route index action={membersAction} element={<Members />} />
         <Route path="workflows" loader={workflowsLoader} element={<Workflows />} />
         <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
+        <Route path="artifacts" loader={artifactsLoader} action={artifactsAction} element={<Artifacts />} />
         <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
         <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
         <Route path="settings" action={settingsAction} element={<Settings />} />
@@ -163,6 +165,31 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
   test("deep-links into the tokens tab", async () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceTokens({ workspace: workspaceFixture.name }));
     expect(await screen.findByTestId("create-token-button")).toBeInTheDocument();
+  });
+
+  test("deep-links into the artifacts tab and lists available artifacts by default", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+    // Seeded by ApiServer/fixtures/artifacts.js via ApiServer/msw/db - available by default.
+    expect(await screen.findByText("build-output.tar.gz")).toBeInTheDocument();
+    expect(screen.getByText("release-notes.md")).toBeInTheDocument();
+    // Expired, and "Show expired" starts off.
+    expect(screen.queryByText("coverage-report.html")).not.toBeInTheDocument();
+  });
+
+  test("Show expired reveals the expired artifact too", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+    await screen.findByText("build-output.tar.gz");
+
+    fireEvent.click(screen.getByLabelText("Show expired"));
+
+    expect(await screen.findByText("coverage-report.html")).toBeInTheDocument();
+  });
+
+  test("the two Quotas cards for artifact storage/retention render alongside the existing ones", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await screen.findByText("Number of Workflows");
+    expect(screen.getByText("Artifact Storage")).toBeInTheDocument();
+    expect(screen.getByText("Artifact Retention")).toBeInTheDocument();
   });
 });
 

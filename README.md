@@ -44,8 +44,9 @@ calls a dispatcher.
 ## Running the whole product locally
 
 `docker-compose.yml` brings up MongoDB, the one-shot `service-loader` migration/seed job (gated so
-`service-core` never boots against an unmigrated database), `service-core`, `client-web`, and a local
-IDPZero OIDC provider for real sign-in. `client-web`'s own SSR server is the single browser-facing
+`service-core` never boots against an unmigrated database), `service-core`, `client-web`, a local
+IDPZero OIDC provider for real sign-in, and SeaweedFS as the S3-compatible artifact store. The e2e suite
+in GitHub Actions layers `docker-compose.ci.yml` over it, which leaves the artifact store out. `client-web`'s own SSR server is the single browser-facing
 origin — and the only thing the browser talks to (BFF end state): it serves documents, `/res/*`
 resource routes and `.data` requests, and every service-core call happens server-side via
 `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts`). There is no `/api`

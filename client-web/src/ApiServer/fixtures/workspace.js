@@ -24,6 +24,9 @@ const workspace = {
         currentRunTotalDuration: 20,
         monthlyResetDate: "August 1, 2020",
         currentWorkflowStorage: 0,
+        maxArtifactStorage: 5,
+        artifactRetentionDays: 30,
+        currentArtifactStorage: 1073741824,
       },
       members: [
         {

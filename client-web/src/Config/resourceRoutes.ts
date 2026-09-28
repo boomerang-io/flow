@@ -37,6 +37,10 @@ export const resourceRoute = {
   },
   workflowExport: ({ workspace, workflow }: { workspace: string; workflow: string }) =>
     `${APP_ROOT}/res/workspace/${workspace}/workflow/${workflow}/export`,
+  // Browser-space: a plain <a href> download (Content-Disposition: attachment does the rest),
+  // never a fetch - see app/routes/resArtifactDownload.tsx for the streaming loader behind it.
+  artifactDownload: ({ workspace, runId, name }: { workspace: string; runId: string; name: string }) =>
+    `${APP_ROOT}/res/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
 };
 
 /*

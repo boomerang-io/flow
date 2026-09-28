@@ -39,6 +39,7 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
   acquirelock: "task-marker",
   custom: "task-marker",
   decision: "decision-marker",
+  downloadartifact: "task-marker",
   end: "task-marker",
   eventwait: "task-marker",
   generic: "task-marker",
@@ -52,6 +53,7 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
   template: "task-marker",
   start: "task-marker",
   sleep: "task-marker",
+  uploadartifact: "task-marker",
 };
 
 // The value type is taken from xyflow's own `EdgeTypes`/`NodeTypes` aliases (via indexed
@@ -67,6 +69,7 @@ const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   approval: GraphComps.TemplateEdge,
   custom: GraphComps.TemplateEdge,
   decision: GraphComps.DecisionEdge,
+  downloadartifact: GraphComps.TemplateEdge,
   end: GraphComps.TemplateEdge,
   eventwait: GraphComps.TemplateEdge,
   generic: GraphComps.TemplateEdge,
@@ -80,14 +83,20 @@ const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   start: GraphComps.StartEdge,
   template: GraphComps.TemplateEdge,
   sleep: GraphComps.TemplateEdge,
+  uploadartifact: GraphComps.TemplateEdge,
 };
 
+// uploadartifact/downloadartifact render and configure exactly like `template` - a dispatcher-run
+// task whose params come from its catalogue entry (DAGUtility/TaskExecutionService treat them the
+// same as template server-side; see TaskExecutionService's dispatch-type switch). Both can run for
+// each item (FOREACH_TASK_TYPES); each item then needs its own artifact name.
 const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   acquirelock: GraphComps.TemplateNode,
   ai: GraphComps.AiNode,
   approval: GraphComps.ApprovalNode,
   custom: GraphComps.CustomTaskNode,
   decision: GraphComps.DecisionNode,
+  downloadartifact: GraphComps.TemplateNode,
   end: GraphComps.EndNode,
   eventwait: GraphComps.TemplateNode,
   generic: GraphComps.TemplateNode,
@@ -101,6 +110,7 @@ const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   start: GraphComps.StartNode,
   template: GraphComps.TemplateNode,
   sleep: GraphComps.TemplateNode,
+  uploadartifact: GraphComps.TemplateNode,
 };
 
 interface FlowDiagramProps {

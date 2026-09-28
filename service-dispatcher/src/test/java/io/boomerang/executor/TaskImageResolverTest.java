@@ -19,12 +19,14 @@ class TaskImageResolverTest {
   // The worker image is released from boomerang-io/tasks on its own version line, not the product
   // tag, so the pinned tag under test is deliberately not a 5.x product version.
   private static final String AI_IMAGE = "boomerangio/task-ai:1.2.3";
+  private static final String ARTIFACT_IMAGE = "boomerangio/task-flow:9.9.9";
 
   private final TaskImageResolver resolver = resolver();
 
   private static TaskImageResolver resolver() {
     TaskImageResolver resolver = new TaskImageResolver();
     ReflectionTestUtils.setField(resolver, "aiImage", AI_IMAGE);
+    ReflectionTestUtils.setField(resolver, "artifactImage", ARTIFACT_IMAGE);
     return resolver;
   }
 
@@ -88,5 +90,34 @@ class TaskImageResolverTest {
     assertNull(resolver.image(task));
     assertNull(resolver.command(task));
     assertNull(resolver.script(task));
+  }
+
+  @Test
+  void artifactTasksRunTheDefaultWorkersArtifactCommandsWhateverTheirSpecSays() {
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("attacker/image:latest");
+    spec.setCommand(List.of("sh"));
+    spec.setArguments(List.of("-c", "evil"));
+    spec.setScript("evil");
+
+    TaskRun upload = task(TaskType.uploadartifact, spec);
+    TaskRun download = task(TaskType.downloadartifact, spec);
+
+    assertEquals(ARTIFACT_IMAGE, resolver.image(upload));
+    assertNull(resolver.command(upload));
+    assertNull(resolver.script(upload));
+    assertEquals(
+        List.of("artifact", "upload"), resolver.arguments(upload));
+    assertEquals(
+        List.of("artifact", "download"), resolver.arguments(download));
+  }
+
+  @Test
+  void aTemplateTaskKeepsItsAuthoredArguments() {
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setArguments(List.of("file", "createFile"));
+
+    assertEquals(
+        List.of("file", "createFile"), resolver.arguments(task(TaskType.template, spec)));
   }
 }

@@ -15,7 +15,7 @@ import TaskApprovalModal from "./TaskApprovalModal";
 import TaskExecutionLog from "./TaskRunLog";
 import styles from "./runTaskItem.module.scss";
 
-const logTaskTypes = ["customtask", "template", "script"];
+const logTaskTypes = ["customtask", "template", "script", "uploadartifact", "downloadartifact"];
 const logStatusTypes = [RunStatus.Succeeded, RunStatus.Failed, RunStatus.Running];
 
 function hasLog(taskRun: TaskRun) {

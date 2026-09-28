@@ -10,6 +10,8 @@ public class CurrentQuotas extends Quotas {
   private Integer currentConcurrentRuns;
   private Integer currentRunTotalDuration;
   private Integer currentRunMedianDuration;
+  // Bytes held by the workspace's available and uploading artifacts.
+  private Long currentArtifactStorage;
   // TODO: future - can't currently calculate this easily
 //  private Integer currentTotalWorkflowStorage;
   private Date monthlyResetDate;
@@ -25,7 +27,8 @@ public class CurrentQuotas extends Quotas {
     return "CurrentQuotas [currentWorkflowCount=" + currentWorkflowCount + ", currentRuns="
         + currentRuns + ", currentConcurrentRuns=" + currentConcurrentRuns
         + ", currentRunTotalDuration=" + currentRunTotalDuration + ", currentRunMedianDuration="
-        + currentRunMedianDuration + ", monthlyResetDate=" + monthlyResetDate + "]";
+        + currentRunMedianDuration + ", currentArtifactStorage=" + currentArtifactStorage
+        + ", monthlyResetDate=" + monthlyResetDate + "]";
   }
   
   public Integer getCurrentWorkflowCount() {
@@ -63,5 +66,11 @@ public class CurrentQuotas extends Quotas {
   }
   public void setCurrentRunMedianDuration(Integer currentRunMedianDuration) {
     this.currentRunMedianDuration = currentRunMedianDuration;
+  }
+  public Long getCurrentArtifactStorage() {
+    return currentArtifactStorage;
+  }
+  public void setCurrentArtifactStorage(Long currentArtifactStorage) {
+    this.currentArtifactStorage = currentArtifactStorage;
   }
 }

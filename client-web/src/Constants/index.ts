@@ -121,6 +121,7 @@ export const NodeType = {
   Approval: "approval",
   CustomTask: "custom",
   Decision: "decision",
+  DownloadArtifact: "downloadartifact",
   End: "end",
   EventWait: "eventwait",
   Generic: "generic",
@@ -134,6 +135,7 @@ export const NodeType = {
   Sleep: "sleep",
   Start: "start",
   Template: "template",
+  UploadArtifact: "uploadartifact",
 } as const;
 
 export const QueryStatus = {

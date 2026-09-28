@@ -1,0 +1,25 @@
+# The e2e stack in GitHub Actions: the local stack (docker-compose.yml) minus the artifact store.
+# The e2e suite runs no dispatcher, so no upload or download task ever runs and SeaweedFS would
+# only add startup time. ci-e2e.yml layers this file via COMPOSE_FILE; locally:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait
+services:
+  # Behind a profile nothing activates, so neither starts.
+  seaweedfs:
+    profiles: ["artifacts"]
+  seaweedfs-init:
+    profiles: ["artifacts"]
+
+  service-core:
+    environment:
+      FLOW_ARTIFACTS_ENABLED: "false"
+    # The local stack waits for the bucket; without the store there is nothing to wait for.
+    depends_on: !override
+      mongo:
+        condition: service_healthy
+      service-loader:
+        condition: service_completed_successfully
+      auth-oidc-seed:
+        condition: service_completed_successfully
+      idpzero:
+        condition: service_healthy

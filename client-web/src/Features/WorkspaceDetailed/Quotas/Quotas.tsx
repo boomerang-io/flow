@@ -83,10 +83,14 @@ function Quotas() {
   let workflowLimitPercentage = (workspace.quotas.currentWorkflowCount / workspace.quotas.maxWorkflowCount) * 100;
   let concurrentLimitPercentage = (workspace.quotas.currentConcurrentRuns / workspace.quotas.maxConcurrentRuns) * 100;
   let monthlyExecutionPercentage = (workspace.quotas.currentRuns / workspace.quotas.maxWorkflowRunMonthly) * 100;
+  // currentArtifactStorage is bytes; maxArtifactStorage is GB (Gi) - convert before comparing.
+  const currentArtifactStorageGB = workspace.quotas.currentArtifactStorage / 1024 ** 3;
+  let artifactStoragePercentage = (currentArtifactStorageGB / workspace.quotas.maxArtifactStorage) * 100;
 
-  if (concurrentLimitPercentage > 100) concurrentLimitPercentage = 100; 
+  if (concurrentLimitPercentage > 100) concurrentLimitPercentage = 100;
   if (workflowLimitPercentage > 100) workflowLimitPercentage = 100;
   if (monthlyExecutionPercentage > 100) monthlyExecutionPercentage = 100;
+  if (artifactStoragePercentage > 100) artifactStoragePercentage = 100;
 
   const coverageBarStyle = { height: "1rem", width: "17.625rem" };
 
@@ -242,6 +246,46 @@ function Quotas() {
           disabled={!canEdit}
         >
           <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}</h3>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Total size of artifacts a task uploads for this workspace's runs."
+          title="Artifact Storage"
+          modalSubtitle="Set the maximum artifact storage size for this workspace."
+          minValue={1}
+          detailedTitle="Current Usage"
+          detailedData={`${currentArtifactStorageGB.toFixed(2)}GB/${workspace.quotas.maxArtifactStorage}GB`}
+          inputLabel="Maximum storage"
+          inputUnits="GB"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxArtifactStorage"
+          quotaValue={workspace.quotas.maxArtifactStorage}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxArtifactStorage}GB`}</h3>
+          <ProgressBar
+            maxValue={workspace.quotas.maxArtifactStorage}
+            value={artifactStoragePercentage}
+            coverageBarStyle={coverageBarStyle}
+          />
+          <p className={styles.detailedSmallText}>{`Current usage: ${currentArtifactStorageGB.toFixed(2)} GB`}</p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Days an artifact is kept after upload"
+          title="Artifact Retention"
+          modalSubtitle="Set the number of days an artifact is kept after upload, after which it expires."
+          minValue={1}
+          detailedTitle="Current Setting"
+          detailedData={`${workspace.quotas.artifactRetentionDays} days`}
+          inputLabel="Retention"
+          inputUnits="days"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="artifactRetentionDays"
+          quotaValue={workspace.quotas.artifactRetentionDays}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.artifactRetentionDays} days`}</h3>
         </QuotaCard>
       </section>
     </section>
