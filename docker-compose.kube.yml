@@ -1,5 +1,5 @@
 # Local experiment: run service-dispatcher against a laptop Kubernetes (OrbStack) with the
-# plain-Jobs executor. Layer it over the main stack:
+# plain-Jobs executor, plus SeaweedFS as the artifact store. Layer it over the main stack:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.kube.yml up -d --build service-dispatcher
 #
@@ -10,13 +10,55 @@
 # Dispatcher authentication is switched OFF on service-core here (the documented dev/test
 # escape hatch); never carry that into a real deployment.
 services:
+  # The S3-compatible store for run artifacts (SeaweedFS, Apache-2.0), only needed where a
+  # dispatcher runs the upload and download tasks: S3 on :8333, local-only
+  # credentials in docker/seaweedfs/s3.json. Production uses a managed store (S3, Cloud Storage) or
+  # Rook-Ceph through the same flow.artifacts.store.* settings.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.47
+    # -ip.bind=0.0.0.0: by default every port binds only the container's own address, so the
+    # healthcheck's localhost probe (and anything else inside the container) never answers.
+    command: server -ip.bind=0.0.0.0 -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.telemetry=false
+    ports:
+      - "8333:8333"
+    volumes:
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9333/cluster/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks: [flow]
+
+  # S3 does not create a bucket on first upload; this one-shot creates flow's (a no-op once it exists).
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.47
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - echo "s3.bucket.create -name flow-artifacts" | weed shell -master=seaweedfs:9333
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    restart: "no"
+    networks: [flow]
+
   service-core:
     environment:
       FLOW_DISPATCHER_AUTH_ENABLED: "false"
       FLOW_AGENT_SERVICE_HOST: service-dispatcher:7702
-      # Artifact links are signed for the host task pods use: OrbStack's cluster reaches the
-      # compose SeaweedFS through the host, not the compose network name.
+      # Artifacts go to the SeaweedFS below. Links are signed for the host task pods use: OrbStack's
+      # cluster reaches it through the host, not the compose network name.
+      FLOW_ARTIFACTS_ENABLED: "true"
+      FLOW_ARTIFACTS_STORE_ENDPOINT: http://seaweedfs:8333
       FLOW_ARTIFACTS_STORE_LINK_ENDPOINT: http://host.docker.internal:8333
+      FLOW_ARTIFACTS_STORE_BUCKET: flow-artifacts
+      FLOW_ARTIFACTS_STORE_ACCESS_KEY: flow-local
+      FLOW_ARTIFACTS_STORE_SECRET_KEY: flow-local-secret
+    depends_on:
+      seaweedfs-init:
+        condition: service_completed_successfully
 
   service-dispatcher:
     build:
@@ -59,3 +101,6 @@ services:
       retries: 12
       start_period: 40s
     networks: [flow]
+
+volumes:
+  seaweedfs_data:
