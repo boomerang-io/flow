@@ -395,5 +395,4 @@ catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWai
 
 ## Not built
 
-A pass-by-reference artefact store for payloads above the caps is designed but deferred (trigger conditions in
-boomerang-io/flow#319); a local Docker runtime and a serverless-container (sandbox) dispatcher are planned executors.
+Artifacts (`data-model.md`): the engine's `/api/v1/dispatcher/taskrun/{id}/artifacts` endpoints exist (`dispatcher/DispatcherControllerV1.java:187-224`) but no dispatcher calls them and the upload and download task images are not built. A local Docker runtime and a serverless-container (sandbox) dispatcher are planned executors.
