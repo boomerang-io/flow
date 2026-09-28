@@ -186,6 +186,9 @@ public class KubeJobsExecutorTest {
                 e ->
                     "RESULTS_PATH".equals(e.getName())
                         && "/dev/termination-log".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
   }
 
   @Test
@@ -251,6 +254,9 @@ public class KubeJobsExecutorTest {
                 e ->
                     "RESULTS_PATH".equals(e.getName())
                         && "/dev/termination-log".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
   }
 
   @Test

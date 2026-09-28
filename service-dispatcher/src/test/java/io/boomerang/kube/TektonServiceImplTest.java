@@ -169,6 +169,9 @@ public class TektonServiceImplTest {
         env.stream()
             .anyMatch(
                 e -> "RESULTS_PATH".equals(e.getName()) && "/tekton/results".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
   }
 
   @Test

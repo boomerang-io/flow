@@ -123,6 +123,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     deleteTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
   }
 
+  @Value("${tekton.results.maxBytes:4096}")
+  private int tektonResultsMaxBytes;
+
   @Value("${kube.image.pullPolicy}")
   protected String kubeImagePullPolicy;
 
@@ -341,7 +344,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
             debug,
             params,
             envVars,
-            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"));
+            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"),
+            // Tekton's own results limit: 4096 bytes in its default termination-message mode, or
+            // the cluster's max-result-size under sidecar-logs. Set to match the cluster.
+            helperKubeService.createEnvVar("RESULTS_MAX_BYTES", String.valueOf(tektonResultsMaxBytes)));
 
     /*
      * Define Task Params and Task Spec Params
@@ -565,7 +571,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
     }
     if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-      return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
+      return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
     }
     String podReason = helperKubeService.getPodFailureReason(client.adapt(KubernetesClient.class), taskLabels);
     if ("OOMKilled".equals(podReason)) {
