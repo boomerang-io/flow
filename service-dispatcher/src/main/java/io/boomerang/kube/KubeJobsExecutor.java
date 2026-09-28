@@ -194,7 +194,10 @@ public class KubeJobsExecutor implements TaskExecutor {
             spec.getDebug(),
             task.getParams(),
             spec.getEnvs(),
-            helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log")));
+            helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log"),
+            // The ceiling a task writes to, so it can budget its own payload rather than guess.
+            helperKubeService.createEnvVar(
+                "RESULTS_MAX_BYTES", String.valueOf(TERMINATION_MESSAGE_MAX_BYTES))));
     container.setVolumeMounts(volumeMounts);
     // Null when nothing is configured, so the container carries no resources block at all.
     container.setResources(resourceResolver.requirements());
