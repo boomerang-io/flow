@@ -392,7 +392,8 @@ catalogue by `_0040__DeclareRunWorkflowParams` and `_0046__DeclareRunWorkflowWai
 | `approval`, `manual` | Create an action and wait for a person |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |
 | `sleep` | Park as waiting; the watcher completes it after the duration |
+| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, and verifies an upload when it ends (`data-model.md`) |
 
 ## Not built
 
-Artifacts (`data-model.md`): the engine's `/api/v1/dispatcher/taskrun/{id}/artifacts` endpoints exist (`dispatcher/DispatcherControllerV1.java:187-224`) but no dispatcher calls them and the upload and download task images are not built. A local Docker runtime and a serverless-container (sandbox) dispatcher are planned executors.
+An Azure Blob artifact store waits for the serverless-container (ACA) dispatcher. A local Docker runtime and that dispatcher are planned executors.

@@ -17,8 +17,9 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.common.model.ArtifactLink;
-import io.boomerang.common.model.ArtifactUploadRequest;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.entity.SettingEntity;
@@ -134,11 +135,11 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   void anUploadIsVerifiedAgainstTheStoreAndBecomesAvailable() throws Exception {
     byte[] bytes = "sbom contents".getBytes(StandardCharsets.UTF_8);
 
-    ArtifactLink link = upload("sbom.json", null, bytes);
-    Artifact artifact = artifactService.completeUpload(uploadTask.getId(), "sbom.json", null);
+    TaskRun link = upload("sbom.json", null, bytes);
+    Artifact artifact = complete("sbom.json");
 
-    assertThat(link.url()).contains("runs/" + uploadTask.getWorkflowRunRef() + "/sbom.json");
-    assertThat(link.sha256()).isNull();
+    assertThat(urlOf(link)).contains("runs/" + uploadTask.getWorkflowRunRef() + "/sbom.json");
+    assertThat(link.getParams()).extracting(RunParam::getName).contains("url", "headers");
     assertThat(artifact.status()).isEqualTo(ArtifactStatus.available);
     assertThat(artifact.size()).isEqualTo(bytes.length);
     assertThat(artifact.sha256())
@@ -154,9 +155,9 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   @Test
   void completingTwiceReturnsTheSameArtifact() {
     upload("twice.txt", null, new byte[] {1, 2, 3});
-    Artifact first = artifactService.completeUpload(uploadTask.getId(), "twice.txt", null);
+    Artifact first = complete("twice.txt");
 
-    assertThat(artifactService.completeUpload(uploadTask.getId(), "twice.txt", null))
+    assertThat(complete("twice.txt"))
         .isEqualTo(first);
   }
 
@@ -184,9 +185,9 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   @Test
   void anUploadOverTheLargestArtifactIsDeletedAndRefused() {
     setArtifactSetting(ArtifactService.MAX_ARTIFACT_SIZE, "1");
-    ArtifactLink link = upload("big.bin", null, new byte[2 * 1024 * 1024]);
+    TaskRun link = upload("big.bin", null, new byte[2 * 1024 * 1024]);
 
-    assertThatThrownBy(() -> artifactService.completeUpload(uploadTask.getId(), "big.bin", null))
+    assertThatThrownBy(() -> complete("big.bin"))
         .isInstanceOfSatisfying(
             BoomerangException.class,
             ex -> assertThat(ex.getReason()).isEqualTo("ARTIFACT_TOO_LARGE"));
@@ -200,7 +201,7 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   @Test
   void aWorkspaceWithNoArtifactStorageLeftRefusesTheUploadAndKeepsWhatItHas() {
     upload("kept.txt", null, new byte[] {7});
-    artifactService.completeUpload(uploadTask.getId(), "kept.txt", null);
+    complete("kept.txt");
     Quotas none = new Quotas();
     none.setMaxArtifactStorage(0);
     WorkspaceRequest patch = new WorkspaceRequest();
@@ -218,7 +219,7 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aTaskCanShortenItsRetentionButNeverLengthenIt() {
-    assertThat(begin("short", 3).expiresAt()).isNotNull();
+    begin("short", 3);
     begin("long", 500);
 
     assertThat(retentionOf("short")).isEqualTo(3);
@@ -227,8 +228,8 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void anExpiredArtifactLosesItsFileButKeepsItsRecord() throws Exception {
-    ArtifactLink link = upload("old.log", null, "log".getBytes(StandardCharsets.UTF_8));
-    artifactService.completeUpload(uploadTask.getId(), "old.log", null);
+    TaskRun link = upload("old.log", null, "log".getBytes(StandardCharsets.UTF_8));
+    complete("old.log");
     ArtifactEntity entity =
         artifactRepository
             .findByWorkflowRunRefAndName(uploadTask.getWorkflowRunRef(), "old.log")
@@ -251,7 +252,7 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void anUploadThatWasNeverCompletedIsReaped() {
-    ArtifactLink link = upload("stale", null, new byte[] {1});
+    TaskRun link = upload("stale", null, new byte[] {1});
     ArtifactEntity entity =
         artifactRepository
             .findByWorkflowRunRefAndName(uploadTask.getWorkflowRunRef(), "stale")
@@ -267,8 +268,8 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void pruningTheWorkflowDeletesItsArtifactsAndFiles() {
-    ArtifactLink link = upload("pruned", null, new byte[] {1});
-    artifactService.completeUpload(uploadTask.getId(), "pruned", null);
+    TaskRun link = upload("pruned", null, new byte[] {1});
+    complete("pruned");
 
     artifactService.deleteForWorkflow(workflowRef, 100);
 
@@ -281,9 +282,9 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   @Test
   void storageCountsAvailableAndUploadingButNotExpired() {
     upload("available", null, new byte[10]);
-    artifactService.completeUpload(uploadTask.getId(), "available", null);
+    complete("available");
     upload("expired", null, new byte[100]);
-    artifactService.completeUpload(uploadTask.getId(), "expired", null);
+    complete("expired");
     ArtifactEntity expired =
         artifactRepository
             .findByWorkflowRunRefAndName(uploadTask.getWorkflowRunRef(), "expired")
@@ -341,7 +342,7 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   void theDownloadStreamsTheFileAsAnAttachment() throws Exception {
     byte[] bytes = "hello artifact".getBytes(StandardCharsets.UTF_8);
     upload("hello.txt", null, bytes);
-    artifactService.completeUpload(uploadTask.getId(), "hello.txt", null);
+    complete("hello.txt");
     MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
 
     MvcResult started =
@@ -361,17 +362,108 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
         .andExpect(content().bytes(bytes));
   }
 
-  // ── helpers ───────────────────────────────────────────────────────────────
+  @Test
+  void aRequeuedUploadTaskGetsAFreshLinkToItsOwnRecord() {
+    TaskRun first = begin("requeued", null);
+    TaskRunEntity entity = taskRunRepository.findById(first.getId()).orElseThrow();
+    TaskRun again = new TaskRun(entity);
 
-  private ArtifactLink begin(String name, Integer retentionDays) {
-    return artifactService.beginUpload(
-        uploadTask.getId(), new ArtifactUploadRequest(name, retentionDays, null));
+    artifactService.fillLinkParams(again);
+
+    assertThat(urlOf(again)).isEqualTo(urlOf(first));
+    assertThat(
+            artifactRepository.findByWorkflowRunRefAndName(
+                uploadTask.getWorkflowRunRef(), "requeued"))
+        .isPresent();
   }
 
-  private ArtifactLink upload(String name, Integer retentionDays, byte[] bytes) {
-    ArtifactLink link = begin(name, retentionDays);
-    store.objects.put(keyOf(link), bytes);
-    return link;
+  @Test
+  void aDownloadTaskIsHandedTheLinkChecksumAndContentType() {
+    upload("for-download", null, "payload".getBytes(StandardCharsets.UTF_8));
+    Artifact artifact = complete("for-download");
+    TaskRunEntity download =
+        savedTaskRun(
+            "fetch",
+            TaskType.downloadartifact,
+            RunStatus.running,
+            RunPhase.running,
+            workflowRef,
+            uploadTask.getWorkflowRunRef());
+    download.setParams(
+        new java.util.ArrayList<>(List.of(new RunParam(ArtifactService.NAME_PARAM, "for-download"))));
+    TaskRun handedOut = new TaskRun(taskRunRepository.save(download));
+
+    artifactService.fillLinkParams(handedOut);
+
+    assertThat(handedOut.getParams())
+        .extracting(RunParam::getName, param -> String.valueOf(param.getValue()))
+        .contains(
+            org.assertj.core.groups.Tuple.tuple(ArtifactService.SHA256_PARAM, artifact.sha256()),
+            org.assertj.core.groups.Tuple.tuple(
+                ArtifactService.CONTENT_TYPE_PARAM, "application/octet-stream"));
+  }
+
+  @Test
+  void aSucceededUploadOverTheLimitEndsFailedWithTheReason() {
+    setArtifactSetting(ArtifactService.MAX_ARTIFACT_SIZE, "1");
+    TaskRun task = upload("too-big.bin", null, new byte[2 * 1024 * 1024]);
+    TaskRunEndRequest succeeded = new TaskRunEndRequest();
+    succeeded.setStatus(RunStatus.succeeded);
+
+    taskRunService.end(task.getId(), Optional.of(succeeded));
+
+    TaskRunEntity ended = taskRunRepository.findById(task.getId()).orElseThrow();
+    assertThat(ended.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(ended.getStatusReason()).isEqualTo("ArtifactRefused");
+    assertThat(ended.getStatusMessage()).contains("too-big.bin").contains("largest artifact");
+  }
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  /** A new upload task for the artifact, handed out: its link params are filled. */
+  private TaskRun begin(String name, Integer retentionDays) {
+    TaskRunEntity task =
+        savedTaskRun(
+            "upload-" + name,
+            TaskType.uploadartifact,
+            RunStatus.running,
+            RunPhase.running,
+            workflowRef,
+            uploadTask.getWorkflowRunRef());
+    task.setParams(
+        new java.util.ArrayList<>(
+            List.of(
+                new RunParam(ArtifactService.NAME_PARAM, name),
+                new RunParam(
+                    ArtifactService.RETENTION_PARAM,
+                    retentionDays != null ? retentionDays.toString() : ""))));
+    taskRunRepository.save(task);
+    TaskRun handedOut = new TaskRun(task);
+    artifactService.fillLinkParams(handedOut);
+    return handedOut;
+  }
+
+  private TaskRun upload(String name, Integer retentionDays, byte[] bytes) {
+    TaskRun task = begin(name, retentionDays);
+    store.objects.put(keyOf(task), bytes);
+    return task;
+  }
+
+  private Artifact complete(String name) {
+    ArtifactEntity artifact =
+        artifactRepository
+            .findByWorkflowRunRefAndName(uploadTask.getWorkflowRunRef(), name)
+            .orElseThrow();
+    return artifactService.completeUpload(
+        taskRunRepository.findById(artifact.getTaskRunRef()).orElseThrow());
+  }
+
+  private static String urlOf(TaskRun task) {
+    return task.getParams().stream()
+        .filter(param -> ArtifactService.URL_PARAM.equals(param.getName()))
+        .map(param -> param.getValue().toString())
+        .findFirst()
+        .orElseThrow();
   }
 
   private int retentionOf(String name) {
@@ -381,8 +473,8 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
         .getRetentionDays();
   }
 
-  private static String keyOf(ArtifactLink link) {
-    return link.url().substring(InMemoryArtifactStore.PREFIX.length());
+  private static String keyOf(TaskRun task) {
+    return urlOf(task).substring(InMemoryArtifactStore.PREFIX.length());
   }
 
   private String createWorkspace(Quotas quotas) {

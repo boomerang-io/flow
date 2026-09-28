@@ -61,7 +61,13 @@ public class WorkflowWatcher {
   // claimant. Gates, waits and inline system tasks time out terminally, as they always have.
   private static final Set<TaskType> REQUEUEABLE_TYPES =
       EnumSet.of(
-          TaskType.template, TaskType.custom, TaskType.script, TaskType.generic, TaskType.ai);
+          TaskType.template,
+          TaskType.custom,
+          TaskType.script,
+          TaskType.generic,
+          TaskType.ai,
+          TaskType.uploadartifact,
+          TaskType.downloadartifact);
 
   private static final int MAX_RETRIES = 3;
 

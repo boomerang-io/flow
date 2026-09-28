@@ -13,6 +13,7 @@ import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.ResultUtil;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
@@ -57,6 +59,8 @@ public class TaskRunService {
   private final MongoTemplate mongoTemplate;
   private final ApplicationEventPublisher eventPublisher;
   private final ObjectMapper objectMapper;
+  // The upload task's completion lives with the artifacts; resolved late, as the two call each other.
+  private final ObjectProvider<ArtifactService> artifactService;
 
   public TaskRunService(
       @Lazy TaskExecutionService taskExecutionService,
@@ -64,13 +68,15 @@ public class TaskRunService {
       TaskRunRepository taskRunRepository,
       MongoTemplate mongoTemplate,
       ApplicationEventPublisher eventPublisher,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ObjectProvider<ArtifactService> artifactService) {
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
     this.taskRunRepository = taskRunRepository;
     this.mongoTemplate = mongoTemplate;
     this.eventPublisher = eventPublisher;
     this.objectMapper = objectMapper;
+    this.artifactService = artifactService;
   }
 
   // Return the page of TaskRuns eligible for claiming by an executor of the given types: ready,
@@ -937,6 +943,7 @@ public class TaskRunService {
                     + " byte cap. Pass large outputs by reference (workspace path or URI).");
             taskRunEntity.setStatusReason("ResultsTooLarge");
           }
+          completeArtifactUpload(taskRunEntity);
         }
         // Persist the request merge for the handler to re-read. The handler ignores an end
         // request for a completed TaskRun, so a terminal record stays untouched.
@@ -949,6 +956,25 @@ public class TaskRunService {
       }
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+  }
+
+  /*
+   * A succeeded upload task is only done once the engine has verified its file; a refusal (too
+   * large, storage quota reached, nothing uploaded) ends the task failed with the reason.
+   */
+  private void completeArtifactUpload(TaskRunEntity taskRunEntity) {
+    if (!TaskType.uploadartifact.equals(taskRunEntity.getType())
+        || !RunStatus.succeeded.equals(taskRunEntity.getStatus())) {
+      return;
+    }
+    ArtifactService artifacts = artifactService.getObject();
+    try {
+      artifacts.completeUpload(taskRunEntity);
+    } catch (BoomerangException e) {
+      taskRunEntity.setStatus(RunStatus.failed);
+      taskRunEntity.setStatusReason("ArtifactRefused");
+      taskRunEntity.setStatusMessage(artifacts.refusalMessage(e));
+    }
   }
 
   // Wire-level fence: a request that names its dispatcher must match claim.by. A request with no

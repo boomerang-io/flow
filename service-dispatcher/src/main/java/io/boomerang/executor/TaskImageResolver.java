@@ -24,6 +24,11 @@ import org.springframework.stereotype.Component;
  * <p>Nothing else changes for {@code ai}: params still arrive as {@code PARAM_<NAME>} environment
  * variables and results are still read from {@code RESULTS_PATH}
  * ({@link io.boomerang.kube.KubeHelperService#createTaskEnvVars}).
+ *
+ * <p>The {@code uploadartifact} and {@code downloadartifact} types work the same way: the default
+ * worker image {@code flow.dispatcher.artifact.image} runs its own entrypoint with the arguments
+ * {@code artifact upload} or {@code artifact download}. The engine fills their link params when it
+ * hands the task out, so they reach the worker as ordinary {@code PARAM_<NAME>} variables.
  */
 @Component
 public class TaskImageResolver {
@@ -31,25 +36,53 @@ public class TaskImageResolver {
   /** The worker image's entrypoint for a single chat completion. */
   static final List<String> AI_COMMAND = List.of("prompt");
 
+  static final List<String> ARTIFACT_UPLOAD_ARGUMENTS = List.of("artifact", "upload");
+  static final List<String> ARTIFACT_DOWNLOAD_ARGUMENTS = List.of("artifact", "download");
+
   @Value("${flow.dispatcher.ai.image}")
   private String aiImage;
 
-  /** The container image to run; never null for an {@code ai} task. */
+  @Value("${flow.dispatcher.artifact.image}")
+  private String artifactImage;
+
+  /** The container image to run; never null for an {@code ai} or artifact task. */
   public String image(TaskRun task) {
-    return isAi(task) ? aiImage : spec(task).getImage();
+    if (isAi(task)) {
+      return aiImage;
+    }
+    return isArtifact(task) ? artifactImage : spec(task).getImage();
   }
 
   /** The container command, or null to leave the image's own entrypoint in place. */
   public List<String> command(TaskRun task) {
-    return isAi(task) ? AI_COMMAND : spec(task).getCommand();
+    if (isAi(task)) {
+      return AI_COMMAND;
+    }
+    return isArtifact(task) ? null : spec(task).getCommand();
+  }
+
+  /** The container arguments: the worker's artifact command for an artifact task. */
+  public List<String> arguments(TaskRun task) {
+    if (TaskType.uploadartifact.equals(task.getType())) {
+      return ARTIFACT_UPLOAD_ARGUMENTS;
+    }
+    if (TaskType.downloadartifact.equals(task.getType())) {
+      return ARTIFACT_DOWNLOAD_ARGUMENTS;
+    }
+    return spec(task).getArguments();
   }
 
   /**
    * The script body to mount and run instead of a command, or null when there is none. An {@code
-   * ai} task never runs a script - the command is the worker image's own.
+   * ai} or artifact task never runs a script - the command is the worker image's own.
    */
   public String script(TaskRun task) {
-    return isAi(task) ? null : spec(task).getScript();
+    return (isAi(task) || isArtifact(task)) ? null : spec(task).getScript();
+  }
+
+  private boolean isArtifact(TaskRun task) {
+    return TaskType.uploadartifact.equals(task.getType())
+        || TaskType.downloadartifact.equals(task.getType());
   }
 
   private boolean isAi(TaskRun task) {
