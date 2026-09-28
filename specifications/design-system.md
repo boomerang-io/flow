@@ -207,6 +207,64 @@ Boomerang purple accent (`client-web/src/Features/Reactflow/components/Ai/AiNode
 A new node type MUST be added to all three of `markerTypes`, `edgeTypes` and `nodeTypes` — they
 are keyed exhaustively off `NodeType`.
 
+### Task configuration modal
+
+Every task edit form keeps **Task Name** above everything else, then, for a task type that can run
+for each item (`template`, `script`, `custom`, `ai`, `generic`;
+`client-web/src/Features/Reactflow/components/shared/foreach.ts:24`), Carbon line `Tabs` with two
+tabs, **Parameters | Configure**, mirroring the workflow editor's own Parameters and Configure
+header tabs. Any other type renders its fields without a tab bar
+(`client-web/src/Features/Reactflow/components/shared/TaskFormTabs.tsx:32-34`).
+
+- **Parameters** holds the task's parameters and its "Result Parameters"; **Configure** holds
+  settings about how the task runs ("Run for each item" today; per-task timeout and retry belong
+  here when they come).
+- The tabs sit inside the one `ModalForm`/`DynamicFormik` form, so Apply saves both and
+  validation is shared.
+- A tab label MUST show state the user cannot see from the other tab: a purple `Tag` ("For each")
+  while a setting on that tab is on, and a `WarningFilled` icon in the error colour, with an
+  `aria-label` "<Tab> has an error", while one of its fields is invalid (`TaskFormTabs.tsx:49-83`).
+  Apply never fails for a reason on a tab the user is not looking at.
+- The modal resets button padding, so the tab list restores Carbon's tab padding itself
+  (`shared/TaskFormTabs.module.scss:8`).
+
+### Palette entry points
+
+A palette item MAY be an entry point to a setting rather than a node type of its own. "For each"
+is listed first in the Workflow category (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:24-27`);
+dropping it opens a `ComposedModal`, "Repeat a task for each item", that picks the task and its
+items and then opens that task's normal form with the setting on
+(`client-web/src/Features/Reactflow/components/Foreach/ForeachModal.tsx:51,138`). What lands on the
+canvas is an ordinary task. The palette item and the Configure toggle store the same thing, so
+nothing records which path made it (decision 0083).
+
+### Fanned-out tasks on the canvas and in the run
+
+- **Canvas node:** a task with `foreach` set is drawn as a stack of cards: two offset copies behind
+  the node in `--flow-switch-primary`, and a badge at its top-left reusing `.badgeContainer`
+  (`.../Template/TemplateNode/TemplateNode.module.scss:279-316`). In run mode the badge reports
+  progress, "For each · 2 of 3 succeeded", or "For each · 0 items"
+  (`.../Template/TemplateNode/TemplateNode.tsx:202-205`). The node's status is the parent task
+  run's, found by name while skipping items (`client-web/src/Utils/taskRunHelper.ts:22`).
+- **Task log:** item task runs are grouped under their task, never listed flat. The task's entry
+  shows a purple "For each" `Tag` and a summary ("3 items · 1 succeeded · 1 running · 1 failed",
+  or the failure message when it never fanned out), and a ghost "Show items" button with
+  `aria-expanded` lists each item's index, value, status, reason, duration and its own "View Log"
+  (`client-web/src/Features/WorkflowRun/TaskRunList/TaskRunItem/RunTaskItem.tsx:60-145`). The parent
+  has no pod, so it offers no log of its own. Whether a task fans out comes from the workflow's
+  node definition, not from whether items exist (`taskRunHelper.ts:17`).
+- **Task log actions:** an entry's actions ("View Details", "View Log", "Show items") sit on one
+  flex row with a gap, and the start and end entries grow to fit them
+  (`.../TaskRunItem/runTaskItem.module.scss:74,247`).
+
+### Canvas node ports
+
+React Flow v12 translates a side handle half its width outward. Our ports are already offset by
+their full width (the `.port` rules in the Start, End and Template node styles), so the global
+stylesheet keeps only the vertical centring and every port touches its node
+(`client-web/src/Features/Reactflow/styles.scss:27`). A new node type's ports MUST follow the same
+offset rather than re-adding the transform.
+
 ### Class-name conventions
 
 - Carbon component classes are prefixed **`cds--`** (v11). Override with care and scope under
@@ -228,6 +286,8 @@ Carbon's categorical palette.
 - Use the Boomerang add-ons component first, Carbon second, custom last.
 - Use Carbon type tokens, the 2x grid, and the `$spacing-*` scale.
 - Keep IBM Plex Sans; map run-status UI to the Flow accent tokens.
+- Put a task's settings on its Configure tab and mark any tab whose state is not visible (a tag, an error icon).
+- Draw a task that repeats per item as a stack of cards with a badge, and group its item runs under it.
 
 **Don't**
 - Paste raw hex into component styles (the Flow accent `:root` tokens are the only sanctioned raw values).
