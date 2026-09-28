@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.WorkflowTaskForeach;
 
 public class CanvasNodeData {
   
@@ -17,6 +18,7 @@ public class CanvasNodeData {
   String taskRef;
   Integer taskVersion;
   boolean upgradesAvailable;
+  WorkflowTaskForeach foreach;
   
   @JsonIgnore
   private Map<String, Object> additionalProperties = new HashMap<>();
@@ -67,6 +69,14 @@ public class CanvasNodeData {
 
   public void setUpgradesAvailable(boolean upgradesAvailable) {
     this.upgradesAvailable = upgradesAvailable;
+  }
+
+  public WorkflowTaskForeach getForeach() {
+    return foreach;
+  }
+
+  public void setForeach(WorkflowTaskForeach foreach) {
+    this.foreach = foreach;
   }
 
   @JsonAnyGetter

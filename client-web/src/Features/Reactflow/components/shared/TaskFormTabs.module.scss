@@ -1,0 +1,50 @@
+@use "@carbon/react/scss/spacing" as *;
+@use "@carbon/react/scss/type" as *;
+
+.tabList {
+  margin-top: $spacing-05;
+
+  // The modal resets button padding, which runs the two tab labels together.
+  :global(.cds--tabs__nav-link) {
+    padding: $spacing-04 $spacing-05 $spacing-03;
+  }
+}
+
+.tabLabel {
+  align-items: center;
+  display: inline-flex;
+  gap: $spacing-02;
+}
+
+.tag {
+  margin: 0;
+}
+
+.errorIcon {
+  fill: var(--cds-support-01);
+  flex-shrink: 0;
+}
+
+.tabPanel {
+  padding: $spacing-05 0 0;
+}
+
+.configure {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.explainer {
+  @include type-style("body-compact-01");
+  color: var(--cds-text-02);
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  list-style: disc;
+  padding-left: $spacing-05;
+
+  code {
+    @include type-style("code-01");
+  }
+}

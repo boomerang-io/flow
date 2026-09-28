@@ -18,7 +18,7 @@ The dispatcher registers once, polls two queues every 5 seconds, sends one lease
 | `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:88-114`) |
 | `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none (`DispatcherService.java:154-200`) |
 | `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:212-271`) |
-| `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:47-58`) |
+| `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:63-82`). A provisioning failure is only logged; the run stays claimed until the engine's watcher releases the stale claim for another attempt, failing the run after three (see `execution-model.md`) |
 | `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:288`) |
 | `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed |
 | `PUT /{id}/heartbeat` | dispatcher → engine, every `flow.dispatcher.lease.beat-ms` (30 s) | `ids` of the task runs whose executor threads stamped `LeaseRegistry` since the last beat (`dispatcher/LeaseHeartbeat.java`); the engine renews `claim.leaseExpiresAt` for the ids this dispatcher owns (`DispatcherService.heartbeat`, `flow.dispatcher.lease-ms` 90 s) |
@@ -129,22 +129,40 @@ Explicitly declared task env vars win on a name collision (`KubeHelperService.ja
 `/params` file directory and no `PARAMS` JSON variable; large inputs belong on a workspace mount, with the
 param carrying the path.
 
+An item of a for-each task is an ordinary TaskRun to the dispatcher: it is claimed by `id` and run like any
+other of its type. It carries the parent's params plus `item` (the element; an object or array arrives
+JSON-encoded) and `index` (its position from 0, as text), so the container sees `PARAM_ITEM` and `PARAM_INDEX`,
+and `$(params.item)` resolves in the spec. Its params and spec resolve when the item is admitted, not when the
+parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspaces as the parent,
+so all items of a run share the run's workspace.
+
 ## Results and payload caps
 
-The engine enforces both caps so the failure is one message on every executor; a task reports only the result names its definition declares (`TerminationMessageParser.java:24-27,72-73`).
+The params cap is the engine's, identical on every executor. The results limit belongs to the dispatcher that
+runs the task: on Kubernetes it is the 4096-byte container termination message, enforced by the dispatcher. The
+engine's results setting is only a storage guard, so a faulty dispatcher cannot grow a task run toward MongoDB's
+16 MB document limit. A task reports only the result names its definition declares
+(`TerminationMessageParser.java:24-27,72-73`).
 
-| Cap | Property (`service-core/.../application.properties:154-155`) | Where checked | Effect |
+| Cap | Property (`service-core/.../application.properties:176-177`) | Where checked | Effect |
 | --- | --- | --- | --- |
-| Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:161-175`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
-| Results | `flow.engine.task.results.max-bytes=4096` | In `TaskRunService.end` (`TaskRunService.java:765-773`) | Status becomes `failed` with `RESULTS_TOO_LARGE`; the oversize results are not persisted |
+| Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:205-219`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
+| Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`TaskRunService.java:909-919`) | Status becomes `failed` with `RESULTS_TOO_LARGE` and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
 
-An oversize payload usually never reaches that engine check, because Kubernetes truncates a container
+On Kubernetes an oversize payload never reaches the engine, because Kubernetes truncates a container
 termination message at 4096 bytes and the truncated prefix is broken JSON. `TerminationMessageParser` reports an
 unparseable message as absent rather than as "no results", and `KubeJobsExecutor.readResults` fails the task with
 `ResultsTooLarge` when the pod log carries Kubernetes' own too-large line or when the unparseable message is at
 the ceiling; a short unparseable message is a task writing something that is not a results payload, so it is
 logged and carries no results. On Tekton the overflow fails the TaskRun itself and is mapped the same way
 (`TektonServiceImpl.java:606`).
+
+A for-each task's results are not checked again. Each item is capped where it returns its results, like any task;
+the parent's results are the per-item values collected into arrays by the engine
+(`TaskExecutionService.completeParentIfItemsTerminal` `:716`), with no cap of their own. When MongoDB refuses the
+combined arrays as over its 16 MB document limit, the parent fails with `statusReason = ResultsTooLarge` and no
+results, and the run moves on (`TaskExecutionService.java:750-778`). A task that consumes the array still meets
+the params cap at its own admission.
 
 ## Run labels on Kubernetes objects
 
@@ -179,7 +197,9 @@ surfaces this per node as a "New version available" prompt, driven by the `upgra
 ## Parameter names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
-to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). Matching is case-insensitive everywhere:
+to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
+the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
+with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1782-1819`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:238`), and the node-value
 merge keeps the declared casing (`ParameterUtil.java:57-66`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
 substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
@@ -241,6 +261,9 @@ workspaces is submitted (`workflow/WorkflowService.java:483-497,971-988`,
 `lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to
 `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves `storageClassName` unset so the cluster
 default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:175`).
+After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for it to reach `Pending` or
+`Bound`, treating a momentarily absent claim as not yet settled (`KubeServiceImpl.isClaimSettled` `:207`); any
+error while creating a workspace surfaces as one provisioning failure (`dispatcher/WorkspaceService.java:86-102`).
 
 ## Isolation and placement
 

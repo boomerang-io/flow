@@ -45,7 +45,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  @Value("${flow.engine.task.results.max-bytes:4096}")
+  @Value("${flow.engine.task.results.max-bytes:1048576}")
   private int resultsMaxBytes;
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
@@ -410,6 +410,105 @@ public class TaskRunService {
     preImage.setStartTime(startTime);
     preImage.setTimeoutAt(timeoutAt);
     return preImage;
+  }
+
+  // Fan-out Compare-And-Set for a foreach parent: notstarted/pending becomes running with the given
+  // start time, recording the resolved item array (null when it failed to resolve) in the same
+  // guarded write. The parent never passes through ready, so it is never claimable, and it carries
+  // no claim and no timeoutAt, so no lease, orphan or timeout sweep ever reaps it - its items carry
+  // the timeouts. Returns the pre-image, or null when another caller already fanned it out.
+  public TaskRunEntity tryStartForeach(String id, Date startTime, List<Object> items) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(RunStatus.notstarted)
+                .and("phase")
+                .is(RunPhase.pending));
+    Update update =
+        new Update()
+            .set("status", RunStatus.running)
+            .set("phase", RunPhase.running)
+            .set("startTime", startTime)
+            .set("foreach.items", items);
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.running, RunPhase.running);
+    }
+    return preImage;
+  }
+
+  // Record a foreach parent's outcome - its status, message, typed reason and, when given, the
+  // per-item result arrays - field-scoped and fenced on the running phase, for end() to complete it
+  // through the ordinary completion Compare-And-Set. Concurrent last-item enders compute the same
+  // outcome from the same terminal items, so a repeated write is harmless, and a completed parent
+  // is never touched.
+  public void tryRecordForeachOutcome(
+      String id, RunStatus status, String statusMessage, String statusReason, List<RunResult> results) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", status).set("statusMessage", statusMessage);
+    if (statusReason != null) {
+      update.set("statusReason", statusReason);
+    }
+    if (results != null) {
+      update.set("results", results);
+    }
+    mongoTemplate.updateFirst(query, update, TaskRunEntity.class);
+  }
+
+  // Return the page of foreach parents in the running phase since before the given time - the
+  // candidates for recovering a fan-out or a parent completion that a crash cut short. Matched by
+  // phase alone: a parent whose outcome is recorded but whose end was lost keeps a terminal status
+  // in the running phase.
+  public List<TaskRunEntity> findRunningForeachParents(Date startedBefore, int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("phase")
+                    .is(RunPhase.running)
+                    .and("foreach")
+                    .exists(true)
+                    .and("startTime")
+                    .lte(startedBefore))
+            .with(Sort.by(Sort.Direction.ASC, "startTime"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    query.fields().include("_id").include("status").include("workflowRunRef");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Whether every item of a foreach parent is completed and all the expected items exist - an
+  // exists and a count on the parent's items, so no item document is loaded until the last ends.
+  public boolean allItemsCompleted(String parentRef, int expected) {
+    Query unfinished =
+        Query.query(Criteria.where("parentRef").is(parentRef).and("phase").ne(RunPhase.completed));
+    return !mongoTemplate.exists(unfinished, TaskRunEntity.class)
+        && mongoTemplate.count(Query.query(Criteria.where("parentRef").is(parentRef)), TaskRunEntity.class)
+            >= expected;
+  }
+
+  // A foreach parent's items in item order, holding only what the parent's outcome is built from.
+  public List<TaskRunEntity> findItemOutcomes(String parentRef) {
+    Query query =
+        Query.query(Criteria.where("parentRef").is(parentRef))
+            .with(Sort.by(Sort.Direction.ASC, "index"));
+    query.fields().include("index").include("status").include("results");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Whether a foreach parent has an item in flight, by the same test as
+  // existsInFlightByWorkflowRunRef. None in flight on a running parent means its items are all
+  // terminal or never queued, and the fan-out must be recovered.
+  public boolean existsInFlightItem(String parentRef) {
+    Query query =
+        Query.query(
+                Criteria.where("parentRef")
+                    .is(parentRef)
+                    .orOperator(
+                        Criteria.where("phase").in(RunPhase.queued, RunPhase.running),
+                        Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
+            .maxTimeMsec(5000);
+    return mongoTemplate.exists(query, TaskRunEntity.class);
   }
 
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
@@ -823,9 +922,9 @@ public class TaskRunService {
           } else {
             taskRunEntity.setStatus(optRunRequest.get().getStatus());
           }
-          // Engine-enforced results cap, identical on every executor (4096 bytes is the portable
-          // Kubernetes termination-message ceiling). Oversize fails the task and keeps the
-          // pre-merge results rather than persisting a payload every downstream reader re-reads.
+          // Storage guard on results, so a faulty dispatcher cannot grow a TaskRun toward Mongo's
+          // document limit; each executor enforces its own limit before this. Oversize fails the
+          // task and keeps the pre-merge results rather than persisting them.
           byte[] resultBytes = objectMapper.writeValueAsBytes(taskRunEntity.getResults());
           if (resultBytes.length > resultsMaxBytes) {
             taskRunEntity.setResults(priorResults);

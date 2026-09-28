@@ -4,6 +4,7 @@ import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
 import { getSimplifiedDuration } from "Utils/dateHelper";
+import { foreachItemRuns, isForeachItem } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, executionStatusIcon, NodeType } from "Constants";
 import { Action, RunStatus, WorkflowRun } from "Types";
 import TaskRunItem from "./TaskRunItem";
@@ -16,9 +17,11 @@ type Props = {
   // TaskRun only carries an `actionRef`, never the approver detail itself.
   actions?: Record<string, Action>;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
+  // The names of the workflow's for-each tasks, from its definition - a TaskRun does not say.
+  foreachTaskNames?: ReadonlySet<string>;
 };
 
-function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
+function TaskRunLog({ workflowRun, actions, executionViewRedirect, foreachTaskNames }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [tasksSort, setTasksSort] = useState<"desc" | "asc">("desc");
 
@@ -65,8 +68,11 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
   // sort applied to the rest.
   const startTask = tasks.find((taskRun) => taskRun.type === NodeType.Start);
   const endTask = tasks.find((taskRun) => taskRun.type === NodeType.End);
+  // The items of a for-each task are listed inside their parent's entry, not beside it.
   const sortedTasks = orderBy(
-    tasks.filter((taskRun) => taskRun.type !== NodeType.Start && taskRun.type !== NodeType.End),
+    tasks.filter(
+      (taskRun) => taskRun.type !== NodeType.Start && taskRun.type !== NodeType.End && !isForeachItem(taskRun),
+    ),
     ["startTime"],
     [tasksSort],
   );
@@ -122,6 +128,8 @@ function TaskRunLog({ workflowRun, actions, executionViewRedirect }: Props) {
             workflowRun={workflowRun}
             action={actions?.[taskRun.id]}
             executionViewRedirect={executionViewRedirect}
+            isForeach={foreachTaskNames?.has(taskRun.name)}
+            items={foreachItemRuns(tasks, taskRun.id)}
           />
         ))}
         {endTask && (

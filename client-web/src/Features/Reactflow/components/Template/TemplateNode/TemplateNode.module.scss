@@ -273,3 +273,44 @@
     filter: brightness(100%);
   }
 }
+
+// A task that runs once per item is drawn as a stack of cards: two offset cards behind the
+// node, and a "For each" badge at its top-left.
+.foreach {
+  &::before,
+  &::after {
+    background: var(--cds-ui-01);
+    border: 0.125rem solid var(--flow-switch-primary);
+    border-radius: inherit;
+    box-sizing: border-box;
+    content: "";
+    height: calc(100% + 0.25rem);
+    left: -0.125rem;
+    position: absolute;
+    top: -0.125rem;
+    width: calc(100% + 0.25rem);
+    z-index: -1;
+  }
+
+  &::before {
+    transform: translate(0.5rem, 0.5rem);
+    opacity: 0.5;
+  }
+
+  &::after {
+    transform: translate(0.25rem, 0.25rem);
+    opacity: 0.8;
+  }
+}
+
+.foreachBadge {
+  border-color: var(--flow-switch-primary);
+  left: -0.75rem;
+  z-index: 1;
+
+  .badgeText {
+    color: var(--flow-switch-primary);
+    font-weight: 600;
+    margin: 0;
+  }
+}

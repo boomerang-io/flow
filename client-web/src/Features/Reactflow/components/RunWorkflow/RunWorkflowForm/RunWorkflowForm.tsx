@@ -5,7 +5,10 @@ import { FormikProps } from "formik";
 import * as Yup from "yup";
 import { useEditorContext } from "Hooks";
 import { normaliseInputs } from "Utils/paramsHelper";
+import { NodeType } from "Constants";
 import { DataDrivenInput, Task, WorkflowNodeData } from "Types";
+import TaskFormTabs from "../../shared/TaskFormTabs";
+import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../shared/foreach";
 import {
   AutoSuggestInput,
   TextAreaSuggestInput,
@@ -125,6 +128,7 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
       },
       {} as Record<string, string>,
     ),
+    ...foreachInitialValues(node.foreach),
   };
 
   return (
@@ -133,9 +137,8 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
       enableReinitialize
       validateOnMount
       validationSchemaExtension={Yup.object().shape({
-        taskName: Yup.string()
-          .required("Enter a task name")
-          .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        taskName: taskNameSchema(otherTaskNames),
+        ...foreachValidationShape,
         workflowRef: Yup.string().required("Select a workflow"),
       })}
       initialValues={initialValues}
@@ -153,7 +156,9 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
     >
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
-          <ModalBody aria-label="inputs">{inputs}</ModalBody>
+          <ModalBody aria-label="inputs">
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={NodeType.RunWorkflow} />
+          </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>
               Cancel

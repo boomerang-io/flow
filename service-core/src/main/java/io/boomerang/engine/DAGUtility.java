@@ -102,8 +102,10 @@ public class DAGUtility {
     return GraphProcessor.createGraph(vertices, edgeList);
   }
 
+  // The graph's vertices only: a foreach task's items are never vertices, its parent stands for
+  // them.
   public List<TaskRunEntity> retrieveTaskList(String wfRunId) {
-    return taskRunRepository.findByWorkflowRunRef(wfRunId);
+    return taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(wfRunId);
   }
 
   // TODO: determine a better way to handle the start and end task without saving them as a
@@ -114,7 +116,7 @@ public class DAGUtility {
     // One fetch of the run's existing TaskRuns keyed by name - the (workflowRunRef, name) unique
     // index guarantees one per name, so no per-task find-first query is needed.
     final Map<String, TaskRunEntity> existingByName =
-        taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId()).stream()
+        retrieveTaskList(wfRunEntity.getId()).stream()
             .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
     for (final WorkflowTask wfRevisionTask : wfRevisionEntity.getTasks()) {
       TaskRunEntity existingTaskRunEntity = existingByName.get(wfRevisionTask.getName());
@@ -145,6 +147,8 @@ public class DAGUtility {
 
           Task task = taskService.retrieveAndValidateTask(wfRevisionTask);
           taskRunEntity.setTaskRef(wfRevisionTask.getTaskRef());
+          // Only a task that runs can run for each item; start and end never carry the setting.
+          taskRunEntity.setForeach(wfRevisionTask.getForeach());
           taskRunEntity.setTaskVersion(task.getVersion());
           LOGGER.debug(
               "[{}] Found Task: {} @ {}", wfRunEntity.getId(), task.getName(), task.getVersion());

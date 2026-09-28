@@ -36,6 +36,9 @@ type AppContext = {
 interface WorkflowContext {
   mode: WorkflowEngineModeType;
   tasks: Record<string, Array<Task>>;
+  /** The id of a node whose edit modal opens as soon as it mounts (set when a node is dropped). */
+  nodeToEdit?: string | null;
+  clearNodeToEdit?: () => void;
 }
 
 export const [useWorkflowContext, WorkflowProvider] = createContext<WorkflowContext>();

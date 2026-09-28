@@ -457,6 +457,1502 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
             class="cds--accordion cds--accordion--end"
           >
             <li
+              class="cds--accordion__item cds--accordion__item--active _taskCategory_ad713d"
+            >
+              <button
+                aria-controls="accordion-item-[generated-id]"
+                aria-expanded="true"
+                class="cds--accordion__heading"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--accordion__arrow"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
+                  />
+                </svg>
+                <div
+                  class="cds--accordion__title"
+                  dir="auto"
+                >
+                  Workflow (23)
+                </div>
+              </button>
+              <div
+                class="cds--accordion__wrapper"
+              >
+                <div
+                  class="cds--accordion__content"
+                  id="accordion-item-[generated-id]"
+                >
+                  <ul
+                    class="_taskSection_ad713d"
+                  >
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="For each"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type for each"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M6,6H26.1719l-3.586-3.5859L24,1l6,6-6,6-1.4141-1.4141L26.1719,8H6v7H4V8A2.0024,2.0024,0,0,1,6,6Z"
+                              />
+                              <path
+                                d="M9.4141,20.4141,5.8281,24H26V17h2v7a2.0024,2.0024,0,0,1-2,2H5.8281L9.414,29.5859,8,31,2,25l6-6Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              For each
+                               
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Acquire Lock"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Acquire Lock
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Manual Approval"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Manual Approval
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Manual Task"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type validate"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M14 20.18 10.41 16.59 9 18 14 23 23 14 21.59 12.58 14 20.18z"
+                              />
+                              <path
+                                d="M25,5H22V4a2,2,0,0,0-2-2H12a2,2,0,0,0-2,2V5H7A2,2,0,0,0,5,7V28a2,2,0,0,0,2,2H25a2,2,0,0,0,2-2V7A2,2,0,0,0,25,5ZM12,4h8V8H12ZM25,28H7V7h3v3H22V7h3Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Manual Task
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Release Lock"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Release Lock
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Run Custom Task"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type code"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M31 16 24 23 22.59 21.59 28.17 16 22.59 10.41 24 9 31 16z"
+                              />
+                              <path
+                                d="M1 16 8 9 9.41 10.41 3.83 16 9.41 21.59 8 23 1 16z"
+                              />
+                              <path
+                                d="M5.91 15H26.080000000000002V17H5.91z"
+                                transform="rotate(-75 15.996 16)"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Run Custom Task
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Run Scheduled Workflow"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type automated task"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M6.34 19H17.65V21H6.34z"
+                                transform="rotate(-45 11.995 20.002)"
+                              />
+                              <path
+                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Run Scheduled Workflow
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Run Workflow"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type automated task"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M6.34 19H17.65V21H6.34z"
+                                transform="rotate(-45 11.995 20.002)"
+                              />
+                              <path
+                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Run Workflow
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Set Result Parameter"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Set Result Parameter
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Set Workflow Result Status"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Set Workflow Result Status
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Switch"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type switch"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="m20,6c0,1.8584,1.2798,3.4106,3,3.8579v5.1421h-14v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4c0,1.8584,1.2798,3.4106,3,3.8579v5.1421c0,1.103.897,2,2,2h6v5.1421c-1.7202.4473-3,1.9995-3,3.8579,0,2.2056,1.7944,4,4,4s4-1.7944,4-4c0-1.8584-1.2798-3.4106-3-3.8579v-5.1421h6c1.103,0,2-.897,2-2v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4Zm-14,0c0-1.103.897-2,2-2s2,.897,2,2c0,1.103-.897,2-2,2s-2-.897-2-2Zm12,20c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2ZM26,6c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2Z"
+                                stroke-width="0"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Switch
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Acquire Lock"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Acquire Lock
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Manual Approval"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Manual Approval
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Manual Task"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type validate"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M14 20.18 10.41 16.59 9 18 14 23 23 14 21.59 12.58 14 20.18z"
+                              />
+                              <path
+                                d="M25,5H22V4a2,2,0,0,0-2-2H12a2,2,0,0,0-2,2V5H7A2,2,0,0,0,5,7V28a2,2,0,0,0,2,2H25a2,2,0,0,0,2-2V7A2,2,0,0,0,25,5ZM12,4h8V8H12ZM25,28H7V7h3v3H22V7h3Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Manual Task
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Release Lock"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Release Lock
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Run Custom Task"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type code"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M31 16 24 23 22.59 21.59 28.17 16 22.59 10.41 24 9 31 16z"
+                              />
+                              <path
+                                d="M1 16 8 9 9.41 10.41 3.83 16 9.41 21.59 8 23 1 16z"
+                              />
+                              <path
+                                d="M5.91 15H26.080000000000002V17H5.91z"
+                                transform="rotate(-75 15.996 16)"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Run Custom Task
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Run Scheduled Workflow"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type automated task"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M6.34 19H17.65V21H6.34z"
+                                transform="rotate(-45 11.995 20.002)"
+                              />
+                              <path
+                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Run Scheduled Workflow
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Run Workflow"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type automated task"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M6.34 19H17.65V21H6.34z"
+                                transform="rotate(-45 11.995 20.002)"
+                              />
+                              <path
+                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Run Workflow
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Set Result Parameter"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Set Result Parameter
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Set Workflow Result Status"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type edit"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M2 26H30V28H2z"
+                              />
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Set Workflow Result Status
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Switch"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type switch"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="m20,6c0,1.8584,1.2798,3.4106,3,3.8579v5.1421h-14v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4c0,1.8584,1.2798,3.4106,3,3.8579v5.1421c0,1.103.897,2,2,2h6v5.1421c-1.7202.4473-3,1.9995-3,3.8579,0,2.2056,1.7944,4,4,4s4-1.7944,4-4c0-1.8584-1.2798-3.4106-3-3.8579v-5.1421h6c1.103,0,2-.897,2-2v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4Zm-14,0c0-1.103.897-2,2-2s2,.897,2,2c0,1.103-.897,2-2,2s-2-.897-2-2Zm12,20c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2ZM26,6c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2Z"
+                                stroke-width="0"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Switch
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Tyson Workspace - Wait For Event"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type power on/off"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 16 16"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M11.2,2.9l-0.5,0.9c2.6,1.5,3.5,4.9,2,7.5s-4.9,3.5-7.5,2s-3.5-4.9-2-7.5c0.5-0.8,1.2-1.5,2-2L4.8,2.9 c-3.1,1.8-4.2,5.8-2.4,8.9s5.8,4.2,8.9,2.4s4.2-5.8,2.4-8.9C13.1,4.3,12.2,3.4,11.2,2.9z"
+                              />
+                              <path
+                                d="M7.5 1H8.5V8H7.5z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Tyson Workspace - Wait For Event
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                          <p
+                            class="_taskSubtext_bdbb1e"
+                          >
+                            Workspace Task
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <div
+                        aria-selected="false"
+                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        draggable="true"
+                        role="option"
+                        tabindex="0"
+                        title="Wait For Event"
+                      >
+                        <div
+                          class="_columnContainer_bdbb1e"
+                        >
+                          <div
+                            class="_rowContainer_bdbb1e"
+                          >
+                            <svg
+                              alt="Task node type power on/off"
+                              aria-hidden="true"
+                              class="_taskIcon_bdbb1e"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 16 16"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M11.2,2.9l-0.5,0.9c2.6,1.5,3.5,4.9,2,7.5s-4.9,3.5-7.5,2s-3.5-4.9-2-7.5c0.5-0.8,1.2-1.5,2-2L4.8,2.9 c-3.1,1.8-4.2,5.8-2.4,8.9s5.8,4.2,8.9,2.4s4.2-5.8,2.4-8.9C13.1,4.3,12.2,3.4,11.2,2.9z"
+                              />
+                              <path
+                                d="M7.5 1H8.5V8H7.5z"
+                              />
+                            </svg>
+                            <p
+                              class="_taskName_bdbb1e"
+                            >
+                               
+                              Wait For Event
+                               
+                            </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </li>
+            <li
               class="cds--accordion__item _taskCategory_ad713d"
             >
               <button
@@ -10411,1455 +11907,6 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                 </div>
               </div>
             </li>
-            <li
-              class="cds--accordion__item _taskCategory_ad713d"
-            >
-              <button
-                aria-controls="accordion-item-[generated-id]"
-                class="cds--accordion__heading"
-                type="button"
-              >
-                <svg
-                  aria-hidden="true"
-                  class="cds--accordion__arrow"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 16 16"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
-                  />
-                </svg>
-                <div
-                  class="cds--accordion__title"
-                  dir="auto"
-                >
-                  Workflow (22)
-                </div>
-              </button>
-              <div
-                class="cds--accordion__wrapper"
-              >
-                <div
-                  class="cds--accordion__content"
-                  id="accordion-item-[generated-id]"
-                >
-                  <ul
-                    class="_taskSection_ad713d"
-                  >
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Acquire Lock"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Acquire Lock
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Manual Approval"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Manual Approval
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Manual Task"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type validate"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M14 20.18 10.41 16.59 9 18 14 23 23 14 21.59 12.58 14 20.18z"
-                              />
-                              <path
-                                d="M25,5H22V4a2,2,0,0,0-2-2H12a2,2,0,0,0-2,2V5H7A2,2,0,0,0,5,7V28a2,2,0,0,0,2,2H25a2,2,0,0,0,2-2V7A2,2,0,0,0,25,5ZM12,4h8V8H12ZM25,28H7V7h3v3H22V7h3Z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Manual Task
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Release Lock"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Release Lock
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Run Custom Task"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type code"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M31 16 24 23 22.59 21.59 28.17 16 22.59 10.41 24 9 31 16z"
-                              />
-                              <path
-                                d="M1 16 8 9 9.41 10.41 3.83 16 9.41 21.59 8 23 1 16z"
-                              />
-                              <path
-                                d="M5.91 15H26.080000000000002V17H5.91z"
-                                transform="rotate(-75 15.996 16)"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Run Custom Task
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Run Scheduled Workflow"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type automated task"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M6.34 19H17.65V21H6.34z"
-                                transform="rotate(-45 11.995 20.002)"
-                              />
-                              <path
-                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Run Scheduled Workflow
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Run Workflow"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type automated task"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M6.34 19H17.65V21H6.34z"
-                                transform="rotate(-45 11.995 20.002)"
-                              />
-                              <path
-                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Run Workflow
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Set Result Parameter"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Set Result Parameter
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Set Workflow Result Status"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Set Workflow Result Status
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Switch"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type switch"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="m20,6c0,1.8584,1.2798,3.4106,3,3.8579v5.1421h-14v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4c0,1.8584,1.2798,3.4106,3,3.8579v5.1421c0,1.103.897,2,2,2h6v5.1421c-1.7202.4473-3,1.9995-3,3.8579,0,2.2056,1.7944,4,4,4s4-1.7944,4-4c0-1.8584-1.2798-3.4106-3-3.8579v-5.1421h6c1.103,0,2-.897,2-2v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4Zm-14,0c0-1.103.897-2,2-2s2,.897,2,2c0,1.103-.897,2-2,2s-2-.897-2-2Zm12,20c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2ZM26,6c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2Z"
-                                stroke-width="0"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Switch
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Acquire Lock"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Acquire Lock
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Manual Approval"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Manual Approval
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Manual Task"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type validate"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M14 20.18 10.41 16.59 9 18 14 23 23 14 21.59 12.58 14 20.18z"
-                              />
-                              <path
-                                d="M25,5H22V4a2,2,0,0,0-2-2H12a2,2,0,0,0-2,2V5H7A2,2,0,0,0,5,7V28a2,2,0,0,0,2,2H25a2,2,0,0,0,2-2V7A2,2,0,0,0,25,5ZM12,4h8V8H12ZM25,28H7V7h3v3H22V7h3Z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Manual Task
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Release Lock"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Release Lock
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Run Custom Task"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type code"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M31 16 24 23 22.59 21.59 28.17 16 22.59 10.41 24 9 31 16z"
-                              />
-                              <path
-                                d="M1 16 8 9 9.41 10.41 3.83 16 9.41 21.59 8 23 1 16z"
-                              />
-                              <path
-                                d="M5.91 15H26.080000000000002V17H5.91z"
-                                transform="rotate(-75 15.996 16)"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Run Custom Task
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Run Scheduled Workflow"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type automated task"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M6.34 19H17.65V21H6.34z"
-                                transform="rotate(-45 11.995 20.002)"
-                              />
-                              <path
-                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Run Scheduled Workflow
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Run Workflow"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type automated task"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M6.34 19H17.65V21H6.34z"
-                                transform="rotate(-45 11.995 20.002)"
-                              />
-                              <path
-                                d="M17,30a1,1,0,0,1-.37-.07,1,1,0,0,1-.62-.79l-1-7,2-.28.75,5.27L21,24.52V17a1,1,0,0,1,.29-.71l4.07-4.07A8.94,8.94,0,0,0,28,5.86V4H26.14a8.94,8.94,0,0,0-6.36,2.64l-4.07,4.07A1,1,0,0,1,15,11H7.48L4.87,14.26l5.27.75-.28,2-7-1a1,1,0,0,1-.79-.62,1,1,0,0,1,.15-1l4-5A1,1,0,0,1,7,9h7.59l3.77-3.78A10.92,10.92,0,0,1,26.14,2H28a2,2,0,0,1,2,2V5.86a10.92,10.92,0,0,1-3.22,7.78L23,17.41V25a1,1,0,0,1-.38.78l-5,4A1,1,0,0,1,17,30Z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Run Workflow
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Set Result Parameter"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Set Result Parameter
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Set Workflow Result Status"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type edit"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M2 26H30V28H2z"
-                              />
-                              <path
-                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Set Workflow Result Status
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Switch"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type switch"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="m20,6c0,1.8584,1.2798,3.4106,3,3.8579v5.1421h-14v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4c0,1.8584,1.2798,3.4106,3,3.8579v5.1421c0,1.103.897,2,2,2h6v5.1421c-1.7202.4473-3,1.9995-3,3.8579,0,2.2056,1.7944,4,4,4s4-1.7944,4-4c0-1.8584-1.2798-3.4106-3-3.8579v-5.1421h6c1.103,0,2-.897,2-2v-5.1421c1.7202-.4473,3-1.9995,3-3.8579,0-2.2056-1.7944-4-4-4s-4,1.7944-4,4Zm-14,0c0-1.103.897-2,2-2s2,.897,2,2c0,1.103-.897,2-2,2s-2-.897-2-2Zm12,20c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2ZM26,6c0,1.103-.897,2-2,2s-2-.897-2-2c0-1.103.897-2,2-2s2,.897,2,2Z"
-                                stroke-width="0"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Switch
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Tyson Workspace - Wait For Event"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type power on/off"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 16 16"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M11.2,2.9l-0.5,0.9c2.6,1.5,3.5,4.9,2,7.5s-4.9,3.5-7.5,2s-3.5-4.9-2-7.5c0.5-0.8,1.2-1.5,2-2L4.8,2.9 c-3.1,1.8-4.2,5.8-2.4,8.9s5.8,4.2,8.9,2.4s4.2-5.8,2.4-8.9C13.1,4.3,12.2,3.4,11.2,2.9z"
-                              />
-                              <path
-                                d="M7.5 1H8.5V8H7.5z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Tyson Workspace - Wait For Event
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                          <p
-                            class="_taskSubtext_bdbb1e"
-                          >
-                            Workspace Task
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                    <li>
-                      <div
-                        aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
-                        draggable="true"
-                        role="option"
-                        tabindex="0"
-                        title="Wait For Event"
-                      >
-                        <div
-                          class="_columnContainer_bdbb1e"
-                        >
-                          <div
-                            class="_rowContainer_bdbb1e"
-                          >
-                            <svg
-                              alt="Task node type power on/off"
-                              aria-hidden="true"
-                              class="_taskIcon_bdbb1e"
-                              fill="currentColor"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 16 16"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M11.2,2.9l-0.5,0.9c2.6,1.5,3.5,4.9,2,7.5s-4.9,3.5-7.5,2s-3.5-4.9-2-7.5c0.5-0.8,1.2-1.5,2-2L4.8,2.9 c-3.1,1.8-4.2,5.8-2.4,8.9s5.8,4.2,8.9,2.4s4.2-5.8,2.4-8.9C13.1,4.3,12.2,3.4,11.2,2.9z"
-                              />
-                              <path
-                                d="M7.5 1H8.5V8H7.5z"
-                              />
-                            </svg>
-                            <p
-                              class="_taskName_bdbb1e"
-                            >
-                               
-                              Wait For Event
-                               
-                            </p>
-                            <svg
-                              aria-hidden="true"
-                              fill="#0072C3"
-                              focusable="false"
-                              height="16"
-                              preserveAspectRatio="xMidYMid meet"
-                              style="will-change: auto;"
-                              viewBox="0 0 32 32"
-                              width="16"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </li>
           </ul>
         </section>
       </aside>
@@ -12682,6 +12729,9 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
       </aside>
     </div>
   </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
   <div
     class="cds--bmrg-modal-portal"
   />

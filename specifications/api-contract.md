@@ -113,6 +113,14 @@ public shapes; the entities are separate classes and MUST NOT be returned from a
 `TaskRun` is `@JsonInclude(NON_NULL)`, so a null field is absent rather than `null`
 (`PublicRunModelSerialisationTest.java:97-99`).
 
+A for-each task appears in a run's task list as one parent `TaskRun` under the task's name plus one item
+`TaskRun` per element, named `<name>[<index>]` and carrying `parentRef` (the parent's `id`) and `index` (from 0);
+both fields are absent on every other task run (`TaskRun.java:55-56`). Items keep their own `status`,
+`statusReason` and logs. The parent's `foreach` setting and resolved item array stay on the entity; items expose no
+execution state (`PublicRunModelSerialisationTest.aForeachItemExposesItsParentAndIndexButNoExecutionState`). The
+parent's `statusReason` is `ItemFailed`, `ForeachItemsInvalid`, `ForeachTooManyItems`, or `ResultsTooLarge` when
+its combined results exceed MongoDB's 16 MB document limit, when it fails for a for-each cause (`TaskRunEndRequest.java:22-30`).
+
 ## YAML content negotiation
 
 Task definitions are also served and accepted as `application/x-yaml`, chosen by the `Accept`
@@ -227,6 +235,17 @@ runtime values are `RunParam` (`name`, `value`; `common/model/RunParam.java:10-1
 | `Workflow.params`, `Task.spec.params`, `Workspace.parameters` | definitions | `AbstractParam` (`Workflow.java:59`, `TaskSpec.java:17`, `workspace/model/Workspace.java:25`) |
 | `WorkflowTask.params`, `WorkflowRun.params`, `TaskRun.params` | values | `RunParam` (`WorkflowTask.java:43`, `WorkflowRun.java:65`, `TaskRun.java:39`) |
 | `WorkflowCanvas.config` (webapp type only) | editor-only view of the same definitions | `client-web/src/Types/index.tsx:348` |
+
+A workflow task (and the canvas node's `data`) MAY carry `foreach: { "items": … }`, where `items` is a JSON array
+literal or one whole-value reference such as `"$(tasks.stage.results.batches)"` (`WorkflowTask.java:50`,
+`workflow/model/CanvasNodeData.java:21`). Each item receives two extra `RunParam`s, `item` (the element, an object
+or array when it is one) and `index`, so `$(params.item)` and `$(params.index)` resolve inside the task. After the
+task, `$(tasks.<name>.results.<result>)` is a JSON array in item order with `null` for an item that did not succeed.
+Saving refuses, with `WORKFLOW_INVALID_TASK_FOREACH` (1213), items that are neither an array nor one reference, a
+literal array longer than `max.foreach.items`, a task type a dispatcher does not run (including `start` and `end`),
+and a task whose template declares `item` or `index`; it refuses a task name ending in `[<digits>]` with
+`WORKFLOW_INVALID_TASK_NAME` (1214), since that suffix marks items (`workflow/WorkflowService.java:1689-1697`,
+`:1700-1708`, `:1789-1826`).
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in
 the webapp's canvas type and in `DataAdapterUtil.filterRunParamValueByFieldType`'s parameter name

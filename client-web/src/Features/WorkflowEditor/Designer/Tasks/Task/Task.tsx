@@ -9,10 +9,19 @@ import styles from "./task.module.scss";
 
 // `scope` isn't part of the canonical Task shape - it's stamped onto workspace tasks
 // by Editor.tsx's prefixWorkspaceTask to distinguish them from global tasks here.
-function Task({ name, icon, verified, scope, taskData }: TaskType & { taskData: TaskType; scope?: string }) {
+// `renderIcon` overrides the icon lookup for palette entries that are not catalogue tasks
+// (the synthetic "For each" entry).
+function Task({
+  name,
+  icon,
+  verified,
+  scope,
+  taskData,
+  renderIcon,
+}: TaskType & { taskData: TaskType; scope?: string; renderIcon?: React.ComponentType<{ className?: string }> }) {
   const [isDragActive, setIsDragActive] = React.useState(false);
   const isWorkspaceTask = scope === "workspace";
-  const TaskIcon = taskIcons.find((currentIcon) => currentIcon.name === icon);
+  const TaskIcon = renderIcon ? { Icon: renderIcon } : taskIcons.find((currentIcon) => currentIcon.name === icon);
 
   const onDragStart = (event: any, task: TaskType) => {
     event.dataTransfer.setData("application/reactflow", JSON.stringify(task));

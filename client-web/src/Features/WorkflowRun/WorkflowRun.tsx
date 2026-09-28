@@ -24,6 +24,7 @@ import {
   WorkflowRun,
 } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { foreachTaskNames } from "Utils/taskRunHelper";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
 import WorkflowActions from "./WorkflowActions";
@@ -334,7 +335,12 @@ function Main(props: MainProps) {
         executionViewRedirect={executionViewRedirect}
       />
       <section aria-label="Executions" className={styles.executionResultContainer}>
-        <RunTaskLog workflowRun={workflowRun} actions={actions} executionViewRedirect={executionViewRedirect} />
+        <RunTaskLog
+          workflowRun={workflowRun}
+          actions={actions}
+          executionViewRedirect={executionViewRedirect}
+          foreachTaskNames={foreachTaskNames(workflow.nodes)}
+        />
         <div className={styles.executionDesignerContainer}>
           <div className={styles.executionWorkflowActions}>
             <WorkflowActions workflow={workflow} />

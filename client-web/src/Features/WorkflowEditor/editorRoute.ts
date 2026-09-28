@@ -1,3 +1,4 @@
+import { formatErrorMessage } from "@boomerang-io/utils";
 import moment from "moment-timezone";
 import queryString from "query-string";
 import { tokenAction, workflowTokensLoader, TOKEN_INTENTS } from "Components/TokenSection/tokenRoute";
@@ -274,9 +275,14 @@ export async function editorAction({
     });
     return { intent: "createRevision" as const, workflow: response.data };
   } catch (error) {
+    // Keep the backend's reason - e.g. a for-each task over the admin's item cap - so the editor
+    // can say why the version was refused.
     return actionError({
       intent: "createRevision" as const,
-      error: { title: "Something's Wrong", message: "Failed to create workflow version" },
+      error: {
+        title: "Something's Wrong",
+        message: formatErrorMessage({ error, defaultMessage: "Failed to create workflow version" }).message,
+      },
     });
   }
 }

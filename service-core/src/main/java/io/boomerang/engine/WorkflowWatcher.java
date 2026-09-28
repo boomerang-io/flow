@@ -63,6 +63,9 @@ public class WorkflowWatcher {
 
   private static final int MAX_RETRIES = 3;
 
+  // A run is provisioned at most this many times; a stale claim on the last attempt fails it.
+  private static final int MAX_PROVISION_ATTEMPTS = 3;
+
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
@@ -89,6 +92,11 @@ public class WorkflowWatcher {
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
+
+  // How long a provisioning claim may go without the run starting before it is treated as lost.
+  // Well above the dispatcher's per-claim storage wait (kube.timeout.waitUntil, 30s by default).
+  @Value("${flow.watcher.provision-claim-grace-ms:300000}")
+  private long provisionClaimGraceMillis;
 
   public WorkflowWatcher(
       TaskRunService taskRunService,
@@ -140,10 +148,12 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverForeachTasks", this::recoverForeachTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
@@ -216,6 +226,43 @@ public class WorkflowWatcher {
         },
         (wfRun, ex) ->
             LOGGER.error("[{}] Stalled-run recovery failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * Recover foreach tasks running with no item in flight - a crash between the parent's fan-out
+   * and its last item, between its last item ending and the parent completing, or between the
+   * parent's outcome being recorded and its end. A running parent counts as in flight, so {@link
+   * #recoverStalledRuns} never reaches it. A parent with its outcome recorded is ended - the
+   * completion Compare-And-Set makes a repeated end a no-op. Any other is recovered by the same
+   * idempotent fan-out the live path runs: missing items are created, unqueued items queued, and a
+   * parent whose items are all terminal completed. A paused run's fan-out is left to resume.
+   */
+  public void recoverForeachTasks() {
+    Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
+    SweepRunner.forEachIsolated(
+        taskRunService.findRunningForeachParents(startedBefore, PAGE_SIZE),
+        parent -> {
+          if (!RunStatus.running.equals(parent.getStatus())) {
+            LOGGER.info(
+                "[{}] Foreach TaskRun has its outcome recorded but was never ended. Ending it.",
+                parent.getId());
+            taskExecutionService.end(parent.getId(), Optional.empty(), Optional.empty());
+          } else if (!taskRunService.existsInFlightItem(parent.getId())
+              && !isRunPaused(parent.getWorkflowRunRef())) {
+            LOGGER.info(
+                "[{}] Running foreach TaskRun has no item in flight. Recovering its fan-out.",
+                parent.getId());
+            taskExecutionService.fanOutItems(parent.getId());
+          }
+        },
+        (parent, ex) ->
+            LOGGER.error("[{}] Foreach recovery failed: {}", parent.getId(), ex.getMessage()));
+  }
+
+  // A paused run's pending items are held by the pause gate; fanning out would only queue each one
+  // to be refused again. Resume re-runs the fan-out through advance.
+  private boolean isRunPaused(String wfRunRef) {
+    return workflowRunRepository.findById(wfRunRef).map(WorkflowRunEntity::isPaused).orElse(false);
   }
 
   /**
@@ -330,20 +377,65 @@ public class WorkflowWatcher {
                 "[{}] WorkflowRun revision {} no longer resolves. Failed outright.",
                 wfRun.getId(),
                 wfRun.getWorkflowRevisionRef());
-            taskRunService
-                .findNonTerminalByWorkflowRunRef(wfRun.getId())
-                .forEach(
-                    t -> {
-                      if (RunPhase.pending.equals(t.getPhase())) {
-                        taskExecutionService.queue(t.getId());
-                      } else {
-                        taskExecutionService.end(t.getId());
-                      }
-                    });
+            windDownTasks(wfRun.getId());
           }
         },
         (wfRun, ex) ->
             LOGGER.error("[{}] Missing-revision reap failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  // Wind down the stored TaskRuns of a run just completed here: a pending one is queued so the
+  // admission gate skips it, anything else is ended - both settle against the completed run.
+  private void windDownTasks(String wfRunId) {
+    taskRunService
+        .findNonTerminalByWorkflowRunRef(wfRunId)
+        .forEach(
+            t -> {
+              if (RunPhase.pending.equals(t.getPhase())) {
+                taskExecutionService.queue(t.getId());
+              } else {
+                taskExecutionService.end(t.getId());
+              }
+            });
+  }
+
+  /**
+   * Recover WorkflowRuns claimed for workspace provisioning that never started - the dispatcher
+   * failed to provision, or died holding the claim. The claim is released back to claimable for the
+   * next dispatcher poll to retry; a run whose last allowed attempt went stale is failed instead.
+   * Both transitions are fenced on the observed claim seq, so a start or a fresh claim wins.
+   */
+  public void recoverStaleProvisionClaims() {
+    Date claimedBefore = new Date(System.currentTimeMillis() - provisionClaimGraceMillis);
+    SweepRunner.forEachIsolated(
+        workflowRunStateHelper.findStaleProvisionClaims(claimedBefore, PAGE_SIZE),
+        wfRun -> {
+          long attempts = wfRun.getClaim().getSeq();
+          if (attempts < MAX_PROVISION_ATTEMPTS) {
+            if (workflowRunStateHelper.tryReleaseProvisionClaim(wfRun.getId(), attempts) != null) {
+              LOGGER.info(
+                  "[{}] Provisioning claim by {} went stale. Released after attempt {}.",
+                  wfRun.getId(),
+                  wfRun.getClaim().getBy(),
+                  attempts);
+            }
+          } else if (workflowRunStateHelper.tryFailProvision(
+                  wfRun.getId(),
+                  attempts,
+                  MessageFormatter.format(
+                          "Workspace provisioning did not complete after {} attempts.", attempts)
+                      .getMessage())
+              != null) {
+            LOGGER.error(
+                "[{}] Workspace provisioning did not complete after {} attempts. Run failed.",
+                wfRun.getId(),
+                attempts);
+            windDownTasks(wfRun.getId());
+          }
+        },
+        (wfRun, ex) ->
+            LOGGER.error(
+                "[{}] Stale provisioning-claim recovery failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**

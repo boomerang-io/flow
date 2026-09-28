@@ -65,3 +65,5 @@ things by name, not by code.
 | 0080 | [An unknown reference is 404; a malformed request stays 400](0080-an-unknown-reference-is-404-a-malformed-one-is-400.md) | accepted | 2026-09-16 |
 | 0079 | [A status CloudEvent carries a run's identity and lifecycle, not the run model](0079-status-events-carry-identity-and-lifecycle-not-the-run-model.md) | accepted | 2026-09-16 |
 | 0081 | [Leftover Tekton runtime objects are cleaned by our own reconciler](0081-leftover-tekton-runtime-objects-are-cleaned-by-our-own-reconciler.md) | accepted | 2026-09-23 |
+| 0082 | [A task runs once per item through a `foreach` setting on the task](0082-foreach-fan-out-of-one-task.md) | accepted | 2026-09-26 |
+| 0083 | [The "For each" palette item is an entry point to the task setting](0083-the-for-each-palette-item-is-an-entry-point-to-the-task-setting.md) | accepted | 2026-09-26 |

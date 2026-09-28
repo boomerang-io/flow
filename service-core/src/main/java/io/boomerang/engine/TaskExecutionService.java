@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.workflow.WorkflowRunService;
 import tools.jackson.databind.ObjectMapper;
+import com.mongodb.MongoException;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -26,12 +27,19 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.BsonMaximumSizeExceededException;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,10 +79,23 @@ public class TaskExecutionService {
 
   // The child-workflow nesting cap, and the typed cause written when a task trips it. The cap
   // keeps a workflow that runs itself from recursing until it exhausts the workspace quota.
-  static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
+  public static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
   static final String MAX_NESTING_DEPTH = "max.nesting.depth";
   static final int DEFAULT_MAX_NESTING_DEPTH = 5;
   static final String NESTING_DEPTH_EXCEEDED = "NestingDepthExceeded";
+
+  // The foreach item cap, read from the same settings document, and the typed causes a foreach
+  // task fails with. The cap is public because saving a workflow checks a literal item array
+  // against it too.
+  public static final String MAX_FOREACH_ITEMS = "max.foreach.items";
+  public static final int DEFAULT_MAX_FOREACH_ITEMS = 256;
+  static final String FOREACH_ITEMS_INVALID = "ForeachItemsInvalid";
+  static final String FOREACH_TOO_MANY_ITEMS = "ForeachTooManyItems";
+  static final String ITEM_FAILED = "ItemFailed";
+  static final String RESULTS_TOO_LARGE = "ResultsTooLarge";
+  // MongoDB's codes for a document that grows past its 16 MB limit: BSONObjectTooLarge, and an
+  // update whose resulting document is too large.
+  private static final Set<Integer> DOCUMENT_TOO_LARGE_CODES = Set.of(10334, 17419);
 
   @Value("${flow.engine.task.params.max-bytes:16384}")
   private int paramsMaxBytes;
@@ -164,12 +185,22 @@ public class TaskExecutionService {
       return;
     }
 
-    // Ensure Task is valid as part of Graph
-    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.get().getId());
-    boolean canRunTask = dagUtility.canRunTask(tasks, taskExecution);
+    // Ensure Task is valid as part of Graph. A foreach item is not a vertex - its parent passed
+    // this check when it fanned out.
+    boolean canRunTask =
+        taskExecution.getParentRef() != null
+            || dagUtility.canRunTask(
+                dagUtility.retrieveTaskList(wfRunEntity.get().getId()), taskExecution);
     LOGGER.debug("[{}] Can run task? {}", taskExecutionId, canRunTask);
 
     if (canRunTask) {
+      // A foreach task fans out into items instead of being admitted. Each item resolves its own
+      // params when it is queued, so $(params.item) and $(params.index) resolve per item.
+      if (taskExecution.getForeach() != null) {
+        fanOut(wfRunEntity.get(), taskExecution);
+        return;
+      }
+
       // Resolve Parameter Substitutions
       paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
 
@@ -508,6 +539,13 @@ public class TaskExecutionService {
       return;
     }
 
+    // An item never advances the graph: it completes its parent once every item is terminal, and
+    // the parent's own end advances.
+    if (taskExecution.getParentRef() != null) {
+      completeParentIfItemsTerminal(taskExecution.getParentRef());
+      return;
+    }
+
     // Winner-only graph advance. No workflow-level lock: admission and completion
     // Compare-And-Set transitions make a duplicate or concurrent advance a no-op.
     List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.getId());
@@ -546,6 +584,223 @@ public class TaskExecutionService {
       boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, completed);
       executeNextStep(wfRunEntity, tasks, completed, finishedAllDependencies);
     }
+    // A running foreach task re-queues the items a pause held back, and recovers a fan-out or a
+    // parent completion that a crash cut short.
+    tasks.stream()
+        .filter(t -> t.getForeach() != null && RunPhase.running.equals(t.getPhase()))
+        .forEach(t -> fanOutItems(t.getId()));
+  }
+
+  /*
+   * Fan out a foreach task: resolve its items to a JSON array within the cap, then move it to
+   * running through its own Compare-And-Set - never through admission, so the parent is never
+   * claimable - and create and queue one item per element. Items that do not resolve to an array,
+   * or exceed the cap, fail the task with a typed reason. An empty array succeeds it at once.
+   */
+  private void fanOut(WorkflowRunEntity wfRunEntity, TaskRunEntity parent) {
+    List<Object> items =
+        foreachItemsOf(
+            paramManager.resolveParamValue(wfRunEntity, parent, parent.getForeach().getItems()));
+    int cap = maxForeachItems();
+    String reason = null;
+    String message = null;
+    if (items == null) {
+      reason = FOREACH_ITEMS_INVALID;
+      message = "The for-each items did not resolve to a JSON array.";
+    } else if (items.size() > cap) {
+      reason = FOREACH_TOO_MANY_ITEMS;
+      message =
+          "The for-each items resolved to " + items.size() + " items, over the cap of " + cap + ".";
+    }
+    if (taskRunService.tryStartForeach(parent.getId(), new Date(), (reason == null ? items : null))
+        == null) {
+      LOGGER.info("[{}] Foreach TaskRun already fanned out. Nothing to do.", parent.getId());
+      return;
+    }
+    if (reason != null) {
+      LOGGER.error("[{}] {}", parent.getId(), message);
+      taskRunService.tryRecordForeachOutcome(parent.getId(), RunStatus.failed, message, reason, null);
+      self.end(parent.getId());
+      return;
+    }
+    fanOutItems(parent.getId());
+  }
+
+  /*
+   * Create any missing item of a running foreach parent, queue every item not yet admitted, then
+   * complete the parent if its items are all terminal. Idempotent, so the fan-out, a resume and the
+   * watcher's recovery all call it: an item is created only when its name is free - the
+   * (workflowRunRef, name) unique index makes a concurrent duplicate lose - and queue admits an
+   * item at most once.
+   */
+  public void fanOutItems(String parentId) {
+    TaskRunEntity parent = taskRunRepository.findById(parentId).orElse(null);
+    if (parent == null
+        || !RunPhase.running.equals(parent.getPhase())
+        || parent.getForeach() == null
+        || !(parent.getForeach().getItems() instanceof List<?> items)) {
+      return;
+    }
+    Map<Integer, TaskRunEntity> existing =
+        taskRunRepository.findByParentRefOrderByIndexAsc(parentId).stream()
+            .collect(Collectors.toMap(TaskRunEntity::getIndex, Function.identity(), (a, b) -> a));
+    for (int index = 0; index < items.size(); index++) {
+      TaskRunEntity item = existing.get(index);
+      if (item == null) {
+        try {
+          item = taskRunRepository.insert(newItem(parent, index, items.get(index)));
+        } catch (DuplicateKeyException created) {
+          LOGGER.info("[{}] Item {} already created. Its creator queues it.", parentId, index);
+          continue;
+        }
+      }
+      if (RunStatus.notstarted.equals(item.getStatus())
+          && RunPhase.pending.equals(item.getPhase())) {
+        self.queue(item.getId());
+      }
+    }
+    completeParentIfItemsTerminal(parentId);
+  }
+
+  /*
+   * An item of a foreach parent: the parent's type, task, spec, workspaces, declared results,
+   * timeout, labels and annotations, no dependencies, and the parent's params plus item and index.
+   * Its params and spec resolve when it is queued, like any task's.
+   */
+  private static TaskRunEntity newItem(TaskRunEntity parent, int index, Object element) {
+    TaskRunEntity item = new TaskRunEntity();
+    item.setName(parent.getName() + "[" + index + "]");
+    item.setParentRef(parent.getId());
+    item.setIndex(index);
+    item.setType(parent.getType());
+    item.setStatus(RunStatus.notstarted);
+    item.setPhase(RunPhase.pending);
+    item.setCreationDate(new Date());
+    item.setTaskRef(parent.getTaskRef());
+    item.setTaskVersion(parent.getTaskVersion());
+    item.setWorkflowRef(parent.getWorkflowRef());
+    item.setWorkflowRevisionRef(parent.getWorkflowRevisionRef());
+    item.setWorkflowRunRef(parent.getWorkflowRunRef());
+    item.setLabels(new HashMap<>(parent.getLabels()));
+    item.setAnnotations(new HashMap<>(parent.getAnnotations()));
+    item.setTimeout(parent.getTimeout());
+    item.setWorkspaces(parent.getWorkspaces());
+    item.setSpec(parent.getSpec());
+    item.setResults(
+        parent.getResults().stream()
+            .map(r -> new RunResult(r.getName(), r.getDescription(), r.getValue()))
+            .collect(Collectors.toCollection(LinkedList::new)));
+    item.setDependencies(new LinkedList<>());
+    List<RunParam> params =
+        parent.getParams().stream()
+            .filter(p -> !"item".equalsIgnoreCase(p.getName()) && !"index".equalsIgnoreCase(p.getName()))
+            .collect(Collectors.toCollection(LinkedList::new));
+    // An object or array item resolves and reaches the container as JSON; anything else as text.
+    params.add(
+        new RunParam(
+            "item",
+            element,
+            (element instanceof Map || element instanceof List ? ParamType.object : ParamType.string)));
+    params.add(new RunParam("index", String.valueOf(index), ParamType.string));
+    item.setParams(params);
+    return item;
+  }
+
+  /*
+   * Complete a running foreach parent once every item is terminal. It succeeds only when every item
+   * succeeded, and each declared result becomes a JSON array in item order, null for an item that
+   * did not succeed. The outcome is recorded field-scoped and the parent then ends through the
+   * ordinary completion Compare-And-Set, so of any number of concurrent last-item enders exactly
+   * one completes it and advances the graph.
+   */
+  void completeParentIfItemsTerminal(String parentRef) {
+    TaskRunEntity parent = taskRunRepository.findById(parentRef).orElse(null);
+    if (parent == null
+        || !RunPhase.running.equals(parent.getPhase())
+        || parent.getForeach() == null
+        || !(parent.getForeach().getItems() instanceof List<?> expected)) {
+      return;
+    }
+    // Each item end asks first whether any item is unfinished, and only the last loads them all.
+    if (!taskRunService.allItemsCompleted(parentRef, expected.size())) {
+      return;
+    }
+    List<TaskRunEntity> items = taskRunService.findItemOutcomes(parentRef);
+    long failed = items.stream().filter(item -> !RunStatus.succeeded.equals(item.getStatus())).count();
+    List<RunResult> results = new LinkedList<>();
+    for (RunResult declared : parent.getResults()) {
+      List<Object> values = new ArrayList<>(items.size());
+      items.forEach(
+          item ->
+              values.add(
+                  (RunStatus.succeeded.equals(item.getStatus())
+                      ? resultValueOf(item, declared.getName())
+                      : null)));
+      results.add(new RunResult(declared.getName(), declared.getDescription(), values));
+    }
+    try {
+      taskRunService.tryRecordForeachOutcome(
+          parentRef,
+          (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
+          (failed == 0
+              ? "All " + items.size() + " items succeeded."
+              : failed + " of " + items.size() + " items did not succeed."),
+          (failed == 0 ? null : ITEM_FAILED),
+          results);
+    } catch (RuntimeException ex) {
+      if (!isDocumentTooLarge(ex)) {
+        throw ex;
+      }
+      // The combined results cannot be stored, so the task fails without them rather than hang.
+      String message =
+          "The combined results of "
+              + items.size()
+              + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
+              + " (workspace path or URI).";
+      LOGGER.error("[{}] {}", parentRef, message);
+      taskRunService.tryRecordForeachOutcome(
+          parentRef, RunStatus.failed, message, RESULTS_TOO_LARGE, null);
+    }
+    self.end(parentRef);
+  }
+
+  // Whether a write failed because the document, or the command carrying it, is over MongoDB's
+  // 16 MB limit - rejected by the driver before sending, or by the server.
+  private static boolean isDocumentTooLarge(Throwable ex) {
+    for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+      if (cause instanceof BsonMaximumSizeExceededException
+          || (cause instanceof MongoException mongoException
+              && DOCUMENT_TOO_LARGE_CODES.contains(mongoException.getCode()))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Object resultValueOf(TaskRunEntity taskRun, String name) {
+    return taskRun.getResults().stream()
+        .filter(r -> name.equals(r.getName()))
+        .map(RunResult::getValue)
+        .findFirst()
+        .orElse(null);
+  }
+
+  // The item array a resolved foreach value holds: a List as is, or text holding a JSON array (a
+  // task result arrives as text). Null for anything else.
+  private static List<Object> foreachItemsOf(Object value) {
+    if (value instanceof List<?> list) {
+      return new ArrayList<>(list);
+    }
+    if (value instanceof String string) {
+      try {
+        return (OBJECT_MAPPER.readValue(string, Object.class) instanceof List<?> list
+            ? new ArrayList<>(list)
+            : null);
+      } catch (RuntimeException notJson) {
+        return null;
+      }
+    }
+    return null;
   }
 
   /*
@@ -883,12 +1138,20 @@ public class TaskExecutionService {
    * seeded (an engine whose database predates it still has a cap).
    */
   private int maxNestingDepth() {
+    return workflowRunSetting(MAX_NESTING_DEPTH, DEFAULT_MAX_NESTING_DEPTH);
+  }
+
+  // The foreach item cap, with the same fallback.
+  private int maxForeachItems() {
+    return workflowRunSetting(MAX_FOREACH_ITEMS, DEFAULT_MAX_FOREACH_ITEMS);
+  }
+
+  private int workflowRunSetting(String key, int defaultValue) {
     try {
-      String value =
-          settingsService.getSettingConfig(WORKFLOWRUN_SETTINGS_KEY, MAX_NESTING_DEPTH).getValue();
-      return NumberUtils.isDigits(value) ? Integer.parseInt(value) : DEFAULT_MAX_NESTING_DEPTH;
+      String value = settingsService.getSettingConfig(WORKFLOWRUN_SETTINGS_KEY, key).getValue();
+      return NumberUtils.isDigits(value) ? Integer.parseInt(value) : defaultValue;
     } catch (RuntimeException notConfigured) {
-      return DEFAULT_MAX_NESTING_DEPTH;
+      return defaultValue;
     }
   }
 

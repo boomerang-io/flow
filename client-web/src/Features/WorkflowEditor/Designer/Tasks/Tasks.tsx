@@ -1,12 +1,13 @@
 // @ts-nocheck
 import { Component } from "react";
 import { Accordion, AccordionItem, Checkbox, Layer, OverflowMenu, Search } from "@carbon/react";
-import { ChevronLeft, SettingsAdjust, Recommend } from "@carbon/react/icons";
+import { ChevronLeft, Recommend, Repeat, SettingsAdjust } from "@carbon/react/icons";
 import { CheckboxList } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sortByProp } from "@boomerang-io/utils";
 import cx from "classnames";
 import uniqBy from "lodash/uniqBy";
 import { matchSorter } from "match-sorter";
+import { FOREACH_PALETTE_TYPE } from "Features/Reactflow/components/shared/foreach";
 import { groupTasksByName } from "Utils";
 import { taskIcons } from "Utils/taskIcons";
 import type { Task as TaskType } from "Types";
@@ -14,6 +15,22 @@ import Task from "./Task";
 import styles from "./tasks.module.scss";
 
 const FIRST_TASK_CATEGORY = "workflow";
+
+// Catalogue categories arrive capitalised ("Workflow"); compare them without case.
+const isFirstTaskCategory = (category: string) => category?.toLowerCase() === FIRST_TASK_CATEGORY;
+
+// Not a catalogue task: dropping it opens "Repeat a task for each item" on the canvas, which then
+// places the chosen task with its for-each setting on. Only `type` is read on drop.
+const FOREACH_PALETTE_ENTRY = {
+  id: FOREACH_PALETTE_TYPE,
+  name: FOREACH_PALETTE_TYPE,
+  displayName: "For each",
+  description: "Repeat a task once per item of a list",
+  type: FOREACH_PALETTE_TYPE,
+};
+const ForeachIcon = ({ className = "", ...props }) => (
+  <Repeat alt="Task node type for each" style={{ willChange: "auto" }} className={className} {...props} />
+);
 
 interface TaskProps {
   tasks: Array<TaskType>;
@@ -113,6 +130,13 @@ export default class Tasks extends Component<TaskProps> {
   handleSearchFilter = (searchQuery: string, tasksToDisplay) =>
     matchSorter(tasksToDisplay, searchQuery, { keys: ["category", "name"] });
 
+  // The "For each" entry follows the search box but has no task type or verified badge, so any
+  // filter hides it.
+  showForeachEntry = () =>
+    this.state.activeFilters.length === 0 &&
+    !this.state.showVerified &&
+    matchSorter([FOREACH_PALETTE_ENTRY], this.state.searchQuery, { keys: ["displayName", "name"] }).length > 0;
+
   determineTasks = () => {
     const taskTemplatesByName = groupTasksByName(this.state.tasksToDisplay);
     // List of distinct task names by latest version
@@ -129,10 +153,20 @@ export default class Tasks extends Component<TaskProps> {
       return accum;
     }, {});
 
+    const showForeach = this.showForeachEntry();
+    const foreachCategory = Object.keys(catgegoriesWithTasks).find(isFirstTaskCategory) ?? "Workflow";
+    if (showForeach && !catgegoriesWithTasks[foreachCategory]) {
+      catgegoriesWithTasks[foreachCategory] = [];
+    }
+
     // Push "workflow" to front of array and delete the other instance of it w/ set
     const uniqueCategories = uniqBy(Object.keys(catgegoriesWithTasks)).sort((categoryA, categoryB) => {
-      if (categoryA === FIRST_TASK_CATEGORY) {
+      if (isFirstTaskCategory(categoryA)) {
         return -1;
+      }
+
+      if (isFirstTaskCategory(categoryB)) {
+        return 1;
       }
 
       if (categoryA < categoryB) {
@@ -152,15 +186,26 @@ export default class Tasks extends Component<TaskProps> {
         {uniqueCategories.map((category) => (
           <AccordionItem
             className={styles.taskCategory}
-            title={`${category} (${catgegoriesWithTasks[category].length})`}
+            title={`${category} (${
+              catgegoriesWithTasks[category].length + (showForeach && category === foreachCategory ? 1 : 0)
+            })`}
             open={
-              this.state.isAccordionOpen || (category === FIRST_TASK_CATEGORY && this.state.firstTaskCategoryIsOpen)
+              this.state.isAccordionOpen || (isFirstTaskCategory(category) && this.state.firstTaskCategoryIsOpen)
                 ? true
                 : null
             }
             key={category}
           >
             <ul className={styles.taskSection} key={category}>
+              {showForeach && category === foreachCategory ? (
+                <Task
+                  key={FOREACH_PALETTE_ENTRY.id}
+                  name={FOREACH_PALETTE_ENTRY.displayName}
+                  renderIcon={ForeachIcon}
+                  scope="global"
+                  taskData={FOREACH_PALETTE_ENTRY}
+                />
+              ) : null}
               {sortByProp(catgegoriesWithTasks[category], "name").map((task) => (
                 <Task
                   key={task.id}

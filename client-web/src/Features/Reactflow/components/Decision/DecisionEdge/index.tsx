@@ -5,6 +5,7 @@ import { getBezierPath, EdgeLabelRenderer, useReactFlow } from "@xyflow/react";
 import { markerTypes } from "Features/Reactflow/Reactflow";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import { useRunContext, useWorkflowContext } from "Hooks";
+import { findTaskRunByName } from "Utils/taskRunHelper";
 import { WorkflowEngineMode } from "Constants";
 import { WorkflowEdge, WorkflowEdgeProps, WorkflowNode } from "Types";
 import ConfigureSwitchModal from "./ConfigureModal";
@@ -135,7 +136,7 @@ function SwitchEdgeRun(props: WorkflowEdgeProps) {
 
   // The workflow.nodes IDs change with each call, so need to keep it stable
   const nodeName = React.useRef(workflow.nodes.find((node) => node.id === props.source)?.data.name);
-  const status = workflowRun.tasks.find((task) => task.name === nodeName.current)?.status ?? "";
+  const status = findTaskRunByName(workflowRun.tasks, nodeName.current)?.status ?? "";
 
   return (
     <>

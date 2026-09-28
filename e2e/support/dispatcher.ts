@@ -20,6 +20,8 @@ export type WorkflowTaskSpec = {
   results?: { name: string; description?: string }[];
   workspaces?: { name: string; type: string; optional?: boolean; mountPath?: string }[];
   dependencies?: TaskDependency[];
+  // Run the task once per item: a JSON array literal or one reference (decision 0082).
+  foreach?: { items: unknown };
 };
 export type WorkflowSpec = {
   name: string;
@@ -38,6 +40,12 @@ export type TaskRunView = {
   statusMessage?: string;
   statusReason?: string;
   results?: { name: string; value: unknown }[];
+  params?: { name: string; value: unknown }[];
+  startTime?: string;
+  duration?: number;
+  // Set on the items of a for-each task: the parent task run's id and the item's position.
+  parentRef?: string;
+  index?: number;
 };
 export type WorkflowRunView = {
   id: string;

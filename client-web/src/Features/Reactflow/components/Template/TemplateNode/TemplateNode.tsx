@@ -1,17 +1,20 @@
 import React from "react";
 import { Bee } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
-import cx from "classnames";
 import { Handle, IsValidConnection, Position, useReactFlow } from "@xyflow/react";
+import cx from "classnames";
 import TaskUpdateModal from "Components/TaskUpdateModal";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import WorkflowEditButton from "Components/WorkflowEditButton";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 import { useEditorContext, useRunContext, useWorkflowContext } from "Hooks";
 import { taskIcons } from "Utils/taskIcons";
+import { findTaskRunByName, foreachItemRuns, summarizeForeachItems } from "Utils/taskRunHelper";
+import type { ForeachSummary } from "Utils/taskRunHelper";
 import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
+import { splitForeachValues } from "../../shared/foreach";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
 
@@ -39,7 +42,8 @@ interface TaskTemplateNodeEditorProps extends TaskTemplateNodeProps {
 }
 
 function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
-  const { taskTemplate, TaskForm = DefaultTaskForm } = props;
+  const { TaskForm = DefaultTaskForm } = props;
+  const { nodeToEdit, clearNodeToEdit } = useWorkflowContext();
   const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
 
   const { availableParameters } = useEditorContext();
@@ -48,12 +52,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   // Get the taskNames names from the nodes on the model
   const otherTaskNames = nodes.map((node) => node.data.name).filter((name) => name !== props.data.name);
 
-  props.formInputsToMerge?.forEach((input) => {
-    const foundConfigItemIdx = taskTemplate.spec.params?.findIndex((param) => param.name === input.name) ?? -1;
-    if (foundConfigItemIdx >= 0 && taskTemplate.spec.params) {
-      taskTemplate.spec.params[foundConfigItemIdx] = { ...taskTemplate.spec.params[foundConfigItemIdx], ...input };
-    }
-  });
+  const taskTemplate = mergeFormInputs(props.taskTemplate, props.formInputsToMerge);
 
   const handleOnUpdateTaskVersion = ({ inputs, version }: { inputs: Record<string, string>; version: number }) => {
     const nameAndParamListRecord = inputRecordToNameAndParamListRecord(inputs);
@@ -71,16 +70,20 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
     reactFlowInstance.setNodes(newNodes);
   };
 
+  // `results` is passed only by the forms whose results the user defines (custom and script tasks);
+  // any other task keeps the results it has.
   const handleOnSaveTaskConfig = (
     inputs: Record<string, string>,
-    results: Array<{ name: string; description: string }> = [],
+    results?: Array<{ name: string; description: string }>,
   ) => {
-    const nameAndParamListRecord = inputRecordToNameAndParamListRecord(inputs);
+    // The for-each setting shares the form with the params but is not a param.
+    const { foreach, rest } = splitForeachValues(inputs);
+    const nameAndParamListRecord = inputRecordToNameAndParamListRecord(rest);
     const newNodes = nodes.map((node) => {
       if (node.id === props.id) {
         return {
           ...node,
-          data: { ...node.data, ...nameAndParamListRecord, results },
+          data: { ...node.data, ...nameAndParamListRecord, results: results ?? node.data.results, foreach },
         };
       } else {
         return node;
@@ -101,6 +104,10 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       subtitle={taskTemplate.description}
     >
       <ComposedModal
+        isOpen={nodeToEdit === props.id}
+        onCloseModal={() => {
+          if (nodeToEdit === props.id) clearNodeToEdit?.();
+        }}
         modalHeaderProps={{
           title: `Edit ${taskTemplate.displayName}`,
           subtitle: taskTemplate.description || "Configure the task",
@@ -113,6 +120,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
             additionalFormInputs={props.additionalFormInputs}
             closeModal={closeModal}
             node={props.data}
+            nodeType={props.type}
             onSave={handleOnSaveTaskConfig}
             otherTaskNames={otherTaskNames}
             task={taskTemplate}
@@ -164,7 +172,11 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
     }
   };
 
-  const status = workflowRun.tasks.find((task) => task.name === props.data.name)?.status;
+  // The node stands for the task's own run; for a for-each task that is the parent, never an item.
+  const taskRun = findTaskRunByName(workflowRun.tasks, props.data.name);
+  const status = taskRun?.status;
+  const foreachProgress =
+    props.data.foreach && taskRun ? summarizeForeachItems(foreachItemRuns(workflowRun.tasks, taskRun.id)) : undefined;
 
   return (
     <BaseNode
@@ -172,6 +184,7 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
       icon={props.taskTemplate.icon}
       isConnectable={false}
       mode={WorkflowEngineMode.Run}
+      foreachProgress={foreachProgress}
       nodeProps={props}
       onClick={scrollToTask}
       status={status}
@@ -181,6 +194,32 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
   );
 }
 
+// A for-each node's badge: its items' progress once it has items, "0 items" when it succeeded with
+// none, and plain "For each" otherwise - before it fans out, or when it failed without items (its
+// failed colour and the task log's reason say why).
+function foreachBadgeText(progress: ForeachSummary | undefined, status: RunStatus | undefined) {
+  if (progress && progress.total > 0) {
+    return `For each · ${progress.succeeded} of ${progress.total} succeeded`;
+  }
+  if (progress && status === RunStatus.Succeeded) {
+    return "For each · 0 items";
+  }
+  return "For each";
+}
+
+// Lays the node type's own settings (such as the workspace's approver groups) over the template's
+// params, matched by name, on a copy so the shared task template is never changed.
+function mergeFormInputs(taskTemplate: Task, formInputsToMerge?: Array<Partial<DataDrivenInput>>): Task {
+  if (!formInputsToMerge?.length || !taskTemplate.spec.params) return taskTemplate;
+  const params = taskTemplate.spec.params.map((param) => {
+    const input = formInputsToMerge.find((candidate) => candidate.name === param.name);
+    return input ? { ...param, ...input } : param;
+  });
+  return { ...taskTemplate, spec: { ...taskTemplate.spec, params } };
+}
+
+// `results` is never a param: the default form shows a template's declared results read-only, and
+// the custom and script forms hand theirs to onSave separately.
 function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>): {
   name: string;
   params: Array<{ name: string; value: string }>;
@@ -190,9 +229,11 @@ function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>
   const name = inputRecord["taskName"];
   delete inputRecord["taskName"];
 
-  const params = Object.entries(inputRecord).map(([key, value]) => {
-    return { name: key, value };
-  });
+  const params = Object.entries(inputRecord)
+    .filter(([key]) => key !== "results")
+    .map(([key, value]) => {
+      return { name: key, value };
+    });
 
   return { name, params };
 }
@@ -204,6 +245,8 @@ function inputRecordToNameAndParamListRecord(inputRecord: Record<string, string>
 interface BaseNodeProps {
   children?: React.ReactNode;
   className?: string;
+  // Run mode only: how a for-each task's items have fared so far, shown in its badge.
+  foreachProgress?: ForeachSummary;
   icon?: string;
   isConnectable: boolean;
   mode: WorkflowEngineModeType;
@@ -215,7 +258,7 @@ interface BaseNodeProps {
 }
 
 function BaseNode(props: BaseNodeProps) {
-  const { isConnectable, children, className, icon, onClick, status, subtitle, title } = props;
+  const { isConnectable, children, className, foreachProgress, icon, onClick, status, subtitle, title } = props;
   const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
   let Icon = () => <Bee style={{ willChange: "auto" }} />;
 
@@ -225,6 +268,7 @@ function BaseNode(props: BaseNodeProps) {
   }
 
   const isEditor = props.mode === WorkflowEngineMode.Edit;
+  const isForeach = Boolean(props.nodeProps.data?.foreach);
   // See StartNode.tsx for why this is typed via `IsValidConnection` rather than `Connection`.
   // Declared here (rather than after the `return`, as the pre-migration `function` declaration
   // was) because a `const` isn't hoisted the way a `function` declaration is, and it's
@@ -232,7 +276,20 @@ function BaseNode(props: BaseNodeProps) {
   const isValidHandle: IsValidConnection = (connection) => connection.source !== connection.target;
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <div className={cx(styles.node, className, styles[status ?? ""], { [styles.locked]: !isEditor })} onClick={onClick}>
+    <div
+      className={cx(styles.node, className, styles[status ?? ""], {
+        [styles.locked]: !isEditor,
+        [styles.foreach]: isForeach,
+      })}
+      onClick={onClick}
+    >
+      {isForeach ? (
+        <div className={cx(styles.badgeContainer, styles.foreachBadge)}>
+          <p className={styles.badgeText} data-testid="foreach-badge">
+            {foreachBadgeText(foreachProgress, status)}
+          </p>
+        </div>
+      ) : null}
       {isEditor ? (
         <div style={{ position: "absolute", top: "-1rem", right: "-0.875rem", display: "flex", gap: "0.25rem" }}>
           <WorkflowCloseButton

@@ -1,8 +1,9 @@
 import React from "react";
 import { screen, fireEvent, within } from "@testing-library/react";
+import { foreachWithoutItemsWorkflowRun, foreachWorkflowRun } from "Utils/testing/fixtures/foreachRun";
+import { renderWithRouter } from "Utils/testing/render";
 import { NodeType } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
-import { renderWithRouter } from "Utils/testing/render";
 import ExecutionTaskLog from "./index";
 
 const baseTaskRun = {
@@ -154,5 +155,110 @@ describe("ExecutionTaskLog --- RTL", () => {
     // Normal task entries are unaffected.
     expect(within(emailItem).getByText("Start time")).toBeInTheDocument();
     expect(within(emailItem).getByText("Duration")).toBeInTheDocument();
+  });
+});
+
+describe("ExecutionTaskLog --- for each", () => {
+  const foreachProps = { workflowRun: foreachWorkflowRun, executionViewRedirect: () => {} };
+
+  it("lists a for-each task once, with its items grouped under it", () => {
+    renderWithRouter(<ExecutionTaskLog {...foreachProps} />);
+
+    const names = screen.getAllByTestId("taskitem-name").map((node) => node.textContent);
+    expect(names).toEqual(["start", "locate", "stage", "end"]);
+    expect(screen.queryByText("locate[0]")).not.toBeInTheDocument();
+  });
+
+  it("summarises the items on the parent's entry", () => {
+    renderWithRouter(<ExecutionTaskLog {...foreachProps} />);
+
+    // Entries run start, locate, stage, end - see the grouping test above.
+    const [, parent, stage] = screen.getAllByRole("listitem");
+    expect(within(parent).getByText("For each")).toBeInTheDocument();
+    expect(within(parent).getByTestId("foreach-summary")).toHaveTextContent(
+      "3 items · 1 succeeded · 1 running · 1 failed",
+    );
+    // An ordinary task carries neither.
+    expect(within(stage).queryByText("For each")).not.toBeInTheDocument();
+    expect(within(stage).queryByTestId("foreach-summary")).not.toBeInTheDocument();
+  });
+
+  it("expands to each item's index, item, status, failure reason and log", () => {
+    renderWithRouter(<ExecutionTaskLog {...foreachProps} />);
+
+    const parent = screen.getAllByRole("listitem")[1];
+    expect(within(parent).getByTestId("taskitem-name")).toHaveTextContent("locate");
+    expect(within(parent).queryAllByTestId("foreach-item")).toHaveLength(0);
+    // The parent never ran a pod, so it offers no log of its own.
+    expect(within(parent).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+
+    const toggle = within(parent).getByRole("button", { name: "Show items" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(within(parent).getByRole("button", { name: "Hide items" })).toHaveAttribute("aria-expanded", "true");
+
+    const items = within(parent).getAllByTestId("foreach-item");
+    expect(items).toHaveLength(3);
+    const [first, second, third] = items;
+
+    expect(first).toHaveTextContent("[0]");
+    expect(first).toHaveTextContent("repo-a");
+    expect(within(first).getByText("Succeeded")).toBeInTheDocument();
+    expect(within(first).queryByTestId("foreach-item-reason")).not.toBeInTheDocument();
+
+    expect(second).toHaveTextContent("[1]");
+    expect(within(second).getByText("Running")).toBeInTheDocument();
+
+    expect(third).toHaveTextContent("[2]");
+    expect(third).toHaveTextContent("repo-c");
+    expect(within(third).getByText("Failed")).toBeInTheDocument();
+    expect(within(third).getByTestId("foreach-item-reason")).toHaveTextContent("OOMKilled");
+
+    // Every item here ran, so each has its own log.
+    items.forEach((itemRow) => expect(within(itemRow).getByRole("button", { name: "View Log" })).toBeInTheDocument());
+
+    fireEvent.click(within(parent).getByRole("button", { name: "Hide items" }));
+    expect(within(parent).queryAllByTestId("foreach-item")).toHaveLength(0);
+  });
+});
+
+describe("ExecutionTaskLog --- a for-each task with no items", () => {
+  // Neither parent has item task runs, so only the workflow definition says they are for-each.
+  const props = {
+    workflowRun: foreachWithoutItemsWorkflowRun,
+    executionViewRedirect: () => {},
+    foreachTaskNames: new Set(["scan", "fetch"]),
+  };
+
+  function entry(name: string) {
+    return screen.getAllByRole("listitem").find((item) => within(item).queryByText(name)) as HTMLElement;
+  }
+
+  it("marks a parent whose items were empty as for-each, with 0 items and no log", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const scan = entry("scan");
+    expect(within(scan).getByText("For each")).toBeInTheDocument();
+    expect(within(scan).getByTestId("foreach-summary")).toHaveTextContent("0 items");
+    expect(within(scan).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+    expect(within(scan).queryByRole("button", { name: "Show items" })).not.toBeInTheDocument();
+  });
+
+  it("shows why a parent failed before fanning out, with no log", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const fetch = entry("fetch");
+    expect(within(fetch).getByText("For each")).toBeInTheDocument();
+    expect(within(fetch).getByTestId("foreach-summary")).toHaveTextContent(
+      "The for-each items did not resolve to a JSON array.",
+    );
+    expect(within(fetch).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+  });
+
+  it("treats the same task runs as plain tasks when the workflow does not define them as for-each", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} foreachTaskNames={new Set()} />);
+
+    expect(within(entry("fetch")).queryByText("For each")).not.toBeInTheDocument();
+    expect(within(entry("fetch")).getByRole("button", { name: "View Log" })).toBeInTheDocument();
   });
 });

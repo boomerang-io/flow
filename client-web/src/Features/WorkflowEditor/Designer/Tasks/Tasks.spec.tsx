@@ -1,8 +1,8 @@
 import React from "react";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { aiTask, task as taskFixture } from "ApiServer/fixtures";
-import { renderWithContext } from "Utils/testing/render";
 import { taskIcons } from "Utils/taskIcons";
+import { renderWithContext } from "Utils/testing/render";
 import type { Task } from "Types";
 import Tasks from "./Tasks";
 
@@ -42,5 +42,30 @@ describe("Editor task palette --- the AI task", () => {
     expect(aiTask.icon).toBe("AI");
     expect(aiTask.category).toBe("AI");
     expect(aiTask.type).toBe("ai");
+  });
+});
+
+describe("Editor task palette --- For each", () => {
+  it("offers For each first under the workflow category, draggable with the for-each marker", async () => {
+    renderWithContext(<Tasks tasks={paletteTasks} />);
+
+    // Neither palette task is in the workflow category, so For each opens one of its own.
+    expect(await screen.findByText("Workflow (1)")).toBeInTheDocument();
+    const option = screen.getByRole("option", { name: "For each" });
+    expect(option).toHaveAttribute("draggable", "true");
+
+    const setData = vi.fn();
+    fireEvent.dragStart(option, { dataTransfer: { setData, effectAllowed: "" } });
+    expect(setData).toHaveBeenCalledWith("application/reactflow", expect.stringContaining('"type":"foreach"'));
+  });
+
+  it("follows the search box", async () => {
+    renderWithContext(<Tasks tasks={paletteTasks} />);
+
+    fireEvent.change(await screen.findByPlaceholderText("Search for a task"), { target: { value: "each" } });
+    expect(screen.getByRole("option", { name: "For each" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Search for a task"), { target: { value: aiTask.displayName } });
+    expect(screen.queryByRole("option", { name: "For each" })).not.toBeInTheDocument();
   });
 });

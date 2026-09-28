@@ -2,9 +2,13 @@ package io.boomerang.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkflowTaskForeach;
+import java.util.Date;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -79,6 +83,34 @@ class PublicRunModelSerialisationTest {
     assertThat(json.propertyNames())
         .as("TaskRun must not serialise any internal execution-state field")
         .doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE);
+  }
+
+  /**
+   * An item of a foreach task is an ordinary claimed, leased, timed TaskRun: its execution state
+   * stays on the entity, while its parent and position are public. The parent's foreach setting,
+   * which holds the resolved item array, stays on the entity too.
+   */
+  @Test
+  void aForeachItemExposesItsParentAndIndexButNoExecutionState() {
+    TaskRunEntity item = new TaskRunEntity();
+    item.setName("locate[2]");
+    item.setParentRef("parent-id");
+    item.setIndex(2);
+    RunClaim claim = new RunClaim();
+    claim.setBy("dispatcher");
+    claim.setSeq(1L);
+    item.setClaim(claim);
+    item.setTimeoutAt(new Date());
+    item.setWaitUntil(new Date());
+    item.setForeach(new WorkflowTaskForeach());
+
+    ObjectNode json = serialise(new TaskRun(item));
+
+    assertThat(json.get("parentRef").asString()).isEqualTo("parent-id");
+    assertThat(json.get("index").asInt()).isEqualTo(2);
+    assertThat(json.propertyNames())
+        .doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE)
+        .doesNotContain("foreach");
   }
 
   @Test

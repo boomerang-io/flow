@@ -389,6 +389,8 @@ class LoaderMigrationTest {
     assertWorkerFlowImagesRepointed();
     assertRunWorkflowParamsDeclared();
     assertChildWorkflowNestingCapAndIndex();
+    assertForeachCapAndIndex();
+    assertDeletionPolicyDescribed();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -1649,6 +1651,44 @@ class LoaderMigrationTest {
     assertThat(cap).isNotNull();
     assertThat(cap.getString("value")).isEqualTo("5");
     assertIndex("workflow_runs", "initiated_by_phase", List.of("initiatedByRef", "phase"));
+  }
+
+  /**
+   * {@code _0049}: the foreach item cap lands in the same legacy {@code workflowrun} document, and
+   * a parent's items get their sparse lookup index.
+   */
+  private void assertForeachCapAndIndex() {
+    Document workflowRun = collection("settings").find(Filters.eq("key", "workflowrun")).first();
+    Document cap =
+        workflowRun.getList("config", Document.class).stream()
+            .filter(config -> "max.foreach.items".equals(config.getString("key")))
+            .findFirst()
+            .orElse(null);
+    assertThat(cap).isNotNull();
+    assertThat(cap.getString("value")).isEqualTo("256");
+    assertIndex("task_runs", "parent_index", List.of("parentRef", "index"));
+    assertThat(indexesByName("task_runs").get("parent_index").getBoolean("sparse")).isTrue();
+  }
+
+  /**
+   * {@code _0050}: the task deletion policy says what each choice does, and the admin's selected
+   * value is left as it was.
+   */
+  private void assertDeletionPolicyDescribed() {
+    Document task = collection("settings").find(Filters.eq("key", "task")).first();
+    Document policy =
+        task.getList("config", Document.class).stream()
+            .filter(config -> "deletion.policy".equals(config.getString("key")))
+            .findFirst()
+            .orElse(null);
+    assertThat(policy).isNotNull();
+    assertThat(policy.getString("description")).contains("retention period");
+    assertThat(policy.getList("options", Document.class))
+        .extracting(option -> option.getString("value"))
+        .containsExactly(
+            "Never (keep until the retention period)",
+            "On Success (remove when a task succeeds)",
+            "Always (remove when a task ends)");
   }
 
   private void assertRelationshipAndAuditIndexes() {

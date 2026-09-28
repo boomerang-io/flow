@@ -19,14 +19,15 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
- * The engine-enforced payload caps: resolved params are checked at
- * admission, results at end. Both are engine-side so the failure mode is one clear message on
- * every executor, instead of each substrate's own ceiling (128 KiB env string at exec, 4096-byte
- * termination message, 4 KB Lambda env) surfacing differently.
+ * The engine-enforced payload caps: resolved params are checked at admission, results at end. The
+ * results check is a storage guard (1 MB by default) behind each executor's own limit, so it is set
+ * low here to keep covering the guard without a megabyte payload.
  */
+@TestPropertySource(properties = "flow.engine.task.results.max-bytes=4096")
 class PayloadCapTest extends AbstractEngineIntegrationTest {
 
   @Autowired private TaskExecutionService taskExecutionService;
@@ -81,7 +82,7 @@ class PayloadCapTest extends AbstractEngineIntegrationTest {
 
     TaskRunEndRequest endRequest = new TaskRunEndRequest();
     endRequest.setStatus(RunStatus.succeeded);
-    // Over the 4096-byte default once serialized.
+    // Over the 4096-byte cap this class sets, once serialized.
     endRequest.setResults(List.of(new RunResult("big", "x".repeat(8000))));
 
     taskRunService.end(taskId, Optional.of(endRequest));
