@@ -88,8 +88,8 @@ const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
 
 // uploadartifact/downloadartifact render and configure exactly like `template` - a dispatcher-run
 // task whose params come from its catalogue entry (DAGUtility/TaskExecutionService treat them the
-// same as template server-side; see TaskExecutionService's dispatch-type switch). Deliberately NOT
-// added to FOREACH_TASK_TYPES (components/shared/foreach.ts) - no for-each support for either.
+// same as template server-side; see TaskExecutionService's dispatch-type switch). Both can run for
+// each item (FOREACH_TASK_TYPES); each item then needs its own artifact name.
 const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   acquirelock: GraphComps.TemplateNode,
   ai: GraphComps.AiNode,

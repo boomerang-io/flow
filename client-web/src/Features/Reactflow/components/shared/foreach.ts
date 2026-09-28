@@ -27,6 +27,8 @@ export const FOREACH_TASK_TYPES: ReadonlyArray<string> = [
   NodeType.CustomTask,
   NodeType.Ai,
   NodeType.Generic,
+  NodeType.UploadArtifact,
+  NodeType.DownloadArtifact,
 ];
 
 const REFERENCE_PATTERN = /^\$\([^()\s]+\)$/;
