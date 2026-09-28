@@ -131,7 +131,9 @@ services:
   # Rook-Ceph through the same flow.artifacts.store.* settings.
   seaweedfs:
     image: chrislusf/seaweedfs:4.47
-    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    # -ip.bind=0.0.0.0: by default every port binds only the container's own address, so the
+    # healthcheck's localhost probe (and anything else inside the container) never answers.
+    command: server -ip.bind=0.0.0.0 -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -telemetry=false
     ports:
       - "8333:8333"
     volumes:

@@ -589,13 +589,13 @@ class V3DumpMigrationTest {
     // _0022__SeedTaskCatalogue (Phase 5) reconciles the 88-task seed catalogue against them by
     // name (all 87 legacy ones already present by legacy _id/name) and inserts exactly one new
     // task, the v5-native ai entry; the install's own extra 2 (Kubernetes CLI, Tysons Test Task)
-    // are untouched additions.
-    assertThat(collection("tasks").countDocuments()).isEqualTo(90);
+    // are untouched additions. _0052 then adds the upload-artifact and download-artifact tasks.
+    assertThat(collection("tasks").countDocuments()).isEqualTo(92);
 
     // 131 real v3 revisions migrated 1:1, plus two reconciled additions (by _0022, Phase 5): the
     // seed catalogue's Manual Approval v2, absent from this install's own (older) snapshot, and
-    // the ai task's version 1.
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(133);
+    // the ai task's version 1, and the two artifact tasks' version 1 (_0052).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(135);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();
