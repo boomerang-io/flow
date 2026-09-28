@@ -142,6 +142,16 @@
   white-space: nowrap;
 }
 
+// Replaces the plain "Task log" title with a compact in-page tab bar (Task log / Artifacts (n)) -
+// the sort button stays a sibling in .taskbar, outside this Tabs component, and only shows while
+// the Task log tab is active (see TaskRunList.tsx).
+.taskbarTabs {
+  :global(.cds--tabs__nav-link) {
+    font-size: 0.875rem;
+    padding: 0 0.5rem;
+  }
+}
+
 .taskbarButton {
   background-color: transparent;
   border: none;

@@ -39,6 +39,7 @@ export default [
   route("/res/activate", "routes/resActivate.tsx"),
   route("/res/taskrun/:id/log", "routes/resTaskrunLog.tsx"),
   route("/res/workspace/:workspace/workflow/:workflow/export", "routes/resWorkflowExport.tsx"),
+  route("/res/workspace/:workspace/workflowrun/:runId/artifacts/:name", "routes/resArtifactDownload.tsx"),
   layout("../src/Features/App/index.tsx", [
     route("/home", "routes/home.tsx"),
     route("/profile", "routes/profile.tsx"),
@@ -72,6 +73,7 @@ export default [
         index("routes/manageWorkspaceMembers.tsx"),
         route("workflows", "routes/manageWorkspaceWorkflows.tsx"),
         route("approver-groups", "routes/manageWorkspaceApproverGroups.tsx"),
+        route("artifacts", "routes/manageWorkspaceArtifacts.tsx"),
         route("quotas", "routes/manageWorkspaceQuotas.tsx"),
         route("tokens", "routes/manageWorkspaceTokens.tsx"),
         route("settings", "routes/manageWorkspaceSettings.tsx"),

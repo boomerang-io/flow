@@ -179,6 +179,22 @@ export const serviceUrl = {
       getExportWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/export`,
     },
+    // Files a task run uploaded during a run (the `uploadartifact` task type). Per-run reads/writes
+    // take `runId` + the artifact `name` (the run's own artifact list has no numeric id in its
+    // path); the workspace-wide list/delete below take the artifact's `id` instead, matching the
+    // two distinct backend routes (WorkspaceArtifactControllerV2 vs the run-scoped one).
+    artifact: {
+      getRunArtifacts: ({ workspace, runId }: WorkspaceArg & { runId: string }) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts`,
+      getRunArtifact: ({ workspace, runId, name }: WorkspaceArg & { runId: string } & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
+      deleteRunArtifact: ({ workspace, runId, name }: WorkspaceArg & { runId: string } & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
+      getWorkspaceArtifacts: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/artifacts${query ? "?" + query : ""}`,
+      deleteWorkspaceArtifact: ({ workspace, artifactId }: WorkspaceArg & { artifactId: string }) =>
+        `${BASE_URL}/workspace/${workspace}/artifacts/${artifactId}`,
+    },
     workflowrun: {
       deleteCancelWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/cancel`,

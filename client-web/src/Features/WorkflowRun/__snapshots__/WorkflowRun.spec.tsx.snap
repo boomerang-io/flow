@@ -175,7 +175,7 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
             <dd
               class="_dataValue_268f38"
             >
-              2019-09-03 03:00 PM
+              2019-09-04 01:00 AM
             </dd>
           </dl>
           <dl
@@ -267,11 +267,156 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
           <section
             class="_taskbar_ea4d0d"
           >
-            <p
-              class="_taskbarTitle_ea4d0d"
+            <div
+              class="cds--tabs _taskbarTabs_ea4d0d"
             >
-              Task log
-            </p>
+              <button
+                aria-hidden="true"
+                aria-label="Scroll left"
+                class="cds--tab--overflow-nav-button cds--tab--overflow-nav-button--previous cds--tab--overflow-nav-button--hidden"
+                tabindex="-1"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M5 8 10 3 10.7 3.7 6.4 8 10.7 12.3 10 13z"
+                  />
+                </svg>
+              </button>
+              <div
+                aria-label="Run detail"
+                class="cds--tab--list"
+                role="tablist"
+              >
+                <button
+                  aria-controls="ccs-[generated-id]-tabpanel-0"
+                  aria-selected="true"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
+                  id="ccs-[generated-id]-tab-0"
+                  role="tab"
+                  tabindex="0"
+                  type="button"
+                >
+                  <div
+                    class="cds--tabs__nav-item-label-wrapper"
+                  >
+                    <span
+                      class="cds--tabs__nav-item-label"
+                      dir="auto"
+                    >
+                      Task log
+                    </span>
+                  </div>
+                </button>
+                <div
+                  class="cds--tabs__nav-item--close--hidden"
+                >
+                  <button
+                    aria-hidden="true"
+                    class="cds--visually-hidden cds--tabs__nav-item--close-icon--selected"
+                    tabindex="-1"
+                    title="Remove Task log tab"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      aria-label="Press delete to remove Task log tab"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <button
+                  aria-controls="ccs-[generated-id]-tabpanel-1"
+                  aria-selected="false"
+                  class="cds--tabs__nav-item cds--tabs__nav-link"
+                  id="ccs-[generated-id]-tab-1"
+                  role="tab"
+                  tabindex="-1"
+                  type="button"
+                >
+                  <div
+                    class="cds--tabs__nav-item-label-wrapper"
+                  >
+                    <span
+                      class="cds--tabs__nav-item-label"
+                      dir="auto"
+                    >
+                      Artifacts (0)
+                    </span>
+                  </div>
+                </button>
+                <div
+                  class="cds--tabs__nav-item--close--hidden"
+                >
+                  <button
+                    aria-hidden="true"
+                    class="cds--visually-hidden"
+                    tabindex="-1"
+                    title="Remove Artifacts (0) tab"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      aria-label="Press delete to remove Artifacts (0) tab"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button
+                aria-hidden="true"
+                aria-label="Scroll right"
+                class="cds--tab--overflow-nav-button cds--tab--overflow-nav-button--next cds--tab--overflow-nav-button--hidden"
+                tabindex="-1"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
+                  />
+                </svg>
+              </button>
+            </div>
             <span
               class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
             >
@@ -403,7 +548,7 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                   <time
                     class="_timeValue_fe6a3c"
                   >
-                    03:00:00 PM
+                    01:00:00 AM
                   </time>
                 </div>
                 <div

@@ -273,6 +273,77 @@ export const handlers: HttpHandler[] = [
   ),
 
   /**
+   * Artifacts. Per-run reads/writes are keyed on `runId` + the artifact `name` (WorkflowRun.tsx's
+   * loader/action); the workspace-wide list/delete (Manage Workspace's Artifacts tab) are keyed on
+   * the artifact `id` instead - two distinct backend routes, matching servicesConfig.ts's
+   * `workspace.artifact` builders.
+   */
+  http.get(
+    serviceUrl.workspace.artifact.getRunArtifacts({ workspace: ":workspace", runId: ":runId" }),
+    ({ params }) => {
+      const runId = pathParam(params.runId);
+      return HttpResponse.json(db.artifacts.filter((artifact) => artifact.workflowRunRef === runId));
+    },
+  ),
+  http.get(
+    serviceUrl.workspace.artifact.getRunArtifact({ workspace: ":workspace", runId: ":runId", name: ":name" }),
+    ({ params }) => {
+      const runId = pathParam(params.runId);
+      const name = pathParam(params.name);
+      const artifact = db.artifacts.find((item) => item.workflowRunRef === runId && item.name === name);
+      if (!artifact) {
+        return HttpResponse.json({ errors: ["Artifact not found"] }, { status: 404 });
+      }
+      if (artifact.status === "expired") {
+        return HttpResponse.json({ errors: ["Artifact expired"] }, { status: 410 });
+      }
+      return new HttpResponse("artifact file contents", {
+        headers: {
+          "content-type": String(artifact.contentType ?? "application/octet-stream"),
+          "content-disposition": `attachment; filename="${name}"`,
+        },
+      });
+    },
+  ),
+  http.delete(
+    serviceUrl.workspace.artifact.deleteRunArtifact({ workspace: ":workspace", runId: ":runId", name: ":name" }),
+    ({ params }) => {
+      const runId = pathParam(params.runId);
+      const name = pathParam(params.name);
+      db.artifacts = db.artifacts.filter((item) => !(item.workflowRunRef === runId && item.name === name));
+      return HttpResponse.json({});
+    },
+  ),
+  http.get(serviceUrl.workspace.artifact.getWorkspaceArtifacts({ workspace: ":workspace" }), ({ request }) => {
+    const url = new URL(request.url);
+    const statuses = (url.searchParams.get("statuses") ?? "available").split(",");
+    const page = Number(url.searchParams.get("page") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 10);
+    const filtered = db.artifacts.filter((artifact) => statuses.includes(String(artifact.status)));
+    const start = page * limit;
+    const content = filtered.slice(start, start + limit);
+    return HttpResponse.json({
+      content,
+      number: page,
+      size: limit,
+      totalElements: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+      first: page === 0,
+      last: start + limit >= filtered.length,
+      numberOfElements: content.length,
+      empty: content.length === 0,
+    });
+  }),
+  http.delete(
+    serviceUrl.workspace.artifact.deleteWorkspaceArtifact({ workspace: ":workspace", artifactId: ":artifactId" }),
+    ({ params }) => {
+      const artifactId = pathParam(params.artifactId);
+      db.artifacts = db.artifacts.filter((item) => item.id !== artifactId);
+      return HttpResponse.json({});
+    },
+  ),
+
+  /**
    * Actions
    */
   http.get(serviceUrl.workspace.action.getActionsSummary({ workspace: ":workspace" }), () =>
