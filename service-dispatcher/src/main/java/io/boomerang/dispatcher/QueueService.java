@@ -27,10 +27,17 @@ public class QueueService {
    * The types this dispatcher can actually run in a container. Which of them it is handed is the
    * engine's decision, made from the types registered at startup (flow.dispatcher.task-types); this
    * is the second gate, so a type the dispatcher has no runtime for is skipped rather than failed.
-   * `ai` runs the worker image the dispatcher resolves for it (TaskImageResolver).
+   * `ai` and the two artifact types run the worker image the dispatcher resolves for them
+   * (TaskImageResolver).
    */
   private static final List<TaskType> EXECUTABLE_TYPES =
-      List.of(TaskType.template, TaskType.custom, TaskType.script, TaskType.ai);
+      List.of(
+          TaskType.template,
+          TaskType.custom,
+          TaskType.script,
+          TaskType.ai,
+          TaskType.uploadartifact,
+          TaskType.downloadartifact);
 
   private static boolean isExecutable(TaskType type) {
     return EXECUTABLE_TYPES.contains(type);

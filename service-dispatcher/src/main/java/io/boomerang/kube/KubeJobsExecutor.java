@@ -187,7 +187,7 @@ public class KubeJobsExecutor implements TaskExecutor {
     container.setImage(imageResolver.image(task));
     container.setImagePullPolicy(kubeImagePullPolicy);
     container.setWorkingDir(spec.getWorkingDir());
-    container.setArgs(spec.getArguments());
+    container.setArgs(imageResolver.arguments(task));
     container.setCommand(containerCommand);
     container.setEnv(
         helperKubeService.createTaskEnvVars(

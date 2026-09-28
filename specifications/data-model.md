@@ -118,8 +118,8 @@ field is on `WorkflowRun`, and no quota is on the run.
 
 | Status | Written when | File |
 | --- | --- | --- |
-| `uploading` | the dispatcher asks for an upload link (`workflow/ArtifactService.java:164`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
-| `available` | the upload completes: service-core reads the stored file for its size and SHA-256 and checks the limits (`:213`) | in the store |
+| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams`; `dispatcher/DispatcherService.java` `fillArtifactLink`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
+| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload`, called from `engine/TaskRunService.java` `completeArtifactUpload`); a refusal ends the task failed with `ArtifactRefused` | in the store |
 | `expired` | the watcher passes `expirationDate` (`:324`) | deleted; the record stays so the run still shows what it produced |
 
 A record is removed only by a delete or its workflow's prune (`engine/WorkflowWatcher.java:350`). Limits are
@@ -185,6 +185,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0047__SeedAiTask` | all | Inserts the `ai` catalogue task, its version 1 revision and its `root:root --hasTask-->` edge from the same seed documents `_0022` reads — the upgrade path for a catalogue entry added after `_0022` was already recorded as applied |
 | `_0048__TaskDefaultTimeoutInheritsTheRun` | all | Sets `task`/`default.timeout` to `0` (no per-task ceiling, a task inherits its run's timeout) — but only where the value is still the shipped `90`; any other number is an operator's choice and stays. Brings the entry's `label`/`description` to the seed's wording either way |
 | `_0049__ForeachItems` | all | Creates the `parent_index` index (table above) and adds `max.foreach.items` (default 256) to the `workflowrun` settings document when absent |
+| `_0052__SeedArtifactTasks` | all | Inserts the `upload-artifact` and `download-artifact` catalogue tasks with ids assigned on insert (no seed file), each revision declaring its author params and the read-only link params Flow fills |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

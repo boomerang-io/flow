@@ -1,7 +1,5 @@
 package io.boomerang.dispatcher;
 
-import io.boomerang.common.model.ArtifactLink;
-import io.boomerang.common.model.ArtifactUploadRequest;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.HeartbeatRequest;
 import io.boomerang.common.model.TaskRun;
@@ -12,7 +10,6 @@ import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.engine.TaskRunService;
-import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -54,17 +51,14 @@ public class DispatcherControllerV1 {
   private final DispatcherService dispatcherService;
   private final WorkflowRunService workflowRunService;
   private final TaskRunService taskRunService;
-  private final ArtifactService artifactService;
 
   public DispatcherControllerV1(
       DispatcherService dispatcherService,
       WorkflowRunService workflowRunService,
-      TaskRunService taskRunService,
-      ArtifactService artifactService) {
+      TaskRunService taskRunService) {
     this.dispatcherService = dispatcherService;
     this.workflowRunService = workflowRunService;
     this.taskRunService = taskRunService;
-    this.artifactService = artifactService;
   }
 
   @PostMapping(value = "/register")
@@ -182,62 +176,5 @@ public class DispatcherControllerV1 {
           String taskRunId,
       @RequestBody Optional<TaskRunEndRequest> taskRunRequest) {
     return taskRunService.end(taskRunId, taskRunRequest);
-  }
-
-  @PostMapping(value = "/taskrun/{taskRunId}/artifacts")
-  @Operation(summary = "Record an artifact as uploading and get the link its task uploads to.")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "409", description = "Name already used in the run"),
-        @ApiResponse(responseCode = "429", description = "Artifact storage quota reached")
-      })
-  public ArtifactLink beginArtifactUpload(
-      @Parameter(name = "taskRunId", description = "ID of the upload Task Run", required = true)
-          @PathVariable
-          String taskRunId,
-      @RequestBody ArtifactUploadRequest request) {
-    return artifactService.beginUpload(taskRunId, request);
-  }
-
-  @PutMapping(value = "/taskrun/{taskRunId}/artifacts/{name}/complete")
-  @Operation(summary = "Verify an uploaded artifact against the store and make it available.")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "204", description = "Available"),
-        @ApiResponse(responseCode = "413", description = "Larger than the largest artifact"),
-        @ApiResponse(responseCode = "429", description = "Artifact storage quota reached")
-      })
-  @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void completeArtifactUpload(
-      @Parameter(name = "taskRunId", description = "ID of the upload Task Run", required = true)
-          @PathVariable
-          String taskRunId,
-      @Parameter(name = "name", description = "Artifact name", required = true) @PathVariable
-          String name,
-      @Parameter(name = "dispatcherRef", description = "The claiming dispatcher's id")
-          @RequestParam(required = false)
-          String dispatcherRef) {
-    artifactService.completeUpload(taskRunId, name, dispatcherRef);
-  }
-
-  @GetMapping(value = "/taskrun/{taskRunId}/artifacts/{name}")
-  @Operation(summary = "Get a download link for an artifact of the Task Run's own run.")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "404", description = "Not Found"),
-        @ApiResponse(responseCode = "410", description = "Expired")
-      })
-  public ArtifactLink artifactDownloadLink(
-      @Parameter(name = "taskRunId", description = "ID of the download Task Run", required = true)
-          @PathVariable
-          String taskRunId,
-      @Parameter(name = "name", description = "Artifact name", required = true) @PathVariable
-          String name,
-      @Parameter(name = "dispatcherRef", description = "The claiming dispatcher's id")
-          @RequestParam(required = false)
-          String dispatcherRef) {
-    return artifactService.downloadLink(taskRunId, name, dispatcherRef);
   }
 }

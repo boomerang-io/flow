@@ -10,14 +10,13 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.ArtifactStatus;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.common.model.ArtifactLink;
-import io.boomerang.common.model.ArtifactUploadRequest;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.TaskRun;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
-import io.boomerang.engine.TaskRunService;
-import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.model.Artifact;
 import io.boomerang.workflow.repository.ArtifactRepository;
 import io.boomerang.workspace.WorkspaceService;
@@ -30,9 +29,12 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -41,6 +43,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.MessageSource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,10 +52,11 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 /*
- * Files that upload tasks attach to a run. An artifact's record is written when its upload link is
- * issued, verified against the stored file when the upload completes, and turned expired - its file
+ * Files that upload tasks attach to a run. An artifact's record is written when its upload task is
+ * handed to a dispatcher, verified against the stored file when the upload completes, and turned expired - its file
  * deleted, its record kept - when retention ends. Only a delete or the workflow's prune removes the
  * record. Storage limits are checked once the file is in the store, because the link is issued
  * before the task has produced it: an upload that breaks a limit has its own file deleted and its
@@ -68,6 +72,14 @@ public class ArtifactService {
   public static final String RETENTION_MAX_DAYS = "retention.max.days";
   public static final String MAX_ARTIFACT_SIZE = "max.artifact.size";
 
+  // The upload and download task params; Flow fills the link ones when the task is handed out.
+  public static final String NAME_PARAM = "name";
+  public static final String RETENTION_PARAM = "retention-days";
+  public static final String URL_PARAM = "url";
+  public static final String HEADERS_PARAM = "headers";
+  public static final String SHA256_PARAM = "sha256";
+  public static final String CONTENT_TYPE_PARAM = "contentType";
+
   private static final Pattern NAME = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
   private static final long MIB = 1024L * 1024L;
   private static final long GIB = 1024L * MIB;
@@ -75,33 +87,36 @@ public class ArtifactService {
       List.of(ArtifactStatus.uploading, ArtifactStatus.available);
 
   private final ArtifactRepository artifactRepository;
-  private final TaskRunRepository taskRunRepository;
   private final ObjectProvider<ArtifactStore> artifactStore;
   private final SettingsService settingsService;
   private final RelationshipService relationshipService;
   private final WorkflowService workflowService;
   private final ObjectProvider<WorkspaceService> workspaceService;
   private final MongoTemplate mongoTemplate;
+  private final ObjectMapper objectMapper;
+  private final MessageSource messageSource;
   private final Duration linkTtl;
 
   public ArtifactService(
       ArtifactRepository artifactRepository,
-      TaskRunRepository taskRunRepository,
       ObjectProvider<ArtifactStore> artifactStore,
       SettingsService settingsService,
       RelationshipService relationshipService,
       WorkflowService workflowService,
       ObjectProvider<WorkspaceService> workspaceService,
       MongoTemplate mongoTemplate,
+      ObjectMapper objectMapper,
+      MessageSource messageSource,
       @Value("${flow.artifacts.link-ttl-minutes:15}") long linkTtlMinutes) {
     this.artifactRepository = artifactRepository;
-    this.taskRunRepository = taskRunRepository;
     this.artifactStore = artifactStore;
     this.settingsService = settingsService;
     this.relationshipService = relationshipService;
     this.workflowService = workflowService;
     this.workspaceService = workspaceService;
     this.mongoTemplate = mongoTemplate;
+    this.objectMapper = objectMapper;
+    this.messageSource = messageSource;
     this.linkTtl = Duration.ofMinutes(linkTtlMinutes);
   }
 
@@ -155,24 +170,51 @@ public class ArtifactService {
     return total == null ? 0 : ((Number) total.get("total")).longValue();
   }
 
-  // ── The dispatcher's calls, on behalf of the upload and download tasks ────
+  // ── The upload and download tasks ─────────────────────────────────────────
 
   /**
-   * Record an artifact as uploading and return the link its task PUTs the file to. A name already
-   * used in the run is refused, as is any upload while the workspace's storage is already full.
+   * Fill an artifact task's link params on the TaskRun being handed to a dispatcher, so the worker
+   * receives them as ordinary params and nobody else holds store credentials. The values are not
+   * persisted: each hand-out, including a requeue, gets a fresh link.
+   *
+   * <p>Upload: records the artifact as uploading (or reuses this task's own uploading record on a
+   * requeue) and fills {@code url} and {@code headers}. A bad name, a name already used in the run,
+   * or a workspace whose storage is already full is refused. Download: fills {@code url}, {@code
+   * headers}, {@code sha256} and {@code contentType} for an available artifact of the same run.
    */
-  public ArtifactLink beginUpload(String taskRunId, ArtifactUploadRequest request) {
+  public void fillLinkParams(TaskRun task) {
     ArtifactStore store = requireStore();
-    TaskRunEntity taskRun = claimedTaskRun(taskRunId, request.dispatcherRef());
-    String name = request.name();
-    if (name == null || !NAME.matcher(name).matches()) {
+    String name = requiredName(task.getParams());
+    if (TaskType.uploadartifact.equals(task.getType())) {
+      ArtifactEntity artifact = uploadingArtifact(task, name);
+      ArtifactStore.Link link = store.uploadLink(artifact.getStorageKey(), linkTtl);
+      setParam(task, URL_PARAM, link.url().toString());
+      setParam(task, HEADERS_PARAM, headersJson(link.headers()));
+    } else if (TaskType.downloadartifact.equals(task.getType())) {
+      ArtifactEntity artifact = availableArtifact(task.getWorkflowRunRef(), name);
+      ArtifactStore.Link link = store.downloadLink(artifact.getStorageKey(), linkTtl);
+      setParam(task, URL_PARAM, link.url().toString());
+      setParam(task, HEADERS_PARAM, headersJson(link.headers()));
+      setParam(task, SHA256_PARAM, artifact.getSha256());
+      setParam(task, CONTENT_TYPE_PARAM, artifact.getContentType());
+    }
+  }
+
+  private ArtifactEntity uploadingArtifact(TaskRun task, String name) {
+    if (!NAME.matcher(name).matches()) {
       throw new BoomerangException(BoomerangError.ARTIFACT_INVALID_NAME, name);
     }
-    // The unique {workflowRunRef, name} index is the guard against a race; this is the answer.
-    if (artifactRepository.existsByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)) {
+    Optional<ArtifactEntity> existing =
+        artifactRepository.findByWorkflowRunRefAndName(task.getWorkflowRunRef(), name);
+    if (existing.isPresent()) {
+      // A requeued upload task gets a fresh link to its own uploading record.
+      if (existing.get().getStatus() == ArtifactStatus.uploading
+          && task.getId().equals(existing.get().getTaskRunRef())) {
+        return existing.get();
+      }
       throw new BoomerangException(BoomerangError.ARTIFACT_ALREADY_EXISTS, name);
     }
-    CurrentQuotas quotas = quotasFor(taskRun.getWorkflowRunRef());
+    CurrentQuotas quotas = quotasFor(task.getWorkflowRunRef());
     if (quotas != null
         && quotas.getCurrentArtifactStorage() >= quotas.getMaxArtifactStorage() * GIB) {
       throw new BoomerangException(
@@ -183,36 +225,33 @@ public class ArtifactService {
     }
 
     Date now = new Date();
-    int retentionDays = resolveRetentionDays(request.retentionDays(), quotas);
+    int retentionDays = resolveRetentionDays(retentionParam(task.getParams()), quotas);
     ArtifactEntity artifact = new ArtifactEntity();
     artifact.setName(name);
-    artifact.setWorkflowRef(taskRun.getWorkflowRef());
-    artifact.setWorkflowRunRef(taskRun.getWorkflowRunRef());
-    artifact.setTaskRunRef(taskRun.getId());
-    artifact.setStorageKey("runs/" + taskRun.getWorkflowRunRef() + "/" + name);
+    artifact.setWorkflowRef(task.getWorkflowRef());
+    artifact.setWorkflowRunRef(task.getWorkflowRunRef());
+    artifact.setTaskRunRef(task.getId());
+    artifact.setStorageKey("runs/" + task.getWorkflowRunRef() + "/" + name);
     artifact.setStatus(ArtifactStatus.uploading);
     artifact.setCreationDate(now);
     artifact.setRetentionDays(retentionDays);
     artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
     try {
-      artifactRepository.save(artifact);
+      return artifactRepository.save(artifact);
     } catch (DuplicateKeyException e) {
       throw new BoomerangException(BoomerangError.ARTIFACT_ALREADY_EXISTS, name);
     }
-    ArtifactStore.Link link = store.uploadLink(artifact.getStorageKey(), linkTtl);
-    return new ArtifactLink(
-        name, link.url().toString(), link.headers(), new Date(now.getTime() + linkTtl.toMillis()), null);
   }
 
   /**
-   * Verify an upload against the store and make the artifact available. Its size and SHA-256 are
-   * read from the stored file, not trusted from the task. A file over the largest-artifact limit,
-   * or one the workspace's storage has no room for, is deleted with its record and the call is
-   * refused, so the upload task fails with the reason. Completing twice returns the same artifact.
+   * Verify a succeeded upload task's file against the store and make the artifact available. Its
+   * size and SHA-256 are read from the stored file, not trusted from the task. A file over the
+   * largest-artifact limit, or one the workspace's storage has no room for, is deleted with its
+   * record and refused, so the task ends failed with the reason. Completing twice is a no-op.
    */
-  public Artifact completeUpload(String taskRunId, String name, String dispatcherRef) {
+  public Artifact completeUpload(TaskRunEntity taskRun) {
     ArtifactStore store = requireStore();
-    TaskRunEntity taskRun = claimedTaskRun(taskRunId, dispatcherRef);
+    String name = requiredName(taskRun.getParams());
     ArtifactEntity artifact =
         artifactRepository
             .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)
@@ -253,18 +292,14 @@ public class ArtifactService {
     return new Artifact(artifactRepository.save(artifact));
   }
 
-  /** A download link for an artifact of the task's own run, with the SHA-256 to check it against. */
-  public ArtifactLink downloadLink(String taskRunId, String name, String dispatcherRef) {
-    ArtifactStore store = requireStore();
-    TaskRunEntity taskRun = claimedTaskRun(taskRunId, dispatcherRef);
-    ArtifactEntity artifact = availableArtifact(taskRun.getWorkflowRunRef(), name);
-    ArtifactStore.Link link = store.downloadLink(artifact.getStorageKey(), linkTtl);
-    return new ArtifactLink(
-        name,
-        link.url().toString(),
-        link.headers(),
-        new Date(System.currentTimeMillis() + linkTtl.toMillis()),
-        artifact.getSha256());
+  /** Whether the task is one of the two artifact tasks. */
+  public static boolean isArtifactTask(TaskType type) {
+    return TaskType.uploadartifact.equals(type) || TaskType.downloadartifact.equals(type);
+  }
+
+  /** A refusal as the task's status message: the same text the API would answer with. */
+  public String refusalMessage(BoomerangException e) {
+    return messageSource.getMessage(e.getReason(), e.getArgs(), e.getReason(), Locale.ENGLISH);
   }
 
   // ── The workspace-scoped API ──────────────────────────────────────────────
@@ -376,15 +411,6 @@ public class ArtifactService {
     return store;
   }
 
-  private TaskRunEntity claimedTaskRun(String taskRunId, String dispatcherRef) {
-    TaskRunEntity taskRun =
-        taskRunRepository
-            .findById(taskRunId)
-            .orElseThrow(() -> new BoomerangException(BoomerangError.TASKRUN_INVALID_REF));
-    TaskRunService.rejectSupersededClaimant(taskRun, Optional.ofNullable(dispatcherRef));
-    return taskRun;
-  }
-
   private ArtifactEntity availableArtifact(String workflowRunId, String name) {
     ArtifactEntity artifact =
         artifactRepository
@@ -447,6 +473,50 @@ public class ArtifactService {
         .getObject()
         .getCurrentQuotas(
             relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspaceRef));
+  }
+
+  private static String requiredName(List<RunParam> params) {
+    String name = paramValue(params, NAME_PARAM);
+    if (name == null || name.isBlank()) {
+      throw new BoomerangException(BoomerangError.ARTIFACT_INVALID_NAME, name);
+    }
+    return name;
+  }
+
+  private static Integer retentionParam(List<RunParam> params) {
+    String value = paramValue(params, RETENTION_PARAM);
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Integer.valueOf(value.trim());
+    } catch (NumberFormatException e) {
+      return null;
+    }
+  }
+
+  private static String paramValue(List<RunParam> params, String name) {
+    if (params == null) {
+      return null;
+    }
+    return params.stream()
+        .filter(param -> name.equals(param.getName()) && param.getValue() != null)
+        .map(param -> param.getValue().toString())
+        .findFirst()
+        .orElse(null);
+  }
+
+  /** Replace the param's value on the handed-out TaskRun, adding it when it was not declared. */
+  private static void setParam(TaskRun task, String name, String value) {
+    List<RunParam> params =
+        new ArrayList<>(task.getParams() != null ? task.getParams() : List.of());
+    params.removeIf(param -> name.equals(param.getName()));
+    params.add(new RunParam(name, value));
+    task.setParams(params);
+  }
+
+  private String headersJson(Map<String, String> headers) {
+    return objectMapper.writeValueAsString(headers != null ? headers : Map.of());
   }
 
   private static String sha256(ArtifactStore store, String key) {
