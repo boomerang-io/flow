@@ -185,6 +185,7 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0047__SeedAiTask` | all | Inserts the `ai` catalogue task, its version 1 revision and its `root:root --hasTask-->` edge from the same seed documents `_0022` reads — the upgrade path for a catalogue entry added after `_0022` was already recorded as applied |
 | `_0048__TaskDefaultTimeoutInheritsTheRun` | all | Sets `task`/`default.timeout` to `0` (no per-task ceiling, a task inherits its run's timeout) — but only where the value is still the shipped `90`; any other number is an operator's choice and stays. Brings the entry's `label`/`description` to the seed's wording either way |
 | `_0049__ForeachItems` | all | Creates the `parent_index` index (table above) and adds `max.foreach.items` (default 256) to the `workflowrun` settings document when absent |
+| `_0050__DescribeTaskDeletionPolicy` | all | Rewrites the `task`/`deletion.policy` description and option labels to say what each choice does to a task's worker, logs and run storage; the selected value is left as the admin set it |
 | `_0052__SeedArtifactTasks` | all | Inserts the `upload-artifact` and `download-artifact` catalogue tasks with ids assigned on insert (no seed file), each revision declaring its author params and the read-only link params Flow fills |
 
 ## Not built

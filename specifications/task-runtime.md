@@ -41,15 +41,16 @@ and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClien
 ## Executors
 
 `TaskExecutor` has four methods — `create`, `watch`, `cancel`, `delete`
-(`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-27`). `TaskService` requires an
-image (`dispatcher/TaskService.java:69-71`), falls back to `kube.task.timeout` (60 minutes, `:52-54`) whenever the
-TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per
-`kube.task.deletion` (`Never` default, `OnSuccess`, `Always` — `:48-50,76-79,98-100`). The delete waits a
-one-second grace before calling `delete`, and runs off the caller's thread: `TaskService` reaches its own
-`@Async` method through a self proxy (`:41,112-119`), so the dispatch thread is free as soon as the Task itself
-has finished.
+(`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-27`). `TaskService` requires an image
+(`dispatcher/TaskService.java:69-71`), falls back to `kube.task.timeout` (60 minutes, `:56-58`) whenever the
+TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per the TaskRun's
+`spec.deletion` (`:52-54,76-79,98-100`). The engine always sets it from the admin "Deletion Policy"
+(`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:691-694`,
+`engine/DAGUtility.java:293-301`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
+(`kube/KubeLogService.java:54-63`) and go with it. The delete runs off the dispatch thread, through a self proxy to
+an `@Async` method, after a one-second grace (`:41,112-119`).
 
-Whatever `kube.task.deletion` says, a finished runtime object is removed `kube.task.ttlDays` (default 7) days
+Whatever the deletion policy says, a finished runtime object is removed `kube.task.ttlDays` (default 7) days
 after completion, so retention means the same on both executors. The Jobs executor stamps
 `ttlSecondsAfterFinished` and Kubernetes collects the Job natively (`kube/KubeJobsExecutor.java:227`). Tekton
 ships no TTL controller, so `dispatcher/TaskRuntimeReconciler.java` sweeps instead: on the `tekton` executor,
@@ -240,31 +241,32 @@ value-scrubbed - replacing 1-3 character strings would mangle unrelated text (de
 
 ## Volumes and workspaces
 
-Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storage.data.memory=true` and the
-task param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:208-227`, `TektonServiceImpl.java:301`).
-Shared storage is a workflow-level opt-in with two types (`StorageType.java:12-13`), each a persistent
-volume claim (PVC) bound at `/workspace/<type>` or the task's declared `mountPath`
-(`KubeJobsExecutor.java:245-267`; `TektonServiceImpl.java:259,283`). What a task mounts is decided once, when
-`DAGUtility` materialises the TaskRun, by a three-way rule on the node's `workspaces`
-(`engine/DAGUtility.java:230-249`): a declared list mounts exactly that list, an empty list is an explicit
-opt-out that mounts none, and no list at all - the canvas offers no way to declare them, so this is the
-ordinary case - inherits every workspace the run carries, in the run's order. Nothing later in the run
-changes that list. The executor mounts by type and takes `mountPath` from the task's own entry, falling back
-to `/workspace/<type>` when it is blank (`KubeJobsExecutor.java:307-310`, `TektonServiceImpl.java:230-234`);
-an inherited entry gets its `mountPath` from the workflow-level `spec.mountPath`, which is how that field is
-read, and a workspace whose `spec` is absent or does not convert leaves it null for that same fallback
-(`engine/DAGUtility.java:573-582`). A `workflow` PVC is keyed by `workflowRef`, created at the first run's start if absent
-and never deleted by a run; a `workflowrun` PVC is keyed by the run id, created at start and deleted when the
-dispatcher's reconciliation finds its run completed (`dispatcher/WorkflowService.java:41-60,88-100`). The authored spec (`size`, `accessMode`, `className`,
+Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storage.data.memory=true` and the task
+param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:208-227`, `TektonServiceImpl.java:301`). Shared
+storage is a workflow-level opt-in with two types (`StorageType.java:12-13`), each a persistent volume claim (PVC)
+bound at `/workspace/<type>` or the task's declared `mountPath` (`KubeJobsExecutor.java:245-267`;
+`TektonServiceImpl.java:259,283`). What a task mounts is decided once, when `DAGUtility` materialises the TaskRun,
+by a three-way rule on the node's `workspaces` (`engine/DAGUtility.java:230-249`): a declared list mounts exactly
+that list, an empty list is an explicit opt-out that mounts none, and no list at all - the canvas offers no way to
+declare them, so this is the ordinary case - inherits every workspace the run carries, in the run's order. Nothing
+later in the run changes that list. The executor mounts by type and takes `mountPath` from the task's own entry,
+falling back to `/workspace/<type>` when it is blank (`KubeJobsExecutor.java:307-310`,
+`TektonServiceImpl.java:230-234`); an inherited entry gets its `mountPath` from the workflow-level
+`spec.mountPath`, which is how that field is read, and a workspace whose `spec` is absent or does not convert
+leaves it null for that same fallback (`engine/DAGUtility.java:573-582`). A `workflow` PVC is keyed by
+`workflowRef`, created at the first run's start if absent and never deleted by a run; a `workflowrun` PVC is keyed
+by the run id, created at start and deleted when the dispatcher's reconciliation finds its run completed
+(`dispatcher/WorkflowService.java:41-60,88-100`). Finished task pods still hold the claim, so under `Never` it
+stays `Terminating` until retention removes them. The authored spec (`size`, `accessMode`, `className`,
 `mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
-against the workspace quota in Gi both when the Workflow is saved and when a run that carries its own
-workspaces is submitted (`workflow/WorkflowService.java:483-497,971-988`,
-`lib-common/.../util/StorageQuantityUtil.java:13`). Size, class and access mode default to
-`kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves `storageClassName` unset so the cluster
-default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:175`).
-After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for it to reach `Pending` or
-`Bound`, treating a momentarily absent claim as not yet settled (`KubeServiceImpl.isClaimSettled` `:207`); any
-error while creating a workspace surfaces as one provisioning failure (`dispatcher/WorkspaceService.java:86-102`).
+against the workspace quota in Gi both when the Workflow is saved and when a run that carries its own workspaces is
+submitted (`workflow/WorkflowService.java:483-497,971-988`, `lib-common/.../util/StorageQuantityUtil.java:13`).
+Size, class and access mode default to `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves
+`storageClassName` unset so the cluster default applies, because an empty string disables dynamic provisioning
+(`KubeServiceImpl.java:175`). After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for
+it to reach `Pending` or `Bound`, treating a momentarily absent claim as not yet settled
+(`KubeServiceImpl.isClaimSettled` `:207`); any error while creating a workspace surfaces as one provisioning
+failure (`dispatcher/WorkspaceService.java:86-102`).
 
 ## Isolation and placement
 
