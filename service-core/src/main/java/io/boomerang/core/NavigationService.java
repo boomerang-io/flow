@@ -106,22 +106,26 @@ public class NavigationService {
         response.add(insights);
       }
 
-      Navigation schedules = new Navigation();
-      schedules.setName("Schedules");
-      schedules.setType(NavigationType.link);
-      schedules.setDisabled(disabled);
-      schedules.setIcon("CalendarHeatMap");
-      schedules.setLink(flowAppsUrl + teamIdURLContext + "/schedules");
-      response.add(schedules);
+      if (((Boolean) features.getFeatures().get("schedules"))) {
+        Navigation schedules = new Navigation();
+        schedules.setName("Schedules");
+        schedules.setType(NavigationType.link);
+        schedules.setDisabled(disabled);
+        schedules.setIcon("CalendarHeatMap");
+        schedules.setLink(flowAppsUrl + teamIdURLContext + "/schedules");
+        response.add(schedules);
+      }
 
-      Navigation integrations = new Navigation();
-      integrations.setName("Integrations");
-      integrations.setType(NavigationType.link);
-      integrations.setDisabled(disabled);
-      integrations.setIcon("AppConnectivity");
-      integrations.setLink(flowAppsUrl + teamIdURLContext + "/integrations");
-      integrations.setBeta(true);
-      response.add(integrations);
+      if (((Boolean) features.getFeatures().get("integrations"))) {
+        Navigation integrations = new Navigation();
+        integrations.setName("Integrations");
+        integrations.setType(NavigationType.link);
+        integrations.setDisabled(disabled);
+        integrations.setIcon("AppConnectivity");
+        integrations.setLink(flowAppsUrl + teamIdURLContext + "/integrations");
+        integrations.setBeta(true);
+        response.add(integrations);
+      }
 
       response.add(divider);
 
@@ -145,13 +149,15 @@ public class NavigationService {
         response.add(teamParameters);
       }
 
-      Navigation management = new Navigation();
-      management.setName("Manage Workspace");
-      management.setType(NavigationType.link);
-      management.setDisabled(disabled);
-      management.setIcon("SettingsAdjust");
-      management.setLink(flowAppsUrl + teamIdURLContext + "/manage");
-      response.add(management);
+      if (((Boolean) features.getFeatures().get("workspace.management"))) {
+        Navigation management = new Navigation();
+        management.setName("Manage Workspace");
+        management.setType(NavigationType.link);
+        management.setDisabled(disabled);
+        management.setIcon("SettingsAdjust");
+        management.setLink(flowAppsUrl + teamIdURLContext + "/manage");
+        response.add(management);
+      }
 
       if (isUserAdmin) {
         Navigation admin = new Navigation();
@@ -162,8 +168,8 @@ public class NavigationService {
 
         if (((Boolean) features.getFeatures().get("workspace.management"))) {
           Navigation teams = new Navigation();
-          teams.setName("Teams");
-          teams.setLink(flowAppsUrl + "/admin/teams");
+          teams.setName("Workspaces");
+          teams.setLink(flowAppsUrl + "/admin/workspaces");
           teams.setType(NavigationType.link);
           admin.getChildLinks().add(teams);
         }

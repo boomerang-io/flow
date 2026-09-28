@@ -1,11 +1,15 @@
 package io.boomerang.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.model.Features;
+import io.boomerang.core.model.Navigation;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -56,5 +60,35 @@ class NavigationServiceTest {
         .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
         .extracting(BoomerangException::getReason)
         .isEqualTo(BoomerangError.AUTH_REQUIRED.getReason());
+  }
+
+  @Test
+  void internalNavigationShowsOnlyWhatTheFlagsAllow() {
+    ReflectionTestUtils.setField(navigationService, "flowExternalUrlNavigation", "");
+    Map<String, Object> flags = new HashMap<>();
+    for (String flag :
+        List.of(
+            "activity",
+            "insights",
+            "schedules",
+            "integrations",
+            "workspace.tasks",
+            "workspace.parameters",
+            "workspace.management",
+            "user.management",
+            "global.parameters")) {
+      flags.put(flag, false);
+    }
+    flags.put("activity", true);
+    featureService.get().setFeatures(flags);
+
+    List<String> names =
+        navigationService.getNavigation(true, Optional.of("system")).stream()
+            .map(Navigation::getName)
+            .toList();
+
+    assertThat(names)
+        .contains("Workflows", "Activity", "Actions", "Administer")
+        .doesNotContain("Insights", "Schedules", "Integrations", "Manage Workspace");
   }
 }
