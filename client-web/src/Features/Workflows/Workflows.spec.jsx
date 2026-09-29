@@ -44,6 +44,38 @@ describe("WorkflowsHome --- Snapshot", () => {
   });
 });
 
+describe("WorkflowsHome --- quotas off", () => {
+  it("lists the workflows without reading quotas when the quotas flag is off", async () => {
+    const { quotas: _quotas, ...workspaceWithoutQuotas } = workspaceFixture;
+    renderWithContext(
+      <Route
+        path={AppPath.Workflows}
+        loader={loader}
+        action={action}
+        element={
+          <WorkspaceContextProvider value={{ workspace: workspaceWithoutQuotas }}>
+            <WorkflowsHome />
+          </WorkspaceContextProvider>
+        }
+      />,
+      {
+        contextValue: {
+          isTutorialActive: false,
+          communityUrl: "www.ibm.com",
+          setIsTutorialActive: () => {},
+          user: profile,
+          workspaces,
+        },
+        features: { WorkspaceQuotasEnabled: false },
+        route: appLink.workflows({ workspace: workspaceFixture.name }),
+      }
+    );
+
+    expect(await screen.findByText("Workflows (3)")).toBeInTheDocument();
+    expect(screen.queryByText(/Workflow quota/)).not.toBeInTheDocument();
+  });
+});
+
 describe("WorkflowsHome --- loader", () => {
   test("resolves the workspace's workflows", async () => {
     const request = new Request(`http://localhost${appLink.workflows({ workspace: workspaceFixture.name })}`);

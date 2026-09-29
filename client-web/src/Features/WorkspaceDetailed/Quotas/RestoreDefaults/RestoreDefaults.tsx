@@ -39,6 +39,21 @@ const RestoreDefaults: React.FC<RestoreDefaultsProps> = ({ workspace, disabled }
   );
 };
 
+// Every quota a restore resets, titled and unitised as its card on the Quotas screen.
+function defaultQuotaRows(quotas?: QuotasLoaderData["defaultQuotas"]) {
+  const show = (text: (q: NonNullable<QuotasLoaderData["defaultQuotas"]>) => string) => (quotas ? text(quotas) : "---");
+  return [
+    { title: "Number of Workflows", value: show((q) => `${q.maxWorkflowCount} Workflows`) },
+    { title: "Number of Executions", value: show((q) => `${q.maxWorkflowRunMonthly} per month`) },
+    { title: "Run Duration", value: show((q) => `${q.maxWorkflowRunDuration} minutes`) },
+    { title: "Concurrent Runs (executions)", value: show((q) => `${q.maxConcurrentRuns} Workflows`) },
+    { title: "Workspace Capacity - Per Workflow", value: show((q) => `${q.maxWorkflowStorage}GB per Workflow`) },
+    { title: "Workspace Capacity - Per Run", value: show((q) => `${q.maxWorkflowRunStorage}GB per WorkflowRun`) },
+    { title: "Artifact Storage", value: show((q) => `${q.maxArtifactStorage}GB`) },
+    { title: "Artifact Retention", value: show((q) => `${q.artifactRetentionDays} days`) },
+  ];
+}
+
 interface restoreDefaultProps {
   closeModal: Function;
 }
@@ -87,36 +102,12 @@ const RestoreModalContent: React.FC<restoreDefaultProps> = ({ closeModal }) => {
     <ModalForm>
       <ModalBody className={styles.modalBodyContainer}>
         <div className={styles.gridContainer}>
-          <section>
-            <dt className={styles.detailedTitle}>Maximum number of Workflows </dt>
-            <dt className={styles.detailedData}>
-              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowCount} Workflows`}{" "}
-            </dt>
-          </section>
-          <section>
-            <dt className={styles.detailedTitle}>Maximum Workflow executions </dt>
-            <dt className={styles.detailedData}>
-              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowRunMonthly} per month`}
-            </dt>
-          </section>
-          <section>
-            <dt className={styles.detailedTitle}>Storage limit</dt>
-            <dt className={styles.detailedData}>
-              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowStorage}GB per Workflow`}
-            </dt>
-          </section>
-          <section>
-            <dt className={styles.detailedTitle}>Maximum Workflow duration</dt>
-            <dt className={styles.detailedData}>
-              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxWorkflowRunDuration} minutes`}
-            </dt>
-          </section>
-          <section>
-            <dt className={styles.detailedTitle}>Maximum concurrent Workflows</dt>
-            <dt className={styles.detailedData}>
-              {errorLoadingDefaults || !defaultQuotas ? "---" : `${defaultQuotas.maxConcurrentRuns} Workflows`}
-            </dt>
-          </section>
+          {defaultQuotaRows(errorLoadingDefaults ? undefined : defaultQuotas).map(({ title, value }) => (
+            <section key={title}>
+              <dt className={styles.detailedTitle}>{title}</dt>
+              <dt className={styles.detailedData}>{value}</dt>
+            </section>
+          ))}
         </div>
         {failed && (
           <InlineNotification

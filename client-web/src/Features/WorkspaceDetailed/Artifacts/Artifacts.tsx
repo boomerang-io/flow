@@ -3,12 +3,13 @@ import { Button, DataTable, InlineNotification, Pagination } from "@carbon/react
 import { ConfirmModal, ErrorMessage, notify, Toggle, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import moment from "moment";
+import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { Link, useFetcher, useLoaderData, useLocation, useNavigate } from "react-router-dom";
 import ProgressBar from "Components/ProgressBar";
 import { formatBytes } from "Utils/byteHelper";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
-import { appLink, queryStringOptions } from "Config/appConfig";
+import { appLink, FeatureFlag, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { Artifact, ArtifactStatus, PaginatedResponse } from "Types";
@@ -91,6 +92,7 @@ const HEADERS = [
 
 function Artifacts() {
   const { workspace, canEdit } = useWorkspaceDetailedContext();
+  const workspaceQuotasEnabled = Boolean(useFeature(FeatureFlag.WorkspaceQuotasEnabled));
   const { artifacts, errorLoading } = useLoaderData() as ArtifactsLoaderData;
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,7 +147,7 @@ function Artifacts() {
     return acc;
   }, {});
 
-  const { maxArtifactStorage, currentArtifactStorage } = workspace.quotas;
+  const { maxArtifactStorage = 0, currentArtifactStorage = 0 } = workspaceQuotasEnabled ? workspace.quotas : {};
   const maxArtifactStorageBytes = maxArtifactStorage * 1024 ** 3;
   let storagePercentage = maxArtifactStorageBytes > 0 ? (currentArtifactStorage / maxArtifactStorageBytes) * 100 : 0;
   if (storagePercentage > 100) storagePercentage = 100;
@@ -169,14 +171,16 @@ function Artifacts() {
           />
         </section>
       ) : null}
-      <section className={styles.summary}>
-        <p className={styles.summaryTitle}>{`${formatBytes(currentArtifactStorage)} of ${maxArtifactStorage} GB used`}</p>
-        <ProgressBar
-          maxValue={maxArtifactStorage}
-          value={storagePercentage}
-          coverageBarStyle={{ height: "1rem", width: "20rem" }}
-        />
-      </section>
+      {workspaceQuotasEnabled ? (
+        <section className={styles.summary}>
+          <p className={styles.summaryTitle}>{`${formatBytes(currentArtifactStorage)} of ${maxArtifactStorage} GB used`}</p>
+          <ProgressBar
+            maxValue={maxArtifactStorage}
+            value={storagePercentage}
+            coverageBarStyle={{ height: "1rem", width: "20rem" }}
+          />
+        </section>
+      ) : null}
       <div className={styles.filtersContainer}>
         <Toggle
           id="artifacts-show-expired"

@@ -15,7 +15,7 @@ import { FlowData, ArrowsHorizontal, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
-import { Link, useLocation, useRouteLoaderData } from "react-router-dom";
+import { Link, useLocation, useNavigate, useRouteLoaderData } from "react-router-dom";
 import * as navigationIcons from "Utils/navigationIcons";
 import type { BootstrapData } from "Features/App/App";
 import { APP_ROOT, FeatureFlag } from "Config/appConfig";
@@ -48,6 +48,8 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
   const authConfig = useRouteLoaderData<BootstrapData>("root")?.authConfig ?? null;
   const sessionSignOut =
     authConfig && authConfig.mode !== "none" ? { signOutUrl: `${APP_ROOT}/auth/logout` } : undefined;
+  // The shell's product name links to ${baseEnvUrl}/launchpad, which Flow does not have; send it home.
+  const navigate = useNavigate();
 
   return (
     <>
@@ -65,6 +67,8 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
           },
         }}
         leftPanel={(args) => <AppSideNav {...args} flowNavigationData={flowNavigationData} />}
+        enableSpaNavigation
+        onNavigate={() => navigate(appLink.home())}
         platformName={platformName}
         productName={appName}
         skipToContentProps={skipToContentProps}

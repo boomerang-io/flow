@@ -26,6 +26,7 @@ public class NavigationService {
 
   private static final String AUTHORIZATION_HEADER = "Authorization";
   private static final String TOKEN_PREFIX = "Bearer ";
+  private static final String SINGLE_WORKSPACE = "system";
 
   @Value("${flow.externalUrl.navigation}")
   private String flowExternalUrlNavigation;
@@ -53,8 +54,13 @@ public class NavigationService {
 
     Features features = featureService.get();
 
-    boolean disabled = optTeamId.isPresent() ? false : true;
-    String teamIdURLContext = optTeamId.isPresent() ? "/" + optTeamId.get() : "";
+    // A single-workspace install has one workspace, so its links never wait for one to be chosen.
+    Optional<String> workspace =
+        (Boolean.TRUE.equals(features.getFeatures().get("workspace.single"))
+            ? Optional.of(SINGLE_WORKSPACE)
+            : optTeamId);
+    boolean disabled = workspace.isEmpty();
+    String teamIdURLContext = workspace.map(name -> "/" + name).orElse("");
 
     if (flowExternalUrlNavigation.isBlank()) {
       List<Navigation> response = new ArrayList<>();

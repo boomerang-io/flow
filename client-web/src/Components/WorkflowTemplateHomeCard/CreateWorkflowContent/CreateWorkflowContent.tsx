@@ -49,7 +49,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
         name: template.name,
         description: template.description ?? "",
         icon: template.icon,
-        workspace: "",
+        workspace: workspaces?.length === 1 ? workspaces[0].name : "",
       }}
       onSubmit={handleSubmit}
       validationSchema={Yup.object().shape({

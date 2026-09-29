@@ -98,6 +98,7 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
 
   const workflows = workflowsQueryData.content;
   const existingWorkflowNames = workflows?.map((workflow) => workflow.name) ?? [];
+  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
 
   return (
     <>
@@ -163,12 +164,14 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
             ),
           displayName: Yup.string().optional(),
           retries: Yup.number().min(0),
-          timeout: Yup.number()
-            .min(0)
-            .max(
-              workspace.quotas.maxWorkflowRunDuration,
-              `Timeout must not exceed quota of ${workspace.quotas.maxWorkflowRunDuration} minutes`,
-            ),
+          timeout: workspaceQuotasEnabled
+            ? Yup.number()
+                .min(0)
+                .max(
+                  workspace.quotas.maxWorkflowRunDuration,
+                  `Timeout must not exceed quota of ${workspace.quotas.maxWorkflowRunDuration} minutes`,
+                )
+            : Yup.number().min(0),
           triggers: Yup.object().shape({
             schedule: TRIGGER_YUP_SCHEMA,
             event: TRIGGER_YUP_SCHEMA,
@@ -210,6 +213,7 @@ interface ConfigureProps {
 function Configure(props: ConfigureProps) {
   const workflowTokensEnabled = useFeature(FeatureFlag.WorkflowTokensEnabled);
   const integrationsEnabled = useFeature(FeatureFlag.IntegrationsEnabled);
+  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
   // Read off the URL rather than built from props.workflow.name: the two differ (appLink.editorCanvas
   // builds from the name, while specs and older bookmarks address the editor by id - see
   // editorRoute.ts), and the default-panel redirect below must not change which workflow the URL
@@ -723,7 +727,11 @@ function Configure(props: ConfigureProps) {
                 <TextInput
                   id="timeout"
                   label="Timeout"
-                  helperText={`In minutes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkflowRunDuration} minutes.`}
+                  helperText={
+                    workspaceQuotasEnabled
+                      ? `In minutes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkflowRunDuration} minutes.`
+                      : "In minutes."
+                  }
                   value={values.timeout ?? undefined}
                   onBlur={handleBlur}
                   onChange={(e) => props.formikProps.handleChange(e)}
@@ -811,7 +819,7 @@ function Configure(props: ConfigureProps) {
                           setFieldValue("storage.workflow", storageValues);
                         }}
                         closeModal={closeModal}
-                        quota={props.workspace.quotas.maxWorkflowStorage}
+                        quota={workspaceQuotasEnabled ? props.workspace.quotas.maxWorkflowStorage : undefined}
                       />
                     )}
                   </ComposedModal>
@@ -862,7 +870,7 @@ function Configure(props: ConfigureProps) {
                           setFieldValue("storage.activity", storageValues);
                         }}
                         closeModal={closeModal}
-                        quota={props.workspace.quotas.maxWorkflowRunStorage}
+                        quota={workspaceQuotasEnabled ? props.workspace.quotas.maxWorkflowRunStorage : undefined}
                         isActivity
                       />
                     )}

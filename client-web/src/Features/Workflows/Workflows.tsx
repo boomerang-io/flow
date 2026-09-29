@@ -251,7 +251,8 @@ interface WorkflowContentProps {
 const WorkflowContent: React.FC<WorkflowContentProps> = ({ workspace, searchQuery, workflowList }) => {
   const hasWorkflows = workflowList.length > 0;
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
-  const hasReachedWorkflowLimit = workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
+  const hasReachedWorkflowLimit =
+    Boolean(workspaceQuotasEnabled) && workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
 
   const filteredWorkflowList = Boolean(searchQuery)
     ? matchSorter(workflowList, searchQuery, { keys: ["name"] })

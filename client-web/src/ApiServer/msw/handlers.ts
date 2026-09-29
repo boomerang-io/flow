@@ -98,8 +98,11 @@ export const handlers: HttpHandler[] = [
       maxWorkflowCount: 20,
       maxWorkflowRunMonthly: 150,
       maxWorkflowStorage: 10,
+      maxWorkflowRunStorage: 3,
       maxWorkflowRunDuration: 30,
       maxConcurrentRuns: 4,
+      maxArtifactStorage: 8,
+      artifactRetentionDays: 45,
     }),
   ),
   /*
