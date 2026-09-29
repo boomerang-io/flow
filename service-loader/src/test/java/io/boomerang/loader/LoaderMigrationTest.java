@@ -666,6 +666,7 @@ class LoaderMigrationTest {
             "temperature",
             "maxTokens",
             "responseFormat",
+            "jsonSchema",
             "seed",
             "files",
             "maxContextBytes");
@@ -1290,6 +1291,43 @@ class LoaderMigrationTest {
         .isEqualTo(1);
     assertThat(upgraded.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("to", "task:" + aiId)))
         .isEqualTo(1);
+  }
+
+  /**
+   * {@code _0054__DeclareAiJsonSchemaParam}: an install whose ai revision predates task-ai 1.1.0
+   * gains the {@code jsonSchema} param, placed after {@code responseFormat}, exactly once.
+   */
+  @Test
+  void existingInstallGainsTheAiJsonSchemaParam() {
+    String uri = MONGO.getReplicaSetUrl("aijsonschema");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    MongoDatabase upgraded = client.getDatabase("aijsonschema");
+    String aiId =
+        upgraded.getCollection(PREFIX + "_tasks").find(Filters.eq("name", "ai")).first().get("_id").toString();
+    MongoCollection<Document> revisions = upgraded.getCollection(PREFIX + "_task_revisions");
+
+    // Rewind to an ai revision without the param, and forget only this unit.
+    revisions.updateOne(
+        Filters.eq("parentRef", aiId),
+        Updates.pull("spec.params", new Document("name", "jsonSchema")));
+    assertThat(aiParamNames(revisions, aiId)).doesNotContain("jsonSchema");
+    forgetChangeUnit(upgraded, "0054-declare-ai-json-schema-param");
+
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    List<String> names = aiParamNames(revisions, aiId);
+    assertThat(names).containsSubsequence("responseFormat", "jsonSchema", "seed");
+    assertThat(names.stream().filter("jsonSchema"::equals)).hasSize(1);
+
+    forgetChangeUnit(upgraded, "0054-declare-ai-json-schema-param");
+    assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
+    assertThat(aiParamNames(revisions, aiId).stream().filter("jsonSchema"::equals)).hasSize(1);
+  }
+
+  private static List<String> aiParamNames(MongoCollection<Document> revisions, String aiId) {
+    return revisions.find(Filters.eq("parentRef", aiId)).first().get("spec", Document.class)
+        .getList("params", Document.class).stream()
+        .map(p -> p.getString("name"))
+        .toList();
   }
 
   /**

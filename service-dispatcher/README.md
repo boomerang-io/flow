@@ -40,7 +40,7 @@ independently — but the param and result contract is shared between that image
 catalogue task in this repository, so a change to either side has to land on both. The contract is
 documented in that repository's `tasks/ai/README.md`.
 
-`flow.dispatcher.ai.image` defaults to an exact version, `boomerangio/task-ai:1.0.0`, so a deployment
+`flow.dispatcher.ai.image` defaults to an exact version, `boomerangio/task-ai:1.1.0`, so a deployment
 runs a reproducible worker. Move it deliberately:
 
 ```properties
