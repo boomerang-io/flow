@@ -32,11 +32,13 @@ export const parseChartsData = (data: Array<InsightsRuns>, statuses: RunStatus |
   let sumDuration = 0;
 
   data.forEach((execution) => {
-    // Get execution count
-    if (!executionPerWorkflowMap[execution.workflowRef]) {
-      executionPerWorkflowMap[execution.workflowRef] = { label: execution.workflowName, value: 1 };
+    // Count runs per workflow name: a workflow deleted and recreated under the same name keeps
+    // its old runs under the old id, and they are one workflow to the reader.
+    const workflowKey = execution.workflowName ?? execution.workflowRef;
+    if (!executionPerWorkflowMap[workflowKey]) {
+      executionPerWorkflowMap[workflowKey] = { label: workflowKey, value: 1 };
     } else {
-      executionPerWorkflowMap[execution.workflowRef].value += 1;
+      executionPerWorkflowMap[workflowKey].value += 1;
     }
 
     const executionDate = new Date(execution.creationDate);
