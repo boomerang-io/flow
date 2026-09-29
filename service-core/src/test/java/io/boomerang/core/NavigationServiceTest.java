@@ -91,4 +91,35 @@ class NavigationServiceTest {
         .contains("Workflows", "Activity", "Actions", "Administer")
         .doesNotContain("Insights", "Schedules", "Integrations", "Manage Workspace");
   }
+
+  @Test
+  void singleWorkspaceLinksAreEnabledWithoutAWorkspaceInTheRequest() {
+    ReflectionTestUtils.setField(navigationService, "flowExternalUrlNavigation", "");
+    ReflectionTestUtils.setField(navigationService, "flowAppsUrl", "/apps/flow");
+    Map<String, Object> flags = new HashMap<>();
+    for (String flag :
+        List.of(
+            "activity",
+            "insights",
+            "schedules",
+            "integrations",
+            "workspace.tasks",
+            "workspace.parameters",
+            "workspace.management",
+            "user.management",
+            "global.parameters")) {
+      flags.put(flag, false);
+    }
+    flags.put("workspace.single", true);
+    featureService.get().setFeatures(flags);
+
+    Navigation workflows =
+        navigationService.getNavigation(true, Optional.empty()).stream()
+            .filter(item -> "Workflows".equals(item.getName()))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(workflows.isDisabled()).isFalse();
+    assertThat(workflows.getLink()).isEqualTo("/apps/flow/system/workflows");
+  }
 }

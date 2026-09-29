@@ -35,7 +35,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
   viewType,
 }) => {
   const formikRef = useRef<any>();
-  const hasReachedWorkflowLimit = workspace ? workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount : false;
+  const hasReachedWorkflowLimit = workspace?.quotas ? workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount : false;
   const createWorkflowsDisabled = workspaceQuotasEnabled && hasReachedWorkflowLimit;
 
   const handleSubmit = (values: any) => {

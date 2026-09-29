@@ -11,7 +11,7 @@ type Props = {
   mountPath: string;
   handleOnChange: (...values: any) => void;
   closeModal: (...args: any) => void;
-  quota: number;
+  quota?: number;
   isActivity?: boolean;
 };
 
@@ -52,7 +52,8 @@ export default function ConfigureStorage({
               <BasicSlider
                 id="storage-config-size-slider"
                 min={1}
-                max={quota}
+                // A workspace without quotas (engine mode) has no ceiling; the slider still needs one.
+                max={quota ?? Math.max(values.size, 100)}
                 inputType="text"
                 labelText="Storage Size"
                 helperText="Size in Gigabytes."

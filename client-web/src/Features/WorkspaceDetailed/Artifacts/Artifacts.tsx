@@ -145,7 +145,8 @@ function Artifacts() {
     return acc;
   }, {});
 
-  const { maxArtifactStorage, currentArtifactStorage } = workspace.quotas;
+  // A workspace read without quotas (engine mode has none) shows no storage meter.
+  const { maxArtifactStorage = 0, currentArtifactStorage = 0 } = workspace.quotas ?? {};
   const maxArtifactStorageBytes = maxArtifactStorage * 1024 ** 3;
   let storagePercentage = maxArtifactStorageBytes > 0 ? (currentArtifactStorage / maxArtifactStorageBytes) * 100 : 0;
   if (storagePercentage > 100) storagePercentage = 100;
@@ -169,14 +170,16 @@ function Artifacts() {
           />
         </section>
       ) : null}
-      <section className={styles.summary}>
-        <p className={styles.summaryTitle}>{`${formatBytes(currentArtifactStorage)} of ${maxArtifactStorage} GB used`}</p>
-        <ProgressBar
-          maxValue={maxArtifactStorage}
-          value={storagePercentage}
-          coverageBarStyle={{ height: "1rem", width: "20rem" }}
-        />
-      </section>
+      {workspace.quotas ? (
+        <section className={styles.summary}>
+          <p className={styles.summaryTitle}>{`${formatBytes(currentArtifactStorage)} of ${maxArtifactStorage} GB used`}</p>
+          <ProgressBar
+            maxValue={maxArtifactStorage}
+            value={storagePercentage}
+            coverageBarStyle={{ height: "1rem", width: "20rem" }}
+          />
+        </section>
+      ) : null}
       <div className={styles.filtersContainer}>
         <Toggle
           id="artifacts-show-expired"

@@ -251,7 +251,9 @@ interface WorkflowContentProps {
 const WorkflowContent: React.FC<WorkflowContentProps> = ({ workspace, searchQuery, workflowList }) => {
   const hasWorkflows = workflowList.length > 0;
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
-  const hasReachedWorkflowLimit = workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
+  // A workspace read without quotas (engine mode has none) has no limit to reach.
+  const hasReachedWorkflowLimit =
+    Boolean(workspace.quotas) && workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
 
   const filteredWorkflowList = Boolean(searchQuery)
     ? matchSorter(workflowList, searchQuery, { keys: ["name"] })
@@ -264,7 +266,7 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ workspace, searchQuer
   return (
     <>
       <hgroup className={styles.header}>
-        {workspaceQuotasEnabled ? (
+        {workspaceQuotasEnabled && workspace.quotas ? (
           <div className={styles.workspaceQuotaContainer}>
             <div className={styles.quotaDescriptionContainer}>
               <p
