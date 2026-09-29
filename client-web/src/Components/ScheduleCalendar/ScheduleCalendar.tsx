@@ -19,15 +19,19 @@ interface ScheduleCalendarProps extends CalendarProps {
 
 export default function ScheduleCalendar(props: ScheduleCalendarProps) {
   const { heightOffset = 260 } = props;
-  const [height, setHeight] = React.useState(window.innerHeight - heightOffset); //meh
+  // The server has no window: render at a default height, then size to the viewport on mount.
+  const [height, setHeight] = React.useState(
+    (typeof window !== "undefined" ? window.innerHeight : 900) - heightOffset,
+  );
 
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     function updateSize() {
       setHeight(window.innerHeight - heightOffset);
     }
+    updateSize();
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  });
+  }, [heightOffset]);
 
   return (
     <Calendar<CalendarEvent>
