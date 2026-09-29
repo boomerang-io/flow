@@ -28,6 +28,16 @@ a {
   z-index: 998;
 }
 
+/* The add-ons modal container is a flex column, and Carbon's header scrolls, so a tall body shrank
+   the header until its subtitle scrolled. Keep the header its natural height (Carbon still caps it
+   at 50vh); the body takes the scroll. Modals render in a portal, outside #app. */
+.cds--bmrg-modal-composed-container,
+.cds--bmrg-modal-flow-container {
+  .cds--modal-header {
+    flex-shrink: 0;
+  }
+}
+
 #app {
   //overwrite carbon components
   .cds--list-box__label {
