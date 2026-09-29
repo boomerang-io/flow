@@ -142,7 +142,7 @@ is a `min-height` of 112px, not a height, so a long description or 200% zoom gro
 | --- | --- |
 | Breadcrumb | Every page has one. Workspace pages start `Home / <workspace>`; Administer pages use `Components/AdminBreadcrumb` (`Home / Administer`). |
 | Title | A list page is titled with its route (Workflows, Actions, Settings). A page inside one object is titled with that object's name, and the breadcrumb ends with the route: the editor is `Home / Workflows / Editor` titled with the workflow's name, Activity detail is `Home / Activity / Activity detail` titled with the run's workflow, a user is titled with the user's name. |
-| Right slot | Page actions and summaries (search, today's numbers, run facts) sit in `actions`, beside the rows. Controls that act on the tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
+| Right slot | Page facts and actions (search, today's numbers, run facts) sit in `actions`, beside the rows. Controls sit after the facts, inside to outside: icon and secondary buttons, the one primary action, then an overflow menu (⋮) for the rest, destructive items last. A status is a Carbon tag in the status colour: on Activity detail it leads the run facts with the duration inside (`client-web/src/Features/WorkflowRun/RunHeader/RunHeader.tsx`). Controls that act on tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
 | Tabs and description | A page with tabs carries no description line (Actions). |
 
 The workflow editor's task palette follows the same density: one 32px title row ("Add a task", Expand all, the

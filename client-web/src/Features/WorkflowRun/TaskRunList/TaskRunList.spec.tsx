@@ -147,14 +147,23 @@ describe("ExecutionTaskLog --- RTL", () => {
     expect(listItems).toHaveLength(4);
     const [startItem, emailItem, , endItem] = listItems;
 
-    expect(within(startItem).queryByText("Start time")).not.toBeInTheDocument();
-    expect(within(startItem).queryByText("Duration")).not.toBeInTheDocument();
-    expect(within(endItem).queryByText("Start time")).not.toBeInTheDocument();
-    expect(within(endItem).queryByText("Duration")).not.toBeInTheDocument();
+    expect(within(startItem).queryByTestId("taskitem-time")).not.toBeInTheDocument();
+    expect(within(endItem).queryByTestId("taskitem-time")).not.toBeInTheDocument();
 
     // Normal task entries are unaffected.
-    expect(within(emailItem).getByText("Start time")).toBeInTheDocument();
-    expect(within(emailItem).getByText("Duration")).toBeInTheDocument();
+    expect(within(emailItem).getByTestId("taskitem-time")).toHaveTextContent(/^Started at /);
+  });
+});
+
+describe("ExecutionTaskLog --- task log and artifacts switch", () => {
+  it("switches the panel between the task log and the run's artifacts", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Artifacts \(0\)/ }));
+    expect(screen.getByText("No artifacts for this run.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Task log \(\d+\)/ }));
+    expect(screen.queryByText("No artifacts for this run.")).not.toBeInTheDocument();
   });
 });
 

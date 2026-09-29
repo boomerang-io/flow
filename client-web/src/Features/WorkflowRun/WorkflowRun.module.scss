@@ -21,7 +21,7 @@
 }
 
 .diagram {
-  margin-top: 3.5rem;
+  margin-top: 2.5rem;
   padding: 1rem;
 }
 
@@ -42,10 +42,10 @@
 
 .executionWorkflowActions {
   background-color: var(--cds-ui-background);
-  border-bottom: 0.0625rem solid #b9bfc7;
+  border-bottom: 0.0625rem solid var(--cds-border-subtle);
   display: flex;
   justify-content: space-between;
-  height: 3.5rem;
+  height: 2.5rem;
   left: 0;
   position: absolute;
   width: 100%;

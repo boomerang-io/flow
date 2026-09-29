@@ -169,15 +169,25 @@ describe("RunHeader --- Initiated by", () => {
 // paste into a terminal, so every value in them has to be real. workflow-ref came from a
 // `:workflow` route param that AppPath.Run (/:workspace/activity/:runId) does not supply, so the
 // user was shown - and copied - `boomerang.io/workflow-ref=undefined`.
+describe("RunHeader --- status and controls", () => {
+  it("leads the run facts with the status tag, duration included", () => {
+    renderRunHeader({ status: RunStatus.Succeeded, phase: RunPhase.Completed, duration: 21000 });
+
+    expect(screen.getByTestId("run-status")).toHaveTextContent(/Succeeded\s+in 21/);
+  });
+});
+
 describe("RunHeader --- Advanced detail", () => {
   async function openAdvancedDetail(
     overrides: Partial<WorkflowRun> = {},
     workflowOverrides: Partial<WorkflowCanvas> = {},
   ) {
     const view = renderRunHeader(overrides, workflowOverrides);
-    await userEvent.click(screen.getByTestId("advanced-detail-trigger"));
-    // "Advanced detail" itself appears twice (the trigger tooltip and the modal header), so key
-    // the wait on something only the modal body renders. Text queries rather than role queries
+    // Advanced detail lives in the header's overflow menu.
+    await userEvent.click(screen.getByRole("button", { name: "More run actions" }));
+    await userEvent.click(await screen.findByTestId("advanced-detail-trigger"));
+    // "Advanced detail" itself appears twice (the menu item and the modal header), so key the
+    // wait on something only the modal body renders. Text queries rather than role queries
     // throughout this block: react-modal's ariaHideApp puts aria-hidden="true" on the app element
     // - which under this harness is <body> itself - while the modal is open, so every plain
     // byRole query misses the whole tree.
