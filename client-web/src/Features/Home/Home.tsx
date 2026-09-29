@@ -1,45 +1,55 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Layer } from "@carbon/react";
+import { Button, InlineNotification } from "@carbon/react";
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { Api, Parameter } from "@carbon/react/icons";
-import { Gear, PlanningAnalytics, PlayerFlow, Workflows } from "@carbon/pictograms-react";
-import cx from "classnames";
+import { Add, Api, ArrowRight, Parameter } from "@carbon/react/icons";
+import { PlayerFlow, Workflows } from "@carbon/pictograms-react";
 import { useFeature } from "flagged";
 import kebabcase from "lodash/kebabCase";
 import sortBy from "lodash/sortBy";
 import queryString from "query-string";
-import { useFetcher, useNavigate, useLocation } from "react-router-dom";
+import { Link, useFetcher, useLoaderData, useLocation, useNavigate } from "react-router-dom";
 import HomeBanner from "Components/HomeBanner";
 import LearnCard from "Components/LearnCard";
 import WorkspaceCard from "Components/WorkspaceCard";
 import WorkspaceCardCreate from "Components/WorkspaceCardCreate";
 import WorkflowTemplateHomeCard from "Components/WorkflowTemplateHomeCard";
+import templateStyles from "Components/WorkflowTemplateHomeCard/workflowTemplateHomeCard.module.scss";
 import { useAppContext } from "Hooks";
-import { FeatureFlag } from "Config/appConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
-import { MemberRole } from "Types";
+import { MemberRole, ModalTriggerProps } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import AttentionList from "./AttentionList";
+import { daySummary } from "./copy";
+import { GettingStartedSteps, KeyConcepts } from "./GettingStarted";
+import { HomeLoaderData } from "./homeLoader";
+import PulseTiles from "./PulseTiles";
+import RecentActivity from "./RecentActivity";
 import styles from "./home.module.scss";
 
-// Home has no read of its own - workspaces/user/workflowTemplates come from useAppContext(),
-// which App.tsx feeds (that layout route's own loader conversion is a separate, in-flight
-// change; left untouched here). This route module is therefore write-only: one `action`,
-// keyed by `intent`, covering the three mutations that live under this route - the one owned
-// directly by this component (create-workspace) plus the two owned by WorkspaceCard (leave a
-// workspace) and WorkflowTemplateHomeCard (create a workflow from a template). Those two
-// components are only ever rendered inside Home (no route boundary between them and this file),
-// so their own `useFetcher()` calls submit here by default without needing an explicit `action`
-// target.
+export { loader } from "./homeLoader";
+
+// Home's read is the rollup in ./homeLoader.ts; the workspace list, user and templates still
+// come from useAppContext(), which App.tsx feeds from the root loader. This route module's
+// `action` is keyed by `intent` and covers the four mutations that live under this route: the
+// one owned directly by this component (create-workspace) plus the three owned by components
+// only ever rendered inside Home - WorkspaceCard (leave a workspace), WorkflowTemplateHomeCard
+// (create a workflow from a template) and AttentionList (approve or reject an action). Those
+// components' own `useFetcher()` calls submit here by default without an explicit `action`
+// target. React Router revalidates every matched loader once a fetcher action settles, so the
+// numbers refresh with no explicit call.
 type ActionResult =
   | { intent: "create-workspace"; displayName: string }
   | ({ intent: "create-workspace"; displayName: string } & ActionError)
   | { intent: "leave-workspace"; displayName: string }
   | ({ intent: "leave-workspace"; displayName: string } & ActionError)
   | { intent: "create-workflow-from-template"; workspace: string; workflow?: { name: string } }
-  | ({ intent: "create-workflow-from-template"; workspace: string } & ActionError);
+  | ({ intent: "create-workflow-from-template"; workspace: string } & ActionError)
+  | { intent: "putAction" }
+  | ({ intent: "putAction" } & ActionError);
 
 export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
@@ -79,6 +89,27 @@ export async function action({ request }: { request: Request }) {
     }
   }
 
+  // The same PUT the Actions page sends (Features/Actions/Actions.tsx, intent "putAction"),
+  // reached from Home's "Needs your attention" list. The workspace comes with the form because
+  // this route has no `:workspace` segment.
+  if (intent === "putAction") {
+    const workspace = String(formData.get("workspace"));
+    const body = JSON.parse(String(formData.get("body")));
+    try {
+      await serverFetch(request)({
+        url: serviceUrl.workspace.action.putAction({ workspace }),
+        data: body,
+        method: HttpMethod.Put,
+      });
+      return { intent: "putAction" as const };
+    } catch (error) {
+      return actionError({
+        intent: "putAction" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Request to action failed" }),
+      });
+    }
+  }
+
   // Default / "create-workspace"
   const name = String(formData.get("name"));
   const displayName = String(formData.get("displayName"));
@@ -106,14 +137,47 @@ export async function action({ request }: { request: Request }) {
   }
 }
 
+const learnItems = [
+  {
+    key: "first-workflow",
+    icon: <Workflows style={{ height: "1.5rem", width: "1.5rem" }} />,
+    title: "Build your first workflow",
+    description: "Tasks, links and the drag-and-drop designer.",
+    link: "https://useboomerang.io/docs/introduction/getting-started",
+    tags: ["Getting started"],
+  },
+  {
+    key: "actions",
+    icon: <PlayerFlow style={{ height: "1.5rem", width: "1.5rem" }} />,
+    title: "Approvals and manual actions",
+    description: "Put a person in the loop where it matters.",
+    link: "https://useboomerang.io/docs/fundamentals/actions",
+    tags: ["Next steps"],
+  },
+  {
+    key: "parameters",
+    icon: <Parameter style={{ height: "1.5rem", width: "1.5rem" }} />,
+    title: "Parameters and results",
+    description: "Make workflows dynamic and chain task outputs.",
+    link: "https://useboomerang.io/docs/fundamentals/parameters",
+    tags: ["Advanced"],
+  },
+  {
+    key: "triggers",
+    icon: <Api style={{ height: "1.5rem", width: "1.5rem" }} />,
+    title: "Triggers, webhooks and the API",
+    description: "Start runs from outside the product.",
+    link: "https://useboomerang.io/docs/architecture/eventing",
+    tags: ["Advanced"],
+  },
+];
+
 export default function Home() {
   const { workspaces, name, user, workflowTemplates } = useAppContext();
-  // See the comment on `action` above: no loader lives on this route, but the workspace list
-  // comes from the root loader (Features/App/App.tsx) via useAppContext, and React Router
-  // revalidates every matched loader once a fetcher action settles - so creation refreshes it
-  // with no explicit call. Never queryClient.invalidateQueries here (dead against a
-  // loader-driven read; see UserLabels/ChangeRole for the bug this already caused).
-  const singleWorkspaceEnabled = useFeature(FeatureFlag.SingleWorkspaceEnabled);
+  const data = useLoaderData() as HomeLoaderData;
+  const singleWorkspaceEnabled = Boolean(useFeature(FeatureFlag.SingleWorkspaceEnabled));
+  const activityEnabled = Boolean(useFeature(FeatureFlag.ActivityEnabled));
+  const schedulesEnabled = Boolean(useFeature(FeatureFlag.SchedulesEnabled));
   const location = useLocation();
   const navigate = useNavigate();
   const { action: queryAction, workspaceName } = queryString.parse(location.search);
@@ -159,129 +223,229 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sortedWorkspaces = useMemo(() => sortBy(workspaces, ["name"]), [workspaces]);
+  const sortedWorkspaces = useMemo(() => sortBy(workspaces ?? [], ["name"]), [workspaces]);
 
   const isCreateWorkspaceError = Boolean(createWorkspaceFetcher.data && isActionError(createWorkspaceFetcher.data));
   const isCreateWorkspaceLoading = createWorkspaceFetcher.state !== "idle";
 
+  const hasWorkspaces = sortedWorkspaces.length > 0;
+  const workflowCount = sortedWorkspaces.reduce((sum, workspace) => sum + (workspace.insights?.workflows ?? 0), 0);
+  const memberCount = sortedWorkspaces.reduce((sum, workspace) => sum + (workspace.insights?.members ?? 0), 0);
+  // Where the hero's "Create workflow" and the tiles go when nothing more specific applies: the
+  // workspace that ran most recently, else the first by name.
+  const primaryWorkspace = data.recentRuns[0]?.workspace ?? sortedWorkspaces[0]?.name ?? "";
+  const displayName = user.displayName || user.name;
+  const showSteps = !hasWorkspaces || workflowCount === 0 || data.totalRuns === 0;
+
+  // The create-workspace modal, mounted behind whichever trigger a spot needs. A single
+  // workspace deployment has no create affordance anywhere.
+  const createWorkspaceModal = (modalTrigger: (args: ModalTriggerProps) => React.ReactNode) =>
+    singleWorkspaceEnabled ? null : (
+      <WorkspaceCardCreate
+        createWorkspace={createWorkspace}
+        isError={isCreateWorkspaceError}
+        isLoading={isCreateWorkspaceLoading}
+        modalTrigger={modalTrigger}
+      />
+    );
+
   return (
-    <>
-      <HomeBanner name={name} />
-      <div className={styles.welcome}>
-        <h1>Welcome, {user.displayName ? user.displayName : user.name}</h1>
-      </div>
-      <div>
-        <Layer>
-          <Section title="Your Workspaces">
-            <nav className={styles.sectionLinks}>
-              {sortedWorkspaces ? sortedWorkspaces?.map((workspace) => <WorkspaceCard key={workspace.name} workspace={workspace} />) : null}
-              {!singleWorkspaceEnabled ? (
-                <WorkspaceCardCreate
-                  createWorkspace={createWorkspace}
-                  isError={isCreateWorkspaceError}
-                  isLoading={isCreateWorkspaceLoading}
-                />
-              ) : null}
-            </nav>
+    <div className={styles.page}>
+      <HomeBanner
+        eyebrow={`${data.dateLabel} · ${name}`}
+        title={hasWorkspaces ? `Welcome back, ${displayName}.` : `Hi ${displayName}. Let's get your first automation running.`}
+        message={
+          hasWorkspaces
+            ? daySummary({
+                runsToday: data.runsToday.all,
+                workspaces: sortedWorkspaces.length,
+                attentionTotal: data.attentionTotal,
+                attentionApprovals: data.attentionApprovals,
+                attentionManual: data.attentionManual,
+              })
+            : "Workflows are graphs of tasks that run as containers. You need a workspace to hold them, then a workflow to run. Three steps, about ten minutes."
+        }
+        actions={
+          hasWorkspaces ? (
+            <>
+              {createWorkspaceModal(({ openModal }) => (
+                <Button kind="tertiary" renderIcon={Add} onClick={openModal} data-testid="home-create-workspace">
+                  New workspace
+                </Button>
+              ))}
+              <Button as={Link} to={appLink.workflows({ workspace: primaryWorkspace })} renderIcon={ArrowRight}>
+                Create workflow
+              </Button>
+            </>
+          ) : (
+            createWorkspaceModal(({ openModal }) => (
+              <Button renderIcon={ArrowRight} onClick={openModal} data-testid="home-create-workspace">
+                Create your first workspace
+              </Button>
+            ))
+          )
+        }
+      />
+
+      {data.degraded ? (
+        <div className={styles.degraded}>
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Some numbers could not be loaded."
+            subtitle="Parts of this page show zeros. Refresh to try again."
+          />
+        </div>
+      ) : null}
+
+      {hasWorkspaces ? (
+        <div className={styles.pulse}>
+          <PulseTiles
+            data={data}
+            primaryWorkspace={primaryWorkspace}
+            workspaceCount={sortedWorkspaces.length}
+            workflowCount={workflowCount}
+            memberCount={memberCount}
+            activityEnabled={activityEnabled}
+            schedulesEnabled={schedulesEnabled}
+          />
+        </div>
+      ) : null}
+
+      {showSteps ? (
+        <section className={styles.steps} aria-labelledby="get-started-title">
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 id="get-started-title" className={styles.sectionTitle}>
+                Get started
+              </h2>
+            </div>
+            <GettingStartedSteps
+              hasWorkspace={hasWorkspaces}
+              hasWorkflow={workflowCount > 0}
+              hasRun={data.totalRuns > 0}
+              primaryWorkspace={primaryWorkspace || undefined}
+              createWorkspaceTrigger={createWorkspaceModal(({ openModal }) => (
+                <Button renderIcon={Add} size="md" onClick={openModal}>
+                  Create workspace
+                </Button>
+              ))}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {hasWorkspaces && data.attention.length > 0 ? (
+        <div className={styles.attention}>
+          <Section
+            id="needs-attention"
+            title="Needs your attention"
+            link={{ to: appLink.actions({ workspace: data.attention[0].workspace }), text: "All actions" }}
+          >
+            <AttentionList items={data.attention} total={data.attentionTotal} />
           </Section>
-        </Layer>
-        <Section title="Get Started With A Template" hasBorder>
-          <nav className={styles.sectionLinks}>
-            {workflowTemplates
-              ? workflowTemplates?.map((template) => (
-                  <WorkflowTemplateHomeCard template={template} workspaces={sortedWorkspaces} />
-                ))
-              : null}
-          </nav>
-        </Section>
-        <Section title="Explore and learn" hasBorder>
-          <nav className={styles.sectionLinks}>
-            <LearnCard
-              icon={<Workflows style={{ height: "1.5rem", width: "1.5rem" }} />}
-              key="first-workflow"
-              title="Create your first Workspace & Workflow"
-              description="Dive into the world of automation and create your first Workflow with our drag-and-drop designer."
-              link="https://useboomerang.io/docs/introduction/getting-started"
-              tags={["Getting started"]}
-            />
-            <LearnCard
-              icon={<PlanningAnalytics style={{ height: "1.5rem", width: "1.5rem" }} />}
-              key="activity"
-              title="Explore Workflow activity"
-              description="Gain control with execution activity and empower you to monitor, analyze, and optimize with precision and authority."
-              link="https://useboomerang.io/docs/fundamentals/insights"
-              tags={["Getting started"]}
-            />
-            <LearnCard
-              icon={<PlayerFlow style={{ height: "1.5rem", width: "1.5rem" }} />}
-              key="actions"
-              title="Your Action to-do list"
-              description="Focus on the approvals and manual actions that do need the visibility or analysis of a human."
-              link="https://useboomerang.io/docs/fundamentals/actions"
-              tags={["Next steps"]}
-            />
-            <LearnCard
-              icon={<Gear style={{ height: "1.5rem", width: "1.5rem" }} />}
-              key="manage"
-              title="Manage your Workspace"
-              description="Everything you need to manage your workspace effectively. Its members, workflows, approver groups, quotas, tokens, and more."
-              link="https://useboomerang.io/docs/fundamentals/manage"
-              tags={["Next steps"]}
-            />
-            <LearnCard
-              icon={<Parameter style={{ height: "1.5rem", width: "1.5rem" }} />}
-              key="manage"
-              title="Parameter power"
-              description="Learn the power of parameters and how to use them to make your workflows dynamic."
-              link="https://useboomerang.io/docs/fundamentals/parameters"
-              tags={["Advanced"]}
-            />
-            <LearnCard
-              icon={<Api style={{ height: "1.5rem", width: "1.5rem" }} />}
-              key="manage"
-              title="External triggers & the API"
-              description="Use external triggers & events to start workflows."
-              link="https://useboomerang.io/docs/architecture/eventing"
-              tags={["Advanced"]}
-            />
-          </nav>
-        </Section>
-      </div>
-      <Section title="Key concepts" hasBorder>
-        <nav className={styles.sectionLinks}>
-          <div className={styles.conceptItem}>
-            <h2>Workflows</h2>
-            <p>The representation of the tasks and actions to consistently automate a process.</p>
+        </div>
+      ) : null}
+
+      {hasWorkspaces ? (
+        <div className={styles.columns}>
+          <div className={styles.column}>
+            <Section id="your-workspaces" title="Your workspaces">
+              <div className={styles.cardGrid}>
+                {sortedWorkspaces.map((workspace) => {
+                  const stats = data.stats[workspace.name];
+                  return (
+                    <WorkspaceCard
+                      key={workspace.name}
+                      workspace={workspace}
+                      stats={stats ? { runsToday: stats.runsToday.all, lastRun: stats.lastRun } : undefined}
+                    />
+                  );
+                })}
+                {singleWorkspaceEnabled ? null : (
+                  <WorkspaceCardCreate
+                    createWorkspace={createWorkspace}
+                    isError={isCreateWorkspaceError}
+                    isLoading={isCreateWorkspaceLoading}
+                  />
+                )}
+              </div>
+            </Section>
+            <Section
+              id="recent-activity"
+              title="Recent activity"
+              link={activityEnabled ? { to: appLink.activity({ workspace: primaryWorkspace }), text: "All activity" } : undefined}
+            >
+              <RecentActivity runs={data.recentRuns} />
+            </Section>
           </div>
-          <div className={styles.conceptItem}>
-            <h2>Actions</h2>
-            <p>Manual or approval based tasks that need human interaction</p>
+          <div className={styles.column}>
+            <Section id="start-a-workflow" title="Start a workflow">
+              <div className={styles.list}>
+                <Link
+                  to={appLink.workflows({ workspace: primaryWorkspace })}
+                  className={templateStyles.row}
+                  data-testid="home-blank-workflow"
+                >
+                  <span className={templateStyles.icon} aria-hidden="true">
+                    <Add />
+                  </span>
+                  <span className={templateStyles.body}>
+                    <span className={templateStyles.name}>Blank workflow</span>
+                    <span className={templateStyles.description}>Start from an empty canvas</span>
+                  </span>
+                </Link>
+                {workflowTemplates?.map((template) => (
+                  <WorkflowTemplateHomeCard key={template.name} template={template} workspaces={sortedWorkspaces} />
+                ))}
+              </div>
+            </Section>
+            <Section id="learn" title="Learn" link={{ href: "https://useboomerang.io/docs", text: "Docs" }}>
+              <div className={styles.panel}>
+                {learnItems.map(({ key, ...item }) => (
+                  <LearnCard key={key} {...item} />
+                ))}
+              </div>
+            </Section>
           </div>
-          <div className={styles.conceptItem}>
-            <h2>Tasks</h2>
-            <p>The discrete piece of work that performs the execution or action within a workflow</p>
-          </div>
-          <div className={styles.conceptItem}>
-            <h2>Task Manager</h2>
-            <p>The centralized place to define and manage the Tasks available to Workflows.</p>
-          </div>
-        </nav>
-      </Section>
-    </>
+        </div>
+      ) : (
+        <div className={styles.concepts}>
+          <Section id="key-concepts" title="Four things to know" link={{ href: "https://useboomerang.io/docs", text: "Docs" }}>
+            <KeyConcepts />
+          </Section>
+        </div>
+      )}
+    </div>
   );
 }
 
 interface SectionProps {
-  children: React.ReactNode;
+  id: string;
   title: string;
-  hasBorder?: boolean;
+  link?: { to?: string; href?: string; text: string };
+  children: React.ReactNode;
 }
 
-const Section: React.FC<SectionProps> = ({ children, title, hasBorder = false }) => {
+function Section({ id, title, link, children }: SectionProps) {
   return (
-    <section className={cx(styles.section, { [styles.sectionBorder]: hasBorder })}>
-      <h1 className={styles.sectionTitle}>{title}</h1>
+    <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
+      <div className={styles.sectionHeader}>
+        <h2 id={`${id}-title`} className={styles.sectionTitle}>
+          {title}
+        </h2>
+        {link?.href ? (
+          <a className={styles.sectionLink} href={link.href} target="_blank" rel="noreferrer">
+            {link.text}
+          </a>
+        ) : link?.to ? (
+          <Link className={styles.sectionLink} to={link.to}>
+            {link.text}
+          </Link>
+        ) : null}
+      </div>
       {children}
     </section>
   );
-};
+}

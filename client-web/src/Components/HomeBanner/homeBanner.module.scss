@@ -1,70 +1,81 @@
-@import "Styles/animation";
-@import "Styles/mixins";
+@use "@carbon/react/scss/motion" as motion;
 
 .container {
-  // background-color: #07192b;
-  position: relative;
-  padding: 0rem 2.5rem 3rem;
-  transition: max-height $carbon-motion--timing--productive $carbon-motion--easing--productive,
-    min-height $carbon-motion--timing--productive $carbon-motion--easing--productive;
-  width: 100%;
-  z-index: 0;
-  flex-direction: column;
+  align-items: flex-end;
   background: linear-gradient(
-    0deg,
-    var(--cds-bmrg-header-menu-options-active-background) 0%,
-    var(--cds-bmrg-primary) 100%
+    135deg,
+    var(--cds-bmrg-primary) 0%,
+    var(--cds-bmrg-header-menu-options-active-background) 100%
   );
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+  padding: 3.5rem 2rem 5rem;
+  width: 100%;
 
-  // &::after {
-  //   content: "";
-  //   background-image: url("../../Assets/svg/bkg-skyline.svg");
-  //   background-position: center;
-  //   background-repeat: no-repeat;
-  //   background-size: cover;
-  //   opacity: 0.3;
-  //   top: 0;
-  //   left: 0;
-  //   bottom: 0;
-  //   right: 0;
-  //   position: absolute;
-  //   transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
-  //   z-index: -1;
-  // }
+  @media screen and (max-width: 66rem) {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-bottom: 4.5rem;
+  }
 }
 
 .content {
-  align-items: left;
-  vertical-align: baseline;
   display: flex;
   flex-direction: column;
-  margin-top: 3rem;
-  opacity: 1;
-  transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive,
-    margin-top $carbon-motion--timing--productive $carbon-motion--easing--productive;
-  width: 100%;
+  gap: 0.75rem;
+  max-width: 55rem;
 }
 
-.title {
-  color: #f2f4f8;
-  font-size: 3rem;
-  font-weight: 600;
-  line-height: 3.5rem;
-  margin: 0;
-  text-align: left;
-  background: -webkit-linear-gradient(-70deg,var(--cds-button-primary, #0f62fe) 0%,  #20d5d2 50%);
-    background-clip: border-box;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    -webkit-box-decoration-break: clone;
-}
-
-.subtitle {
-  color: #f2f4f8;
-  font-size: 1.25rem;
+.eyebrow {
+  color: var(--cds-bmrg-accent);
+  font-size: var(--cds-label-01-font-size, 0.75rem);
   font-weight: 500;
-  line-height: 1.5625rem;
-  margin-top: 0.5rem;
-  text-align: left;
+  letter-spacing: var(--cds-label-01-letter-spacing, 0.32px);
+  line-height: var(--cds-label-01-line-height, 1.33333);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+// The one brand flourish the page keeps: the title runs the Boomerang blue-to-teal gradient.
+// `color` is the fallback for a browser without text clipping.
+.title {
+  background: linear-gradient(100deg, var(--cds-link-inverse) 0%, var(--cds-bmrg-accent) 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: var(--cds-bmrg-brand-white);
+  font-size: var(--cds-heading-06-font-size, 2.625rem);
+  font-weight: 600;
+  letter-spacing: var(--cds-heading-06-letter-spacing, 0);
+  line-height: var(--cds-heading-06-line-height, 1.199);
+  margin: 0;
+  -webkit-text-fill-color: transparent;
+}
+
+.message {
+  color: var(--cds-bmrg-secondary);
+  font-size: var(--cds-body-02-font-size, 1rem);
+  letter-spacing: var(--cds-body-02-letter-spacing, 0);
+  line-height: var(--cds-body-02-line-height, 1.5);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+
+  // Carbon's tertiary button is drawn for a light layer; on the dark band it takes the brand
+  // white and the header's hover fill.
+  :global(.cds--btn--tertiary) {
+    border-color: var(--cds-bmrg-brand-white);
+    color: var(--cds-bmrg-brand-white);
+    transition: background-color motion.$duration-fast-02 motion.motion(standard, productive);
+
+    &:hover,
+    &:focus {
+      background-color: var(--cds-bmrg-header-hover-background);
+      color: var(--cds-bmrg-brand-white);
+    }
+  }
 }
