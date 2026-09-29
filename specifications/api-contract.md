@@ -213,6 +213,25 @@ proxy routing and the per-template timeouts apply (decision 0062). The receiver'
 authentication is its business: Flow sends the header verbatim and treats any non-2xx as a
 delivery failure to retry.
 
+## Updating a workflow
+
+A workflow's `name` is its identity within a workspace; `displayName` is free text. Clients that keep
+workflows in step with their own definitions MUST update in place and MUST NOT delete and recreate.
+
+| Call | Effect |
+| --- | --- |
+| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:544-553`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1908-1909`). Not found: created (`:586-588`). Labels and annotations are merged. |
+| `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1913`) and replaces labels and annotations. Runs already made from that version then show the new definition. |
+| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted (`:776-789`); the watcher then hard-deletes its runs, task runs, artifacts, versions and schedules (see `execution-model.md`). Only audit records remain, so Insights still counts the old runs under the old id. |
+
+Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD
+skip the call when nothing changed (for example by storing a hash of the definition in its own annotation).
+
+An update MUST send the complete `triggers` block. `Workflow.triggers` and each trigger in it default to
+"off" except `manual` (`lib-common/.../model/Workflow.java:57`, `WorkflowTrigger.java:13-17`), so an omitted
+block reads as `schedule.enabled: false`, and the workflow's schedules move to `trigger_disabled` and stop
+firing (`workflow/WorkflowService.java:938-953`).
+
 ## Labels and annotations
 
 `labels` are a client-owned `Map<String,String>`; `annotations` are a `Map<String,Object>` in
