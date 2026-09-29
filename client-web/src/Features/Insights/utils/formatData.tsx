@@ -25,6 +25,7 @@ export const parseChartsData = (data: Array<InsightsRuns>, statuses: RunStatus |
     skipped: [],
     ready: [],
     notstarted: [],
+    timedout: [],
   };
 
   let scatterPlotData: Array<ChartDataItem> = [];
@@ -86,6 +87,9 @@ export const parseChartsData = (data: Array<InsightsRuns>, statuses: RunStatus |
         break;
       case RunStatus.Skipped:
         statusListMap.skipped.push(execution);
+        break;
+      case RunStatus.TimedOut:
+        statusListMap.timedout.push(execution);
         break;
       default:
         //no-op
