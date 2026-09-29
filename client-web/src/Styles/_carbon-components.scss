@@ -20,6 +20,8 @@
 @use "@carbon/react/scss/fonts";
 @use "@carbon/react/scss/grid";
 @use "@carbon/react/scss/layer";
+// Layout tokens (:root --cds-layout-*): component heights and inline padding are clamp()s over them.
+@use "@carbon/react/scss/layout";
 @use "@carbon/react/scss/zone";
 @use "@carbon/react/scss/components/button/tokens" as button;
 @use "@carbon/react/scss/components/notification/tokens" as notification;
