@@ -51,7 +51,7 @@ exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
                   <p
                     class="cds--link"
                   >
-                    test-workflow
+                    Activity detail
                   </p>
                 </li>
               </ol>
@@ -94,8 +94,9 @@ exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
           >
             <h1
               class="cds--bmrg-feature-header-title"
+              title="Test Workflow"
             >
-              Activity detail
+              Test Workflow
             </h1>
           </div>
         </div>

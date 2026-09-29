@@ -6,17 +6,17 @@
   }
 }
 
+.footer {
+  align-items: stretch;
+  display: flex;
+}
+
 .workflowButtons {
   align-items: center;
-  bottom: 1.5rem;
   display: flex;
-  height: 2rem;
+  height: 2.5rem;
   justify-content: flex-end;
-  margin-bottom: -0.875rem;
   margin-left: auto;
-  position: absolute;
-  right: 1rem;
-  z-index: 1;
 }
 
 .workflowActionContainer {

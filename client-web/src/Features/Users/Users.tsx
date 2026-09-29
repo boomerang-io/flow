@@ -14,6 +14,7 @@ import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { Box } from "reflexbox";
+import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
 import { CREATED_DATE_FORMAT } from "Constants";
 import { appLink, queryStringOptions } from "Config/appConfig";
@@ -79,6 +80,7 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
       </Helmet>
       <Header
         includeBorder={false}
+        nav={<AdminBreadcrumb />}
         header={
           <>
             <HeaderTitle style={{ margin: "0" }}>Users</HeaderTitle>

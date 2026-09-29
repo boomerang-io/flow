@@ -275,7 +275,6 @@ export default function Schedules() {
       <>
         <Header
           nav={<NavigationComponent />}
-          className={styles.header}
           includeBorder={true}
           header={
             <>
@@ -303,7 +302,6 @@ export default function Schedules() {
       <>
         <Header
           nav={<NavigationComponent />}
-          className={styles.header}
           includeBorder={true}
           header={
             <>

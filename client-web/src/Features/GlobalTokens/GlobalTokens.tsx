@@ -22,6 +22,7 @@ import {
 import moment from "moment";
 import { useFetcher, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
+import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
 import EmptyState from "Components/EmptyState";
@@ -102,8 +103,8 @@ const FeatureLayout = ({ children }: FeatureLayoutProps) => {
   return (
     <div className={styles.container}>
       <Header
-        className={styles.header}
         includeBorder={false}
+        nav={<AdminBreadcrumb />}
         header={
           <>
             <HeaderTitle className={styles.headerTitle}>Global Tokens</HeaderTitle>

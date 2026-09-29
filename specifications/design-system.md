@@ -131,6 +131,24 @@ status colour ad hoc.
 - **Spacing scale**: Carbon `$spacing-01 … $spacing-13` (0.125rem → 10rem). Use these, not
   arbitrary px. Layer/zone tokens (`@carbon/react/scss/layer`, `/zone`) manage elevation context.
 
+## Page header
+
+Every route's header is the add-ons `FeatureHeader` in one anatomy, set once in
+`client-web/src/Styles/_carbon-components.scss:64-103`: 16px top, the breadcrumb (18px), the title (36px, 28px
+regular), then a 40px row holding the page's tabs or, when it has none, its one-line description (truncated). It
+is a `min-height` of 112px, not a height, so a long description or 200% zoom grows it instead of clipping.
+
+| Part | Rule |
+| --- | --- |
+| Breadcrumb | Every page has one. Workspace pages start `Home / <workspace>`; Administer pages use `Components/AdminBreadcrumb` (`Home / Administer`). |
+| Title | A list page is titled with its route (Workflows, Actions, Settings). A page inside one object is titled with that object's name, and the breadcrumb ends with the route: the editor is `Home / Workflows / Editor` titled with the workflow's name, Activity detail is `Home / Activity / Activity detail` titled with the run's workflow, a user is titled with the user's name. |
+| Right slot | Page actions and summaries (search, today's numbers, run facts) sit in `actions`, beside the rows. Controls that act on the tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
+| Tabs and description | A page with tabs carries no description line (Actions). |
+
+The workflow editor's task palette follows the same density: one 32px title row ("Add a task", Expand all, the
+collapse control), one search row with the filter and the task count in the placeholder, and 40px single-line
+task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
+
 ## Components — prefer the library, in this order
 
 1. **Boomerang add-ons** (`@boomerang-io/carbon-addons-boomerang-react`) — Boomerang-styled/extended

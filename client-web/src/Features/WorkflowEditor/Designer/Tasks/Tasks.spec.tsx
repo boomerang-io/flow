@@ -62,10 +62,10 @@ describe("Editor task palette --- For each", () => {
   it("follows the search box", async () => {
     renderWithContext(<Tasks tasks={paletteTasks} />);
 
-    fireEvent.change(await screen.findByPlaceholderText("Search for a task"), { target: { value: "each" } });
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: "each" } });
     expect(screen.getByRole("option", { name: "For each" })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Search for a task"), { target: { value: aiTask.displayName } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: aiTask.displayName } });
     expect(screen.queryByRole("option", { name: "For each" })).not.toBeInTheDocument();
   });
 });

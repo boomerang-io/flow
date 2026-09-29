@@ -16,6 +16,7 @@ import { DataDrivenInput } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import ParametersTable from "../ParametersTable";
 import styles from "./globalParameters.module.scss";
+import AdminBreadcrumb from "Components/AdminBreadcrumb";
 
 // Route module: this file's `loader`/`action` are attached to the route in AppRoutes.tsx
 // (path={AppPath.Properties}) rather than being defined inline there, so the data-fetching
@@ -173,6 +174,7 @@ function GlobalParameters() {
       <Header
         className={styles.header}
         includeBorder={false}
+        nav={<AdminBreadcrumb />}
         header={
           <>
             <HeaderTitle className={styles.headerTitle}>Parameters</HeaderTitle>

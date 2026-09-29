@@ -181,7 +181,6 @@ function InsightsContainer({ workspace, children }: InsightsContainerProps) {
         <title>Insights</title>
       </Helmet>
       <Header
-        className={styles.header}
         includeBorder={false}
         nav={<NavigationComponent />}
         header={
