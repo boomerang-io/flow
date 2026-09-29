@@ -180,6 +180,8 @@ export interface RenderContextOptions extends RenderRouteOptions, Omit<RenderOpt
   // webapp/API type alignment noted in CLAUDE.md. Same laxity the old `rtlContextRouterRender`'s
   // untyped/`//@ts-nocheck`'d `contextValue` param had.
   contextValue?: Record<string, unknown>;
+  // Overrides individual flags in `defaultFeatures` (e.g. `{ WorkspaceQuotasEnabled: false }`).
+  features?: Partial<typeof defaultFeatures>;
   // Overrides `defaultWorkspaceValue` (the paginated-list's first entry) - specs whose route
   // resolves the workspace by name (e.g. WorkspaceParameters/WorkspaceTasks, which look it up
   // via `resourceWorkspace`) need the full single-workspace fixture the route's own `WORKSPACE`
@@ -194,6 +196,7 @@ export interface RenderContextOptions extends RenderRouteOptions, Omit<RenderOpt
 export function renderWithContext(ui: React.ReactElement, options: RenderContextOptions = {}) {
   const {
     contextValue,
+    features,
     workspaceValue,
     path,
     route,
@@ -208,7 +211,7 @@ export function renderWithContext(ui: React.ReactElement, options: RenderContext
   const Stub = createRoutesStub(buildStubRoutes(ui, { path, route, initialEntries, loader, action, routes }, HistoryProbe));
   return {
     ...rtlRender(
-      <FlagsProvider features={defaultFeatures}>
+      <FlagsProvider features={{ ...defaultFeatures, ...features }}>
         {/* `defaultContextValue`/`defaultWorkspaceValue` only ever supplied a subset of `AppContext`/
         `WorkspaceContext` (both types local to State/context/index.tsx and not exported) - true in
         the old `//@ts-nocheck`d harness too. Cast rather than widen the fixtures or export+narrow

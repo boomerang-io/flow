@@ -44,8 +44,8 @@ describe("WorkflowsHome --- Snapshot", () => {
   });
 });
 
-describe("WorkflowsHome --- workspace without quotas", () => {
-  it("lists the workflows when the workspace carries no quotas (engine mode)", async () => {
+describe("WorkflowsHome --- quotas off", () => {
+  it("lists the workflows without reading quotas when the quotas flag is off", async () => {
     const { quotas: _quotas, ...workspaceWithoutQuotas } = workspaceFixture;
     renderWithContext(
       <Route
@@ -66,11 +66,13 @@ describe("WorkflowsHome --- workspace without quotas", () => {
           user: profile,
           workspaces,
         },
+        features: { WorkspaceQuotasEnabled: false },
         route: appLink.workflows({ workspace: workspaceFixture.name }),
       }
     );
 
     expect(await screen.findByText("Workflows (3)")).toBeInTheDocument();
+    expect(screen.queryByText(/Workflow quota/)).not.toBeInTheDocument();
   });
 });
 

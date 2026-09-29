@@ -52,7 +52,7 @@ export default function ConfigureStorage({
               <BasicSlider
                 id="storage-config-size-slider"
                 min={1}
-                // A workspace without quotas (engine mode) has no ceiling; the slider still needs one.
+                // With quotas off there is no ceiling; the slider still needs one.
                 max={quota ?? Math.max(values.size, 100)}
                 inputType="text"
                 labelText="Storage Size"
