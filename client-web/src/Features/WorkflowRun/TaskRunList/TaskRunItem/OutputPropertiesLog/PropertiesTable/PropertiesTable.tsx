@@ -39,10 +39,10 @@ function PropertiesTable({ data: properties, hasJsonValues = false }: Props) {
   return (
     <div className={styles.tableContainer}>
       {hasProperties ? (
-        <StructuredListWrapper selection>
+        <StructuredListWrapper className={styles.table}>
           <StructuredListHead>
             <StructuredListRow head>
-              <StructuredListCell head>Parameter</StructuredListCell>
+              <StructuredListCell head>Name</StructuredListCell>
               {!hasJsonValues && <StructuredListCell head>Description</StructuredListCell>}
               <StructuredListCell head>Value</StructuredListCell>
             </StructuredListRow>
@@ -54,7 +54,7 @@ function PropertiesTable({ data: properties, hasJsonValues = false }: Props) {
                   <StructuredListCell>{property.key}</StructuredListCell>
                   {!hasJsonValues && <StructuredListCell>{property?.description ?? "---"}</StructuredListCell>}
                   <StructuredListCell>
-                    {<code className={styles.code}>{formatPropertyValue(property.value)}</code>}
+                    <pre className={styles.code}>{formatPropertyValue(property.value)}</pre>
                   </StructuredListCell>
                 </StructuredListRow>
               ))}

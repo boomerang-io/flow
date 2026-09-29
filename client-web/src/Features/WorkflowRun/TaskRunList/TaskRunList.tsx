@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Button, Tab, TabList, Tabs } from "@carbon/react";
+import { Button, ContentSwitcher, Switch } from "@carbon/react";
 import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
-import { getSimplifiedDuration } from "Utils/dateHelper";
 import { foreachItemRuns, isForeachItem } from "Utils/taskRunHelper";
-import { ExecutionStatusCopy, executionStatusIcon, NodeType } from "Constants";
+import { NodeType } from "Constants";
 import { Action, Artifact, RunStatus, WorkflowRun } from "Types";
 import ArtifactsPanel from "./ArtifactsPanel";
 import TaskRunItem from "./TaskRunItem";
@@ -45,9 +44,6 @@ function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", exec
   if (workflowRun.status === RunStatus.Waiting) {
     return (
       <aside className={`${styles.container} ${isCollapsed ? styles.collapsed : ""}`}>
-        <section className={styles.statusBlock}>
-          <SkeletonPlaceholder className={styles.statusBlockSkeleton} />
-        </section>
         <section className={styles.taskbar}>
           <p className={styles.taskbarTitle}>Task log</p>
           {!isCollapsed && (
@@ -69,8 +65,7 @@ function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", exec
     );
   }
 
-  const { duration, status, tasks } = workflowRun;
-  const Icon = executionStatusIcon[status];
+  const { tasks } = workflowRun;
 
   // START/END are synthetic graph markers the engine adds to every run, not executed tasks -
   // they always bookend the log (START first, END last) and never take part in the start-time
@@ -88,31 +83,26 @@ function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", exec
 
   return (
     <aside className={`${styles.container} ${isCollapsed ? styles.collapsed : ""}`}>
-      <section className={`${styles.statusBlock} ${styles[status]}`}>
-        <div className={styles.duration}>
-          <p className={styles.title}>Duration</p>
-          <time className={styles.value}>
-            {typeof duration === "number" ? getSimplifiedDuration(duration / 1000) : "--"}
-          </time>
-        </div>
-        <div className={styles.status}>
-          <p className={styles.title}>Status</p>
-          <div className={styles.statusData}>
-            {Icon && <Icon aria-label={status} className={styles.statusIcon} />}
-            <p className={styles.value}>{status ? ExecutionStatusCopy[status] : "--"}</p>
-          </div>
-        </div>
-        <button className={styles.collapseButton} onClick={toggleCollapse}>
-          <ChevronLeft size={32} className={styles.chevron} />
-        </button>
-      </section>
+      {/* The run's status and duration sit in the page header; the panel opens on its tabs. */}
+      <button
+        aria-label={isCollapsed ? "Expand the task log" : "Collapse the task log"}
+        className={styles.collapseButton}
+        onClick={toggleCollapse}
+      >
+        <ChevronLeft size={16} className={styles.chevron} />
+      </button>
       <section className={styles.taskbar}>
-        <Tabs selectedIndex={activeTab} onChange={({ selectedIndex }: { selectedIndex: number }) => setActiveTab(selectedIndex)}>
-          <TabList aria-label="Run detail" className={styles.taskbarTabs}>
-            <Tab>Task log</Tab>
-            <Tab>{`Artifacts (${artifacts.length})`}</Tab>
-          </TabList>
-        </Tabs>
+        {/* Two views of one panel: Carbon's content switcher, full width, with a count on each side. */}
+        <ContentSwitcher
+          aria-label="Run detail"
+          className={styles.switcher}
+          selectedIndex={activeTab}
+          size="sm"
+          onChange={({ index }: { index?: number }) => setActiveTab(index ?? TAB_TASK_LOG)}
+        >
+          <Switch name="task-log" text={`Task log (${sortedTasks.length})`} />
+          <Switch name="artifacts" text={`Artifacts (${artifacts.length})`} />
+        </ContentSwitcher>
         {!isCollapsed && activeTab === TAB_TASK_LOG && (
           <Button
             data-testid="taskbar-button"

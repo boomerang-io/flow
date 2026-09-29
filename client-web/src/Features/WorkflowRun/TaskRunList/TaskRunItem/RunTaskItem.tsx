@@ -101,18 +101,22 @@ function RunTaskItem({
         </section>
       )}
       {!isSlim && (
-        <section className={styles.data}>
-          <div className={styles.time}>
-            <p className={styles.timeTitle}>Start time</p>
-            <time className={styles.timeValue}>
-              {taskRun.startTime ? moment(taskRun.startTime).format("hh:mm:ss A") : "---"}
-            </time>
-          </div>
-          <div className={styles.time}>
-            <p className={styles.timeTitle}>Duration</p>
-            <time className={styles.timeValue}>{calculatedDuration}</time>
-          </div>
-        </section>
+        // One line, the values in primary text: "Started at 04:25:37 PM in 6 secs".
+        <p className={styles.timeLine} data-testid="taskitem-time">
+          {taskRun.startTime ? (
+            <>
+              Started at <time className={styles.timeValue}>{moment(taskRun.startTime).format("hh:mm:ss A")}</time>
+              {calculatedDuration !== "---" && (
+                <>
+                  {" "}
+                  in <time className={styles.timeValue}>{calculatedDuration}</time>
+                </>
+              )}
+            </>
+          ) : (
+            "Not started"
+          )}
+        </p>
       )}
       <section className={`${styles.data} ${styles.actions}`}>
         <ComposedModal

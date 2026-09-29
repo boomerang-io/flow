@@ -3,14 +3,14 @@
 .container {
   align-items: center;
   display: flex;
-  padding: 0.5rem 1rem;
+  padding: 0 1rem;
   z-index: 1;
 }
 
 .messageText {
   color: var(--cds-text-01);
-  font-size: 1rem;
-  line-height: 1.25;
+  font-size: 0.875rem;
+  line-height: 1.125rem;
   margin-right: 0.5rem;
   padding: 0.125rem;
 }

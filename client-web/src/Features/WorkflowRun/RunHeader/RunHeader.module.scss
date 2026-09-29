@@ -6,8 +6,24 @@
   }
 }
 
-.headerNav {
+.titleRow {
+  align-items: center;
   display: flex;
+  gap: 0.5rem;
+  height: 2.25rem;
+  min-width: 0;
+}
+
+.statusTag {
+  font-size: 0.875rem;
+  margin: 0;
+  // The fact values title-case themselves ("engine" shows as "Engine"); the tag reads as a phrase.
+  text-transform: none;
+
+  strong {
+    font-weight: 600;
+    margin-right: 0.25rem;
+  }
 }
 
 .workflowNameSkeleton {
@@ -15,45 +31,37 @@
   width: 20rem;
 }
 
-.workflowAdvancedDetailTrigger {
-  align-items: center;
-  cursor: pointer;
-  display: flex !important;
-  justify-content: center;
-  &:focus {
-    @include focus-outline();
-  }
-}
-
 .pausedTag {
   align-items: center;
   display: flex !important;
-  margin-left: 1rem;
+  margin: 0;
 }
 
-.workflowErrorTrigger {
-  align-items: center;
-  cursor: pointer;
-  display: flex !important;
-  justify-content: center;
-  margin-left: 1rem;
-}
-
+// One row level with the title: the facts (status first), then the controls.
 .content {
   align-items: center;
   display: flex;
-  margin: 1.125rem 0 1.5rem 0;
-  overflow: hidden;
+  gap: 1.5rem;
+  margin-left: 2rem;
+  margin-top: 1.25rem;
 }
 
 .data {
   color: var(--cds-text-01);
-  margin-left: 2.5rem;
+  white-space: nowrap;
 }
 
-.dataButton {
-  color: var(--cds-text-01);
-  margin-left: 1.5rem;
+// Inside to outside: the run error, View results, the primary run action, then the overflow.
+.controls {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
+}
+
+// Carbon's ghost button paints its icon in the primary icon colour; the run error reads red.
+.runErrorButton svg,
+.runErrorButton svg path {
+  fill: var(--cds-support-error) !important;
 }
 
 .dataTitle {
@@ -76,10 +84,6 @@
 .headerContentSkeleton {
   height: 4.31rem;
   width: 40rem;
-}
-
-.workflowOutputLog {
-  margin-left: 0.5rem;
 }
 
 /**
@@ -122,5 +126,5 @@
 }
 
 .cancelRun {
-  margin-bottom: -1rem;
+  margin: 0;
 }

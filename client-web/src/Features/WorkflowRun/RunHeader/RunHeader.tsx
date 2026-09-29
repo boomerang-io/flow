@@ -1,6 +1,6 @@
 import React from "react";
-import { Breadcrumb, BreadcrumbItem, Button, ModalBody, SkeletonPlaceholder, Tag, TextArea } from "@carbon/react";
-import { Catalog, CopyFile, Pause, Play, StopOutline, Warning, Redo } from "@carbon/react/icons";
+import { Breadcrumb, BreadcrumbItem, Button, ModalBody, OverflowMenu, OverflowMenuItem, SkeletonPlaceholder, Tag, TextArea } from "@carbon/react";
+import { CopyFile, Pause, Play, Warning, Redo } from "@carbon/react/icons";
 import {
   ComposedModal,
   ConfirmModal,
@@ -19,6 +19,8 @@ import ErrorModal from "Components/ErrorModal";
 import { useAppContext, useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
+import dateHelper, { getSimplifiedDuration } from "Utils/dateHelper";
+import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
 import { isActionError } from "Utils/actionResult";
@@ -34,6 +36,20 @@ type Props = {
 const cancelStatusTypes = [RunStatus.NotStarted, RunStatus.Waiting, RunStatus.Ready, RunStatus.Running];
 const retryStatusTypes = [RunStatus.Cancelled, RunStatus.Failed, RunStatus.TimedOut, RunStatus.Invalid];
 const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
+// The run's status tag takes the colour its tasks use: teal done, red failed or stopped, blue in
+// progress, gray not run.
+const statusTagType: Partial<Record<RunStatus, "teal" | "red" | "blue" | "gray">> = {
+  [RunStatus.Succeeded]: "teal",
+  [RunStatus.Failed]: "red",
+  [RunStatus.Cancelled]: "red",
+  [RunStatus.TimedOut]: "red",
+  [RunStatus.Invalid]: "red",
+  [RunStatus.Running]: "blue",
+  [RunStatus.Ready]: "blue",
+  [RunStatus.Waiting]: "blue",
+  [RunStatus.NotStarted]: "gray",
+  [RunStatus.Skipped]: "gray",
+};
 
 // Copy for the toast each transition raises, keyed by the route action's intent - the five
 // handlers below were otherwise identical mutate/notify/notify blocks.
@@ -76,6 +92,18 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   const displayStartButton = startPhaseTypes.includes(phase);
   const displayPauseButton = phase === RunPhase.Running && !paused;
   const displayResumeButton = Boolean(paused);
+  // Workspace is the fact that gives way when a primary run action needs the room.
+  const showsPrimaryAction =
+    canActionWorkflowRun && (displayStartButton || displayRetryButton || displayPauseButton || displayResumeButton);
+  // The overflow's items open these modals, which cannot sit inside a menu item themselves.
+  const [openModal, setOpenModal] = React.useState<"advanced" | "cancel" | null>(null);
+  // "in 21s" once finished, "for 2m 10s" while running, nothing before it starts.
+  const runDuration =
+    phase === RunPhase.Completed && typeof workflowRun.duration === "number"
+      ? `in ${getSimplifiedDuration(workflowRun.duration / 1000)}`
+      : status === RunStatus.Running && workflowRun.startTime
+        ? `for ${dateHelper.durationFromThenToNow(workflowRun.startTime)}`
+        : "";
 
   // The fetcher settles asynchronously, so the toast is raised from an effect once the result
   // lands rather than from an awaited mutate call. Retry additionally redirects to the run it
@@ -122,47 +150,22 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
     <Header
       className={styles.container}
       nav={
-        <div className={styles.headerNav}>
-          <Breadcrumb noTrailingSlash>
-            <BreadcrumbItem>
-              <Link to={appLink.home()}>Home</Link>
-            </BreadcrumbItem>
-            <BreadcrumbItem>
-              <Link to={state ? state.fromUrl : appLink.activity({ workspace: workspace.name })}>
-                {state ? capitalize(state.fromText) : "Activity"}
-              </Link>
-            </BreadcrumbItem>
-            <BreadcrumbItem isCurrentPage>
-              <p>Activity detail</p>
-            </BreadcrumbItem>
-          </Breadcrumb>
-          {workflow && (
-            <ComposedModal
-              composedModalProps={{ shouldCloseOnOverlayClick: true }}
-              modalHeaderProps={{
-                title: "Advanced detail",
-                subtitle:
-                  "Use the following to dive deeper and debug the run. Tip: copy the commands into your local terminal and add the namespace.",
-              }}
-              modalTrigger={({ openModal }) => (
-                <TooltipHover direction="right" content="Advanced detail">
-                  <button
-                    className={styles.workflowAdvancedDetailTrigger}
-                    data-testid="advanced-detail-trigger"
-                    onClick={openModal}
-                  >
-                    <Catalog />
-                  </button>
-                </TooltipHover>
-              )}
-            >
-              {() => <WorkflowAdvancedDetail workflow={workflow} workflowRun={workflowRun} />}
-            </ComposedModal>
-          )}
-        </div>
+        <Breadcrumb noTrailingSlash>
+          <BreadcrumbItem>
+            <Link to={appLink.home()}>Home</Link>
+          </BreadcrumbItem>
+          <BreadcrumbItem>
+            <Link to={state ? state.fromUrl : appLink.activity({ workspace: workspace.name })}>
+              {state ? capitalize(state.fromText) : "Activity"}
+            </Link>
+          </BreadcrumbItem>
+          <BreadcrumbItem isCurrentPage>
+            <p>Activity detail</p>
+          </BreadcrumbItem>
+        </Breadcrumb>
       }
       header={
-        <div style={{ display: "flex" }}>
+        <div className={styles.titleRow}>
           {/* A page inside one run is titled with its workflow's name; the breadcrumb carries the route. */}
           {!workflow?.name ? (
             <SkeletonPlaceholder className={styles.workflowNameSkeleton} />
@@ -175,38 +178,30 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
               Paused
             </Tag>
           )}
-          {Boolean(workflowRun.statusMessage) && (
-            <ComposedModal
-              composedModalProps={{ shouldCloseOnOverlayClick: true }}
-              modalHeaderProps={{ title: "Run Error" }}
-              modalTrigger={({ openModal }) => (
-                <Button
-                  className={styles.workflowErrorTrigger}
-                  kind={"ghost"}
-                  onClick={openModal}
-                  renderIcon={Warning}
-                  size="sm"
-                >
-                  View Run Error
-                </Button>
-              )}
-            >
-              {() => <ErrorModal errorCode={workflowRun.status} errorMessage={workflowRun.statusMessage ?? ""} />}
-            </ComposedModal>
-          )}
         </div>
       }
       actions={
         <div className={styles.content}>
-          {workflowRun.results && Object.keys(workflowRun.results).length > 0 && (
-            <div className={styles.workflowOutputLog}>
-              <OutputPropertiesLog isOutput taskName={workflowRun.workflowName} results={workflowRun.results} />
-            </div>
-          )}
           <dl className={styles.data}>
-            <dt className={styles.dataTitle}>Workspace</dt>
-            <dd className={styles.dataValue}>{workspace.displayName ?? "---"}</dd>
+            <dt className={styles.dataTitle}>Status</dt>
+            <dd className={styles.dataValue}>
+              <Tag
+                className={styles.statusTag}
+                data-testid="run-status"
+                renderIcon={executionStatusIcon[status]}
+                type={statusTagType[status] ?? "gray"}
+              >
+                <strong>{ExecutionStatusCopy[status] ?? status}</strong>
+                {runDuration ? ` ${runDuration}` : null}
+              </Tag>
+            </dd>
           </dl>
+          {!showsPrimaryAction && (
+            <dl className={styles.data}>
+              <dt className={styles.dataTitle}>Workspace</dt>
+              <dd className={styles.dataValue}>{workspace.displayName ?? "---"}</dd>
+            </dl>
+          )}
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Version</dt>
             <dd className={styles.dataValue}>{version ?? "---"}</dd>
@@ -247,7 +242,31 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
             <dt className={styles.dataTitle}>Start time</dt>
             <dd className={styles.dataValue}>{moment(creationDate).format("YYYY-MM-DD hh:mm A")}</dd>
           </dl>
-          <dl className={styles.dataButton}>
+          {/* Inside to outside: the run error, View results, the one primary run action, then the overflow. */}
+          <div className={styles.controls}>
+            {Boolean(workflowRun.statusMessage) && (
+              <ComposedModal
+                composedModalProps={{ shouldCloseOnOverlayClick: true }}
+                modalHeaderProps={{ title: "Run Error" }}
+                modalTrigger={({ openModal }) => (
+                  <Button
+                    className={styles.runErrorButton}
+                    hasIconOnly
+                    iconDescription="View run error"
+                    kind="ghost"
+                    onClick={openModal}
+                    renderIcon={Warning}
+                    size="md"
+                    tooltipPosition="bottom"
+                  />
+                )}
+              >
+                {() => <ErrorModal errorCode={workflowRun.status} errorMessage={workflowRun.statusMessage ?? ""} />}
+              </ComposedModal>
+            )}
+            {workflowRun.results && Object.keys(workflowRun.results).length > 0 && (
+              <OutputPropertiesLog isOutput taskName={workflowRun.workflowName} results={workflowRun.results} />
+            )}
             {canActionWorkflowRun && displayStartButton && (
               <ConfirmModal
                 affirmativeAction={handleStartWorkflow}
@@ -261,7 +280,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                     iconDescription="Start run"
                     onClick={openModal}
                     renderIcon={Play}
-                    size="sm"
+                    size="md"
                   >
                     Start run
                   </Button>
@@ -281,7 +300,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                     iconDescription="Retry run"
                     onClick={openModal}
                     renderIcon={Redo}
-                    size="sm"
+                    size="md"
                   >
                     Retry run
                   </Button>
@@ -301,11 +320,11 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                     <Button
                       className={styles.cancelRun}
                       data-testid="pause-run"
-                      kind="tertiary"
+                      kind="primary"
                       iconDescription="Pause run"
                       onClick={openModal}
                       renderIcon={Pause}
-                      size="sm"
+                      size="md"
                     >
                       Pause run
                     </Button>
@@ -322,39 +341,57 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                   <Button
                     className={styles.cancelRun}
                     data-testid="resume-run"
-                    kind="tertiary"
+                    kind="primary"
                     iconDescription="Resume run"
                     onClick={openModal}
                     renderIcon={Play}
-                    size="sm"
+                    size="md"
                   >
                     Resume run
                   </Button>
                 )}
               />
             )}
-            {canActionWorkflowRun && displayCancelButton && (
-              <ConfirmModal
-                affirmativeAction={handleCancelWorkflow}
-                affirmativeButtonProps={{ kind: "danger" }}
-                children="Are you sure? Once a workflow is cancelled it will stop executing."
-                title="Cancel run"
-                modalTrigger={({ openModal }) => (
-                  <Button
-                    className={styles.cancelRun}
-                    data-testid="cancel-run"
-                    kind="danger--tertiary"
-                    iconDescription="Cancel run"
-                    onClick={openModal}
-                    renderIcon={StopOutline}
-                    size="sm"
-                  >
-                    Cancel run
-                  </Button>
-                )}
+            <OverflowMenu aria-label="More run actions" flipped iconDescription="More run actions" size="md">
+              <OverflowMenuItem
+                data-testid="advanced-detail-trigger"
+                itemText="Advanced detail"
+                onClick={() => setOpenModal("advanced")}
               />
-            )}
-          </dl>
+              {canActionWorkflowRun && displayCancelButton && (
+                <OverflowMenuItem
+                  data-testid="cancel-run"
+                  hasDivider
+                  isDelete
+                  itemText="Cancel run"
+                  onClick={() => setOpenModal("cancel")}
+                />
+              )}
+            </OverflowMenu>
+          </div>
+          {workflow && (
+            <ComposedModal
+              composedModalProps={{ shouldCloseOnOverlayClick: true }}
+              isOpen={openModal === "advanced"}
+              modalHeaderProps={{
+                title: "Advanced detail",
+                subtitle:
+                  "Use the following to dive deeper and debug the run. Tip: copy the commands into your local terminal and add the namespace.",
+              }}
+              modalTrigger={() => null}
+              onCloseModal={() => setOpenModal(null)}
+            >
+              {() => <WorkflowAdvancedDetail workflow={workflow} workflowRun={workflowRun} />}
+            </ComposedModal>
+          )}
+          <ConfirmModal
+            affirmativeAction={handleCancelWorkflow}
+            affirmativeButtonProps={{ kind: "danger" }}
+            children="Are you sure? Once a workflow is cancelled it will stop executing."
+            isOpen={openModal === "cancel"}
+            onCloseModal={() => setOpenModal(null)}
+            title="Cancel run"
+          />
         </div>
       }
     />

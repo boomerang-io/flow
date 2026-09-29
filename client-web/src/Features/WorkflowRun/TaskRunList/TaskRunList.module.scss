@@ -3,6 +3,7 @@
 
 .container {
   background-color: var(--cds-ui-01);
+  position: relative;
   transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
   width: 24.5rem;
 
@@ -13,8 +14,6 @@
   &.collapsed {
     transform: translate3d(-22.5rem, 0, 0);
 
-    .duration,
-    .status,
     .taskbar,
     .tasklog {
       opacity: 0.01;
@@ -30,79 +29,21 @@
   }
 }
 
-.statusBlock {
-  color: var(--cds-text-01);
-  display: flex;
-  height: 7rem;
-  overflow: hidden;
-  padding: 1.5rem 0 1.5rem 1.5rem;
-  position: relative;
-  width: 100%;
-
-  &.succeeded {
-    background-color: #92eeee;
-  }
-
-  &.failed,
-  &.cancelled {
-    background-color: #fcd0d3;
-  }
-
-  &.running,
-  &.notstarted,
-  &.invalid,
-  &.skipped {
-    background-color: #d5d9e0;
-  }
-}
-
-.duration {
-  margin-right: 2.5rem;
-  opacity: 0.99;
-  transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
-}
-
-.title {
-  font-size: 0.875rem;
-  line-height: 1.125rem;
-  margin-bottom: 0.25rem;
-}
-
-.value {
-  font-size: 2rem;
-  font-weight: 600;
-  line-height: 2.625rem;
-}
-
-.status {
-  opacity: 0.99;
-  transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
-}
-
-.statusData {
-  align-items: center;
-  display: flex;
-  white-space: nowrap;
-}
-
-.statusIcon {
-  height: 2rem;
-  margin-right: 0.5rem;
-  width: 2rem;
-
-  path {
-    fill: var(--cds-text-01);
-  }
-}
-
+// Top-right of the panel, on the tab row, and outside .taskbar so it stays visible when collapsed.
 .collapseButton {
+  align-items: center;
   background-color: transparent;
   border: none;
   cursor: pointer;
+  display: flex;
+  height: 3rem;
+  justify-content: center;
   line-height: 0rem;
   position: absolute;
-  right: 0.5rem;
-  top: 0.5rem;
+  right: 0;
+  top: 0;
+  width: 2rem;
+  z-index: 1;
 
   &:focus {
     @include focus-outline();
@@ -119,18 +60,15 @@
   }
 }
 
-.statusBlockSkeleton {
-  width: 90%;
-}
-
 .taskbar {
   align-items: center;
   background-color: transparent;
+  border-bottom: 1px solid var(--cds-border-subtle);
   display: flex;
-  height: 3.25rem;
+  height: 3rem;
   justify-content: space-between;
   opacity: 0.99;
-  padding: 1rem 0.875rem 1rem 1.5rem;
+  padding: 0 2rem 0 1rem;
   transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
   width: 100%;
 }
@@ -142,14 +80,9 @@
   white-space: nowrap;
 }
 
-// Replaces the plain "Task log" title with a compact in-page tab bar (Task log / Artifacts (n)) -
-// the sort button stays a sibling in .taskbar, outside this Tabs component, and only shows while
-// the Task log tab is active (see TaskRunList.tsx).
-.taskbarTabs {
-  :global(.cds--tabs__nav-link) {
-    font-size: 0.875rem;
-    padding: 0 0.5rem;
-  }
+.switcher {
+  flex-grow: 1;
+  margin-right: 0.25rem;
 }
 
 .taskbarButton {
@@ -171,7 +104,7 @@
 }
 
 .tasklog {
-  height: calc(100% - 10.25rem);
+  height: calc(100% - 3rem);
   overflow-y: auto;
   opacity: 0.99;
   padding-bottom: 2rem;
