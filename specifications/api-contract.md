@@ -213,6 +213,26 @@ proxy routing and the per-template timeouts apply (decision 0062). The receiver'
 authentication is its business: Flow sends the header verbatim and treats any non-2xx as a
 delivery failure to retry.
 
+## Updating a workflow
+
+A workflow's `name` is its identity within a workspace; `displayName` is free text. Clients that keep
+workflows in step with their own definitions MUST update in place and MUST NOT delete and recreate.
+
+| Call | Effect |
+| --- | --- |
+| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:544-553`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1903-1904`). Not found: created (`:584-586`). Labels and annotations are merged. |
+| `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1908`) and replaces labels and annotations. Runs already made from that version then show the new definition. |
+| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted (`:774-787`); the watcher then hard-deletes its runs, task runs, artifacts, versions and schedules (see `execution-model.md`). Only audit records remain, so Insights still counts the old runs under the old id. |
+
+Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD
+skip the call when nothing changed (for example by storing a hash of the definition in its own annotation).
+
+Triggers follow the same rule as labels: a trigger the update leaves out, or a missing `triggers` block,
+keeps its stored value (`workflow/WorkflowService.java:559-564`). Only a trigger the request sends changes, and
+turning `schedule` off moves the workflow's schedules to `trigger_disabled` (`:933-948`). Every read fills a
+trigger the stored workflow lacks with its default, manual on and the rest off, so responses, exports and
+editors always carry all five (`workflow/ConvertUtil.java:26-48`).
+
 ## Labels and annotations
 
 `labels` are a client-owned `Map<String,String>`; `annotations` are a `Map<String,Object>` in

@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
+import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.common.model.WorkflowTrigger;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
@@ -133,7 +135,9 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   @Test
   void aDueScheduleStartsARunInEngineMode() {
     Workflow workflow = runnableWorkflow("engine-schedule-fires", TASK_SLUG);
-    workflow.getTriggers().getSchedule().setEnabled(true);
+    WorkflowTrigger triggers = new WorkflowTrigger();
+    triggers.setSchedule(new Trigger(true));
+    workflow.setTriggers(triggers);
     workflowService.create(SYSTEM_WORKSPACE, workflow);
     WorkflowSchedule request = new WorkflowSchedule();
     request.setName("hourly");

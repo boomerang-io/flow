@@ -556,14 +556,12 @@ public class WorkflowService {
         // Fill in displayName if not set
         validateAndSetDisplayName(workflow);
 
-        // Update Schedule Triggers
-        updateScheduleTriggers(
-            team,
-            workflow,
-            this.get(team, workflow.getName(), Optional.empty(), false).getTriggers());
-
-        // Default Triggers
-        validateTriggerDefaults(workflow);
+        // A trigger the request leaves out keeps its stored value, as labels do; then sync the
+        // workflow's schedules with the schedule trigger.
+        WorkflowTrigger currentTriggers =
+            this.get(team, workflow.getName(), Optional.empty(), false).getTriggers();
+        workflow.setTriggers(withStoredTriggers(workflow.getTriggers(), currentTriggers));
+        updateScheduleTriggers(team, workflow, currentTriggers);
 
         // Convert TaskSlugs to Refs(IDs)
         convertTaskSlugsToRefs(team, workflow);
@@ -909,27 +907,24 @@ public class WorkflowService {
    * Sets up the Triggers
    */
   private void validateTriggerDefaults(Workflow workflow) {
-    if (Objects.isNull(workflow.getTriggers())) {
-      // Manual trigger will be set to Enable = true.
-      workflow.setTriggers(new WorkflowTrigger());
+    workflow.setTriggers(ConvertUtil.triggersWithDefaults(workflow.getTriggers()));
+  }
+
+  /*
+   * The requested triggers, with each one the request left out taken from the stored workflow.
+   */
+  private static WorkflowTrigger withStoredTriggers(
+      WorkflowTrigger requested, WorkflowTrigger stored) {
+    if (requested == null) {
+      return stored;
     }
-    LOGGER.debug("Triggers: " + workflow.getTriggers());
-    // Default to enabled for Workflows
-    if (Objects.isNull(workflow.getTriggers().getManual())) {
-      workflow.getTriggers().setManual(new Trigger(Boolean.TRUE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getSchedule())) {
-      workflow.getTriggers().setSchedule(new Trigger(Boolean.FALSE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getWebhook())) {
-      workflow.getTriggers().setWebhook(new Trigger(Boolean.FALSE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getEvent())) {
-      workflow.getTriggers().setEvent(new Trigger(Boolean.FALSE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getGithub())) {
-      workflow.getTriggers().setGithub(new Trigger(Boolean.FALSE));
-    }
+    WorkflowTrigger merged = new WorkflowTrigger();
+    merged.setManual(Objects.requireNonNullElse(requested.getManual(), stored.getManual()));
+    merged.setSchedule(Objects.requireNonNullElse(requested.getSchedule(), stored.getSchedule()));
+    merged.setWebhook(Objects.requireNonNullElse(requested.getWebhook(), stored.getWebhook()));
+    merged.setEvent(Objects.requireNonNullElse(requested.getEvent(), stored.getEvent()));
+    merged.setGithub(Objects.requireNonNullElse(requested.getGithub(), stored.getGithub()));
+    return merged;
   }
 
   /*
