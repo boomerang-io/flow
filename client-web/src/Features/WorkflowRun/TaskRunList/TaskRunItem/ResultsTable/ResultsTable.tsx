@@ -17,6 +17,19 @@ type Props = {
   hasJsonValues?: boolean;
 };
 
+// A value that is a JSON object or array reads better indented; anything else shows as it is.
+function prettyValue(value: unknown) {
+  if (typeof value !== "string") {
+    return typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : String(value);
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null ? JSON.stringify(parsed, null, 2) : value;
+  } catch {
+    return value;
+  }
+}
+
 function PropertiesTable({ data: properties, hasJsonValues = false }: Props) {
   const formatPropertyValue = (value: string) => {
     if (hasJsonValues) {
@@ -34,7 +47,7 @@ function PropertiesTable({ data: properties, hasJsonValues = false }: Props) {
   return (
     <div className={styles.tableContainer}>
       {properties && properties.length > 0 ? (
-        <StructuredListWrapper selection>
+        <StructuredListWrapper className={styles.table}>
           <StructuredListHead>
             <StructuredListRow head>
               <StructuredListCell head>Name</StructuredListCell>
@@ -49,7 +62,7 @@ function PropertiesTable({ data: properties, hasJsonValues = false }: Props) {
                   <StructuredListCell>{property.key}</StructuredListCell>
                   {!hasJsonValues && <StructuredListCell>{property?.description ?? "---"}</StructuredListCell>}
                   <StructuredListCell>
-                    {<code className={styles.code}>{formatPropertyValue(property.value)}</code>}
+                    <pre className={styles.code}>{prettyValue(formatPropertyValue(property.value))}</pre>
                   </StructuredListCell>
                 </StructuredListRow>
               ))}
