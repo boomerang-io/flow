@@ -27,6 +27,8 @@ const FOREACH_PALETTE_ENTRY = {
   displayName: "For each",
   description: "Repeat a task once per item of a list",
   type: FOREACH_PALETTE_TYPE,
+  // Built into Flow like the catalogue's system tasks, so it carries their verified badge.
+  verified: true,
 };
 const ForeachIcon = ({ className = "", ...props }) => (
   <Repeat alt="Task node type for each" style={{ willChange: "auto" }} className={className} {...props} />
@@ -130,11 +132,10 @@ export default class Tasks extends Component<TaskProps> {
   handleSearchFilter = (searchQuery: string, tasksToDisplay) =>
     matchSorter(tasksToDisplay, searchQuery, { keys: ["category", "name"] });
 
-  // The "For each" entry follows the search box but has no task type or verified badge, so any
-  // filter hides it.
+  // The "For each" entry follows the search box. It is verified, so the verified filter keeps it; it
+  // has no task type, so any type filter hides it.
   showForeachEntry = () =>
     this.state.activeFilters.length === 0 &&
-    !this.state.showVerified &&
     matchSorter([FOREACH_PALETTE_ENTRY], this.state.searchQuery, { keys: ["displayName", "name"] }).length > 0;
 
   determineTasks = () => {
@@ -202,6 +203,7 @@ export default class Tasks extends Component<TaskProps> {
                   key={FOREACH_PALETTE_ENTRY.id}
                   name={FOREACH_PALETTE_ENTRY.displayName}
                   renderIcon={ForeachIcon}
+                  verified={FOREACH_PALETTE_ENTRY.verified}
                   scope="global"
                   taskData={FOREACH_PALETTE_ENTRY}
                 />

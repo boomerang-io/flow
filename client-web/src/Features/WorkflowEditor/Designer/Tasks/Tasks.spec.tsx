@@ -59,6 +59,16 @@ describe("Editor task palette --- For each", () => {
     expect(setData).toHaveBeenCalledWith("application/reactflow", expect.stringContaining('"type":"foreach"'));
   });
 
+  it("is a verified task, so the verified filter keeps it", async () => {
+    renderWithContext(<Tasks tasks={paletteTasks} />);
+
+    expect(await screen.findByRole("option", { name: "For each" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    fireEvent.click(await screen.findByLabelText("Verified Tasks"));
+    expect(screen.getByRole("option", { name: "For each" })).toBeInTheDocument();
+  });
+
   it("follows the search box", async () => {
     renderWithContext(<Tasks tasks={paletteTasks} />);
 
