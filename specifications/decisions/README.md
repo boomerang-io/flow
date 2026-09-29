@@ -70,3 +70,4 @@ things by name, not by code.
 | 0084 | [The webapp renders engine mode from feature flags, not from the mode](0084-the-webapp-renders-engine-mode-from-feature-flags.md) | accepted | 2026-09-28 |
 | 0085 | [Artifacts are uploaded by built-in tasks and expire into a kept record](0085-artifacts-are-uploaded-by-tasks-and-expire-into-a-kept-record.md) | accepted | 2026-09-28 |
 | 0086 | [Engine mode runs schedules and insights](0086-engine-mode-runs-schedules-and-insights.md) | accepted | 2026-09-29 |
+| 0087 | [One page header on every route, and a page inside an object is titled with its name](0087-one-page-header-and-object-names-as-titles.md) | accepted | 2026-09-29 |

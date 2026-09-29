@@ -25,6 +25,7 @@ import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useLoaderData, useLocation, useNavigate } from "react-router-dom";
 import { Box } from "reflexbox";
+import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
 import { filterItemsByLabel, makeCompareItems, sortItemsBySelection } from "Utils/multiSelectHelper";
 import { auditActionOptions, auditLevelOptions, auditOutcomeOptions } from "Constants/filterOptions";
@@ -193,6 +194,7 @@ export default function Audit() {
       </Helmet>
       <Header
         includeBorder={false}
+        nav={<AdminBreadcrumb />}
         header={
           <>
             <HeaderTitle style={{ margin: "0" }}>Audit</HeaderTitle>

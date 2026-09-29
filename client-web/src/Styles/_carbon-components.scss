@@ -58,8 +58,48 @@
   outline: 0px;
 }
 
+// One page header on every route: 16px top, breadcrumb (18px), 2px, title (36px), then a 40px row holding the
+// page's tabs, or its one-line description when it has none. min-height rather than height, so a
+// long description, a narrow window or 200% zoom grows the header instead of clipping it.
 .cds--bmrg-feature-header {
-  min-height: initial;
+  min-height: 7rem;
+  padding: 1rem 1.5rem 0;
+}
+
+.cds--bmrg-feature-header__content {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.cds--bmrg-feature-header__nav {
+  margin-bottom: 0;
+  min-height: 1.125rem;
+}
+
+.cds--bmrg-feature-header__header {
+  margin: 0.125rem 0 0;
+}
+
+h1.cds--bmrg-feature-header-title {
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 2.25rem;
+}
+
+p.cds--bmrg-feature-header-title {
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  letter-spacing: 0.16px;
+  line-height: 2.5rem;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cds--bmrg-feature-header__footer {
+  margin-top: auto;
 }
 
 .cds--tabs__nav-link {

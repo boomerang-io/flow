@@ -227,8 +227,22 @@ export default class Tasks extends Component<TaskProps> {
     return (
       <aside className={cx(styles.container, { [styles.collapsed]: !this.state.isSidenavOpen })}>
         <header className={styles.header}>
-          <h1 className={styles.heading}>Add a task</h1>
+          <h2 className={styles.heading}>Add a task</h2>
+          {this.state.isSidenavOpen && (
+            <button
+              className={styles.expandButton}
+              onClick={() => {
+                this.setState((prevState) => ({
+                  isAccordionOpen: !prevState.isAccordionOpen,
+                  firstTaskCategoryIsOpen: false,
+                }));
+              }}
+            >
+              {this.state.isAccordionOpen ? "Collapse all" : "Expand all"}
+            </button>
+          )}
           <button
+            aria-label={this.state.isSidenavOpen ? "Collapse the task palette" : "Expand the task palette"}
             className={styles.collapseButton}
             onClick={() => this.setState((prevState) => ({ isSidenavOpen: !prevState.isSidenavOpen }))}
           >
@@ -244,7 +258,7 @@ export default class Tasks extends Component<TaskProps> {
                 size="sm"
                 labelText="Search"
                 onChange={this.handleOnSearchInputChange}
-                placeholder="Search for a task"
+                placeholder={`Search ${this.state.tasksToDisplay.length} tasks`}
                 value={this.state.searchQuery}
               />
               <OverflowMenu
@@ -252,11 +266,7 @@ export default class Tasks extends Component<TaskProps> {
                 size="sm"
                 iconDescription="Filter"
                 renderIcon={SettingsAdjust}
-                style={{
-                  backgroundColor:
-                    this.state.activeFilters.length > 0 || this.state.showVerified ? "#3DDBD9" : "initial",
-                  borderRadius: "0.25rem",
-                }}
+                className={cx({ [styles.filterActive]: this.state.activeFilters.length > 0 || this.state.showVerified })}
                 flipped={true}
                 menuOptionsClass={styles.filters}
               >
@@ -299,20 +309,6 @@ export default class Tasks extends Component<TaskProps> {
                 </section>
               </OverflowMenu>
             </Layer>
-            <section className={styles.detail}>
-              <h3 className={styles.totalCount}>{`Showing ${this.state.tasksToDisplay.length} tasks`}</h3>
-              <button
-                className={styles.expandButton}
-                onClick={() => {
-                  this.setState((prevState) => ({
-                    isAccordionOpen: !prevState.isAccordionOpen,
-                    firstTaskCategoryIsOpen: false,
-                  }));
-                }}
-              >
-                {this.state.isAccordionOpen ? "Collapse all" : "Expand all"}
-              </button>
-            </section>
             <section className={styles.content}>{this.determineTasks()}</section>
           </>
         )}

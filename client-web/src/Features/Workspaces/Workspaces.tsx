@@ -19,6 +19,7 @@ import kebabcase from "lodash/kebabCase";
 import moment from "moment";
 import queryString from "query-string";
 import { Box } from "reflexbox";
+import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
 import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
 import { useAppContext } from "Hooks";
@@ -47,6 +48,7 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, defaultQuery, h
       </Helmet>
       <Header
         includeBorder={false}
+        nav={<AdminBreadcrumb />}
         header={
           <>
             <HeaderTitle style={{ margin: "0" }}>Workspaces</HeaderTitle>

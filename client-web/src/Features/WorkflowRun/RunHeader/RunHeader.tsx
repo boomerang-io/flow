@@ -133,11 +133,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
               </Link>
             </BreadcrumbItem>
             <BreadcrumbItem isCurrentPage>
-              {!workflow?.name ? (
-                <SkeletonPlaceholder className={styles.workflowNameSkeleton} />
-              ) : (
-                <p>{workflow.name}</p>
-              )}
+              <p>Activity detail</p>
             </BreadcrumbItem>
           </Breadcrumb>
           {workflow && (
@@ -167,7 +163,12 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
       }
       header={
         <div style={{ display: "flex" }}>
-          <HeaderTitle>Activity detail</HeaderTitle>
+          {/* A page inside one run is titled with its workflow's name; the breadcrumb carries the route. */}
+          {!workflow?.name ? (
+            <SkeletonPlaceholder className={styles.workflowNameSkeleton} />
+          ) : (
+            <HeaderTitle title={workflow.displayName ?? workflow.name}>{workflow.displayName ?? workflow.name}</HeaderTitle>
+          )}
           {Boolean(paused) && (
             <Tag className={styles.pausedTag} type="gray" data-testid="paused-indicator">
               <Pause style={{ marginRight: "0.5rem" }} />

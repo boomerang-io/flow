@@ -2,7 +2,6 @@ import React from "react";
 import { Tile } from "@carbon/react";
 import { Bee, Recommend } from "@carbon/react/icons";
 import { TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
-import cx from "classnames";
 import { taskIcons } from "Utils/taskIcons";
 import { Task as TaskType } from "Types";
 import styles from "./task.module.scss";
@@ -33,7 +32,7 @@ function Task({
       <Tile
         role="option"
         aria-selected={isDragActive}
-        className={cx(styles.container, { [styles.globalTask]: !isWorkspaceTask })}
+        className={styles.container}
         draggable={true}
         onDragEnd={() => setIsDragActive(false)}
         onDragStart={(event: React.DragEvent<HTMLDivElement>) => {
@@ -46,14 +45,14 @@ function Task({
         <div className={styles.columnContainer}>
           <div className={styles.rowContainer}>
             {TaskIcon?.Icon ? (
-              <TaskIcon.Icon className={cx(styles.taskIcon, { [styles.workspaceTask]: isWorkspaceTask })} />
+              <TaskIcon.Icon className={styles.taskIcon} />
             ) : (
-              <Bee className={cx(styles.taskIcon, { [styles.workspaceTask]: isWorkspaceTask })} />
+              <Bee className={styles.taskIcon} />
             )}
             <p className={styles.taskName}> {name} </p>
             {verified && (
               <TooltipHover
-                className={cx(styles.tooltipHover, { [styles.workspaceTask]: isWorkspaceTask })}
+                className={styles.tooltipHover}
                 direction="top"
                 tooltipText={
                   <div className={styles.tooltipContainer}>

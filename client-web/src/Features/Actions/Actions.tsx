@@ -7,7 +7,6 @@ import {
   ErrorDragon,
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
   FeatureNavTab as Tab,
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
@@ -319,17 +318,10 @@ function Actions() {
           <Route path="" element={<Navigate to={appLink.actionsApprovals({ workspace: workspace.name })} replace />} />
         </Routes>
         <Header
-          className={styles.header}
           includeBorder={false}
           nav={<NavigationComponent />}
-          header={
-            <>
-              <HeaderTitle className={styles.headerTitle}>Actions</HeaderTitle>
-              <HeaderSubtitle className={styles.headerMessage}>
-                View and manage your approvals and manual tasks.
-              </HeaderSubtitle>
-            </>
-          }
+          // The tabs name what the page holds, so it carries no description line.
+          header={<HeaderTitle className={styles.headerTitle}>Actions</HeaderTitle>}
           actions={
             <section className={styles.headerSummary}>
               <p className={styles.headerSummaryText}>Today's numbers</p>

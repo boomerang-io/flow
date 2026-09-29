@@ -13,6 +13,7 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import SettingsSection from "./SettingsSection";
 import sortBy from "lodash/sortBy";
+import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
@@ -73,6 +74,7 @@ const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
       <Header
         className={styles.header}
         includeBorder={false}
+        nav={<AdminBreadcrumb />}
         header={
           <>
             <HeaderTitle className={styles.headerTitle}>Settings</HeaderTitle>
