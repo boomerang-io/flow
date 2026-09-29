@@ -191,6 +191,28 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByText("Artifact Storage")).toBeInTheDocument();
     expect(screen.getByText("Artifact Retention")).toBeInTheDocument();
   });
+
+  test("Restore defaults previews every quota it resets, artifact quotas included", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await userEvent.click(await screen.findByRole("button", { name: /Restore defaults/i }));
+    // Each title is on its card and again in the preview; the values are the platform defaults.
+    for (const title of [
+      "Number of Workflows",
+      "Number of Executions",
+      "Run Duration",
+      "Concurrent Runs (executions)",
+      "Workspace Capacity - Per Workflow",
+      "Workspace Capacity - Per Run",
+      "Artifact Storage",
+      "Artifact Retention",
+    ]) {
+      expect(await screen.findAllByText(title)).toHaveLength(2);
+    }
+    expect(screen.getByText("20 Workflows")).toBeInTheDocument();
+    expect(screen.getByText("3GB per WorkflowRun")).toBeInTheDocument();
+    expect(screen.getByText("8GB")).toBeInTheDocument();
+    expect(screen.getByText("45 days")).toBeInTheDocument();
+  });
 });
 
 describe("WorkspaceDetailed --- per-workspace write grant", () => {

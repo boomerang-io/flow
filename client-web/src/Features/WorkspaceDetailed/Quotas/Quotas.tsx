@@ -236,7 +236,7 @@ function Quotas() {
           modalSubtitle="Set the storage size limit for each WorkflowRun Workspace using persistent storage on this Workspace."
           minValue={0}
           detailedTitle="Persistent storage size limit"
-          detailedData={`${workspace.quotas.maxWorkflowRunStorage}GB per Workflow`}
+          detailedData={`${workspace.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}
           inputLabel="Storage limit"
           inputUnits="GB"
           stepValue={1}
