@@ -1,8 +1,6 @@
 package io.boomerang.workspace;
 
 import io.boomerang.common.model.WorkflowRunInsight;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -22,11 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// E8: hard-depends on workspace.InsightsService, so full-mode-only.
 @RestController
 @RequestMapping("/api/v2/workspace/{workspace}/insights")
 @Tag(name = "Insights", description = "Provide the ability to search and retrieve Insights.")
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceInsightsControllerV2 {
 
   private final InsightsService insightsService;

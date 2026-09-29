@@ -118,22 +118,13 @@ import tools.jackson.databind.ObjectMapper;
  * the only HTTP route that starts a run, must work in engine mode against the single {@code system}
  * workspace (see EngineWorkspaceInterceptor).
  *
- * <p>Its two standalone-only collaborators are therefore held as ObjectProvider, not as fields:
- * workspace.WorkspaceService and schedule.ScheduleService are both
- * {@code @ConditionalOnFlowMode(STANDALONE)}, so in engine mode neither bean exists. (Same intent as
- * the Optional&lt;IntegrationService&gt; injection in event.WebhookEventService; ObjectProvider
- * rather than Optional because both beans take this one back in their own constructors - Optional
- * resolves eagerly and would close the cycle at construction time.) Every call through them is
- * guarded:
- *
- * <ul>
- *   <li>quotas (canCreateWithQuotas, assertRunQuotas, and the run-duration ceiling the chokepoint
- *       submit hands RunTimeoutPolicy) run only when the quota subsystem is on - see
- *       workspace.FlowQuotaProperties. Off in engine mode, where the run-duration ceiling falls
- *       back to the platform default in the "workspaces" settings.
- *   <li>schedules (delete, updateScheduleTriggers) are skipped when no ScheduleService bean is
- *       present, because engine mode has no schedule management at all (ruling I2).
- * </ul>
+ * <p>workspace.WorkspaceService and schedule.ScheduleService are held as ObjectProvider, not as
+ * fields: both take this service back in their own constructors, and Optional would resolve eagerly
+ * and close the cycle at construction time. WorkspaceService is also
+ * {@code @ConditionalOnFlowMode(STANDALONE)}, so its calls (canCreateWithQuotas, assertRunQuotas,
+ * and the run-duration ceiling the chokepoint submit hands RunTimeoutPolicy) run only when the quota
+ * subsystem is on - see workspace.FlowQuotaProperties. Off in engine mode, where the run-duration
+ * ceiling falls back to the platform default in the "workspaces" settings.
  *
  * <p>TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust.
@@ -797,9 +788,7 @@ public class WorkflowService {
     if (!refs.isEmpty()) {
       // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
-      // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
-      // schedules to delete.
-      scheduleService.ifAvailable(s -> s.deleteAllForWorkflow(refs.get(0)));
+      scheduleService.getObject().deleteAllForWorkflow(refs.get(0));
       tokenService.deleteAllForPrincipal(name);
       // Close out the Workflow's Actions. Inlined from the deleted
       // ActionService.deleteAllByWorkflow, which was a one-line delegation to this repository
@@ -948,12 +937,7 @@ public class WorkflowService {
    */
   private void updateScheduleTriggers(
       final String team, final Workflow request, WorkflowTrigger currentTriggers) {
-    // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
-    // schedules whose trigger state could need syncing.
-    ScheduleService schedules = scheduleService.getIfAvailable();
-    if (schedules == null) {
-      return;
-    }
+    ScheduleService schedules = scheduleService.getObject();
     if (!Objects.isNull(request.getTriggers())
         && !Objects.isNull(request.getTriggers().getSchedule())
         && !Objects.isNull(currentTriggers)

@@ -67,13 +67,12 @@ public class FeatureService {
     features.put(
         "activity", settingsService.getSettingConfig("features", "activity").getBooleanValue());
     features.put(
-        "insights",
-        standalone && settingsService.getSettingConfig("features", "insights").getBooleanValue());
+        "insights", settingsService.getSettingConfig("features", "insights").getBooleanValue());
     features.put(
         "workspace.tasks",
         settingsService.getSettingConfig("features", "workspaceTasks").getBooleanValue());
     features.put("workspace.single", !standalone);
-    features.put("schedules", standalone);
+    features.put("schedules", true);
     features.put("integrations", standalone);
     // The sign-in surface (GET /api/v2/auth/config and the session exchange) exists only here.
     features.put(
