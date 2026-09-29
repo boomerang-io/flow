@@ -330,6 +330,7 @@ param.
 | `temperature` | `slider` 0–2 step 0.1 | `0.7` | Sampling temperature |
 | `maxTokens` | `number` | `1024` | Upper bound on generated tokens |
 | `responseFormat` | `select` `text`\|`json` | `text` | Free text or a JSON object |
+| `jsonSchema` | `texteditor::text` | empty | A JSON Schema object; with `responseFormat` `json` the reply is held to it (`response_format` `json_schema`, strict). Requires task-ai 1.1.0 |
 | `seed` | `number` | empty | Sampling seed, where the endpoint honours one |
 | `files` | `text` | empty | Comma-separated paths on the run workspace, read into context |
 | `maxContextBytes` | `number` | `65536` | Byte budget for `files` |
@@ -347,9 +348,9 @@ and no meter: a platform sums `totalTokens` across task runs through the existin
 `task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
 below). The product tag builds the four service and web images and not this one, so the worker and the product
 version lines move independently; `flow.dispatcher.ai.image` defaults to an exact version,
-`boomerangio/task-ai:1.0.0`, and an operator moves it to another `boomerangio/task-ai:<version>`
-(`service-dispatcher/src/main/resources/application.properties:87-93`). What ties the two together is the
-contract, not the tag: the eleven params above reach the image as `PARAM_<NAME>` environment variables and the
+`boomerangio/task-ai:1.1.0`, and an operator moves it to another `boomerangio/task-ai:<version>`
+(`service-dispatcher/src/main/resources/application.properties:99-106`). What ties the two together is the
+contract, not the tag: the twelve params above reach the image as `PARAM_<NAME>` environment variables and the
 six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`
 catalogue revision in this repository — a param or result added on one side has to land on the other.
 

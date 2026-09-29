@@ -11457,6 +11457,17 @@
     },
     {
      "description": "",
+     "label": "JSON Schema",
+     "type": "texteditor::text",
+     "required": false,
+     "placeholder": "",
+     "helpertext": "A JSON Schema object. With Response format json, the reply is held to it (response_format json_schema, strict).",
+     "defaultValue": "",
+     "readOnly": false,
+     "name": "jsonSchema"
+    },
+    {
+     "description": "",
      "label": "Seed",
      "type": "number",
      "required": false,
