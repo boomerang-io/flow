@@ -10,7 +10,7 @@
 # ---------------------------------------------------------------------------------------------
 # Build stage: pnpm install + react-router build. Nothing from here ships except build/.
 # ---------------------------------------------------------------------------------------------
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /src
 
 # Corepack activates the exact pnpm version pinned by package.json's `packageManager` field, so
@@ -34,7 +34,7 @@ RUN pnpm run build
 # ---------------------------------------------------------------------------------------------
 # Runtime stage: the Express SSR server (server/) plus the build output from the stage above.
 # ---------------------------------------------------------------------------------------------
-FROM node:22-alpine
+FROM node:24-alpine
 ENV BMRG_HOME=/opt/boomerang
 
 WORKDIR $BMRG_HOME
