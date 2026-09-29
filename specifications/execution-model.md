@@ -204,10 +204,10 @@ also records `deadAt`, so the list route says why a row died and not only that i
 
 ## Schedules
 
-Cron and run-once schedules fire from `ScheduleWatcher`, standalone mode only, on the same every-instance, 30 s, jittered cadence
-(`schedule/ScheduleWatcher.java:34`, `:69-77`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
-`ScheduleService.tryClaimFire`, a CAS that advances `nextFireAt` to the next occurrence computed from now (`schedule/ScheduleService.java:459-472`),
-so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:137-161`).
+Cron and run-once schedules fire from `ScheduleWatcher`, in both modes, on the same every-instance, 30 s, jittered cadence
+(`schedule/ScheduleWatcher.java:31`, `:65-73`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
+`ScheduleService.tryClaimFire`, a CAS that advances `nextFireAt` to the next occurrence computed from now (`schedule/ScheduleService.java:457-470`),
+so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:133-157`).
 
 ## Child workflows
 
@@ -287,5 +287,5 @@ means "held" (`TaskExecutionService.java:711-740`). A task that cannot acquire p
 
 ## Also worth knowing
 
-- `flow.watcher.enabled` gates the outbox drain as well as the sweeps; schedules fire only in `standalone` mode.
+- `flow.watcher.enabled` gates the outbox drain as well as the sweeps; schedules fire in both modes.
 - Results are limited by the dispatcher (4096 bytes on Kubernetes) behind a 1 MB engine storage guard at task end, and parameters are capped at 16384 bytes at admission (see `task-runtime.md`).

@@ -9,6 +9,7 @@ import io.boomerang.schedule.WorkspaceScheduleControllerV2;
 import io.boomerang.workspace.EngineWorkspaceControllerV2;
 import io.boomerang.workspace.EngineWorkspaceService;
 import io.boomerang.workspace.WorkspaceControllerV2;
+import io.boomerang.workspace.WorkspaceInsightsControllerV2;
 import io.boomerang.core.security.EngineWorkspaceInterceptorConfiguration;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.workflow.WorkflowRunService;
@@ -24,8 +25,8 @@ import org.springframework.test.context.TestPropertySource;
  * Companion to {@link FlowModeGatingTest}: same boot test with {@code flow.mode=engine}. See that
  * class for the overall rationale.
  *
- * <p>Covers the two-mode matrix: {@code workspace}, {@code schedule} and their dependent api
- * controllers are absent in engine mode, while {@code workflow}/{@code engine}/{@code dispatcher}
+ * <p>Covers the two-mode matrix: {@code workspace} management and {@code integrations} are absent
+ * in engine mode, while {@code workflow}/{@code engine}/{@code dispatcher}, schedules and insights
  * stay present (see specifications/architecture.md).
  */
 @TestPropertySource(properties = "flow.mode=engine")
@@ -55,14 +56,15 @@ class FlowModeGatingEngineModeTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void scheduleBeansAreAbsentInEngineMode() {
-    assertTrue(context.getBeansOfType(ScheduleWatcher.class).isEmpty());
+  void scheduleAndInsightsBeansArePresentInEngineMode() {
+    assertFalse(context.getBeansOfType(ScheduleWatcher.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceScheduleControllerV2.class).isEmpty());
+    assertFalse(context.getBeansOfType(WorkspaceInsightsControllerV2.class).isEmpty());
   }
 
   @Test
   void workspaceDependentApiControllersAreAbsentInEngineMode() {
     assertTrue(context.getBeansOfType(WorkspaceControllerV2.class).isEmpty());
-    assertTrue(context.getBeansOfType(WorkspaceScheduleControllerV2.class).isEmpty());
   }
 
   @Test

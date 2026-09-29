@@ -69,3 +69,4 @@ things by name, not by code.
 | 0083 | [The "For each" palette item is an entry point to the task setting](0083-the-for-each-palette-item-is-an-entry-point-to-the-task-setting.md) | accepted | 2026-09-26 |
 | 0084 | [The webapp renders engine mode from feature flags, not from the mode](0084-the-webapp-renders-engine-mode-from-feature-flags.md) | accepted | 2026-09-28 |
 | 0085 | [Artifacts are uploaded by built-in tasks and expire into a kept record](0085-artifacts-are-uploaded-by-tasks-and-expire-into-a-kept-record.md) | accepted | 2026-09-28 |
+| 0086 | [Engine mode runs schedules and insights](0086-engine-mode-runs-schedules-and-insights.md) | accepted | 2026-09-29 |

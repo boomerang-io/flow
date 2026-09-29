@@ -4,8 +4,6 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.model.WorkflowRunSummary;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.audit.AuditEventEntity;
 import io.boomerang.core.audit.AuditQueryService;
@@ -29,7 +27,6 @@ import org.springframework.stereotype.Service;
  * dates it, the latest carries its current facts.
  */
 @Service
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class InsightsService {
 
   private final RelationshipService relationshipService;
