@@ -1,7 +1,6 @@
-# Two stages, both on node:22-alpine so build-time and run-time Node agree (.nvmrc pins CI to the
+# Two stages, both on node:24-alpine so build-time and run-time Node agree (.nvmrc pins CI to the
 # same major). @react-router/node, react-router and @react-router/dev all declare
-# `engines.node >= 20.0.0` (the SSR handler genuinely will not boot on 18); 22 is Maintenance LTS,
-# supported into 2027, so this isn't trading one soon-to-be-EOL runtime for another.
+# `engines.node >= 20.0.0` (the SSR handler genuinely will not boot on 18).
 #
 # `docker build client-web` produces a working image from a clean checkout: the build stage runs
 # the frontend build itself, so nothing has to run `pnpm run build` on the host first (neither
@@ -9,8 +8,10 @@
 
 # ---------------------------------------------------------------------------------------------
 # Build stage: pnpm install + react-router build. Nothing from here ships except build/.
+# It runs on the builder's own platform: build/ is JavaScript and CSS, the same for every target,
+# and a pnpm install under arm64 emulation stalled for over 30 minutes in release builds.
 # ---------------------------------------------------------------------------------------------
-FROM node:24-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /src
 
 # Corepack activates the exact pnpm version pinned by package.json's `packageManager` field, so
