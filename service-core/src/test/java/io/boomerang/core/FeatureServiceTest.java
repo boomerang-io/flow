@@ -44,7 +44,9 @@ class FeatureServiceTest {
         .containsEntry("insights", true)
         .containsEntry("schedules", true)
         .containsEntry("integrations", true)
-        .containsEntry("authentication", true);
+        .containsEntry("authentication", true)
+        .containsEntry("tokens", true)
+        .containsEntry("workflow.tokens", true);
   }
 
   @Test
@@ -52,7 +54,11 @@ class FeatureServiceTest {
     Map<String, Object> features =
         features(new MockEnvironment().withProperty("flow.security.enabled", "false"));
 
-    assertThat(features).containsEntry("authentication", false);
+    // Every request runs as the synthetic admin, so there is nothing for a token to do.
+    assertThat(features)
+        .containsEntry("authentication", false)
+        .containsEntry("tokens", false)
+        .containsEntry("workflow.tokens", false);
   }
 
   @Test
@@ -70,7 +76,9 @@ class FeatureServiceTest {
         .containsEntry("integrations", false)
         .containsEntry("authentication", false)
         .containsEntry("activity", true)
-        .containsEntry("workspace.parameters", true);
+        .containsEntry("workspace.parameters", true)
+        // Security is off by default in engine mode.
+        .containsEntry("tokens", false);
   }
 
   @Test
@@ -81,6 +89,7 @@ class FeatureServiceTest {
                 .withProperty("flow.mode", "engine")
                 .withProperty("flow.security.enabled", "true"));
 
-    assertThat(features).containsEntry("authentication", false);
+    // No sign-in surface, but API callers authenticate with tokens, so the token pages stay.
+    assertThat(features).containsEntry("authentication", false).containsEntry("tokens", true);
   }
 }

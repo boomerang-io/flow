@@ -235,6 +235,7 @@ export function buildFeatureFlags(feature: FlowFeatures["features"]) {
     SchedulesEnabled: feature["schedules"],
     IntegrationsEnabled: feature["integrations"],
     AuthenticationEnabled: feature["authentication"],
+    TokensEnabled: feature["tokens"],
   };
 }
 

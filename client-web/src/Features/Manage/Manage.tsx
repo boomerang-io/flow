@@ -29,12 +29,13 @@ export function useManageTabs(): Array<ManageTab> {
   const workspaceManagementEnabled = Boolean(useFeature(FeatureFlag.WorkspaceManagementEnabled));
   const userManagementEnabled = Boolean(useFeature(FeatureFlag.UserManagementEnabled));
   const globalParametersEnabled = Boolean(useFeature(FeatureFlag.GlobalParametersEnabled));
+  const tokensEnabled = Boolean(useFeature(FeatureFlag.TokensEnabled));
   return [
     { label: "Settings", to: AppPath.Settings, allowed: permissions.canReadSettings },
     { label: "Workspaces", to: AppPath.WorkspaceList, allowed: workspaceManagementEnabled && permissions.canReadWorkspaces },
     { label: "Users", to: AppPath.UserList, allowed: userManagementEnabled && permissions.canReadUsers },
     { label: "Parameters", to: AppPath.Properties, allowed: globalParametersEnabled && permissions.canReadParameters },
-    { label: "Tokens", to: AppPath.Tokens, allowed: permissions.canReadTokens },
+    { label: "Tokens", to: AppPath.Tokens, allowed: tokensEnabled && permissions.canReadTokens },
     { label: "Tasks", to: AppPath.Tasks, allowed: permissions.canReadTasks },
     { label: "Audit", to: AppPath.Audit, allowed: permissions.canReadAudit },
   ];

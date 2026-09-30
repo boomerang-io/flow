@@ -153,6 +153,7 @@ const defaultFeatures = {
   WorkspaceQuotasEnabled: feature["workspace.quotas"],
   WorkflowTokensEnabled: feature["workflow.tokens"],
   WorkflowTriggersEnabled: feature["workflow.triggers"],
+  TokensEnabled: feature["tokens"],
 };
 
 // `userWorkflows` was carried here in the old setupTests.tsx harness too, importing a fixture
