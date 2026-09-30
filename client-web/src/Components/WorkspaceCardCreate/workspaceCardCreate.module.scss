@@ -1,59 +1,45 @@
+@use "@carbon/react/scss/motion" as motion;
 @import "Styles/mixins";
 
 .container {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  max-width: 18rem;
-  min-width: 18rem;
-  height: 12rem;
-  position: relative;
-  border: 0.0625rem solid #373d42;
-  @include border-radius();
-}
-
-.container {
-  align-items: center;
-  border: 0.0625rem solid #373d42;
+  border: 0.0625rem dashed var(--cds-border-strong-01, var(--cds-ui-04));
   box-sizing: border-box;
-  @include border-radius();
   display: flex;
   flex-direction: column;
-  font-family: "IBM Plex Sans";
-  justify-content: center;
-  max-width: 18rem;
-  min-width: 18rem;
-  height: 12rem;
+  height: 100%;
+  min-height: 12rem;
   position: relative;
-
-  &:focus {
-    @include focus-outline();
-  }
 }
 
 .content {
+  align-items: center;
+  color: var(--cds-text-primary);
+  cursor: pointer;
   display: flex;
   flex-direction: column;
-  line-height: 1rem;
-  justify-content: center;
-  padding: 1rem 1rem 1rem 1rem;
   height: 100%;
-  cursor: pointer;
+  justify-content: center;
+  padding: 1rem;
+  transition: background-color motion.$duration-fast-02 motion.motion(standard, productive);
+  width: 100%;
+
+  &:hover {
+    background-color: var(--cds-layer-hover-01, var(--cds-background-hover));
+  }
+
   &:focus {
-    outline: none;
+    @include focus-outline($offset: 0rem);
   }
 }
 
 .addIcon {
-  margin-left: auto;
-  margin-right: auto;
   height: 1.75rem;
   width: 1.75rem;
 }
 
 .text {
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.0625rem;
-  margin-left: 0.5rem;
+  font-size: var(--cds-heading-02-font-size, 1rem);
+  font-weight: var(--cds-heading-02-font-weight, 600);
+  line-height: var(--cds-heading-02-line-height, 1.5);
+  margin-top: 0.5rem;
 }

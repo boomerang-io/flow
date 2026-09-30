@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from "react";
-//@ts-ignore
-import { Button, InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
-import { Run, Bee, CircleFill, InformationFilled, Template, Add } from "@carbon/react/icons";
+import React, { useEffect } from "react";
+import { InlineLoading } from "@carbon/react";
+import { Bee } from "@carbon/react/icons";
 import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import workflowIcons from "Assets/workflowIcons";
-import { Link, useFetcher, useNavigate } from "react-router-dom";
-import { appLink, FeatureFlag } from "Config/appConfig";
+import { useFetcher, useNavigate } from "react-router-dom";
+import { appLink } from "Config/appConfig";
 import { FlowWorkspaceSummary, ModalTriggerProps, WorkflowTemplate } from "Types";
 import { isActionError } from "Utils/actionResult";
 import CreateWorkflowContent from "./CreateWorkflowContent";
@@ -23,6 +22,7 @@ type CreateWorkflowActionResult =
   | { intent: "create-workflow-from-template"; workspace: string; workflow?: { name: string } }
   | { intent: "create-workflow-from-template"; workspace: string; error: { title: string; message: string } };
 
+/** One row in Home's "Start a workflow" list; the whole row opens the create-from-template modal. */
 const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, workspaces }) => {
   const navigate = useNavigate();
   const fetcher = useFetcher<CreateWorkflowActionResult>();
@@ -54,55 +54,42 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, w
   };
   const isLoading = fetcher.state !== "idle";
   const createTemplateWorkflowError = Boolean(fetcher.data && isActionError(fetcher.data));
-  const { name, Icon = Bee } = workflowIcons.find((icon) => icon.name === template.icon) ?? {};
-
-  let loadingText = "";
+  const { name: iconName, Icon = Bee } = workflowIcons.find((icon) => icon.name === template.icon) ?? {};
+  const title = template.displayName || template.name;
 
   return (
-    <div className={styles.container}>
-      <section className={styles.details}>
-        <div className={styles.iconContainer}>
-          <Icon className={styles.icon} aria-label={`${name}`} />
-        </div>
-        <div className={styles.descriptionContainer}>
-          <h1 title={template.name} className={styles.name} data-testid="workflow-card-title">
-            {template.name}
-          </h1>
-          <p title={template.description} className={styles.description}>
-            {template.description}
-          </p>
-        </div>
-      </section>
-      <section className={styles.launch}>
-        <ComposedModal
-          modalHeaderProps={{
-            title: "Create Workflow from Template",
-            subtitle: "Get started by leveraging this template",
-          }}
-          modalTrigger={({ openModal }: ModalTriggerProps) => (
-            <Button iconDescription={`Create from Template`} renderIcon={Template} size="md" onClick={openModal}>
-              Create from template
-            </Button>
-          )}
-        >
-          {({ closeModal }) => (
-            <CreateWorkflowContent
-              template={template}
-              createWorkflow={handleCreateWorkflow}
-              createError={createTemplateWorkflowError}
-              isLoading={isLoading}
-              workspaces={workspaces}
-            />
-          )}
-        </ComposedModal>
-      </section>
-      {isLoading ? (
-        <InlineLoading
-          description={loadingText}
-          style={{ position: "absolute", left: "0.5rem", top: "0", width: "fit-content" }}
+    <ComposedModal
+      modalHeaderProps={{
+        title: "Create Workflow from Template",
+        subtitle: "Get started by leveraging this template",
+      }}
+      modalTrigger={({ openModal }: ModalTriggerProps) => (
+        <button type="button" className={styles.row} onClick={openModal} disabled={isLoading} data-testid="template-row">
+          <span className={styles.icon} aria-hidden="true">
+            <Icon aria-label={iconName ?? ""} />
+          </span>
+          <span className={styles.body}>
+            <span className={styles.name} title={title} data-testid="workflow-card-title">
+              {title}
+            </span>
+            <span className={styles.description} title={template.description}>
+              {template.description}
+            </span>
+          </span>
+          {isLoading ? <InlineLoading description="Creating" className={styles.loading} /> : null}
+        </button>
+      )}
+    >
+      {({ closeModal }) => (
+        <CreateWorkflowContent
+          template={template}
+          createWorkflow={handleCreateWorkflow}
+          createError={createTemplateWorkflowError}
+          isLoading={isLoading}
+          workspaces={workspaces}
         />
-      ) : null}
-    </div>
+      )}
+    </ComposedModal>
   );
 };
 

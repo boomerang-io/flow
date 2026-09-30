@@ -23,6 +23,21 @@ a {
   text-decoration: none;
 }
 
+/* Motion is opt-out for people who ask for it: one rule, every screen. Carbon components carry
+   their own transitions and do not check the preference themselves, so this has to be global.
+   The near-zero duration (not zero) keeps transitionend/animationend firing for code that waits
+   on them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* fix for carbon menu */
 .cds--list-box__menu {
   z-index: 998;

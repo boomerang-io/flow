@@ -313,6 +313,35 @@ Carbon's categorical palette.
 - Hand-roll navigation/modals/forms that the add-ons already provide.
 - Add a second UI or charting framework.
 
+## Motion
+
+Flow is a productivity tool used many times a day, so motion is decided by frequency before it is
+styled: an interaction a person triggers constantly gets no animation, a daily one gets a fast
+subtle one, and only first-run or empty-state moments may be expressive. Every value comes from
+Carbon's motion tokens, never a hand-typed curve or duration.
+
+| Rule | Value | Where |
+| --- | --- | --- |
+| Hover on a tile, row or card changes background only | `motion.$duration-fast-02` (110 ms) with `motion.motion(standard, productive)` | `client-web/src/Features/Home/pulseTiles.module.scss:20`, every Home row |
+| Nothing animates on mount | none | Home is server-rendered; text, cards and numbers appear at once |
+| Status never pulses, numbers never count up, nothing scales on hover, lists never stagger | none | Reviewed against the same list as the Do / Don't table |
+| Reduced motion is honoured everywhere | one global `prefers-reduced-motion: reduce` rule sets every animation and transition to 0.01 ms | `client-web/src/Styles/_base.scss:22` |
+
+Carbon components carry their own transitions and do not check the preference themselves, which
+is why the reduced-motion rule is global and lives in the base stylesheet, not per component.
+
+### Home
+
+The landing page (`client-web/src/Features/Home/Home.tsx`) is a rollup of every workspace the
+caller belongs to: a hero band with the day's one-sentence summary, four "pulse" tiles that link
+into Activity, Actions, Schedules and the workspace list, the actions waiting on the person with
+Approve / Reject inline, the workspace cards, the five newest runs, the templates and a short
+Learn list. A first run (no workspaces) shows a three-step checklist and four concept tiles
+instead. Its read fans out per workspace from a route loader
+(`client-web/src/Features/Home/homeLoader.ts`); see decision 0088. The hero's eyebrow carries the
+platform's configured name from the app context - the product name is never a literal in the
+page.
+
 ## Browser support
 
 Supported: Chrome, Firefox and Edge — the current version and the two previous versions. Safari
