@@ -165,6 +165,14 @@ task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
 3. **Custom** — only when neither library has it. Build it from Carbon tokens + the 2x grid so it
    themes correctly; never with raw colours or off-scale spacing.
 
+### Lists and tables
+
+List pages follow the Activity page (`client-web/src/Features/Activity/Activity.tsx`), not Carbon's table toolbar
+and batch-action bar: labelled filters ("Filter by Workflow", "Filter by status") in a row above the table, a date range
+on the right, sortable headers, a row that opens the item, and status as an icon with coloured text rather than a tag
+(Activity, Actions, Users). Search on a list of people or workspaces sits in the page header. Actions opens on what is
+waiting (`client-web/src/Features/Actions/Actions.tsx`, `resolveStatuses`).
+
 ### Switching views and choosing values
 
 | Need | Control |
@@ -176,6 +184,15 @@ task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
 Content switchers are Boomerang blue, not the theme's inverse ink: one rule in
 `client-web/src/Styles/_carbon-components.scss` points the switcher's `border-inverse`,
 `layer-selected-inverse` and `text-secondary` tokens at the interactive and link colours.
+
+### Parameters
+
+Workflow, workspace and global parameters share one table (`client-web/src/Features/Parameters/ParametersTable/ParametersTable.tsx`):
+Name first in monospace (what tasks type), Label, then Type and Default value for a workflow or Value for the other two, a
+Required, Read-only or Secured tag, Description, and a menu with Edit, Copy reference and Delete. Search and Add parameter sit
+in the table toolbar. Each scope keeps its own modal; both are titled "Edit parameter" or "Add parameter", show the name as
+text with its reference once it exists (`$(params.x)`, `$(team.params.x)`, `$(global.params.x)`), and treat the label as
+optional, falling back to the name. The workflow modal previews the field a run shows.
 
 ### Schedules
 

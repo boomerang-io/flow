@@ -231,3 +231,8 @@ global.sessionStorage = sessionStorageMock;
 // the global `Date` (and therefore `moment()`) without needing `vi.useFakeTimers()`.
 const DATE_TO_USE = new Date("2020-01-01T00:00:00.000Z");
 vi.setSystemTime(DATE_TO_USE);
+
+// jsdom has no layout, so no scrollIntoView; Carbon's Dropdown calls it on the highlighted item.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

@@ -1,7 +1,7 @@
 import UserList, { loader as userListLoader } from "Features/Users/Users";
 import UserDetailed, { loader as userDetailedLoader } from "Features/UserDetailed/UserDetailed";
 import { Route } from "react-router-dom";
-import { waitFor, screen, fireEvent } from "@testing-library/react";
+import { waitFor, screen, fireEvent, within } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
 import { renderWithContext } from "Utils/testing/render";
 
@@ -42,6 +42,13 @@ describe("Users --- RTL", () => {
     fireEvent.click(await screen.findByText(/^User$/i));
     expect(screen.getByText(/^Submit$/i)).toBeEnabled();
     fireEvent.click(await screen.findByText(/^Submit$/i));
+  });
+
+  test("lists each user with their email under the name and their role in words", async () => {
+    renderUsers(appLink.userList());
+    const row = await screen.findByRole("row", { name: /Tim Bula/ });
+    expect(within(row).getByText("Admin")).toBeInTheDocument();
+    expect(within(row).getByText("trbula@us.ibm.com")).toBeInTheDocument();
   });
 
   test("View user details", async () => {

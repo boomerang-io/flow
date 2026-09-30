@@ -59,27 +59,28 @@ public class IntegrationService {
     List<IntegrationTemplateEntity> templates =
         integrationTemplateRepository.findAllByStatus("active");
     List<Integration> integrations = new LinkedList<>();
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.INTEGRATION,
+            Optional.empty(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.of(workspace)),
+            false);
+    LOGGER.debug("Refs: " + refs.toString());
     templates.forEach(
         t -> {
           LOGGER.debug(t.toString());
           Integration i = new Integration();
           BeanUtils.copyProperties(t, i);
-          List<String> refs =
-              relationshipService.filter(
-                  RelationshipType.INTEGRATION,
-                  Optional.empty(),
-                  Optional.of(RelationshipType.WORKSPACE),
-                  Optional.of(List.of(workspace)),
-                  false);
-          LOGGER.debug("Refs: " + refs.toString());
-          if (!refs.isEmpty()) {
-            i.setRef(refs.get(0));
-            Optional<IntegrationsEntity> entity =
-                integrationsRepository.findByIdAndType(refs.get(0), t.getType());
-            if (entity.isPresent()) {
-              i.setStatus(IntegrationStatus.linked);
-            }
-          }
+          // A workspace can link several integrations; each template is linked by the one of its type.
+          refs.stream()
+              .filter(ref -> integrationsRepository.findByIdAndType(ref, t.getType()).isPresent())
+              .findFirst()
+              .ifPresent(
+                  ref -> {
+                    i.setRef(ref);
+                    i.setStatus(IntegrationStatus.linked);
+                  });
           if ("github".equals(i.getName().toLowerCase())) {
             String appName =
                 settingsService.getSettingConfig("integration", "github.appName").getValue();

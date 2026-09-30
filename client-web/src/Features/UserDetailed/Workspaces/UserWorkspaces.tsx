@@ -50,6 +50,8 @@ function UserWorkspaces({ user, workspaces }: UserWorkspacesProps) {
           <StructuredListHead>
             <StructuredListRow head>
               <StructuredListCell head>Name</StructuredListCell>
+              <StructuredListCell head>Members</StructuredListCell>
+              <StructuredListCell head>Workflows</StructuredListCell>
               <StructuredListCell head />
             </StructuredListRow>
           </StructuredListHead>
@@ -57,6 +59,8 @@ function UserWorkspaces({ user, workspaces }: UserWorkspacesProps) {
             {sortBy(filteredWorkspacesList, "name").map((workspace) => (
               <StructuredListRow key={workspace.name}>
                 <StructuredListCell>{workspace.displayName}</StructuredListCell>
+                <StructuredListCell>{workspace.insights?.members ?? "---"}</StructuredListCell>
+                <StructuredListCell>{workspace.insights?.workflows ?? "---"}</StructuredListCell>
                 <StructuredListCell>
                   <Link
                     className={styles.viewWorkspaceLink}

@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { InlineLoading } from "@carbon/react";
-import { CircleFill, CircleStroke, Popup } from "@carbon/react/icons";
-import { ComposedModal, ToastNotification, notify, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
+import { Button, InlineLoading } from "@carbon/react";
+import { CheckmarkFilled, Connect, LogoGithub, LogoSlack } from "@carbon/react/icons";
+import { ComposedModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { Link, useFetcher } from "react-router-dom";
+import { useFetcher } from "react-router-dom";
 import type { ActionResult } from "Features/Integrations/Integrations";
 import { isActionError } from "Utils/actionResult";
-import { ModalTriggerProps } from "Types";
 import ModalContent from "./ModalContent";
 import styles from "./integrationCard.module.scss";
 
@@ -15,14 +14,26 @@ interface IntegrationCardProps {
   data: any;
 }
 
+// Carbon's logos rather than the template's icon URL, which pointed at third-party sites. What connecting
+// each one adds, in a line per capability; an integration not listed here shows its description alone.
+const known: Record<string, { Logo: React.ComponentType<any>; adds: Array<string> }> = {
+  github: {
+    Logo: LogoGithub,
+    adds: ["Adds the GitHub trigger to Configure", "Starts workflows from events on chosen repositories"],
+  },
+  slack: {
+    Logo: LogoSlack,
+    adds: ["A slash command to run a workflow", "Approve or reject actions from a message"],
+  },
+};
+
 const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }) => {
   const fetcher = useFetcher<ActionResult>();
   const [errorMessage, seterrorMessage] = useState(null);
   // The fetcher settles asynchronously (fetcher.state -> "idle"), so the closeModal callback
   // handed to us at submit time is stashed here and invoked from the effect below only on
   // success - the modal stays open (with the inline error banner below) on failure so the user
-  // can retry, matching the previous mutateAsync/then-based behaviour. See GlobalParameters.tsx
-  // for the identical pattern.
+  // can retry. See GlobalParameters.tsx for the identical pattern.
   const closeModalRef = useRef<(() => void) | null>(null);
 
   // The integrations list is loader-driven: React Router revalidates every matched loader
@@ -34,11 +45,7 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
     }
     if (!isActionError(fetcher.data)) {
       notify(
-        <ToastNotification
-          kind="success"
-          title={`Disable Integration`}
-          subtitle={`${fetcher.data.name} successfully disabled`}
-        />,
+        <ToastNotification kind="success" title="Disconnected" subtitle={`${fetcher.data.name} is disconnected`} />,
       );
       closeModalRef.current?.();
       closeModalRef.current = null;
@@ -47,7 +54,7 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
         <ToastNotification
           kind="error"
           title="Something's Wrong"
-          subtitle={`Request to disable ${fetcher.data.name.toLowerCase()} failed`}
+          subtitle={`Request to disconnect ${fetcher.data.name} failed`}
         />,
       );
     }
@@ -69,65 +76,62 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
           defaultMessage: "Enable integration failed",
         }),
       );
-      //no-op
     }
   };
 
+  const isConnected = data.status === "linked";
   const isDisabling = fetcher.state !== "idle";
   const disableError = Boolean(fetcher.data && isActionError(fetcher.data));
   const disableErrorMessage = fetcher.data && isActionError(fetcher.data) ? fetcher.data.error : null;
+  const { Logo, adds } = known[String(data.name).toLowerCase()] ?? { Logo: Connect, adds: [] };
+  const canConnect = isConnected || Boolean(data.link);
 
   return (
     <ComposedModal
       composedModalProps={{ containerClassName: styles.modalContainer }}
       modalHeaderProps={{
-        title: `Configure ${data.name} Integration`,
-        subtitle: `${data.description}`,
+        label: "Integration",
+        title: data.name,
       }}
-      modalTrigger={({ openModal }: ModalTriggerProps) => (
-        <Link
-          to=""
-          onClick={(e: React.SyntheticEvent) => {
-            e.preventDefault();
-            openModal();
-          }}
-        >
-          <div className={styles.container}>
-            <section className={styles.details}>
-              <div className={styles.iconContainer}>
-                <img className={styles.icon} alt={`${data.name}`} src={data.icon} />
-              </div>
-              <div className={styles.descriptionContainer}>
-                <h1 title={data.name} className={styles.name} data-testid="card-title">
-                  {data.name}
-                </h1>
-                <p title={data.description} className={styles.description}>
-                  {data.description}
+      modalTrigger={({ openModal }) => (
+        <section className={styles.container} aria-label={data.name}>
+          <div className={styles.details}>
+            <Logo size={32} aria-hidden="true" className={styles.logo} />
+            <div>
+              <h2 className={styles.name} data-testid="card-title">
+                {data.name}
+              </h2>
+              {isDisabling ? (
+                <InlineLoading description="Disconnecting…" />
+              ) : isConnected ? (
+                <p className={styles.connected}>
+                  <CheckmarkFilled aria-hidden="true" /> Connected
                 </p>
-              </div>
-            </section>
-            <Popup size={24} className={styles.cardIcon} />
-            <section className={styles.launch}></section>
-            {isDisabling ? (
-              <InlineLoading
-                description="Loading.."
-                style={{ position: "absolute", left: "0.5rem", top: "0", width: "fit-content" }}
-              />
-            ) : (
-              <div className={styles.status}>
-                {data.status === "linked" ? (
-                  <TooltipHover direction="top" tooltipText="Enabled">
-                    <CircleFill style={{ fill: "#009d9a", marginRight: "0.5rem" }} />
-                  </TooltipHover>
-                ) : (
-                  <TooltipHover direction="top" tooltipText="Disabled">
-                    <CircleStroke style={{ fill: "#393939", marginRight: "0.5rem" }} />
-                  </TooltipHover>
-                )}
-              </div>
-            )}
+              ) : (
+                <p className={styles.notConnected}>Not connected</p>
+              )}
+            </div>
           </div>
-        </Link>
+          <p className={styles.description}>{data.description}</p>
+          {adds.length > 0 && (
+            <ul className={styles.adds}>
+              {adds.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+          <div className={styles.actions}>
+            <Button
+              disabled={!canConnect}
+              kind={isConnected ? "tertiary" : "primary"}
+              onClick={openModal}
+              size="sm"
+              title={canConnect ? undefined : "Not set up on this platform"}
+            >
+              {isConnected ? "Manage" : "Connect"}
+            </Button>
+          </div>
+        </section>
       )}
     >
       {({ closeModal }) => (

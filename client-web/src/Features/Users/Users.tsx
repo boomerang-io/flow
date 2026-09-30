@@ -10,11 +10,11 @@ import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { Box } from "reflexbox";
 import EmptyState from "Components/EmptyState";
-import { CREATED_DATE_FORMAT } from "Constants";
+import { CREATED_DATE_FORMAT, UserRoleCopy } from "Constants";
 import { appLink, queryStringOptions } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
-import { PaginatedUserResponse } from "Types";
+import { FlowUser, PaginatedUserResponse } from "Types";
 import styles from "./Users.module.scss";
 
 // This used to also route ":userId/*" to UserDetailed via its own internal <Routes> - the list
@@ -72,13 +72,11 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
       <Helmet>
         <title>Users</title>
       </Helmet>
-      <Box p="2rem" className={styles.content}>
-        <>
-          <Box mb="1rem" maxWidth="20rem">
-            <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
-          </Box>
-          {children}
-        </>
+      <Box p="1.5rem" className={styles.content}>
+        <div className={styles.search}>
+          <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
+        </div>
+        {children}
       </Box>
     </>
   );
@@ -148,50 +146,17 @@ function UserList() {
 
 const TableHeaderKey = {
   Name: "name",
-  DisplayName: "displayName",
-  Email: "email",
   Type: "type",
-  Created: "creationDate",
-  LastLogin: "lastLoginDate",
   Status: "status",
+  LastLogin: "lastLoginDate",
 };
 
+// Name carries the email under it; Preferred Display Name and First Login live on the user's page.
 const headers = [
-  {
-    header: "Name",
-    key: TableHeaderKey.Name,
-    sortable: true,
-  },
-  {
-    header: "Preferred Display Name",
-    key: TableHeaderKey.DisplayName,
-    sortable: false,
-  },
-  {
-    header: "Email",
-    key: TableHeaderKey.Email,
-    sortable: true,
-  },
-  {
-    header: "Type",
-    key: TableHeaderKey.Type,
-    sortable: true,
-  },
-  {
-    header: "First Login",
-    key: TableHeaderKey.Created,
-    sortable: true,
-  },
-  {
-    header: "Last Login",
-    key: TableHeaderKey.LastLogin,
-    sortable: true,
-  },
-  {
-    header: "Status",
-    key: TableHeaderKey.Status,
-    sortable: true,
-  },
+  { header: "Name", key: TableHeaderKey.Name, sortable: true },
+  { header: "Role", key: TableHeaderKey.Type, sortable: true },
+  { header: "Status", key: TableHeaderKey.Status, sortable: true },
+  { header: "Last sign-in", key: TableHeaderKey.LastLogin, sortable: true },
 ];
 
 interface UsersTableProps {
@@ -211,6 +176,7 @@ interface UsersTableProps {
 function UsersTable(props: UsersTableProps) {
   const { TableContainer, Table, TableHead, TableRow, TableBody, TableCell, TableHeader } = DataTable;
   const { number, size, totalElements, content } = props.tableData;
+  const usersById = new Map<string, FlowUser>((content ?? []).map((user: FlowUser) => [user.id, user]));
 
   function handlePaginationChange({ page, pageSize }: { page: number; pageSize: number }) {
     props.updateHistorySearch({
@@ -266,28 +232,37 @@ function UsersTable(props: UsersTableProps) {
                     tabIndex={-1}
                   >
                     {row.cells.map((cell: any) => {
-                      if (
-                        cell.info.header === TableHeaderKey.Created ||
-                        cell.info.header === TableHeaderKey.LastLogin
-                      ) {
-                        return <TableCell key={cell.id}>{moment(cell.value).format(CREATED_DATE_FORMAT)}</TableCell>;
-                      } else if (cell.info.header === TableHeaderKey.Status) {
-                        return (
-                          <TableCell key={cell.id} id={cell.id}>
-                            {cell.value === "active" ? (
-                              <CheckmarkFilled aria-label="Active" fill="green" />
-                            ) : (
-                              <Misuse aria-label="Inactive" fill="red" />
-                            )}
-                          </TableCell>
-                        );
+                      const user: FlowUser | undefined = usersById.get(row.id);
+                      switch (cell.info.header) {
+                        case TableHeaderKey.Name:
+                          return (
+                            <TableCell key={cell.id}>
+                              <span className={styles.name}>{cell.value ?? "---"}</span>
+                              <span className={styles.email}>{user?.email ?? ""}</span>
+                            </TableCell>
+                          );
+                        case TableHeaderKey.Type:
+                          return (
+                            <TableCell key={cell.id}>
+                              {UserRoleCopy[cell.value as keyof typeof UserRoleCopy] ?? cell.value ?? "---"}
+                            </TableCell>
+                          );
+                        case TableHeaderKey.Status:
+                          return (
+                            <TableCell key={cell.id} id={cell.id}>
+                              <span className={styles.status} data-status={cell.value}>
+                                {cell.value === "active" ? <CheckmarkFilled aria-hidden="true" /> : <Misuse aria-hidden="true" />}
+                                {cell.value === "active" ? "Active" : "Inactive"}
+                              </span>
+                            </TableCell>
+                          );
+                        default:
+                          return (
+                            <TableCell key={cell.id}>
+                              {cell.value ? moment(cell.value).format(CREATED_DATE_FORMAT) : "---"}
+                            </TableCell>
+                          );
                       }
-
-                      return (
-                        <TableCell key={cell.id}>
-                          {Array.isArray(cell.value) ? cell.value.length : cell?.value ?? "---"}
-                        </TableCell>
-                      );
                     })}
                   </TableRow>
                 ))}
