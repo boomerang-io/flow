@@ -49,7 +49,7 @@ public class ParamLayerService {
   public List<String> buildParamKeys(String teamId, Workflow workflow) {
     ParamLayers paramLayers = new ParamLayers();
     Map<String, Object> globalParams = paramLayers.getGlobalParams();
-    Map<String, Object> teamParams = paramLayers.getTeamParams();
+    Map<String, Object> workspaceParams = paramLayers.getWorkspaceParams();
     Map<String, Object> workflowParams = paramLayers.getWorkflowParams();
     Map<String, Object> contextParams = paramLayers.getContextParams();
     // Set Global Params
@@ -58,7 +58,7 @@ public class ParamLayerService {
     }
     // Set Workspace Params
     if (settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue()) {
-      buildTeamParams(teamParams, teamId);
+      buildWorkspaceParams(workspaceParams, teamId);
     }
     // Set the Keys from the Workflow - ignore values
     for (AbstractParam wfParam : workflow.getParams()) {
@@ -74,12 +74,12 @@ public class ParamLayerService {
    */
   public ParamLayers buildParamLayers(String teamId, Workflow workflow) {
     ParamLayers paramLayers = new ParamLayers();
-    Map<String, Object> teamParams = paramLayers.getTeamParams();
+    Map<String, Object> workspaceParams = paramLayers.getWorkspaceParams();
     Map<String, Object> globalParams = paramLayers.getGlobalParams();
     Map<String, Object> contextParams = paramLayers.getContextParams();
     // Set Workspace Params
     if (settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue()) {
-      buildTeamParams(teamParams, teamId);
+      buildWorkspaceParams(workspaceParams, teamId);
     }
     // Set Global Params
     if (settingsService.getSettingConfig("features", "globalParameters").getBooleanValue()) {
@@ -105,7 +105,7 @@ public class ParamLayerService {
   /*
    * Build up the Workspace Params - defaultValue is not used with Workspace Params and can be ignored.
    */
-  private void buildTeamParams(Map<String, Object> teamParams, String team) {
+  private void buildWorkspaceParams(Map<String, Object> workspaceParams, String team) {
     // A missing workspace contributes no params rather than failing the whole layer build -
     // engine mode resolves every scope to a "default" workspace that has no stored record.
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
@@ -115,7 +115,7 @@ public class ParamLayerService {
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
     if (workspaceEntity.getParameters() != null && !workspaceEntity.getParameters().isEmpty()) {
       for (AbstractParam param : workspaceEntity.getParameters()) {
-        teamParams.put(param.getName(), param.getValue());
+        workspaceParams.put(param.getName(), param.getValue());
       }
     }
   }

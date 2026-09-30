@@ -215,7 +215,7 @@ public class ParameterManager {
 
     if (wfRun.getAnnotations().containsKey("boomerang.io/workspace-params")
         && wfRun.getAnnotations().get("boomerang.io/workspace-params") != null) {
-      paramLayers.setTeamParams(
+      paramLayers.setWorkspaceParams(
           (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/workspace-params"));
     }
     if (wfRun.getAnnotations().containsKey("boomerang.io/global-params")

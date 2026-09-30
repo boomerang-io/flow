@@ -146,13 +146,13 @@ public class NavigationService {
       }
 
       if (((Boolean) features.getFeatures().get("workspace.parameters"))) {
-        Navigation teamParameters = new Navigation();
-        teamParameters.setName("Parameters");
-        teamParameters.setType(NavigationType.link);
-        teamParameters.setDisabled(disabled);
-        teamParameters.setIcon("Parameter");
-        teamParameters.setLink(flowAppsUrl + teamIdURLContext + "/parameters");
-        response.add(teamParameters);
+        Navigation workspaceParameters = new Navigation();
+        workspaceParameters.setName("Parameters");
+        workspaceParameters.setType(NavigationType.link);
+        workspaceParameters.setDisabled(disabled);
+        workspaceParameters.setIcon("Parameter");
+        workspaceParameters.setLink(flowAppsUrl + teamIdURLContext + "/parameters");
+        response.add(workspaceParameters);
       }
 
       if (((Boolean) features.getFeatures().get("workspace.management"))) {

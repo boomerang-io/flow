@@ -13,7 +13,7 @@ class ParamLayersTest {
   @Test
   void workspaceParamsResolveUnderBothScopesButOnlyTheCurrentOneIsSuggested() {
     ParamLayers layers = new ParamLayers();
-    layers.getTeamParams().putAll(Map.of("token", "t"));
+    layers.getWorkspaceParams().putAll(Map.of("token", "t"));
 
     Map<String, Object> flat = layers.getFlatMap();
     assertEquals("t", flat.get("workspace.params.token"));

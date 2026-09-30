@@ -706,7 +706,7 @@ public class WorkflowService {
     ParamLayers paramLayers = paramLayerService.buildParamLayers(team, workflow);
     executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
     executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
-    executionAnnotations.put("boomerang.io/workspace-params", paramLayers.getTeamParams());
+    executionAnnotations.put("boomerang.io/workspace-params", paramLayers.getWorkspaceParams());
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.

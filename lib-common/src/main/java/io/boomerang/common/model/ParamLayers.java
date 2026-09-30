@@ -42,7 +42,7 @@ public class ParamLayers {
   private Map<String, Object> globalParams = new HashMap<>();
 
   @JsonIgnore
-  private Map<String, Object> teamParams = new HashMap<>();
+  private Map<String, Object> workspaceParams = new HashMap<>();
 
   @JsonIgnore
   private Map<String, Object> workflowParams = new HashMap<>();
@@ -75,12 +75,12 @@ public class ParamLayers {
     this.contextParams = contextParams;
   }
 
-  public Map<String, Object> getTeamParams() {
-    return teamParams;
+  public Map<String, Object> getWorkspaceParams() {
+    return workspaceParams;
   }
 
-  public void setTeamParams(Map<String, Object> teamProperties) {
-    this.teamParams = teamProperties;
+  public void setWorkspaceParams(Map<String, Object> workspaceParams) {
+    this.workspaceParams = workspaceParams;
   }
 
   public Map<String, Object> getWorkflowParams() {
@@ -96,9 +96,9 @@ public class ParamLayers {
 
     Map<String, Object> finalProperties = new TreeMap<>();
     copyFlatParams(globalParams, finalProperties, "global");
-    copyFlatParams(teamParams, finalProperties, WORKSPACE_SCOPE);
+    copyFlatParams(workspaceParams, finalProperties, WORKSPACE_SCOPE);
     // Deprecated spelling of the workspace scope, still resolved until the next major version.
-    copyFlatParams(teamParams, finalProperties, DEPRECATED_WORKSPACE_SCOPE);
+    copyFlatParams(workspaceParams, finalProperties, DEPRECATED_WORKSPACE_SCOPE);
     copyFlatParams(workflowParams, finalProperties, "workflow");
     copyFlatParams(taskParams, finalProperties, null);
     copyFlatParams(contextParams, finalProperties, "context");
@@ -125,7 +125,7 @@ public class ParamLayers {
     HashSet<String> keys = new HashSet<>();
     copyFlatKeys(globalParams, keys, "global");
     // Suggest only the current spelling; team.params still resolves but is not offered.
-    copyFlatKeys(teamParams, keys, WORKSPACE_SCOPE);
+    copyFlatKeys(workspaceParams, keys, WORKSPACE_SCOPE);
     copyFlatKeys(workflowParams, keys, "workflow");
     copyFlatKeys(taskParams, keys, null);
     copyFlatKeys(contextParams, keys, "context");
@@ -158,19 +158,5 @@ public class ParamLayers {
       return "";
     }
     return jsonResult;
-  }
-
-  public Map<String, Object> getMapForKey(String key) {
-    if ("workflow".equals(key)) {
-      return this.getWorkflowParams();
-    } else if ("context".equals(key)) {
-      return this.getContextParams();
-    } else if ("team".equals(key)) {
-      return this.getTeamParams();
-    } else if ("global".equals(key)) {
-      return this.getGlobalParams();
-    } else {
-      return new HashMap<>();
-    }
   }
 }
