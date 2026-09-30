@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -54,7 +56,16 @@ public class ParameterManager {
   // Ceiling on the structural walk in replaceStringInObject: only string leaves are substituted,
   // so a pathological nesting cannot exhaust the stack.
   private static final int MAX_SUBSTITUTION_DEPTH = 32;
-  private final String[] reservedScope = {"global", "team", "workflow", "context"};
+  private final String[] reservedScope = {
+    "global",
+    ParamLayers.WORKSPACE_SCOPE,
+    ParamLayers.DEPRECATED_WORKSPACE_SCOPE,
+    "workflow",
+    "context"
+  };
+  // Each deprecated team.params reference is logged once per instance, so a busy schedule doesn't
+  // repeat the warning on every run.
+  private static final Set<String> warnedDeprecatedReferences = ConcurrentHashMap.newKeySet();
 
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
@@ -204,7 +215,7 @@ public class ParameterManager {
 
     if (wfRun.getAnnotations().containsKey("boomerang.io/workspace-params")
         && wfRun.getAnnotations().get("boomerang.io/workspace-params") != null) {
-      paramLayers.setTeamParams(
+      paramLayers.setWorkspaceParams(
           (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/workspace-params"));
     }
     if (wfRun.getAnnotations().containsKey("boomerang.io/global-params")
@@ -291,11 +302,13 @@ public class ParameterManager {
           && "params".equalsIgnoreCase(separatedKey[1])
           && isReservedScope(separatedKey[0])) {
         // <scope>.params.<name>
+        warnIfDeprecatedScope(separatedKey[0], foundKey);
         foundValue = flatParamLayers.get(foundKey);
       } else if ((separatedKey.length > 3)
           && "params".equalsIgnoreCase(separatedKey[1])
           && isReservedScope(separatedKey[0])) {
         // <scope>.params.<name>.<jsonpath>
+        warnIfDeprecatedScope(separatedKey[0], foundKey);
         foundValue = objectPathValue(foundKey, 3, flatParamLayers);
       } else if ((separatedKey.length >= 4)
           && "tasks".equalsIgnoreCase(separatedKey[0])
@@ -389,6 +402,16 @@ public class ParameterManager {
         && matcher.start() == 2
         && matcher.end() == trimmed.length() - 1
         && !matcher.find();
+  }
+
+  private void warnIfDeprecatedScope(String scope, String reference) {
+    if (ParamLayers.DEPRECATED_WORKSPACE_SCOPE.equalsIgnoreCase(scope)
+        && warnedDeprecatedReferences.add(reference)) {
+      LOGGER.warn(
+          "$({}) uses the deprecated team scope; use $(workspace.{}) instead. team.params is removed in the next major version.",
+          reference,
+          reference.substring(scope.length() + 1));
+    }
   }
 
   private boolean isReservedScope(String scope) {

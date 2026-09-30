@@ -11,6 +11,7 @@ export interface ManageFeatures {
   workspaceManagement: boolean;
   userManagement: boolean;
   globalParameters: boolean;
+  tokens: boolean;
 }
 
 type ManageGrants = Pick<
@@ -29,7 +30,7 @@ export function manageTabs(grants: ManageGrants, features: ManageFeatures): Arra
     { label: "Workspaces", to: AppPath.WorkspaceList, allowed: features.workspaceManagement && grants.canReadWorkspaces },
     { label: "Users", to: AppPath.UserList, allowed: features.userManagement && grants.canReadUsers },
     { label: "Parameters", to: AppPath.Properties, allowed: features.globalParameters && grants.canReadParameters },
-    { label: "Tokens", to: AppPath.Tokens, allowed: grants.canReadTokens },
+    { label: "Tokens", to: AppPath.Tokens, allowed: features.tokens && grants.canReadTokens },
     { label: "Tasks", to: AppPath.Tasks, allowed: grants.canReadTasks },
     { label: "Audit", to: AppPath.Audit, allowed: grants.canReadAudit },
   ];

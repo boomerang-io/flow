@@ -19,7 +19,7 @@ const everything: RoutePermissions = {
 
 // The layout reads the route permissions the App layout hands down through its outlet
 // context, so the stub tree puts a parent route above it that supplies them.
-function renderManage(permissions: RoutePermissions, route = "/admin/settings") {
+function renderManage(permissions: RoutePermissions, route = "/admin/settings", tokensEnabled = true) {
   return renderWithContext(
     <Route path="/" element={<Outlet context={permissions} />}>
       <Route path="/admin" element={<Manage />}>
@@ -28,7 +28,7 @@ function renderManage(permissions: RoutePermissions, route = "/admin/settings") 
         <Route path="audit" element={<p>audit content</p>} />
       </Route>
     </Route>,
-    { route },
+    { route, features: { TokensEnabled: tokensEnabled } },
   );
 }
 
@@ -64,5 +64,12 @@ describe("Manage", () => {
     renderManage({ ...everything, canReadSettings: false, canReadWorkspaces: false, canReadUsers: false, canReadParameters: false, canReadTokens: false, canReadTasks: false }, "/admin");
 
     expect(await screen.findByText("audit content")).toBeInTheDocument();
+  });
+
+  test("hides Tokens when security is off, whatever the caller may read", async () => {
+    renderManage(everything, "/admin/settings", false);
+
+    expect(await screen.findByRole("heading", { name: "Manage" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Tokens" })).not.toBeInTheDocument();
   });
 });

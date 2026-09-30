@@ -47,9 +47,14 @@ public class FeatureService {
     features.put(
         "workflow.triggers",
         settingsService.getSettingConfig("features", "workflowTriggers").getBooleanValue());
+    // Tokens authenticate API callers; with security off every request runs as the synthetic admin,
+    // so there is nothing for a token to do and the token pages and workflow tokens are hidden.
+    boolean security = FlowSecurityProperties.isSecurityEnabled(environment);
+    features.put("tokens", security);
     features.put(
         "workflow.tokens",
-        settingsService.getSettingConfig("features", "workflowTokens").getBooleanValue());
+        security
+            && settingsService.getSettingConfig("features", "workflowTokens").getBooleanValue());
     features.put(
         "workspace.parameters",
         settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue());
@@ -76,7 +81,7 @@ public class FeatureService {
     features.put("integrations", standalone);
     // The sign-in surface (GET /api/v2/auth/config and the session exchange) exists only here.
     features.put(
-        "authentication", standalone && FlowSecurityProperties.isSecurityEnabled(environment));
+        "authentication", standalone && security);
 
     flowFeatures.setFeatures(features);
     return flowFeatures;

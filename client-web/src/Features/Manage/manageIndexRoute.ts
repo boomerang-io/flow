@@ -37,6 +37,7 @@ export async function loader({ request }: { request: Request }) {
       workspaceManagement: Boolean(flags["workspace.management"]),
       userManagement: Boolean(flags["user.management"]),
       globalParameters: Boolean(flags["global.parameters"]),
+      tokens: Boolean(flags["tokens"]),
     },
   ).find((tab) => tab.allowed);
   return first ? redirect(first.to) : null;

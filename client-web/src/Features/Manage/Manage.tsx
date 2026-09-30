@@ -24,6 +24,7 @@ export function useManageTabs(): Array<ManageTab> {
     workspaceManagement: Boolean(useFeature(FeatureFlag.WorkspaceManagementEnabled)),
     userManagement: Boolean(useFeature(FeatureFlag.UserManagementEnabled)),
     globalParameters: Boolean(useFeature(FeatureFlag.GlobalParametersEnabled)),
+    tokens: Boolean(useFeature(FeatureFlag.TokensEnabled)),
   });
 }
 

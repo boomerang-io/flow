@@ -26,7 +26,7 @@ const PAGE_SIZES = [DEFAULT_PAGE_SIZE, 25, 50];
 
 /** How a task or workflow reads a parameter of this scope. */
 export function parameterReference(scope: ParameterScope, name: string): string {
-  const prefix = scope === "workflow" ? "params" : scope === "workspace" ? "team.params" : "global.params";
+  const prefix = scope === "workflow" ? "params" : scope === "workspace" ? "workspace.params" : "global.params";
   return `$(${prefix}.${name})`;
 }
 

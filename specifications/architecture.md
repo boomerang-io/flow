@@ -45,6 +45,7 @@ only when its setting is on and the surface behind it is loaded in this mode (`c
 | `schedules` | `true` | `true` |
 | `integrations` | `true` | `false` |
 | `authentication` | `flow.security.enabled` | `false` |
+| `tokens` | `flow.security.enabled` | `flow.security.enabled` (off by default): the token pages, and `workflow.tokens`, show only when security is on |
 
 The server-built menu (`core/NavigationService.java`) reads the same flags. When `authentication` is `false` the
 webapp's startup loader never requests `GET /api/v2/auth/config` (`client-web/src/Features/App/App.tsx:142-147`),

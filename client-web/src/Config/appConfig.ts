@@ -280,5 +280,6 @@ export enum FeatureFlag {
   SchedulesEnabled = "SchedulesEnabled",
   IntegrationsEnabled = "IntegrationsEnabled",
   AuthenticationEnabled = "AuthenticationEnabled",
+  TokensEnabled = "TokensEnabled",
 }
 

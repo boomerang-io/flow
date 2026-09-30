@@ -715,7 +715,8 @@ export type FlowFeatureKey =
   | "workspace.single"
   | "schedules"
   | "integrations"
-  | "authentication";
+  | "authentication"
+  | "tokens";
 
 export interface FlowFeatures {
   features: {

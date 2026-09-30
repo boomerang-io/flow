@@ -211,7 +211,7 @@ function WorkspaceParameters() {
         header={
           <>
             <HeaderTitle>Parameters</HeaderTitle>
-            <HeaderSubtitle>Values every workflow in this workspace can read as $(team.params.name).</HeaderSubtitle>
+            <HeaderSubtitle>Values every workflow in this workspace can read as $(workspace.params.name).</HeaderSubtitle>
           </>
         }
       />
