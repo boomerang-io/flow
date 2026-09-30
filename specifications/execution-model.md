@@ -185,7 +185,8 @@ entry read and the arm (`applyEventDelivery`) is honoured rather than rolled bac
 CAS winners publish an in-process `TaskRunTransition`/`WorkflowRunTransition` event (`engine/model/*.java`).
 `WorkflowRunAuditBridge` consumes the WorkflowRun stream (`core/audit/WorkflowRunAuditBridge.java`): the run's first
 status change records a CREATE audit event and reaching the completed phase records an UPDATE event carrying the
-terminal status and duration — the events the monthly run quota and the workspace insights read. TaskRun transitions
+terminal status and duration — the events the monthly run quota reads (the Insights page reads retained runs instead,
+`api-contract.md` § Insights). TaskRun transitions
 are not audited (volume; no consumer reads them). Emission is best-effort and never fails the transition. When
 `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:50`),
 `CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching `completed` with a status the caller persisted directly (`event/CloudEventsBridge.java:32-71`)

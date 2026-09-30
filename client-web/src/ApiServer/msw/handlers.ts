@@ -156,6 +156,9 @@ export const handlers: HttpHandler[] = [
    * Insights
    */
   http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), () => HttpResponse.json(fixtures.insights)),
+  http.get(serviceUrl.workspace.getInsightsWorkflow({ workspace: ":workspace", workflow: ":workflow" }), () =>
+    HttpResponse.json(fixtures.insightsWorkflow),
+  ),
 
   /**
    * Tasks
