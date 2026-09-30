@@ -124,7 +124,7 @@ import tools.jackson.databind.ObjectMapper;
  * {@code @ConditionalOnFlowMode(STANDALONE)}, so its calls (canCreateWithQuotas, assertRunQuotas,
  * and the run-duration ceiling the chokepoint submit hands RunTimeoutPolicy) run only when the quota
  * subsystem is on - see workspace.FlowQuotaProperties. Off in engine mode, where the run-duration
- * ceiling falls back to the platform default in the "workspaces" settings.
+ * ceiling falls back to the platform default in the "quotas" settings.
  *
  * <p>TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust.
@@ -262,7 +262,7 @@ public class WorkflowService {
    *
    * With the quota subsystem on this is the workspace's max run duration (its own quota override
    * if set, else the platform default). In engine mode there is no WorkspaceService and no
-   * per-workspace quota record, so the platform default in the "workspaces" settings document
+   * per-workspace quota record, so the platform default in the "quotas" settings document
    * stands on its own - the same value WorkspaceService.getWorkflowMaxDurationForTeam starts from.
    *
    * A Workflow no workspace owns has no quota to apply, so it has no ceiling - only the floor and
@@ -278,7 +278,7 @@ public class WorkflowService {
     return Long.parseLong(
         settingsService
             .getSettingConfig(
-                WorkspaceService.WORKSPACES_SETTINGS_KEY,
+                WorkspaceService.QUOTAS_SETTINGS_KEY,
                 WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
             .getValue());
   }
@@ -494,7 +494,7 @@ public class WorkflowService {
         if (ws.getType().equals("workflow")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                  .getSettingConfig(WorkspaceService.QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                   .getValue();
           ws.setName("workflow");
           ws.setOptional(false);
@@ -503,7 +503,7 @@ public class WorkflowService {
         } else if (ws.getType().equals("workflowrun")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                  .getSettingConfig(WorkspaceService.QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                   .getValue();
           ws.setName("workflowrun");
           ws.setOptional(false);

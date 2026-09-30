@@ -116,17 +116,17 @@ public abstract class AbstractEngineIntegrationTest {
     relationshipService.createNode(RelationshipType.ROOT, "root", "root", Optional.empty());
   }
 
-  // WorkspaceService.setDefaultQuotas reads the "workspaces" settings document the loader normally
+  // WorkspaceService.setDefaultQuotas reads the "quotas" settings document the loader normally
   // seeds. Mirrors the shipped default quota values (seed/settings.json) so a workspace-creating
   // test does not need its own copy.
   protected void seedTeamQuotaSettings() {
     seedArtifactSettings();
-    if (settingsRepository.findOneByKey(WorkspaceService.WORKSPACES_SETTINGS_KEY) != null) {
+    if (settingsRepository.findOneByKey(WorkspaceService.QUOTAS_SETTINGS_KEY) != null) {
       return;
     }
     SettingEntity settings = new SettingEntity();
-    settings.setKey(WorkspaceService.WORKSPACES_SETTINGS_KEY);
-    settings.setName("Workspace Quotas");
+    settings.setKey(WorkspaceService.QUOTAS_SETTINGS_KEY);
+    settings.setName("Quotas");
     settings.setConfig(
         List.of(
             quotaConfig("max.workflowrun.concurrent", "4"),

@@ -412,7 +412,7 @@ class V3DumpMigrationTest {
     // fresh-shape duplicate is created alongside the migrated ones. "auth" (the OIDC issuer
     // configuration) and "audit" (the capture gate) have no v3 predecessors, so _0021 inserts
     // them fresh.
-    assertThat(collection("settings").countDocuments()).isEqualTo(10);
+    assertThat(collection("settings").countDocuments()).isEqualTo(9);
 
     // _0022__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
     // populated by this point (by _0006__V3MigrateTaskCatalogue), so its name-matching insert-if-
@@ -454,12 +454,13 @@ class V3DumpMigrationTest {
     // seed's keys - proves the v3 documents were migrated in place rather than left under their
     // v3 keys or duplicated alongside a fresh seed insert. Plus "auth" (the OIDC issuer
     // configuration), "audit" (the capture gate) and "artifacts" (retention and size limits), which
-    // have no v3 predecessors to migrate from, so _0021__SeedSettings inserts them fresh - 10 total.
-    assertThat(collection("settings").countDocuments()).isEqualTo(10);
+    // have no v3 predecessors to migrate from, so _0021__SeedSettings inserts them fresh; _0056
+    // then removes "workflow" (v3 "execution"), whose storage entries nothing reads - 9 total.
+    assertThat(collection("settings").countDocuments()).isEqualTo(9);
     List<String> settingsKeys = collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(settingsKeys)
         .containsExactlyInAnyOrder(
-            "task", "workflowrun", "workflow", "features", "workspaces", "integration", "customizations", "auth", "audit",
+            "task", "workflowrun", "features", "quotas", "integration", "customizations", "auth", "audit",
             "artifacts");
 
     // None of the 7 surviving documents carry the stale v3 _class discriminator any more -
@@ -471,14 +472,20 @@ class V3DumpMigrationTest {
 
     // task (v3 "controller"): config keys renamed per legacy 4020.
     Document task = collection("settings").find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d"))).first();
-    assertThat(task.getString("name")).isEqualTo("Task Configuration");
+    assertThat(task.getString("name")).isEqualTo("Tasks");
     assertThat(configKeys(task))
         .containsExactlyInAnyOrder("debug", "default.image", "deletion.policy", "edit.verified", "default.timeout");
 
-    // workflowrun (v3 "activity"): key rename only.
+    // workflowrun (v3 "activity"): key renamed by _0005; _0056 strips its four v3 storage entries
+    // so only the two engine ceilings remain, and _0055 names it for them.
     Document workflowrun =
         collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
     assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
+    assertThat(workflowrun.getString("name")).isEqualTo("Run limits");
+    assertThat(configKeys(workflowrun)).containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items");
+    assertThat(collection("settings").find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first())
+        .as("the v3 execution-storage settings document must be removed")
+        .isNull();
 
     // integration (v3 "extensions"): renamed + GitHub config appended (github.appId/pem/appName)
     // by _0005, then github.pem renamed to github.jwt and the OAuth client/webhook settings
@@ -487,7 +494,7 @@ class V3DumpMigrationTest {
     // divergence).
     Document integration =
         collection("settings").find(Filters.eq("_id", new ObjectId("62a7bec0a6166d30aff64a5b"))).first();
-    assertThat(integration.getString("name")).isEqualTo("Integration Configuration");
+    assertThat(integration.getString("name")).isEqualTo("Integrations");
     assertThat(configKeys(integration))
         .contains(
             "github.appId",
@@ -503,8 +510,8 @@ class V3DumpMigrationTest {
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
     // max.workflowrun.storage entry legacy 4039 introduced, and the artifact storage default.
     Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
-    assertThat(teams.getString("key")).isEqualTo("workspaces");
-    assertThat(teams.getString("name")).isEqualTo("Workspace Quotas");
+    assertThat(teams.getString("key")).isEqualTo("quotas");
+    assertThat(teams.getString("name")).isEqualTo("Quotas");
     assertThat(configKeys(teams))
         .containsExactlyInAnyOrder(
             "max.workflowrun.concurrent",

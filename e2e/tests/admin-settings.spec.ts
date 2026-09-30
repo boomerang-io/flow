@@ -20,7 +20,7 @@ test("admin settings: changing a platform setting persists", async ({ page }) =>
 
   // Settings is one group at a time, chosen in the side navigation; the page opens on the first
   // group by name, so pick Customizations.
-  await page.getByRole("link", { name: "Configure Customizations" }).click();
+  await page.getByRole("link", { name: "Customization" }).click();
 
   // By testid, not label: two settings render the label "App Name" (customizations' appName and
   // the GitHub integration's github.appName), so getByLabel trips strict mode.
@@ -33,6 +33,6 @@ test("admin settings: changing a platform setting persists", async ({ page }) =>
 
   // Reload to prove the value came back from the backend, not just local form state.
   await page.reload();
-  await page.getByText("Configure Customizations").click();
+  await page.getByRole("link", { name: "Customization" }).click();
   await expect(page.getByTestId("appName")).toHaveValue(newAppName);
 });

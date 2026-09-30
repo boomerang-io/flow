@@ -54,12 +54,12 @@
           "readOnly": false
         }
       ],
-      "description": "Configure the single trusted OIDC issuer accepted for direct browser login via the unified token exchange.",
+      "description": "The identity provider that signs people in, and how their tokens are exchanged.",
       "key": "auth",
       "lastModiifed": {
         "$date": "2026-08-20T00:00:00.000Z"
       },
-      "name": "Authentication Configuration",
+      "name": "Authentication",
       "type": "ValuesList"
     },
     {
@@ -100,12 +100,12 @@
           "readOnly": false
         }
       ],
-      "description": "Configure the customizations to this particular instance of Flow and maximise the experience for your users.",
+      "description": "The name, logo and links this instance shows its users.",
       "key": "customizations",
       "lastModiifed": {
         "$date": "2022-06-15T12:07:48.123Z"
       },
-      "name": "Configure Customizations",
+      "name": "Customization",
       "type": "ValuesList"
     },
     {
@@ -194,7 +194,7 @@
           "readOnly": false
         }
       ],
-      "description": "Retain control and personalize the experience for your users by enabling or disabling functionality.",
+      "description": "Turn parts of the product on or off for everyone.",
       "key": "features",
       "lastModiifed": {
         "$date": "2021-08-23T21:57:01.577Z"
@@ -296,12 +296,12 @@
           "readOnly": false
         }
       ],
-      "description": "Define the configuration for integrating with the extensions.",
+      "description": "Credentials and endpoints for the systems Flow connects to.",
       "key": "integration",
       "lastModiifed": {
         "$date": "2022-06-15T12:07:48.123Z"
       },
-      "name": "Integration Configuration",
+      "name": "Integrations",
       "type": "ValuesList"
     },
     {
@@ -365,12 +365,12 @@
           "readOnly": false
         }
       ],
-      "description": "The task and underlying task execution configuration.",
+      "description": "How task containers run: images, worker clean-up, timeouts.",
       "key": "task",
       "lastModiifed": {
         "$date": "2020-08-20T00:59:19.145Z"
       },
-      "name": "Task Configuration",
+      "name": "Tasks",
       "type": "ValuesList"
     },
     {
@@ -435,72 +435,12 @@
           "readOnly": false
         }
       ],
-      "description": "Define default workspace quotas which are referenced unless overridden on the Workspace.",
-      "key": "workspaces",
+      "description": "The limits every workspace starts with; a workspace can override them.",
+      "key": "quotas",
       "lastModiifed": {
         "$date": "2021-08-23T21:57:01.577Z"
       },
-      "name": "Workspace Quotas",
-      "type": "ValuesList"
-    },
-    {
-      "_id": {
-        "$oid": "60245b56226920beece547e3"
-      },
-      "config": [
-        {
-          "description": "The size to request when dynamically creating the volume",
-          "key": "storage.size",
-          "label": "Default Storage Size ",
-          "type": "text",
-          "value": "1Gi",
-          "readOnly": false
-        },
-        {
-          "description": "The storage class to use when dynamically creating the volume. If left blank the clusters default Storage Class will be used.",
-          "key": "storage.class",
-          "label": "Storage Class Name",
-          "type": "text",
-          "value": "",
-          "readOnly": false
-        },
-        {
-          "description": "The access mode to use when dynamically creating the volume.",
-          "key": "storage.accessMode",
-          "label": "Storage Access Mode",
-          "type": "select",
-          "options": [
-            {
-              "key": "ReadWriteMany",
-              "value": "Read Write Many"
-            },
-            {
-              "key": "ReadWriteOnce",
-              "value": "Read Write Once"
-            },
-            {
-              "key": "ReadOnlyMany",
-              "value": "Read Only Many"
-            }
-          ],
-          "value": "ReadWriteMany",
-          "readOnly": false
-        },
-        {
-          "description": "Maximum storage size",
-          "key": "max.storage.size",
-          "label": "Maximum storage size",
-          "type": "text",
-          "value": "5Gi",
-          "readOnly": false
-        }
-      ],
-      "description": "Define how the system utilizes and interacts with storage.",
-      "key": "workflow",
-      "lastModiifed": {
-        "$date": "2021-02-09T15:55:26.799Z"
-      },
-      "name": "Workspace Configuration - Workflow Storage",
+      "name": "Quotas",
       "type": "ValuesList"
     },
     {
@@ -508,52 +448,6 @@
         "$oid": "60245957226920beece4fdf9"
       },
       "config": [
-        {
-          "description": "The size to request when dynamically creating the volume",
-          "key": "storage.size",
-          "label": "Default Storage Size ",
-          "type": "text",
-          "value": "1Gi",
-          "readOnly": false
-        },
-        {
-          "description": "The storage class to use when dynamically creating the volume. If left blank the clusters default Storage Class will be used.",
-          "key": "storage.class",
-          "label": "Storage Class Name",
-          "type": "text",
-          "value": "",
-          "readOnly": false
-        },
-        {
-          "description": "The access mode to use when dynamically creating the volume.",
-          "key": "storage.accessMode",
-          "label": "Storage Access Mode",
-          "type": "select",
-          "options": [
-            {
-              "key": "ReadWriteMany",
-              "value": "Read Write Many"
-            },
-            {
-              "key": "ReadWriteOnce",
-              "value": "Read Write Once"
-            },
-            {
-              "key": "ReadOnlyMany",
-              "value": "Read Only Many"
-            }
-          ],
-          "value": "ReadWriteMany",
-          "readOnly": false
-        },
-        {
-          "description": "Maximum storage size",
-          "key": "max.storage.size",
-          "label": "Maximum storage size",
-          "type": "text",
-          "value": "5Gi",
-          "readOnly": false
-        },
         {
           "description": "How many levels of child workflows a run may nest. A runworkflow task at the cap fails instead of submitting another child.",
           "key": "max.nesting.depth",
@@ -571,12 +465,12 @@
           "readOnly": false
         }
       ],
-      "description": "Define how the system utilizes and interacts with storage.",
+      "description": "How deep a run may nest child workflows and how many items a for-each may fan out to.",
       "key": "workflowrun",
       "lastModiifed": {
         "$date": "2021-02-10T22:15:18.729Z"
       },
-      "name": "Workspace Configuration - Activity Storage",
+      "name": "Run limits",
       "type": "ValuesList"
     },
     {
