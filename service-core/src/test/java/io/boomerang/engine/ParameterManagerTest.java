@@ -69,6 +69,18 @@ class ParameterManagerTest {
     assertEquals("gv", resolved(run, "ref"));
   }
 
+  // Workspace parameters resolve as $(workspace.params.<name>) and, until the next major version, as the
+  // deprecated $(team.params.<name>).
+  @Test
+  void resolvesWorkspaceScopeAndItsDeprecatedTeamSpelling() {
+    WorkflowRunEntity run =
+        run(str("current", "$(workspace.params.w1)"), str("deprecated", "$(team.params.w1)"));
+    run.getAnnotations().put("boomerang.io/workspace-params", Map.of("w1", "wv"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("wv", resolved(run, "current"));
+    assertEquals("wv", resolved(run, "deprecated"));
+  }
+
   // (d) scoped object-path: $(<scope>.params.<name>.<jsonpath>).
   @Test
   void resolvesScopedObjectPathParam() {

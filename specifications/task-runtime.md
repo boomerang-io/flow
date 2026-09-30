@@ -97,6 +97,17 @@ A `custom` task takes its runtime from its own params — `image`, `command` and
 and `shellScript` — rather than from the catalogue entry, which declares no image
 (`DAGUtility.java:247,302`).
 
+Parameter references, by where the value comes from (`engine/ParameterManager.java`, `common/model/ParamLayers.java`):
+
+| Reference | Value from |
+| --- | --- |
+| `$(params.x)` | The nearest layer that defines `x`: the task, then the workflow, then workspace and global |
+| `$(workflow.params.x)` | The workflow's parameters |
+| `$(workspace.params.x)` | The workspace's parameters. `$(team.params.x)` still resolves, is deprecated, logs a warning once per reference, and is removed in the next major version; the editor suggests only `workspace` |
+| `$(global.params.x)` | Global parameters |
+| `$(context.params.x)` | Run context (`workflowrun-*` keys) |
+| `$(tasks.t.results.r)` | A result of task `t` |
+
 Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$`
 characters are inserted verbatim: a multi-line prompt, a JSON body, a shell script or a task result with a
 trailing newline reaches the container byte for byte

@@ -191,7 +191,7 @@ Workflow, workspace and global parameters share one table (`client-web/src/Featu
 Name first in monospace (what tasks type), Label, then Type and Default value for a workflow or Value for the other two, a
 Required, Read-only or Secured tag, Description, and a menu with Edit, Copy reference and Delete. Search and Add parameter sit
 in the table toolbar. Each scope keeps its own modal; both are titled "Edit parameter" or "Add parameter", show the name as
-text with its reference once it exists (`$(params.x)`, `$(team.params.x)`, `$(global.params.x)`), and treat the label as
+text with its reference once it exists (`$(params.x)`, `$(workspace.params.x)`, `$(global.params.x)`), and treat the label as
 optional, falling back to the name. The workflow modal previews the field a run shows.
 
 ### Schedules

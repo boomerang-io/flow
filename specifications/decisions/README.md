@@ -71,3 +71,4 @@ things by name, not by code.
 | 0085 | [Artifacts are uploaded by built-in tasks and expire into a kept record](0085-artifacts-are-uploaded-by-tasks-and-expire-into-a-kept-record.md) | accepted | 2026-09-28 |
 | 0086 | [Engine mode runs schedules and insights](0086-engine-mode-runs-schedules-and-insights.md) | accepted | 2026-09-29 |
 | 0087 | [One page header on every route, and a page inside an object is titled with its name](0087-one-page-header-and-object-names-as-titles.md) | accepted | 2026-09-29 |
+| 0091 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0091-workspace-parameter-references.md) | accepted | 2026-09-30 |

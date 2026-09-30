@@ -26,6 +26,15 @@ import tools.jackson.databind.json.JsonMapper;
 public class ParamLayers {
   private static final Logger LOGGER = LogManager.getLogger();
 
+  /** Scope prefix for workspace parameters: {@code $(workspace.params.name)}. */
+  public static final String WORKSPACE_SCOPE = "workspace";
+
+  /**
+   * The pre-rename prefix, {@code $(team.params.name)}: still resolved, deprecated, and removed in the
+   * next major version.
+   */
+  public static final String DEPRECATED_WORKSPACE_SCOPE = "team";
+
   @JsonIgnore
   private Map<String, Object> contextParams = new HashMap<>();
 
@@ -87,7 +96,9 @@ public class ParamLayers {
 
     Map<String, Object> finalProperties = new TreeMap<>();
     copyFlatParams(globalParams, finalProperties, "global");
-    copyFlatParams(teamParams, finalProperties, "team");
+    copyFlatParams(teamParams, finalProperties, WORKSPACE_SCOPE);
+    // Deprecated spelling of the workspace scope, still resolved until the next major version.
+    copyFlatParams(teamParams, finalProperties, DEPRECATED_WORKSPACE_SCOPE);
     copyFlatParams(workflowParams, finalProperties, "workflow");
     copyFlatParams(taskParams, finalProperties, null);
     copyFlatParams(contextParams, finalProperties, "context");
@@ -113,7 +124,8 @@ public class ParamLayers {
   public List<String> getFlatKeys() {
     HashSet<String> keys = new HashSet<>();
     copyFlatKeys(globalParams, keys, "global");
-    copyFlatKeys(teamParams, keys, "team");
+    // Suggest only the current spelling; team.params still resolves but is not offered.
+    copyFlatKeys(teamParams, keys, WORKSPACE_SCOPE);
     copyFlatKeys(workflowParams, keys, "workflow");
     copyFlatKeys(taskParams, keys, null);
     copyFlatKeys(contextParams, keys, "context");
