@@ -363,6 +363,18 @@ instead. Its read fans out per workspace from a route loader
 platform's configured name from the app context - the product name is never a literal in the
 page.
 
+### Insights
+
+The Insights page (`client-web/src/Features/Insights/Insights.tsx`) answers four questions in order: is it reliable,
+is it getting slower, what fails and why, where does the time go. Four headline tiles each carry a previous-period
+delta coloured by whether the change is welcome (`HeadlineTiles.tsx`); runs per day are stacked bars by outcome,
+never a smoothed line, because counts are discrete (`RunsPerDayChart.tsx`); the per-workflow table, worst success
+rate first, is the primary object and its selected row drives two detail panels (`WorkflowTable.tsx`,
+`WorkflowDetail.tsx`); duration is shown as a p5 to p95 range with a p50 mark on a log scale, with the run
+timeout marked, in place of a scatter of every run (`DurationSpread.tsx`). The chart library takes literal colours,
+so the outcome colours are read off the status tokens at mount with the theme's values as fallbacks
+(`statusColors.ts`); everything else is tokens. Outcomes with no runs stay out of legends.
+
 ## Browser support
 
 Supported: Chrome, Firefox and Edge — the current version and the two previous versions. Safari

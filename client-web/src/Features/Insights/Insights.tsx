@@ -1,65 +1,46 @@
 import React from "react";
-import {
-  DatePicker,
-  DatePickerInput,
-  FilterableMultiSelect,
-  Breadcrumb,
-  BreadcrumbItem,
-} from "@carbon/react";
+import { Breadcrumb, BreadcrumbItem, DatePicker, DatePickerInput, FilterableMultiSelect } from "@carbon/react";
 import {
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,
   FeatureHeaderSubtitle as HeaderSubtitle,
+  Toggle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sortByProp } from "@boomerang-io/utils";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
+import { Link, useLoaderData, useLocation, useNavigate } from "react-router-dom";
 import ErrorDragon from "Components/ErrorDragon";
 import { useWorkspaceContext } from "Hooks";
-import { timeSecondsToTimeUnit } from "Utils/dateHelper";
 import { filterItemsByLabel, makeCompareItems, sortItemsBySelection } from "Utils/multiSelectHelper";
-import { executionOptions, statusOptions } from "Constants/filterOptions";
-import { queryStringOptions, appLink } from "Config/appConfig";
+import { statusOptions } from "Constants/filterOptions";
+import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import type { RunStatus, MultiSelectItem, MultiSelectItems, Workflow, FlowWorkspace } from "Types";
-import CarbonDonutChart from "./CarbonDonutChart";
-import CarbonLineChart from "./CarbonLineChart";
-import CarbonScatterChart from "./CarbonScatterChart";
-import ChartsTile from "./ChartsTile";
+import type { FlowWorkspace, InsightsSummary, InsightsWorkflowDetail, MultiSelectItem, MultiSelectItems, Workflow } from "Types";
+import DurationSpread from "./DurationSpread";
+import HeadlineTiles from "./HeadlineTiles";
+import RunsPerDayChart from "./RunsPerDayChart";
+import WorkflowDetail from "./WorkflowDetail";
+import WorkflowTable from "./WorkflowTable";
 import styles from "./Insights.module.scss";
-import InsightsTile from "./InsightsTile";
-import { parseChartsData } from "./utils/formatData";
 
 // Route module: this file's `loader` is attached to the route in app/routes/insights.tsx
-// (path "/:workspace/insights"). See Features/Activity/Activity.tsx's module doc for the same
-// split this follows: `params.workspace` (the URL slug) drives every server fetch below, while
-// the full workspace object (for the header's displayName/breadcrumb) stays a client-side
-// concern, supplied by app/routes/workspaceLayout.tsx's loader through WorkspaceContextProvider.
-
-export interface InsightsRuns {
-  creationDate: string;
-  duration: number;
-  status: RunStatus;
-  workflowRef: string;
-  workflowName: string;
-}
-interface WorkflowInsightsRes {
-  concurrentRun: number;
-  totalRuns: number;
-  totalDuration: number;
-  medianDuration: number;
-  runs: Array<InsightsRuns>;
-}
+// (path "/:workspace/insights"). `params.workspace` (the URL slug) drives every server fetch
+// below, while the full workspace object (for the header's displayName/breadcrumb) stays a
+// client-side concern, supplied by app/routes/workspaceLayout.tsx's loader through
+// WorkspaceContextProvider - the same split Features/Activity/Activity.tsx follows.
+//
+// Insights are computed server-side from the runs the workspace still holds (see
+// WorkflowRunInsightService). A deleted workflow's runs are gone with it; the audit trail keeps
+// serving the monthly quotas, which must count them, but never this page.
 
 /*
  * Computed per call, not hoisted to module constants: this module is imported ONCE into a
  * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
- * process boot and every later request reuses it - the page would silently omit newer records
- * while the client-rendered date picker showed today, and a refresh would not help.
- * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
+ * process boot and every later request reuses it. Features/WorkflowEditor/editorRoute.ts
+ * documents the same hazard.
  */
 const defaultMaxDate = () => moment().format("MM/DD/YYYY");
 const defaultFromDate = () => moment().subtract(3, "months").valueOf();
@@ -69,20 +50,38 @@ const defaultToDate = () => moment().endOf("day").valueOf();
 // carry it alongside our domain types rather than widening them.
 type SelectableWorkflow = Workflow & { disabled?: boolean };
 type SelectableStatus = MultiSelectItem & { disabled?: boolean };
+type SelectableTrigger = MultiSelectItem & { disabled?: boolean };
 
-const EMPTY_INSIGHTS: WorkflowInsightsRes = { concurrentRun: 0, totalRuns: 0, totalDuration: 0, medianDuration: 0, runs: [] };
+// The engine's TriggerEnum values, as stored on a run.
+const triggerOptions: Array<SelectableTrigger> = [
+  { label: "Manual", value: "manual" },
+  { label: "Schedule", value: "schedule" },
+  { label: "Webhook", value: "webhook" },
+  { label: "Event", value: "event" },
+  { label: "GitHub", value: "github" },
+  { label: "Engine", value: "engine" },
+  { label: "Task", value: "task" },
+  { label: "Retry", value: "retry" },
+];
 
 type LoaderData = {
-  insights: WorkflowInsightsRes;
+  summary: InsightsSummary | null;
   errorLoadingInsights: boolean;
+  /** The selected workflow's detail, when `?workflow=` names one and its read succeeded. */
+  detail: InsightsWorkflowDetail | null;
+  errorLoadingDetail: boolean;
   workflowOptions: Array<Workflow>;
   errorLoadingWorkflows: boolean;
 };
 
-// Server loader (ssr:true - see CLAUDE.md client-web SSR direction). Runs in Node, so it uses
-// serverFetch(request) rather than the browser `resolver`/axios instance in
-// Config/servicesConfig.ts. Every filter value (statuses/workflows/fromDate/toDate) is read off
-// the request URL itself, preserving the exact param names the component already navigates with.
+function asString(value: string | Array<string> | null | undefined): string | null {
+  const first = Array.isArray(value) ? value[0] : value;
+  return typeof first === "string" && first ? first : null;
+}
+
+// Server loader (ssr:true). Runs in Node, so it uses serverFetch(request) rather than the browser
+// axios instance. Every filter (statuses/workflows/triggers/fromDate/toDate) and the selected
+// workflow are read off the request URL, the same names the component navigates with.
 export async function loader({
   params,
   request,
@@ -94,68 +93,94 @@ export async function loader({
   const {
     statuses,
     workflows,
+    triggers,
+    workflow,
     fromDate = defaultFromDate(),
     toDate = defaultToDate(),
   } = queryString.parse(new URL(request.url).search, queryStringOptions);
+  const selected = asString(workflow as string | Array<string> | null);
 
-  // One wave, not two: the insights payload and the workflow filter options are independent
-  // endpoints (two useQuery calls firing on mount before this route moved onto the router), and a
-  // loader blocks first paint with no pending UI behind it. `allSettled` keeps each failure its
-  // own, exactly as the per-call try/catch did. See Features/WorkflowEditor/editorRoute.ts.
+  // One wave: the summary, the workflow filter options and the selected workflow's detail are
+  // independent reads, and a loader blocks first paint. `allSettled` keeps each failure its own.
   const api = serverFetch(request);
-  const insightsSearchParams = queryString.stringify({ statuses, workflows, fromDate, toDate }, queryStringOptions);
-
-  const [insightsResult, workflowsResult] = await Promise.allSettled([
-    api.get(serviceUrl.workspace.getInsights({ workspace, query: insightsSearchParams })),
+  const summaryQuery = queryString.stringify({ statuses, workflows, triggers, fromDate, toDate }, queryStringOptions);
+  const detailQuery = queryString.stringify({ fromDate, toDate }, queryStringOptions);
+  const [summaryResult, workflowsResult, detailResult] = await Promise.allSettled([
+    api.get(serviceUrl.workspace.getInsights({ workspace, query: summaryQuery })),
     api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
+    selected
+      ? api.get(serviceUrl.workspace.getInsightsWorkflow({ workspace, workflow: selected, query: detailQuery }))
+      : Promise.resolve(null),
   ]);
 
-  const insights: WorkflowInsightsRes = insightsResult.status === "fulfilled" ? insightsResult.value.data : EMPTY_INSIGHTS;
-  const errorLoadingInsights = insightsResult.status === "rejected";
-
-  const workflowOptions: Array<Workflow> =
-    workflowsResult.status === "fulfilled" ? workflowsResult.value.data.content : [];
-  const errorLoadingWorkflows = workflowsResult.status === "rejected";
-
-  return { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows };
+  return {
+    summary: summaryResult.status === "fulfilled" ? summaryResult.value.data : null,
+    errorLoadingInsights: summaryResult.status === "rejected",
+    detail: detailResult.status === "fulfilled" && detailResult.value ? detailResult.value.data : null,
+    errorLoadingDetail: detailResult.status === "rejected",
+    workflowOptions: workflowsResult.status === "fulfilled" ? workflowsResult.value.data.content : [],
+    errorLoadingWorkflows: workflowsResult.status === "rejected",
+  };
 }
 
 export default function Insights() {
   const { workspace } = useWorkspaceContext();
   const navigate = useNavigate();
   const location = useLocation();
-  const { insights, errorLoadingInsights, workflowOptions, errorLoadingWorkflows } = useLoaderData() as LoaderData;
+  const { summary, errorLoadingInsights, detail, errorLoadingDetail, workflowOptions, errorLoadingWorkflows } =
+    useLoaderData() as LoaderData;
+  const search = queryString.parse(location.search, queryStringOptions);
+  const compare = search.compare !== "off";
+  const selected = asString(search.workflow as string | Array<string> | null);
 
-  function updateHistorySearch({ ...props }) {
-    const queryStr = `?${queryString.stringify({ ...props }, queryStringOptions)}`;
-    navigate({ search: queryStr });
-    return;
+  function updateHistorySearch(props: Record<string, unknown>) {
+    navigate({ search: `?${queryString.stringify(props, queryStringOptions)}` });
   }
 
-  // The workspace object comes from the workspace layout route's context (see the module doc
-  // above) - until it resolves, there's nothing to render yet.
+  // Selecting the selected row again clears the selection.
+  const selectHref = (workflowName: string) =>
+    `?${queryString.stringify({ ...search, workflow: workflowName === selected ? undefined : workflowName }, queryStringOptions)}`;
+
+  // The workspace object comes from the workspace layout route's context - until it resolves,
+  // there's nothing to render yet.
   if (!workspace) {
     return null;
   }
 
-  if (errorLoadingInsights || errorLoadingWorkflows) {
-    return (
-      <InsightsContainer workspace={workspace}>
-        <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} />
-        <ErrorDragon />
-      </InsightsContainer>
+  let body: React.ReactNode;
+  if (errorLoadingInsights || errorLoadingWorkflows || !summary) {
+    body = <ErrorDragon />;
+  } else if (summary.totals.runs === 0) {
+    body = (
+      <p className={styles.noRuns} data-testid="completed-insights">
+        No runs in this period. Widen the date range, or run a workflow and come back.
+      </p>
+    );
+  } else {
+    body = (
+      <div className={styles.container} data-testid="completed-insights">
+        <HeadlineTiles summary={summary} compare={compare} />
+        <div className={styles.chart}>
+          <RunsPerDayChart daily={summary.daily} />
+        </div>
+        <WorkflowTable workspace={workspace.name} rows={summary.workflows} selected={selected} selectHref={selectHref} />
+        {selected && detail ? <WorkflowDetail workspace={workspace.name} detail={detail} /> : null}
+        {selected && errorLoadingDetail ? (
+          <p className={styles.noRuns}>The detail for {selected} could not be loaded.</p>
+        ) : null}
+        <DurationSpread rows={summary.workflows} />
+      </div>
     );
   }
 
-  const { statuses } = queryString.parse(location.search, queryStringOptions);
-
   return (
     <InsightsContainer workspace={workspace}>
-      <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} />
-      <Graphs data={insights} statuses={statuses as RunStatus | Array<RunStatus> | null} />
+      <Selects workflowsData={workflowOptions} updateHistorySearch={updateHistorySearch} compare={compare} />
+      {body}
     </InsightsContainer>
   );
 }
+
 interface InsightsContainerProps {
   workspace: FlowWorkspace;
   children: React.ReactNode;
@@ -187,9 +212,8 @@ function InsightsContainer({ workspace, children }: InsightsContainerProps) {
           <>
             <HeaderTitle>Insights</HeaderTitle>
             <HeaderSubtitle>
-              Gain valuable insight by digging deeper into the Workflow runs. Insights are drawn
-              from the audit trail, so Workflows and runs that have since been deleted are
-              included for as long as the audit retention keeps them.
+              How reliable and how fast your workflows are, computed from the runs this workspace still holds.
+              Runs of deleted workflows are not included; usage quotas keep counting them.
             </HeaderSubtitle>
           </>
         }
@@ -201,15 +225,17 @@ function InsightsContainer({ workspace, children }: InsightsContainerProps) {
 
 interface SelectsProps {
   workflowsData: Array<Workflow> | undefined;
-  updateHistorySearch: any;
+  updateHistorySearch: (props: Record<string, unknown>) => void;
+  compare: boolean;
 }
 
 function Selects(props: SelectsProps) {
   const location = useLocation();
-
-  const { statuses, workflows, fromDate, toDate } = queryString.parse(location.search, queryStringOptions);
+  const search = queryString.parse(location.search, queryStringOptions);
+  const { statuses, workflows, triggers, fromDate, toDate } = search;
   const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
   const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
+  const selectedTriggers = typeof triggers === "string" ? [triggers] : triggers;
   const selectedFromDate = Array.isArray(fromDate)
     ? Number.parseInt(fromDate[0])
     : typeof fromDate === "string"
@@ -223,42 +249,37 @@ function Selects(props: SelectsProps) {
 
   function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
-    props.updateHistorySearch({
-      ...queryString.parse(location.search, queryStringOptions),
-      workflows: workflowRefs,
-      page: 0,
-    });
-    return;
+    props.updateHistorySearch({ ...search, workflows: workflowRefs, page: 0 });
   }
 
   function handleSelectStatuses({ selectedItems }: MultiSelectItems<SelectableStatus>) {
-    //@ts-ignore next-line
-    const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : undefined;
-    props.updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), statuses: statuses });
-    return;
+    const values = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : undefined;
+    props.updateHistorySearch({ ...search, statuses: values });
+  }
+
+  function handleSelectTriggers({ selectedItems }: MultiSelectItems<SelectableTrigger>) {
+    const values = selectedItems.length > 0 ? selectedItems.map((trigger) => trigger.value) : undefined;
+    props.updateHistorySearch({ ...search, triggers: values });
   }
 
   function handleSelectDate(dates: any) {
-    let [fromDateObj, toDateObj] = dates as [Date, Date];
+    const [fromDateObj, toDateObj] = dates as [Date, Date];
     if (!toDateObj) {
       return;
     }
-    const fromDate = moment(fromDateObj).startOf("day").valueOf();
-    const toDate = moment(toDateObj).endOf("day").valueOf();
-    props.updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), fromDate, toDate });
-    return;
+    props.updateHistorySearch({
+      ...search,
+      fromDate: moment(fromDateObj).startOf("day").valueOf(),
+      toDate: moment(toDateObj).endOf("day").valueOf(),
+    });
   }
 
   function getWorkflowOptions() {
-    let workflowsList: Array<Workflow> = [];
-    if (props.workflowsData) {
-      workflowsList = props.workflowsData;
-    }
-    return sortByProp(workflowsList, "name", "ASC");
+    return sortByProp(props.workflowsData ?? [], "name", "ASC") as Array<SelectableWorkflow>;
   }
 
   const itemToStringWorkflow = (workflow: SelectableWorkflow | null) => (workflow ? workflow.displayName : "");
-  const itemToStringStatus = (item: SelectableStatus | null) => (item ? item.label : "");
+  const itemToStringItem = (item: MultiSelectItem | null) => (item ? item.label : "");
 
   return (
     <div className={styles.dataFilters}>
@@ -283,16 +304,39 @@ function Selects(props: SelectsProps) {
         invalid={false}
         onChange={handleSelectStatuses}
         items={statusOptions}
-        itemToString={itemToStringStatus}
+        itemToString={itemToStringItem}
         filterItems={filterItemsByLabel}
-        compareItems={makeCompareItems(itemToStringStatus)}
+        compareItems={makeCompareItems(itemToStringItem)}
         sortItems={sortItemsBySelection}
         initialSelectedItems={statusOptions.filter((option) =>
           Boolean(selectedStatuses?.find((status: string) => status === option.value)),
         )}
         titleText="Filter by status"
       />
+      <FilterableMultiSelect<SelectableTrigger>
+        id="insights-triggers-select"
+        placeholder="Any trigger"
+        invalid={false}
+        onChange={handleSelectTriggers}
+        items={triggerOptions}
+        itemToString={itemToStringItem}
+        filterItems={filterItemsByLabel}
+        compareItems={makeCompareItems(itemToStringItem)}
+        sortItems={sortItemsBySelection}
+        initialSelectedItems={triggerOptions.filter((option) =>
+          Boolean(selectedTriggers?.find((trigger: string) => trigger === option.value)),
+        )}
+        titleText="Filter by trigger"
+      />
       <div className={styles.timeFilters}>
+        <div className={styles.compare}>
+          <Toggle
+            id="insights-compare-toggle"
+            label="Compare with previous period"
+            onToggle={(checked: boolean) => props.updateHistorySearch({ ...search, compare: checked ? undefined : "off" })}
+            toggled={props.compare}
+          />
+        </div>
         <DatePicker id="insights-date-picker" datePickerType="range" maxDate={defaultMaxDate()} onChange={handleSelectDate}>
           <DatePickerInput
             autoComplete="off"
@@ -309,58 +353,5 @@ function Selects(props: SelectsProps) {
         </DatePicker>
       </div>
     </div>
-  );
-}
-
-interface GraphsProps {
-  data: WorkflowInsightsRes;
-  statuses: RunStatus | RunStatus[] | null;
-}
-
-function Graphs(props: GraphsProps) {
-  const { data, statuses } = props;
-  const { donutData, durationData, lineChartData, scatterPlotData, executionsCountList } = React.useMemo(
-    () => parseChartsData(data.runs, statuses),
-    [data.runs, statuses],
-  );
-
-  const totalRuns = data.totalRuns;
-  const medianExecutionTime = Math.round(data.medianDuration / 1000);
-  return (
-    <>
-      <div className={styles.statsWidgets} data-testid="completed-insights">
-        <InsightsTile title="Runs" type="runs" totalCount={totalRuns} infoList={executionsCountList.slice(0, 5)} />
-        <InsightsTile
-          title="Duration (median)"
-          type=""
-          totalCount={timeSecondsToTimeUnit(medianExecutionTime)}
-          infoList={durationData}
-          valueWidth="7rem"
-        />
-        <div className={styles.donut}>
-          {totalRuns === 0 ? (
-            <p className={`${styles.statsLabel} --no-data`}>No Data</p>
-          ) : (
-            <CarbonDonutChart data={donutData} title="Status" />
-          )}
-        </div>
-      </div>
-      <div className={styles.graphsWidgets}>
-        <ChartsTile>
-          {totalRuns === 0 ? (
-            <p className={`${styles.graphsLabel} --no-data`}>No Data</p>
-          ) : (
-            <CarbonLineChart data={lineChartData} title="Runs" />
-          )}
-        </ChartsTile>
-        <ChartsTile>
-          {totalRuns === 0 ? (
-            <p className={`${styles.graphsLabel} --no-data`}>No Data</p>
-          ) : (
-            <CarbonScatterChart data={scatterPlotData} title="Run Time" />
-          )}
-        </ChartsTile>
-      </div>
-    </>
   );
 }

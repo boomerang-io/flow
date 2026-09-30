@@ -733,6 +733,98 @@ export interface Integration {
   status: string;
 }
 
+// Insights: statistics over the runs a workspace still holds. Durations and waits are
+// milliseconds; a rate is 0..1 or null when nothing finished with an outcome.
+export interface InsightsTotals {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+  inFlight: number;
+  successRate: number | null;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  p50QueueWait: number;
+  p95QueueWait: number;
+  byTrigger: Record<string, number>;
+}
+
+export interface InsightsDay {
+  /** ISO date, UTC. */
+  date: string;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+}
+
+export interface InsightsWorkflow {
+  workflowRef: string;
+  workflowName: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+  successRate: number | null;
+  p5Duration: number;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  timeoutMinutes: number | null;
+  lastFailureDate: string | null;
+  lastFailureRunRef: string | null;
+  /** The last seven calendar days ending at the period's end, oldest first. */
+  recent: Array<InsightsDay>;
+}
+
+export interface InsightsSummary {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  totals: InsightsTotals;
+  previous: InsightsTotals;
+  daily: Array<InsightsDay>;
+  workflows: Array<InsightsWorkflow>;
+}
+
+export interface InsightsTaskRow {
+  name: string;
+  taskRef: string | null;
+  runs: number;
+  failed: number;
+  p50Duration: number;
+  p95Duration: number;
+}
+
+export interface InsightsFailure {
+  status: string;
+  taskName: string | null;
+  reason: string | null;
+  count: number;
+  lastRunRef: string;
+  lastDate: string;
+}
+
+export interface InsightsWorkflowDetail {
+  workflowRef: string;
+  workflowName: string;
+  from: string;
+  to: string;
+  runs: number;
+  p50QueueWait: number;
+  p95QueueWait: number;
+  retriedRuns: number;
+  tasks: Array<InsightsTaskRow>;
+  failures: Array<InsightsFailure>;
+}
+
 //Schedule types
 export type ScheduleStatus = "active" | "inactive" | "deleted" | "trigger_disabled" | "error" | "completed";
 export type ScheduleType = "runOnce" | "cron" | "advancedCron";
