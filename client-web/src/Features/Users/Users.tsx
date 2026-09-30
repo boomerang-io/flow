@@ -76,6 +76,9 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
         <div className={styles.search}>
           <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
         </div>
+        <p className={styles.hint}>
+          Everyone who has signed in. People join by signing in; the first to sign in became an admin.
+        </p>
         {children}
       </Box>
     </>

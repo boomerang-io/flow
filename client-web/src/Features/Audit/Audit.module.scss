@@ -117,6 +117,7 @@
   fill: var(--cds-support-error);
 }
 
+// Denied is a refusal, not a failure and not a wait: the lock in the secondary icon colour.
 .outcomeDenied svg {
-  fill: var(--flow-wait);
+  fill: var(--cds-icon-secondary, var(--cds-text-02));
 }

@@ -53,8 +53,12 @@ describe("Settings loader --- Node SSR", () => {
     server.use(http.get(`${INTERNAL_ORIGIN}/api/settings`, () => HttpResponse.json(db.settings)));
 
     const { loader } = await import("./Settings");
-    const request = new Request("http://localhost/admin/settings");
-    const result = await loader({ request });
+    // A URL naming a group the settings hold resolves the data; one naming none (or no group)
+    // redirects to the first group by name - Settings.spec.tsx covers that through the router.
+    const groups = db.settings as Array<{ key: string; name: string }>;
+    const group = [...groups].sort((a, b) => a.name.localeCompare(b.name))[0].key;
+    const request = new Request(`http://localhost/admin/settings/${group}`);
+    const result = (await loader({ params: { group }, request })) as { settings: unknown; errorLoading: boolean };
 
     expect(result.errorLoading).toBe(false);
     expect(result.settings).toEqual(db.settings);

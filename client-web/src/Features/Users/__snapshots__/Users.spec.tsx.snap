@@ -75,6 +75,11 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
           </button>
         </div>
       </div>
+      <p
+        class="_hint_96c623"
+      >
+        Everyone who has signed in. People join by signing in; the first to sign in became an admin.
+      </p>
       <div
         class="cds--data-table-container"
       >

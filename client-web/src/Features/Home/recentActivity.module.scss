@@ -1,80 +1,34 @@
-@use "@carbon/react/scss/motion" as motion;
 @import "Styles/mixins";
 
 .table {
+  @include border-radius();
   background-color: var(--cds-layer-01, var(--cds-ui-01));
   box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
   display: flex;
   flex-direction: column;
-}
+  overflow: hidden;
 
-.head,
-.row {
-  align-items: center;
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: 7rem minmax(0, 1fr) minmax(0, 9rem) 6rem 6rem 7rem;
-  padding: 0.75rem 1rem;
-
-  @media screen and (max-width: 66rem) {
-    grid-template-columns: 7rem minmax(0, 1fr) 7rem;
-
-    .workspace,
-    .trigger,
-    .duration {
-      display: none;
-    }
-  }
-}
-
-.head {
-  border-bottom: 1px solid var(--cds-border-subtle-01, var(--cds-ui-03));
-  color: var(--cds-text-secondary);
-  font-size: var(--cds-label-01-font-size, 0.75rem);
-  letter-spacing: var(--cds-label-01-letter-spacing, 0.32px);
-  line-height: var(--cds-label-01-line-height, 1.33333);
-  padding-bottom: 0.5rem;
-  padding-top: 0.5rem;
-}
-
-.row {
-  border-bottom: 1px solid var(--cds-border-subtle-01, var(--cds-ui-03));
-  color: var(--cds-text-primary);
-  font-size: var(--cds-body-compact-01-font-size, 0.875rem);
-  letter-spacing: var(--cds-body-compact-01-letter-spacing, 0.16px);
-  line-height: var(--cds-body-compact-01-line-height, 1.28572);
-  text-decoration: none;
-  transition: background-color motion.$duration-fast-02 motion.motion(standard, productive);
-
-  &:last-child {
-    border-bottom: 0;
-  }
-
-  &:hover {
-    background-color: var(--cds-layer-hover-01, var(--cds-background-hover));
-    text-decoration: none;
-  }
-
-  &:focus {
-    @include focus-outline($offset: -0.125rem);
+  :global .cds--data-table td,
+  :global .cds--data-table th {
+    white-space: nowrap;
   }
 }
 
 .name {
+  color: var(--cds-text-primary);
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus {
+    @include focus-outline($offset: 0.125rem);
+  }
 }
 
-.workspace,
-.trigger,
-.duration,
-.started {
+.muted {
   color: var(--cds-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .trigger {
@@ -83,6 +37,13 @@
 
 .started {
   text-align: right;
+}
+
+// The middle columns go first when the page narrows; status, name and time stay.
+.wide {
+  @media screen and (max-width: 66rem) {
+    display: none;
+  }
 }
 
 .empty {

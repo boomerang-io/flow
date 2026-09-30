@@ -274,7 +274,8 @@ function Filters({ parsedQuery, hasFilters, setFilter, onSearchActor, onSelectDa
   return (
     <div className={styles.dataFilters}>
       <div className={styles.searchField}>
-        <span className={styles.searchLabel} id="audit-actor-search-label">
+        {/* Sighted users see this; the accessible name is the Search's own (hidden) label. */}
+        <span className={styles.searchLabel} aria-hidden="true">
           Filter by actor
         </span>
         <Search
