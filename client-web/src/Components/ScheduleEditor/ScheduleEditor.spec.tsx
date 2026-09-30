@@ -60,7 +60,7 @@ function renderEditor(overrides: Partial<React.ComponentProps<typeof ScheduleEdi
 describe("ScheduleEditor", () => {
   test("opens with the schedule's name and description prefilled", async () => {
     renderEditor();
-    expect(await screen.findByText("Edit a Schedule")).toBeInTheDocument();
+    expect(await screen.findByText("Edit schedule")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Nightly Backup")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Backs up nightly")).toBeInTheDocument();
   });
@@ -77,7 +77,7 @@ describe("ScheduleEditor", () => {
 
   test("renders no labels for a schedule that has none", async () => {
     renderEditor({ schedule: { ...schedule, labels: {} } });
-    await screen.findByText("Edit a Schedule");
+    await screen.findByText("Edit schedule");
     expect(screen.queryByText("env:prod")).not.toBeInTheDocument();
   });
 
@@ -99,7 +99,7 @@ describe("ScheduleEditor", () => {
     // which ScheduleManagerForm seeds from this prop.
     const onCloseModal = vi.fn();
     renderEditor({ workflow, onCloseModal });
-    await screen.findByText("Edit a Schedule");
+    await screen.findByText("Edit schedule");
 
     await userEvent.type(screen.getByLabelText("Label key"), "tier");
     await userEvent.type(screen.getByLabelText("Label value"), "gold");

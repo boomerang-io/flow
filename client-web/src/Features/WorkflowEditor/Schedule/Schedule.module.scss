@@ -3,16 +3,8 @@
 
 .container {
   display: flex;
-}
-
-.calendarContainer {
-  flex-grow: 1;
+  flex-direction: column;
   padding: 1.5rem;
-  z-index: 0;
-  overflow: auto;
-  &[data-is-loading="true"] {
-    opacity: 0.5;
-  }
 }
 
 .panelContainer {

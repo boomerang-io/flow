@@ -1,0 +1,49 @@
+.container {
+  background: var(--cds-layer);
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--cds-border-subtle);
+  display: flex;
+  gap: 0.25rem;
+  min-height: 3rem;
+  padding-left: 0.5rem;
+}
+
+// Today as a ghost button with the calendar icon before its label, as calendar apps show it.
+.today {
+  gap: 0.5rem;
+  padding-right: 1rem;
+}
+
+.range {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5rem;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
+.toolbarEnd {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.switcher {
+  width: 22rem;
+}
+
+.create {
+  white-space: nowrap;
+}
+
+.calendar {
+  padding: 1rem;
+}

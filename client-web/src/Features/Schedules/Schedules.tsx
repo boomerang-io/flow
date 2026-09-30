@@ -1,5 +1,5 @@
 import React from "react";
-import { InlineNotification, Layer, FilterableMultiSelect, Breadcrumb, BreadcrumbItem } from "@carbon/react";
+import { Layer, FilterableMultiSelect, Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
   Error,
   FeatureHeader as Header,
@@ -10,13 +10,11 @@ import { sortByProp } from "@boomerang-io/utils";
 import isArray from "lodash/isArray";
 import moment from "moment-timezone";
 import queryString from "query-string";
-import type { SlotInfo } from "react-big-calendar";
 import { useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
-import Calendar from "Components/ScheduleCalendar";
 import ScheduleCreator from "Components/ScheduleCreator";
 import ScheduleEditor from "Components/ScheduleEditor";
 import SchedulePanelDetail from "Components/SchedulePanelDetail";
-import SchedulePanelList from "Components/SchedulePanelList";
+import ScheduleViews from "Components/ScheduleViews";
 import { useWorkspaceContext } from "Hooks";
 import { scheduleStatusOptions } from "Constants";
 import { queryStringOptions, appLink } from "Config/appConfig";
@@ -25,7 +23,6 @@ import { serverFetch } from "Config/serverFetch";
 import type {
   CalendarDateRange,
   CalendarEntry,
-  CalendarEvent,
   MultiSelectItem,
   MultiSelectItems,
   ScheduleDate,
@@ -351,25 +348,19 @@ export default function Schedules() {
         />
         <div className={styles.content}>
           <div className={styles.contentContainer}>
-            <SchedulePanelList
-              includeStatusFilter={false}
-              schedulesIsLoading={false}
-              schedulesData={schedulesData}
-              setActiveSchedule={handleSetActiveSchedule}
-              setIsCreatorOpen={setIsCreatorOpen}
-              setIsEditorOpen={setIsEditorOpen}
-            />
-            <CalendarView
-              handleDateRangeChange={handleDateRangeChange}
+            <ScheduleViews
               calendarEntries={calendarEntries}
               errorLoadingCalendar={errorLoadingCalendar}
-              schedules={schedulesData?.content}
+              heightOffset={290}
+              includeStatusFilter={false}
+              includeWorkflowColumn={true}
+              onDateRangeChange={handleDateRangeChange}
+              schedulesData={schedulesData}
               setActiveSchedule={handleSetActiveSchedule}
               setIsCreatorOpen={setIsCreatorOpen}
               setIsEditorOpen={setIsEditorOpen}
               setIsPanelOpen={setIsPanelOpen}
               setNewSchedule={setNewSchedule}
-              updateHistorySearch={updateHistorySearch}
             />
             <SchedulePanelDetail
               className={styles.panelContainer}
@@ -399,93 +390,4 @@ export default function Schedules() {
   }
 
   return null;
-}
-
-interface CalendarViewProps {
-  calendarEntries: Array<CalendarEntry>;
-  errorLoadingCalendar: boolean;
-  handleDateRangeChange: (dateInfo: CalendarDateRange) => void;
-  schedules?: Array<ScheduleUnion>;
-  setActiveSchedule: (schedule: ScheduleUnion) => void;
-  setIsCreatorOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setNewSchedule: React.Dispatch<React.SetStateAction<Pick<ScheduleDate, "dateSchedule" | "type"> | undefined>>;
-  updateHistorySearch: (props: any) => void;
-}
-
-// calendarEntries now arrives already resolved from the route loader (see the loader's sequencing
-// comment above) instead of this component's own `useQuery({ enabled: hasScheduleData })` -
-// dropped along with the `isLoading` state that gated it (there's no client-side loading window
-// left to show once the loader has resolved before this renders).
-function CalendarView(props: CalendarViewProps) {
-  const calendarEvents: Array<CalendarEvent> = [];
-  if (props.schedules) {
-    for (let calendarEntry of props.calendarEntries) {
-      const matchingSchedule: ScheduleUnion | undefined = props.schedules.find(
-        (schedule: ScheduleUnion) => schedule.id === calendarEntry.scheduleId,
-      );
-      if (matchingSchedule) {
-        for (const date of calendarEntry.dates) {
-          const newEntry = {
-            resource: matchingSchedule,
-            start: moment.tz(date, matchingSchedule.timezone).toDate(),
-            end: moment.tz(date, matchingSchedule.timezone).toDate(),
-            title: matchingSchedule.name,
-          };
-          calendarEvents.push(newEntry);
-        }
-      }
-    }
-  }
-
-  return (
-    <section className={styles.calendarContainer}>
-      {/*
-       * The calendar entries are a separate (dependent) fetch from the schedule list, so this is a
-       * partial failure: the list is still accurate and the calendar is simply empty. It used to
-       * be piped into a `data-is-loading` attribute on this section - a loading flag driven by an
-       * error flag, which showed the user nothing either way.
-       */}
-      {props.errorLoadingCalendar ? (
-        <InlineNotification
-          lowContrast
-          hideCloseButton={true}
-          kind="error"
-          title="Calendar unavailable"
-          subtitle="The scheduled dates could not be loaded. The schedule list is still up to date."
-        />
-      ) : null}
-      <Calendar
-        heightOffset={220}
-        //@ts-ignore
-        onSelectEvent={(data: CalendarEvent) => {
-          props.setIsPanelOpen(true);
-          props.setActiveSchedule({ ...data.resource, nextScheduleDate: new Date(data.start).toISOString() });
-        }}
-        onRangeChange={props.handleDateRangeChange}
-        onSelectSlot={(slot: SlotInfo) => {
-          const selectedDate = moment(slot.start);
-          const isCurrentDay = selectedDate.isSame(new Date(), "day");
-          if (selectedDate.isAfter() || isCurrentDay) {
-            const dateSchedule = isCurrentDay ? moment().toISOString() : selectedDate.toISOString();
-            props.setNewSchedule({ dateSchedule, type: "runOnce" });
-            props.setIsCreatorOpen(true);
-          }
-        }}
-        //@ts-ignore
-        dayPropGetter={(date: Date) => {
-          const selectedDate = moment(date);
-          if (selectedDate.isBefore(new Date(), "day")) {
-            return {
-              style: {
-                cursor: "initial",
-              },
-            };
-          }
-        }}
-        events={calendarEvents}
-      />
-    </section>
-  );
 }

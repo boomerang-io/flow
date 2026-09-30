@@ -5,8 +5,8 @@ import { useFetcher } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { labelStringsToRecord } from "Utils";
 import { isActionError, type ActionError } from "Utils/actionResult";
-import { cronDayNumberMap } from "Utils/cronHelper";
-import { ScheduleManagerFormInputs, ScheduleDate, ScheduleUnion, Workflow, DayOfWeekCronAbbreviation } from "Types";
+import { weeklyCron } from "Utils/cronHelper";
+import { ScheduleManagerFormInputs, ScheduleDate, ScheduleUnion, Workflow } from "Types";
 import styles from "./ScheduleCreator.module.scss";
 
 interface CreateScheduleProps {
@@ -106,13 +106,7 @@ export default function CreateSchedule(props: CreateScheduleProps) {
     }
 
     if (schedule.type === "cron") {
-      let daysCron: Array<DayOfWeekCronAbbreviation> = [];
-      for (let day of Object.values(days)) {
-        daysCron.push(cronDayNumberMap[day]);
-      }
-      const timeCron = !time ? ["0", "0"] : time.split(":");
-      const cronSchedule = `0 ${timeCron[1]} ${timeCron[0]} * ${daysCron.length !== 0 ? daysCron.toString() : "*"}`;
-      schedule["cronSchedule"] = cronSchedule;
+      schedule["cronSchedule"] = weeklyCron(days, time);
     }
 
     if (schedule.type === "advancedCron") {
@@ -132,7 +126,8 @@ export default function CreateSchedule(props: CreateScheduleProps) {
         containerClassName: styles.modalContainer,
       }}
       modalHeaderProps={{
-        title: "Create a Schedule",
+        title: "Create schedule",
+        label: props.workflow?.displayName,
       }}
     >
       {(modalProps) => (
