@@ -6,11 +6,9 @@ import {
   FeatureHeaderSubtitle as HeaderSubtitle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Link } from "react-router-dom";
-import { WorkflowView } from "Constants";
 import { appLink } from "Config/appConfig";
 import { FlowWorkspace, WorkflowViewType, Workflow } from "Types";
 import styles from "./workflowsHeader.module.scss";
-import AdminBreadcrumb from "Components/AdminBreadcrumb";
 
 interface WorkflowsHeaderProps {
   pretitle?: React.ReactNode;
@@ -57,7 +55,7 @@ const WorkflowsHeader: React.FC<WorkflowsHeaderProps> = ({
     <Header
       className={styles.container}
       includeBorder={false}
-      nav={viewType === WorkflowView.Workflow ? <NavigationComponent /> : <AdminBreadcrumb />}
+      nav={<NavigationComponent />}
       header={
         <>
           {Boolean(pretitle) ? <HeaderSubtitle>{pretitle}</HeaderSubtitle> : null}

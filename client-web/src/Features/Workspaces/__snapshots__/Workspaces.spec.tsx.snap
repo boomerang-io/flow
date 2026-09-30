@@ -5,61 +5,6 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
   id="app"
 >
   <div>
-    <header
-      class="cds--bmrg-feature-header"
-    >
-      <section
-        class="cds--bmrg-feature-header__content"
-      >
-        <div
-          class="cds--bmrg-feature-header__nav"
-        >
-          <nav
-            aria-label="Breadcrumb"
-          >
-            <ol
-              class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
-            >
-              <li
-                class="cds--breadcrumb-item"
-              >
-                <a
-                  class="cds--link"
-                  data-discover="true"
-                  href="/home"
-                >
-                  Home
-                </a>
-              </li>
-              <li
-                class="cds--breadcrumb-item cds--breadcrumb-item--current"
-              >
-                <p
-                  class="cds--link"
-                >
-                  Administer
-                </p>
-              </li>
-            </ol>
-          </nav>
-        </div>
-        <div
-          class="cds--bmrg-feature-header__header"
-        >
-          <h1
-            class="cds--bmrg-feature-header-title"
-            style="margin: 0px;"
-          >
-            Workspaces
-          </h1>
-          <p
-            class="cds--bmrg-feature-header-title"
-          >
-            View and manage workspaces
-          </p>
-        </div>
-      </section>
-    </header>
     <div
       class="_content_a178c7 css-1aaedcz"
     >

@@ -38,7 +38,7 @@ describe("Audit --- loader", () => {
     expect(screen.getByText("Nightly Robot")).toBeInTheDocument();
   });
 
-  test("shows each outcome as its own tag", async () => {
+  test("shows each outcome as an icon and its name", async () => {
     renderAudit();
     await screen.findByText("Nightly Sync");
     // Scoped to the table: the stat tiles carry the same three words as labels.
@@ -48,10 +48,19 @@ describe("Audit --- loader", () => {
     expect(table.getByText("Denied")).toBeInTheDocument();
   });
 
-  test("renders the stat tiles from the stats endpoint", async () => {
+  test("reads actions and levels in sentence case, not as enum values", async () => {
     renderAudit();
-    expect(await screen.findByText("Capture level")).toBeInTheDocument();
-    expect(screen.getByText("365 days")).toBeInTheDocument();
+    await screen.findByText("Nightly Sync");
+    const table = within(screen.getByRole("table"));
+    expect(table.queryByText("SUBMIT")).not.toBeInTheDocument();
+    expect(table.queryByText("WRITE")).not.toBeInTheDocument();
+  });
+
+  test("renders the counts as tiles and the capture configuration as one line", async () => {
+    renderAudit();
+    expect(await screen.findByTestId("audit-stat-events")).toBeInTheDocument();
+    expect(screen.getByText(/kept 365 days/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change in Settings" })).toBeInTheDocument();
   });
 
   test("renders an error state without throwing when the listing fetch fails", async () => {

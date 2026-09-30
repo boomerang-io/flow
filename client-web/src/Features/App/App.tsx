@@ -445,7 +445,6 @@ const AppFeatures = React.memo(function AppFeatures() {
   // the global read/write it actually needs, resolved from the profile's permission list.
   const canReadSettings = hasPermission(user, "system", "read");
   const canReadParameters = hasPermission(user, "parameter", "read");
-  const canReadWorkflowTemplates = hasPermission(user, "workflowtemplate", "read");
   const canReadTasks = hasPermission(user, "task", "read");
   const canReadTokens = hasPermission(user, "token", "read");
   const canReadWorkspaces = hasPermission(user, "workspace", "read");
@@ -462,7 +461,6 @@ const AppFeatures = React.memo(function AppFeatures() {
   const routePermissions: RoutePermissions = {
     canReadSettings,
     canReadParameters,
-    canReadWorkflowTemplates,
     canReadTasks,
     canReadTokens,
     canReadWorkspaces,

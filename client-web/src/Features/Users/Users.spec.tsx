@@ -33,7 +33,6 @@ describe("Users --- Snapshot Test", () => {
 describe("Users --- RTL", () => {
   test("Change user role", async () => {
     renderUsers(appLink.userList());
-    await screen.findByText(/^View and manage users$/i);
     fireEvent.click(await screen.findByText(/^Tim Bula$/i));
     expect(await screen.findByText(/^These are Tim Bula's workspaces/i)).toBeInTheDocument();
 
@@ -47,7 +46,6 @@ describe("Users --- RTL", () => {
 
   test("View user details", async () => {
     renderUsers(appLink.userList());
-    await screen.findByText(/^View and manage users$/i);
     fireEvent.click(await screen.findByText(/^Tim Bula$/i));
     expect(await screen.findByText(/^These are Tim Bula's workspaces/i)).toBeInTheDocument();
   });
