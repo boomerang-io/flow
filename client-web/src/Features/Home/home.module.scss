@@ -1,3 +1,5 @@
+@import "Styles/mixins";
+
 .page {
   display: flex;
   flex-direction: column;
@@ -87,10 +89,12 @@
 }
 
 .panel {
+  @include border-radius();
   background-color: var(--cds-layer-01, var(--cds-ui-01));
   box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .concepts {

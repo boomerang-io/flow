@@ -1,3 +1,5 @@
+@import "Styles/mixins";
+
 .list {
   display: flex;
   flex-direction: column;
@@ -8,6 +10,7 @@
 }
 
 .row {
+  @include border-radius();
   align-items: center;
   background-color: var(--cds-layer-01, var(--cds-ui-01));
   box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
