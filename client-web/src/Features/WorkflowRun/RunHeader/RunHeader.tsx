@@ -352,7 +352,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                 )}
               />
             )}
-            <OverflowMenu aria-label="More run actions" flipped iconDescription="More run actions" size="md">
+            <OverflowMenu aria-label="More run actions" align="left" flipped iconDescription="More run actions" size="md">
               <OverflowMenuItem
                 data-testid="advanced-detail-trigger"
                 itemText="Advanced detail"

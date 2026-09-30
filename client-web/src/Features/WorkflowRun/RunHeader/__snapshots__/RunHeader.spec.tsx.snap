@@ -199,7 +199,7 @@ exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
             class="cds--overflow-menu__wrapper"
           >
             <span
-              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+              class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
             >
               <div
                 class="cds--tooltip-trigger__wrapper"
