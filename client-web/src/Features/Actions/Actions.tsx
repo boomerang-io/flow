@@ -120,8 +120,11 @@ export async function loader({
     { order, page, limit, sort, statuses, workspaces: workspace, types: actionType, workflows, fromDate, toDate },
     queryStringOptions,
   );
-  /** Number of approvals/manual tasks under the current filters, for the tab labels */
-  const actionsUrlSummaryQuery = queryString.stringify({ workflows, fromDate, toDate }, queryStringOptions);
+  /** Number of approvals/manual tasks under the current filters, for the tab labels - the same statuses as the table */
+  const actionsUrlSummaryQuery = queryString.stringify(
+    { workflows, fromDate, toDate, statuses: statuses ?? Object.values(ApprovalStatus) },
+    queryStringOptions,
+  );
 
   const [summaryResult, tableResult, filterSummaryResult, workflowsResult] = await Promise.allSettled([
     api.get(serviceUrl.workspace.action.getActionsSummary({ workspace, query: summaryQuery })),
