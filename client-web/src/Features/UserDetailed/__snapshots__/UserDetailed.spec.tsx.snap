@@ -29,19 +29,30 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                   <a
                     class="cds--link"
                     data-discover="true"
-                    href="/admin/users"
+                    href="/home"
                   >
-                    Users
+                    Home
                   </a>
                 </li>
                 <li
-                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                  class="cds--breadcrumb-item"
                 >
                   <p
                     class="cds--link"
                   >
-                    Tim Bula
+                    Administer
                   </p>
+                </li>
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/admin/users"
+                  >
+                    Users
+                  </a>
                 </li>
               </ol>
             </nav>
@@ -50,153 +61,49 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
             class="cds--bmrg-feature-header__header"
           >
             <div
-              class="_infoContainer_b9e313"
+              class="_titleRow_b9e313"
             >
-              <div
-                class="_userContainer_b9e313"
+              <svg
+                class="cds--bmrg-avatar --medium"
+                height="16px"
+                role="img"
+                version="1.1"
+                viewBox="0 0 16 16"
+                width="16px"
+                x="0px"
+                xmlns="http://www.w3.org/2000/svg"
+                y="0px"
               >
-                <svg
-                  class="_userAvatar_b9e313 --medium"
-                  height="16px"
-                  role="img"
-                  version="1.1"
-                  viewBox="0 0 16 16"
-                  width="16px"
-                  x="0px"
-                  xmlns="http://www.w3.org/2000/svg"
-                  y="0px"
-                >
-                  <title>
-                    User icon for trbula@us.ibm.com
-                  </title>
-                  <desc>
-                    Avatar for trbula@us.ibm.com
-                  </desc>
-                  <g>
-                    <path
-                      d="M4,13.7C5.1,14.5,6.5,15,8,15s2.9-0.5,4-1.3v-1.2c0-0.8-0.7-1.5-1.5-1.5h-5C4.7,11,4,11.7,4,12.5V13.7
+                <title>
+                  User icon for trbula@us.ibm.com
+                </title>
+                <desc>
+                  Avatar for trbula@us.ibm.com
+                </desc>
+                <g>
+                  <path
+                    d="M4,13.7C5.1,14.5,6.5,15,8,15s2.9-0.5,4-1.3v-1.2c0-0.8-0.7-1.5-1.5-1.5h-5C4.7,11,4,11.7,4,12.5V13.7
 		z M3,12.9v-0.4C3,11.1,4.1,10,5.5,10h5c1.4,0,2.5,1.1,2.5,2.5v0.4c1.2-1.3,2-3,2-4.9c0-3.9-3.1-7-7-7S1,4.1,1,8
 		C1,9.9,1.8,11.6,3,12.9z M8,16c-4.4,0-8-3.6-8-8s3.6-8,8-8s8,3.6,8,8S12.4,16,8,16z"
-                      fill="currentColor"
-                    />
-                    <path
-                      d="M8,8c1.1,0,2-0.9,2-2S9.1,4,8,4S6,4.9,6,6S6.9,8,8,8z M8,9C6.3,9,5,7.7,5,6s1.3-3,3-3s3,1.3,3,3S9.7,9,8,9z"
-                      fill="currentColor"
-                    />
-                  </g>
-                </svg>
-                <h1
-                  class="cds--bmrg-feature-header-title"
-                  style="margin: 0px 1rem 0px 1rem;"
-                  title="Tim Bula"
-                >
-                  Tim Bula
-                </h1>
-              </div>
-              <div
-                class="_userDetailsContainer_b9e313"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M8,8c1.1,0,2-0.9,2-2S9.1,4,8,4S6,4.9,6,6S6.9,8,8,8z M8,9C6.3,9,5,7.7,5,6s1.3-3,3-3s3,1.3,3,3S9.7,9,8,9z"
+                    fill="currentColor"
+                  />
+                </g>
+              </svg>
+              <h1
+                class="cds--bmrg-feature-header-title _title_b9e313"
+                title="Tim Bula"
               >
-                <section
-                  class="_subHeaderContainer_b9e313"
-                >
-                  <dl
-                    class="_detailedInfoContainer_b9e313"
-                  >
-                    <dt
-                      class="_dataTitle_b9e313"
-                    >
-                      Email
-                    </dt>
-                    <dd
-                      class="_dataValueEmail_b9e313"
-                    >
-                      trbula@us.ibm.com
-                    </dd>
-                  </dl>
-                  <dl
-                    class="_detailedInfoContainer_b9e313"
-                  >
-                    <dt
-                      class="_dataTitle_b9e313"
-                    >
-                      Status
-                    </dt>
-                    <dd
-                      class="_dataValue_b9e313"
-                    >
-                      <div
-                        class="_status_b9e313"
-                      >
-                        <svg
-                          aria-hidden="true"
-                          fill="currentColor"
-                          focusable="false"
-                          height="16"
-                          preserveAspectRatio="xMidYMid meet"
-                          style="fill: #009d9a;"
-                          viewBox="0 0 32 32"
-                          width="16"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M13 24 4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"
-                          />
-                        </svg>
-                        <p
-                          class="_statusText_b9e313"
-                        >
-                          Active
-                        </p>
-                      </div>
-                    </dd>
-                  </dl>
-                  <dl
-                    class="_detailedInfoContainer_b9e313"
-                  >
-                    <dt
-                      class="_dataTitle_b9e313"
-                    >
-                      Role
-                    </dt>
-                    <dd
-                      class="_dataValue_b9e313"
-                    >
-                      Admin
-                    </dd>
-                  </dl>
-                  <dl
-                    class="_detailedInfoContainer_b9e313"
-                  >
-                    <dt
-                      class="_dataTitle_b9e313"
-                    >
-                      Date Joined
-                    </dt>
-                    <dd
-                      class="_dataValue_b9e313"
-                    >
-                      2020-07-21
-                    </dd>
-                  </dl>
-                  <dl
-                    class="_detailedInfoContainer_b9e313"
-                  >
-                    <dt
-                      class="_dataTitle_b9e313"
-                    >
-                      Last Login
-                    </dt>
-                    <dd
-                      class="_dataValue_b9e313"
-                    >
-                      2020-07-21 3:35pm
-                    </dd>
-                  </dl>
-                </section>
-                <section
-                  class="_actionButtonsContainer_b9e313"
-                />
-              </div>
+                Tim Bula
+              </h1>
+              <span
+                class="_email_b9e313"
+              >
+                trbula@us.ibm.com
+              </span>
             </div>
           </div>
           <div
@@ -218,7 +125,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                     data-discover="true"
                     href="/admin/users/5f170b3df6ab327e302cb0a5"
                   >
-                    Workspaces
+                    Workspaces (7)
                   </a>
                   <a
                     class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
@@ -240,34 +147,69 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
           </div>
         </section>
         <div
-          class="_actionButtons_b9e313"
+          class="_facts_b9e313"
         >
+          <dl>
+            <div>
+              <dt>
+                Role
+              </dt>
+              <dd>
+                Admin
+              </dd>
+            </div>
+            <div>
+              <dt>
+                Status
+              </dt>
+              <dd
+                class="_status_b9e313"
+                data-status="active"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                  />
+                  <path
+                    d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                    data-icon-path="inner-path"
+                    opacity="0"
+                  />
+                </svg>
+                Active
+              </dd>
+            </div>
+            <div>
+              <dt>
+                Joined
+              </dt>
+              <dd>
+                21 Jul 2020
+              </dd>
+            </div>
+            <div>
+              <dt>
+                Last sign-in
+              </dt>
+              <dd>
+                21 Jul 2020, 3:35 PM
+              </dd>
+            </div>
+          </dl>
           <button
-            class="cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
-            style="margin-bottom: 0.5rem;"
+            class="cds--btn cds--btn--md cds--layout--size-md cds--btn--tertiary"
             type="button"
           >
             Change role
-            <svg
-              aria-hidden="true"
-              aria-label="Change role"
-              class="cds--btn__icon"
-              fill="currentColor"
-              focusable="false"
-              height="16"
-              preserveAspectRatio="xMidYMid meet"
-              role="img"
-              viewBox="0 0 16 16"
-              width="16"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M8,2c1.4,0,2.5,1.1,2.5,2.5S9.4,7,8,7S5.5,5.9,5.5,4.5S6.6,2,8,2 M8,1C6.1,1,4.5,2.6,4.5,4.5S6.1,8,8,8s3.5-1.6,3.5-3.5 S9.9,1,8,1z"
-              />
-              <path
-                d="M13,15h-1v-2.5c0-1.4-1.1-2.5-2.5-2.5h-3C5.1,10,4,11.1,4,12.5V15H3v-2.5C3,10.6,4.6,9,6.5,9h3c1.9,0,3.5,1.6,3.5,3.5V15z"
-              />
-            </svg>
           </button>
         </div>
       </header>
@@ -383,6 +325,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 class="cds--structured-list-th"
                 dir="auto"
                 role="columnheader"
+              >
+                Members
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Workflows
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
               />
             </div>
           </div>
@@ -400,6 +356,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 role="cell"
               >
                 admin-flowabl-io Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
               </div>
               <div
                 class="cds--structured-list-td"
@@ -431,6 +401,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 dir="auto"
                 role="cell"
               >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
                 <a
                   class="_viewWorkspaceLink_179016"
                   data-discover="true"
@@ -450,6 +434,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 role="cell"
               >
                 Boomerang Joe Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
               </div>
               <div
                 class="cds--structured-list-td"
@@ -481,6 +479,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 dir="auto"
                 role="cell"
               >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
                 <a
                   class="_viewWorkspaceLink_179016"
                   data-discover="true"
@@ -500,6 +512,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 role="cell"
               >
                 System and Administration
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
               </div>
               <div
                 class="cds--structured-list-td"
@@ -531,6 +557,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 dir="auto"
                 role="cell"
               >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
                 <a
                   class="_viewWorkspaceLink_179016"
                   data-discover="true"
@@ -550,6 +590,20 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 role="cell"
               >
                 Tyson Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
               </div>
               <div
                 class="cds--structured-list-td"

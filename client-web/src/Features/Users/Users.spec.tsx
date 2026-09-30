@@ -1,7 +1,7 @@
 import UserList, { loader as userListLoader } from "Features/Users/Users";
 import UserDetailed, { loader as userDetailedLoader } from "Features/UserDetailed/UserDetailed";
 import { Route } from "react-router-dom";
-import { waitFor, screen, fireEvent } from "@testing-library/react";
+import { waitFor, screen, fireEvent, within } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
 import { renderWithContext } from "Utils/testing/render";
 
@@ -33,7 +33,7 @@ describe("Users --- Snapshot Test", () => {
 describe("Users --- RTL", () => {
   test("Change user role", async () => {
     renderUsers(appLink.userList());
-    await screen.findByText(/^View and manage users$/i);
+    await screen.findByText(/^Everyone who has signed in/i);
     fireEvent.click(await screen.findByText(/^Tim Bula$/i));
     expect(await screen.findByText(/^These are Tim Bula's workspaces/i)).toBeInTheDocument();
 
@@ -45,9 +45,17 @@ describe("Users --- RTL", () => {
     fireEvent.click(await screen.findByText(/^Submit$/i));
   });
 
+  test("lists each user with their email under the name and their role in words", async () => {
+    renderUsers(appLink.userList());
+    await screen.findByText(/^Everyone who has signed in/i);
+    const row = await screen.findByRole("row", { name: /Tim Bula/ });
+    expect(within(row).getByText("Admin")).toBeInTheDocument();
+    expect(within(row).getByText("trbula@us.ibm.com")).toBeInTheDocument();
+  });
+
   test("View user details", async () => {
     renderUsers(appLink.userList());
-    await screen.findByText(/^View and manage users$/i);
+    await screen.findByText(/^Everyone who has signed in/i);
     fireEvent.click(await screen.findByText(/^Tim Bula$/i));
     expect(await screen.findByText(/^These are Tim Bula's workspaces/i)).toBeInTheDocument();
   });

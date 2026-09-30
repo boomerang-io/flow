@@ -55,16 +55,12 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
           <p
             class="cds--bmrg-feature-header-title"
           >
-            View and manage users
+            Everyone who has signed in. People join by signing in; the first to sign in became an admin.
           </p>
         </div>
       </section>
-    </header>
-    <div
-      class="_content_96c623 css-1aaedcz"
-    >
       <div
-        class="css-2o893x"
+        class="_search_96c623"
       >
         <div
           aria-label="Search users"
@@ -130,6 +126,10 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
           </button>
         </div>
       </div>
+    </header>
+    <div
+      class="_content_96c623 css-1ao9568"
+    >
       <div
         class="cds--data-table-container"
       >
@@ -206,83 +206,6 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   </button>
                 </th>
                 <th
-                  id="displayName"
-                  scope="col"
-                >
-                  <div
-                    class="cds--table-header-label"
-                  >
-                    Preferred Display Name
-                    <div
-                      class="cds--table-header-label--decorator-inner"
-                    />
-                  </div>
-                </th>
-                <th
-                  aria-sort="none"
-                  class="cds--table-sort__header"
-                  id="email"
-                  scope="col"
-                >
-                  <div
-                    class="cds--table-sort__description"
-                    id="table-sort-[generated-id]"
-                  >
-                    Click to sort rows by Email header in ascending order
-                  </div>
-                  <button
-                    aria-describedby="table-sort-[generated-id]"
-                    class="cds--table-sort"
-                    type="button"
-                  >
-                    <span
-                      class="cds--table-sort__flex"
-                    >
-                      <div
-                        class="cds--table-header-label"
-                      >
-                        Email
-                      </div>
-                      <svg
-                        aria-hidden="true"
-                        class="cds--table-sort__icon"
-                        fill="currentColor"
-                        focusable="false"
-                        height="20"
-                        preserveAspectRatio="xMidYMid meet"
-                        viewBox="0 0 32 32"
-                        width="20"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
-                        />
-                      </svg>
-                      <svg
-                        aria-hidden="true"
-                        class="cds--table-sort__icon-unsorted"
-                        fill="currentColor"
-                        focusable="false"
-                        height="20"
-                        preserveAspectRatio="xMidYMid meet"
-                        viewBox="0 0 32 32"
-                        width="20"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
-                        />
-                        <path
-                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
-                        />
-                      </svg>
-                      <div
-                        class="cds--table-header-label--decorator-inner"
-                      />
-                    </span>
-                  </button>
-                </th>
-                <th
                   aria-sort="none"
                   class="cds--table-sort__header"
                   id="type"
@@ -292,7 +215,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     class="cds--table-sort__description"
                     id="table-sort-[generated-id]"
                   >
-                    Click to sort rows by Type header in ascending order
+                    Click to sort rows by Role header in ascending order
                   </div>
                   <button
                     aria-describedby="table-sort-[generated-id]"
@@ -305,135 +228,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                       <div
                         class="cds--table-header-label"
                       >
-                        Type
-                      </div>
-                      <svg
-                        aria-hidden="true"
-                        class="cds--table-sort__icon"
-                        fill="currentColor"
-                        focusable="false"
-                        height="20"
-                        preserveAspectRatio="xMidYMid meet"
-                        viewBox="0 0 32 32"
-                        width="20"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
-                        />
-                      </svg>
-                      <svg
-                        aria-hidden="true"
-                        class="cds--table-sort__icon-unsorted"
-                        fill="currentColor"
-                        focusable="false"
-                        height="20"
-                        preserveAspectRatio="xMidYMid meet"
-                        viewBox="0 0 32 32"
-                        width="20"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
-                        />
-                        <path
-                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
-                        />
-                      </svg>
-                      <div
-                        class="cds--table-header-label--decorator-inner"
-                      />
-                    </span>
-                  </button>
-                </th>
-                <th
-                  aria-sort="none"
-                  class="cds--table-sort__header"
-                  id="creationDate"
-                  scope="col"
-                >
-                  <div
-                    class="cds--table-sort__description"
-                    id="table-sort-[generated-id]"
-                  >
-                    Click to sort rows by First Login header in ascending order
-                  </div>
-                  <button
-                    aria-describedby="table-sort-[generated-id]"
-                    class="cds--table-sort"
-                    type="button"
-                  >
-                    <span
-                      class="cds--table-sort__flex"
-                    >
-                      <div
-                        class="cds--table-header-label"
-                      >
-                        First Login
-                      </div>
-                      <svg
-                        aria-hidden="true"
-                        class="cds--table-sort__icon"
-                        fill="currentColor"
-                        focusable="false"
-                        height="20"
-                        preserveAspectRatio="xMidYMid meet"
-                        viewBox="0 0 32 32"
-                        width="20"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
-                        />
-                      </svg>
-                      <svg
-                        aria-hidden="true"
-                        class="cds--table-sort__icon-unsorted"
-                        fill="currentColor"
-                        focusable="false"
-                        height="20"
-                        preserveAspectRatio="xMidYMid meet"
-                        viewBox="0 0 32 32"
-                        width="20"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
-                        />
-                        <path
-                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
-                        />
-                      </svg>
-                      <div
-                        class="cds--table-header-label--decorator-inner"
-                      />
-                    </span>
-                  </button>
-                </th>
-                <th
-                  aria-sort="none"
-                  class="cds--table-sort__header"
-                  id="lastLoginDate"
-                  scope="col"
-                >
-                  <div
-                    class="cds--table-sort__description"
-                    id="table-sort-[generated-id]"
-                  >
-                    Click to sort rows by Last Login header in ascending order
-                  </div>
-                  <button
-                    aria-describedby="table-sort-[generated-id]"
-                    class="cds--table-sort"
-                    type="button"
-                  >
-                    <span
-                      class="cds--table-sort__flex"
-                    >
-                      <div
-                        class="cds--table-header-label"
-                      >
-                        Last Login
+                        Role
                       </div>
                       <svg
                         aria-hidden="true"
@@ -538,6 +333,70 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                     </span>
                   </button>
                 </th>
+                <th
+                  aria-sort="none"
+                  class="cds--table-sort__header"
+                  id="lastLoginDate"
+                  scope="col"
+                >
+                  <div
+                    class="cds--table-sort__description"
+                    id="table-sort-[generated-id]"
+                  >
+                    Click to sort rows by Last sign-in header in ascending order
+                  </div>
+                  <button
+                    aria-describedby="table-sort-[generated-id]"
+                    class="cds--table-sort"
+                    type="button"
+                  >
+                    <span
+                      class="cds--table-sort__flex"
+                    >
+                      <div
+                        class="cds--table-header-label"
+                      >
+                        Last sign-in
+                      </div>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--table-sort__icon"
+                        fill="currentColor"
+                        focusable="false"
+                        height="20"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="20"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                        />
+                      </svg>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--table-sort__icon-unsorted"
+                        fill="currentColor"
+                        focusable="false"
+                        height="20"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="20"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                        />
+                        <path
+                          d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                        />
+                      </svg>
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
+                    </span>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody
@@ -548,46 +407,51 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 tabindex="-1"
               >
                 <td>
-                  Tim Bula
+                  <span
+                    class="_name_96c623"
+                  >
+                    Tim Bula
+                  </span>
+                  <span
+                    class="_email_96c623"
+                  >
+                    trbula@us.ibm.com
+                  </span>
                 </td>
                 <td>
-                  ---
-                </td>
-                <td>
-                  trbula@us.ibm.com
-                </td>
-                <td>
-                  admin
-                </td>
-                <td>
-                  July 21, 2020
-                </td>
-                <td>
-                  July 21, 2020
+                  Admin
                 </td>
                 <td
                   id="5f170b3df6ab327e302cb0a5:status"
                 >
-                  <svg
-                    aria-label="Active"
-                    fill="green"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    role="img"
-                    viewBox="0 0 16 16"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
+                  <span
+                    class="_status_96c623"
+                    data-status="active"
                   >
-                    <path
-                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                    />
-                    <path
-                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                      data-icon-path="inner-path"
-                      opacity="0"
-                    />
-                  </svg>
+                    <svg
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      />
+                      <path
+                        d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                        data-icon-path="inner-path"
+                        opacity="0"
+                      />
+                    </svg>
+                    Active
+                  </span>
+                </td>
+                <td>
+                  July 21, 2020
                 </td>
               </tr>
               <tr
@@ -595,46 +459,51 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 tabindex="-1"
               >
                 <td>
-                  Marcus Roy
+                  <span
+                    class="_name_96c623"
+                  >
+                    Marcus Roy
+                  </span>
+                  <span
+                    class="_email_96c623"
+                  >
+                    mdroy@us.ibm.com
+                  </span>
                 </td>
                 <td>
-                  ---
-                </td>
-                <td>
-                  mdroy@us.ibm.com
-                </td>
-                <td>
-                  admin
-                </td>
-                <td>
-                  July 21, 2020
-                </td>
-                <td>
-                  July 21, 2020
+                  Admin
                 </td>
                 <td
                   id="kg3p380ad09662744c240e47:status"
                 >
-                  <svg
-                    aria-label="Active"
-                    fill="green"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    role="img"
-                    viewBox="0 0 16 16"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
+                  <span
+                    class="_status_96c623"
+                    data-status="active"
                   >
-                    <path
-                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                    />
-                    <path
-                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                      data-icon-path="inner-path"
-                      opacity="0"
-                    />
-                  </svg>
+                    <svg
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      />
+                      <path
+                        d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                        data-icon-path="inner-path"
+                        opacity="0"
+                      />
+                    </svg>
+                    Active
+                  </span>
+                </td>
+                <td>
+                  July 21, 2020
                 </td>
               </tr>
               <tr
@@ -642,46 +511,51 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                 tabindex="-1"
               >
                 <td>
-                  Test User
+                  <span
+                    class="_name_96c623"
+                  >
+                    Test User
+                  </span>
+                  <span
+                    class="_email_96c623"
+                  >
+                    test@ibm.com
+                  </span>
                 </td>
                 <td>
-                  ---
-                </td>
-                <td>
-                  test@ibm.com
-                </td>
-                <td>
-                  admin
-                </td>
-                <td>
-                  July 21, 2020
-                </td>
-                <td>
-                  July 21, 2020
+                  Admin
                 </td>
                 <td
                   id="kg3p380ad09662744c240e12347:status"
                 >
-                  <svg
-                    aria-label="Active"
-                    fill="green"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    role="img"
-                    viewBox="0 0 16 16"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
+                  <span
+                    class="_status_96c623"
+                    data-status="active"
                   >
-                    <path
-                      d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                    />
-                    <path
-                      d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
-                      data-icon-path="inner-path"
-                      opacity="0"
-                    />
-                  </svg>
+                    <svg
+                      aria-hidden="true"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      viewBox="0 0 16 16"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                      />
+                      <path
+                        d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                        data-icon-path="inner-path"
+                        opacity="0"
+                      />
+                    </svg>
+                    Active
+                  </span>
+                </td>
+                <td>
+                  July 21, 2020
                 </td>
               </tr>
             </tbody>
