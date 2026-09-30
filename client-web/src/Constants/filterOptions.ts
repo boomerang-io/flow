@@ -42,9 +42,9 @@ export const statusOptions: Array<{ label: string; value: RunStatus }> = [
 ];
 
 export const approvalStatusOptions = [
+  { label: "Waiting", value: ApprovalStatus.Submitted },
   { label: "Approved", value: ApprovalStatus.Approved },
   { label: "Rejected", value: ApprovalStatus.Rejected },
-  { label: "Submitted", value: ApprovalStatus.Submitted },
 ];
 
 /**

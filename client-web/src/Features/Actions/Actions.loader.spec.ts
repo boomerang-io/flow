@@ -72,6 +72,23 @@ describe("Actions --- loader", () => {
     expect(captured[0]).not.toBe(captured[1]);
   });
 
+  // Actions opens on what is waiting; clearing the filter (statuses=any) asks for every status.
+  test("asks for waiting actions by default, and for every status once the filter is cleared", async () => {
+    const statuses: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.action.getActions({ workspace: ":workspace" }), ({ request }) => {
+        statuses.push(new URL(request.url).searchParams.get("statuses"));
+        return HttpResponse.json({ number: 0, size: 10, totalElements: 0, content: [] });
+      }),
+    );
+
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request() });
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request("?statuses=any") });
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request("?statuses=approved,rejected") });
+
+    expect(statuses).toEqual(["submitted", null, "approved,rejected"]);
+  });
+
   test("keeps each read's failure independent rather than throwing", async () => {
     server.use(
       http.get(serviceUrl.workspace.action.getActions({ workspace: ":workspace" }), () =>
