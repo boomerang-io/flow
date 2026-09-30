@@ -1,8 +1,10 @@
 import React from "react";
-import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
+import { Button, InlineNotification, Link, ModalBody, ModalFooter } from "@carbon/react";
+import { Launch } from "@carbon/react/icons";
 import { ModalForm } from "@boomerang-io/carbon-addons-boomerang-react";
 import ReactMarkdown from "react-markdown";
 import "Styles/markdown.css";
+import styles from "./ModalContent.module.scss";
 
 interface ModalContentProps {
   closeModal: () => void;
@@ -13,6 +15,10 @@ interface ModalContentProps {
   data: any;
 }
 
+/**
+ * Connect: the integration's own instructions, then Connect opens its install page. Manage: what is connected,
+ * a link to it, and Disconnect as the danger action.
+ */
 const ModalContent: React.FC<ModalContentProps> = ({
   closeModal,
   error,
@@ -21,6 +27,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
   errorMessage,
   data,
 }) => {
+  const isConnected = data.status === "linked";
   return (
     <ModalForm>
       {error && (
@@ -29,26 +36,42 @@ const ModalContent: React.FC<ModalContentProps> = ({
         </ModalBody>
       )}
       <ModalBody>
-        <ReactMarkdown className="markdown-body" children={data.instructions} />
-        {data.status === "linked" && (
-          <InlineNotification
-            lowContrast
-            kind="info"
-            subtitle="Disabling this integration will remove any access to related events or triggers"
-          />
+        {isConnected ? (
+          <>
+            <dl className={styles.facts}>
+              <dt>Status</dt>
+              <dd>Connected to this workspace</dd>
+              {data.link && (
+                <>
+                  <dt>Installation</dt>
+                  <dd>
+                    <Link href={data.link} target="_blank" rel="noopener noreferrer" renderIcon={Launch}>
+                      Open {data.name}
+                    </Link>
+                  </dd>
+                </>
+              )}
+            </dl>
+            <p className={styles.note}>
+              {`Disconnecting stops ${data.name} starting or updating workflows in this workspace. Anything installed on ${data.name}'s side stays until you remove it there.`}
+            </p>
+          </>
+        ) : (
+          <ReactMarkdown className="markdown-body" children={data.instructions} />
         )}
       </ModalBody>
       <ModalFooter>
         <Button kind="secondary" type="button" onClick={closeModal}>
-          Cancel
+          {isConnected ? "Close" : "Cancel"}
         </Button>
         <Button
+          kind={isConnected ? "danger" : "primary"}
           onClick={(e: React.SyntheticEvent) => {
             e.preventDefault();
-            data.status === "unlinked" ? handleEnable(closeModal) : handleDisable(closeModal);
+            isConnected ? handleDisable(closeModal) : handleEnable(closeModal);
           }}
         >
-          {data.status === "unlinked" ? "Enable" : "Disable"}
+          {isConnected ? "Disconnect" : "Connect"}
         </Button>
       </ModalFooter>
     </ModalForm>
