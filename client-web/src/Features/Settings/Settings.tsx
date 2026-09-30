@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Helmet } from "react-helmet";
-import { Navigate, useFetcher, useLoaderData, useParams } from "react-router-dom";
+import { redirect, useFetcher, useLoaderData, useParams } from "react-router-dom";
 import {
   ErrorMessage,
   FeatureSideNav as SideNav,
@@ -36,13 +36,20 @@ type LoaderData = {
   errorLoading: boolean;
 };
 
-export async function loader({ request }: { request: Request }): Promise<LoaderData> {
+// The group is part of the URL. Without one, or with one the settings do not hold, the loader
+// redirects to the first group by name server-side, so the page never paints and then jumps.
+export async function loader({ params = {}, request }: { params?: { group?: string }; request: Request }) {
+  let settings: SettingsGroup[];
   try {
-    const response = await serverFetch(request).get(serviceUrl.resourceSettings());
-    return { settings: response.data, errorLoading: false };
+    settings = (await serverFetch(request).get(serviceUrl.resourceSettings())).data;
   } catch (error) {
-    return { settings: [], errorLoading: true };
+    return { settings: [], errorLoading: true } satisfies LoaderData;
   }
+  const sorted = sortBy(settings, (settingsGroup) => settingsGroup.name);
+  if (sorted.length > 0 && !sorted.some((settingsGroup) => settingsGroup.key === params.group)) {
+    return redirect(appLink.settingsGroup({ group: sorted[0].key }));
+  }
+  return { settings, errorLoading: false } satisfies LoaderData;
 }
 
 type ActionResult = Record<string, never> | ActionError;
@@ -117,10 +124,9 @@ const Settings: React.FC = () => {
     );
   }
 
-  const selected = sortedGroups.find((settingsGroup) => settingsGroup.key === group);
-  if (!selected) {
-    return <Navigate to={appLink.settingsGroup({ group: sortedGroups[0].key })} replace />;
-  }
+  // The loader already redirected any URL without a known group; the fallback keeps the page
+  // whole if the two ever disagree.
+  const selected = sortedGroups.find((settingsGroup) => settingsGroup.key === group) ?? sortedGroups[0];
 
   return (
     <div className={styles.layout}>

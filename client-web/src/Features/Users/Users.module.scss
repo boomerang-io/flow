@@ -10,6 +10,14 @@
   width: 17.5rem;
 }
 
+// The one line the page header used to carry; a tabbed page has no header of its own.
+.hint {
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-label-01-font-size, 0.75rem);
+  line-height: var(--cds-label-01-line-height, 1.33333);
+  margin: 0.5rem 0 1rem;
+}
+
 .name,
 .email {
   display: block;

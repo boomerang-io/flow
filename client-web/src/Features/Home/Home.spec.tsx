@@ -47,40 +47,75 @@ describe("Home", () => {
     expect(screen.getAllByTestId("workspace-card")).toHaveLength(3);
   });
 
-  test("lists the actions waiting on the user with approve and reject", async () => {
-    renderHome(
-      rollup({
-        attentionTotal: 1,
-        attentionApprovals: 1,
-        attention: [
-          {
-            id: "a1",
-            taskRunRef: "t1",
-            workflowRunRef: "r1",
-            workflowRef: "w1",
-            workspaceRef: "ws",
-            status: "submitted",
-            type: "approval",
-            creationDate: "2020-01-01T00:00:00.000Z",
-            taskName: "Approve production deploy",
-            workflowName: "release-pipeline",
-            workspaceName: "tyson-workspace",
-            numberOfApprovals: 0,
-            approvalsRequired: 1,
-            actioners: [],
-            instructions: null,
-            workspace: "tyson-workspace",
-            workspaceDisplayName: "Tyson Workspace",
-          },
-        ],
-      }),
-    );
+  const oneApproval = rollup({
+    attentionTotal: 1,
+    attentionApprovals: 1,
+    attention: [
+      {
+        id: "a1",
+        taskRunRef: "t1",
+        workflowRunRef: "r1",
+        workflowRef: "w1",
+        workspaceRef: "ws",
+        status: "submitted",
+        type: "approval",
+        creationDate: "2020-01-01T00:00:00.000Z",
+        taskName: "Approve production deploy",
+        workflowName: "release-pipeline",
+        workspaceName: "tyson-workspace",
+        numberOfApprovals: 0,
+        approvalsRequired: 1,
+        actioners: [],
+        instructions: null,
+        workspace: "tyson-workspace",
+        workspaceDisplayName: "Tyson Workspace",
+      },
+    ],
+  });
+  // The fixture user carries no grants; this one may act on anything.
+  const approver = { ...fixtures.profile, permissions: [{ scope: "global", principal: "*", actions: ["**"] }] };
+
+  test("lists the actions waiting on the user with approve and reject for someone who may decide", async () => {
+    renderHome(oneApproval, { user: approver });
 
     expect(await screen.findByRole("heading", { name: "Needs your attention" })).toBeInTheDocument();
     expect(screen.getByText("Approve production deploy")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     // Carbon prefixes a danger button's accessible name with a visually hidden "danger".
     expect(screen.getByRole("button", { name: /Reject/ })).toBeInTheDocument();
+  });
+
+  test("offers only the run to someone whose grants do not cover the decision", async () => {
+    renderHome(oneApproval);
+
+    expect(await screen.findByRole("heading", { name: "Needs your attention" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View run" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reject/ })).not.toBeInTheDocument();
+  });
+
+  test("links each recent run by its workflow name", async () => {
+    renderHome(
+      rollup({
+        recentRuns: [
+          {
+            id: "run-1",
+            workflowName: "release-pipeline",
+            workflowRef: "w1",
+            workspace: "tyson-workspace",
+            workspaceDisplayName: "Tyson Workspace",
+            status: "succeeded" as HomeLoaderData["recentRuns"][number]["status"],
+            trigger: "manual",
+            duration: 61_000,
+            creationDate: "2019-12-31T23:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    await screen.findByRole("heading", { name: "Recent activity" });
+    expect(screen.getByRole("link", { name: "release-pipeline" })).toHaveAttribute("href", "/tyson-workspace/activity/run-1");
+    expect(screen.getByRole("table", { name: "Recent runs" })).toBeInTheDocument();
   });
 
   test("shows the getting-started steps and concepts, not the rollup, when the user has no workspace", async () => {
