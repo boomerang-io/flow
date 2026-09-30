@@ -22,7 +22,7 @@ import { approvalStatusOptions } from "Constants/filterOptions";
 import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import { Action, PaginatedWorkflowResponse } from "Types";
+import { Action, ApprovalStatus, PaginatedWorkflowResponse } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./Actions.module.scss";
 import ActionsTable from "./ActionsTable";
@@ -42,6 +42,20 @@ const DEFAULT_ORDER = "DESC";
 const DEFAULT_PAGE = 0;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "creationDate";
+// Actions opens on what is waiting. Clearing the status filter sets `statuses=any`, since an absent
+// parameter means "the default" and an empty one is dropped from the URL.
+const DEFAULT_STATUSES = [ApprovalStatus.Submitted];
+const ANY_STATUS = "any";
+
+function resolveStatuses(statuses: unknown): Array<string> | undefined {
+  if (statuses === undefined || statuses === null) {
+    return DEFAULT_STATUSES;
+  }
+  if (statuses === ANY_STATUS) {
+    return undefined;
+  }
+  return typeof statuses === "string" ? [statuses] : (statuses as Array<string>);
+}
 /*
  * Computed per call, not hoisted to module constants: this module is imported ONCE into a
  * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
@@ -84,7 +98,8 @@ export async function loader({
   const page = parsedQuery.page ?? DEFAULT_PAGE;
   const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
-  const { workflows, statuses, fromDate, toDate } = parsedQuery;
+  const { workflows, fromDate, toDate } = parsedQuery;
+  const statuses = resolveStatuses(parsedQuery.statuses);
 
   /*
    * One wave, not four. None of these reads depends on another - they were four independent
@@ -237,7 +252,7 @@ function Actions() {
   }
 
   function handleSelectStatuses({ selectedItems }) {
-    const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : undefined;
+    const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : ANY_STATUS;
     updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), statuses: statuses, page: 0 });
     return;
   }
@@ -272,9 +287,9 @@ function Actions() {
   }
 
   if (workspace && workflowsData?.content) {
-    const { workflows = "", statuses = "" } = queryString.parse(location.search, queryStringOptions);
+    const { workflows = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
-    const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
+    const selectedStatuses = resolveStatuses(queryString.parse(location.search, queryStringOptions).statuses) ?? [];
     const maxDate = moment().format("MM/DD/YYYY");
 
     const NavigationComponent = () => {

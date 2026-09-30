@@ -1,0 +1,16 @@
+.facts {
+  display: grid;
+  font-size: 0.875rem;
+  grid-template-columns: 8.75rem 1fr;
+  margin-bottom: 1rem;
+  row-gap: 0.625rem;
+
+  dt {
+    color: var(--cds-text-secondary);
+  }
+}
+
+.note {
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+}

@@ -165,6 +165,14 @@ task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
 3. **Custom** — only when neither library has it. Build it from Carbon tokens + the 2x grid so it
    themes correctly; never with raw colours or off-scale spacing.
 
+### Lists and tables
+
+List pages follow the Activity page (`client-web/src/Features/Activity/Activity.tsx`), not Carbon's table toolbar
+and batch-action bar: labelled filters ("Filter by Workflow", "Filter by status") in a row above the table, a date range
+on the right, sortable headers, a row that opens the item, and status as an icon with coloured text rather than a tag
+(Activity, Actions, Users). Search on a list of people or workspaces sits in the page header. Actions opens on what is
+waiting (`client-web/src/Features/Actions/Actions.tsx`, `resolveStatuses`).
+
 ### Switching views and choosing values
 
 | Need | Control |
