@@ -58,6 +58,14 @@
   outline: 0px;
 }
 
+// Content switchers in Boomerang blue: outline, dividers and the selected fill take the interactive colour
+// instead of the theme's inverse ink; unselected labels read as links.
+.cds--content-switcher {
+  --cds-border-inverse: var(--cds-interactive);
+  --cds-layer-selected-inverse: var(--cds-interactive);
+  --cds-text-secondary: var(--cds-link-primary);
+}
+
 // One page header on every route: 16px top, breadcrumb (18px), 2px, title (36px), then a 40px row holding the
 // page's tabs, or its one-line description when it has none. min-height rather than height, so a
 // long description, a narrow window or 200% zoom grows the header instead of clipping it.

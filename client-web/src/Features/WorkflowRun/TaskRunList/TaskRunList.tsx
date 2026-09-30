@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, ContentSwitcher, Switch } from "@carbon/react";
+import { Button, Tab, TabList, Tabs } from "@carbon/react";
 import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
@@ -92,17 +92,15 @@ function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", exec
         <ChevronLeft size={16} className={styles.chevron} />
       </button>
       <section className={styles.taskbar}>
-        {/* Two views of one panel: Carbon's content switcher, full width, with a count on each side. */}
-        <ContentSwitcher
-          aria-label="Run detail"
-          className={styles.switcher}
-          selectedIndex={activeTab}
-          size="sm"
-          onChange={({ index }: { index?: number }) => setActiveTab(index ?? TAB_TASK_LOG)}
-        >
-          <Switch name="task-log" text={`Task log (${sortedTasks.length})`} />
-          <Switch name="artifacts" text={`Artifacts (${artifacts.length})`} />
-        </ContentSwitcher>
+        {/* Two views of one panel: contained tabs, full width, with a count on each. */}
+        <div className={styles.switcher}>
+          <Tabs selectedIndex={activeTab} onChange={({ selectedIndex }: { selectedIndex: number }) => setActiveTab(selectedIndex)}>
+            <TabList aria-label="Run detail" contained fullWidth>
+              <Tab>{`Task log (${sortedTasks.length})`}</Tab>
+              <Tab>{`Artifacts (${artifacts.length})`}</Tab>
+            </TabList>
+          </Tabs>
+        </div>
         {!isCollapsed && activeTab === TAB_TASK_LOG && (
           <Button
             data-testid="taskbar-button"

@@ -95,7 +95,7 @@ describe("SchedulePanelList", () => {
   test("typing in the search box filters the list", async () => {
     renderList({ includeStatusFilter: false });
 
-    await userEvent.type(screen.getByPlaceholderText("Search Schedules"), "Nightly");
+    await userEvent.type(screen.getByPlaceholderText("Search schedules"), "Nightly");
 
     expect(await screen.findByText("Nightly Backup")).toBeInTheDocument();
     expect(screen.queryByText("One-off Migration")).not.toBeInTheDocument();
@@ -115,7 +115,7 @@ describe("SchedulePanelList", () => {
   test("searching by a label's key=value form filters the list", async () => {
     renderList({ includeStatusFilter: false });
 
-    await userEvent.type(screen.getByPlaceholderText("Search Schedules"), "level=important");
+    await userEvent.type(screen.getByPlaceholderText("Search schedules"), "level=important");
 
     expect(await screen.findByText("Nightly Backup")).toBeInTheDocument();
     expect(screen.queryByText("One-off Migration")).not.toBeInTheDocument();
@@ -124,7 +124,7 @@ describe("SchedulePanelList", () => {
   test("shows an empty state when no schedules match the search", async () => {
     renderList({ includeStatusFilter: false });
 
-    await userEvent.type(screen.getByPlaceholderText("Search Schedules"), "no such schedule");
+    await userEvent.type(screen.getByPlaceholderText("Search schedules"), "no such schedule");
 
     expect(await screen.findByText("No matching schedules found")).toBeInTheDocument();
   });

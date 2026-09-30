@@ -68,7 +68,7 @@
   height: 3rem;
   justify-content: space-between;
   opacity: 0.99;
-  padding: 0 2rem 0 1rem;
+  padding: 0 2rem 0 0;
   transition: opacity $carbon-motion--timing--productive $carbon-motion--easing--productive;
   width: 100%;
 }
@@ -81,8 +81,14 @@
 }
 
 .switcher {
+  align-self: stretch;
   flex-grow: 1;
-  margin-right: 0.25rem;
+  min-width: 0;
+
+  :global(.cds--tabs),
+  :global(.cds--tab--list) {
+    height: 100%;
+  }
 }
 
 .taskbarButton {

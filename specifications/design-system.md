@@ -165,6 +165,27 @@ task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
 3. **Custom** — only when neither library has it. Build it from Carbon tokens + the 2x grid so it
    themes correctly; never with raw colours or off-scale spacing.
 
+### Switching views and choosing values
+
+| Need | Control |
+| --- | --- |
+| Two views of one side panel | Contained `Tabs`, full width, a count on each tab (Activity detail's Task log / Artifacts, `client-web/src/Features/WorkflowRun/TaskRunList/TaskRunList.tsx`) |
+| Several views of one page's content | A `ContentSwitcher` beside the page's primary button (Schedules: List, Upcoming, Week, Month) |
+| One choice inside a form | Radio buttons; a choice with settings opens them underneath, on the next layer (the schedule form's When) |
+
+Content switchers are Boomerang blue, not the theme's inverse ink: one rule in
+`client-web/src/Styles/_carbon-components.scss` points the switcher's `border-inverse`,
+`layer-selected-inverse` and `text-secondary` tokens at the interactive and link colours.
+
+### Schedules
+
+A workflow's Schedules tab and the workspace Schedules page share `Components/ScheduleViews`: a content
+switcher over List (a table with When in words, Next run, Time zone and a status tag), Upcoming (the next 30
+days), Week and Month. The calendar views share a toolbar: Today as a ghost button with the calendar icon, then
+previous, next and the dates shown. The schedule form's When offers Once, Hourly, Daily, Weekdays, Weekly and
+Custom (cron), stored as the three schedule types (`client-web/src/Utils/cronHelper.tsx`, `frequencyToSchedule`),
+with a line under the time zone saying what will happen and when it next runs.
+
 ### Task parameter inputs
 
 A catalogue task's parameters are rendered generically: the editor's config modal hands
