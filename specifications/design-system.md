@@ -407,7 +407,9 @@ Two tabs have their own shape:
 - **Settings** is one group at a time (`/admin/settings/:group`): the groups in a left section list
   (`FeatureSideNav`, the same component the workflow Configure screen uses), the selected group's name and
   description above a single-column form at a readable width, and a save bar at the bottom that wakes up
-  only when something changed (`Features/Settings/SettingsSection`).
+  only when something changed (`Features/Settings/SettingsSection`). A group's name is a plain noun for
+  what it controls (Quotas, Integrations, Run limits) and its description one sentence; both come from the
+  seeded settings document, not the client.
 - **Audit** follows the list-page style: count tiles (`Components/StatTile`), the capture configuration as
   one line linking to Settings, the labelled filter row with the date range on the right, and the table in
   a rounded panel with the outcome as an icon plus its name and actions and levels in sentence case

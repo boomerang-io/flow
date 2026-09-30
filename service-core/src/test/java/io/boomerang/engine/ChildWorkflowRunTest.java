@@ -374,7 +374,7 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
     }
     settings = new SettingEntity();
     settings.setKey(TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY);
-    settings.setName("Workspace Configuration - Activity Storage");
+    settings.setName("Run limits");
     SettingConfig config = new SettingConfig();
     config.setKey(TaskExecutionService.MAX_NESTING_DEPTH);
     config.setType("number");

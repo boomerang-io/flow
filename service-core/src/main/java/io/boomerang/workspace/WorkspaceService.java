@@ -82,7 +82,7 @@ public class WorkspaceService {
 
   public static final List<String> RESERVED_WORKSPACE_NAMES =
       List.of("home", "admin", "system", "profile", "connect");
-  public static final String WORKSPACES_SETTINGS_KEY = "workspaces";
+  public static final String QUOTAS_SETTINGS_KEY = "quotas";
   public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
   public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
   public static final String QUOTA_MAX_WORKFLOWRUN_CONCURRENT = "max.workflowrun.concurrent";
@@ -775,7 +775,7 @@ public class WorkspaceService {
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
 
     // Delete any custom quotas set on the team
-    // This will then reset and default to the Workspace Quotas set in Settings
+    // This will then reset and default to the Quotas group in Settings
     workspaceEntity.setQuotas(new Quotas());
     workspaceRepository.save(workspaceEntity);
   }
@@ -932,39 +932,39 @@ public class WorkspaceService {
     quotas.setMaxWorkflowCount(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
                 .getValue()));
     quotas.setMaxWorkflowRunMonthly(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
                 .getValue()));
     quotas.setMaxWorkflowStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunDuration(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue()));
     quotas.setMaxConcurrentRuns(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
                 .getValue()));
     quotas.setMaxArtifactStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_ARTIFACT_STORAGE)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_ARTIFACT_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setArtifactRetentionDays(artifactService.defaultRetentionDays());
@@ -1010,7 +1010,7 @@ public class WorkspaceService {
     Integer d =
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue());
 
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);

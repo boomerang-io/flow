@@ -49,7 +49,7 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "engine-submit-test-task";
 
-  // The platform default in the seeded "workspaces" settings document - what the run-duration
+  // The platform default in the seeded "quotas" settings document - what the run-duration
   // ceiling must fall back to with no workspace quota record to read.
   private static final long PLATFORM_DEFAULT_DURATION = 30L;
 
