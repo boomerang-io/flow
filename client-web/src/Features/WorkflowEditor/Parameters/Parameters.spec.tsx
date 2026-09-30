@@ -66,26 +66,37 @@ describe("Inputs --- Snapshot Test", () => {
 });
 
 describe("Inputs --- RTL", () => {
-  it("Render inputs correctly", async () => {
+  it("lists each parameter by name with its label, type and a Required tag", async () => {
     renderWithContext(<Inputs {...props} />);
     expect(screen.getByText("tim-parameter")).toBeInTheDocument();
+    expect(screen.getAllByText("Tim parameter")).toHaveLength(2); // label and description
+    expect(screen.getByText("Select")).toBeInTheDocument();
+    expect(screen.getByText("Required")).toBeInTheDocument();
   });
 
-  it("Opens create new parameter modal", async () => {
+  it("opens the add parameter modal from the toolbar", async () => {
     renderWithContext(<Inputs {...props} />);
 
-    const modalTrigger = screen.getByTestId("create-parameter-button");
-    fireEvent.click(modalTrigger);
+    fireEvent.click(screen.getByRole("button", { name: /Add parameter/ }));
 
-    expect(screen.getByText(/Create a new parameter/i)).toBeInTheDocument();
+    expect(await screen.findByText("Add parameter", { selector: "h2, h3" })).toBeInTheDocument();
   });
 
-  it("Opens edit parameter modal", async () => {
+  it("opens the edit modal from the row menu, with the name shown as its reference", async () => {
     renderWithContext(<Inputs {...props} />);
 
-    const modalTrigger = screen.getByLabelText(/Edit/i);
-    fireEvent.click(modalTrigger);
+    fireEvent.click(screen.getByRole("button", { name: "Parameter actions" }));
+    fireEvent.click(await screen.findByText("Edit"));
 
-    expect(screen.getByText(/Let's change some stuff/i)).toBeInTheDocument();
+    expect(await screen.findByText("Edit parameter", { selector: "h2, h3" })).toBeInTheDocument();
+    expect(screen.getByText(/Tasks read it as \$\(params\.tim-parameter\)/)).toBeInTheDocument();
+  });
+
+  it("filters the table from the search box", async () => {
+    renderWithContext(<Inputs {...props} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Search parameters"), { target: { value: "nothing-like-it" } });
+
+    expect(await screen.findByText("No matching parameters")).toBeInTheDocument();
   });
 });

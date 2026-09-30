@@ -42,9 +42,7 @@ describe("Inputs --- RTL", () => {
 
     const typeSelect = screen.getByRole("combobox", { name: /type/i });
 
-    // Carbon's ComboBox (1.75) no longer surfaces its filtered option list on a bare
-    // fireEvent.change - open the list with a click and select the option directly, the
-    // interaction pattern the rest of this suite already uses (see Activity.spec.tsx).
+    // Type is a Carbon Dropdown: open it with a click and pick the option.
     userEvent.click(typeSelect);
     userEvent.click(screen.getByText("Boolean"));
 
@@ -64,20 +62,18 @@ describe("Inputs --- RTL", () => {
     expect(screen.getByTestId("select")).toBeInTheDocument();
   });
 
-  it("Shouldn't save parameter without key, label and type defined", async () => {
+  it("enables Add once a name and type are given; the label is optional", async () => {
     renderWithContext(<Inputs {...props} isEdit={false} property={undefined} />);
 
     const nameInput = screen.getByLabelText("Name");
-    const labelInput = screen.getByLabelText("Label");
     const typeSelect = screen.getByRole("combobox", { name: /type/i });
 
     userEvent.type(nameInput, "test");
-    userEvent.type(labelInput, "test");
 
     userEvent.click(typeSelect);
     userEvent.click(screen.getByText("Boolean"));
 
-    const createButton = await screen.findByRole("button", { name: /create/i });
+    const createButton = await screen.findByRole("button", { name: "Add" });
     expect(createButton).toBeEnabled();
   });
 });

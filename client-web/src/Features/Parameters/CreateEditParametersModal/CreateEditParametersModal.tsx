@@ -1,16 +1,16 @@
 //@ts-nocheck
 import React from "react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
-import { Add } from "@carbon/react/icons";
 import { ComposedModal, ModalFlowForm, TextInput, Toggle } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import { InputType, PROPERTY_KEY_REGEX, PASSWORD_CONSTANT } from "Constants";
+import { InputType, PROPERTY_KEY_REGEX } from "Constants";
 import { Property } from "Types";
+import { ParameterScope, parameterReference } from "../ParametersTable/ParametersTable";
 import styles from "./createEditParametersModal.module.scss";
 
 type Props = {
-  handleClose?: () => void;
+  handleClose: () => void;
   handleSubmit: (isEdit: boolean, values: any, closeModal: () => void) => Promise<void>;
   isEdit?: boolean;
   isOpen?: boolean;
@@ -18,6 +18,7 @@ type Props = {
   error: boolean;
   parameter?: AbstractParam;
   parameters: AbstractParam[];
+  scope: Exclude<ParameterScope, "workflow">;
 };
 
 function CreateEditParametersModal({
@@ -29,6 +30,7 @@ function CreateEditParametersModal({
   error,
   parameter,
   parameters,
+  scope,
 }: Props) {
   /**
    * arrays of values for making the key unique
@@ -66,27 +68,11 @@ function CreateEditParametersModal({
       isOpen={isOpen}
       composedModalProps={{ containerClassName: styles.modalContainer }}
       confirmModalProps={{ shouldCloseOnOverlayClick: false }}
-      modalTrigger={({ openModal }) =>
-        !isEdit ? (
-          <Button
-            data-testid="create-parameter-button"
-            onClick={openModal}
-            iconDescription="Create new parameter"
-            renderIcon={Add}
-            size="md"
-            style={{ minWidth: "9rem" }}
-          >
-            Create new parameter
-          </Button>
-        ) : null
-      }
       modalHeaderProps={{
-        title: isEdit && parameter ? `Edit ${parameter.label.toUpperCase()}` : "Create Parameter",
-        subtitle: "Parameters are available within the Workflows and Tasks.",
+        label: scope === "workspace" ? "Workspace parameter" : "Global parameter",
+        title: isEdit ? "Edit parameter" : "Add parameter",
       }}
-      onCloseModal={() => {
-        if (isEdit) handleClose();
-      }}
+      onCloseModal={handleClose}
     >
       {({ closeModal }) => (
         <Form
@@ -97,6 +83,7 @@ function CreateEditParametersModal({
           error={error}
           closeModal={closeModal}
           parameterKeys={parameterKeys}
+          reference={parameterReference(scope, parameter?.name ?? "name")}
         />
       )}
     </ComposedModal>
@@ -111,9 +98,10 @@ type FormProps = {
   error: boolean;
   initialState: any;
   parameterKeys: Array<string>;
+  reference: string;
 };
 
-function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialState, parameterKeys }: FormProps) {
+function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialState, parameterKeys, reference }: FormProps) {
   // Check if key contains alpahanumeric, underscore, dash, and period chars
   const validateKey = (key: any) => {
     return PROPERTY_KEY_REGEX.test(key);
@@ -124,7 +112,7 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
       onSubmit={(values) => handleSubmit(values, closeModal)}
       validateOnMount
       validationSchema={Yup.object().shape({
-        label: Yup.string().required("Enter a label"),
+        label: Yup.string(),
         name: Yup.string()
           .required("Enter a Name")
           .max(128, "Name must not be greater than 128 characters")
@@ -148,41 +136,52 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
         return (
           <ModalFlowForm onSubmit={handleSubmit}>
             <ModalBody aria-label="inputs">
-              <TextInput
-                id="name"
-                labelText="Name"
-                placeholder="Name"
-                name="name"
-                value={values.name}
-                onBlur={handleBlur}
-                onChange={handleChange}
-                invalid={Boolean(errors.name && touched.name)}
-                invalidText={errors.name}
-              />
-              <TextInput
-                id="label"
-                labelText="Label"
-                placeholder="Label"
-                name="label"
-                value={values.label}
-                onBlur={handleBlur}
-                onChange={handleChange}
-                invalid={Boolean(errors.label && touched.label)}
-                invalidText={errors.label}
-              />
-              <TextInput
-                id="description"
-                labelText="Description (optional)"
-                placeholder="Description"
-                name="description"
-                value={values.description}
-                onBlur={handleBlur}
-                onChange={handleChange}
-              />
+              {isEdit ? (
+                <div className={styles.readOnlyName}>
+                  <p className="cds--label">Name</p>
+                  <p className={styles.name}>{values.name}</p>
+                  <p className="cds--form__helper-text">{`Workflows read it as ${reference}. The name can't change once created.`}</p>
+                </div>
+              ) : (
+                <TextInput
+                  id="name"
+                  labelText="Name"
+                  helperText="Letters, numbers, hyphens and underscores; it can't change once created."
+                  placeholder="e.g. githubToken"
+                  name="name"
+                  value={values.name}
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                  invalid={Boolean(errors.name && touched.name)}
+                  invalidText={errors.name}
+                />
+              )}
+              <div className={styles.row}>
+                <TextInput
+                  id="label"
+                  labelText="Label (optional)"
+                  placeholder="e.g. GitHub token"
+                  name="label"
+                  value={values.label}
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                  invalid={Boolean(errors.label && touched.label)}
+                  invalidText={errors.label}
+                />
+                <TextInput
+                  id="description"
+                  labelText="Description (optional)"
+                  placeholder="What it's for"
+                  name="description"
+                  value={values.description}
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                />
+              </div>
               <TextInput
                 id="value"
                 labelText="Value"
-                placeholder={isEdit && values.secured ? PASSWORD_CONSTANT : "Value"}
+                placeholder={isEdit && values.secured ? "Enter a new value to replace it" : "Value"}
                 name="value"
                 value={values.value}
                 onBlur={handleBlur}
@@ -192,7 +191,7 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
                 type={values.secured ? "password" : "text"}
                 helperText={
                   isEdit && values.secured
-                    ? "Secure values are stored in our database. You can provide a new value to override"
+                    ? "The current value is hidden because the parameter is secured."
                     : null
                 }
               />
@@ -205,13 +204,13 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
                 onToggle={(value: string) => setFieldValue("secured", value)}
                 orientation="vertical"
                 toggled={values.secured}
-                helperText="Once a parameter is securely created - you will not be able to make it unsecure"
+                helperText="Hidden here and in logs. A secured parameter can't be made unsecured."
               />
               {error && (
                 <InlineNotification
                   lowContrast
                   kind="error"
-                  subtitle={`Request to ${isEdit ? "create" : "update"} parameter failed`}
+                  subtitle={`Request to ${isEdit ? "update" : "create"} parameter failed`}
                   title={"Something's Wrong"}
                   data-testid="create-update-parameter-notification"
                 />

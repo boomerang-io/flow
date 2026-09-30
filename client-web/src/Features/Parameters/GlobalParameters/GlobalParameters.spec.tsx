@@ -20,6 +20,9 @@ describe("GlobalParameters --- loader", () => {
     renderGlobalParameters();
     expect(await screen.findByText("test global label")).toBeInTheDocument();
     expect(screen.getByText("test global password")).toBeInTheDocument();
+    // A password-typed parameter is tagged Secured and its value masked.
+    expect(screen.getByText("Secured")).toBeInTheDocument();
+    expect(screen.getByText("******")).toBeInTheDocument();
   });
 });
 

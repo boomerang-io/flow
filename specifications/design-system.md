@@ -177,6 +177,15 @@ Content switchers are Boomerang blue, not the theme's inverse ink: one rule in
 `client-web/src/Styles/_carbon-components.scss` points the switcher's `border-inverse`,
 `layer-selected-inverse` and `text-secondary` tokens at the interactive and link colours.
 
+### Parameters
+
+Workflow, workspace and global parameters share one table (`client-web/src/Features/Parameters/ParametersTable/ParametersTable.tsx`):
+Name first in monospace (what tasks type), Label, then Type and Default value for a workflow or Value for the other two, a
+Required, Read-only or Secured tag, Description, and a menu with Edit, Copy reference and Delete. Search and Add parameter sit
+in the table toolbar. Each scope keeps its own modal; both are titled "Edit parameter" or "Add parameter", show the name as
+text with its reference once it exists (`$(params.x)`, `$(team.params.x)`, `$(global.params.x)`), and treat the label as
+optional, falling back to the name. The workflow modal previews the field a run shows.
+
 ### Schedules
 
 A workflow's Schedules tab and the workspace Schedules page share `Components/ScheduleViews`: a content
