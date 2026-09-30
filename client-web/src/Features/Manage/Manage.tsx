@@ -9,39 +9,29 @@ import {
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { Link, Navigate, Outlet } from "react-router-dom";
-import { AppPath, appLink, FeatureFlag } from "Config/appConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { ProtectedRoute } from "Features/App/App";
 import { useRoutePermissions } from "Features/App/AppRoutes";
+import { manageTabs, type ManageTab } from "./manageTabs";
 import styles from "./manage.module.scss";
 
-export interface ManageTab {
-  label: string;
-  to: string;
-  allowed: boolean;
+export type { ManageTab };
+
+/** The Manage tabs for this caller, from the route permissions and the feature flags. */
+export function useManageTabs(): Array<ManageTab> {
+  const permissions = useRoutePermissions();
+  return manageTabs(permissions, {
+    workspaceManagement: Boolean(useFeature(FeatureFlag.WorkspaceManagementEnabled)),
+    userManagement: Boolean(useFeature(FeatureFlag.UserManagementEnabled)),
+    globalParameters: Boolean(useFeature(FeatureFlag.GlobalParametersEnabled)),
+    tokens: Boolean(useFeature(FeatureFlag.TokensEnabled)),
+  });
 }
 
 /**
- * The Manage tabs in display order, each with whether this caller may see it: the same grants
- * the tab's route checks, and the same feature flags the server's navigation applies.
+ * "/admin" when its loader did not redirect: the first tab the caller may see (a client-side
+ * fallback for a failed profile read), or the same 403 every guarded route shows.
  */
-export function useManageTabs(): Array<ManageTab> {
-  const permissions = useRoutePermissions();
-  const workspaceManagementEnabled = Boolean(useFeature(FeatureFlag.WorkspaceManagementEnabled));
-  const userManagementEnabled = Boolean(useFeature(FeatureFlag.UserManagementEnabled));
-  const globalParametersEnabled = Boolean(useFeature(FeatureFlag.GlobalParametersEnabled));
-  const tokensEnabled = Boolean(useFeature(FeatureFlag.TokensEnabled));
-  return [
-    { label: "Settings", to: AppPath.Settings, allowed: permissions.canReadSettings },
-    { label: "Workspaces", to: AppPath.WorkspaceList, allowed: workspaceManagementEnabled && permissions.canReadWorkspaces },
-    { label: "Users", to: AppPath.UserList, allowed: userManagementEnabled && permissions.canReadUsers },
-    { label: "Parameters", to: AppPath.Properties, allowed: globalParametersEnabled && permissions.canReadParameters },
-    { label: "Tokens", to: AppPath.Tokens, allowed: tokensEnabled && permissions.canReadTokens },
-    { label: "Tasks", to: AppPath.Tasks, allowed: permissions.canReadTasks },
-    { label: "Audit", to: AppPath.Audit, allowed: permissions.canReadAudit },
-  ];
-}
-
-/** "/admin": the first tab the caller may see, or the same 403 every guarded route shows. */
 export function ManageIndex() {
   const first = useManageTabs().find((tab) => tab.allowed);
   if (!first) {

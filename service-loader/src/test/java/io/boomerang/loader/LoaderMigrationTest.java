@@ -393,6 +393,8 @@ class LoaderMigrationTest {
     assertDeletionPolicyDescribed();
     assertArtifactsAdded();
     assertArtifactTasksSeeded();
+    assertSettingsGroupsNamed();
+    assertStorageSettingsRetired();
     assertRootNodeSeeded();
     assertSystemWorkspaceSeeded();
     assertRolesSeeded();
@@ -548,13 +550,13 @@ class LoaderMigrationTest {
   }
 
   private void assertSettingsSeeded() {
-    assertThat(collection("settings").countDocuments()).isEqualTo(10);
+    assertThat(collection("settings").countDocuments()).isEqualTo(9);
     List<String> keys =
         collection("settings").distinct("key", String.class).into(new ArrayList<>());
     assertThat(keys)
         .containsExactlyInAnyOrder(
-            "artifacts", "audit", "auth", "customizations", "features", "integration", "task", "workspaces",
-            "workflow", "workflowrun");
+            "artifacts", "audit", "auth", "customizations", "features", "integration", "task", "quotas",
+            "workflowrun");
 
     // The trusted OIDC issuer configuration - seeded empty.
     Document auth = collection("settings").find(Filters.eq("key", "auth")).first();
@@ -570,7 +572,7 @@ class LoaderMigrationTest {
         .allMatch(String::isEmpty);
 
     // The quota defaults WorkspaceService.setDefaultQuotas resolves at read time.
-    Document quotas = collection("settings").find(Filters.eq("key", "workspaces")).first();
+    Document quotas = collection("settings").find(Filters.eq("key", "quotas")).first();
     assertThat(
             quotas.getList("config", Document.class).stream()
                 .map(config -> config.getString("key"))
@@ -582,6 +584,32 @@ class LoaderMigrationTest {
             "max.workflowrun.monthly",
             "max.workflowrun.duration",
             "max.workflowrun.storage");
+  }
+
+  /** _0055: every group reads as a noun and a sentence, and the quota defaults are keyed "quotas". */
+  private void assertSettingsGroupsNamed() {
+    assertThat(collection("settings").countDocuments(Filters.eq("key", "workspaces"))).isZero();
+    Document quotas = collection("settings").find(Filters.eq("key", "quotas")).first();
+    assertThat(quotas).isNotNull();
+    assertThat(quotas.get("_id")).isEqualTo(LEGACY_TEAM_QUOTAS_SETTINGS_ID);
+    assertThat(quotas.getString("name")).isEqualTo("Quotas");
+    Document customizations = collection("settings").find(Filters.eq("key", "customizations")).first();
+    assertThat(customizations.getString("name")).isEqualTo("Customization");
+    Document runLimits = collection("settings").find(Filters.eq("key", "workflowrun")).first();
+    assertThat(runLimits.getString("name")).isEqualTo("Run limits");
+  }
+
+  /** _0056: the v3 storage settings nothing reads are gone; the engine's two ceilings remain. */
+  private void assertStorageSettingsRetired() {
+    assertThat(collection("settings").countDocuments(Filters.eq("key", "workflow"))).isZero();
+    Document runLimits =
+        collection("settings").find(Filters.eq("_id", LEGACY_WORKFLOWRUN_SETTINGS_ID)).first();
+    assertThat(runLimits).isNotNull();
+    assertThat(
+            runLimits.getList("config", Document.class).stream()
+                .map(config -> config.getString("key"))
+                .toList())
+        .containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items");
   }
 
   private void assertTaskCatalogueSeeded() {
@@ -752,7 +780,7 @@ class LoaderMigrationTest {
         .isZero();
 
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(10);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(90);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(133);
     assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
@@ -768,7 +796,7 @@ class LoaderMigrationTest {
     fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
     assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(10);
+    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
     assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(90);
     assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(133);
     assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
@@ -869,9 +897,9 @@ class LoaderMigrationTest {
     // count, but the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5,
     // ungated) then inserts nothing new for those 7: its OR-guard matches every one of them by
     // _id. The "auth", "audit" and "artifacts" documents have no v3 predecessors to match,
-    // so _0021 inserts them fresh - bringing the total to 10.
+    // so _0021 inserts them fresh; _0056 then removes "workflow" - 9 in all.
     MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
-    assertThat(settings.countDocuments()).isEqualTo(10);
+    assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(
             settings
                 .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
@@ -966,7 +994,7 @@ class LoaderMigrationTest {
     // reconciled on the first run already exists).
     v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
     assertThatCode(() -> LoaderApplication.execute(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(settings.countDocuments()).isEqualTo(10);
+    assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(tasks.countDocuments()).isEqualTo(92);
     assertThat(taskRevisions.countDocuments()).isEqualTo(134);
     Document taskRunAfterSecondRun =
@@ -1610,9 +1638,9 @@ class LoaderMigrationTest {
     Document quotas =
         collection("settings").find(Filters.eq("_id", LEGACY_TEAM_QUOTAS_SETTINGS_ID)).first();
     assertThat(quotas).isNotNull();
-    assertThat(quotas.getString("key")).isEqualTo("workspaces");
-    assertThat(quotas.getString("name")).isEqualTo("Workspace Quotas");
-    assertThat(collection("settings").countDocuments(Filters.eq("key", "workspaces"))).isEqualTo(1);
+    // _0032 renamed the key to "workspaces"; _0055 later renames it again to "quotas".
+    assertThat(quotas.getString("key")).isEqualTo("quotas");
+    assertThat(collection("settings").countDocuments(Filters.eq("key", "quotas"))).isEqualTo(1);
   }
 
   /** {@code _0034}: the "features" document's legacy team.* config keys are renamed in place. */
@@ -1751,7 +1779,7 @@ class LoaderMigrationTest {
         .containsExactly(
             "retention.default.days=30", "retention.max.days=90", "max.artifact.size=1024");
 
-    Document workspaces = collection("settings").find(Filters.eq("key", "workspaces")).first();
+    Document workspaces = collection("settings").find(Filters.eq("key", "quotas")).first();
     assertThat(workspaces.getList("config", Document.class))
         .filteredOn(config -> "max.artifact.storage".equals(config.getString("key")))
         .extracting(config -> config.getString("value"))

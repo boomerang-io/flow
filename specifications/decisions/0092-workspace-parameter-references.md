@@ -1,4 +1,4 @@
-# 0091 — Workspace parameters are referenced as workspace.params; team.params is deprecated
+# 0092 — Workspace parameters are referenced as workspace.params; team.params is deprecated
 
 **Status:** accepted · **Date:** 2026-09-30
 

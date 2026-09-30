@@ -5,7 +5,9 @@ import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang
 import moment from "moment";
 import { appLink } from "Config/appConfig";
 import { ActionType } from "Constants";
+import { useAppContext } from "Hooks";
 import { isActionError, type ActionError } from "Utils/actionResult";
+import { hasPermission } from "Utils/permissionHelper";
 import { HomeAction } from "./homeLoader";
 import styles from "./attentionList.module.scss";
 
@@ -20,6 +22,7 @@ interface AttentionListProps {
 type PutActionResult = { intent: "putAction" } | ({ intent: "putAction" } & ActionError);
 
 export default function AttentionList({ items, total }: AttentionListProps) {
+  const { user } = useAppContext();
   const fetcher = useFetcher<PutActionResult>();
   const pendingId = fetcher.state !== "idle" ? String(fetcher.formData?.get("actionId") ?? "") : "";
 
@@ -82,17 +85,23 @@ export default function AttentionList({ items, total }: AttentionListProps) {
                   >
                     View run
                   </Link>
-                  <Button
-                    kind="danger--tertiary"
-                    size="sm"
-                    disabled={fetcher.state !== "idle"}
-                    onClick={() => decide(action, false)}
-                  >
-                    Reject
-                  </Button>
-                  <Button size="sm" disabled={fetcher.state !== "idle"} onClick={() => decide(action, true)}>
-                    Approve
-                  </Button>
+                  {/* The decision buttons only for a caller the server would let decide (action/action
+                      in this workspace); everyone else keeps the run link. */}
+                  {hasPermission(user, "action", "action", action.workspace) ? (
+                    <>
+                      <Button
+                        kind="danger--tertiary"
+                        size="sm"
+                        disabled={fetcher.state !== "idle"}
+                        onClick={() => decide(action, false)}
+                      >
+                        Reject
+                      </Button>
+                      <Button size="sm" disabled={fetcher.state !== "idle"} onClick={() => decide(action, true)}>
+                        Approve
+                      </Button>
+                    </>
+                  ) : null}
                 </>
               ) : (
                 <Button as={Link} kind="tertiary" size="sm" to={appLink.actionsManual({ workspace: action.workspace })}>

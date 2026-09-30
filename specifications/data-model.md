@@ -187,6 +187,8 @@ against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3Dump
 | `_0049__ForeachItems` | all | Creates the `parent_index` index (table above) and adds `max.foreach.items` (default 256) to the `workflowrun` settings document when absent |
 | `_0050__DescribeTaskDeletionPolicy` | all | Rewrites the `task`/`deletion.policy` description and option labels to say what each choice does to a task's worker, logs and run storage; the selected value is left as the admin set it |
 | `_0052__SeedArtifactTasks` | all | Inserts the `upload-artifact` and `download-artifact` catalogue tasks with ids assigned on insert (no seed file), each revision declaring its author params and the read-only link params Flow fills |
+| `_0055__RenameSettingsGroups` | all | Names every settings group for what it controls (Authentication, Customization, Integrations, Tasks, Quotas, Run limits) and renames the quota defaults' key `workspaces` → `quotas` in lock-step with `WorkspaceService.QUOTAS_SETTINGS_KEY`; values and entry keys untouched (decision 0091) |
+| `_0056__RetireStorageSettings` | all | Removes the `workflow` settings document and the four v3 storage entries of `workflowrun`, none of which any code reads (a volume is sized by the workflow's spec, the workspace quota and the dispatcher's `kube.workspace.storage.*`); `workflowrun` keeps `max.nesting.depth` and `max.foreach.items` |
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.

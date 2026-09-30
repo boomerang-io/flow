@@ -60,8 +60,8 @@ no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews e
 | Package | Owns | Imports from (verified by grep over `^import io.boomerang.*`) |
 | --- | --- | --- |
 | `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `SecurityInterceptor`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`. | nothing above it — zero upward imports |
-| `workspace` | Workspaces, quotas (`FlowQuotaProperties`), insights, profile. | `core`, `workflow` |
-| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` |
+| `workspace` | Workspaces, quotas (`FlowQuotaProperties`), the audit-trail insights roll-up the quotas read (`InsightsService`), the Insights controller, profile. | `core`, `workflow` |
+| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), the run statistics the Insights page shows (`WorkflowRunInsightService`), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` |
 | `engine` | Execution: `WorkflowExecutionService`, `TaskExecutionService`, `TaskRunService`, `DAGUtility`, `WorkflowRunStateHelper`, `WorkflowWatcher`, `LogClient`. | `workflow`, `dispatcher` (the `dispatchers` repository, `engine/WorkflowWatcher.java:14-15`) |
 | `dispatcher` | The worker registry and the v1 wire: `DispatcherControllerV1`, `DispatcherService`, `DispatcherAuthFilter`, `DispatcherSecurityConfiguration`. | `core`, `engine`, `workflow` |
 | `schedule` | Cron schedules and their firing: `ScheduleService`, `ScheduleWatcher`, `ScheduleJob`. | `core`, `workflow` |

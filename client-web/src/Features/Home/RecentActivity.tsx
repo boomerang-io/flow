@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Tag } from "@carbon/react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag } from "@carbon/react";
 import { getHumanizedDuration } from "@boomerang-io/utils";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
@@ -32,6 +32,7 @@ function formatDuration(duration: number): string {
   return duration < 1000 ? "< 1 second" : getHumanizedDuration(Math.round(duration / 1000));
 }
 
+/** The newest runs across the caller's workspaces, one real table row each; the name opens the run. */
 export default function RecentActivity({ runs }: { runs: Array<HomeRun> }) {
   if (runs.length === 0) {
     return (
@@ -41,53 +42,41 @@ export default function RecentActivity({ runs }: { runs: Array<HomeRun> }) {
     );
   }
   return (
-    <div className={styles.table} role="table" aria-label="Recent runs">
-      <div className={styles.head} role="row">
-        <span role="columnheader">Status</span>
-        <span role="columnheader">Workflow</span>
-        <span role="columnheader" className={styles.workspace}>
-          Workspace
-        </span>
-        <span role="columnheader" className={styles.trigger}>
-          Trigger
-        </span>
-        <span role="columnheader" className={styles.duration}>
-          Duration
-        </span>
-        <span role="columnheader" className={styles.started}>
-          Started
-        </span>
-      </div>
-      {runs.map((run) => (
-        <Link
-          key={run.id}
-          className={styles.row}
-          role="row"
-          to={appLink.execution({ workspace: run.workspace, runId: run.id })}
-          data-testid="home-recent-run"
-        >
-          <span role="cell">
-            <Tag type={statusTag[run.status] ?? "gray"} size="sm">
-              {ExecutionStatusCopy[run.status] ?? run.status}
-            </Tag>
-          </span>
-          <span role="cell" className={styles.name} title={run.workflowName}>
-            {run.workflowName || run.workflowRef}
-          </span>
-          <span role="cell" className={styles.workspace}>
-            {run.workspaceDisplayName}
-          </span>
-          <span role="cell" className={styles.trigger}>
-            {run.trigger || "---"}
-          </span>
-          <span role="cell" className={styles.duration}>
-            {formatDuration(run.duration)}
-          </span>
-          <time role="cell" className={styles.started} dateTime={run.creationDate}>
-            {moment(run.creationDate).fromNow()}
-          </time>
-        </Link>
-      ))}
+    <div className={styles.table}>
+      <Table size="md" aria-label="Recent runs" useZebraStyles={false}>
+        <TableHead>
+          <TableRow>
+            <TableHeader>Status</TableHeader>
+            <TableHeader>Workflow</TableHeader>
+            <TableHeader className={styles.wide}>Workspace</TableHeader>
+            <TableHeader className={styles.wide}>Trigger</TableHeader>
+            <TableHeader className={styles.wide}>Duration</TableHeader>
+            <TableHeader className={styles.started}>Started</TableHeader>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {runs.map((run) => (
+            <TableRow key={run.id} data-testid="home-recent-run">
+              <TableCell>
+                <Tag type={statusTag[run.status] ?? "gray"} size="sm">
+                  {ExecutionStatusCopy[run.status] ?? run.status}
+                </Tag>
+              </TableCell>
+              <TableCell>
+                <Link className={styles.name} to={appLink.execution({ workspace: run.workspace, runId: run.id })}>
+                  {run.workflowName || run.workflowRef}
+                </Link>
+              </TableCell>
+              <TableCell className={`${styles.muted} ${styles.wide}`}>{run.workspaceDisplayName}</TableCell>
+              <TableCell className={`${styles.muted} ${styles.wide} ${styles.trigger}`}>{run.trigger || "---"}</TableCell>
+              <TableCell className={`${styles.muted} ${styles.wide}`}>{formatDuration(run.duration)}</TableCell>
+              <TableCell className={`${styles.muted} ${styles.started}`}>
+                <time dateTime={run.creationDate}>{moment(run.creationDate).fromNow()}</time>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

@@ -249,7 +249,7 @@ function Selects(props: SelectsProps) {
 
   function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
-    props.updateHistorySearch({ ...search, workflows: workflowRefs, page: 0 });
+    props.updateHistorySearch({ ...search, workflows: workflowRefs });
   }
 
   function handleSelectStatuses({ selectedItems }: MultiSelectItems<SelectableStatus>) {

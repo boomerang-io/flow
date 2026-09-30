@@ -160,12 +160,12 @@ public class RunTimeoutPolicy {
       return Long.parseLong(
           settingsService
               .getSettingConfig(
-                  WorkspaceService.WORKSPACES_SETTINGS_KEY,
+                  WorkspaceService.QUOTAS_SETTINGS_KEY,
                   WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
               .getValue());
     } catch (RuntimeException e) {
       LOGGER.warn("No {} quota settings; a run with no declared timeout stays unguarded.",
-          WorkspaceService.WORKSPACES_SETTINGS_KEY);
+          WorkspaceService.QUOTAS_SETTINGS_KEY);
       return 0;
     }
   }

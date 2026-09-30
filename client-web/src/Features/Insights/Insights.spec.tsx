@@ -98,7 +98,7 @@ describe("Insights --- page", () => {
 
     await waitFor(() =>
       expect(history.location.search).toBe(
-        "?" + queryString.stringify({ workflows: "Personal - Java - Deploy", page: 0 }, queryStringOptions),
+        "?" + queryString.stringify({ workflows: "Personal - Java - Deploy" }, queryStringOptions),
       ),
     );
   });

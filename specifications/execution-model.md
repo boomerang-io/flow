@@ -115,7 +115,7 @@ cancels every queued, running and pending task (`engine/WorkflowExecutionService
 A run's timeout is settled at submit, in the one method every path that creates a run passes through
 (`workflow/WorkflowService.java:1878-1884`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
 wins, else the revision's, else the run-duration quota itself - the workspace's own `maxWorkflowRunDuration`
-override when it has one, else the platform `workspaces`/`max.workflowrun.duration` setting
+override when it has one, else the platform `quotas`/`max.workflowrun.duration` setting
 (`RunTimeoutPolicy.java:152-170`) - so a run is never created unguarded just because nobody named a budget. That value
 must be at least the revision's critical path, the longest chain of declared task timeouts through the graph
 (`RunTimeoutPolicy.java:100-114`); below it the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306) rather
