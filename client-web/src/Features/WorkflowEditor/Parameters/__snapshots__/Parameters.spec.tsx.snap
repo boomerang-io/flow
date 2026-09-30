@@ -10,215 +10,477 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
       class="_container_a9aeba"
       role="region"
     >
-      <section
-        class="_property_a9aeba"
+      <div
+        class="_tableContainer_9d297e"
       >
         <div
-          class="_headerContainer_a9aeba"
+          class="cds--data-table-container"
         >
-          <h1
-            class="_label_a9aeba"
+          <section
+            aria-label="Parameters toolbar"
+            class="cds--table-toolbar"
           >
-            Tim parameter
-          </h1>
-          <p
-            class="_description_a9aeba"
-          >
-            Tim parameter
-          </p>
-        </div>
-        <dl
-          class="_fieldContainer_a9aeba"
-        >
-          <dt
-            class="_fieldKey_a9aeba"
-          >
-            Name
-          </dt>
-          <dd
-            class="_fieldValue_a9aeba"
-          >
-            tim-parameter
-          </dd>
-        </dl>
-        <dl
-          class="_fieldContainer_a9aeba"
-        >
-          <dt
-            class="_fieldKey_a9aeba"
-          >
-            Type
-          </dt>
-          <dd
-            class="_fieldValue_a9aeba"
-          >
-            select
-          </dd>
-        </dl>
-        <dl
-          class="_fieldContainer_a9aeba"
-        >
-          <dt
-            class="_fieldKey_a9aeba"
-          >
-            Default value
-          </dt>
-          <dd
-            class="_fieldValue_a9aeba"
-          >
-            pandas
-          </dd>
-        </dl>
-        <dl
-          class="_fieldContainer_a9aeba"
-        >
-          <dt
-            class="_fieldKey_a9aeba"
-          >
-            Options
-          </dt>
-          <dd
-            class="_fieldValue_a9aeba"
-          >
-            pandas, dogs
-          </dd>
-        </dl>
-        <p
-          class="_required_a9aeba"
-        >
-          Required
-        </p>
-        <svg
-          alt="Workflow edit button"
-          aria-label="Edit"
-          class="_editButton_ec51c7 _editContainer_e79293"
-          data-testid="edit-parameter-button"
-          role="button"
-          style="will-change: auto;"
-          tabindex="0"
-          viewBox="0 0 26 26"
-        >
-          <title>
-            edit
-          </title>
-          <g
-            fill="none"
-            fill-rule="evenodd"
-            id="Symbols"
-            stroke="none"
-            stroke-width="1"
-          >
-            <g
-              id="Editor-/-task-card"
-              transform="translate(-190.000000, 13.000000)"
+            <div
+              class="cds--toolbar-content"
             >
-              <g
-                id="edit"
-                transform="translate(191.000000, -12.000000)"
+              <div
+                aria-label="Search parameters"
+                class="cds--search cds--search--lg cds--toolbar-search-container-persistent"
+                role="search"
               >
-                <circle
-                  cx="12"
-                  cy="12"
-                  fill="#FFFFFF"
-                  id="Oval"
-                  r="12"
-                  stroke="#0072C3"
+                <div
+                  class="cds--search-magnifier"
+                  tabindex="-1"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="cds--search-magnifier-icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                    />
+                  </svg>
+                </div>
+                <label
+                  class="cds--label"
+                  for="table-toolbar-search-[generated-id]"
+                  id="table-toolbar-search-[generated-id]-search"
+                >
+                  Filter table
+                </label>
+                <input
+                  autocomplete="off"
+                  class="cds--search-input"
+                  id="table-toolbar-search-[generated-id]"
+                  placeholder="Search parameters"
+                  role="searchbox"
+                  tabindex="0"
+                  type="text"
+                  value=""
                 />
-                <g
-                  fill="#000000"
-                  id="Actions-/-Formatting-/-edit-/-24"
-                  transform="translate(4.000000, 4.000000)"
+                <button
+                  aria-label="Clear search input"
+                  class="cds--search-close cds--search-close--hidden"
+                  title="Clear search input"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <button
+                class="cds--btn cds--btn--primary"
+                data-testid="create-parameter-button"
+                type="button"
+              >
+                Add parameter
+                <svg
+                  aria-hidden="true"
+                  class="cds--btn__icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M1,13.5 L15,13.5 L15,14.5 L1,14.5 L1,13.5 Z M12.705,4.5 C12.892777,4.31243174 12.9982867,4.05790925 12.9982867,3.7925 C12.9982867,3.52709075 12.892777,3.27256826 12.705,3.085 L10.915,1.295 C10.7274317,1.10722296 10.4729092,1.00171334 10.2075,1.00171334 C9.94209075,1.00171334 9.68756826,1.10722296 9.5,1.295 L2,8.795 L2,12 L5.205,12 L12.705,4.5 Z M10.205,2 L12,3.795 L10.5,5.295 L8.705,3.5 L10.205,2 Z M3,11 L3,9.205 L8,4.205 L9.795,6 L4.795,11 L3,11 Z"
-                    id="Fill"
+                    d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
                   />
-                </g>
-              </g>
-            </g>
-          </g>
-        </svg>
-        <svg
-          alt="Workflow close button"
-          class="_closeButton_fda0f7 _deleteProperty_a9aeba"
-          data-testid="workflow-delete-parameter-button"
-          height="26px"
-          role="button"
-          tabindex="0"
-          viewBox="0 0 26 26"
-          width="26px"
-        >
-          <title>
-            close-button
-          </title>
-          <g
-            fill="none"
-            fill-rule="evenodd"
-            id="30-editor"
-            stroke="none"
-            stroke-width="1"
+                </svg>
+              </button>
+            </div>
+          </section>
+          <div
+            class="cds--data-table-content"
           >
-            <g
-              id="close-button"
-              transform="translate(1.000000, 1.000000)"
+            <table
+              class="cds--data-table _table_9d297e cds--data-table--lg cds--data-table--sort"
             >
-              <circle
-                cx="12"
-                cy="12"
-                fill="#FFFFFF"
-                id="Oval"
-                r="12"
-                stroke="#0072C3"
-              />
-              <g
-                fill="#000000"
-                id="Actions-/-Navigation-/-close-/-24"
-                transform="translate(4.000000, 4.000000)"
+              <thead>
+                <tr>
+                  <th
+                    aria-sort="none"
+                    class="_name_9d297e cds--table-sort__header"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-sort__description"
+                      id="table-sort-[generated-id]"
+                    >
+                      Click to sort rows by Name header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-[generated-id]"
+                      class="_name_9d297e cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Name
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                          />
+                          <path
+                            d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                        <div
+                          class="cds--table-header-label--decorator-inner"
+                        />
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    class="_label_9d297e cds--table-sort__header"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-sort__description"
+                      id="table-sort-[generated-id]"
+                    >
+                      Click to sort rows by Label header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-[generated-id]"
+                      class="_label_9d297e cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Label
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                          />
+                          <path
+                            d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                        <div
+                          class="cds--table-header-label--decorator-inner"
+                        />
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    class="_type_9d297e cds--table-sort__header"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-sort__description"
+                      id="table-sort-[generated-id]"
+                    >
+                      Click to sort rows by Type header in ascending order
+                    </div>
+                    <button
+                      aria-describedby="table-sort-[generated-id]"
+                      class="_type_9d297e cds--table-sort"
+                      type="button"
+                    >
+                      <span
+                        class="cds--table-sort__flex"
+                      >
+                        <div
+                          class="cds--table-header-label"
+                        >
+                          Type
+                        </div>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4z"
+                          />
+                        </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="cds--table-sort__icon-unsorted"
+                          fill="currentColor"
+                          focusable="false"
+                          height="20"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox="0 0 32 32"
+                          width="20"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.6 20.6 24 24.2 24 4 22 4 22 24.2 18.4 20.6 17 22 23 28 29 22z"
+                          />
+                          <path
+                            d="M9 4 3 10 4.4 11.4 8 7.8 8 28 10 28 10 7.8 13.6 11.4 15 10z"
+                          />
+                        </svg>
+                        <div
+                          class="cds--table-header-label--decorator-inner"
+                        />
+                      </span>
+                    </button>
+                  </th>
+                  <th
+                    class="_default_9d297e"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Default value
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
+                    </div>
+                  </th>
+                  <th
+                    class="_tag_9d297e"
+                    scope="col"
+                  />
+                  <th
+                    class="_description_9d297e"
+                    scope="col"
+                  >
+                    <div
+                      class="cds--table-header-label"
+                    >
+                      Description
+                      <div
+                        class="cds--table-header-label--decorator-inner"
+                      />
+                    </div>
+                  </th>
+                  <th
+                    class="_actions_9d297e"
+                    scope="col"
+                  />
+                </tr>
+              </thead>
+              <tbody
+                aria-live="polite"
               >
-                <polygon
-                  id="Fill"
-                  points="12 4.7 11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3 4.7 12 8 8.7 11.3 12 12 11.3 8.7 8"
-                />
-              </g>
-            </g>
-          </g>
-        </svg>
-      </section>
-      <button
-        class="_createPropertyCard_e79293"
-        data-testid="create-parameter-button"
-      >
-        <div
-          class="_createContainer_e79293"
-        >
-          <svg
-            aria-label="Add"
-            class="_createIcon_e79293"
-            fill="currentColor"
-            focusable="false"
-            height="32"
-            preserveAspectRatio="xMidYMid meet"
-            role="img"
-            viewBox="0 0 32 32"
-            width="32"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
-            />
-          </svg>
-          <p
-            class="_createText_e79293"
-          >
-            Create a new parameter
-          </p>
+                <tr>
+                  <td
+                    class="_name_9d297e"
+                  >
+                    <span
+                      class="_name_9d297e"
+                    >
+                      tim-parameter
+                    </span>
+                  </td>
+                  <td
+                    class="_label_9d297e"
+                  >
+                    <span
+                      class="_text_9d297e"
+                    >
+                      Tim parameter
+                    </span>
+                  </td>
+                  <td
+                    class="_type_9d297e"
+                  >
+                    Select
+                  </td>
+                  <td
+                    class="_default_9d297e"
+                  >
+                    <span
+                      class="_value_9d297e"
+                    >
+                      pandas
+                    </span>
+                  </td>
+                  <td
+                    class="_tag_9d297e"
+                  >
+                    <div
+                      class="cds--tag cds--tag--sm cds--layout--size-sm cds--tag--blue"
+                      id="tag-id-[generated-id]"
+                    >
+                      <span
+                        class="cds--tag__label"
+                        dir="auto"
+                        title="Required"
+                      >
+                        Required
+                      </span>
+                    </div>
+                  </td>
+                  <td
+                    class="_description_9d297e"
+                  >
+                    <span
+                      class="_text_9d297e"
+                    >
+                      Tim parameter
+                    </span>
+                  </td>
+                  <td
+                    class="_actions_9d297e"
+                  >
+                    <span
+                      class="cds--overflow-menu__wrapper"
+                    >
+                      <span
+                        class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
+                      >
+                        <div
+                          class="cds--tooltip-trigger__wrapper"
+                        >
+                          <button
+                            aria-expanded="false"
+                            aria-haspopup="true"
+                            aria-labelledby="tooltip-[generated-id]"
+                            class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--md cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
+                            data-testid="parameter-menu-button"
+                            type="button"
+                          >
+                            <svg
+                              aria-label="Parameter actions"
+                              class="cds--overflow-menu__icon"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              role="img"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <circle
+                                cx="16"
+                                cy="8"
+                                r="2"
+                              />
+                              <circle
+                                cx="16"
+                                cy="16"
+                                r="2"
+                              />
+                              <circle
+                                cx="16"
+                                cy="24"
+                                r="2"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                        <span
+                          aria-hidden="true"
+                          class="cds--popover"
+                          id="tooltip-[generated-id]"
+                          role="tooltip"
+                        >
+                          <span
+                            class="cds--popover-content cds--tooltip-content"
+                          >
+                            Parameter actions
+                          </span>
+                          <span
+                            class="cds--popover-caret"
+                          />
+                        </span>
+                      </span>
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </button>
+      </div>
     </div>
   </div>
-  <div
-    class="cds--bmrg-modal-portal"
-  />
   <div
     class="cds--bmrg-modal-portal"
   />
