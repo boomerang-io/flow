@@ -208,8 +208,11 @@ Cron and run-once schedules fire from `ScheduleWatcher`, in both modes, on the s
 (`schedule/ScheduleWatcher.java:31`, `:65-73`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
 `ScheduleService.tryClaimFire`, a CAS that advances `nextFireAt` to the next occurrence computed from now (`schedule/ScheduleService.java:457-470`),
 so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:133-157`).
-Occurrences are computed with cron-utils' UNIX definition, five fields: minute, hour, day of month, month, day of week
-(`ScheduleService.java:438`); an expression that doesn't parse has no next occurrence and never fires.
+Occurrences are computed with cron-utils' UNIX definition, five fields: minute, hour, day of month, month, day of week.
+`CronService.toUnix` reads a stored cron in any form it was saved in - a six- or seven-field Quartz expression (as v3 and v4
+stored them) is mapped, and for a `cron` schedule the "0 mm HH * DAYS" order an earlier schedule form saved is reordered - and
+is applied when a schedule is saved, fired and drawn on the calendar, so older data fires without a migration. An expression
+it can't read has no next occurrence and never fires.
 
 ## Child workflows
 

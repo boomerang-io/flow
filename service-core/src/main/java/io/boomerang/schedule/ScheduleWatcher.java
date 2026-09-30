@@ -89,9 +89,7 @@ public class ScheduleWatcher {
           if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
             return;
           }
-          Date next =
-              scheduleService.nextOccurrence(
-                  schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
+          Date next = scheduleService.nextOccurrence(schedule, ZonedDateTime.now());
           if (next != null) {
             scheduleService.initializeNextFireAt(schedule.getId(), next);
           }
@@ -114,8 +112,7 @@ public class ScheduleWatcher {
           Date next =
               WorkflowScheduleType.runOnce.equals(schedule.getType())
                   ? null
-                  : scheduleService.nextOccurrence(
-                      schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
+                  : scheduleService.nextOccurrence(schedule, ZonedDateTime.now());
           if (scheduleService.tryClaimFire(schedule.getId(), schedule.getNextFireAt(), next, now)) {
             fireWithRetry(schedule);
           }
