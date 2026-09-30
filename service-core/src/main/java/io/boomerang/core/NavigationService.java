@@ -165,68 +165,15 @@ public class NavigationService {
         response.add(management);
       }
 
+      // One link: the Manage area is a tabbed page, and the webapp decides which tabs to show
+      // from the caller's grants and the feature flags (client-web Features/Manage).
       if (isUserAdmin) {
-        Navigation admin = new Navigation();
-        admin.setName("Administer");
-        admin.setType(NavigationType.menu);
-        admin.setIcon("Settings");
-        admin.setChildLinks(new ArrayList<>());
-
-        if (((Boolean) features.getFeatures().get("workspace.management"))) {
-          Navigation teams = new Navigation();
-          teams.setName("Workspaces");
-          teams.setLink(flowAppsUrl + "/admin/workspaces");
-          teams.setType(NavigationType.link);
-          admin.getChildLinks().add(teams);
-        }
-
-        if (((Boolean) features.getFeatures().get("user.management"))) {
-          Navigation users = new Navigation();
-          users.setName("Users");
-          users.setLink(flowAppsUrl + "/admin/users");
-          users.setType(NavigationType.link);
-          admin.getChildLinks().add(users);
-        }
-
-        if (((Boolean) features.getFeatures().get("global.parameters"))) {
-          Navigation properties = new Navigation();
-          properties.setName("Global Parameters");
-          properties.setLink(flowAppsUrl + "/admin/parameters");
-          properties.setType(NavigationType.link);
-          admin.getChildLinks().add(properties);
-        }
-
-        Navigation tokens = new Navigation();
-        tokens.setName("Global Tokens");
-        tokens.setLink(flowAppsUrl + "/admin/tokens");
-        tokens.setType(NavigationType.link);
-        admin.getChildLinks().add(tokens);
-
-        Navigation settings = new Navigation();
-        settings.setName("Settings");
-        settings.setLink(flowAppsUrl + "/admin/settings");
-        settings.setType(NavigationType.link);
-        admin.getChildLinks().add(settings);
-
-        Navigation audit = new Navigation();
-        audit.setName("Audit");
-        audit.setLink(flowAppsUrl + "/admin/audit");
-        audit.setType(NavigationType.link);
-        admin.getChildLinks().add(audit);
-
-        Navigation taskManager = new Navigation();
-        taskManager.setName("Task Manager");
-        taskManager.setLink(flowAppsUrl + "/admin/task-manager");
-        taskManager.setType(NavigationType.link);
-        admin.getChildLinks().add(taskManager);
-
-        Navigation templateWorkflows = new Navigation();
-        templateWorkflows.setName("Template Workflows");
-        templateWorkflows.setLink(flowAppsUrl + "/admin/template-workflows");
-        templateWorkflows.setType(NavigationType.link);
-        admin.getChildLinks().add(templateWorkflows);
-
-        response.add(admin);
+        Navigation manage = new Navigation();
+        manage.setName("Manage");
+        manage.setType(NavigationType.link);
+        manage.setIcon("Settings");
+        manage.setLink(flowAppsUrl + "/admin");
+        response.add(manage);
       }
 
       return response;

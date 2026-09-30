@@ -1,24 +1,22 @@
 import React, { useEffect, useRef } from "react";
 import { Helmet } from "react-helmet";
-import { useFetcher, useLoaderData } from "react-router-dom";
-import { Box } from "reflexbox";
-import { Accordion } from "@carbon/react";
+import { Navigate, useFetcher, useLoaderData, useParams } from "react-router-dom";
 import {
   ErrorMessage,
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
+  FeatureSideNav as SideNav,
+  FeatureSideNavLink as SideNavLink,
+  FeatureSideNavLinks as SideNavLinks,
   notify,
   ToastNotification,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import SettingsSection from "./SettingsSection";
 import sortBy from "lodash/sortBy";
-import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
+import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { DataDrivenInput } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import SettingsSection from "./SettingsSection";
 import styles from "./settings.module.scss";
 
 export type SettingsGroup = {
@@ -28,10 +26,11 @@ export type SettingsGroup = {
   config: DataDrivenInput[];
 };
 
-// Server loader/action, same shift as Features/Parameters/GlobalParameters/GlobalParameters.tsx
-// (the reference conversion): reads move to a `loader` that never throws (a failed fetch resolves
-// with `errorLoading: true` so the route chrome still renders), writes move to a single `action`
-// driven by `useFetcher()` below.
+// Route module for the Settings tab of the Manage area (path "/admin/settings/:group?"). The
+// selected group is the URL, so a section is linkable and the browser's back button walks
+// sections; without one the page sends the caller to the first group by name. Reads live in a
+// `loader` that never throws (a failed fetch resolves with `errorLoading: true` so the tab chrome
+// still renders); the one write is the `action` driven by `useFetcher()` below.
 type LoaderData = {
   settings: SettingsGroup[];
   errorLoading: boolean;
@@ -68,34 +67,13 @@ export async function action({ request }: { request: Request }) {
   }
 }
 
-const FeatureLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
-  return (
-    <>
-      <Header
-        className={styles.header}
-        includeBorder={false}
-        nav={<AdminBreadcrumb />}
-        header={
-          <>
-            <HeaderTitle className={styles.headerTitle}>Settings</HeaderTitle>
-            <HeaderSubtitle>Adjust Flow settings</HeaderSubtitle>
-          </>
-        }
-      />
-      <Box p="2rem" overflowY="auto" className={styles.container}>
-        {children}
-      </Box>
-    </>
-  );
-};
-
 const Settings: React.FC = () => {
   const { settings, errorLoading } = useLoaderData() as LoaderData;
+  const { group } = useParams<{ group?: string }>();
   const fetcher = useFetcher<ActionResult>();
   // onSave hands this component a Formik `setFieldError` at submit time; the fetcher settles
-  // asynchronously, so - same as GlobalParameters.tsx's closeModalRef - the callback is stashed
-  // here and invoked from the effect below only on success, matching the previous
-  // mutateAsync-then behaviour of re-arming "initialerror" once the update actually succeeded.
+  // asynchronously, so the callback is stashed here and invoked from the effect below only on
+  // success, re-arming "initialerror" once the update actually succeeded.
   const setFieldErrorRef = useRef<((key: string, value: string) => void) | null>(null);
 
   useEffect(() => {
@@ -124,28 +102,44 @@ const Settings: React.FC = () => {
 
   if (errorLoading) {
     return (
-      <FeatureLayout>
+      <div className={styles.container}>
         <ErrorMessage />
-      </FeatureLayout>
+      </div>
     );
   }
 
-  const sortedPlatformSettings = sortBy(settings, (settingObj) => settingObj.name);
-  return (
-    <FeatureLayout>
-      <Helmet>
-        <title>Settings</title>
-      </Helmet>
-      {!sortedPlatformSettings.length ? (
+  const sortedGroups = sortBy(settings, (settingsGroup) => settingsGroup.name);
+  if (sortedGroups.length === 0) {
+    return (
+      <div className={styles.container}>
         <EmptyState />
-      ) : (
-        <Accordion>
-          {sortedPlatformSettings.map((settingsGroup, index) => (
-            <SettingsSection index={index} key={index} onSave={handleOnSave} settingsGroup={settingsGroup} />
+      </div>
+    );
+  }
+
+  const selected = sortedGroups.find((settingsGroup) => settingsGroup.key === group);
+  if (!selected) {
+    return <Navigate to={appLink.settingsGroup({ group: sortedGroups[0].key })} replace />;
+  }
+
+  return (
+    <div className={styles.layout}>
+      <Helmet>
+        <title>{`${selected.name} - Settings`}</title>
+      </Helmet>
+      <SideNav className={styles.nav} border="right">
+        <SideNavLinks>
+          {sortedGroups.map((settingsGroup) => (
+            <SideNavLink key={settingsGroup.key} to={appLink.settingsGroup({ group: settingsGroup.key })}>
+              {settingsGroup.name}
+            </SideNavLink>
           ))}
-        </Accordion>
-      )}
-    </FeatureLayout>
+        </SideNavLinks>
+      </SideNav>
+      <div className={styles.container}>
+        <SettingsSection key={selected.key} onSave={handleOnSave} settingsGroup={selected} />
+      </div>
+    </div>
   );
 };
 

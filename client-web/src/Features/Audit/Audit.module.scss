@@ -1,60 +1,122 @@
+@import "Styles/mixins";
+
 .content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   overflow: auto;
+  padding: 1.5rem 2rem 3rem;
+
+  :global .cds--list-box {
+    width: 13rem;
+  }
+
+  :global .cds--list-box__field {
+    width: 13rem;
+  }
+
+  :global .cds--list-box__label {
+    @include text-overflow-ellipsis();
+  }
+
+  :global .cds--list-box__menu {
+    height: auto;
+    left: unset;
+    max-height: unset;
+    min-width: 12rem;
+    right: 0;
+  }
 }
 
 .stats {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 1rem;
-  margin: 0 0 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 }
 
-.stat {
-  min-width: 9rem;
-  padding: 0.75rem 1rem;
-  background-color: var(--cds-ui-01);
-  border-left: 2px solid var(--cds-ui-03);
+.capture {
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-label-01-font-size, 0.75rem);
+  line-height: var(--cds-label-01-line-height, 1.33333);
+  margin: -0.5rem 0 0;
+
+  a {
+    color: var(--cds-link-primary);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
-.statLabel {
-  color: var(--cds-text-02);
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.statValue {
-  margin: 0.25rem 0 0;
-  color: var(--cds-text-01);
-  font-size: 1.25rem;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
+// The same filter row every list in Flow has: labelled dropdowns on the page background, the
+// date range on the right.
+.dataFilters {
   align-items: flex-end;
+  display: flex;
+  flex-flow: row wrap;
   gap: 1rem;
+}
 
-  > :global(.cds--search) {
-    max-width: 18rem;
-  }
+.searchField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 16rem;
 
-  > :global(.cds--dropdown__wrapper) {
-    min-width: 11rem;
+  // Carbon's Search keeps its label for assistive technology only; list pages show one.
+  :global .cds--search {
+    width: 100%;
   }
 }
 
-.clearFilters {
-  padding: 0 0 0.5rem;
-  border: none;
-  background: none;
-  color: var(--cds-link-01);
-  cursor: pointer;
-  text-decoration: underline;
+.searchLabel {
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-label-01-font-size, 0.75rem);
+  letter-spacing: var(--cds-label-01-letter-spacing, 0.32px);
+  line-height: var(--cds-label-01-line-height, 1.33333);
+}
+
+.timeFilters {
+  align-items: flex-end;
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.panel {
+  @include border-radius();
+  background-color: var(--cds-layer-01, var(--cds-ui-01));
+  box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
+  overflow: hidden;
 }
 
 .muted {
+  color: var(--cds-text-secondary);
   display: block;
-  color: var(--cds-text-02);
-  font-size: 0.75rem;
+  font-size: var(--cds-label-01-font-size, 0.75rem);
+  line-height: var(--cds-label-01-line-height, 1.33333);
+}
+
+.outcome {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.375rem;
+  white-space: nowrap;
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.outcomeSuccess svg {
+  fill: var(--cds-support-success);
+}
+
+.outcomeFailed svg {
+  fill: var(--cds-support-error);
+}
+
+.outcomeDenied svg {
+  fill: var(--flow-wait);
 }

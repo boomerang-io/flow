@@ -69,7 +69,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
             {viewType === WorkflowView.Workflow ? (
               <Link to={appLink.workflows({ workspace: params.workspace })}>Workflows</Link>
             ) : (
-              <Link to={appLink.templateWorkflows()}>Template Workflows</Link>
+              <Link to={appLink.home()}>Templates</Link>
             )}
           </BreadcrumbItem>
           <BreadcrumbItem isCurrentPage>

@@ -5,60 +5,9 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
   id="app"
 >
   <div>
-    <header
-      class="cds--bmrg-feature-header"
+    <div
+      class="_content_96c623 css-1ao9568"
     >
-      <section
-        class="cds--bmrg-feature-header__content"
-      >
-        <div
-          class="cds--bmrg-feature-header__nav"
-        >
-          <nav
-            aria-label="Breadcrumb"
-          >
-            <ol
-              class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
-            >
-              <li
-                class="cds--breadcrumb-item"
-              >
-                <a
-                  class="cds--link"
-                  data-discover="true"
-                  href="/home"
-                >
-                  Home
-                </a>
-              </li>
-              <li
-                class="cds--breadcrumb-item cds--breadcrumb-item--current"
-              >
-                <p
-                  class="cds--link"
-                >
-                  Administer
-                </p>
-              </li>
-            </ol>
-          </nav>
-        </div>
-        <div
-          class="cds--bmrg-feature-header__header"
-        >
-          <h1
-            class="cds--bmrg-feature-header-title"
-            style="margin: 0px;"
-          >
-            Users
-          </h1>
-          <p
-            class="cds--bmrg-feature-header-title"
-          >
-            Everyone who has signed in. People join by signing in; the first to sign in became an admin.
-          </p>
-        </div>
-      </section>
       <div
         class="_search_96c623"
       >
@@ -126,10 +75,6 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
           </button>
         </div>
       </div>
-    </header>
-    <div
-      class="_content_96c623 css-1ao9568"
-    >
       <div
         class="cds--data-table-container"
       >

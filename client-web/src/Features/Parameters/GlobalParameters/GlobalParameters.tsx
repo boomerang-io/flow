@@ -1,11 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  notify,
-  ToastNotification,
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { Helmet } from "react-helmet";
 import { useFetcher, useLoaderData } from "react-router-dom";
@@ -17,7 +11,6 @@ import { actionError, isActionError, type ActionError } from "Utils/actionResult
 import CreateEditParametersModal from "../CreateEditParametersModal";
 import ParametersTable from "../ParametersTable";
 import styles from "./globalParameters.module.scss";
-import AdminBreadcrumb from "Components/AdminBreadcrumb";
 
 // Route module: this file's `loader`/`action` are attached to the route in AppRoutes.tsx
 // (path={AppPath.Properties}) rather than being defined inline there, so the data-fetching
@@ -173,17 +166,6 @@ function GlobalParameters() {
       <Helmet>
         <title>Parameters</title>
       </Helmet>
-      <Header
-        className={styles.header}
-        includeBorder={false}
-        nav={<AdminBreadcrumb />}
-        header={
-          <>
-            <HeaderTitle className={styles.headerTitle}>Parameters</HeaderTitle>
-            <HeaderSubtitle>Values every workflow on the platform can read as $(global.params.name).</HeaderSubtitle>
-          </>
-        }
-      />
       <ParametersTable
         scope="global"
         parameters={parameters}

@@ -18,19 +18,17 @@ test("admin settings: changing a platform setting persists", async ({ page }) =>
 
   await page.goto(`${APP_BASENAME}/admin/settings`);
 
-  // "Configure Customizations" is not the first (auto-open) accordion group, so open it.
-  await page.getByText("Configure Customizations").click();
+  // Settings is one group at a time, chosen in the side navigation; the page opens on the first
+  // group by name, so pick Customizations.
+  await page.getByRole("link", { name: "Configure Customizations" }).click();
 
   // By testid, not label: two settings render the label "App Name" (customizations' appName and
   // the GitHub integration's github.appName), so getByLabel trips strict mode.
   const appNameInput = page.getByTestId("appName");
   await appNameInput.fill(newAppName);
 
-  // Every settings group renders its own Save (this branch's new Authentication Configuration
-  // section sits ABOVE Customizations, and its Save stays disabled - a bare .first() clicks
-  // that one and times out), so scope the click to the accordion item that holds this group.
-  const customizations = page.locator("li.cds--accordion__item", { has: page.locator("#customizations") });
-  await customizations.getByRole("button", { name: "Save" }).click();
+  // One save bar per page: the selected group's.
+  await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Settings succesfully updated")).toBeVisible();
 
   // Reload to prove the value came back from the backend, not just local form state.

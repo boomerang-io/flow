@@ -140,7 +140,7 @@ is a `min-height` of 112px, not a height, so a long description or 200% zoom gro
 
 | Part | Rule |
 | --- | --- |
-| Breadcrumb | Every page has one. Workspace pages start `Home / <workspace>`; Administer pages use `Components/AdminBreadcrumb` (`Home / Administer`). |
+| Breadcrumb | Every page has one. Workspace pages start `Home / <workspace>`; the Manage area's layout carries `Home / Manage` once for every tab (`client-web/src/Features/Manage/Manage.tsx`). |
 | Title | A list page is titled with its route (Workflows, Actions, Settings). A page inside one object is titled with that object's name, and the breadcrumb ends with the route: the editor is `Home / Workflows / Editor` titled with the workflow's name, Activity detail is `Home / Activity / Activity detail` titled with the run's workflow, a user is titled with the user's name. |
 | Right slot | Page facts and actions (search, today's numbers, run facts) sit in `actions`, beside the rows. Controls sit after the facts, inside to outside: icon and secondary buttons, the one primary action, then an overflow menu (⋮) for the rest, destructive items last. A status is a Carbon tag in the status colour: on Activity detail it leads the run facts with the duration inside (`client-web/src/Features/WorkflowRun/RunHeader/RunHeader.tsx`). Controls that act on tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
 | Tabs and description | A page with tabs carries no description line (Actions). |
@@ -391,6 +391,30 @@ rate first, is the primary object and its selected row drives two detail panels 
 timeout marked, in place of a scatter of every run (`DurationSpread.tsx`). The chart library takes literal colours,
 so the outcome colours are read off the status tokens at mount with the theme's values as fallbacks
 (`statusColors.ts`); everything else is tokens. Outcomes with no runs stay out of legends.
+
+### Manage
+
+The platform's administration is one side-nav link, "Manage" with the cog, to one tabbed page
+(`client-web/src/Features/Manage/Manage.tsx`; the server sends the single link,
+`core/NavigationService.java`). The tabs are Settings, Workspaces, Users, Parameters, Tokens, Tasks and
+Audit, each a nested route with its own loader, shown only when the caller's grants and the feature flags
+allow it; the area's root sends the caller to the first tab they may see. The layout's header carries the
+breadcrumb, the title and the tab row, so a tab's page starts with its controls and carries no header or
+description of its own. A user's detail page stays outside the tabs, titled with the user's name.
+
+Two tabs have their own shape:
+
+- **Settings** is one group at a time (`/admin/settings/:group`): the groups in a left section list
+  (`FeatureSideNav`, the same component the workflow Configure screen uses), the selected group's name and
+  description above a single-column form at a readable width, and a save bar at the bottom that wakes up
+  only when something changed (`Features/Settings/SettingsSection`).
+- **Audit** follows the list-page style: count tiles (`Components/StatTile`), the capture configuration as
+  one line linking to Settings, the labelled filter row with the date range on the right, and the table in
+  a rounded panel with the outcome as an icon plus its name and actions and levels in sentence case
+  (`Features/Audit/Audit.tsx`).
+
+Workflow templates have no page in the product: they are seeded content, listed on Home, and their catalogue
+lives in the public docs.
 
 ## Browser support
 

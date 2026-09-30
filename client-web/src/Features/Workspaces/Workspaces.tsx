@@ -1,12 +1,4 @@
-import {
-  ComposedModal,
-  ErrorMessage,
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
-  notify,
-  ToastNotification,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import { ComposedModal, ErrorMessage, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Button, DataTable, Pagination, Search } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import React, { useEffect, useRef } from "react";
@@ -19,7 +11,6 @@ import kebabcase from "lodash/kebabCase";
 import moment from "moment";
 import queryString from "query-string";
 import { Box } from "reflexbox";
-import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
 import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
 import { useAppContext } from "Hooks";
@@ -46,16 +37,6 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, defaultQuery, h
       <Helmet>
         <title>Workspaces</title>
       </Helmet>
-      <Header
-        includeBorder={false}
-        nav={<AdminBreadcrumb />}
-        header={
-          <>
-            <HeaderTitle style={{ margin: "0" }}>Workspaces</HeaderTitle>
-            <HeaderSubtitle>View and manage workspaces</HeaderSubtitle>
-          </>
-        }
-      />
       <Box p="2rem" className={styles.content}>
         <>
           <Box mb="1rem" maxWidth="20rem">

@@ -58,7 +58,8 @@ type AppPathKey =
   | "Properties"
   | "Schedules"
   | "Settings"
-  | "TemplateWorkflows"
+  | "SettingsGroup"
+  | "Admin"
   | "Tasks"
   | "TasksDetail"
   | "TasksEditor"
@@ -122,11 +123,12 @@ export const AppPath: Record<AppPathKey, string> = {
   ManageWorkspaceApprovers: `/:workspace/manage/approver-groups`,
   ManageWorkspaceArtifacts: "/:workspace/manage/artifacts",
 
-  //admin
+  //admin (the Manage area)
+  Admin: "/admin",
   Audit: "/admin/audit",
   Properties: "/admin/parameters",
   Settings: "/admin/settings",
-  TemplateWorkflows: "/admin/template-workflows",
+  SettingsGroup: "/admin/settings/:group",
   Tasks: "/admin/task-manager",
   TasksDetail: `/admin/task-manager/:name/:version`,
   TasksEditor: `/admin/task-manager/:name/:version/editor`,
@@ -241,7 +243,8 @@ export const appLink = {
   schedulesForWorkflow: ({ workspace, workflow }: WorkspaceRouteArgs) =>
     `${generatePath(AppPath.Schedules, { workspace })}?${queryString.stringify({ workflows: workflow }, queryStringOptions)}`,
   settings: () => AppPath.Settings,
-  templateWorkflows: () => AppPath.TemplateWorkflows,
+  settingsGroup: ({ group }: { group: string }) => generatePath(AppPath.SettingsGroup, { group }),
+  admin: () => AppPath.Admin,
   adminTasks: () => AppPath.Tasks,
   adminTasksDetail: ({ name, version }: AdminTaskTemplateArgs) => generatePath(AppPath.TasksDetail, { name, version }),
   adminTasksEditor: ({ name, version }: AdminTaskTemplateArgs) => generatePath(AppPath.TasksEditor, { name, version }),

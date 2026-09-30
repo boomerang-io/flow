@@ -1,12 +1,7 @@
 import React from "react";
 import { DataTable, Pagination, Search } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
-import {
-  ErrorMessage,
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
 import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import debounce from "lodash/debounce";
 import moment from "moment";
@@ -14,7 +9,6 @@ import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { Box } from "reflexbox";
-import AdminBreadcrumb from "Components/AdminBreadcrumb";
 import EmptyState from "Components/EmptyState";
 import { CREATED_DATE_FORMAT, UserRoleCopy } from "Constants";
 import { appLink, queryStringOptions } from "Config/appConfig";
@@ -78,24 +72,10 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
       <Helmet>
         <title>Users</title>
       </Helmet>
-      <Header
-        includeBorder={false}
-        nav={<AdminBreadcrumb />}
-        header={
-          <>
-            <HeaderTitle style={{ margin: "0" }}>Users</HeaderTitle>
-            <HeaderSubtitle>
-              Everyone who has signed in. People join by signing in; the first to sign in became an admin.
-            </HeaderSubtitle>
-          </>
-        }
-        actions={
-          <div className={styles.search}>
-            <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
-          </div>
-        }
-      />
       <Box p="1.5rem" className={styles.content}>
+        <div className={styles.search}>
+          <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
+        </div>
         {children}
       </Box>
     </>

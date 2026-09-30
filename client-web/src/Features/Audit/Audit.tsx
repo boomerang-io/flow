@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ActionableNotification,
+  Button,
   CodeSnippet,
   DataTable,
   DatePicker,
@@ -11,22 +12,17 @@ import {
   TableExpandHeader,
   TableExpandRow,
   TableExpandedRow,
-  Tag,
 } from "@carbon/react";
-import {
-  ErrorMessage,
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import { CheckmarkFilled, Locked, Misuse, type CarbonIconType } from "@carbon/react/icons";
+import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
+import cx from "classnames";
 import debounce from "lodash/debounce";
 import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useLoaderData, useLocation, useNavigate } from "react-router-dom";
-import { Box } from "reflexbox";
-import AdminBreadcrumb from "Components/AdminBreadcrumb";
+import { Link, useLoaderData, useLocation, useNavigate } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
+import StatTile from "Components/StatTile";
 import { filterItemsByLabel, makeCompareItems, sortItemsBySelection } from "Utils/multiSelectHelper";
 import { auditActionOptions, auditLevelOptions, auditOutcomeOptions } from "Constants/filterOptions";
 import { appLink, queryStringOptions } from "Config/appConfig";
@@ -35,10 +31,9 @@ import { serviceUrl } from "Config/servicesConfig";
 import { AuditEvent, AuditOutcome, AuditStats, PaginatedAuditResponse } from "Types";
 import styles from "./Audit.module.scss";
 
-// Route module: this file's `loader` is re-exported from app/routes/audit.tsx (path
-// /admin/audit), the split every admin route uses. The URL is the whole state - filters and page
-// live in the search params - so a filtered view is linkable and the browser's back button
-// walks the filter history.
+// Route module: this file's `loader` is re-exported from app/routes/audit.tsx (the Audit tab of
+// the Manage area). The URL is the whole state - filters and page live in the search params - so
+// a filtered view is linkable and the browser's back button walks the filter history.
 
 const DEFAULT_ORDER = "DESC";
 const DEFAULT_PAGE = 0;
@@ -126,12 +121,25 @@ const HEADERS = [
   { header: "Level", key: "level", sortable: false },
 ];
 
-/** Carbon tag colours for the three outcomes; denied is distinct from failed on purpose. */
-const OUTCOME_TAG: Record<AuditOutcome, { type: "green" | "red" | "magenta"; label: string }> = {
-  [AuditOutcome.Success]: { type: "green", label: "Success" },
-  [AuditOutcome.Failed]: { type: "red", label: "Failed" },
-  [AuditOutcome.Denied]: { type: "magenta", label: "Denied" },
+/** The outcome as an icon plus coloured text, the way every list in Flow shows a status. */
+const OUTCOME: Record<AuditOutcome, { Icon: CarbonIconType; label: string; className: string }> = {
+  [AuditOutcome.Success]: { Icon: CheckmarkFilled, label: "Success", className: styles.outcomeSuccess },
+  [AuditOutcome.Failed]: { Icon: Misuse, label: "Failed", className: styles.outcomeFailed },
+  [AuditOutcome.Denied]: { Icon: Locked, label: "Denied", className: styles.outcomeDenied },
 };
+
+/** "TOKEN_CREATE" reads "Token create"; the filter options carry the nicer label when one exists. */
+function humanise(value: string | undefined, options: Array<FilterOption>): string {
+  if (!value) {
+    return "---";
+  }
+  const option = options.find((candidate) => candidate.value === value);
+  if (option) {
+    return option.label;
+  }
+  const words = value.toLowerCase().replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 export default function Audit() {
   const navigate = useNavigate();
@@ -188,83 +196,65 @@ export default function Audit() {
   const captureDisabled = Boolean(stats) && !stats!.captureEnabled;
 
   return (
-    <>
+    <div className={styles.content}>
       <Helmet>
         <title>Audit</title>
       </Helmet>
-      <Header
-        includeBorder={false}
-        nav={<AdminBreadcrumb />}
-        header={
-          <>
-            <HeaderTitle style={{ margin: "0" }}>Audit</HeaderTitle>
-            <HeaderSubtitle>
-              Who did what, when, and with what outcome — one event per attempt, denied attempts included.
-            </HeaderSubtitle>
-          </>
-        }
-      />
-      <Box p="2rem" className={styles.content}>
-        {errorLoading ? (
-          <ErrorMessage />
-        ) : (
-          <>
-            {captureDisabled && (
-              <Box mb="1rem">
-                <ActionableNotification
-                  lowContrast
-                  hideCloseButton
-                  inline
-                  kind="warning"
-                  title="Audit capture is off"
-                  subtitle="No new events are being recorded."
-                  actionButtonLabel="Go to Settings"
-                  onActionButtonClick={() => navigate(appLink.settings())}
-                />
-              </Box>
-            )}
-            {stats && <StatTiles stats={stats} />}
-            <Filters
-              parsedQuery={parsedQuery}
-              hasFilters={hasFilters}
-              setFilter={setFilter}
-              onSearchActor={debouncedActorSearch}
-              onSelectDate={handleSelectDate}
-              onClear={() => navigate({ search: "" })}
+      {errorLoading ? (
+        <ErrorMessage />
+      ) : (
+        <>
+          {captureDisabled && (
+            <ActionableNotification
+              lowContrast
+              hideCloseButton
+              inline
+              kind="warning"
+              title="Audit capture is off"
+              subtitle="No new events are being recorded."
+              actionButtonLabel="Go to Settings"
+              onActionButtonClick={() => navigate(appLink.settings())}
             />
-            <AuditTable
-              events={events}
-              captureEnabled={!captureDisabled}
-              hasFilters={hasFilters}
-              order={order}
-              onSort={handleSort}
-              onPaginationChange={handlePaginationChange}
-            />
-          </>
-        )}
-      </Box>
-    </>
+          )}
+          {stats && <StatTiles stats={stats} />}
+          <Filters
+            parsedQuery={parsedQuery}
+            hasFilters={hasFilters}
+            setFilter={setFilter}
+            onSearchActor={debouncedActorSearch}
+            onSelectDate={handleSelectDate}
+            onClear={() => navigate({ search: "" })}
+          />
+          <AuditTable
+            events={events}
+            captureEnabled={!captureDisabled}
+            hasFilters={hasFilters}
+            order={order}
+            onSort={handleSort}
+            onPaginationChange={handlePaginationChange}
+          />
+        </>
+      )}
+    </div>
   );
 }
 
 function StatTiles({ stats }: { stats: AuditStats }) {
-  const tiles = [
-    { label: "Events in window", value: String(stats.total) },
-    { label: "Success", value: String(stats.outcomes?.[AuditOutcome.Success] ?? 0) },
-    { label: "Failed", value: String(stats.outcomes?.[AuditOutcome.Failed] ?? 0) },
-    { label: "Denied", value: String(stats.outcomes?.[AuditOutcome.Denied] ?? 0) },
-    { label: "Capture level", value: stats.level },
-    { label: "Retention", value: `${stats.retentionDays} days` },
-  ];
+  const since = moment(stats.from).format("MMM D, YYYY");
+  const until = stats.to ? moment(stats.to).format("MMM D, YYYY") : "now";
   return (
-    <dl className={styles.stats}>
-      {tiles.map((tile) => (
-        <div className={styles.stat} key={tile.label}>
-          <dt className={styles.statLabel}>{tile.label}</dt>
-          <dd className={styles.statValue}>{tile.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <>
+      <div className={styles.stats} data-testid="audit-stats">
+        <StatTile label="Events" value={stats.total} detail={`${since} to ${until}`} testId="audit-stat-events" />
+        <StatTile label="Success" value={stats.outcomes?.[AuditOutcome.Success] ?? 0} />
+        <StatTile label="Failed" value={stats.outcomes?.[AuditOutcome.Failed] ?? 0} />
+        <StatTile label="Denied" value={stats.outcomes?.[AuditOutcome.Denied] ?? 0} detail="Attempts a permission refused" />
+      </div>
+      <p className={styles.capture}>
+        {stats.captureEnabled ? `Capturing ${humanise(stats.level, auditLevelOptions).toLowerCase()}-level events` : "Capture is off"},
+        kept {stats.retentionDays} days. <Link to={appLink.settings()}>Change in Settings</Link>
+      </p>
+    </>
   );
 }
 
@@ -282,14 +272,19 @@ function Filters({ parsedQuery, hasFilters, setFilter, onSearchActor, onSelectDa
     options.filter((option) => asArray(parsedQuery[key]).includes(option.value));
 
   return (
-    <Box className={styles.filters} mb="1rem">
-      <Search
-        id="audit-actor-search"
-        labelText="Filter by actor"
-        placeholder="Filter by actor name or id"
-        defaultValue={typeof parsedQuery.actor === "string" ? parsedQuery.actor : ""}
-        onChange={(e: { target: HTMLInputElement }) => onSearchActor(e.target.value)}
-      />
+    <div className={styles.dataFilters}>
+      <div className={styles.searchField}>
+        <span className={styles.searchLabel} id="audit-actor-search-label">
+          Filter by actor
+        </span>
+        <Search
+          id="audit-actor-search"
+          labelText="Filter by actor"
+          placeholder="Filter by actor name or id"
+          defaultValue={typeof parsedQuery.actor === "string" ? parsedQuery.actor : ""}
+          onChange={(e: { target: HTMLInputElement }) => onSearchActor(e.target.value)}
+        />
+      </div>
       <AuditMultiSelect
         id="audit-outcome-filter"
         title="Filter by outcome"
@@ -311,16 +306,18 @@ function Filters({ parsedQuery, hasFilters, setFilter, onSearchActor, onSelectDa
         selected={selected("level", auditLevelOptions)}
         onChange={(values) => setFilter("level", values)}
       />
-      <DatePicker datePickerType="range" maxDate={defaultMaxDate()} onChange={onSelectDate}>
-        <DatePickerInput id="audit-date-picker-start" labelText="Start date" placeholder="mm/dd/yyyy" />
-        <DatePickerInput id="audit-date-picker-end" labelText="End date" placeholder="mm/dd/yyyy" />
-      </DatePicker>
-      {hasFilters && (
-        <button className={styles.clearFilters} type="button" onClick={onClear}>
-          Clear filters
-        </button>
-      )}
-    </Box>
+      <div className={styles.timeFilters}>
+        {hasFilters && (
+          <Button kind="ghost" size="md" onClick={onClear}>
+            Clear filters
+          </Button>
+        )}
+        <DatePicker datePickerType="range" maxDate={defaultMaxDate()} onChange={onSelectDate}>
+          <DatePickerInput id="audit-date-picker-start" labelText="Start date" placeholder="mm/dd/yyyy" />
+          <DatePickerInput id="audit-date-picker-end" labelText="End date" placeholder="mm/dd/yyyy" />
+        </DatePicker>
+      </div>
+    </div>
   );
 }
 
@@ -388,7 +385,7 @@ function AuditTable({ events, captureEnabled, hasFilters, order, onSort, onPagin
   }
 
   return (
-    <>
+    <div className={styles.panel}>
       <DataTable
         rows={content.map((event) => ({ ...event, id: event.id }))}
         headers={HEADERS}
@@ -418,7 +415,8 @@ function AuditTable({ events, captureEnabled, hasFilters, order, onSort, onPagin
                     <React.Fragment key={row.id}>
                       <TableExpandRow {...getRowProps({ row })}>
                         <TableCell>
-                          <span title={event.time}>{moment(event.time).format("MMM DD, YYYY h:mm:ss a")}</span>
+                          <time dateTime={event.time}>{moment(event.time).format("MMM D, YYYY h:mm:ss a")}</time>
+                          <span className={styles.muted}>{moment(event.time).fromNow()}</span>
                         </TableCell>
                         <TableCell>
                           <span>{event.actorName ?? event.actorId ?? "---"}</span>
@@ -426,17 +424,15 @@ function AuditTable({ events, captureEnabled, hasFilters, order, onSort, onPagin
                             <span className={styles.muted}>{event.actorId}</span>
                           )}
                         </TableCell>
-                        <TableCell>{event.action ?? "---"}</TableCell>
+                        <TableCell>{humanise(event.action, auditActionOptions)}</TableCell>
                         <TableCell>
-                          <span>{event.resourceType ?? "---"}</span>
-                          {(event.resourceName ?? event.resourceId) && (
-                            <span className={styles.muted}>{event.resourceName ?? event.resourceId}</span>
-                          )}
+                          <span>{event.resourceName ?? event.resourceId ?? "---"}</span>
+                          {event.resourceType && <span className={styles.muted}>{event.resourceType}</span>}
                         </TableCell>
                         <TableCell>
-                          <OutcomeTag outcome={event.outcome} />
+                          <Outcome outcome={event.outcome} />
                         </TableCell>
-                        <TableCell>{event.level ?? "---"}</TableCell>
+                        <TableCell>{humanise(event.level, auditLevelOptions)}</TableCell>
                       </TableExpandRow>
                       <TableExpandedRow colSpan={headers.length + 1}>
                         <CodeSnippet type="multi" hideCopyButton wrapText>
@@ -458,18 +454,20 @@ function AuditTable({ events, captureEnabled, hasFilters, order, onSort, onPagin
         pageSizes={PAGE_SIZES}
         totalItems={events?.totalElements ?? 0}
       />
-    </>
+    </div>
   );
 }
 
-function OutcomeTag({ outcome }: { outcome?: AuditOutcome }) {
-  const tag = outcome ? OUTCOME_TAG[outcome] : undefined;
-  if (!tag) {
+function Outcome({ outcome }: { outcome?: AuditOutcome }) {
+  const shown = outcome ? OUTCOME[outcome] : undefined;
+  if (!shown) {
     return <span>{outcome ?? "---"}</span>;
   }
+  const { Icon, label, className } = shown;
   return (
-    <Tag type={tag.type} size="sm">
-      {tag.label}
-    </Tag>
+    <span className={cx(styles.outcome, className)}>
+      <Icon size={16} aria-hidden="true" />
+      {label}
+    </span>
   );
 }
