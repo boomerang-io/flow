@@ -47,7 +47,9 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
               >
                 <p
                   class="cds--link"
-                />
+                >
+                  Editor
+                </p>
               </li>
             </ol>
           </nav>
@@ -57,225 +59,227 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
         >
           <h1
             class="cds--bmrg-feature-header-title"
-          >
-            Editor
-          </h1>
+          />
         </div>
         <div
           class="cds--bmrg-feature-header__footer"
         >
-          <nav
-            aria-label="Editor pages"
-            class="cds--tabs"
-          >
-            <ul
-              class="cds--tab--list"
-            >
-              <a
-                aria-current="page"
-                class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
-                data-discover="true"
-                href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/canvas"
-              >
-                Canvas
-              </a>
-              <a
-                class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
-                data-discover="true"
-                href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/parameters"
-              >
-                Parameters
-              </a>
-              <a
-                class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
-                data-discover="true"
-                href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/configure"
-              >
-                Configure
-              </a>
-              <a
-                class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
-                data-discover="true"
-                href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/schedule"
-              >
-                Schedules
-              </a>
-              <a
-                class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
-                data-discover="true"
-                href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/changelog"
-              >
-                Change Log
-              </a>
-            </ul>
-          </nav>
-        </div>
-      </section>
-      <section
-        class="_workflowButtons_94d268"
-      >
-        <div
-          class="_container_a2aef9"
-        >
           <div
-            class="_buttonListContainer_a2aef9"
+            class="_footer_94d268"
           >
-            <div
-              class="_buttonList_a2aef9"
+            <nav
+              aria-label="Editor pages"
+              class="cds--tabs"
             >
-              <button
-                class="_button_a2aef9"
+              <ul
+                class="cds--tab--list"
               >
-                <svg
-                  alt="first version"
-                  aria-hidden="true"
-                  class="_icon_a2aef9"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                <a
+                  aria-current="page"
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                  data-discover="true"
+                  href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/canvas"
                 >
-                  <path
-                    d="M14 16 24 6 25.4 7.4 16.8 16 25.4 24.6 24 26z"
-                  />
-                  <path
-                    d="M8 4H10V28H8z"
-                  />
-                </svg>
-              </button>
-              <button
-                class="_button_a2aef9"
-              >
-                <svg
-                  alt="back one version"
-                  aria-hidden="true"
-                  class="_icon_a2aef9"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 16 16"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                  Canvas
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
+                  href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/parameters"
                 >
-                  <path
-                    d="M5 8 10 3 10.7 3.7 6.4 8 10.7 12.3 10 13z"
-                  />
-                </svg>
-              </button>
-            </div>
-            <p
-              class="_versionText_a2aef9"
+                  Parameters
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
+                  href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/configure"
+                >
+                  Configure
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
+                  href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/schedule"
+                >
+                  Schedules
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
+                  href="/tyson-workspace/editor/5e877d1f4bbc6e0001c51e12/changelog"
+                >
+                  Change Log
+                </a>
+              </ul>
+            </nav>
+            <section
+              class="_workflowButtons_94d268"
             >
-              Version 7
-            </p>
-            <div
-              class="_buttonList_a2aef9"
-            >
-              <button
-                class="_button_a2aef9"
-                disabled=""
+              <div
+                class="_container_a2aef9"
               >
-                <svg
-                  alt="forward one version"
-                  aria-hidden="true"
-                  class="_icon_a2aef9 _disabled_a2aef9"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 16 16"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                <div
+                  class="_buttonListContainer_a2aef9"
                 >
-                  <path
-                    d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
-                  />
-                </svg>
-              </button>
-              <button
-                class="_button_a2aef9"
-                disabled=""
+                  <div
+                    class="_buttonList_a2aef9"
+                  >
+                    <button
+                      class="_button_a2aef9"
+                    >
+                      <svg
+                        alt="first version"
+                        aria-hidden="true"
+                        class="_icon_a2aef9"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M14 16 24 6 25.4 7.4 16.8 16 25.4 24.6 24 26z"
+                        />
+                        <path
+                          d="M8 4H10V28H8z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="_button_a2aef9"
+                    >
+                      <svg
+                        alt="back one version"
+                        aria-hidden="true"
+                        class="_icon_a2aef9"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 16 16"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M5 8 10 3 10.7 3.7 6.4 8 10.7 12.3 10 13z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <p
+                    class="_versionText_a2aef9"
+                  >
+                    Version 7
+                  </p>
+                  <div
+                    class="_buttonList_a2aef9"
+                  >
+                    <button
+                      class="_button_a2aef9"
+                      disabled=""
+                    >
+                      <svg
+                        alt="forward one version"
+                        aria-hidden="true"
+                        class="_icon_a2aef9 _disabled_a2aef9"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 16 16"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="_button_a2aef9"
+                      disabled=""
+                    >
+                      <svg
+                        alt="last version"
+                        aria-hidden="true"
+                        class="_icon_a2aef9 _disabled_a2aef9"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 32 32"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M18 16 8 26 6.6 24.6 15.2 16 6.6 7.4 8 6z"
+                        />
+                        <path
+                          d="M22 4H24V28H22z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="_workflowActionContainer_94d268"
               >
-                <svg
-                  alt="last version"
-                  aria-hidden="true"
-                  class="_icon_a2aef9 _disabled_a2aef9"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
+                  style="display: none;"
+                  type="button"
                 >
-                  <path
-                    d="M18 16 8 26 6.6 24.6 15.2 16 6.6 7.4 8 6z"
-                  />
-                  <path
-                    d="M22 4H24V28H22z"
-                  />
-                </svg>
-              </button>
-            </div>
+                  Create new version
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Set version to latest"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M13 21 26.17 21 23.59 23.59 25 25 30 20 25 15 23.59 16.41 26.17 19 13 19 13 21z"
+                    />
+                    <path
+                      d="M22,14V10a1,1,0,0,0-.29-.71l-7-7A1,1,0,0,0,14,2H4A2,2,0,0,0,2,4V28a2,2,0,0,0,2,2H20a2,2,0,0,0,2-2V26H20v2H4V4h8v6a2,2,0,0,0,2,2h6v2Zm-8-4V4.41L19.59,10Z"
+                    />
+                  </svg>
+                </button>
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
+                  type="button"
+                >
+                  Create new version
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Create new version"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </section>
           </div>
-        </div>
-        <div
-          class="_workflowActionContainer_94d268"
-        >
-          <button
-            class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
-            style="display: none;"
-            type="button"
-          >
-            Create new version
-            <svg
-              aria-hidden="true"
-              aria-label="Set version to latest"
-              class="cds--btn__icon"
-              fill="currentColor"
-              focusable="false"
-              height="16"
-              preserveAspectRatio="xMidYMid meet"
-              role="img"
-              viewBox="0 0 32 32"
-              width="16"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M13 21 26.17 21 23.59 23.59 25 25 30 20 25 15 23.59 16.41 26.17 19 13 19 13 21z"
-              />
-              <path
-                d="M22,14V10a1,1,0,0,0-.29-.71l-7-7A1,1,0,0,0,14,2H4A2,2,0,0,0,2,4V28a2,2,0,0,0,2,2H20a2,2,0,0,0,2-2V26H20v2H4V4h8v6a2,2,0,0,0,2,2h6v2Zm-8-4V4.41L19.59,10Z"
-              />
-            </svg>
-          </button>
-          <button
-            class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
-            type="button"
-          >
-            Create new version
-            <svg
-              aria-hidden="true"
-              aria-label="Create new version"
-              class="cds--btn__icon"
-              fill="currentColor"
-              focusable="false"
-              height="16"
-              preserveAspectRatio="xMidYMid meet"
-              role="img"
-              viewBox="0 0 32 32"
-              width="16"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
-              />
-            </svg>
-          </button>
         </div>
       </section>
     </header>
@@ -288,12 +292,18 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
         <header
           class="_header_ad713d"
         >
-          <h1
+          <h2
             class="_heading_ad713d"
           >
             Add a task
-          </h1>
+          </h2>
           <button
+            class="_expandButton_ad713d"
+          >
+            Expand all
+          </button>
+          <button
+            aria-label="Collapse the task palette"
             class="_collapseButton_ad713d"
           >
             <svg
@@ -317,7 +327,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
           class="cds--layer-two _tasks_ad713d"
         >
           <div
-            aria-label="Search for a task"
+            aria-label="Search 174 tasks"
             class="cds--search cds--search--sm"
             role="search"
           >
@@ -353,7 +363,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
               class="cds--search-input"
               data-testid="editor-task-search"
               id="search-tasks"
-              placeholder="Search for a task"
+              placeholder="Search 174 tasks"
               role="searchbox"
               type="text"
               value=""
@@ -394,7 +404,6 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                   aria-haspopup="true"
                   aria-labelledby="tooltip-[generated-id]"
                   class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
-                  style="border-radius: 0.25rem;"
                   type="button"
                 >
                   <svg
@@ -436,20 +445,6 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
             </span>
           </span>
         </div>
-        <section
-          class="_detail_ad713d"
-        >
-          <h3
-            class="_totalCount_ad713d"
-          >
-            Showing 174 tasks
-          </h3>
-          <button
-            class="_expandButton_ad713d"
-          >
-            Expand all
-          </button>
-        </section>
         <section
           class="_content_ad713d"
         >
@@ -500,7 +495,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -539,6 +534,21 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                               For each
                                
                             </p>
+                            <svg
+                              aria-hidden="true"
+                              fill="#0072C3"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              style="will-change: auto;"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M16,2a9,9,0,0,0-6,15.69V30l6-4,6,4V17.69A9,9,0,0,0,16,2Zm4,24.26-2.89-1.92L16,23.6l-1.11.74L12,26.26V19.05a8.88,8.88,0,0,0,8,0ZM20.89,16A7,7,0,1,1,23,11,7,7,0,0,1,20.89,16Z"
+                              />
+                            </svg>
                           </div>
                         </div>
                       </div>
@@ -546,7 +556,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -607,7 +617,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -668,7 +678,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -729,7 +739,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -790,7 +800,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -855,7 +865,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -917,7 +927,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -979,7 +989,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -1040,7 +1050,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -1101,7 +1111,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -1175,7 +1185,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1241,7 +1251,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1307,7 +1317,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type validate"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1373,7 +1383,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1439,7 +1449,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type code"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1509,7 +1519,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1576,7 +1586,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1643,7 +1653,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1709,7 +1719,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1775,7 +1785,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type switch"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1839,7 +1849,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type power on/off"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -1890,7 +1900,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -1995,7 +2005,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2056,7 +2066,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2132,7 +2142,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type download"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -2198,7 +2208,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type upload"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -2293,7 +2303,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2354,7 +2364,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2415,7 +2425,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2476,7 +2486,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2540,7 +2550,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2598,7 +2608,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2665,7 +2675,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -2747,7 +2757,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -2813,7 +2823,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -2879,7 +2889,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type download"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -2945,7 +2955,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3014,7 +3024,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3077,7 +3087,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3149,7 +3159,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3221,7 +3231,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type upload"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3272,7 +3282,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -3377,7 +3387,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -3441,7 +3451,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -3505,7 +3515,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -3569,7 +3579,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -3648,7 +3658,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3717,7 +3727,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3786,7 +3796,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3855,7 +3865,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -3953,7 +3963,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4014,7 +4024,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4081,7 +4091,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4139,7 +4149,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4197,7 +4207,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4261,7 +4271,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4319,7 +4329,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4377,7 +4387,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4439,7 +4449,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4506,7 +4516,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4570,7 +4580,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4634,7 +4644,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -4713,7 +4723,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -4779,7 +4789,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -4851,7 +4861,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type get, read"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -4914,7 +4924,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type get, read"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -4977,7 +4987,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5046,7 +5056,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5109,7 +5119,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5172,7 +5182,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5239,7 +5249,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5311,7 +5321,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5380,7 +5390,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5449,7 +5459,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5518,7 +5528,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type upload"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -5569,7 +5579,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -5674,7 +5684,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -5732,7 +5742,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -5790,7 +5800,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -5851,7 +5861,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -5909,7 +5919,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -5970,7 +5980,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6046,7 +6056,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type get, read"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -6109,7 +6119,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type get, read"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -6172,7 +6182,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -6238,7 +6248,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type get, read"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -6301,7 +6311,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -6367,7 +6377,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -6462,7 +6472,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6523,7 +6533,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6584,7 +6594,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6651,7 +6661,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6713,7 +6723,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6775,7 +6785,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6833,7 +6843,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6891,7 +6901,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -6949,7 +6959,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7007,7 +7017,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7065,7 +7075,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7123,7 +7133,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7184,7 +7194,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7245,7 +7255,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7306,7 +7316,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7368,7 +7378,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7435,7 +7445,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -7517,7 +7527,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7583,7 +7593,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7649,7 +7659,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7721,7 +7731,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7788,7 +7798,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7855,7 +7865,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7918,7 +7928,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -7981,7 +7991,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8044,7 +8054,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8107,7 +8117,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8170,7 +8180,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8233,7 +8243,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8299,7 +8309,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8365,7 +8375,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8431,7 +8441,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8498,7 +8508,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8570,7 +8580,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8671,7 +8681,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -8717,7 +8727,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -8769,7 +8779,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -8812,7 +8822,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -8870,7 +8880,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8921,7 +8931,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -8978,7 +8988,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type filter"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9026,7 +9036,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type get, read"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9103,7 +9113,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9164,7 +9174,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9225,7 +9235,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9292,7 +9302,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9350,7 +9360,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9411,7 +9421,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9478,7 +9488,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -9551,7 +9561,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9617,7 +9627,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9683,7 +9693,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9755,7 +9765,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9818,7 +9828,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type add"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9884,7 +9894,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type delete"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -9956,7 +9966,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10019,7 +10029,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type edit"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10070,7 +10080,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10175,7 +10185,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10239,7 +10249,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10303,7 +10313,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10382,7 +10392,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10451,7 +10461,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10520,7 +10530,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type message"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10618,7 +10628,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10691,7 +10701,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10754,7 +10764,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type automated task"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -10806,7 +10816,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10912,7 +10922,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -10970,7 +10980,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11028,7 +11038,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11090,7 +11100,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11148,7 +11158,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11206,7 +11216,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11267,7 +11277,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11328,7 +11338,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                     <li>
                       <div
                         aria-selected="false"
-                        class="cds--tile _container_bdbb1e _globalTask_bdbb1e"
+                        class="cds--tile _container_bdbb1e"
                         draggable="true"
                         role="option"
                         tabindex="0"
@@ -11404,7 +11414,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11467,7 +11477,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type API/HTTP call"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11530,7 +11540,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type terminal"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11597,7 +11607,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type filter"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11660,7 +11670,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type filter"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11723,7 +11733,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type launch"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11789,7 +11799,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type launch"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
@@ -11855,7 +11865,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             <svg
                               alt="Task node type power on/off"
                               aria-hidden="true"
-                              class="_taskIcon_bdbb1e _workspaceTask_bdbb1e"
+                              class="_taskIcon_bdbb1e"
                               fill="currentColor"
                               focusable="false"
                               height="16"
