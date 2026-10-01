@@ -84,11 +84,11 @@ import org.slf4j.LoggerFactory;
  * dump this collection does not exist at all: only {@code global_config} does, with exactly one
  * document.
  */
-@Change(id = "0005-v3-migrate-settings", author = "boomerang", transactional = false)
+@Change(id = "0005-v3-migrate-global-parameters", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0005__V3MigrateSettings {
+public class _0005__V3MigrateGlobalParameters {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0005__V3MigrateSettings.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0005__V3MigrateGlobalParameters.class);
 
   private static final ObjectId USERS_ID = new ObjectId("6123c1e20b07a54cdce637c0");
   private static final ObjectId ACTIVITY_ID = new ObjectId("60245957226920beece4fdf9");

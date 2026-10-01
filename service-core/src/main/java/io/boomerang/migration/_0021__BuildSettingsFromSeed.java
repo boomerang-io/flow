@@ -45,9 +45,9 @@ import org.bson.Document;
  * the {@code _id} half could, and only once the {@code _id}s existed. Now that {@code _0003} always
  * runs first, this is simply insert-if-absent over already-correct data).
  */
-@Change(id = "0021-seed-settings", author = "boomerang", transactional = false)
+@Change(id = "0021-build-settings-from-seed", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0021__SeedSettings {
+public class _0021__BuildSettingsFromSeed {
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
