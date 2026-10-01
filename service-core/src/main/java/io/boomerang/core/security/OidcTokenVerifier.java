@@ -40,7 +40,7 @@ import org.springframework.web.client.RestTemplate;
  *
  * <p>Single configured issuer (not an allowlist) - {@code settings.auth.oidc.issuer} /
  * {@code settings.auth.oidc.clientId}, seeded empty (see {@code
- * io.boomerang.loader.migration._0035__AddAuthSettings}). Every trusted issuer is new attack
+ * io.boomerang.migration._0035__AddAuthSettings}). Every trusted issuer is new attack
  * surface: anything accepted here can mint identities Flow will believe.
  */
 @Service

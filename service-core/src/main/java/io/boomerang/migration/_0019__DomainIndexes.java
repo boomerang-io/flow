@@ -1,0 +1,316 @@
+package io.boomerang.migration;
+
+import static io.boomerang.migration.MigrationUtils.dropIndex;
+import static io.boomerang.migration.MigrationUtils.ensureIndex;
+import static io.boomerang.migration.MigrationUtils.findDuplicateKeys;
+
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.IndexOptions;
+import com.mongodb.client.model.Sorts;
+import io.flamingock.api.annotations.Apply;
+import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Rollback;
+import io.flamingock.api.annotations.TargetSystem;
+import java.util.ArrayList;
+import java.util.List;
+import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Remaining domain-collection indexes: actions uniqueness, dispatcher registration uniqueness,
+ * and the v3-only index-parity pass. Formerly three separate units ({@code
+ * _0005__ActionTaskRunUniqueness}, {@code _0006__AgentRegistrationUniqueness}, {@code
+ * _0033__V3Indexes}) — merged for the same reason as {@code _0017__RunIndexes}/{@code
+ * _0018__EventAndLockIndexes}: every index unit in this program now runs in Phase 4, after the
+ * v3→v5 migration (Phase 2) and the v4 rename fixups (Phase 3) have already populated/renamed the
+ * collections being indexed.
+ *
+ * <p><b>Collection-name correction (the reason this merge is NOT purely mechanical):</b> the
+ * former {@code _0006__AgentRegistrationUniqueness} targeted the {@code agents} collection because
+ * it used to run BEFORE the dispatcher rename unit (DD-06's persisted rename, {@code agents}
+ * -> {@code dispatchers}) in the old numbering. In the new chain, Phase 3's {@code
+ * _0015__DispatcherRename} runs BEFORE this unit (Phase 4), so the dedupe + unique-index logic
+ * below targets {@code dispatchers} directly — asserted in {@code LoaderMigrationTest} under the
+ * post-rename name either way, but the change unit itself must now operate on the already-renamed
+ * collection rather than relying on the rename to carry a uniqueness violation forward.
+ *
+ * <p><b>{@code _0033__V3Indexes} no longer needs to be "the LAST unit in the whole v3→v5 chain."</b>
+ * That constraint existed because creating an index on a collection that does not exist yet
+ * implicitly creates it, empty — colliding with a LATER {@code renameCollection} call elsewhere in
+ * the old v3-only chain. Now that every migration/rename unit (Phases 2–3) runs strictly before
+ * every index unit (Phase 4), no index unit anywhere in this program can run ahead of a rename or
+ * data-populating step any more; the v3-gated portion below is retained as its own private method
+ * purely to preserve its generation gate, not for ordering safety.
+ */
+@Change(id = "0019-domain-indexes", author = "boomerang", transactional = false)
+@TargetSystem(id = "flow-mongodb")
+public class _0019__DomainIndexes {
+
+  private static final Logger LOG = LoggerFactory.getLogger(_0019__DomainIndexes.class);
+
+  @Apply
+  public void execute(MongoDatabase db, CollectionNames names) {
+    actionTaskRunUniqueness(db, names);
+    dispatcherRegistrationUniqueness(db, names);
+    v3IndexParity(db, names);
+  }
+
+  // =====================================================================================
+  // actions (formerly _0005__ActionTaskRunUniqueness)
+  // =====================================================================================
+
+  /**
+   * One Action (manual/approval gate record) per TaskRun. Duplicates are repeat gate records
+   * for the same TaskRun: the earliest — the record that actually gated — is kept, the rest are
+   * deleted, then the unique {@code taskRunRef} index enforces the invariant going forward.
+   */
+  private void actionTaskRunUniqueness(MongoDatabase db, CollectionNames names) {
+    String actions = names.resolve("actions");
+    List<Document> duplicateGroups =
+        findDuplicateKeys(
+            db,
+            actions,
+            new Document("taskRunRef", new Document("$exists", true)),
+            new Document("taskRunRef", "$taskRunRef"));
+    long removed = 0;
+    for (Document group : duplicateGroups) {
+      Document key = group.get("_id", Document.class);
+      removed += deleteAllButEarliest(db.getCollection(actions), key.get("taskRunRef"));
+    }
+    LOG.info(
+        "actions dedupe — {} duplicate taskRunRef groups, {} duplicate gate records removed",
+        duplicateGroups.size(),
+        removed);
+    ensureIndex(
+        db, actions, "task_run", new Document("taskRunRef", 1), new IndexOptions().unique(true));
+  }
+
+  private long deleteAllButEarliest(MongoCollection<Document> collection, Object taskRunRef) {
+    List<Object> staleIds = new ArrayList<>();
+    try (MongoCursor<Document> cursor =
+        collection
+            .find(Filters.eq("taskRunRef", taskRunRef))
+            .sort(Sorts.ascending("creationDate", "_id"))
+            .skip(1)
+            .iterator()) {
+      while (cursor.hasNext()) {
+        staleIds.add(cursor.next().get("_id"));
+      }
+    }
+    return staleIds.isEmpty()
+        ? 0
+        : collection.deleteMany(Filters.in("_id", staleIds)).getDeletedCount();
+  }
+
+  // =====================================================================================
+  // dispatchers (formerly _0006__AgentRegistrationUniqueness, targeting "agents" pre-rename)
+  // =====================================================================================
+
+  /**
+   * One dispatcher record per {@code (name, host)} — re-registration becomes an upsert against
+   * the unique index. Duplicates keep the most recently connected record; the stale ones are
+   * deleted. Targets {@code dispatchers} directly — see the class javadoc's collection-name
+   * correction note.
+   */
+  private void dispatcherRegistrationUniqueness(MongoDatabase db, CollectionNames names) {
+    String dispatchers = names.resolve("dispatchers");
+    List<Document> duplicateGroups =
+        findDuplicateKeys(
+            db, dispatchers, new Document("name", "$name").append("host", "$host"));
+    long removed = 0;
+    for (Document group : duplicateGroups) {
+      Document key = group.get("_id", Document.class);
+      removed += deleteAllButLatestConnected(db.getCollection(dispatchers), key);
+    }
+    LOG.info(
+        "dispatchers dedupe — {} duplicate (name, host) groups, {} stale registrations removed",
+        duplicateGroups.size(),
+        removed);
+    ensureIndex(
+        db,
+        dispatchers,
+        "registration",
+        new Document("name", 1).append("host", 1),
+        new IndexOptions().unique(true));
+  }
+
+  private long deleteAllButLatestConnected(MongoCollection<Document> collection, Document key) {
+    List<Object> staleIds = new ArrayList<>();
+    try (MongoCursor<Document> cursor =
+        collection
+            .find(
+                Filters.and(
+                    Filters.eq("name", key.get("name")), Filters.eq("host", key.get("host"))))
+            .sort(Sorts.descending("lastConnectedDate", "_id"))
+            .skip(1)
+            .iterator()) {
+      while (cursor.hasNext()) {
+        staleIds.add(cursor.next().get("_id"));
+      }
+    }
+    return staleIds.isEmpty()
+        ? 0
+        : collection.deleteMany(Filters.in("_id", staleIds)).getDeletedCount();
+  }
+
+  // =====================================================================================
+  // v3-only index parity (formerly _0033__V3Indexes)
+  // =====================================================================================
+
+  /**
+   * V3-only. Creates the indexes a v3-sourced install needs that neither the general, ungated
+   * index units above (nor {@code _0017__RunIndexes}/{@code _0018__EventAndLockIndexes}) nor the
+   * v5 entities' own {@code @Indexed}/{@code @CompoundIndex} annotations already cover. (T6-2:
+   * {@code spring.data.mongodb.auto-index-creation} is now explicitly {@code false} — the loader
+   * is the sole index authority; those annotations document intent/overlap only, they are not
+   * built at {@code service-core} boot any more.)
+   *
+   * <p><b>Overlap analysis</b> (inspected against the other index units and every entity's {@code
+   * @Indexed}/{@code @CompoundIndex} annotations before writing anything below):
+   *
+   * <ul>
+   *   <li><b>{@code users.email}</b> — {@code UserEntity.email} is only {@code @Indexed}
+   *       (non-unique). GENUINELY MISSING: created here as a unique index. Deliberately NOT
+   *       preceded by a dedupe (deleting a real user account to satisfy an index is out of scope
+   *       and far riskier than the {@code task_runs}/{@code actions}/{@code dispatchers}
+   *       bug-artifact dedupes above perform) — the duplicate-count pre-check below only makes a
+   *       real collision loud in the log BEFORE the index build itself does too. Under T6-2,
+   *       {@link MigrationUtils#ensureIndex} now rethrows a unique-index build failure, so a real
+   *       install with two users sharing an email will abort this change unit (and the deploy) —
+   *       intentional: a duplicate email is a genuine data-integrity problem that must be resolved
+   *       by an operator, not one this migration silently leaves unenforced.
+   *   <li><b>{@code workflows.creationDate}</b> — {@code WorkflowEntity} indexes only {@code
+   *       name}. {@code WorkflowService.query} both sorts and range-filters on {@code
+   *       creationDate}. GENUINELY MISSING: created here.
+   *   <li><b>{@code workflow_revisions.(workflowRef, version)}</b> — {@code
+   *       WorkflowRevisionEntity} declares {@code workflow_ref_version_idx} on exactly this pair,
+   *       but that annotation is inert (see above) and was never built on a fresh install; created
+   *       by {@code _0033__DefinitionIndexes} as {@code workflow_ref_version}. Skipped here.
+   *   <li><b>{@code workflow_revisions.version}</b> (standalone) — the compound index above has
+   *       {@code version} as its SECOND key, so it cannot serve a version-only query (no current
+   *       call site issues one, but the pair is not a substitute for the standalone case).
+   *       GENUINELY MISSING: created here.
+   *   <li><b>{@code tasks.name}</b> — {@code TaskEntity.name} is {@code @Indexed}, but that
+   *       annotation is inert and was never built on a fresh install; created by {@code
+   *       _0033__DefinitionIndexes} as {@code name_lookup}. Skipped here.
+   *   <li><b>{@code tasks.creationDate}</b> — not indexed anywhere; {@code TaskService.query}'s
+   *       default sort is {@code creationDate}. GENUINELY MISSING: created here.
+   *   <li><b>{@code task_runs}/{@code workflow_runs}: {@code status}/{@code phase}</b> — COVERED
+   *       by {@code _0017__RunIndexes}'s {@code claim_page} compounds ({@code workflow_runs}:
+   *       {@code {status, phase, creationDate}} is a prefix match; {@code task_runs}: {@code
+   *       {type, status, phase, creationDate}} - every {@code task_runs} query filters on {@code
+   *       type} or {@code workflowRunRef} ahead of {@code status}/{@code phase}, so the entity's
+   *       inert {@code status_phase_type_idx} has no query left to serve). Skipped.
+   *   <li><b>{@code task_runs.workflowRunRef}</b> — ALREADY COVERED: {@code @Indexed} on the
+   *       entity plus {@code _0017__RunIndexes}'s {@code run_tasks} compound ({@code
+   *       workflowRunRef, status, name}). {@code workflow_runs} has no {@code workflowRunRef}
+   *       field (it IS the run) — not applicable there. Skipped.
+   *   <li><b>{@code task_runs.name}</b> — the only real query pattern ({@code
+   *       TaskRunRepository.findFirstByNameAndWorkflowRunRef}) is always scoped by {@code
+   *       workflowRunRef} first, which {@code run_tasks} already serves as a prefix match; no
+   *       standalone-name query exists. {@code workflow_runs} has no {@code name} field at all —
+   *       not applicable. Skipped on both.
+   *   <li><b>{@code task_runs}/{@code workflow_runs}: {@code labels}</b> — GENUINELY MISSING on
+   *       both. {@code TaskRunService.query}/{@code WorkflowRunService.query} filter on {@code
+   *       labels.<dynamic-key>} (one Mongo field path per label key), which a plain single-field
+   *       index cannot serve. A MongoDB wildcard index ({@code labels.$**}) is the standard tool
+   *       for indexing an arbitrary, caller-chosen set of sub-fields — created here on both
+   *       collections.
+   *   <li><b>{@code rel_edges.from} / {@code rel_edges.to}</b> — NOT covered here, and NOT covered
+   *       by the entity either: {@code RelationshipEdgeEntity}'s {@code from_to_idx}/{@code
+   *       from_to_label_idx}/{@code to_label_idx} annotations are inert on v5 for exactly the
+   *       reason stated above ({@code auto-index-creation=false}), so on a fresh install nothing
+   *       builds them. (An earlier revision of this javadoc claimed the entity covered them — it
+   *       contradicted its own {@code auto-index-creation} note.) The queries that matter are
+   *       {@code findByFromAndLabel}/{@code findByToAndLabel}, which want {@code label} adjacent to
+   *       the anchor rather than behind {@code to}; both are created by {@code
+   *       _0036__RelationshipAndAuditIndexes} as {@code from_label}/{@code to_label}. Still skipped
+   *       here — this is the v3-only parity pass, and those indexes are needed on every generation.
+   * </ul>
+   *
+   * <p>Idempotent: every {@code ensureIndex} call is a no-op if the identically-named/keyed index
+   * already exists (see {@link MigrationUtils#ensureIndex}).
+   */
+  private void v3IndexParity(MongoDatabase db, CollectionNames names) {
+    if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
+      LOG.info("Not a v3 install — the indexes below are unrelated to v3 migration parity.");
+      return;
+    }
+
+    checkDuplicateEmails(db, names);
+    ensureIndex(
+        db, names.resolve("users"), "email_unique", new Document("email", 1), new IndexOptions().unique(true));
+
+    ensureIndex(
+        db,
+        names.resolve("workflows"),
+        "creation_date_sort",
+        new Document("creationDate", 1),
+        new IndexOptions());
+
+    ensureIndex(
+        db,
+        names.resolve("workflow_revisions"),
+        "version_lookup",
+        new Document("version", 1),
+        new IndexOptions());
+
+    ensureIndex(
+        db,
+        names.resolve("tasks"),
+        "creation_date_sort",
+        new Document("creationDate", 1),
+        new IndexOptions());
+
+    ensureIndex(
+        db,
+        names.resolve("task_runs"),
+        "label_wildcard",
+        new Document("labels.$**", 1),
+        new IndexOptions());
+    ensureIndex(
+        db,
+        names.resolve("workflow_runs"),
+        "label_wildcard",
+        new Document("labels.$**", 1),
+        new IndexOptions());
+
+    LOG.info("v3 index parity complete.");
+  }
+
+  /**
+   * Loud, non-destructive warning only — see {@link #v3IndexParity}'s {@code users.email} bullet.
+   * Under T6-2, {@link MigrationUtils#ensureIndex} rethrows the unique-index build failure and
+   * aborts the change unit; this pre-check just gives operators a clearer, targeted signal ahead
+   * of that generic "could not create UNIQUE index" exception.
+   */
+  private void checkDuplicateEmails(MongoDatabase db, CollectionNames names) {
+    List<Document> duplicates =
+        findDuplicateKeys(db, names.resolve("users"), new Document("email", "$email"));
+    if (!duplicates.isEmpty()) {
+      LOG.warn(
+          "{} duplicate email value(s) found across users — the unique email_unique index will"
+              + " fail to build (aborting this migration run) until these are resolved manually;"
+              + " no user document is deleted by"
+              + " this migration.",
+          duplicates.size());
+    }
+  }
+
+  @Rollback
+  public void rollback(MongoDatabase db, CollectionNames names) {
+    dropIndex(db, names.resolve("actions"), "task_run");
+    dropIndex(db, names.resolve("dispatchers"), "registration");
+
+    dropIndex(db, names.resolve("users"), "email_unique");
+    dropIndex(db, names.resolve("workflows"), "creation_date_sort");
+    dropIndex(db, names.resolve("workflow_revisions"), "version_lookup");
+    dropIndex(db, names.resolve("tasks"), "creation_date_sort");
+    dropIndex(db, names.resolve("task_runs"), "label_wildcard");
+    dropIndex(db, names.resolve("workflow_runs"), "label_wildcard");
+  }
+}
