@@ -44,11 +44,11 @@ import org.slf4j.LoggerFactory;
  * a rerun against a repointed database modifies nothing. The seed files carry the same target for
  * fresh installs; this unit exists for databases seeded before it.
  */
-@Change(id = "0039-repoint-worker-flow-images", author = "boomerang", transactional = false)
+@Change(id = "0039-v3-upgrade-catalogue-revisions", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0039__RepointWorkerFlowImages {
+public class _0039__V3UpgradeCatalogueRevisions {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0039__RepointWorkerFlowImages.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0039__V3UpgradeCatalogueRevisions.class);
 
   static final String TARGET_IMAGE = "boomerangio/task-flow:3.1.0";
   private static final String LINEAGE_PATTERN = "worker-flow";
