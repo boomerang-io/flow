@@ -13,7 +13,7 @@ public interface WorkflowRevisionRepository
 
   Optional<WorkflowRevisionEntity> findByWorkflowRefAndVersion(String workflowRef, Integer version);
 
-  List<WorkflowRevisionEntity> findByWorkflowRef(String string);
+  List<WorkflowRevisionEntity> findByWorkflowRefOrderByVersionAsc(String workflowRef);
 
   @Aggregation(
       pipeline = {"{'$match':{'workflowRef': ?0}}", "{'$sort': {version: -1}}", "{'$limit': 1}"})

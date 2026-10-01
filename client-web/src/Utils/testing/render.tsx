@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 import { render as rtlRender, type RenderOptions } from "@testing-library/react";
 import { FlagsProvider } from "flagged";
+import { buildFeatureFlags } from "Features/App/App";
 import { AppContextProvider, WorkspaceContextProvider } from "State/context";
 import {
   featureFlags as featureFlagsFixture,
@@ -139,22 +140,8 @@ export function renderWithRouter(
   };
 }
 
-const feature = featureFlagsFixture.features;
-
-const defaultFeatures = {
-  ActivityEnabled: feature["activity"],
-  EditVerifiedTasksEnabled: feature["enable.verified.tasks.edit"],
-  GlobalParametersEnabled: feature["global.parameters"],
-  InsightsEnabled: feature["insights"],
-  WorkspaceManagementEnabled: feature["workspace.management"],
-  WorkspaceParametersEnabled: feature["workspace.parameters"],
-  WorkspaceTasksEnabled: feature["workspace.tasks"],
-  UserManagementEnabled: feature["user.management"],
-  WorkspaceQuotasEnabled: feature["workspace.quotas"],
-  WorkflowTokensEnabled: feature["workflow.tokens"],
-  WorkflowTriggersEnabled: feature["workflow.triggers"],
-  TokensEnabled: feature["tokens"],
-};
+// The app's own mapping, so a flag added there reaches every spec without a second copy here.
+const defaultFeatures = buildFeatureFlags(featureFlagsFixture.features);
 
 // `userWorkflows` was carried here in the old setupTests.tsx harness too, importing a fixture
 // export ("ApiServer/fixtures" has no `userWorkflows` member - Did you mean 'workflows'?) that

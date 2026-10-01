@@ -2039,7 +2039,7 @@ public class WorkflowService {
     final Optional<WorkflowEntity> optWfEntity = workflowRepository.findById(workflowId);
     if (optWfEntity.isPresent()) {
       List<WorkflowRevisionEntity> wfRevisionEntities =
-          workflowRevisionRepository.findByWorkflowRef(workflowId);
+          workflowRevisionRepository.findByWorkflowRefOrderByVersionAsc(workflowId);
       if (wfRevisionEntities.isEmpty()) {
         throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
       }

@@ -98,6 +98,11 @@ list filters as comma-separated values (`statuses`, `phase`, `workflows`, `trigg
 treat these as today's contract; boomerang-io/flow#328 proposes moving to Spring Data `Pageable`
 (`sort=field,dir`), which would change the wire.
 
+The task and workflow `/{name}/changelog` endpoints are not paged: they return every version in
+ascending version order, so the last entry is the latest (`workflow/TaskControllerV2.java:220`,
+`WorkspaceTaskControllerV2.java:273`, `WorkspaceWorkflowControllerV2.java:207`; the sort is in
+`workflow/repository/TaskRevisionRepository.java:13` and `WorkflowRevisionRepository.java:16`).
+
 ## Public run models
 
 `WorkflowRun` and `TaskRun` (`lib-common/src/main/java/io/boomerang/common/model/`) are the

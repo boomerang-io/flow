@@ -903,7 +903,7 @@ public class TaskService {
   public List<ChangeLogVersion> changelog(String ref) {
     Task task = this.get(ref, Optional.empty());
     List<TaskRevisionEntity> taskRevisionEntities =
-        taskRevisionRepository.findByParentRef(task.getId());
+        taskRevisionRepository.findByParentRefOrderByVersionAsc(task.getId());
     if (taskRevisionEntities.isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF, ref, "latest");
     }

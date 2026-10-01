@@ -199,9 +199,12 @@ const Header: React.FC<HeaderProps> = ({
   const params = { workspace: rawParams.workspace ?? "", name: rawParams.name ?? "", version: rawParams.version ?? "" };
 
   const TaskIcon = taskIcons.find((icon) => icon.name === selectedTaskTemplate.icon);
+  // A sorted copy, never an in-place reverse: changelog is the route's loader data, so reversing it
+  // here flipped it again on every render. The API lists revisions in storage order, so sort by
+  // version rather than trust that order.
+  const changelogNewestFirst = [...changelog].sort((a, b) => b.version - a.version);
   const versionCount = changelog.length;
-  const lastUpdated = changelog[versionCount - 1] ?? {};
-  changelog.reverse();
+  const lastUpdated = changelogNewestFirst[0] ?? {};
   const canEdit = !selectedTaskTemplate?.verified || (editVerifiedTasksEnabled && selectedTaskTemplate?.verified);
 
   return (
@@ -379,7 +382,7 @@ const Header: React.FC<HeaderProps> = ({
             Archived
           </Tag>
         )}
-        <VersionHistory changelog={changelog} />
+        <VersionHistory changelog={changelogNewestFirst} />
         {selectedTaskTemplate.verified ? (
           <TooltipHover
             direction="right"

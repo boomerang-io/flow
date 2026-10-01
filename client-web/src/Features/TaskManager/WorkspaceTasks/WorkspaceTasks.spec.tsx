@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
@@ -74,6 +75,30 @@ describe("WorkspaceTasks --- loader", () => {
   test("renders a not-found state for an unknown task template", async () => {
     renderWorkspaceTasks(`/${WORKSPACE}/task-manager/does-not-exist/1`);
     expect(await screen.findByText("Task Template not found")).toBeInTheDocument();
+  });
+});
+
+// Mirrors AdminTasks.spec.tsx's navigation block on the workspace path shape.
+describe("WorkspaceTasks --- navigation from a loaded task", () => {
+  const TASK_ROUTE = `/${WORKSPACE}/task-manager/execute-advanced-http-call/4`;
+
+  test("the Editor tab opens the editor", async () => {
+    const { history } = renderWorkspaceTasks(TASK_ROUTE);
+    await userEvent.click(await screen.findByRole("link", { name: "Editor" }));
+    await waitFor(() => expect(history.location.pathname).toBe(`${TASK_ROUTE}/editor`));
+  });
+
+  test("unsaved edits still ask before changing version", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { history } = renderWorkspaceTasks(TASK_ROUTE);
+    await userEvent.click((await screen.findAllByLabelText("delete-field"))[0]);
+
+    await userEvent.click(screen.getByRole("button", { name: "back one version" }));
+    await waitFor(() =>
+      expect(confirm).toHaveBeenLastCalledWith("Are you sure you want to change the version? Your changes will be lost."),
+    );
+    expect(history.location.pathname).toBe(TASK_ROUTE);
+    confirm.mockRestore();
   });
 });
 

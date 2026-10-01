@@ -17,88 +17,57 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
           <div
             class="cds--bmrg-feature-header__nav"
           >
-            <div
-              class="_headerNav_268f38"
+            <nav
+              aria-label="Breadcrumb"
             >
-              <nav
-                aria-label="Breadcrumb"
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
               >
-                <ol
-                  class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+                <li
+                  class="cds--breadcrumb-item"
                 >
-                  <li
-                    class="cds--breadcrumb-item"
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/home"
                   >
-                    <a
-                      class="cds--link"
-                      data-discover="true"
-                      href="/home"
-                    >
-                      Home
-                    </a>
-                  </li>
-                  <li
-                    class="cds--breadcrumb-item"
-                  >
-                    <a
-                      class="cds--link"
-                      data-discover="true"
-                      href="/tyson-workspace/activity"
-                    >
-                      Activity
-                    </a>
-                  </li>
-                  <li
-                    class="cds--breadcrumb-item cds--breadcrumb-item--current"
-                  >
-                    <p
-                      class="cds--link"
-                    >
-                      test-workflow
-                    </p>
-                  </li>
-                </ol>
-              </nav>
-              <button
-                class="_workflowAdvancedDetailTrigger_268f38"
-                data-testid="advanced-detail-trigger"
-              >
-                <svg
-                  aria-hidden="true"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                    Home
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item"
                 >
-                  <path
-                    d="M26,2H8A2,2,0,0,0,6,4V8H4v2H6v5H4v2H6v5H4v2H6v4a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V4A2,2,0,0,0,26,2Zm0,26H8V24h2V22H8V17h2V15H8V10h2V8H8V4H26Z"
-                  />
-                  <path
-                    d="M14 8H22V10H14z"
-                  />
-                  <path
-                    d="M14 15H22V17H14z"
-                  />
-                  <path
-                    d="M14 22H22V24H14z"
-                  />
-                </svg>
-              </button>
-            </div>
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/tyson-workspace/activity"
+                  >
+                    Activity
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item cds--breadcrumb-item--current"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    Activity detail
+                  </p>
+                </li>
+              </ol>
+            </nav>
           </div>
           <div
             class="cds--bmrg-feature-header__header"
           >
             <div
-              style="display: flex;"
+              class="_titleRow_268f38"
             >
               <h1
                 class="cds--bmrg-feature-header-title"
+                title="Test Workflow"
               >
-                Activity detail
+                Test Workflow
               </h1>
             </div>
           </div>
@@ -106,6 +75,56 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
         <div
           class="_content_268f38"
         >
+          <dl
+            class="_data_268f38"
+          >
+            <dt
+              class="_dataTitle_268f38"
+            >
+              Status
+            </dt>
+            <dd
+              class="_dataValue_268f38"
+            >
+              <div
+                class="cds--tag _statusTag_268f38 cds--tag--teal"
+                data-testid="run-status"
+                id="tag-id-[generated-id]"
+              >
+                <div
+                  class="cds--tag__custom-icon"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
+                    />
+                    <path
+                      d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
+                    />
+                  </svg>
+                </div>
+                <span
+                  class="cds--tag__label"
+                  dir="auto"
+                  title=""
+                >
+                  <strong>
+                    Succeeded
+                  </strong>
+                   in 5min
+                </span>
+              </div>
+            </dd>
+          </dl>
           <dl
             class="_data_268f38"
           >
@@ -175,12 +194,76 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
             <dd
               class="_dataValue_268f38"
             >
-              2019-09-04 01:00 AM
+              2019-09-03 03:00 PM
             </dd>
           </dl>
-          <dl
-            class="_dataButton_268f38"
-          />
+          <div
+            class="_controls_268f38"
+          >
+            <span
+              class="cds--overflow-menu__wrapper"
+            >
+              <span
+                class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
+              >
+                <div
+                  class="cds--tooltip-trigger__wrapper"
+                >
+                  <button
+                    aria-expanded="false"
+                    aria-haspopup="true"
+                    aria-labelledby="tooltip-[generated-id]"
+                    class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--md cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
+                    type="button"
+                  >
+                    <svg
+                      aria-label="More run actions"
+                      class="cds--overflow-menu__icon"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <circle
+                        cx="16"
+                        cy="8"
+                        r="2"
+                      />
+                      <circle
+                        cx="16"
+                        cy="16"
+                        r="2"
+                      />
+                      <circle
+                        cx="16"
+                        cy="24"
+                        r="2"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <span
+                  aria-hidden="true"
+                  class="cds--popover"
+                  id="tooltip-[generated-id]"
+                  role="tooltip"
+                >
+                  <span
+                    class="cds--popover-content cds--tooltip-content"
+                  >
+                    More run actions
+                  </span>
+                  <span
+                    class="cds--popover-caret"
+                  />
+                </span>
+              </span>
+            </span>
+          </div>
         </div>
       </header>
       <section
@@ -190,232 +273,182 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
         <aside
           class="_container_ea4d0d "
         >
-          <section
-            class="_statusBlock_ea4d0d _succeeded_ea4d0d"
+          <button
+            aria-label="Collapse the task log"
+            class="_collapseButton_ea4d0d"
           >
-            <div
-              class="_duration_ea4d0d"
+            <svg
+              aria-hidden="true"
+              class="_chevron_ea4d0d"
+              fill="currentColor"
+              focusable="false"
+              height="16"
+              preserveAspectRatio="xMidYMid meet"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              <p
-                class="_title_ea4d0d"
-              >
-                Duration
-              </p>
-              <time
-                class="_value_ea4d0d"
-              >
-                5min
-              </time>
-            </div>
-            <div
-              class="_status_ea4d0d"
-            >
-              <p
-                class="_title_ea4d0d"
-              >
-                Status
-              </p>
-              <div
-                class="_statusData_ea4d0d"
-              >
-                <svg
-                  aria-label="succeeded"
-                  class="_statusIcon_ea4d0d"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  role="img"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414z"
-                  />
-                  <path
-                    d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"
-                  />
-                </svg>
-                <p
-                  class="_value_ea4d0d"
-                >
-                  Succeeded
-                </p>
-              </div>
-            </div>
-            <button
-              class="_collapseButton_ea4d0d"
-            >
-              <svg
-                aria-hidden="true"
-                class="_chevron_ea4d0d"
-                fill="currentColor"
-                focusable="false"
-                height="32"
-                preserveAspectRatio="xMidYMid meet"
-                viewBox="0 0 32 32"
-                width="32"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M10 16 20 6 21.4 7.4 12.8 16 21.4 24.6 20 26z"
-                />
-              </svg>
-            </button>
-          </section>
+              <path
+                d="M5 8 10 3 10.7 3.7 6.4 8 10.7 12.3 10 13z"
+              />
+            </svg>
+          </button>
           <section
             class="_taskbar_ea4d0d"
           >
             <div
-              class="cds--tabs _taskbarTabs_ea4d0d"
+              class="_switcher_ea4d0d"
             >
-              <button
-                aria-hidden="true"
-                aria-label="Scroll left"
-                class="cds--tab--overflow-nav-button cds--tab--overflow-nav-button--previous cds--tab--overflow-nav-button--hidden"
-                tabindex="-1"
-                type="button"
-              >
-                <svg
-                  aria-hidden="true"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 16 16"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M5 8 10 3 10.7 3.7 6.4 8 10.7 12.3 10 13z"
-                  />
-                </svg>
-              </button>
               <div
-                aria-label="Run detail"
-                class="cds--tab--list"
-                role="tablist"
+                class="cds--tabs cds--tabs--contained"
               >
                 <button
-                  aria-controls="ccs-[generated-id]-tabpanel-0"
-                  aria-selected="true"
-                  class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
-                  id="ccs-[generated-id]-tab-0"
-                  role="tab"
-                  tabindex="0"
-                  type="button"
-                >
-                  <div
-                    class="cds--tabs__nav-item-label-wrapper"
-                  >
-                    <span
-                      class="cds--tabs__nav-item-label"
-                      dir="auto"
-                    >
-                      Task log
-                    </span>
-                  </div>
-                </button>
-                <div
-                  class="cds--tabs__nav-item--close--hidden"
-                >
-                  <button
-                    aria-hidden="true"
-                    class="cds--visually-hidden cds--tabs__nav-item--close-icon--selected"
-                    tabindex="-1"
-                    title="Remove Task log tab"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      aria-label="Press delete to remove Task log tab"
-                      fill="currentColor"
-                      focusable="false"
-                      height="16"
-                      preserveAspectRatio="xMidYMid meet"
-                      role="img"
-                      viewBox="0 0 32 32"
-                      width="16"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <button
-                  aria-controls="ccs-[generated-id]-tabpanel-1"
-                  aria-selected="false"
-                  class="cds--tabs__nav-item cds--tabs__nav-link"
-                  id="ccs-[generated-id]-tab-1"
-                  role="tab"
+                  aria-hidden="true"
+                  aria-label="Scroll left"
+                  class="cds--tab--overflow-nav-button cds--tab--overflow-nav-button--previous cds--tab--overflow-nav-button--hidden"
                   tabindex="-1"
                   type="button"
                 >
-                  <div
-                    class="cds--tabs__nav-item-label-wrapper"
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
-                    <span
-                      class="cds--tabs__nav-item-label"
-                      dir="auto"
-                    >
-                      Artifacts (0)
-                    </span>
-                  </div>
+                    <path
+                      d="M5 8 10 3 10.7 3.7 6.4 8 10.7 12.3 10 13z"
+                    />
+                  </svg>
                 </button>
                 <div
-                  class="cds--tabs__nav-item--close--hidden"
+                  aria-label="Run detail"
+                  class="cds--tab--list"
+                  role="tablist"
                 >
                   <button
-                    aria-hidden="true"
-                    class="cds--visually-hidden"
-                    tabindex="-1"
-                    title="Remove Artifacts (0) tab"
+                    aria-controls="ccs-[generated-id]-tabpanel-0"
+                    aria-selected="true"
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--tabs__nav-item--selected"
+                    id="ccs-[generated-id]-tab-0"
+                    role="tab"
+                    tabindex="0"
                     type="button"
                   >
-                    <svg
-                      aria-hidden="true"
-                      aria-label="Press delete to remove Artifacts (0) tab"
-                      fill="currentColor"
-                      focusable="false"
-                      height="16"
-                      preserveAspectRatio="xMidYMid meet"
-                      role="img"
-                      viewBox="0 0 32 32"
-                      width="16"
-                      xmlns="http://www.w3.org/2000/svg"
+                    <div
+                      class="cds--tabs__nav-item-label-wrapper"
                     >
-                      <path
-                        d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
-                      />
-                    </svg>
+                      <span
+                        class="cds--tabs__nav-item-label"
+                        dir="auto"
+                      >
+                        Task log (1)
+                      </span>
+                    </div>
                   </button>
+                  <div
+                    class="cds--tabs__nav-item--close--hidden"
+                  >
+                    <button
+                      aria-hidden="true"
+                      class="cds--visually-hidden cds--tabs__nav-item--close-icon--selected"
+                      tabindex="-1"
+                      title="Remove Task log (1) tab"
+                      type="button"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        aria-label="Press delete to remove Task log (1) tab"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        role="img"
+                        viewBox="0 0 32 32"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <button
+                    aria-controls="ccs-[generated-id]-tabpanel-1"
+                    aria-selected="false"
+                    class="cds--tabs__nav-item cds--tabs__nav-link"
+                    id="ccs-[generated-id]-tab-1"
+                    role="tab"
+                    tabindex="-1"
+                    type="button"
+                  >
+                    <div
+                      class="cds--tabs__nav-item-label-wrapper"
+                    >
+                      <span
+                        class="cds--tabs__nav-item-label"
+                        dir="auto"
+                      >
+                        Artifacts (0)
+                      </span>
+                    </div>
+                  </button>
+                  <div
+                    class="cds--tabs__nav-item--close--hidden"
+                  >
+                    <button
+                      aria-hidden="true"
+                      class="cds--visually-hidden"
+                      tabindex="-1"
+                      title="Remove Artifacts (0) tab"
+                      type="button"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        aria-label="Press delete to remove Artifacts (0) tab"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        role="img"
+                        viewBox="0 0 32 32"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <button
-                aria-hidden="true"
-                aria-label="Scroll right"
-                class="cds--tab--overflow-nav-button cds--tab--overflow-nav-button--next cds--tab--overflow-nav-button--hidden"
-                tabindex="-1"
-                type="button"
-              >
-                <svg
+                <button
                   aria-hidden="true"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 16 16"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
+                  aria-label="Scroll right"
+                  class="cds--tab--overflow-nav-button cds--tab--overflow-nav-button--next cds--tab--overflow-nav-button--hidden"
+                  tabindex="-1"
+                  type="button"
                 >
-                  <path
-                    d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 16 16"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M11 8 6 13 5.3 12.3 9.6 8 5.3 3.7 6 3z"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
             <span
               class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
@@ -534,38 +567,24 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                   </p>
                 </div>
               </section>
-              <section
-                class="_data_fe6a3c"
+              <p
+                class="_timeLine_fe6a3c"
+                data-testid="taskitem-time"
               >
-                <div
-                  class="_time_fe6a3c"
+                Started at 
+                <time
+                  class="_timeValue_fe6a3c"
                 >
-                  <p
-                    class="_timeTitle_fe6a3c"
-                  >
-                    Start time
-                  </p>
-                  <time
-                    class="_timeValue_fe6a3c"
-                  >
-                    01:00:00 AM
-                  </time>
-                </div>
-                <div
-                  class="_time_fe6a3c"
+                  03:00:00 PM
+                </time>
+                 
+                in 
+                <time
+                  class="_timeValue_fe6a3c"
                 >
-                  <p
-                    class="_timeTitle_fe6a3c"
-                  >
-                    Duration
-                  </p>
-                  <time
-                    class="_timeValue_fe6a3c"
-                  >
-                    5 mins
-                  </time>
-                </div>
-              </section>
+                  5 mins
+                </time>
+              </p>
               <section
                 class="_data_fe6a3c _actions_fe6a3c"
               >
@@ -809,6 +828,9 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
       </section>
     </div>
   </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
   <div
     class="cds--bmrg-modal-portal"
   />
