@@ -49,7 +49,8 @@ public class _0052__SeedArtifactTasks {
             param("name", "Artifact name", "text", true, false,
                 "Unique within the run. Letters, digits, dot, dash and underscore."),
             param("path", "Path", "text", true, false,
-                "A file or folder in the run workspace. A folder is uploaded as one .tar.gz."),
+                "A file or folder to upload; a folder is sent as one .tar.gz. Relative to"
+                    + " /workspace (e.g. workflowrun/reports/sbom.json), or an absolute path."),
             param("retention-days", "Retention days", "text", false, false,
                 "Blank keeps it for the workspace's retention. You can ask for fewer days, not"
                     + " more."),
@@ -67,7 +68,8 @@ public class _0052__SeedArtifactTasks {
             param("name", "Artifact name", "text", true, false,
                 "An artifact an earlier task in this run uploaded."),
             param("path", "Destination path", "text", true, false,
-                "Where to put it in the run workspace. An uploaded folder is unpacked here."),
+                "Where to put it; an uploaded folder is unpacked here. Relative to /workspace"
+                    + " (e.g. workflowrun/inputs/), or an absolute path."),
             param("url", "Download link", "password", false, true, FILLED_BY_FLOW),
             param("headers", "Download headers", "text", false, true, FILLED_BY_FLOW),
             param("sha256", "SHA-256", "text", false, true, FILLED_BY_FLOW),
