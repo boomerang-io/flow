@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
@@ -33,6 +34,58 @@ describe("AdminTasks --- loader", () => {
   test("renders a not-found state for an unknown task template", async () => {
     renderAdminTasks("/admin/task-manager/does-not-exist/1");
     expect(await screen.findByText("Task Template not found")).toBeInTheDocument();
+  });
+
+  // The header used to reverse the loader's changelog in place, so each re-render (any form edit)
+  // flipped which entry it read the date from.
+  test("keeps the newest version's date in the header across re-renders", async () => {
+    renderAdminTasks("/admin/task-manager/execute-advanced-http-call/4");
+    expect(await screen.findByText("Version updated Sep 11, 2023")).toBeInTheDocument();
+    await userEvent.click((await screen.findAllByLabelText("delete-field"))[0]);
+    expect(screen.getByText("Version updated Sep 11, 2023")).toBeInTheDocument();
+  });
+});
+
+// A loaded template mounts the unsaved-changes blocker, which React Router consults on every
+// navigation - so each of these only passes while that guard lets a clean form through.
+describe("AdminTasks --- navigation from a loaded task", () => {
+  const TASK_ROUTE = "/admin/task-manager/execute-advanced-http-call/4";
+
+  test("the Editor tab opens the editor", async () => {
+    const { history } = renderAdminTasks(TASK_ROUTE);
+    await userEvent.click(await screen.findByRole("link", { name: "Editor" }));
+    await waitFor(() => expect(history.location.pathname).toBe(`${TASK_ROUTE}/editor`));
+  });
+
+  test("the sidenav switches to a different task", async () => {
+    const { history } = renderAdminTasks(TASK_ROUTE);
+    await userEvent.click(await screen.findByRole("button", { name: "Expand all" }));
+    await userEvent.click(screen.getByRole("link", { name: /Set Workflow Result Status/ }));
+    await waitFor(() => expect(history.location.pathname).toBe("/admin/task-manager/set-workflow-result-status/1"));
+  });
+
+  test("the version switcher opens the previous version", async () => {
+    const { history } = renderAdminTasks(TASK_ROUTE);
+    await userEvent.click(await screen.findByRole("button", { name: "back one version" }));
+    await waitFor(() => expect(history.location.pathname).toBe("/admin/task-manager/execute-advanced-http-call/3"));
+  });
+
+  test("unsaved edits still ask before leaving, naming a version change", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { history } = renderAdminTasks(TASK_ROUTE);
+    await userEvent.click((await screen.findAllByLabelText("delete-field"))[0]);
+
+    await userEvent.click(screen.getByRole("link", { name: "Editor" }));
+    await waitFor(() =>
+      expect(confirm).toHaveBeenLastCalledWith("Are you sure you want to leave? You have unsaved changes."),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "back one version" }));
+    await waitFor(() =>
+      expect(confirm).toHaveBeenLastCalledWith("Are you sure you want to change the version? Your changes will be lost."),
+    );
+    expect(history.location.pathname).toBe(TASK_ROUTE);
+    confirm.mockRestore();
   });
 });
 
