@@ -321,7 +321,12 @@ public class _0011__V3MigrateRuns {
     action.put("_id", id);
     action.put("workflowRef", asString(approval.get("workflowId")));
     action.put("workflowRunRef", asString(approval.get("activityId")));
-    action.put("taskRunRef", asString(approval.get("taskActivityId")));
+    // Absent rather than null when the approval names no task run: the unique task_run index
+    // covers only actions that carry one.
+    String taskRunRef = asString(approval.get("taskActivityId"));
+    if (taskRunRef != null) {
+      action.put("taskRunRef", taskRunRef);
+    }
     action.put("actioners", migrateActioners(approval.get("actioners")));
     action.put("status", approval.getString("status"));
     String type = approval.getString("type");

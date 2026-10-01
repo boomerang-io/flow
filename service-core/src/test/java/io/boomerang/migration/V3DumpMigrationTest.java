@@ -273,7 +273,7 @@ class V3DumpMigrationTest {
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
     assertAuditStartsEmpty();
-    assertV3IndexesCreated();
+    assertIndexInventoryBuilt();
     assertV3IntermediatesDropped();
 
     // -----------------------------------------------------------------------------------
@@ -328,7 +328,7 @@ class V3DumpMigrationTest {
     // Re-asserting index presence/counts here after this second full run is itself the
     // idempotency proof the batch instructions ask for - ensureIndex is a no-op on an identically
     // named/keyed index, and the second-run intermediate-drop pass finds nothing left to drop.
-    assertV3IndexesCreated();
+    assertIndexInventoryBuilt();
     assertV3IntermediatesDropped();
   }
 
@@ -363,17 +363,16 @@ class V3DumpMigrationTest {
             "paused_trigger_groups",
             "locks",
             "schedulers",
-            "tasks_locks",
-            "tokens");
+            "tasks_locks");
     for (String dropped : expectedDropped) {
       assertThat(names)
           .as("%s must have been dropped", dropped)
           .doesNotContain(prefixed(dropped));
     }
-    // The one unprefixed "locks" collection in the dump (distributed-lock's, not Quartz's) was
-    // out of scope for this v3-only unit, but IS dropped by H11's ungated
-    // _0027__V4DropResidualCollections, which runs later in the same chain.
-    assertThat(names).as("unprefixed distributed-lock 'locks' dropped by H11").doesNotContain("locks");
+    // The dump's one unprefixed "locks" collection (a distributed lock's, not Quartz's).
+    assertThat(names).as("unprefixed distributed-lock 'locks' dropped").doesNotContain("locks");
+    // v3 tokens are another shape and are not carried; the collection holds v5 tokens only.
+    assertThat(collection("tokens").countDocuments()).as("no v3 token survives").isZero();
   }
 
   private void assertLiveCollectionsPreserved(long workflowsBefore, long usersBefore) {
@@ -1558,37 +1557,23 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0019__DomainIndexes invariants (Batch G)
+  // The index inventory
   // =====================================================================================
 
-  private void assertV3IndexesCreated() {
-    Map<String, Document> userIndexes = indexesByName("users");
-    assertThat(userIndexes.get("email_unique")).as("users.email_unique must exist").isNotNull();
-    assertThat(userIndexes.get("email_unique").get("key", Document.class).keySet())
-        .containsExactly("email");
-    assertThat(userIndexes.get("email_unique").getBoolean("unique"))
-        .as("users.email_unique must be unique - the real dump's 57 users have no duplicate email")
-        .isTrue();
-
-    Map<String, Document> workflowIndexes = indexesByName("workflows");
-    assertThat(workflowIndexes.get("creation_date_sort").get("key", Document.class).keySet())
-        .containsExactly("creationDate");
-
-    Map<String, Document> revisionIndexes = indexesByName("workflow_revisions");
-    assertThat(revisionIndexes.get("version_lookup").get("key", Document.class).keySet())
-        .containsExactly("version");
-
-    Map<String, Document> taskIndexes = indexesByName("tasks");
-    assertThat(taskIndexes.get("creation_date_sort").get("key", Document.class).keySet())
-        .containsExactly("creationDate");
-
-    Map<String, Document> taskRunIndexes = indexesByName("task_runs");
-    assertThat(taskRunIndexes.get("label_wildcard").get("key", Document.class).keySet())
-        .containsExactly("labels.$**");
-
-    Map<String, Document> workflowRunIndexes = indexesByName("workflow_runs");
-    assertThat(workflowRunIndexes.get("label_wildcard").get("key", Document.class).keySet())
-        .containsExactly("labels.$**");
+  private void assertIndexInventoryBuilt() {
+    // The same inventory an empty database gets; the dump's 57 users share no email.
+    for (_0057__Indexes.Index index : _0057__Indexes.INVENTORY) {
+      Document built = indexesByName(index.collection()).get(index.name());
+      assertThat(built).as("%s.%s", index.collection(), index.name()).isNotNull();
+      assertThat(built.get("key", Document.class).keySet())
+          .as("%s.%s keys", index.collection(), index.name())
+          .containsExactlyElementsOf(index.keys().keySet());
+      assertThat(Boolean.TRUE.equals(built.getBoolean("unique")))
+          .as("%s.%s unique", index.collection(), index.name())
+          .isEqualTo(index.options().isUnique());
+    }
+    // The migrated approvals keep their task run, so all 8 sit under the unique task_run index.
+    assertThat(collection("actions").countDocuments(Filters.exists("taskRunRef"))).isEqualTo(8);
   }
 
   private Map<String, Document> indexesByName(String bareCollectionName) {
