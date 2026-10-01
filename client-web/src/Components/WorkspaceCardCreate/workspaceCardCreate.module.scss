@@ -2,6 +2,7 @@
 @import "Styles/mixins";
 
 .container {
+  @include border-radius();
   border: 0.0625rem dashed var(--cds-border-strong-01, var(--cds-ui-04));
   box-sizing: border-box;
   display: flex;

@@ -11,6 +11,7 @@
 }
 
 .step {
+  @include border-radius();
   background-color: var(--cds-layer-01, var(--cds-ui-01));
   border-top: 0.1875rem solid var(--cds-border-subtle-01, var(--cds-ui-03));
   box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
@@ -95,6 +96,7 @@
 }
 
 .concept {
+  @include border-radius();
   background-color: var(--cds-layer-01, var(--cds-ui-01));
   box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
   color: var(--cds-text-primary);
