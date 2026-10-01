@@ -7,12 +7,14 @@ import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.InsertOneModel;
 import com.mongodb.client.model.Projections;
+import com.mongodb.client.model.Updates;
 import com.mongodb.client.model.WriteModel;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -149,6 +151,9 @@ public class _0012__V3BuildRelationshipGraph {
     long adminMembershipsAttached = attachSystemWorkspaceAdminMembers(db, names, workspaces);
     long[] workflowCounts = buildWorkflowOwnershipEdges(db, names, workspaces);
     long[] runCounts = buildWorkflowRunOwnershipEdges(db, names, workspaces);
+    long approverGroups = buildApproverGroupEdges(db, names, workspaces);
+    clearHandOffFields(db, names);
+    LOG.info("v3 approver groups linked to their workspace: {}", approverGroups);
 
     LOG.info(
         "v3 relationship graph built — tasks: {} nodes/{} edges, workspaces: {} nodes/{} edges, "
@@ -441,6 +446,56 @@ public class _0012__V3BuildRelationshipGraph {
       resolved++;
     }
     return new long[] {resolved, unresolved};
+  }
+
+  // =====================================================================================
+  // workspace --hasApproverGroup--> approvergroup:<id>
+  // =====================================================================================
+
+  /** Link each approver group to the workspace it was extracted from, as the service does. */
+  private long buildApproverGroupEdges(
+      MongoDatabase db, CollectionNames names, WorkspaceGraph workspaces) {
+    long linked = 0;
+    for (Document group : db.getCollection(names.resolve("approver_groups")).find()) {
+      String groupId = group.get("_id").toString();
+      String workspaceId = group.getString("workspaceRef");
+      if (workspaceId == null || !workspaces.allWorkspaceIds().contains(workspaceId)) {
+        LOG.warn("Approver group {} names no migrated workspace - no edge written", groupId);
+        continue;
+      }
+      String groupNodeId = "approvergroup:" + groupId;
+      String workspaceNodeId = "workspace:" + workspaceId;
+      SeedResources.insertIfAbsent(
+          db,
+          names.resolve("rel_nodes"),
+          Filters.eq("_id", groupNodeId),
+          SeedResources.node("approvergroup", groupId, group.getString("name")));
+      SeedResources.insertIfAbsent(
+          db,
+          names.resolve("rel_edges"),
+          Filters.and(
+              Filters.eq("from", workspaceNodeId),
+              Filters.eq("label", "hasApproverGroup"),
+              Filters.eq("to", groupNodeId)),
+          SeedResources.edge(workspaceNodeId, "hasApproverGroup", groupNodeId, new Document()));
+      linked++;
+    }
+    return linked;
+  }
+
+  /** The owner hints earlier v3 units left for this graph build; nothing reads them after it. */
+  private void clearHandOffFields(MongoDatabase db, CollectionNames names) {
+    unset(db, names.resolve("workflows"), "scope", "ownerRef");
+    unset(db, names.resolve("workflow_runs"), "scope", "ownerRef");
+    unset(db, names.resolve("users"), "flowTeamRefs");
+    unset(db, names.resolve("approver_groups"), "workspaceRef");
+  }
+
+  private static void unset(MongoDatabase db, String collection, String... fields) {
+    db.getCollection(collection)
+        .updateMany(
+            Filters.or(Arrays.stream(fields).map(Filters::exists).toList()),
+            Updates.combine(Arrays.stream(fields).map(Updates::unset).toList()));
   }
 
   // =====================================================================================

@@ -89,6 +89,8 @@ public class _0004__V3DropDeadCollections {
     }
     dropped += dropIfPresent(db, names.resolve("tasks_locks"));
     dropped += dropIfPresent(db, names.resolve("tokens"));
+    // Unprefixed: the collection a v3 distributed-lock library kept beside Flow's own.
+    dropped += dropIfPresent(db, "locks");
     LOG.info("v3 dead-collection cleanup — {} documents discarded across dropped collections", dropped);
   }
 
