@@ -261,6 +261,7 @@ class V3DumpMigrationTest {
     assertSettingsMigrated();
     assertGlobalParametersMigrated();
     assertTaskCatalogueMigrated();
+    assertCatalogueAndTaskSettingsUpgraded();
     assertTaskRunRefsUnitIsNoOp();
     assertWorkspacesMigrated();
     assertUsersMigrated();
@@ -298,6 +299,7 @@ class V3DumpMigrationTest {
     assertSettingsMigrated();
     assertGlobalParametersMigrated();
     assertTaskCatalogueMigrated();
+    assertCatalogueAndTaskSettingsUpgraded();
     assertTaskRunRefsUnitIsNoOp();
     // Re-asserting the exact post-migration counts here (86 teams: 28 v3 + 1 system + 57
     // personal; 57 users) after this second full run is itself the personal-workspace
@@ -672,6 +674,74 @@ class V3DumpMigrationTest {
         collection("task_revisions")
             .countDocuments(Filters.eq("parentRef", "5f6379c974f51934044cbbd6"));
     assertThat(approvalRevisions).isEqualTo(2);
+  }
+
+  // =====================================================================================
+  // What an upgraded catalogue and its task settings end with, whichever unit produces it
+  // =====================================================================================
+
+  private void assertCatalogueAndTaskSettingsUpgraded() {
+    // No revision still runs, or names as its command, the retired worker-flow image.
+    for (Document revision : collection("task_revisions").find()) {
+      Document spec = revision.get("spec", Document.class);
+      assertThat(String.valueOf(spec.get("image")))
+          .as("revision %s image", revision.get("_id"))
+          .doesNotContain("worker-flow");
+      assertThat(String.valueOf(spec.get("command")))
+          .as("revision %s command", revision.get("_id"))
+          .doesNotContain("worker-flow");
+    }
+
+    // run-workflow and run-scheduled-workflow declare every param the engine reads from them.
+    assertThat(latestRevisionParamNames("603591f5c267b8ce33782571")).contains("workflowRef", "wait");
+    assertThat(latestRevisionParamNames("61dcb509c570b75ec2c432f8"))
+        .contains("workflowRef", "futureIn", "futurePeriod", "timezone", "time");
+
+    // The task settings entries carry the seed's wording; values are the install's own, except
+    // the retired 90-minute ceiling and the retired worker-flow image.
+    Document seedTask = seedSetting("task");
+    Document task = collection("settings").find(Filters.eq("key", "task")).first();
+    Document timeout = configEntry(task, "default.timeout");
+    assertThat(timeout.getString("value")).isNotEqualTo("90");
+    assertThat(timeout.getString("label")).isEqualTo(configEntry(seedTask, "default.timeout").getString("label"));
+    assertThat(timeout.getString("description"))
+        .isEqualTo(configEntry(seedTask, "default.timeout").getString("description"));
+    Document deletion = configEntry(task, "deletion.policy");
+    assertThat(deletion.get("options")).isEqualTo(configEntry(seedTask, "deletion.policy").get("options"));
+    assertThat(deletion.getString("description"))
+        .isEqualTo(configEntry(seedTask, "deletion.policy").getString("description"));
+    assertThat(configEntry(task, "default.image").getString("value")).doesNotContain("worker-flow");
+
+    Document integration = collection("settings").find(Filters.eq("key", "integration")).first();
+    assertThat(configKeys(integration)).contains("slack.signingSecret");
+  }
+
+  private List<String> latestRevisionParamNames(String parentRef) {
+    Document latest =
+        collection("task_revisions")
+            .find(Filters.eq("parentRef", parentRef))
+            .sort(new Document("version", -1))
+            .first();
+    assertThat(latest).as("latest revision of %s", parentRef).isNotNull();
+    List<String> names = new ArrayList<>();
+    for (Document param : latest.get("spec", Document.class).getList("params", Document.class)) {
+      names.add(param.getString("name"));
+    }
+    return names;
+  }
+
+  private static Document seedSetting(String key) {
+    return SeedResources.load("seed/settings.json").stream()
+        .filter(setting -> key.equals(setting.getString("key")))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private Document configEntry(Document setting, String key) {
+    return configOf(setting).stream()
+        .filter(entry -> key.equals(entry.getString("key")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError(setting.getString("key") + " has no " + key));
   }
 
   // =====================================================================================
