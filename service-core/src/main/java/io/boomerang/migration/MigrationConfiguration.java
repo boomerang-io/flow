@@ -43,7 +43,7 @@ public class MigrationConfiguration {
       MongoDBSyncTargetSystem migrationTargetSystem, MongoConfiguration mongoConfiguration) {
     CollectionNames names = new CollectionNames(mongoConfiguration.collectionPrefix());
     return MongoDBSyncAuditStore.from(migrationTargetSystem)
-        .withAuditRepositoryName(names.resolve("sys_changelog_loader"))
-        .withLockRepositoryName(names.resolve("sys_lock_loader"));
+        .withAuditRepositoryName(names.resolve("sys_migration_changelog"))
+        .withLockRepositoryName(names.resolve("sys_migration_lock"));
   }
 }

@@ -1,53 +1,63 @@
 package io.boomerang.migration;
 
 import com.mongodb.client.MongoDatabase;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * FIRST unit of the whole chain — must run before any other change unit mutates the database (the
- * chain's ordering and the in-place v3 upgrade path are described in {@code
- * specifications/data-model.md}). Merges the two units that previously ran at opposite ends of
- * the chain ({@code _0001__BaselineExistingInstall}, which only ever logged, and {@code
- * _0019__LegacyGenerationDetect}, which recorded the durable generation marker after 18 other
- * units had already run) — both are detect-and-record-only, and nothing gates on the first half's
- * output, so combining them costs nothing and buys every later unit a STABLE generation answer
- * from change unit #1 instead of #19.
+ * First unit of the chain, before anything is written: refuse a database the chain cannot
+ * upgrade, then record the install generation once so every later unit gets a stable answer.
  *
- * <p><b>Half 1 — existing-installation logging.</b> Detected by the legacy loader's Mongock
- * changelog ({@code sys_changelog_flow}) or by seeded workflows. Detection only — no gating: every
- * subsequent change unit is idempotent regardless of prior state.
+ * <p>The chain migrates exactly two starting points: an empty database and a v3 install. A v4
+ * install, or a database a 5.0 beta already migrated (it holds the beta's {@code
+ * sys_changelog_loader}), stops startup here with a message that says why. The check reruns on
+ * every start ({@link RecoveryStrategy#ALWAYS_RETRY}), so pointing the service at the right
+ * database is enough to recover.
  *
- * <p><b>Half 2 — durable {@link InstallGeneration} marker.</b> Recorded — exactly once — via
- * {@link LegacyGenerationMarker}. Why this needs to happen HERE rather than every later unit
- * calling {@link InstallGeneration#detect} itself: detection reads the legacy loader's {@code
- * sys_changelog_flow} changelog, and this consolidated path never writes that changelog's v4-chain
- * marker ({@code changeId: "4000"}) — it goes straight from v3 to v5. A v3 install's changelog
- * therefore keeps satisfying {@link InstallGeneration#V3}'s detection rule forever, on every future
- * Flamingock run against this database, even long after the v3→v5 migration has fully completed.
- * Capturing the generation ONCE, at the earliest point in the chain (before {@link
- * _0004__V3DropDeadCollections} or any other unit mutates the database), gives every later
- * v3-only/v4-only unit a stable answer to "what generation was this install" instead of a live
- * re-derivation that would stay {@code V3} indefinitely.
- *
- * <p>Detection-and-record only — no gating of its own. Idempotent: {@link
- * LegacyGenerationMarker#recordOnce} is a no-op once the marker exists.
+ * <p>The generation is read from the legacy Mongock changelog ({@code sys_changelog_flow}), which
+ * keeps answering {@link InstallGeneration#V3} long after the upgrade; {@link
+ * LegacyGenerationMarker} records the answer once so later runs are not re-derived from it.
  */
 @Change(id = "0001-baseline-and-generation-detect", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0001__BaselineAndGenerationDetect {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(_0001__BaselineAndGenerationDetect.class);
 
+  /** The change log a 5.0 beta's separate loader kept. */
+  static final String BETA_CHANGELOG = "sys_changelog_loader";
+
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
+    refuseUnsupportedDatabase(db, names);
     logExistingInstallation(db, names);
     recordGeneration(db, names);
+  }
+
+  private void refuseUnsupportedDatabase(MongoDatabase db, CollectionNames names) {
+    if (db.getCollection(names.resolve(BETA_CHANGELOG)).countDocuments() > 0) {
+      throw new IllegalStateException(
+          "This database was migrated by a 5.0 beta ("
+              + names.resolve(BETA_CHANGELOG)
+              + " exists). Beta databases cannot be upgraded: start from an empty database or"
+              + " restore the v3 database it came from.");
+    }
+    if (InstallGeneration.detect(db, names) == InstallGeneration.V4) {
+      throw new IllegalStateException(
+          "This database was installed by Flow 4, or by a loader this release does not recognise"
+              + " ("
+              + names.resolve("sys_changelog_flow")
+              + " has no v3 completion marker). Only an empty database or a Flow 3 database can be"
+              + " upgraded in place.");
+    }
   }
 
   private void logExistingInstallation(MongoDatabase db, CollectionNames names) {

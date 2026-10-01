@@ -26,8 +26,8 @@ abstract class MigrationRunner {
       targetSystem.addDependency(CollectionNames.class, names);
       MongoDBSyncAuditStore auditStore =
           MongoDBSyncAuditStore.from(targetSystem)
-              .withAuditRepositoryName(names.resolve("sys_changelog_loader"))
-              .withLockRepositoryName(names.resolve("sys_lock_loader"));
+              .withAuditRepositoryName(names.resolve("sys_migration_changelog"))
+              .withLockRepositoryName(names.resolve("sys_migration_lock"));
       Flamingock.builder().addTargetSystem(targetSystem).setAuditStore(auditStore).build().run();
     }
   }
