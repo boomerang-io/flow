@@ -272,7 +272,7 @@ class V3DumpMigrationTest {
     assertSchedulesMigrated();
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
-    assertAuditSeeded();
+    assertAuditStartsEmpty();
     assertV3IndexesCreated();
     assertV3IntermediatesDropped();
 
@@ -324,7 +324,7 @@ class V3DumpMigrationTest {
     // real-dump values.
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
-    assertAuditSeeded();
+    assertAuditStartsEmpty();
     // Re-asserting index presence/counts here after this second full run is itself the
     // idempotency proof the batch instructions ask for - ensureIndex is a no-op on an identically
     // named/keyed index, and the second-run intermediate-drop pass finds nothing left to drop.
@@ -1546,12 +1546,8 @@ class V3DumpMigrationTest {
   // _0013__V3SeedAudit invariants (Batch E)
   // =====================================================================================
 
-  private void assertAuditSeeded() {
-    // The per-object records _0013 seeds (86 workspaces + 65 workflows on this dump, "TEAM"
-    // scopes rewritten by _0016) are dropped again by _0042__AuditEventRestructure at the end of
-    // the same chain - the audit collection ends the migration empty, carrying only the
-    // flat-event indexes. The chain deliberately keeps seed-then-drop rather than skipping
-    // _0013: every unit stays untouched for installs that stopped at earlier releases.
+  private void assertAuditStartsEmpty() {
+    // v3 has no audit events to carry; the collection starts empty with only the event indexes.
     assertThat(collection("audit").countDocuments()).isZero();
     List<String> auditIndexes = new ArrayList<>();
     collection("audit").listIndexes().forEach(index -> auditIndexes.add(index.getString("name")));
