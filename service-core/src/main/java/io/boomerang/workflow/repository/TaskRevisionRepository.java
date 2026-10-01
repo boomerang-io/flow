@@ -10,7 +10,7 @@ import io.boomerang.common.entity.TaskRevisionEntity;
 public interface TaskRevisionRepository extends MongoRepository<TaskRevisionEntity, String> {
   Integer countByParentRef(String parent);
 
-  List<TaskRevisionEntity> findByParentRef(String parent);
+  List<TaskRevisionEntity> findByParentRefOrderByVersionAsc(String parent);
 
   Optional<TaskRevisionEntity> findByParentRefAndVersion(String parent, Integer version);
 
