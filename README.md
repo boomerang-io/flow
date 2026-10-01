@@ -7,9 +7,8 @@ This repository holds the whole product — services, migrations, and the web ap
 
 | Module | Role |
 |---|---|
-| [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. Runs as `flow.mode = standalone \| engine`. |
+| [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Migrates and seeds its database as it starts (Flamingock change units in `io.boomerang.migration`). |
 | [`service-dispatcher`](./service-dispatcher) | Pluggable execution worker. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `agent.executor`: `tekton` (default) or `kube-jobs`. Additional runtimes can be added. |
-| [`service-loader`](./service-loader) | Flamingock migrations and bootstrap seeding, run as a pre-deploy Job. |
 | [`lib-common`](./lib-common) | Shared domain model, entities, enums, error handling. |
 | [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; served only in `standalone` mode. |
 | [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
@@ -43,8 +42,8 @@ calls a dispatcher.
 
 ## Running the whole product locally
 
-`docker-compose.yml` brings up MongoDB, the one-shot `service-loader` migration/seed job (gated so
-`service-core` never boots against an unmigrated database), `service-core`, `client-web`, a local
+`docker-compose.yml` brings up MongoDB, `service-core` (which migrates and seeds the database before
+it serves anything), `client-web`, a local
 IDPZero OIDC provider for real sign-in, and SeaweedFS as the S3-compatible artifact store. The e2e suite
 in GitHub Actions layers `docker-compose.ci.yml` over it, which leaves the artifact store out. `client-web`'s own SSR server is the single browser-facing
 origin — and the only thing the browser talks to (BFF end state): it serves documents, `/res/*`
@@ -58,7 +57,7 @@ the dispatcher.
 Published `boomerangio/*` images are the v4 line and will not match this branch, so build locally:
 
 ```bash
-mvn -pl service-core,service-loader -am clean package -DskipTests
+mvn -pl service-core -am clean package -DskipTests
 cd client-web && pnpm install && pnpm run build && cd ..
 docker compose up --build
 ```
@@ -121,9 +120,9 @@ set of level-triggered sweeps in `WorkflowWatcher` that any instance can run. Th
 
 ### Indexes
 
-MongoDB index creation is owned entirely by `service-loader` changeunits. Entity `@Indexed` and
+MongoDB index creation is owned entirely by the change units in `io.boomerang.migration`. Entity `@Indexed` and
 `@CompoundIndex` annotations are **inert** — `spring.data.mongodb.auto-index-creation=false` — so an
-annotation without a matching changeunit creates no index.
+annotation without a matching change unit creates no index.
 
 ## Error handling
 
