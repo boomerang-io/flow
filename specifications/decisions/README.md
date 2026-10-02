@@ -27,7 +27,7 @@ things by name, not by code.
 | 0021 | [Versioned documents use the subset pattern (parent plus revision documents)](0021-versioned-documents-use-the-subset-pattern.md) | accepted | 2023-08-14 |
 | 0022 | [Migrations run as a pre-deploy loader job on Flamingock, one execution per deploy](0022-migrations-run-as-a-pre-deploy-loader-job.md) | superseded by 0093 | 2026-07-23 |
 | 0023 | [Indexes are created by loader change units, not entity annotations](0023-indexes-are-created-by-loader-change-units.md) | accepted | 2026-08-14 |
-| 0024 | [The v3 upgrade path is kept in place through the change-unit chain](0024-v3-upgrade-path-kept-in-place-through-the-change-unit-chain.md) | accepted | 2026-09-01 |
+| 0024 | [The v3 upgrade path is kept in place through the change-unit chain](0024-v3-upgrade-path-kept-in-place-through-the-change-unit-chain.md) | superseded by 0094 | 2026-09-01 |
 | 0030 | [Relationship checks use direct queries anchored on the caller, not an in-memory graph](0030-relationship-checks-use-direct-queries-anchored-on-the-caller.md) | accepted | 2026-07-23 |
 | 0031 | [Permission checks enforce: a mismatch is a real 403, not a shadow metric](0031-permission-checks-enforce-a-mismatch-is-a-real-403.md) | accepted | 2026-08-31 |
 | 0032 | [With security off, requests run as a synthetic global admin that is never stored](0032-security-off-runs-as-a-synthetic-global-admin-that-is-never-stored.md) | accepted | 2026-08-26 |
@@ -73,3 +73,4 @@ things by name, not by code.
 | 0087 | [One page header on every route, and a page inside an object is titled with its name](0087-one-page-header-and-object-names-as-titles.md) | accepted | 2026-09-29 |
 | 0092 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0092-workspace-parameter-references.md) | accepted | 2026-09-30 |
 | 0093 | [Migrations run inside service-core as it starts, before it serves](0093-migrations-run-inside-service-core-before-it-serves.md) | accepted | 2026-10-01 |
+| 0094 | [The change-unit chain migrates an empty or a v3 database, and nothing else](0094-the-chain-migrates-an-empty-or-a-v3-database-only.md) | accepted | 2026-10-01 |
