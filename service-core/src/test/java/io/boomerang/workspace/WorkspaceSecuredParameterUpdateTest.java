@@ -26,8 +26,6 @@ class WorkspaceSecuredParameterUpdateTest extends AbstractEngineIntegrationTest 
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
   }
 
   @Test

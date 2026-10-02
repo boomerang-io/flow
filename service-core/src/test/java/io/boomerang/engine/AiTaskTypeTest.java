@@ -54,7 +54,6 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedGraphRoot() {
-    seedRelationshipRoot();
   }
 
   @Test

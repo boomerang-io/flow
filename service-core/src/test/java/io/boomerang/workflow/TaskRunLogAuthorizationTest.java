@@ -94,7 +94,6 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
    */
   @BeforeEach
   void establishMemberIdentity() {
-    seedRelationshipRoot();
     workspaceNode(MY_WORKSPACE);
     workspaceNode(FOREIGN_WORKSPACE);
     relationshipService.createNode(RelationshipType.USER, MEMBER, MEMBER, Optional.empty());

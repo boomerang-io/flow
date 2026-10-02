@@ -61,7 +61,6 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedCatalogueAndWorkspace() {
-    seedRelationshipRoot();
     seededNestingCap = setNestingCap(NESTING_CAP);
     if (relationshipService
         .filter(RelationshipType.WORKSPACE, Optional.of(List.of(WORKSPACE)))

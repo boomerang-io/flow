@@ -27,7 +27,6 @@ class TaskCatalogueDeleteTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
   }
 
   @Test

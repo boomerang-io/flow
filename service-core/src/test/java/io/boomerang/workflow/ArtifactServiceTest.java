@@ -89,9 +89,6 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedRun() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     seedGlobalTask(TASK_SLUG);
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
