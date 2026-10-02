@@ -47,7 +47,6 @@ class TaskWorkspaceScopeTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedGraphRoot() {
-    seedRelationshipRoot();
   }
 
   @Test

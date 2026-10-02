@@ -32,6 +32,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,11 +57,11 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
 
   private String runWorkflowTaskRef;
   private String echoTaskRef;
+  private String seededNestingCap;
 
   @BeforeEach
   void seedCatalogueAndWorkspace() {
-    seedRelationshipRoot();
-    seedNestingCap();
+    seededNestingCap = setNestingCap(NESTING_CAP);
     if (relationshipService
         .filter(RelationshipType.WORKSPACE, Optional.of(List.of(WORKSPACE)))
         .isEmpty()) {
@@ -81,6 +82,12 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
     echo.getSpec().setImage("busybox:latest");
     echo.getSpec().setCommand(List.of("echo"));
     echoTaskRef = taskService.create(echo).getId();
+  }
+
+  // The database is shared with every other integration test; they run under the seeded cap.
+  @AfterEach
+  void restoreNestingCap() {
+    setNestingCap(seededNestingCap);
   }
 
   @Test
@@ -365,21 +372,18 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
     return param;
   }
 
-  /** The "workflowrun" settings document the loader seeds, with only the key this class reads. */
-  private void seedNestingCap() {
+  /** Set the seeded "workflowrun" nesting cap to {@code value}, returning the value it replaced. */
+  private String setNestingCap(String value) {
     SettingEntity settings =
         settingsRepository.findOneByKey(TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY);
-    if (settings != null) {
-      return;
-    }
-    settings = new SettingEntity();
-    settings.setKey(TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY);
-    settings.setName("Run limits");
-    SettingConfig config = new SettingConfig();
-    config.setKey(TaskExecutionService.MAX_NESTING_DEPTH);
-    config.setType("number");
-    config.setValue(NESTING_CAP);
-    settings.setConfig(List.of(config));
+    SettingConfig cap =
+        settings.getConfig().stream()
+            .filter(config -> TaskExecutionService.MAX_NESTING_DEPTH.equals(config.getKey()))
+            .findFirst()
+            .orElseThrow();
+    String replaced = cap.getValue();
+    cap.setValue(value);
     settingsRepository.save(settings);
+    return replaced;
   }
 }

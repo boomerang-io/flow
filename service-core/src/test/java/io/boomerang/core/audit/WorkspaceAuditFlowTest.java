@@ -28,8 +28,6 @@ class WorkspaceAuditFlowTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedAuditSettings() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
     if (settingsRepository.findOneByKey("audit") == null) {
       SettingEntity settings = new SettingEntity();
       settings.setKey("audit");

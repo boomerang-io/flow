@@ -40,9 +40,6 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     seedGlobalTask(TASK_SLUG);
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);

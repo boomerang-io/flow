@@ -11,8 +11,6 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTrigger;
-import io.boomerang.core.enums.RelationshipLabel;
-import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleType;
@@ -61,14 +59,10 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     // ParamLayerService reads both parameter feature flags on every submit.
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     seedGlobalTask(TASK_SLUG);
-    seedSystemWorkspaceNode();
   }
 
   @Test
@@ -173,26 +167,6 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(TriggerEnum.manual);
     return request;
-  }
-
-  // Engine mode has no workspace CRUD, so the `system` workspace's relationship node is seeded by
-  // changeunit _0003__SeedSystemWorkspace rather than by any service - the loader does not run
-  // against this Testcontainers Mongo, so stand up the same shape directly: a workspace node plus
-  // the root:root --contains--> edge every anchored walk starts from.
-  private void seedSystemWorkspaceNode() {
-    if (relationshipService.doesSlugOrRefExistForType(
-        RelationshipType.WORKSPACE, SYSTEM_WORKSPACE)) {
-      return;
-    }
-    relationshipService.createNodeAndEdge(
-        RelationshipType.ROOT,
-        "root",
-        RelationshipLabel.CONTAINS,
-        RelationshipType.WORKSPACE,
-        SYSTEM_WORKSPACE,
-        SYSTEM_WORKSPACE,
-        Optional.empty(),
-        Optional.empty());
   }
 
 }

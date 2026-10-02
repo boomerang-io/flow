@@ -16,7 +16,7 @@ instance. Correctness rests on three primitives, all in the live path:
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:36-41` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
 Worker leases are not used (`claim.leaseExpiresAt` is only ever unset, `TaskRunService.java:185,216,583`,
-so the `lease_sweep` index at `_0017__RunIndexes.java:78-83` stays empty);
+so the `lease_sweep` index at `_0021__Indexes.java:59` stays empty);
 crash recovery is the absolute `timeoutAt` written at claim = now + timeout + 5 s grace
 (`TaskRunService.java:251,260`; `engine/RunTimeouts.java:14-17`) plus the gone-dispatcher sweep below.
 
@@ -41,19 +41,19 @@ Each connected dispatcher therefore costs about 4 indexed queries per second whe
 task termination, run provision, run teardown). `flow.queue.enabled=false` stops claiming only; sweeps
 keep running (`DispatcherService.java:38-40,111,176`).
 
-Indexes are loader-owned; entity annotations are inert (`spring.data.mongodb.auto-index-creation=false`, `service-core/src/main/resources/application.properties:56`).
+Indexes come only from the change unit `_0021__Indexes`; entity annotations are inert (`spring.data.mongodb.auto-index-creation=false`, `service-core/src/main/resources/application.properties:75`).
 
-| Index | Collection / keys | Loader change unit | Serves |
+| Index | Collection / keys | Defined at | Serves |
 | --- | --- | --- | --- |
-| `claim_page` | `task_runs {type, status, phase, creationDate}` | `service-loader/src/main/java/io/boomerang/loader/migration/_0017__RunIndexes.java:66-71` | `findClaimable` page and its sort |
-| `node_uniqueness` (unique) | `task_runs {workflowRunRef, name}` | `_0017__RunIndexes.java:117-122` | One TaskRun per DAG (directed acyclic graph) node; duplicate creation fails at insert |
-| `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0017__RunIndexes.java:84-87` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
-| `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0017__RunIndexes.java:164-181` | Run provision claim page and `recoverStaleProvisionClaims`; `reapWorkflowTimeouts` |
-| `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0037__SweepIndexes.java:76-93` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns` |
-| `parent_index` (sparse) | `task_runs {parentRef, index}` | `_0049__ForeachItems.java` | A for-each parent's items: an item end checks for an unfinished or missing item with an `exists` and a `count`, and only the last loads them, projected; `recoverForeachTasks` pages parents by `phase` |
-| `claimed_sweep` | `task_runs {phase, claim.at}` | `_0037__SweepIndexes.java:95-100` | `reapClaimsFromGoneDispatchers` |
-| `status_sweep` | `actions {status, creationDate}` | `_0037__SweepIndexes.java:102-107` | `closeStrayActions` |
-| `dispatch_page`, `sent_ttl` (7-day expiry) | `events_outbox {status, occurredAt}`, `{sentAt}` | `_0018__EventAndLockIndexes.java:44-55` | Outbox drain; delivered rows expire |
+| `claim_page` | `task_runs {type, status, phase, creationDate}` | `service-core/src/main/java/io/boomerang/migration/_0021__Indexes.java:53-57` | `findClaimable` page and its sort |
+| `node_uniqueness` (unique) | `task_runs {workflowRunRef, name}` | `_0021__Indexes.java:63-67` | One TaskRun per DAG (directed acyclic graph) node; duplicate creation fails at insert |
+| `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0021__Indexes.java:60-61` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
+| `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0021__Indexes.java:71-74` | Run provision claim page and `recoverStaleProvisionClaims`; `reapWorkflowTimeouts` |
+| `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0021__Indexes.java:75-78` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns` |
+| `parent_index` (sparse) | `task_runs {parentRef, index}` | `_0021__Indexes.java:69` | A for-each parent's items: an item end checks for an unfinished or missing item with an `exists` and a `count`, and only the last loads them, projected; `recoverForeachTasks` pages parents by `phase` |
+| `claimed_sweep` | `task_runs {phase, claim.at}` | `_0021__Indexes.java:62` | `reapClaimsFromGoneDispatchers` |
+| `status_sweep` | `actions {status, creationDate}` | `_0021__Indexes.java:133` | `closeStrayActions` |
+| `dispatch_page`, `sent_ttl` (7-day expiry) | `events_outbox {status, occurredAt}`, `{sentAt}` | `_0021__Indexes.java:107-112` | Outbox drain; delivered rows expire |
 
 ## Sweep cadences and their properties
 
@@ -217,5 +217,5 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 
 ## Also worth knowing
 
-- Sent outbox rows expire after 7 days; `task_locks` documents expire on their own index — both created by the loader.
+- Sent outbox rows expire after 7 days; `task_locks` documents expire on their own index — both built by `_0021__Indexes`.
 - Sweeps page 50 documents at a time; the dispatcher claims 20 per poll.

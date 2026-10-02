@@ -6,7 +6,7 @@ import { WorkflowEngineMode } from "Constants";
 import type { FlowWorkspace, Task, WorkflowCanvas, WorkflowNodeData, WorkflowNodeProps } from "Types";
 import ApprovalNode from "./ApprovalNode";
 
-// The seeded Manual Approval template's params (service-loader seed/task-revisions.json).
+// The seeded Manual Approval template's params (service-core seed/task-revisions.json).
 const taskRef = "manual-approval";
 const approvalTemplate = {
   name: taskRef,

@@ -1,13 +1,12 @@
 /*
  * Compose-stack-ONLY seed (run by the auth-oidc-seed one-shot service in docker-compose.yml,
- * after service-loader completes): points the `auth` settings document at the stack's local
- * IDPZero so GET /api/v2/auth/config resolves mode=oidc.
+ * once service-core is healthy, which it only is after its migrations ran): points the `auth`
+ * settings document at the stack's local IDPZero so GET /api/v2/auth/config resolves mode=oidc.
  *
- * service-loader's _0035__AddAuthSettings deliberately seeds oidc.issuer/oidc.clientId EMPTY -
- * a fresh non-compose install must stay unconfigured (mode=proxy) rather than trusting any
- * default issuer, and settings live only in Mongo (SettingsService has no env-var override
- * path). So the compose stack layers its values on afterwards, here, instead of changing the
- * loader's defaults.
+ * service-core's migrations deliberately seed oidc.issuer/oidc.clientId EMPTY - a fresh
+ * non-compose install must stay unconfigured (mode=proxy) rather than trusting any default
+ * issuer, and settings live only in Mongo (SettingsService has no env-var override path). So the
+ * compose stack layers its values on afterwards, here, instead of changing the seeded defaults.
  *
  * Idempotent: a plain $set of the two config values, safe to re-run on every `docker compose up`.
  */
@@ -19,9 +18,9 @@ const settings = db.getCollection("flow_settings");
 
 const auth = settings.findOne({ key: "auth" });
 if (!auth) {
-  // Ordering bug guard: compose runs this only after service-loader completed successfully,
-  // so the document must exist. Fail loudly rather than silently seeding nothing.
-  throw new Error("settings(auth) not found - did service-loader run against this database?");
+  // Ordering bug guard: compose runs this only once service-core is healthy, so the document
+  // must exist. Fail loudly rather than silently seeding nothing.
+  throw new Error("settings(auth) not found - did service-core migrate this database?");
 }
 
 const result = settings.updateOne(

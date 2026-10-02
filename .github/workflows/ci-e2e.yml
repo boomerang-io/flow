@@ -8,7 +8,6 @@ on:
       - main
     paths:
       - 'service-core/**'
-      - 'service-loader/**'
       - 'lib-common/**'
       - 'client-web/**'
       - 'e2e/**'
@@ -19,7 +18,6 @@ on:
   pull_request:
     paths:
       - 'service-core/**'
-      - 'service-loader/**'
       - 'lib-common/**'
       - 'client-web/**'
       - 'e2e/**'
@@ -49,19 +47,19 @@ jobs:
           server-id: github
           settings-path: ${{ github.workspace }}
 
-      # Produces service-core/target/service-core.jar and service-loader/target/service-loader.jar
-      # in place - the compose file's build context for each is its own module directory, so no
-      # copying is needed (see docker-compose.yml's header comment for the jar contract).
-      - name: Build service-core and service-loader jars
+      # Produces service-core/target/service-core.jar in place - the compose file's build context
+      # is the module directory, so no copying is needed (see docker-compose.yml's header comment
+      # for the jar contract).
+      - name: Build the service-core jar
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          mvn clean package --projects service-core,service-loader --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
+          mvn clean package --projects service-core --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
 
       # client-web needs no host-side build: its Dockerfile's build stage runs pnpm install +
       # pnpm run build itself, so `docker compose build client-web` is the whole build.
       - name: Build stack images
-        run: docker compose build service-loader service-core client-web
+        run: docker compose build service-core client-web
 
       - name: Start stack
         run: docker compose up -d --wait --wait-timeout 180

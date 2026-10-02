@@ -1,6 +1,6 @@
 # 0024 — The v3 upgrade path is kept in place through the change-unit chain
 
-**Status:** accepted · **Date:** 2026-09-01
+**Status:** superseded by 0094 · **Date:** 2026-09-01
 
 ## Context
 

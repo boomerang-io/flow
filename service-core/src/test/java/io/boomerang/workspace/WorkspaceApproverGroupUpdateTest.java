@@ -21,8 +21,6 @@ class WorkspaceApproverGroupUpdateTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
   }
 
   @Test
