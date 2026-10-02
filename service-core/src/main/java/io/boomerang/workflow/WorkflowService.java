@@ -9,6 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
@@ -175,6 +176,7 @@ public class WorkflowService {
   private final RunTimeoutPolicy runTimeoutPolicy;
   private final boolean quotasEnabled;
   private final ObjectMapper objectMapper;
+  private final ParamLayerCache paramLayerCache;
 
   // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
   // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
@@ -198,7 +200,8 @@ public class WorkflowService {
       ObjectProvider<WorkspaceService> workspaceService,
       RunTimeoutPolicy runTimeoutPolicy,
       Environment environment,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ParamLayerCache paramLayerCache) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -215,6 +218,7 @@ public class WorkflowService {
     this.runTimeoutPolicy = runTimeoutPolicy;
     this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
     this.objectMapper = objectMapper;
+    this.paramLayerCache = paramLayerCache;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -1618,6 +1622,7 @@ public class WorkflowService {
     request.setId(wfEntity.getId());
     wfRevisionEntity.setWorkflowRef(wfEntity.getId());
     workflowRevisionRepository.save(wfRevisionEntity);
+    paramLayerCache.evictAll();
     // TODO: figure out a better approach to rollback
 
     Workflow workflow = ConvertUtil.wfEntityToModel(wfEntity, wfRevisionEntity);
@@ -1909,6 +1914,7 @@ public class WorkflowService {
     newWorkflowRevisionEntity.setWorkflowRef(workflowRevisionEntity.getWorkflowRef());
 
     workflowRevisionRepository.save(newWorkflowRevisionEntity);
+    paramLayerCache.evictAll();
 
     Workflow appliedWorkflow =
         ConvertUtil.wfEntityToModel(workflowEntity, newWorkflowRevisionEntity);

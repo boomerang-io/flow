@@ -6,7 +6,6 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
@@ -19,8 +18,6 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ParamLayerService;
-import io.boomerang.workflow.repository.WorkflowRepository;
-import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -90,22 +87,16 @@ public class ParameterManager {
   private final TaskRunRepository taskRunRepository;
   private final ObjectMapper objectMapper;
   private final ParamLayerService paramLayerService;
-  private final WorkflowRepository workflowRepository;
-  private final WorkflowRevisionRepository workflowRevisionRepository;
 
   public ParameterManager(
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
       ObjectMapper objectMapper,
-      ParamLayerService paramLayerService,
-      WorkflowRepository workflowRepository,
-      WorkflowRevisionRepository workflowRevisionRepository) {
+      ParamLayerService paramLayerService) {
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.objectMapper = objectMapper;
     this.paramLayerService = paramLayerService;
-    this.workflowRepository = workflowRepository;
-    this.workflowRevisionRepository = workflowRevisionRepository;
   }
 
   /*
@@ -247,17 +238,10 @@ public class ParameterManager {
   private Layers buildParameterLayering(
       WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
     Object workspace = wfRun.getAnnotations().get(WORKSPACE_NAME_ANNOTATION);
-    WorkflowEntity workflow =
-        wfRun.getWorkflowRef() != null
-            ? workflowRepository.findById(wfRun.getWorkflowRef()).orElse(null)
-            : null;
-    WorkflowRevisionEntity revision =
-        wfRun.getWorkflowRevisionRef() != null
-            ? workflowRevisionRepository.findById(wfRun.getWorkflowRevisionRef()).orElse(null)
-            : null;
+    WorkflowRevisionEntity revision = paramLayerService.getRevision(wfRun.getWorkflowRevisionRef());
     ParamLayers paramLayers =
         paramLayerService.buildParamLayers(
-            workspace != null ? workspace.toString() : null, workflow, revision);
+            workspace != null ? workspace.toString() : null, wfRun.getWorkflowRef(), revision);
 
     // Override particular context Parameters. Additional Context Params come from the Workflow
     // service.

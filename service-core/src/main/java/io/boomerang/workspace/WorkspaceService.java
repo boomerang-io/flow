@@ -2,6 +2,7 @@ package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
+import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
@@ -106,6 +107,7 @@ public class WorkspaceService {
   private final TokenService tokenService;
   private final TaskService taskService;
   private final ArtifactService artifactService;
+  private final ParamLayerCache paramLayerCache;
 
   public WorkspaceService(
       WorkspaceRepository workspaceRepository,
@@ -122,7 +124,8 @@ public class WorkspaceService {
       AuditQueryService auditQueryService,
       TokenService tokenService,
       TaskService taskService,
-      ArtifactService artifactService) {
+      ArtifactService artifactService,
+      ParamLayerCache paramLayerCache) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -138,6 +141,7 @@ public class WorkspaceService {
     this.tokenService = tokenService;
     this.taskService = taskService;
     this.artifactService = artifactService;
+    this.paramLayerCache = paramLayerCache;
   }
 
   /*
@@ -227,6 +231,7 @@ public class WorkspaceService {
       }
 
       workspaceEntity = workspaceRepository.save(workspaceEntity);
+      paramLayerCache.evictAll();
       relationshipService.createNodeAndEdge(
           RelationshipType.ROOT,
           "root",
@@ -323,6 +328,7 @@ public class WorkspaceService {
       }
 
       workspaceRepository.save(workspaceEntity);
+      paramLayerCache.evictAll();
 
       // Update any existing relationships if the name has changed
       if (updatedName) {
@@ -630,6 +636,7 @@ public class WorkspaceService {
         parameters.remove(optionalParameter.get());
         workspaceEntity.setParameters(parameters);
         workspaceRepository.save(workspaceEntity);
+        paramLayerCache.evictAll();
       } else {
         throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
       }

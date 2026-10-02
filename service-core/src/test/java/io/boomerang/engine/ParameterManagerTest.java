@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
@@ -21,8 +20,6 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ParamLayerService;
-import io.boomerang.workflow.repository.WorkflowRepository;
-import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +42,6 @@ class ParameterManagerTest {
   private TaskRunRepository taskRunRepository;
   private ParameterManager parameterManager;
   private ParamLayerService paramLayerService;
-  private WorkflowRepository workflowRepository;
-  private WorkflowRevisionRepository workflowRevisionRepository;
   // What the stores hold for this test: ParamLayerService returns fresh copies on every call, as
   // it reads them from their stores each time.
   private final Map<String, Object> globalStore = new HashMap<>();
@@ -57,8 +52,6 @@ class ParameterManagerTest {
   void setUp() {
     taskRunRepository = mock(TaskRunRepository.class);
     paramLayerService = mock(ParamLayerService.class);
-    workflowRepository = mock(WorkflowRepository.class);
-    workflowRevisionRepository = mock(WorkflowRevisionRepository.class);
     when(paramLayerService.buildParamLayers(any(), any(), any()))
         .thenAnswer(
             invocation -> {
@@ -73,9 +66,7 @@ class ParameterManagerTest {
             mock(WorkflowRunRepository.class),
             taskRunRepository,
             new ObjectMapper(),
-            paramLayerService,
-            workflowRepository,
-            workflowRevisionRepository);
+            paramLayerService);
   }
 
   // (a) plain param: $(params.<name>) resolves from the flattened layer.
@@ -467,10 +458,8 @@ class ParameterManagerTest {
   // runs - nothing is read from the run's annotations.
   @Test
   void readsTheLayersForTheRunsWorkspaceWorkflowAndRevision() {
-    WorkflowEntity workflow = new WorkflowEntity();
     WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
-    when(workflowRepository.findById("wf-ref")).thenReturn(Optional.of(workflow));
-    when(workflowRevisionRepository.findById("rev-ref")).thenReturn(Optional.of(revision));
+    when(paramLayerService.getRevision("rev-ref")).thenReturn(revision);
     WorkflowRunEntity run = run(str("ref", "$(workspace.params.w1)"));
     run.setWorkflowRef("wf-ref");
     run.setWorkflowRevisionRef("rev-ref");
@@ -481,7 +470,7 @@ class ParameterManagerTest {
     parameterManager.resolveParamLayers(run, Optional.empty());
 
     assertEquals("current", resolved(run, "ref"));
-    verify(paramLayerService).buildParamLayers(eq("cheer"), eq(workflow), eq(revision));
+    verify(paramLayerService).buildParamLayers(eq("cheer"), eq("wf-ref"), eq(revision));
   }
 
   // A value a task produced is inserted as written: a reference inside it is not expanded, so a
@@ -538,7 +527,7 @@ class ParameterManagerTest {
     branch.setDefaultValue("$(workspace.params.defaultBranch)");
     WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
     revision.setParams(List.of(branch));
-    when(workflowRevisionRepository.findById("rev-ref")).thenReturn(Optional.of(revision));
+    when(paramLayerService.getRevision("rev-ref")).thenReturn(revision);
     WorkflowRunEntity run = run(str("branch", "$(workspace.params.defaultBranch)"));
     run.setTrigger("webhook");
     run.setWorkflowRevisionRef("rev-ref");

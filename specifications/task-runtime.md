@@ -98,14 +98,16 @@ and `shellScript` — rather than from the catalogue entry, which declares no im
 (`DAGUtility.java:247,302`).
 
 The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
-from their stores each time it resolves (`engine/ParameterManager.java:247`, through
-`workflow/ParamLayerService.java:93`): at run start for the run's own params (`engine/WorkflowExecutionService.java:71`),
+from their stores each time it resolves (`engine/ParameterManager.java:238`, through
+`workflow/ParamLayerService.java:108`): at run start for the run's own params (`engine/WorkflowExecutionService.java:71`),
 and at each task's admission for the task's params and spec (`TaskExecutionService.java:205`; a for-each task's
 items at fan-out, `:605`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
 workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the
-revision it runs, so a version saved mid-run does not change it. A global or workspace parameter edited while a
-run is in progress reaches the tasks admitted after the edit; each task run keeps the values it was resolved
-with. Runs created before this carried the values in `boomerang.io/global-params`, `workspace-params` and
+revision it runs, so a version saved mid-run does not change it. The layers and the revision are served from a
+per-instance cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it
+off), so the tasks admitted together share one read of each store. A global or workspace parameter edited while
+a run is in progress reaches the tasks admitted after the edit: at once on the instance that took the edit, which
+clears its cache, and within the TTL on the others. Each task run keeps the values it was resolved with. Runs created before this carried the values in `boomerang.io/global-params`, `workspace-params` and
 `context-params`; reads strip those keys (`workflow/WorkflowRunService.java:1153`) and a child run does not inherit
 them (`workflow/WorkflowService.java:708`).
 
@@ -273,7 +275,7 @@ container, carry the real values. A resolved value shorter than four characters 
 value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
 
 The union also holds the values of the run workspace's password-typed **global and workspace** parameters
-(`ParamLayerService.securedValues`, `workflow/ParamLayerService.java:117`; `WorkflowRunService.java:184,489`),
+(`ParamLayerService.securedValues`, `workflow/ParamLayerService.java:161`, read uncached; `WorkflowRunService.java:184,489`),
 which neither definition declares yet substitution writes into task params, scripts and results. They are read
 once per workspace per response, and with their current values: a run that used a value since rotated keeps
 showing it.
