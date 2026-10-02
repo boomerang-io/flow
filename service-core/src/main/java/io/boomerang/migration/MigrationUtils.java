@@ -19,11 +19,11 @@ public abstract class MigrationUtils {
   /**
    * Create an index if absent — identical name+keys+options is a server no-op.
    *
-   * <p><b>Failure posture (T6-2) depends on {@code options.isUnique()}:</b> every unique index in
-   * this codebase is preceded by a dedupe step, so a unique-index build failure (almost always
-   * Mongo's {@code E11000 duplicate key}) means the dedupe missed a case — a genuine
-   * data-integrity signal, not noise. That case is rethrown, aborting the change unit (and thus
-   * the migration/deploy) rather than reporting success with the index silently absent. A
+   * <p><b>Failure posture depends on {@code options.isUnique()}:</b> every unique index in this
+   * codebase is preceded by a dedupe step, so a unique-index build failure (almost always Mongo's
+   * {@code E11000 duplicate key}) means the dedupe missed a case — a genuine data-integrity
+   * signal, not noise. That case is rethrown, aborting the change unit (and thus the migration and
+   * startup) rather than reporting success with the index silently absent. A
    * non-unique/performance index is best-effort: a conflicting definition (e.g. same name,
    * different keys from an out-of-band index) logs a warning and the run continues.
    */
@@ -48,30 +48,6 @@ public abstract class MigrationUtils {
       LOG.warn("Could not create index {} on {} ({})", name, collection, e.getMessage());
       return false;
     }
-  }
-
-  /**
-   * Create an index unless one with the same key pattern already exists under ANY name. Use this
-   * for indexes that Spring Data used to auto-build from entity annotations on v4 installs (named
-   * after the field, e.g. {@code name}, or the annotation's own {@code name}): re-creating the same
-   * keys under a loader-chosen name would fail with {@code IndexOptionsConflict}, so the existing
-   * index is kept and reported instead. Delegates to {@link #ensureIndex} when absent.
-   */
-  public static boolean ensureIndexKeys(
-      MongoDatabase db, String collection, String name, Document keys, IndexOptions options) {
-    for (Document existing : db.getCollection(collection).listIndexes()) {
-      Document existingKeys = existing.get("key", Document.class);
-      if (existingKeys != null && existingKeys.equals(keys)) {
-        LOG.info(
-            "Index on {} {} already exists as '{}' - not creating '{}'",
-            collection,
-            keys.toJson(),
-            existing.getString("name"),
-            name);
-        return true;
-      }
-    }
-    return ensureIndex(db, collection, name, keys, options);
   }
 
   /** Drop an index if present — best effort, absence is not an error. */

@@ -17,27 +17,26 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 
 /**
- * Lower-cases every {@code users.email} so the {@code users.email_lookup} index built by {@code
- * _0036__RelationshipAndAuditIndexes} can actually seek.
+ * Lower-cases every {@code users.email} so {@code UserService}'s exact-match lookups find every
+ * account and can seek the {@code users.email_unique} index built by {@link _0021__Indexes}.
  *
- * <p><b>Why.</b> Every email lookup used to be a {@code ...IgnoreCase} derived query, which Spring
- * Data renders as an {@code $options:'i'} regex. MongoDB cannot compute index bounds for a
- * case-insensitive regex, so {@code email_lookup} could only ever be scanned end-to-end, never
- * sought. {@code UserService} now stores emails already lower-cased ({@code Locale.ROOT}) and
- * queries them with plain equality; this unit brings rows written before that rule up to the same
- * shape. {@code _0008__V3MigrateUsers} is deliberately left as a verbatim v3 pass-through — it runs
- * earlier in this same pipeline, so its output lands here and is normalised in one place.
+ * <p><b>Why.</b> A case-insensitive lookup is an {@code $options:'i'} regex, for which MongoDB
+ * cannot compute index bounds, so it can only scan an index end-to-end, never seek it. {@code
+ * UserService} therefore stores emails already lower-cased ({@code Locale.ROOT}) and queries them
+ * with plain equality; this unit brings rows written before that rule - the v3 users {@link
+ * _0008__V3MigrateUsers} passes through verbatim - up to the same shape, in one place. It runs
+ * before {@link _0013__V3BuildRelationshipGraph}, so user nodes are slugged by the lower-cased
+ * address.
  *
  * <p><b>Collisions are reported, never resolved.</b> Two users whose emails differ only by case
  * ({@code Ada@example.com} and {@code ada@example.com}) become one value once lower-cased. Merging
  * or deleting an account is a data decision this migration has no mandate to make, so every
  * document in a colliding group is left EXACTLY as it is and the group is logged at {@code ERROR}
- * with each colliding {@code _id} and its stored email. Skipping them is also what keeps the run
- * green on a V3-generation install: {@code _0019__DomainIndexes} builds a UNIQUE {@code
- * email_unique} index there, and lower-casing a colliding pair underneath it would fail with
- * {@code E11000} and abort the deploy. Those users keep their mixed-case address and remain
- * findable only after an operator resolves the duplicate; {@code email_lookup} itself is
- * non-unique, so the index is unaffected either way. No unique index is added or changed here.
+ * with each colliding {@code _id} and its stored email. Leaving them is also what lets {@link
+ * _0021__Indexes} build the UNIQUE {@code email_unique} index: lower-cased, the pair would share a
+ * value and the build would fail, stopping startup. Those users keep their mixed-case address and
+ * are not found by the exact-match lookup until an operator resolves the duplicate. No index is
+ * added or changed here.
  *
  * <p><b>Idempotency.</b> The update matches only documents whose email is not already equal to its
  * own lower-cased form, so a second (or third) execution against an already-normalised collection

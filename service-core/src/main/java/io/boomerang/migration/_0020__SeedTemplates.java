@@ -22,7 +22,7 @@ import org.springframework.core.env.Environment;
  *       into {@code params[]}, matching {@code WorkflowTemplateEntity.params}.
  *   <li>{@code integration_templates} — GitHub ({@code active}) and Slack ({@code inactive}),
  *       matching {@code IntegrationTemplateEntity}. The credentials themselves live in the {@code
- *       integration} setting seeded by {@link _0021__SeedSettings}.
+ *       integration} setting built by {@link _0016__BuildSettingsFromSeed}.
  * </ul>
  *
  * <p>Workflow templates are guarded on {@code _id} OR ({@code name} + {@code version}, the
@@ -31,8 +31,8 @@ import org.springframework.core.env.Environment;
  * on an integration. The {@code _id} half of each guard is defence-in-depth: it skips a template
  * whose {@code _id} already exists even if its natural key has since changed.
  *
- * <p>Not generation-gated. The v3->v5 units run before this seed, so on a v3-sourced install
- * {@code _0011__V3ExtractWorkflowTemplates} has already extracted the source template workflows
+ * <p>Not generation-gated. The v3 units run before this seed, so on a v3-sourced install
+ * {@link _0011__V3ExtractWorkflowTemplates} has already extracted the source template workflows
  * into {@code workflow_templates} under the same {@code _id}s this seed carries, and the guard
  * makes those two documents a no-op. {@code integration_templates} has no v3 counterpart at all -
  * integrations are a v5 feature - so an upgraded install receives the out-of-the-box GitHub and

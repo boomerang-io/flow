@@ -24,41 +24,39 @@ import org.springframework.core.env.Environment;
  * <ul>
  *   <li>{@code relationships}, {@code relationships_v1} — the pre-{@code 4041} relationship
  *       intermediates legacy changesets {@code 4007}/{@code 4012}/{@code 4031} wrote, superseded
- *       (per the scout classification's DROP list) before {@code 4041} even introduced the
- *       current model. A v3 install that never ran ANY v4 changeset has neither — this only
- *       matters for an install that was, at some point outside this loader's own history, pushed
- *       partway through the old v4 Mongock chain (e.g. an operator-run experiment) without ever
+ *       before {@code 4041} introduced the current model. A v3 install that never ran ANY legacy
+ *       v4 changeset has neither — this only matters for an install that was pushed partway
+ *       through the legacy v4 Mongock chain (e.g. an operator-run experiment) without ever
  *       recording {@code changeId: "4000"} (the marker {@link InstallGeneration} keys V4
  *       detection on) — hence gated V3, not V4: the generation marker legitimately reads V3 in
  *       exactly this scenario.
- *   <li>{@code locks} (RESOLVED WITH THE COLLECTION PREFIX, e.g. {@code flow_locks}) — a
- *       hypothetical v4-era lock collection from that same kind of partial/experimental run. This
- *       is NOT {@code _0019}'s Quartz {@code locks} (already gone by this point — {@code _0019}
- *       runs first and drops the flow-prefixed Quartz job-store shape), NOT the genuinely
- *       UNPREFIXED {@code locks} collection {@code alturkovic/distributed-lock} writes verbatim
- *       (never touched by {@link CollectionNames#resolve}, so this unit can never collide with
- *       it), and NOT v5's own {@code task_locks} (a different literal name entirely).
+ *   <li>{@code locks} (RESOLVED WITH THE COLLECTION PREFIX, e.g. {@code flow_locks}) — a lock
+ *       collection from that same kind of partial run. The prefixed Quartz {@code locks} is
+ *       already gone by this point ({@link _0002__V3PrepareCollections} drops the Quartz job
+ *       store), so this is normally a no-op. It is also NOT the UNPREFIXED {@code locks}
+ *       collection {@code alturkovic/distributed-lock} writes verbatim (never touched by {@link
+ *       CollectionNames#resolve}; {@link _0002__V3PrepareCollections} drops that one too), and NOT
+ *       v5's own {@code task_locks} (a different literal name entirely).
  *   <li>{@code quartz} — a differently-named Quartz artifact distinct from the {@code jobs}/{@code
  *       triggers}/{@code calendars}/{@code paused_trigger_groups}/{@code locks}/{@code
- *       schedulers} job-store shape {@code _0019} already targets by their real (verified against
- *       the dump) names.
+ *       schedulers} job-store shape {@link _0002__V3PrepareCollections} already drops by their
+ *       real (verified against the dump) names.
  * </ul>
  *
  * <p><b>Class 2 — v3 source collections a specific earlier unit should have fully drained AND
- * dropped as its own last step</b> ({@code task_templates} by {@link _0006__V3MigrateTaskCatalogue},
- * {@code global_config} by {@link _0005__V3MigrateSettings}, {@code workflows_revisions}
- * by {@link _0010__V3MigrateWorkflows}, {@code workflows_activity}/{@code
+ * dropped as its own last step</b> ({@code task_templates} by {@link
+ * _0006__V3MigrateTaskCatalogue}, {@code global_config} by {@link
+ * _0005__V3MigrateGlobalParameters}, {@code workflows_revisions} by {@link
+ * _0010__V3MigrateWorkflows}, {@code workflows_activity}/{@code
  * workflows_activity_approval}/{@code workflows_schedules} by {@link _0012__V3MigrateRuns}) —
  * verified against the real v3 dump ({@code flowabl-live-dump-20231106}, 23 collections) to be
- * gone by this point in every one of those cases (see {@code V3DumpMigrationTest}'s per-batch
+ * gone by this point in every one of those cases (see {@code V3DumpMigrationTest}'s per-unit
  * assertions, each of which already proves its own unit's drop). Unlike Class 1, presence WITH
  * DATA here is not a deliberate "no v5 use" classification — it would mean an earlier unit's own
  * drain logic missed something, which is a bug to investigate, not data to discard silently. So
- * this unit only drops a Class 2 name when it is present AND EMPTY (an artifact of, for example,
- * the implicit-collection-creation-via-index hazard {@link _0019__DomainIndexes}'s javadoc describes,
- * or a `renameCollection` step's rename leaving a residual reference); if one is found non-empty,
- * it is logged loudly and left completely alone for investigation — "log what you drop; never
- * drop a v5 collection" extends here to "never silently drop unconsumed v3 data either."
+ * this unit only drops a Class 2 name when it is present AND EMPTY (residue such as a collection
+ * a stray write or index build created implicitly); if one is found non-empty, it is logged
+ * loudly and left completely alone for investigation — never silently drop unconsumed v3 data.
  *
  * <p>Idempotent: every drop is a {@code MongoCollection.drop()} on an already-absent (or already
  * confirmed empty-and-dropped) collection, a no-op on a second run.
@@ -160,6 +158,7 @@ public class _0014__V3DropIntermediates {
   @Rollback
   public void rollback() {
     // Destructive drops of legacy-only/already-migrated data - not restorable, matching the
-    // other forward-only v3-only online migrations in this chain (e.g. _0019, _0011).
+    // other forward-only v3-only units in this chain (e.g. _0002__V3PrepareCollections,
+    // _0012__V3MigrateRuns).
   }
 }

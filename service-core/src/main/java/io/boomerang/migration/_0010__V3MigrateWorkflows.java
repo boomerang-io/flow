@@ -28,35 +28,35 @@ import org.springframework.core.env.Environment;
  * <p>This SQUASHES legacy changesets {@code 4005} (the core workflow+DAG->tasks[] reshape),
  * {@code 4013} (revision changelog {@code userId}->{@code author}, {@code userName} dropped —
  * folded straight into the single revision build, same as {@code userName} being PII-dropped
- * everywhere else in this program), {@code 4021} (description<-shortDescription when empty),
+ * in every other v3 unit), {@code 4021} (description<-shortDescription when empty),
  * {@code 4026} (triggers {@code enable}->{@code enabled}+{@code conditions[]}, {@code
  * scheduler}->{@code schedule}, added {@code event} trigger), {@code 4034} (the {@code
- * templateRef}/{@code taskVersion} resolution — <b>with the v4 bug fixed</b>, see below), {@code
- * 4042} (revision config/params merge — reproduces {@code _0006__V3MigrateTaskCatalogue#mergeParams}'s
- * algorithm, "same as {@code _0022} did for task revisions" per the batch instructions), {@code
- * 4047} (single-pass {@code name}(display)-\>{@code displayName} + slugified {@code name}, reusing
- * {@code _0022}'s exact slug algorithm) and {@code 4048} (run-workflow task param {@code
- * workflowId}-\>{@code workflowRef}).
+ * templateRef}/{@code taskVersion} resolution — <b>with the legacy bug fixed</b>, see below),
+ * {@code 4042} (revision config/params merge — reproduces {@code
+ * _0006__V3MigrateTaskCatalogue#mergeParams}'s algorithm, as applied there to task revisions),
+ * {@code 4047} (single-pass {@code name}(display)-\>{@code displayName} + slugified {@code name},
+ * reusing {@link _0006__V3MigrateTaskCatalogue}'s exact slug algorithm) and {@code 4048}
+ * (run-workflow task param {@code workflowId}-\>{@code workflowRef}).
  *
- * <p><b>THE HEADLINE FIX (batch instructions, verified against the real dump).</b> Legacy {@code
+ * <p><b>THE HEADLINE FIX (verified against the real dump).</b> Legacy {@code
  * 4005} does {@code task.replace("templateVersion", (Integer) dagTask.get("templateVersion"))} on
  * a Document constructed two lines earlier with {@code new Document()} — {@link
  * Document#replace(Object, Object)} is a no-op when the key does not already exist, so {@code
  * templateVersion} was NEVER actually written onto the migrated task. Legacy {@code 4034} then
  * reads {@code wfTask.get("taskVersion")} — the NEW, still-absent key — and writes it right back
- * to itself, another no-op. Net effect on every real v4 install: {@code taskVersion} is {@code
- * null} on every task, forever (unrecoverable there — the source {@code templateVersion} value is
+ * to itself, another no-op. Net effect under the legacy loader: {@code taskVersion} is {@code
+ * null} on every task, forever (unrecoverable — the source {@code templateVersion} value is
  * gone). This unit carries {@code dagTask.get("templateVersion")} straight onto {@code
  * task.taskVersion} in a single step (see {@link #migrateTask}) — verified against the real dump:
  * all 287 real dag tasks that carry a {@code templateId} also carry a {@code templateVersion}, and
  * every one lands non-null.
  *
- * <p><b>{@code templateRef}-\>{@code taskRef} resolution.</b> The batch instructions describe
- * resolving the task NAME to the task {@code _id}, matching legacy {@code 4034}'s own two-hop
- * lookup ({@code task_templates} by id -\> name, then {@code tasks} by name -\> id). That
- * intermediate is unreachable here: {@code task_templates} no longer exists by the time this unit
- * runs (Batch B - {@code _0006__V3MigrateTaskCatalogue} - has already dropped it), and {@code _0022}
- * documents that it preserves {@code tasks._id} verbatim from {@code task_templates._id}. So {@code
+ * <p><b>{@code templateRef}-\>{@code taskRef} resolution.</b> Legacy {@code 4034} resolved the
+ * task NAME to the task {@code _id} with a two-hop lookup ({@code task_templates} by id -\> name,
+ * then {@code tasks} by name -\> id). That intermediate is unreachable here: {@code
+ * task_templates} no longer exists by the time this unit runs ({@link
+ * _0006__V3MigrateTaskCatalogue} has already dropped it), and that unit preserves {@code
+ * tasks._id} verbatim from {@code task_templates._id}. So {@code
  * dagTask.templateId} (a v3 {@code task_templates} id) already equals the migrated task's {@code
  * _id} directly — no name hop needed, and none is possible any more. This unit resolves {@code
  * taskRef} by using {@code templateId} directly (verified to exist in {@code tasks} - logged, not
@@ -69,7 +69,8 @@ import org.springframework.core.env.Environment;
  * <ul>
  *   <li>{@code workflows._id} preserved verbatim.
  *   <li>{@code workflows.displayName} <- v3 {@code name}; {@code workflows.name} <- that slugified
- *       with {@code _0022}'s exact algorithm ({@code trim().toLowerCase().replace(' ', '-')}) -
+ *       with {@link _0006__V3MigrateTaskCatalogue}'s exact algorithm ({@code
+ *       trim().toLowerCase().replace(' ', '-')}) -
  *       {@code 4047} folded in, single pass (never an intermediate display-name-as-name state a
  *       later unit would need to fix).
  *   <li>{@code workflows.description} <- v3 {@code description} when non-empty, else {@code
@@ -82,8 +83,8 @@ import org.springframework.core.env.Environment;
  *   <li>{@code workflows.labels} <- v3 {@code labels[]} ({@code {key,value}} documents) -\> {@code
  *       Map<String,String>}, matching every other squashed unit's label-array convention.
  *   <li>{@code workflows.annotations} <- {@code {"boomerang#io/generation":"3",
- *       "boomerang#io/kind":"Workflow"}} (the {@code #}-for-{@code .} escaping matches {@code
- *       _0022}/{@code _0027}/{@code _0028}) - v3 has no equivalent.
+ *       "boomerang#io/kind":"Workflow"}} (the {@code #}-for-{@code .} escaping matches the other v3
+ *       units) - v3 has no equivalent.
  *   <li>{@code workflows.creationDate} <- the version-1 revision's {@code changelog.date} (matches
  *       {@code 4005}: "Set Creation Date from first revisions changelog"; verified - all 67 real
  *       workflows have a version-1 revision with a changelog). Falls back to {@code new Date()}
@@ -100,40 +101,38 @@ import org.springframework.core.env.Environment;
  *       in the source document). Unlike {@code 4026} (which skips the whole trigger rewrite when
  *       v3 {@code triggers} is entirely absent - not observed on this dump, but a latent legacy
  *       gap), this unit always writes a complete, valid v5 {@code triggers} document.
- *   <li><b>{@code workflows.workspaces} does NOT exist</b> - despite the {@code storage}-\>{@code
- *       workspaces[]} description in the batch brief, {@code WorkflowEntity} has no such field;
- *       {@code WorkflowRevisionEntity} does. Legacy {@code 4005} itself computes {@code workspaces}
- *       from the WORKFLOW's {@code storage} field but writes it onto every REVISION document, never
- *       onto the workflow - verified against the real code and reproduced faithfully here (see
+ *   <li><b>{@code workflows.workspaces} does NOT exist</b> - {@code WorkflowEntity} has no such
+ *       field; {@code WorkflowRevisionEntity} does. Legacy {@code 4005} itself computes {@code
+ *       workspaces} from the WORKFLOW's {@code storage} field but writes it onto every REVISION
+ *       document, never onto the workflow - verified against the real code and reproduced
+ *       faithfully here (see
  *       {@link #buildWorkspaces}, applied identically to every revision of the same workflow, since
  *       {@code storage} is workflow-level data with no per-revision variant in v3).
- *   <li><b>Extra fields, undeclared by {@code WorkflowEntity}, kept for two consumers within this
- *       migration program</b> (not part of the v5 API surface - {@code MappingMongoConverter}
- *       silently drops any Mongo field a target Java class does not declare, so these are invisible
- *       to every application code path): {@code scope} (v3's raw {@code system}/{@code
- *       team}/{@code user}/{@code template} value) and {@code ownerRef} (v3 {@code flowTeamId} when
- *       {@code scope=team}, {@code ownerUserId} when {@code scope=user}, absent otherwise) - a
- *       condensed replacement for the raw {@code flowTeamId}/{@code ownerUserId} fields the batch
- *       instructions say to drop (dropped BY NAME - the WorkflowEntity shape never carries them -
- *       while the ownership fact itself survives under DD-08-compliant typed fields, never an
- *       annotation). Two consumers: (1) THIS SAME BATCH's {@code
- *       _0011__V3ExtractWorkflowTemplates}, which depends on finding {@code scope=template}
- *       workflows AFTER this unit has already reshaped them (it runs immediately after, in the same
- *       chain); (2) Batch E's relationship-graph build, which depends on B/C/D and therefore cannot
- *       read the original v3-shaped {@code workflows}/{@code flowTeamId}/{@code ownerUserId} at
- *       all - by the time it runs, this unit has already replaced every v3 document. Mirrors the
- *       same discoverability technique {@code _0027}/{@code _0028} use ({@code workspaceRef}/{@code
- *       externalRef}).
+ *   <li><b>Hand-off fields, undeclared by {@code WorkflowEntity}, kept for two later v3 units</b>
+ *       (not part of the v5 API surface - {@code MappingMongoConverter} silently drops any Mongo
+ *       field a target Java class does not declare, so these are invisible to every application
+ *       code path): {@code scope} (v3's raw {@code system}/{@code team}/{@code user}/{@code
+ *       template} value) and {@code ownerRef} (v3 {@code flowTeamId} when {@code scope=team},
+ *       {@code ownerUserId} when {@code scope=user}, absent otherwise) - a condensed replacement
+ *       for the raw {@code flowTeamId}/{@code ownerUserId} fields, which are dropped BY NAME, while
+ *       the ownership fact itself survives as typed fields, never an annotation, because later
+ *       units decide on it. Two consumers: (1) {@link _0011__V3ExtractWorkflowTemplates}, which
+ *       finds {@code scope=template} workflows after this unit has already reshaped them; (2)
+ *       {@link _0013__V3BuildRelationshipGraph}, which cannot read the original v3-shaped {@code
+ *       workflows}/{@code flowTeamId}/{@code ownerUserId} at all - by the time it runs, this unit
+ *       has replaced every v3 document - and which removes both fields once the graph is built.
+ *       The same technique as {@link _0007__V3MigrateWorkspaces}'s {@code workspaceRef} and {@link
+ *       _0008__V3MigrateUsers}'s {@code externalRef}.
  * </ul>
  *
  * <p><b>{@code workflow_revisions} field mapping:</b>
  *
  * <ul>
- *   <li>{@code _id} preserved verbatim (this is what lets {@code _0024} identify the exact
- *       extracted document later using the SAME id the real dump's seeded templates already use -
- *       verified: the real dump's template-scope workflows' v1 revision ids, {@code
- *       62be6a3266ff43491f09d2e8} and {@code 62be6a3e66ff43491f09d2ea}, are EXACTLY the two ids
- *       {@code _0020__SeedTemplates}'s collision guard names).
+ *   <li>{@code _id} preserved verbatim (this is what lets {@link _0011__V3ExtractWorkflowTemplates}
+ *       write each extracted template under the SAME id the seeded templates use - verified: the
+ *       real dump's template-scope workflows' v1 revision ids, {@code 62be6a3266ff43491f09d2e8} and
+ *       {@code 62be6a3e66ff43491f09d2ea}, are EXACTLY the two ids {@link _0020__SeedTemplates}'s
+ *       collision guard names).
  *   <li>{@code workflowRef} <- v3 {@code workFlowId} (a v3 string, already the workflow's {@code
  *       _id.toString()}).
  *   <li>{@code version} <- v3 {@code version} (a v3 {@code Long}), narrowed to {@code Integer}.
@@ -160,8 +159,8 @@ import org.springframework.core.env.Environment;
  *       {@code templateId}/{@code templateVersion} (see the headline fix above - this applies to
  *       EVERY non-start/end v3 task, including native types like {@code decision}/{@code
  *       manual}/{@code approval} - v3's {@code task_templates} carries an entry for native task
- *       types too, matching {@code _0022}'s own javadoc); {@code results} <- v3 {@code results}
- *       (explicit, possibly-null passthrough, matching {@code _0022}'s established convention);
+ *       types too, as {@link _0006__V3MigrateTaskCatalogue} documents); {@code results} <- v3
+ *       {@code results} (explicit, possibly-null passthrough, matching that unit's convention);
  *       {@code params[]} <- v3 {@code properties[]} -\> {@code {name, value}} ({@link
  *       io.boomerang.common.model.RunParam} shape), with the {@code 4048} fix applied inline: for a
  *       {@code runworkflow}/{@code runscheduledworkflow} task, a param literally named {@code
@@ -170,11 +169,12 @@ import org.springframework.core.env.Environment;
  *       runworkflow}/{@code runscheduledworkflow} tasks.
  *   <li>{@code type} <- v3 {@code type}, with ONE fix beyond legacy fidelity: v3 dag tasks spell the
  *       custom-task type {@code customtask} (no camel case, 4 real occurrences) - distinct from
- *       {@code task_templates.nodetype}'s {@code customTask} that {@code _0022} maps to {@code
- *       custom}. Legacy {@code 4005} passes the dag task's {@code type} straight through
- *       UNMAPPED, which would write an invalid {@link io.boomerang.common.enums.TaskType} value
- *       forever. This unit maps {@code customtask}-\>{@code custom} (mirroring {@code _0022}'s own
- *       {@code customTask}-\>{@code custom} intent); every other real v3 dag-task type value
+ *       {@code task_templates.nodetype}'s {@code customTask} that {@link
+ *       _0006__V3MigrateTaskCatalogue} maps to {@code custom}. Legacy {@code 4005} passes the dag
+ *       task's {@code type} straight through UNMAPPED, which would write an invalid {@link
+ *       io.boomerang.common.enums.TaskType} value forever. This unit maps {@code
+ *       customtask}-\>{@code custom} (mirroring the catalogue's own {@code customTask}-\>{@code
+ *       custom} intent); every other real v3 dag-task type value
  *       ({@code start,end,template,decision,script,runscheduledworkflow,manual,approval,eventwait,
  *       setwfstatus,runworkflow,acquirelock,releaselock}) already matches {@link
  *       io.boomerang.common.enums.TaskType}'s labels exactly and passes through unchanged.
@@ -187,24 +187,24 @@ import org.springframework.core.env.Environment;
  *       points) and {@code executionCondition} are LEFT ON the dependency document, matching {@code
  *       4005}'s own commented-out {@code dependency.remove("metadata")} - this is not a {@link
  *       io.boomerang.common.model.WorkflowTaskDependency} field, but it is present on real seeded
- *       template data ({@code service-loader/src/main/resources/seed/workflow-templates.json}),
- *       confirming this is intentional, accepted passthrough cruft rather than a bug to fix.
+ *       template data ({@code seed/workflow-templates.json}), confirming this is intentional,
+ *       accepted passthrough cruft rather than a bug to fix.
  *   <li>{@code labels} <- {@code {}}; {@code annotations} <- {@code
  *       {"boomerang#io/position": <v3 metadata.position>}} when present (matches {@code 4005}'s
  *       {@code ANNOTATION_PREFIX + "/position"}, escaped the same way as every other annotation key
- *       in this program).
+ *       the v3 units write).
  * </ul>
  *
  * <p>Idempotency: workflows are matched (and only processed) by the v3 {@code _class}
- * discriminator, matching {@code _0027}/{@code _0028} - a document rewritten by a prior run never
- * carries it again. Within one workflow's processing, revisions are migrated FIRST (individually
- * guarded by a {@code (workflowRef, version)} existence check, matching {@code _0022}'s
- * {@code task_revisions} pattern - safe to retry) and the workflow document is rewritten (losing
- * {@code _class}) LAST - so a crash partway through leaves the workflow still {@code
- * _class}-tagged and the next run retries safely, never leaving a workflow "done" with missing
- * revisions. {@code workflows_revisions} is dropped unconditionally once every {@code _class}-tagged
- * workflow has been processed (matching {@code _0022}'s {@code task_templates.drop()} - a no-op on
- * an already-dropped collection).
+ * discriminator, matching {@link _0007__V3MigrateWorkspaces} and {@link _0008__V3MigrateUsers} - a
+ * document rewritten by a prior run never carries it again. Within one workflow's processing,
+ * revisions are migrated FIRST (individually guarded by a {@code (workflowRef, version)} existence
+ * check, matching {@link _0006__V3MigrateTaskCatalogue}'s {@code task_revisions} pattern - safe to
+ * retry) and the workflow document is rewritten (losing {@code _class}) LAST - so a crash partway
+ * through leaves the workflow still {@code _class}-tagged and the next run retries safely, never
+ * leaving a workflow "done" with missing revisions. {@code workflows_revisions} is dropped
+ * unconditionally once every {@code _class}-tagged workflow has been processed (matching the
+ * catalogue unit's {@code task_templates.drop()} - a no-op on an already-dropped collection).
  */
 @Change(id = "0010-v3-migrate-workflows", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -313,7 +313,10 @@ public class _0010__V3MigrateWorkflows {
     return workflow;
   }
 
-  /** {@code 4004}/{@code _0022}'s slugification: {@code trim().toLowerCase().replace(' ', '-')}. */
+  /**
+   * {@code 4004}'s slugification, as {@link _0006__V3MigrateTaskCatalogue} applies it: {@code
+   * trim().toLowerCase().replace(' ', '-')}.
+   */
   private String slugify(String displayName) {
     return displayName.trim().toLowerCase().replace(' ', '-');
   }
@@ -546,8 +549,8 @@ public class _0010__V3MigrateWorkflows {
   }
 
   // =====================================================================================
-  // workflow-level params (4042/4043-shaped merge - see _0022's mergeParams for the algorithm
-  // this reproduces)
+  // workflow-level params (4042/4043-shaped merge - see _0006__V3MigrateTaskCatalogue's
+  // mergeParams for the algorithm this reproduces)
   // =====================================================================================
 
   /**

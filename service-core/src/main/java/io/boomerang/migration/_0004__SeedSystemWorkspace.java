@@ -15,9 +15,8 @@ import org.springframework.core.env.Environment;
 
 /**
  * Seed the {@code system} workspace and its graph, mirroring what {@code WorkspaceService.create}
- * writes: the {@code teams} document (the workspace entity's collection kept its pre-DD-01 name),
- * a {@code workspace:<id>} node whose slug is the workspace name, and a {@code root:root
- * --contains--> workspace:<id>} edge.
+ * writes: the {@code workspaces} document, a {@code workspace:<id>} node whose slug is the
+ * workspace name, and a {@code root:root --contains--> workspace:<id>} edge.
  *
  * <p>This is the successor to legacy changeset 4015 ({@code v4MigrateSystemToATeam}). Three
  * deliberate differences from the legacy document, all forced by the v5 entity:
@@ -28,7 +27,7 @@ import org.springframework.core.env.Environment;
  *       maxWorkflowRunMonthly}/{@code maxWorkflowRunDuration}/{@code maxConcurrentRuns}, and v5
  *       added {@code maxWorkflowRunStorage}. All stay at {@code Integer.MAX_VALUE} — the system
  *       workspace is unlimited.
- *   <li>{@code type} is set to {@code system}; v4's team document had no type at all, v5's
+ *   <li>{@code type} is set to {@code system}; the legacy document had no type at all, v5's
  *       {@code WorkspaceEntity} carries a {@code WorkspaceType}.
  *   <li>{@code labels}/{@code annotations} are empty maps rather than absent, matching the
  *       entity's field defaults.
@@ -40,27 +39,19 @@ import org.springframework.core.env.Environment;
  * <p>Also replicates legacy 4015's admin bootstrap: every existing {@code admin} user becomes a
  * member of the system workspace, as a {@code user:<id> --memberOf--> workspace:<id>} edge
  * carrying {@code data.role}, which is the member shape {@code
- * WorkspaceService.createOrUpdateUserRelationships} writes. A fresh install has no users, so this
+ * WorkspaceService.createOrUpdateUserRelationships} writes. An empty database has no users, so this
  * is a no-op there.
  *
- * <p>Idempotent throughout: the workspace is matched by name (an upgraded v4 install keeps its own
- * document and id, and the graph is then built against *that* id), and every node and edge is
- * insert-if-absent.
+ * <p>Idempotent throughout: the workspace is matched by name (a re-run builds the graph against
+ * the existing document's id), and every node and edge is insert-if-absent.
  *
- * <p><b>Positioned early, right after generation detection, ahead of the whole v3 migration.</b>
- * The other Phase 5 seeds ({@code _0015__SeedRoles}/{@code _0021__SeedSettings}/{@code
- * _0017__SeedTaskCatalogue}/{@code _0020__SeedTemplates}) run AFTER the v3 migration and index
- * phases, but {@code _0013__V3BuildRelationshipGraph} resolves {@code scope=system} workflow/run
- * ownership via {@code teams} where {@code type=system} - it needs THIS unit's {@code teams}
- * document to already exist, or every system-scoped workflow/run silently loses its graph node and
- * edge (found the hard way: {@code V3DumpMigrationTest} went from 65 to 55 {@code workflow} rel_nodes
- * when this seed was still positioned late). Running early means this unit's OWN admin-bootstrap
- * step (see {@link #addAdminMembers}) instead finds NO {@code user:<id>} nodes yet on a v3 install
- * (they do not exist until the relationship graph builds them, later) - {@code
- * _0013__V3BuildRelationshipGraph} re-attempts it once those nodes exist, folding in what was
- * previously the standalone {@code _0030__V3SystemWorkspaceMembers} unit (see that unit's own
- * javadoc). {@code _0003__SeedRelationshipRoot} moves alongside this unit for the same graph-anchor
- * reasoning, though nothing strictly requires it (Mongo does not enforce the edge-to-node reference).
+ * <p><b>Runs before the v3 units.</b> {@link _0013__V3BuildRelationshipGraph} resolves {@code
+ * scope=system} workflows and runs to the {@code workspaces} document whose {@code type} is {@code
+ * system}, so this document must already exist; without it every system-scoped workflow and run
+ * loses its graph node and edge. The cost is that on a v3 install the admins have no {@code
+ * user:<id>} node yet when {@link #addAdminMembers} runs (the graph build creates them), so they
+ * are skipped here and {@link _0013__V3BuildRelationshipGraph} attaches them once their nodes
+ * exist.
  */
 @Change(id = "0004-seed-system-workspace", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")

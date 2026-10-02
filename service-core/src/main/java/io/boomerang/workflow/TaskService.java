@@ -387,7 +387,7 @@ public class TaskService {
   private Task internalCreate(Task request) {
     // Ignore any provided Ids as this is a create
     request.setId(null);
-    // Set verified to false - this is only able to be set via Engine or Loader
+    // Set verified to false - only the migrations' catalogue seeds set it
     request.setVerified(false);
 
     // Update Changelog
@@ -458,7 +458,7 @@ public class TaskService {
   }
 
   private Task internalApply(Task request, boolean replace) {
-    // Set verfied to false - this is only able to be set via Engine or Loader
+    // Set verified to false - only the migrations' catalogue seeds set it
     request.setVerified(false);
 
     // Update Changelog

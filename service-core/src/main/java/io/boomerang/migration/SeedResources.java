@@ -34,8 +34,8 @@ import org.slf4j.LoggerFactory;
  * <p>Documents whose legacy {@code _id} was generated at migration time (roles, integration
  * templates, the system workspace, task revisions) carry a deterministic {@code 5eed}-prefixed
  * ObjectId instead, so a re-run produces byte-identical documents. Ids that were literals in the
- * legacy resources (tasks, settings, workflow templates) are preserved verbatim, so an upgraded v4
- * install matches on them and is skipped.
+ * legacy resources (tasks, settings, workflow templates) are preserved verbatim, so a v3 install's
+ * own copies (migrated in place under the same ids) match on them.
  */
 public abstract class SeedResources {
 
@@ -63,8 +63,8 @@ public abstract class SeedResources {
 
   /**
    * Insert {@code document} unless {@code filter} already matches — the natural-key guard that
-   * makes every seed change unit idempotent and non-destructive: an existing document (a v4
-   * install's own copy, or this change unit's own earlier run) is left exactly as it is.
+   * makes every seed change unit idempotent and non-destructive: an existing document (a v3
+   * install's own migrated copy, or this change unit's own earlier run) is left exactly as it is.
    *
    * @return true if the document was inserted
    */

@@ -22,7 +22,8 @@ import com.mongodb.client.model.Filters;
  * <ul>
  *   <li>{@link #V3} — {@code changeId: "112"} exists and {@code changeId: "4000"} does not: the
  *       install completed the v3 chain but has never run the v3→v4 migration.
- *   <li>{@link #V4} — {@code changeId: "4000"} exists: the v4 chain has run.
+ *   <li>{@link #V4} — {@code changeId: "4000"} exists: the v4 chain has run. {@link
+ *       _0001__GuardAndDetectGeneration} refuses such a database.
  *   <li>{@link #FRESH} — the changelog collection is absent or empty: no legacy loader has ever
  *       run against this database.
  * </ul>
@@ -53,9 +54,8 @@ public enum InstallGeneration {
       return V3;
     }
     // Neither marker is present but the changelog is non-empty - an install that predates
-    // changeset 112, or an unrecognised shape. Default to V4 (i.e. "not v3") so the seed units
-    // run their normal insert-if-absent behaviour rather than silently skipping data a real v3
-    // install would need reconciled by the (separate) v3->v5 migration.
+    // changeset 112, or an unrecognised shape. Report V4 (i.e. "not v3") so
+    // _0001__GuardAndDetectGeneration refuses it rather than migrating it as a v3 install.
     return V4;
   }
 }

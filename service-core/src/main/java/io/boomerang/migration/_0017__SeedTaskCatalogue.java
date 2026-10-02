@@ -17,10 +17,8 @@ import org.springframework.core.env.Environment;
 /**
  * Seed the out-of-the-box task catalogue — 88 tasks and their 131 revisions: the 87 tasks / 130
  * revisions the legacy loader ends up with after its full {@code flow_task_templates} chain, plus
- * the v5-native {@code ai} task, which has no legacy counterpart. Without it a fresh install has
- * an empty task palette and no workflow can be composed. An install that ran this unit before the
- * {@code ai} entry existed gets it from {@code _0047__SeedAiTask}, because Flamingock records this
- * unit as applied and never re-runs it.
+ * the v5-native {@code ai} task, which has no legacy counterpart. Without it an empty database has
+ * an empty task palette and no workflow can be composed.
  *
  * <p>v5 splits what v4 called a task template across two collections, and the legacy loader's own
  * v4 changesets already produced that split: {@code tasks} holds the stable identity ({@code
@@ -33,8 +31,8 @@ import org.springframework.core.env.Environment;
  * label}, {@code type}, {@code placeholder}, {@code options}) on each param.
  *
  * <p>All four revision generations are kept rather than collapsed to the latest, so {@code
- * TaskRevisionRepository.findByParentRefAndLatestVersion} resolves the same version number a
- * migrated v4 install resolves.
+ * TaskRevisionRepository.findByParentRefAndLatestVersion} resolves the same version number the
+ * legacy loader's catalogue resolves.
  *
  * <p><b>Graph shape — a deliberate divergence from the legacy end state.</b> The legacy loader
  * leaves these tasks as orphaned {@code teamtask:<ref>} nodes: changeset 4031 created them as
@@ -44,30 +42,19 @@ import org.springframework.core.env.Environment;
  * WorkspaceTaskService.create(Task)} writes a global task as {@code root:root --hasTask-->
  * task:<id>}, and {@code RelationshipService.filter} anchors the {@code TASK} walk at the root
  * node precisely because "tasks are a global catalogue: every principal sees every task". This
- * seeds that shape. Existing {@code teamtask} nodes on an upgraded install are left alone — the
- * new nodes and edges are purely additive.
+ * seeds that shape; the nodes and edges are inserted only where absent.
  *
  * <p>Idempotent: tasks are matched by {@code name} and revisions by {@code parentRef} + {@code
- * version}, and the revisions are re-pointed at whichever task id actually won (an upgraded
- * install's own, or the seeded one), so a re-run inserts nothing.
+ * version}, and the revisions are re-pointed at whichever task id actually won (a v3 install's
+ * migrated task, or the seeded one), so a re-run inserts nothing.
  *
- * <p><b>No longer generation-gated</b> (formerly skipped entirely on a v3 install: on v3 the
- * catalogue lived in {@code task_templates} — the pre-v4-split collection — and {@code tasks} was
- * empty at the point this seed used to run, so it would otherwise have inserted the legacy seed
- * tasks under the very {@code _id}s the v3 install still held in {@code task_templates}, verified
- * 87/87 overlap, blocking the migration that turns {@code task_templates} into {@code
- * tasks}/{@code task_revisions}). Running strictly AFTER {@code _0006__V3MigrateTaskCatalogue} (Phase 5 vs Phase
- * 2) removes that hazard entirely: {@code tasks} already holds the v3-migrated catalogue by the
- * time this unit runs, so {@link #seedTasks}'s name-match naturally finds every one of the 87
- * already-migrated tasks (resolving to their preserved v3 {@code _id}s, never re-inserting under
- * the seed's own ids) and inserts only what a given v3 install genuinely lacks — the same
- * reconciliation the former {@code _0034__V3ReconcileCatalogue} unit performed by {@code _id}
- * instead of by name. That unit is DROPPED, not folded in, because this seed alone now covers its
- * job in full: verified against the real v3 dump (89 tasks / 132 revisions, unchanged — the sole
- * gap, seed {@code Manual Approval} v2, is inserted here exactly as {@code _0034} used to insert
- * it) and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions,
- * unchanged). Both totals gain one task and one revision from the {@code ai} entry, which no v3
- * install can hold.
+ * <p><b>Not generation-gated.</b> On a v3 install this runs after {@link
+ * _0006__V3MigrateTaskCatalogue}, so {@code tasks} already holds the migrated catalogue under the
+ * v3 {@code _id}s, which are the very ids this seed carries (verified 87/87 overlap). {@link
+ * #seedTasks}'s name match finds every one of those tasks (resolving to their preserved v3 {@code
+ * _id}s, never re-inserting under the seed's own ids) and inserts only what the install genuinely
+ * lacks: on the real v3 dump, the seed's {@code Manual Approval} v2 revision and the v5-native
+ * {@code ai} task, which no v3 install can hold.
  */
 @Change(id = "0017-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -87,7 +74,7 @@ public class _0017__SeedTaskCatalogue {
 
   /**
    * Insert every absent task and return seeded-id -> live-id, so the revisions and graph attach to
-   * an upgraded install's own task documents rather than duplicating them.
+   * a v3 install's migrated task documents rather than duplicating them.
    */
   private Map<String, String> seedTasks(MongoDatabase db, CollectionNames names) {
     List<Document> tasks = SeedResources.load("seed/tasks.json");

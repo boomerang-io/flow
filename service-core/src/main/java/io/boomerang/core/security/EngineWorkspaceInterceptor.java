@@ -13,7 +13,7 @@ import org.springframework.web.servlet.HandlerMapping;
 /*
  * Engine-mode workspace guard: in engine mode the
  * `system` workspace IS the workspace - "engine basically runs in what the admins use". It is
- * seeded by changeunit _0014__SeedSystemWorkspace (unlimited-quota, undeletable) and `system` is
+ * seeded by _0004__SeedSystemWorkspace (unlimited-quota, undeletable) and `system` is
  * in WorkspaceService.RESERVED_WORKSPACE_NAMES, so no user workspace can ever shadow it.
  *
  * Rejects any workspace-scoped request whose {workspace} path variable is not "system".

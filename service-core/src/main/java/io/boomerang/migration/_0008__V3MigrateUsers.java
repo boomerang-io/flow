@@ -21,14 +21,14 @@ import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Single pass: v3 {@code users} (57 documents on the verified real dump) -> v5 {@code
- * UserEntity}, plus one personal {@code WorkspaceEntity} per user (ruling M-1: KEEP).
+ * UserEntity}, plus one personal {@code WorkspaceEntity} per user.
  *
  * <p>This squashes the user-reshaping half of legacy changeset {@code 4014} ({@code
  * v4MigrateUsersToTeam}) - the other half (creating a {@code MEMBEROF} relationship document and
  * re-pointing every prior workflow/run -\> user relationship at the new personal team) is
- * relationship-graph work and belongs to Batch E ({@code _0013__V3BuildRelationshipGraph}), which
- * this unit deliberately never touches (see the "user -\> personal-workspace linkage" section
- * below for how it stays discoverable there).
+ * relationship-graph work that {@link _0013__V3BuildRelationshipGraph} does; this unit writes no
+ * graph (see the "user -\> personal-workspace linkage" section below for how the graph build finds
+ * what it needs).
  *
  * <p><b>User field mapping, verified against a real v3 dump and against {@code UserEntity}/{@code
  * UserSettings}:</b>
@@ -59,31 +59,25 @@ import org.springframework.core.env.Environment;
  *       false} - only 20 of 57 real users carry the field at all). {@code settings.isShowHelp} has
  *       no v3 source at all (a v5-only field) - left at {@link
  *       io.boomerang.core.model.UserSettings}'s own default ({@code true}).
- *   <li>{@code quotas} - dropped per the batch instructions (quotas move to the personal workspace
- *       below with settings-derived defaults, never the per-user override v3 carried).
- *   <li><b>{@code flowTeams}</b> - NOT dropped outright, despite the batch instructions' "membership
- *       in other v3 teams is relationship-graph data for Batch E" framing. Verified against the
- *       real dump: {@code users.flowTeams: List<String>} (v3 {@code FlowUserEntity.flowTeams}) is
- *       the ONLY source of v3 team membership - v3 {@code TeamEntity} carries no embedded {@code
- *       users[]} counterpart (confirmed against the v3 entity shape). If this unit rewrote the user
- *       document without preserving it, {@code flowTeams} would be gone from {@code users} by the
- *       time Batch E runs (this unit replaces the whole document), the exact same class of
- *       ownership-loss bug flagged for {@code workflows.flowTeamId}/{@code ownerUserId} in {@code
- *       _0023} - except here there is no "check whether it still exists elsewhere" escape hatch,
- *       because nothing else in the database carries it. So it is preserved under {@code
- *       flowTeamRefs} - an extra field undeclared by {@code UserEntity} (same DD-08-compliant
- *       discoverability technique as {@code _0023}'s {@code scope}/{@code ownerRef} and {@code
- *       _0027}'s {@code workspaceRef}): the real v3 team ids the user belonged to, passed through
- *       verbatim (empty list when absent/empty - 2 of the 3 real users spot-checked in this program
- *       carry an empty {@code flowTeams}). Batch E ({@code _0013__V3BuildRelationshipGraph}) reads
- *       this to emit {@code user:<id> --memberOf--> workspace:<teamId>} edges for real (non-personal)
- *       team membership, skipping any id that does not resolve to a migrated workspace.
+ *   <li>{@code quotas} - dropped (the personal workspace below takes the default quotas, never the
+ *       per-user override v3 carried).
+ *   <li><b>{@code flowTeams}</b> - kept, as {@code flowTeamRefs}. Verified against the real dump:
+ *       {@code users.flowTeams: List<String>} (v3 {@code FlowUserEntity.flowTeams}) is the ONLY
+ *       source of v3 team membership - v3 {@code TeamEntity} carries no embedded {@code users[]}
+ *       counterpart (confirmed against the v3 entity shape) - and this unit replaces the whole
+ *       user document, so nothing else would carry it. {@code flowTeamRefs} is a hand-off field
+ *       {@code UserEntity} does not declare (the same technique as {@link
+ *       _0010__V3MigrateWorkflows}'s {@code scope}/{@code ownerRef} and {@link
+ *       _0007__V3MigrateWorkspaces}'s {@code workspaceRef}): the real v3 team ids the user belonged
+ *       to, passed through verbatim (empty list when absent or empty). {@link
+ *       _0013__V3BuildRelationshipGraph} reads it to write {@code user:<id> --memberOf-->
+ *       workspace:<teamId>} edges for real (non-personal) team membership, skipping any id that
+ *       does not resolve to a migrated workspace, and then removes it.
  * </ul>
  *
- * <p><b>Personal workspace per user (M-1).</b> Reproduces legacy {@code 4014}'s naming derivation
- * literally (a deliberate departure from {@code _0007__V3MigrateWorkspaces}'s consistency-driven
- * choice to use {@code _0022}'s simpler slug algorithm for ordinary teams - this one is instructed
- * to match {@code 4014} exactly, character-stripping regex included):
+ * <p><b>Personal workspace per user.</b> Reproduces legacy {@code 4014}'s naming derivation
+ * literally, character-stripping regex included (unlike {@link _0007__V3MigrateWorkspaces}, which
+ * uses {@link _0006__V3MigrateTaskCatalogue}'s simpler slug algorithm for ordinary teams):
  *
  * <pre>
  *   displayName = userName.replace("@", "-").replace(".", "-") + " Personal Team"
@@ -93,28 +87,24 @@ import org.springframework.core.env.Environment;
  *
  * <p>{@code type} is {@link io.boomerang.workspace.model.WorkspaceType#personal}. {@code status}
  * mirrors the user's own ({@code active} user -\> {@code active} workspace, matching {@code
- * 4014}). {@code quotas} are the DEFAULT quotas the migrated {@code teams} settings document
- * carries (10 workflows / 20 runs-per-month / 25 storage / 2 run-storage / 30 min duration / 4
- * concurrent - see {@code _0005__V3MigrateSettings}'s {@code migrateTeams}), never a per-user
- * override even where the v3 document has its own {@code quotas} - the batch instructions are
- * explicit ("default quotas from the teams setting"), and those numbers are exactly {@code 4014}'s
- * own hardcoded fallback besides.
+ * 4014}). {@code quotas} are the DEFAULT quotas of the {@code quotas} settings document in {@code
+ * seed/settings.json} (10 workflows / 20 runs-per-month / 25 storage / 2 run-storage / 30 min
+ * duration / 4 concurrent), never a per-user override even where the v3 document has its own
+ * {@code quotas}; those numbers are exactly {@code 4014}'s own hardcoded fallback besides.
  *
- * <p><b>The user -\> personal-workspace linkage, made discoverable for Batch E without writing
- * {@code rel_edges} here (out of scope for this unit):</b> the personal workspace's {@code
- * externalRef} is set to the owning user's original v3 {@code _id}, as a string. Batch E can
- * therefore find every personal workspace and its owner with a single query - {@code teams} where
- * {@code type = "personal"}, reading {@code externalRef} as the user id - and write the {@code
- * user:<id> --memberOf--> workspace:<id>} edge {@code 4014} used to write directly, without needing
- * to re-derive anything from the (by then long since rewritten) {@code users} documents. {@code
- * externalRef} was chosen over an annotation (the technique {@code _0027} uses for its own
- * migration-provenance bookkeeping) deliberately: this is data a later unit reads to decide what
- * graph edge to create, and CLAUDE.md's DD-08 is explicit that anything read to decide must be a
- * typed field, never a {@code boomerang.io/*} annotation.
+ * <p><b>The user -\> personal-workspace linkage, without writing {@code rel_edges} here:</b> the
+ * personal workspace's {@code externalRef} is set to the owning user's original v3 {@code _id}, as
+ * a string. {@link _0013__V3BuildRelationshipGraph} therefore finds every personal workspace and
+ * its owner with a single query - {@code workspaces} where {@code type = "personal"}, reading
+ * {@code externalRef} as the user id - and writes the {@code user:<id> --memberOf-->
+ * workspace:<id>} edge {@code 4014} used to write directly, without re-deriving anything from the
+ * rewritten {@code users} documents. {@code externalRef} is a typed field rather than an
+ * annotation because the graph build decides on it, and anything read to decide must be a typed
+ * field, never a {@code boomerang.io/*} annotation.
  *
- * <p><b>Idempotency</b> (the batch instructions flag this as especially important here): per-user
- * processing is gated on the v3 {@code _class} discriminator, matching {@code
- * _0007__V3MigrateWorkspaces} - a document rewritten by a prior run never carries it again. Within
+ * <p><b>Idempotency:</b> per-user processing is gated on the v3 {@code _class} discriminator,
+ * matching {@link _0007__V3MigrateWorkspaces} - a document rewritten by a prior run never carries
+ * it again. Within
  * one user's processing, the personal workspace is created FIRST, via {@link
  * SeedResources#insertIfAbsent} keyed on {@code (type=personal, externalRef=<userId>)}, and the
  * user document is rewritten (losing {@code _class}) SECOND - so a crash between the two steps
@@ -187,7 +177,8 @@ public class _0008__V3MigrateUsers {
         new Document("isFirstVisit", source.getBoolean("isFirstVisit", Boolean.TRUE))
             .append("isShowHelp", Boolean.TRUE)
             .append("hasConsented", source.getBoolean("hasConsented", Boolean.FALSE)));
-    // See the class javadoc's "flowTeams" bullet - preserved for Batch E, not a UserEntity field.
+    // See the class javadoc's "flowTeams" bullet - kept for _0013__V3BuildRelationshipGraph, not a
+    // UserEntity field.
     user.put("flowTeamRefs", stringList(source.get("flowTeams")));
     return user;
   }

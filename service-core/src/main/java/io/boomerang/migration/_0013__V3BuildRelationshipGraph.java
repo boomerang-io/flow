@@ -26,107 +26,103 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 
 /**
- * V3-only. Builds the {@code rel_nodes}/{@code rel_edges} relationship graph for the v3-migrated
- * data Batches B/C/D already wrote in v5 shape ({@code tasks}, {@code teams} (=workspaces), {@code
- * users}, {@code workflows}, {@code workflow_runs}) - the piece a v3 install has never had, since
- * the relationship model does not exist in v3 at all.
+ * V3-only. Builds the {@code rel_nodes}/{@code rel_edges} relationship graph for the v3 data the
+ * earlier v3 units already wrote in v5 shape ({@code tasks}, {@code workspaces}, {@code users},
+ * {@code workflows}, {@code workflow_runs}, {@code approver_groups}) - the piece a v3 install has
+ * never had, since the relationship model does not exist in v3 at all.
  *
  * <p>This SQUASHES legacy changesets {@code 4002} (workflow/run {@code belongs-to} relationships),
  * {@code 4004}'s graph half ({@code root--hasTask-->task}), {@code 4005}'s graph half, {@code
  * 4011}'s graph half, {@code 4014}'s graph half ({@code user--memberOf-->personal-workspace}),
  * {@code 4015}'s graph half ({@code root--contains-->workspace} for real teams), {@code 4024}, and
- * {@code 4031}/{@code 4041} (the relationship-model introduction itself, retargeted to write {@code
- * workspace:<ref>} DIRECTLY per the ONE IRREVERSIBLE RULE - {@code _0016__WorkspaceRename} runs
- * BEFORE this unit in Flamingock order and would never see a {@code team:}-prefixed write again).
+ * {@code 4031}/{@code 4041} (the relationship-model introduction itself, written with {@code
+ * workspace:<ref>} nodes directly - nothing after this unit renames a {@code team:} node, so one
+ * must never be written).
  *
  * <p><b>Graph shape, verified against how the LIVE application code actually writes this graph
- * today</b> (not the legacy intermediate collections, which are dead per the batch table -
- * {@code UserService.getAndRegisterUser}, {@code WorkspaceService.create}/{@code
- * addMembers}, {@code WorkspaceWorkflowService.create}, {@code RelationshipEventListener}, {@code
+ * today</b> (not the legacy intermediate collections, which nothing reads - {@code
+ * UserService.getAndRegisterUser}, {@code WorkspaceService.create}/{@code addMembers}, {@code
+ * WorkspaceWorkflowService.create}, {@code RelationshipEventListener}, {@code
  * WorkspaceTaskService.create}):
  *
  * <ul>
  *   <li>{@code root:root --hasTask--> task:<id>} for EVERY row in {@code tasks} - v3's {@code
  *       task_templates} carries no team-scoping field at all (verified against the real dump and
- *       {@code _0022}'s own javadoc/code - no {@code flowTeamId}/{@code scope} read anywhere), so
- *       there are zero {@code teamtask} nodes to write for v3 data; every migrated task is global,
- *       matching {@code _0017__SeedTaskCatalogue}'s seeded-catalogue shape exactly (this unit is
- *       that seed's v3 counterpart - {@code _0016} skips entirely on a v3 install specifically so
- *       this unit can do it once {@code task_templates} has been folded into {@code tasks}).
- *   <li>{@code root:root --contains--> workspace:<id>} for EVERY row in {@code teams} (real v3
- *       teams, the seeded {@code system} workspace, and Batch C's per-user personal workspaces
- *       alike) - {@code WorkspaceService.create} writes exactly this edge for every workspace type;
- *       insert-if-absent naturally no-ops on the {@code system} workspace's edge, already seeded by
- *       {@code _0013}.
+ *       {@link _0006__V3MigrateTaskCatalogue} - no {@code flowTeamId}/{@code scope} read anywhere),
+ *       so there are zero {@code teamtask} nodes to write for v3 data; every migrated task is
+ *       global, matching {@link _0017__SeedTaskCatalogue}'s seeded-catalogue shape exactly (that
+ *       seed runs later and writes the same node and edge for any task it inserts).
+ *   <li>{@code root:root --contains--> workspace:<id>} for EVERY row in {@code workspaces} (real v3
+ *       teams, the seeded {@code system} workspace, and {@link _0008__V3MigrateUsers}'s per-user
+ *       personal workspaces alike) - {@code WorkspaceService.create} writes exactly this edge for
+ *       every workspace type; insert-if-absent naturally no-ops on the {@code system} workspace's
+ *       edge, already seeded by {@link _0004__SeedSystemWorkspace}.
  *   <li>{@code root:root --contains--> user:<id>} for EVERY row in {@code users}, slug = email -
  *       matches {@code UserService.getAndRegisterUser}'s node write exactly.
- *   <li>{@code user:<id> --memberOf--> workspace:<personalWorkspaceId>} for every user, resolved via
- *       Batch C's {@code teams} where {@code type=personal, externalRef=<userId>} linkage (per the
- *       batch instructions).
+ *   <li>{@code user:<id> --memberOf--> workspace:<personalWorkspaceId>} for every user,
+ *       resolved via the {@code workspaces} where {@code type=personal, externalRef=<userId>}
+ *       linkage {@link _0008__V3MigrateUsers} writes.
  *   <li><b>{@code user:<id> --memberOf--> workspace:<teamId>}</b> for every id in the user's {@code
- *       flowTeamRefs} (a NEW extra field {@code _0028} was amended to stash - see that unit's
- *       amended javadoc: {@code users.flowTeams} is v3's ONLY source of team membership, TeamEntity
- *       has no embedded {@code users[]} counterpart, and it would otherwise be silently and
- *       irrecoverably dropped - the same class of data-loss bug the batch instructions warn about
- *       for workflow ownership, just not the one they named). Ids that do not resolve to a migrated
- *       workspace (stale/deleted team refs) are skipped, logged, not fatal.
+ *       flowTeamRefs} (the hand-off field {@link _0008__V3MigrateUsers} keeps: {@code
+ *       users.flowTeams} is v3's ONLY source of team membership, TeamEntity has no embedded {@code
+ *       users[]} counterpart). Ids that do not resolve to a migrated workspace (stale/deleted team
+ *       refs) are skipped, logged, not fatal.
  *   <li>{@code workspace:<ownerWorkspaceId> --hasWorkflow--> workflow:<id>}, slug = the workflow's
  *       v5 {@code name} - matches {@code WorkspaceWorkflowService.create}. The owning workspace is
- *       resolved from {@code _0023}'s preserved {@code scope}/{@code ownerRef} extra fields (see
- *       "Ownership resolution" below) - <b>confirmed NOT lost</b>: {@code _0023} already stashes
- *       both, so no amendment to that unit was needed (unlike {@code _0028}/{@code flowTeams}
- *       above).
+ *       resolved from {@link _0010__V3MigrateWorkflows}'s {@code scope}/{@code ownerRef} hand-off
+ *       fields (see "Ownership resolution" below).
  *   <li>{@code workspace:<ownerWorkspaceId> --hasWorkflowRun--> workflowrun:<id>}, slug = the run's
  *       own id - matches {@code RelationshipEventListener.onChildWorkflowRunCreated}. Resolved the
- *       SAME way as workflows, from {@code _0025}'s own preserved {@code scope}/{@code ownerRef}
- *       extra fields on {@code workflow_runs} directly (not via a join back through the workflow) -
- *       {@code _0025}'s javadoc documents this was captured specifically for this unit. Batched
- *       (18093 real runs): existing node/edge ids are pre-fetched into in-memory sets once, then
- *       only the missing ones are written via unordered {@code bulkWrite} in chunks of {@link
- *       #BATCH_SIZE}.
+ *       SAME way as workflows, from {@link _0012__V3MigrateRuns}'s {@code scope}/{@code ownerRef}
+ *       hand-off fields on {@code workflow_runs} directly (not via a join back through the
+ *       workflow). Batched (18093 real runs): existing node/edge ids are pre-fetched into in-memory
+ *       sets once, then only the missing ones are written via unordered {@code bulkWrite} in chunks
+ *       of {@link #BATCH_SIZE}.
+ *   <li>{@code workspace:<id> --hasApproverGroup--> approvergroup:<id>} for every approver group,
+ *       resolved from the {@code workspaceRef} hand-off field {@link _0007__V3MigrateWorkspaces}
+ *       writes.
  * </ul>
  *
  * <p><b>Ownership resolution</b> (shared by workflow and workflow-run edges - {@link
  * #resolveOwnerWorkspaceId}): {@code scope=system} -\> the seeded {@code system} workspace;
  * {@code scope=team} -\> {@code ownerRef} IS the workspace id directly (v3 {@code flowTeamId},
- * preserved verbatim by {@code _0023}/{@code _0025}); {@code scope=user} -\> the OWNING USER's
- * personal workspace (v5 has no user-owned-workflow concept - a workflow always attaches to a
- * workspace, never directly to a user, so a v3 {@code scope=user} workflow attaches to that user's
- * personal workspace, matching ruling M-1's intent). Verified against the real dump: of the 65
+ * preserved verbatim by {@link _0010__V3MigrateWorkflows}/{@link _0012__V3MigrateRuns}); {@code
+ * scope=user} -\> the OWNING USER's personal workspace (v5 has no user-owned-workflow concept - a
+ * workflow always attaches to a workspace, never directly to a user, so a v3 {@code scope=user}
+ * workflow attaches to that user's personal workspace). Verified against the real dump: of the 65
  * real workflows, 53 are {@code scope=user} (the dominant case, not an edge case), 10 {@code
  * scope=system}, 2 {@code scope=team}; {@code scope=template} workflows never reach this unit at
- * all - {@code _0024} already extracted and deleted them from {@code workflows} by this point.
+ * all - {@link _0011__V3ExtractWorkflowTemplates} already extracted and deleted them from {@code
+ * workflows} by this point.
  *
- * <p><b>What this unit deliberately does NOT create</b> (an in-scope judgement call, not an
- * oversight): {@code schedule}/{@code integration} relationship nodes. Verified against the LIVE
- * application code: {@code ScheduleService}/{@code ScheduleWatcher} never write a {@code
+ * <p>Once the graph is built, {@link #clearHandOffFields} removes those hand-off fields ({@code
+ * scope}/{@code ownerRef} on workflows and runs, {@code flowTeamRefs} on users, {@code
+ * workspaceRef} on approver groups); nothing reads them afterwards.
+ *
+ * <p><b>What this unit deliberately does NOT create:</b> {@code schedule}/{@code integration}
+ * relationship nodes. Verified against the LIVE application code: {@code ScheduleService}/{@code
+ * ScheduleWatcher} never write a {@code
  * schedule:<id>} node or read one back - {@code WorkflowScheduleEntity.workflowRef} is the only
  * link, and team ownership is resolved by walking the WORKFLOW's own {@code hasWorkflow} edge
  * ({@code ScheduleWatcher.resolveTeam}'s own comment: "a denormalized copy could go stale - the
  * graph is always current"). {@link io.boomerang.core.enums.RelationshipLabel} has no {@code
  * hasSchedule} label at all. Writing an orphaned {@code schedule:<id>} node with no edge pointing
  * at it (there is no label for one) would add graph weight nothing ever reads. Integrations are
- * out of scope for a different reason: no v3->v5 integration migration exists anywhere in this
- * program (no v3 dump collection is ever read into {@code integrations}), so there is no v3 data to
- * build a node for.
+ * out of scope for a different reason: no v3 unit migrates integrations (no v3 dump collection is
+ * ever read into {@code integrations}), so there is no v3 data to build a node for.
  *
  * <p>Idempotent throughout: every node and edge write goes through {@link
  * SeedResources#insertIfAbsent} (small collections) or an equivalent pre-fetched-existing-ids diff
  * before an unordered {@code bulkWrite} (the {@code workflow_runs} batch) - a second full run
  * inserts nothing new anywhere in this unit.
  *
- * <p><b>{@code _0030__V3SystemWorkspaceMembers} FOLDED IN here</b> (as {@link
- * #attachSystemWorkspaceAdminMembers}), exactly per plan - not dropped. {@code
- * _0004__SeedSystemWorkspace} was moved EARLY (right after generation detection, ahead of this
- * whole v3 migration) specifically so the {@code teams} "system" document exists before {@link
- * #buildWorkflowOwnershipEdges}/{@link #buildWorkflowRunOwnershipEdges} need to resolve {@code
- * scope=system} ownership below - discovered the hard way: with system-workspace seeding deferred
- * to Phase 5 (after this unit), {@code workspaces.systemWorkspaceId()} was null for every
- * system-scoped workflow/run, silently dropping their graph nodes/edges. But running THAT early
- * means {@code _0003}'s own admin-bootstrap step finds no {@code user:<id>} nodes yet (this same
- * unit is what creates them, in {@link #buildUserGraph}) - the identical "0 admins ... N skipped"
- * gap the original chain had at {@code _0013}'s old early position, which the original chain's
- * {@code _0030} existed to close once the graph existed. Reproduced verbatim here as a final step.
+ * <p><b>System workspace admins</b> ({@link #attachSystemWorkspaceAdminMembers}). {@link
+ * _0004__SeedSystemWorkspace} runs before the v3 units so the {@code system} workspace document
+ * exists when {@link #buildWorkflowOwnershipEdges}/{@link #buildWorkflowRunOwnershipEdges} resolve
+ * {@code scope=system} ownership; without it every system-scoped workflow and run would lose its
+ * graph node and edge. At that point a v3 install's admins have no {@code user:<id>} node yet
+ * (this unit creates them, in {@link #buildUserGraph}), so that unit's admin-bootstrap step skips
+ * them; this unit repeats the step once the nodes exist.
  */
 @Change(id = "0013-v3-build-relationship-graph", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -207,7 +203,7 @@ public class _0013__V3BuildRelationshipGraph {
   }
 
   // =====================================================================================
-  // root --contains--> workspace:<id>  (every row in teams — real teams, system, personal)
+  // root --contains--> workspace:<id>  (every row in workspaces — real teams, system, personal)
   // =====================================================================================
 
   /** All workspace ids, the personal-workspace lookup by owning user id, and the system workspace id. */
@@ -257,7 +253,9 @@ public class _0013__V3BuildRelationshipGraph {
     }
 
     if (systemWorkspaceId == null) {
-      LOG.warn("No 'system' workspace found while building the graph — _0013 should have seeded one");
+      LOG.warn(
+          "No 'system' workspace found while building the graph — _0004__SeedSystemWorkspace"
+              + " should have seeded one");
     }
     return new WorkspaceGraph(allWorkspaceIds, personalByUser, systemWorkspaceId, nodes, edges);
   }
@@ -289,7 +287,7 @@ public class _0013__V3BuildRelationshipGraph {
   }
 
   // =====================================================================================
-  // user --memberOf--> workspace:<personalWorkspaceId>  (per the batch instructions)
+  // user --memberOf--> workspace:<personalWorkspaceId>
   // =====================================================================================
 
   private long buildPersonalMembershipEdges(MongoDatabase db, CollectionNames names, WorkspaceGraph workspaces) {
@@ -309,7 +307,8 @@ public class _0013__V3BuildRelationshipGraph {
   }
 
   // =====================================================================================
-  // user --memberOf--> workspace:<teamId>  (real v3 team membership — see _0008's flowTeamRefs)
+  // user --memberOf--> workspace:<teamId>  (real v3 team membership — see the flowTeamRefs
+  // _0008__V3MigrateUsers keeps)
   // =====================================================================================
 
   @SuppressWarnings("unchecked")
@@ -345,29 +344,28 @@ public class _0013__V3BuildRelationshipGraph {
   }
 
   // =====================================================================================
-  // user --memberOf--> workspace:<systemWorkspaceId>, for admin users (formerly the standalone
-  // _0030__V3SystemWorkspaceMembers unit — see the class javadoc for why it is folded in here)
+  // user --memberOf--> workspace:<systemWorkspaceId>, for admin users (see the class javadoc)
   // =====================================================================================
 
   /**
-   * Re-attempts {@code _0004__SeedSystemWorkspace}'s admin-bootstrap step, now that {@link
+   * Repeats {@link _0004__SeedSystemWorkspace}'s admin-bootstrap step, now that {@link
    * #buildUserGraph} (earlier in this SAME unit) has created every admin's {@code user:<id>}
-   * node — {@code _0003} ran too early (deliberately, ahead of this whole v3 migration — see the
-   * class javadoc) to have found them itself. Reproduces {@code _0003#addAdminMembers} verbatim
-   * (same edge shape - {@code data.role=owner}, same skip-if-no-node defensiveness, though by this
-   * point every admin SHOULD have a node from {@link #buildUserGraph} just above) rather than
-   * depending on that private method directly, matching this program's established pattern of
-   * small, self-contained steps.
+   * node — {@link _0004__SeedSystemWorkspace} runs before the v3 units (see the class javadoc)
+   * and so finds none on a v3 install. Reproduces its {@code addAdminMembers} step (same edge
+   * shape - {@code data.role=owner}, same skip-if-no-node defensiveness, though by this point
+   * every admin SHOULD have a node from {@link #buildUserGraph} just above) rather than depending
+   * on that private method directly.
    *
-   * <p>Idempotent: every edge is insert-if-absent on {@code (from, label, to)} - a second run (or
-   * a v4/fresh install where {@code _0003} already added these edges directly, since a v4 install
-   * already has every user's node from its own live graph) inserts nothing new.
+   * <p>Idempotent: every edge is insert-if-absent on {@code (from, label, to)} - a second run
+   * inserts nothing new.
    */
   private long attachSystemWorkspaceAdminMembers(
       MongoDatabase db, CollectionNames names, WorkspaceGraph workspaces) {
     String systemWorkspaceId = workspaces.systemWorkspaceId();
     if (systemWorkspaceId == null) {
-      LOG.warn("No 'system' workspace found — _0003 should have seeded one; skipping admin membership");
+      LOG.warn(
+          "No 'system' workspace found — _0004__SeedSystemWorkspace should have seeded one;"
+              + " skipping admin membership");
       return 0;
     }
     String workspaceNodeId = "workspace:" + systemWorkspaceId;
@@ -569,7 +567,7 @@ public class _0013__V3BuildRelationshipGraph {
   @Rollback
   public void rollback() {
     // The graph may already be load-bearing for authz/queries by the time a rollback runs, and
-    // nodes/edges written here are additive over what earlier batches wrote — not restorable,
+    // nodes/edges written here are additive over what the seeds wrote — not restorable,
     // matching the other forward-only v3-only units in this chain.
   }
 }

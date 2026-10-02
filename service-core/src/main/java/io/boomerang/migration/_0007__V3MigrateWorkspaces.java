@@ -20,31 +20,29 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 
 /**
- * V3-only. Single pass: v3 {@code teams} (28 documents on the verified real dump) -> v5 {@code
- * WorkspaceEntity}, written directly in place in the same {@code teams} collection (the entity
- * kept the pre-DD-01 collection name — see {@code
- * io.boomerang.workspace.entity.WorkspaceEntity}'s {@code @Document}), plus {@code
- * approver_groups} for any embedded approver groups.
+ * V3-only. Single pass: v3 teams (28 documents on the verified real dump), which {@link
+ * _0002__V3PrepareCollections} has already renamed to {@code workspaces} -> v5 {@code
+ * WorkspaceEntity}, rewritten in place, plus {@code approver_groups} for any embedded approver
+ * groups.
  *
  * <p>This SQUASHES legacy changesets {@code 4011} (the core team -> v4-shape transform) and {@code
  * 4044} (properties -> parameters key/values rename, folded into {@link #migrateParameter} rather
  * than left as a two-pass intermediate).
  *
- * <p><b>Field mapping, verified against a real v3 dump and against {@code
- * service-loader/src/main/resources/seed/workspace.json} (the seeded {@code system} workspace,
- * the known-correct v5 shape):</b>
+ * <p><b>Field mapping, verified against a real v3 dump and against {@code seed/workspace.json}
+ * (the seeded {@code system} workspace, the known-correct v5 shape):</b>
  *
  * <ul>
- *   <li>{@code _id} preserved verbatim — every relationship-graph node a later batch writes ({@code
- *       workspace:<id>}) and every workflow/run reference depends on this.
+ *   <li>{@code _id} preserved verbatim — the {@code workspace:<id>} node {@link
+ *       _0013__V3BuildRelationshipGraph} writes and every workflow/run reference depend on this.
  *   <li>{@code displayName} <- v3 {@code name} (the display name); {@code name} <- that same value
- *       slugified with {@code _0006__V3MigrateTaskCatalogue}'s exact algorithm ({@code
+ *       slugified with {@link _0006__V3MigrateTaskCatalogue}'s exact algorithm ({@code
  *       trim().toLowerCase().replace(' ', '-')}) rather than legacy {@code 4011}'s fancier
- *       character-stripping regex — a deliberate maintainer-directed departure from legacy fidelity
- *       for consistency across this codebase's v3-\>v5 units. Two name pairs collide on this
- *       algorithm in the real dump ("Team Glen" x2, " Team" x2) — there is no unique index on
- *       {@code teams.name} at the Mongo level or in {@code WorkspaceEntity}, so this is a
- *       pre-existing v3 data-quality issue carried through, not a migration bug.
+ *       character-stripping regex — a deliberate departure from legacy fidelity, for consistency
+ *       across the v3 units. Two name pairs collide on this algorithm in the real dump ("Team
+ *       Glen" x2, " Team" x2) — there is no unique index on {@code workspaces.name} at the Mongo
+ *       level or in {@code WorkspaceEntity}, so this is a pre-existing v3 data-quality issue
+ *       carried through, not a migration bug.
  *   <li>{@code creationDate} <- {@code new Date()} at migration time. v3 {@code teams} carries no
  *       creation-date field at all (confirmed in the dump) — {@code 4011} stamped the same thing.
  *   <li>{@code type} <- {@link io.boomerang.workspace.model.WorkspaceType#hobby}. v3 teams have no
@@ -57,11 +55,12 @@ import org.springframework.core.env.Environment;
  *   <li>{@code externalRef} <- v3 {@code higherLevelGroupId}, when present (20 of 28 real teams
  *       have none - left unset, matching the entity's nullable field).
  *   <li>{@code labels} <- v3 {@code labels[]} ({@code {key,value}} documents, matching every other
- *       squashed unit's label-array convention) -\> {@code Map<String,String>}; defaults to {@code
+ *       v3 unit's label-array convention) -\> {@code Map<String,String>}; defaults to {@code
  *       {}} (no team in the real dump carries this field at all).
  *   <li>{@code annotations} <- {@code {"boomerang#io/generation":"3"}} (the {@code #}-for-{@code .}
- *       escaping {@code MongoConfiguration.setMapKeyDotReplacement("#")} applies, matching {@code
- *       _0022}'s task annotations) - migration-provenance bookkeeping only, v3 has no equivalent.
+ *       escaping {@code MongoConfiguration.setMapKeyDotReplacement("#")} applies, matching {@link
+ *       _0006__V3MigrateTaskCatalogue}'s task annotations) - migration-provenance bookkeeping only,
+ *       v3 has no equivalent.
  *   <li>{@code parameters} <- v3 {@code settings.properties[]} (legacy {@code 4011}'s bump-up),
  *       transformed per {@code 4044}: {@code key}-\>{@code name}, {@code values}-\>{@code value} if
  *       present (defensive - the real dump's one populated property already carries singular
@@ -75,33 +74,33 @@ import org.springframework.core.env.Environment;
  *       {@code maxWorkflowStorage}, {@code maxWorkflowExecutionTime}-\>{@code
  *       maxWorkflowRunDuration}, {@code maxConcurrentWorkflows}-\>{@code maxConcurrentRuns}. {@code
  *       maxWorkflowRunStorage} has no v3 source at all (a genuinely new v5 field) - defaulted to
- *       {@link #DEFAULT_MAX_WORKFLOW_RUN_STORAGE} (2), the numeric value the migrated {@code teams}
- *       settings document's {@code max.workflowrun.storage} entry carries ({@code "2Gi"} - see
- *       {@code _0005__V3MigrateSettings}); the system workspace's {@code Integer.MAX_VALUE} would
- *       be dishonest for a regular quota-bound team.
+ *       {@link #DEFAULT_MAX_WORKFLOW_RUN_STORAGE} (2), the numeric value of the {@code quotas}
+ *       settings entry {@code max.workflowrun.storage} ({@code "2Gi"} in {@code
+ *       seed/settings.json}, built by {@link _0016__BuildSettingsFromSeed}); the system
+ *       workspace's {@code Integer.MAX_VALUE} would be dishonest for a regular quota-bound team.
  * </ul>
  *
- * <p><b>Approver groups</b> (ruling M-1's sibling concern - legacy {@code 4011} stripped {@code
- * teams.approverGroups[]} and never wrote a replacement collection, so every v4 install lost this
- * data outright; this unit must not repeat that). Extracted into {@code approver_groups} ({@link
- * io.boomerang.workspace.entity.ApproverGroupEntity}: {@code name}/{@code creationDate}/{@code
- * approvers}) with a fresh {@code _id} (matching {@code 4011}'s own {@code new ObjectId()}), plus
- * an extra {@code workspaceRef} field the entity does not declare (harmless - inserted via the raw
- * driver, ignored by {@code MappingMongoConverter} until read, never surfaced by {@code
- * @JsonIgnoreProperties(ignoreUnknown = true)}) so a later batch can find which workspace each
- * approver group belongs to without re-deriving it from the now-stripped {@code teams} document -
- * the same discoverability need {@link _0008__V3MigrateUsers} solves with {@code externalRef} for
- * personal workspaces, but {@code ApproverGroupEntity} has no such field to repurpose. In the real
+ * <p><b>Approver groups.</b> Legacy {@code 4011} stripped {@code teams.approverGroups[]} and never
+ * wrote a replacement collection, losing the data; this unit keeps it. Extracted into {@code
+ * approver_groups} ({@link io.boomerang.workspace.entity.ApproverGroupEntity}: {@code
+ * name}/{@code creationDate}/{@code approvers}) with a fresh {@code _id} (matching {@code 4011}'s
+ * own {@code new ObjectId()}), plus a {@code workspaceRef} hand-off field the entity does not
+ * declare (harmless - inserted via the raw driver, ignored by {@code MappingMongoConverter},
+ * never surfaced by {@code @JsonIgnoreProperties(ignoreUnknown = true)}) so {@link
+ * _0013__V3BuildRelationshipGraph} can link each approver group to its workspace without
+ * re-deriving it from the rewritten workspace document, and then removes it - the same
+ * discoverability need {@link _0008__V3MigrateUsers} solves with {@code externalRef} for personal
+ * workspaces, but {@code ApproverGroupEntity} has no such field to repurpose. In the real
  * dump both teams carrying {@code approverGroups} (SRC Innovations, Uvis Team) have EMPTY arrays -
  * the populated shape is UNVALIDATED. Handled defensively: v3's {@code approvers[]} is assumed to
  * be either a list of {@code {userId, ...}} documents (matching {@code 4011}'s own read of that
  * shape) or already a list of bare user-id strings; either resolves to {@code List<String>}.
  *
- * <p>Skip logic / idempotency: only {@code teams} documents still carrying the v3 {@code _class}
- * discriminator ({@code io.boomerang.mongo.entity.TeamEntity}) are processed - the seeded {@code
- * system} workspace ({@code _0013}, no {@code _class} at all) is naturally excluded without any
- * special-case id check, and a second run finds nothing left with {@code _class} to process
- * (documents are rewritten from scratch, never leaving it behind).
+ * <p>Skip logic / idempotency: only {@code workspaces} documents still carrying the v3 {@code
+ * _class} discriminator ({@code io.boomerang.mongo.entity.TeamEntity}) are processed - the seeded
+ * {@code system} workspace ({@link _0004__SeedSystemWorkspace}, no {@code _class} at all) is
+ * naturally excluded without any special-case id check, and a second run finds nothing left with
+ * {@code _class} to process (documents are rewritten from scratch, never leaving it behind).
  */
 @Change(id = "0007-v3-migrate-workspaces", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -126,7 +125,7 @@ public class _0007__V3MigrateWorkspaces {
     long migrated = 0;
     long approverGroupsExtracted = 0;
     // "_class" is the v3 discriminator every real team document carries; the seeded system
-    // workspace (_0013) never has one, so it is never matched here.
+    // workspace (_0004__SeedSystemWorkspace) never has one, so it is never matched here.
     for (Document source : teams.find(Filters.exists("_class")).into(new ArrayList<>())) {
       ObjectId workspaceId = source.getObjectId("_id");
       approverGroupsExtracted +=
@@ -161,7 +160,10 @@ public class _0007__V3MigrateWorkspaces {
     return workspace;
   }
 
-  /** {@code 4004}/{@code _0022}'s slugification: {@code trim().toLowerCase().replace(' ', '-')}. */
+  /**
+   * {@code 4004}'s slugification, as {@link _0006__V3MigrateTaskCatalogue} applies it: {@code
+   * trim().toLowerCase().replace(' ', '-')}.
+   */
   private String slugify(String displayName) {
     return displayName.trim().toLowerCase().replace(' ', '-');
   }

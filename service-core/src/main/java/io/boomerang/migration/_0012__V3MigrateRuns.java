@@ -29,7 +29,8 @@ import org.springframework.core.env.Environment;
  * WorkflowRunEntity}), {@code workflows_activity_approval} (8 documents) -> {@code actions} ({@code
  * ActionEntity}), {@code workflows_schedules} (90 documents) -> {@code workflow_schedules} ({@code
  * WorkflowScheduleEntity}). Squashes legacy {@code 4002}/{@code 4003}/{@code 4017}. This unit does
- * NOT write {@code rel_nodes}/{@code rel_edges} - Batch E owns the relationship graph.
+ * NOT write {@code rel_nodes}/{@code rel_edges} - {@link _0013__V3BuildRelationshipGraph} builds
+ * the relationship graph.
  *
  * <p><b>{@code workflow_runs} mapping, verified against a real v3 dump and against {@code
  * WorkflowRunEntity}:</b>
@@ -42,7 +43,7 @@ import org.springframework.core.env.Environment;
  *   <li>{@code workflowRef}/{@code workflowRevisionRef} <- v3 {@code workflowId}/{@code
  *       workflowRevisionid} (already plain strings in v3, not {@code ObjectId}s - verified).
  *   <li>{@code workflowVersion} <- v3 {@code workflowRevisionVersion}, narrowed to {@code Integer}
- *       - a clean 1:1 field match beyond the batch's literal squash list, kept because {@code
+ *       - a clean 1:1 field match beyond what the legacy changesets copied, kept because {@code
  *       WorkflowRunEntity} declares exactly this field and the real data always carries it.
  *   <li>{@code status} <- v3 {@code status}: {@code inProgress}->{@code running}, {@code
  *       completed}->{@code succeeded}, {@code failure}->{@code failed} (matches {@link
@@ -51,13 +52,12 @@ import org.springframework.core.env.Environment;
  *       way when present (not observed in the real dump — 0 occurrences — still implemented for
  *       fidelity to the field). {@code phase} is ALWAYS {@code "completed"}, the terminal phase -
  *       v3 has no phase concept, every v3 run is by definition already finished. Legacy {@code
- *       4002} wrote {@code "finalized"}, as did this unit until that phase was retired; {@code
- *       _0043__RunPhaseFinalizedIsCompleted} rewrites the databases migrated before the change.
+ *       4002} wrote {@code "finalized"}, a phase v5 does not have.
  *   <li>{@code statusMessage} <- v3 {@code statusMessage} directly when present (4 real
  *       occurrences), else v3 {@code error.message} when present (2 real occurrences, e.g. {@code
- *       "Workflow execution terminated due to exceeding maxinum workflow duration."}) - a value-add
- *       beyond the literal squash list ({@code WorkflowRunEntity.statusMessage} exists and both v3
- *       sources carry human-readable failure detail worth not losing).
+ *       "Workflow execution terminated due to exceeding maxinum workflow duration."}) - beyond
+ *       what the legacy changesets copied ({@code WorkflowRunEntity.statusMessage} exists and both
+ *       v3 sources carry human-readable failure detail worth not losing).
  *   <li>{@code trigger} <- v3 {@code trigger}, with {@code scheduler}->{@code schedule} (matching
  *       the same rename {@code 4026} applies to {@code workflows.triggers.scheduler} - kept for
  *       consistency, since {@code WorkflowRunEntity.trigger} is a free-form {@code String}, not
@@ -85,15 +85,17 @@ import org.springframework.core.env.Environment;
  *       mapping regardless.
  *   <li>{@code timeout}/{@code retries}/{@code dispatcherRef}/{@code workspaces} - no v3 source,
  *       left unset/default.
- *   <li><b>Extra fields, undeclared by {@code WorkflowRunEntity}, kept for Batch E</b> (same
- *       technique as {@code _0023}'s {@code scope}/{@code ownerRef} on {@code workflows} — see that
- *       unit's javadoc for the DD-08 rationale): {@code scope} (v3's raw value; only {@code
- *       system}/{@code user} appear in the real dump - zero {@code team}-scope runs exist here) and
- *       {@code ownerRef} ({@code teamId} when {@code scope=team}, {@code userId} when {@code
- *       scope=user}). {@code 4002} builds a {@code belongs-to} relationship from these fields and
- *       then removes them; this unit does not write the relationship (out of scope, Batch E's job)
- *       but must not destroy the ownership fact needed to build it later, since Batch E cannot read
- *       the original v3-shaped {@code workflows_activity} at all - it is dropped by this same unit.
+ *   <li><b>Hand-off fields, undeclared by {@code WorkflowRunEntity}, kept for {@link
+ *       _0013__V3BuildRelationshipGraph}</b> (same technique as {@link _0010__V3MigrateWorkflows}'s
+ *       {@code scope}/{@code ownerRef} on {@code workflows} — see that unit's javadoc for why they
+ *       are typed fields): {@code scope} (v3's raw value; only {@code system}/{@code user} appear
+ *       in the real dump - zero {@code team}-scope runs exist here) and {@code ownerRef} ({@code
+ *       teamId} when {@code scope=team}, {@code userId} when {@code scope=user}). {@code 4002}
+ *       builds a {@code belongs-to} relationship from these fields and then removes them; this unit
+ *       does not write the relationship but must not destroy the ownership fact needed to build it
+ *       later, since the graph build cannot read the original v3-shaped {@code
+ *       workflows_activity} at all - it is dropped by this same unit. The graph build removes both
+ *       fields once it has used them.
  * </ul>
  *
  * <p><b>Performance.</b> 18093 documents - migrated via {@code ReplaceOneModel} (upsert) {@code
@@ -132,8 +134,8 @@ import org.springframework.core.env.Environment;
  * copies it forward). (2) {@code params[]} <- v3 {@code parameters[]} -\> {@code {name, value,
  * type}} with {@code type} hardcoded to the literal string {@code "string"} - legacy wrote {@code
  * param.put("type", parameter.get("string"))}, reading the literal absent key {@code "string"}
- * instead of assigning the literal value {@code "string"}, so {@code type} was {@code null} on
- * every real v4 install. {@code schedulerRef}/{@code nextFireAt}/{@code lastFiredAt}/{@code
+ * instead of assigning the literal value {@code "string"}, so legacy wrote {@code type} as {@code
+ * null}. {@code schedulerRef}/{@code nextFireAt}/{@code lastFiredAt}/{@code
  * retryCount} - no v3 source (JobRunr/the claim-based watcher are v5-only concepts), left
  * unset/default.
  */

@@ -17,8 +17,7 @@ import org.springframework.core.env.Environment;
  * collection no permission check can resolve, so a fresh install has to be given these.
  *
  * <p>Ported from the legacy loader's {@code flow/4023/*.json}, with the {@code AuthScope} value
- * {@code team} mapped to {@code workspace} per DD-01 (the same convention {@code
- * _0016__WorkspaceRename} applies to stored role documents):
+ * {@code team} written as {@code workspace}:
  *
  * <ul>
  *   <li>{@code workspace}/owner — {@code **}/{@code **}
@@ -28,20 +27,8 @@ import org.springframework.core.env.Environment;
  *   <li>{@code global}/operator — read, write, action
  * </ul>
  *
- * <p>Guarded on {@code type} + {@code name}, so an install that already carries a role (including
- * one an operator has since edited) keeps its own definition untouched.
- *
- * <p><b>Must run AFTER {@code _0016__WorkspaceRename}</b> - the only ordering constraint that
- * kept this seed out of the early bootstrap group ({@code _0003__SeedRelationshipRoot}/{@code
- * _0004__SeedSystemWorkspace}, moved ahead of the v3 migration for a different reason - see
- * {@code _0003}'s own javadoc). A pre-existing role still carrying the legacy {@code team} type
- * (an upgraded v4 install, or a role written before {@code _0016} ran) does NOT natural-key-match
- * this seed's {@code workspace}-typed content, so seeding BEFORE the rename would insert a
- * duplicate {@code workspace/owner} etc. alongside the not-yet-renamed {@code team/owner} -
- * verified against {@code LoaderMigrationTest}'s v4-shaped fixture, which failed with exactly one
- * extra role (6 instead of 5) when this seed was briefly moved ahead of the rename during this
- * restructure. Running after {@code _0016} means every legacy {@code team}-typed role has already
- * become {@code workspace}-typed, so the natural-key match (and skip) works correctly.
+ * <p>Guarded on {@code type} + {@code name}, so a re-run, or a role an operator has since edited,
+ * keeps the stored definition untouched.
  */
 @Change(id = "0015-seed-roles", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")

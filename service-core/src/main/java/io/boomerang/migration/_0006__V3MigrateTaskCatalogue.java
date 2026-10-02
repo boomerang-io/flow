@@ -16,24 +16,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 
 /**
- * V3-only. Merges the task-catalogue migration with the task-run reference fix (formerly separate
- * units {@code _0022__V3MigrateTasks} and {@code _0026__V3MigrateTaskRunRefs}) — the second always
- * runs immediately after the first and depends on nothing else, since it only needs the {@code
- * tasks} collection this same unit has just populated.
+ * V3-only. Migrates the v3 task catalogue into {@code tasks}/{@code task_revisions}, then moves
+ * any {@code task_runs} off the old template reference fields ({@link #migrateTaskRunRefs}), which
+ * needs only the {@code tasks} this unit has just written.
  *
- * <p>The former THIRD sibling in this area, {@code _0034__V3ReconcileCatalogue} (which topped up a
- * v3 install's migrated catalogue with any of the 87 out-of-the-box seed tasks/revisions it was
- * missing), is DROPPED entirely rather than folded in here — now that the seed change units run
- * AFTER this whole migration chain (Phase 5, {@code _0017__SeedTaskCatalogue}), that unit's own
- * insert-if-absent logic (match existing tasks by name, insert missing ones under the seed's own
- * ids, insert missing revisions by {@code (parentRef, version)}) already performs the exact same
- * reconciliation over the exact same data — verified against the real v3 dump (still lands on 89
- * tasks / 132 revisions, the one true gap being the seed catalogue's {@code Manual Approval} v2)
- * and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions, no v2
- * gap there). {@code _0034}'s own global-task-graph step is likewise subsumed: {@code
- * _0013__V3BuildRelationshipGraph} (Phase 2, runs before the Phase 5 seed) already writes a {@code
- * task:<id>} node + {@code root--hasTask-->} edge for every row this unit leaves in {@code tasks},
- * and the seed's own graph step covers anything it inserts afterwards.
+ * <p>{@link _0017__SeedTaskCatalogue} runs later and tops the migrated catalogue up with any seed
+ * task or revision the install lacks (tasks matched by name, revisions by {@code (parentRef,
+ * version)}); on the real v3 dump the one legacy gap is the seed catalogue's {@code Manual
+ * Approval} v2. {@link _0013__V3BuildRelationshipGraph} writes a {@code task:<id>} node and {@code
+ * root--hasTask-->} edge for every row this unit leaves in {@code tasks}, and the seed's own graph
+ * step covers anything it inserts afterwards.
  *
  * <h2>Task catalogue</h2>
  *
@@ -52,13 +44,13 @@ import org.springframework.core.env.Environment;
  * FROM the config array 1:1).
  *
  * <p><b>Field mapping, verified against a real v3 dump and against {@code
- * service-loader/src/main/resources/seed/tasks.json}/{@code task-revisions.json} (the 87-task/
- * 130-revision catalogue those files ship, which is the known-correct final shape):</b>
+ * seed/tasks.json}/{@code task-revisions.json} (the legacy loader's final 87-task/130-revision
+ * catalogue, the known-correct final shape, plus the v5-native {@code ai} task):</b>
  *
  * <ul>
  *   <li>{@code tasks._id} <- {@code task_templates._id}, preserved verbatim (every downstream
- *       reference — {@code task_revisions.parentRef}, the Phase 5 seed's reconciliation match, a
- *       later unit's {@code rel_nodes} {@code task:<id>} node — depends on this).
+ *       reference — {@code task_revisions.parentRef}, the catalogue seed's reconciliation match,
+ *       the graph build's {@code task:<id>} node — depends on this).
  *   <li>{@code tasks.name} <- {@code task_templates.name} (a DISPLAY name), slugified with {@code
  *       4004}'s exact algorithm: {@code trim().toLowerCase().replace(' ', '-')}. Verified against
  *       all 87 matched seed names — none need anything smarter (no punctuation beyond spaces).
@@ -71,8 +63,8 @@ import org.springframework.core.env.Environment;
  *       exception</b>: the well-known {@code sleep} system task (see {@link #SLEEP_TASK_ID}) is
  *       templated ({@code nodetype=templateTask}) on a genuine v3 install (verified in the dump —
  *       {@code category=Utilities}, {@code arguments=["system","sleep"]}), but legacy changeset
- *       {@code 4010} (order 4010, between {@code 4004} and this batch's other squashed units)
- *       hardcoded it to a native {@code sleep} system task on every real v4 upgrade, overwriting the
+ *       {@code 4010} (order 4010, between {@code 4004} and the other squashed changesets)
+ *       hardcoded it to a native {@code sleep} system task on every legacy upgrade, overwriting the
  *       {@code task_templates} document wholesale from a bundled JSON resource before {@code 4030}+
  *       ever ran. That hardcode is what the seed catalogue's {@code sleep} entry reflects ({@code
  *       type=sleep}, revision {@code category=Workflow}, {@code spec.arguments=[]}) — reproduced
@@ -98,7 +90,7 @@ import org.springframework.core.env.Environment;
  *       v5) plus the revision-level {@code version}.
  *   <li>{@code task_revisions.changelog} <- {@code {author: revision.changelog.userId, reason:
  *       revision.changelog.reason, date: revision.changelog.date}} — {@code userName} is DROPPED
- *       (PII, per the batch instructions). Two of the 131 real revisions (the oldest revision of
+ *       (PII). Two of the 131 real revisions (the oldest revision of
  *       tasks whose changelog tracking predates the field) have no {@code changelog} at all;
  *       verified in the dump and handled by omitting the key rather than inventing one.
  *   <li>{@code task_revisions.spec.{arguments,command,envs,image,results,script,workingDir}} <-
@@ -342,41 +334,36 @@ public class _0006__V3MigrateTaskCatalogue {
    * matching legacy changeset {@code 4033} ({@code v4ConvertTRTemplateRefToTaskRef}) - <b>with its
    * bug fixed</b>.
    *
-   * <p><b>The v4 bug:</b> {@code 4033} does {@code entity.put("taskVersion",
+   * <p><b>The legacy bug:</b> {@code 4033} does {@code entity.put("taskVersion",
    * entity.get("taskVersion"))} - it reads the NEW key it is in the middle of introducing (which
    * does not exist yet on any pre-migration document) instead of the old {@code templateVersion}
-   * key, so {@code taskVersion} was written as {@code null} on every real v4 install (also
-   * confirmed by {@code 4034}/{@code 4035} repeating the identical mistake for {@code
-   * workflow_revisions}/{@code workflow_templates} task steps - out of scope here, those
-   * collections belong to a different unit). This method reads {@code templateVersion} correctly.
+   * key, so it wrote {@code taskVersion} as {@code null} ({@code 4034}/{@code 4035} repeat the
+   * identical mistake for {@code workflow_revisions}/{@code workflow_templates} task steps, which
+   * {@link _0010__V3MigrateWorkflows} handles). This method reads {@code templateVersion}
+   * correctly.
    *
    * <p>The {@code templateRef} -> {@code taskRef} resolution reproduces {@code 4033} exactly:
    * match by NAME against {@code tasks} (post-catalogue-migration, i.e. already-slugified v5
-   * names) - {@code task_runs.templateRef} was already written in that slugified form on a real
-   * v3/v4 install, the same convention every other legacy task-name reference (workflow revision
-   * task steps, etc.) uses.
+   * names) - {@code task_runs.templateRef} was already written in that slugified form, the same
+   * convention every other legacy task-name reference (workflow revision task steps, etc.) uses.
    *
    * <p><b>On a real v3 dump this method is a no-op</b>: v3's task activity lives entirely in
-   * {@code workflows_activity_task}, which {@link _0002__V3PrepareCollections} drops by design
-   * (no v5 equivalent) - {@code task_runs} does not exist pre-migration on a v3 install (verified:
-   * absent from the 23-collection real dump), and no unit in this chain ever populates {@code
-   * task_runs} from v3 source data either (v3 has no per-task execution record at all). Positioned
-   * here - immediately after the task catalogue migrates, rather than after the run migration
-   * elsewhere in the chain - deliberately: since {@code task_runs} never holds real v3 data at any
-   * point in this pipeline, its position relative to the run migration is immaterial: it is
-   * implemented correctly regardless, for any v3 install that somehow does carry a {@code
-   * task_runs} collection (e.g. one that was partially, then rolled back from, a v4 upgrade
-   * attempt) - the same fixture {@code LoaderMigrationTest} exercises.
+   * {@code workflows_activity_task}, which {@link _0002__V3PrepareCollections} drops (no v5
+   * equivalent) - {@code task_runs} does not exist on a v3 install (verified: absent from the
+   * 23-collection real dump), and no v3 unit populates {@code task_runs} from v3 source data (v3
+   * has no per-task execution record at all). It still migrates a v3 install that does carry a
+   * {@code task_runs} collection, as {@code MigrationChainTest}'s v3 fixture does; since {@code
+   * task_runs} holds no other v3 data, its position before the run migration does not matter.
    *
    * <p>Idempotent: both renames are gated on the OLD key still being present, so a second run (or
-   * a fresh install where {@code task_runs} never had these fields at all) touches nothing.
+   * an empty database, whose {@code task_runs} never had these fields) touches nothing.
    */
   private void migrateTaskRunRefs(MongoDatabase db, CollectionNames names) {
     MongoCollection<Document> taskRuns = db.getCollection(names.resolve("task_runs"));
     if (taskRuns.countDocuments() == 0) {
       LOG.info(
           "No task_runs documents to migrate — v3 task activity lives in"
-              + " workflows_activity_task (dropped by _0002), never in task_runs.");
+              + " workflows_activity_task (dropped by _0002__V3PrepareCollections), never in task_runs.");
       return;
     }
 
@@ -426,7 +413,6 @@ public class _0006__V3MigrateTaskCatalogue {
   @Rollback
   public void rollback() {
     // task_templates is dropped once migrated, and workflows/task_runs reference tasks by the ids
-    // this unit preserves - not restorable, matching the other forward-only v3-only units in this
-    // chain.
+    // this unit preserves - not restorable, matching the other forward-only v3 units.
   }
 }

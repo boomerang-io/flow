@@ -35,7 +35,7 @@ public class TokenEntity {
   private TokenActorKind actorKind;
   // Server-injected from the authenticated principal at creation time - NEVER read from the
   // request body. Null on tokens created before this field existed / by unauthenticated flows
-  // (e.g. bootstrap). Absent-tolerant: no loader backfill needed.
+  // (e.g. bootstrap). Absent-tolerant: no migration backfills it.
   private String createdBy;
   // Best-effort, throttled (~5 min) "last used" stamp - see TokenService#touchLastUsed.
   private Date lastUsedAt;

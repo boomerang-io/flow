@@ -7,12 +7,12 @@ import org.bson.Document;
 
 /**
  * Reads and writes the durable {@link InstallGeneration} marker {@link
- * _0001__GuardAndDetectGeneration} persists, in a small loader-owned collection ({@code
+ * _0001__GuardAndDetectGeneration} persists, in a small migration-owned collection ({@code
  * sys_migration_state}).
  *
  * <p>{@link InstallGeneration#detect} is a live read of {@code sys_changelog_flow} — cheap today,
- * but not a stable answer forever. This consolidated v3→v5 path never writes the legacy v4 chain's
- * {@code changeId: "4000"} marker (it goes straight from v3 to v5), so a v3 install's changelog
+ * but not a stable answer forever. The chain never writes the legacy v4 chain's {@code changeId:
+ * "4000"} marker (it goes straight from v3 to v5), so a v3 install's changelog
  * keeps satisfying {@link InstallGeneration#V3}'s detection rule (changeId {@code "112"} present,
  * {@code "4000"} absent) *forever* — including on every Flamingock run after this install has
  * fully completed its v3→v5 migration. Later v3-only change units (starting with {@link
@@ -23,7 +23,7 @@ import org.bson.Document;
  */
 public abstract class LegacyGenerationMarker {
 
-  /** Loader-owned collection (unprefixed name, resolved through {@link CollectionNames}). */
+  /** Migration-owned collection (unprefixed name, resolved through {@link CollectionNames}). */
   public static final String COLLECTION = "sys_migration_state";
 
   private static final String MARKER_ID = "legacyGeneration";

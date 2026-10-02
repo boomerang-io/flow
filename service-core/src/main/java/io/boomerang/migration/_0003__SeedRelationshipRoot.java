@@ -21,8 +21,8 @@ import org.springframework.core.env.Environment;
  * {@code RelationshipService.filter} likewise walks from it for the global task catalogue and for
  * global-scoped tokens. Without this document a fresh install cannot create its first user.
  *
- * <p>The legacy loader created the same node in changeset 4041; this change unit is the
- * fresh-install equivalent and is skipped on an install that already has it.
+ * <p>Legacy changeset 4041 created the same node. An empty database and a v3 database (which has
+ * no relationship graph) both get it here; a database that already has it is left unchanged.
  */
 @Change(id = "0003-seed-relationship-root", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
