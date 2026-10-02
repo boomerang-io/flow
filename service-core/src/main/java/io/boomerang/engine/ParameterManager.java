@@ -6,8 +6,11 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -15,6 +18,9 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.workflow.ParamLayerService;
+import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,24 +74,51 @@ public class ParameterManager {
   // repeat the warning on every run.
   private static final Set<String> warnedDeprecatedReferences = ConcurrentHashMap.newKeySet();
 
+  // A run started by one of these carries values nobody in the workspace wrote - a webhook, event
+  // or GitHub payload, or values already resolved by a parent run or the run being retried - so its
+  // params that differ from the revision's defaults are inserted as written, never expanded.
+  private static final Set<String> SUPPLIED_VALUE_TRIGGERS =
+      Set.of(
+          TriggerEnum.webhook.getTrigger(),
+          TriggerEnum.event.getTrigger(),
+          TriggerEnum.github.getTrigger(),
+          TriggerEnum.task.getTrigger(),
+          TriggerEnum.retry.getTrigger());
+  private static final String WORKSPACE_NAME_ANNOTATION = "boomerang.io/workspace-name";
+
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
   private final ObjectMapper objectMapper;
+  private final ParamLayerService paramLayerService;
+  private final WorkflowRepository workflowRepository;
+  private final WorkflowRevisionRepository workflowRevisionRepository;
 
   public ParameterManager(
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ParamLayerService paramLayerService,
+      WorkflowRepository workflowRepository,
+      WorkflowRevisionRepository workflowRevisionRepository) {
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.objectMapper = objectMapper;
+    this.paramLayerService = paramLayerService;
+    this.workflowRepository = workflowRepository;
+    this.workflowRevisionRepository = workflowRevisionRepository;
   }
+
+  /*
+   * The layers one resolution reads, and the run params whose values were supplied rather than
+   * written in the workspace (lower-cased, as references match case-insensitively).
+   */
+  private record Layers(ParamLayers paramLayers, Set<String> suppliedParams) {}
 
   /*
    * Resolve all RunParams for either WorkflowRun or TaskRun
    */
   public void resolveParamLayers(WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
-    ParamLayers paramLayers = buildParameterLayering(wfRun, optTaskRun);
+    Layers paramLayers = buildParameterLayering(wfRun, optTaskRun);
     // Memo of upstream TaskRun lookups for the duration of one resolution: a param string can
     // reference the same task's results many times, and upstream results are final by now.
     Map<String, Optional<TaskRunEntity>> taskRunMemo = new HashMap<>();
@@ -98,6 +132,11 @@ public class ParameterManager {
     runParams.stream()
         .forEach(
             p -> {
+              // A supplied value is a run input that arrived from outside the workspace: it is kept
+              // as it arrived, never resolved.
+              if (optTaskRun.isEmpty() && isSuppliedParam(p.getName(), paramLayers)) {
+                return;
+              }
               LOGGER.debug(
                   "Resolving Parameters: " + p.getName() + "(" + p.getType() == null
                       ? "string"
@@ -158,7 +197,7 @@ public class ParameterManager {
   private void resolveSpec(
       TaskRunSpec spec,
       String wfRunId,
-      ParamLayers paramLayers,
+      Layers paramLayers,
       Map<String, Optional<TaskRunEntity>> taskRunMemo) {
     if (spec == null) {
       return;
@@ -176,7 +215,7 @@ public class ParameterManager {
   private String resolveString(
       String value,
       String wfRunId,
-      ParamLayers paramLayers,
+      Layers paramLayers,
       Map<String, Optional<TaskRunEntity>> taskRunMemo) {
     if (value == null) {
       return null;
@@ -188,7 +227,7 @@ public class ParameterManager {
   private List<String> resolveStrings(
       List<String> values,
       String wfRunId,
-      ParamLayers paramLayers,
+      Layers paramLayers,
       Map<String, Optional<TaskRunEntity>> taskRunMemo) {
     if (values == null) {
       return null;
@@ -199,35 +238,26 @@ public class ParameterManager {
   }
 
   /*
-   * Build all parameter layers as an object of Maps
+   * Build all parameter layers as an object of Maps. The global, workspace and context layers are
+   * read from their stores now (ParamLayerService), against the run's workspace, its workflow and
+   * the revision it runs; the run, task and per-run context keys are added here.
    *
    * If you only pass it the Workflow Run Entity, it won't add the Task Run Params to the map
    */
-  private ParamLayers buildParameterLayering(
+  private Layers buildParameterLayering(
       WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
-    ParamLayers paramLayers = new ParamLayers();
-
-    LOGGER.debug(
-        "Received Global Params: " + wfRun.getAnnotations().get("boomerang.io/global-params"));
-    LOGGER.debug("Received Workspace Params: " + wfRun.getAnnotations().get("boomerang.io/workspace-params"));
-    LOGGER.debug(
-        "Received Context Params: " + wfRun.getAnnotations().get("boomerang.io/context-params"));
-
-    if (wfRun.getAnnotations().containsKey("boomerang.io/workspace-params")
-        && wfRun.getAnnotations().get("boomerang.io/workspace-params") != null) {
-      paramLayers.setWorkspaceParams(
-          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/workspace-params"));
-    }
-    if (wfRun.getAnnotations().containsKey("boomerang.io/global-params")
-        && wfRun.getAnnotations().get("boomerang.io/global-params") != null) {
-      paramLayers.setGlobalParams(
-          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/global-params"));
-    }
-    if (wfRun.getAnnotations().containsKey("boomerang.io/context-params")
-        && wfRun.getAnnotations().get("boomerang.io/context-params") != null) {
-      paramLayers.setContextParams(
-          (Map<String, Object>) wfRun.getAnnotations().get("boomerang.io/context-params"));
-    }
+    Object workspace = wfRun.getAnnotations().get(WORKSPACE_NAME_ANNOTATION);
+    WorkflowEntity workflow =
+        wfRun.getWorkflowRef() != null
+            ? workflowRepository.findById(wfRun.getWorkflowRef()).orElse(null)
+            : null;
+    WorkflowRevisionEntity revision =
+        wfRun.getWorkflowRevisionRef() != null
+            ? workflowRevisionRepository.findById(wfRun.getWorkflowRevisionRef()).orElse(null)
+            : null;
+    ParamLayers paramLayers =
+        paramLayerService.buildParamLayers(
+            workspace != null ? workspace.toString() : null, workflow, revision);
 
     // Override particular context Parameters. Additional Context Params come from the Workflow
     // service.
@@ -253,7 +283,81 @@ public class ParameterManager {
       paramLayers.setTaskParams(ParameterUtil.runParamListToMap(optTaskRun.get().getParams()));
     }
 
-    return paramLayers;
+    return new Layers(paramLayers, suppliedParamNames(wfRun, revision));
+  }
+
+  /*
+   * The run params whose values were supplied from outside the workspace: on a run started by one of
+   * SUPPLIED_VALUE_TRIGGERS, every param whose value is not its revision default - a param the
+   * revision does not declare, such as a webhook's data, included. Lower-cased.
+   */
+  private static Set<String> suppliedParamNames(
+      WorkflowRunEntity wfRun, WorkflowRevisionEntity revision) {
+    if (wfRun.getTrigger() == null
+        || !SUPPLIED_VALUE_TRIGGERS.contains(wfRun.getTrigger())
+        || wfRun.getParams() == null) {
+      return Set.of();
+    }
+    Map<String, Object> defaults = new HashMap<>();
+    if (revision != null && revision.getParams() != null) {
+      revision.getParams().stream()
+          .filter(param -> param.getName() != null)
+          .forEach(param -> defaults.put(param.getName().toLowerCase(), param.getDefaultValue()));
+    }
+    return wfRun.getParams().stream()
+        .filter(param -> param.getName() != null)
+        .filter(
+            param -> {
+              String name = param.getName().toLowerCase();
+              return !defaults.containsKey(name)
+                  || !Objects.equals(defaults.get(name), param.getValue());
+            })
+        .map(param -> param.getName().toLowerCase())
+        .collect(Collectors.toUnmodifiableSet());
+  }
+
+  private static boolean isSuppliedParam(String name, Layers layers) {
+    return name != null && layers.suppliedParams().contains(name.toLowerCase());
+  }
+
+  /*
+   * Whether the value behind a reference key must be inserted as written: a task result - a task's
+   * output - or a supplied run param. $(params.x) reads the nearest layer, so a supplied run param
+   * serves it only when neither the task nor the context defines x.
+   */
+  private static boolean insertedAsWritten(String key, Layers layers) {
+    String[] parts = key.split("\\.");
+    if (parts.length >= 4
+        && "tasks".equalsIgnoreCase(parts[0])
+        && "results".equalsIgnoreCase(parts[2])) {
+      return true;
+    }
+    if (layers.suppliedParams().isEmpty()) {
+      return false;
+    }
+    if (parts.length >= 3
+        && "workflow".equalsIgnoreCase(parts[0])
+        && "params".equalsIgnoreCase(parts[1])) {
+      return isSuppliedParam(parts[2], layers);
+    }
+    if (parts.length >= 2 && "params".equalsIgnoreCase(parts[0])) {
+      return isSuppliedParam(parts[1], layers)
+          && !definesIgnoringCase(layers.paramLayers().getTaskParams(), parts[1])
+          && !definesIgnoringCase(layers.paramLayers().getContextParams(), parts[1]);
+    }
+    return false;
+  }
+
+  private static boolean definesIgnoringCase(Map<String, Object> layer, String name) {
+    return layer != null && layer.keySet().stream().anyMatch(key -> key.equalsIgnoreCase(name));
+  }
+
+  /*
+   * Escape every reference opening in a value inserted as written, so the substitutor emits "$(" as
+   * text instead of expanding it ("$$(" is its escape for "$(").
+   */
+  private static String escapeReferences(String value) {
+    return value.replace("$(", "$$(");
   }
 
   /*
@@ -267,13 +371,13 @@ public class ParameterManager {
       ParamType type,
       Object originalValue,
       String wfRunId,
-      ParamLayers paramLayers,
+      Layers layers,
       Map<String, Optional<TaskRunEntity>> taskRunMemo) {
     // Case-insensitive matching (ruled 2026-08-26): $(params.myparam) resolves a param declared
     // MyParam. The GitHub Actions model - insensitive lookup paired with the definition-side
     // rejection of case/separator-variant duplicates (ParameterUtil.paramNameCollisions).
     Map<String, Object> flatParamLayers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    flatParamLayers.putAll(paramLayers.getFlatMap());
+    flatParamLayers.putAll(layers.paramLayers().getFlatMap());
     if (Objects.isNull(originalValue)) {
       return originalValue;
     }
@@ -326,7 +430,8 @@ public class ParameterManager {
     }
     if (!foundKeyValues.isEmpty()) {
       flatParamLayers.putAll(foundKeyValues);
-      resolvedValue = replaceStringInObject(resolvedValue, flatParamLayers);
+      resolvedValue =
+          replaceStringInObject(resolvedValue, flatParamLayers, key -> insertedAsWritten(key, layers));
     }
     LOGGER.debug("Resolved Value: " + resolvedValue);
     return resolvedValue;
@@ -440,11 +545,18 @@ public class ParameterManager {
    * parameter. The log names the shape of the value and never its content, because a
    * password-typed param flows through here.
    */
-  private Object replaceStringInObject(Object object, Map<String, Object> replacements) {
+  private Object replaceStringInObject(
+      Object object, Map<String, Object> replacements, Predicate<String> insertedAsWritten) {
     try {
       StringSubstitutor substitutor =
           new StringSubstitutor(
-              (StringLookup) key -> renderReplacement(replacements.get(key)),
+              (StringLookup)
+                  key -> {
+                    String replacement = renderReplacement(replacements.get(key));
+                    return replacement != null && insertedAsWritten.test(key)
+                        ? escapeReferences(replacement)
+                        : replacement;
+                  },
               "$(",
               ")",
               StringSubstitutor.DEFAULT_ESCAPE);

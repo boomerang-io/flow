@@ -97,12 +97,17 @@ A `custom` task takes its runtime from its own params — `image`, `command` and
 and `shellScript` — rather than from the catalogue entry, which declares no image
 (`DAGUtility.java:247,302`).
 
-The global, workspace and workflow-context values are snapshotted at submit into three run annotations,
-`boomerang.io/global-params`, `boomerang.io/workspace-params` and `boomerang.io/context-params`
-(`workflow/WorkflowService.java:706-709`, built by `ParamLayerService.buildParamLayers`). `ParameterManager`
-rebuilds the layers from them at run start, for the run's own params (`engine/WorkflowExecutionService.java:71`),
-and at each task's admission, for the task's params and spec (`TaskExecutionService.java:205`; a for-each task's
-items at fan-out, `:605`). Reads strip the three annotations (`workflow/WorkflowRunService.java:1130-1132`).
+The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
+from their stores each time it resolves (`engine/ParameterManager.java:247`, through
+`workflow/ParamLayerService.java:93`): at run start for the run's own params (`engine/WorkflowExecutionService.java:71`),
+and at each task's admission for the task's params and spec (`TaskExecutionService.java:205`; a for-each task's
+items at fan-out, `:605`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
+workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the
+revision it runs, so a version saved mid-run does not change it. A global or workspace parameter edited while a
+run is in progress reaches the tasks admitted after the edit; each task run keeps the values it was resolved
+with. Runs created before this carried the values in `boomerang.io/global-params`, `workspace-params` and
+`context-params`; reads strip those keys (`workflow/WorkflowRunService.java:1153`) and a child run does not inherit
+them (`workflow/WorkflowService.java:708`).
 
 Parameter references, by where the value comes from (`engine/ParameterManager.java`, `common/model/ParamLayers.java`):
 
@@ -118,11 +123,18 @@ Parameter references, by where the value comes from (`engine/ParameterManager.ja
 Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$`
 characters are inserted verbatim: a multi-line prompt, a JSON body, a shell script or a task result with a
 trailing newline reaches the container byte for byte
-(`ParameterManager.replaceStringInObject`). A reference that matches nothing is left as written. References
-**inside** an inserted value are expanded too: substitution runs over the values it inserts
-(`StringSubstitutor` with substitution in values on, `ParameterManager.java:443-453`). A workspace value
-containing `$(global.params.x)` therefore resolves, and so does a reference arriving inside a task result or a
-trigger payload's `data` param (`event/WebhookEventService.java:210,228`). A replacement that is not a string and is interpolated **into** a larger string is written as JSON
+(`ParameterManager.replaceStringInObject`). A reference that matches nothing is left as written. Substitution
+also runs over the values it inserts, so configuration composes - a workspace value containing
+`$(global.params.x)` resolves - with two exceptions, whose values are inserted as written (their `$(` escaped,
+`ParameterManager.java:328,359`):
+
+| Inserted as written | Why |
+| --- | --- |
+| A task result, `$(tasks.t.results.r)` | It is what a task produced, not what anyone in the workspace wrote |
+| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:80`, `:294`). Such a param is also kept as it arrived at run start (`:137`). On a manual, scheduled or API-submitted run every value resolves |
+
+`$(params.x)` reads the nearest layer, so a task that defines `x` itself resolves its own value even when the run's
+`x` was supplied. A whole-value reference returns the referenced structure untouched. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
 (`{"k":"v"}`), matching how the dispatcher encodes a non-string param value.
 
 An `object`-typed param resolves to the referenced structure itself only when its value is **exactly one
@@ -260,9 +272,11 @@ asynchronous completion of a streamed response without re-running authorization 
 container, carry the real values. A resolved value shorter than four characters is blanked by name but not
 value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
 
-Password-typed **global and workspace** parameters are not in the union: neither definition above declares
-them, so a secured workspace or global value interpolated into a text-typed task param, a script or a result is
-returned unscrubbed by the run reads and the log stream.
+The union also holds the values of the run workspace's password-typed **global and workspace** parameters
+(`ParamLayerService.securedValues`, `workflow/ParamLayerService.java:117`; `WorkflowRunService.java:184,489`),
+which neither definition declares yet substitution writes into task params, scripts and results. They are read
+once per workspace per response, and with their current values: a run that used a value since rotated keeps
+showing it.
 
 ## Volumes and workspaces
 

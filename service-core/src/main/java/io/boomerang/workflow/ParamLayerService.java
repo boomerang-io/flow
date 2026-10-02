@@ -1,8 +1,11 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.entity.WorkflowEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.repository.TokenRepository;
@@ -10,9 +13,11 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /*
@@ -26,6 +31,16 @@ import org.springframework.stereotype.Service;
 public class ParamLayerService {
 
   private static final String[] reserved = {"system", "workflow", "global", "team", "workflow"};
+
+  /**
+   * The run annotations that carried the global, workspace and context layers before they were
+   * read from their stores. Runs created earlier still hold them; reads strip them.
+   */
+  public static final Set<String> LEGACY_RUN_ANNOTATIONS =
+      Set.of(
+          "boomerang.io/global-params",
+          "boomerang.io/workspace-params",
+          "boomerang.io/context-params");
 
   private SettingsService settingsService;
   private WorkspaceRepository workspaceRepository;
@@ -69,25 +84,56 @@ public class ParamLayerService {
     return paramLayers.getFlatKeys();
   }
 
-  /*
-   * Only needs to set the Global, Workspace, and partial Context Params. Engine will add and resolve.
+  /**
+   * The global, workspace and context layers for a run, read from their stores now - nothing is
+   * copied onto the run. The context's workflow name, ref and version come from the run's workflow
+   * and the revision it runs, so a version saved mid-run does not change them. The engine adds the
+   * run, task and per-run context keys and resolves.
    */
-  public ParamLayers buildParamLayers(String teamId, Workflow workflow) {
+  public ParamLayers buildParamLayers(
+      String workspace, WorkflowEntity workflow, WorkflowRevisionEntity revision) {
     ParamLayers paramLayers = new ParamLayers();
-    Map<String, Object> workspaceParams = paramLayers.getWorkspaceParams();
-    Map<String, Object> globalParams = paramLayers.getGlobalParams();
-    Map<String, Object> contextParams = paramLayers.getContextParams();
-    // Set Workspace Params
     if (settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue()) {
-      buildWorkspaceParams(workspaceParams, teamId);
+      buildWorkspaceParams(paramLayers.getWorkspaceParams(), workspace);
     }
-    // Set Global Params
     if (settingsService.getSettingConfig("features", "globalParameters").getBooleanValue()) {
-      buildGlobalParams(globalParams);
+      buildGlobalParams(paramLayers.getGlobalParams());
     }
-    buildContextParams(contextParams, workflow);
-
+    if (workflow != null) {
+      buildContextParams(
+          paramLayers.getContextParams(),
+          workflow.getId(),
+          workflow.getName(),
+          workflow.getDisplayName(),
+          revision != null ? revision.getVersion() : null);
+    }
     return paramLayers;
+  }
+
+  /**
+   * The values of password-typed global and workspace parameters, which run reads and the log
+   * stream redact alongside the password-typed params a workflow or task declares.
+   */
+  public Set<String> securedValues(String workspace) {
+    Set<String> secured = new HashSet<>();
+    this.parameterService.getAllUnfiltered().stream()
+        .filter(ParamLayerService::isSecured)
+        .forEach(param -> secured.add(param.getValue().toString()));
+    if (workspace != null) {
+      workspaceRepository
+          .findByNameIgnoreCase(workspace)
+          .map(WorkspaceEntity::getParameters)
+          .ifPresent(
+              params ->
+                  params.stream()
+                      .filter(ParamLayerService::isSecured)
+                      .forEach(param -> secured.add(param.getValue().toString())));
+    }
+    return secured;
+  }
+
+  private static boolean isSecured(AbstractParam param) {
+    return FieldType.PASSWORD.value().equals(param.getType()) && param.getValue() != null;
   }
 
   /*
@@ -126,13 +172,27 @@ public class ParamLayerService {
    * TODO: check this with the reserved Tekton ones
    */
   private void buildContextParams(Map<String, Object> contextParams, Workflow workflow) {
+    buildContextParams(
+        contextParams,
+        workflow.getId(),
+        workflow.getName(),
+        workflow.getDisplayName(),
+        workflow.getVersion());
+  }
+
+  private void buildContextParams(
+      Map<String, Object> contextParams,
+      String workflowId,
+      String workflowName,
+      String workflowDisplayName,
+      Integer workflowVersion) {
     contextParams.put("workflowrun-trigger", "");
     contextParams.put("workflowrun-initiator", "");
     contextParams.put("workflowrun-ref", "");
-    contextParams.put("workflow-name", workflow.getName());
-    contextParams.put("workflow-displayname", workflow.getDisplayName());
-    contextParams.put("workflow-ref", workflow.getId());
-    contextParams.put("workflow-version", workflow.getVersion());
+    contextParams.put("workflow-name", workflowName);
+    contextParams.put("workflow-displayname", workflowDisplayName);
+    contextParams.put("workflow-ref", workflowId);
+    contextParams.put("workflow-version", workflowVersion);
     contextParams.put("taskrun-ref", "");
     contextParams.put("taskrun-name", "");
     contextParams.put("taskrun-type", "");
@@ -143,7 +203,7 @@ public class ParamLayerService {
     // T6-3: the retired `workflow` token class is now `key` + actorKind=WORKFLOW.
     Optional<List<TokenEntity>> tokens =
         tokenRepository.findByPrincipalAndTypeAndActorKind(
-            workflow.getId(), AuthScope.key, TokenActorKind.WORKFLOW);
+            workflowId, AuthScope.key, TokenActorKind.WORKFLOW);
     // Add Tokens
     if (tokens.isPresent() && !tokens.isEmpty()) {
       for (TokenEntity t : tokens.get()) {

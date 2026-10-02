@@ -702,11 +702,10 @@ public class WorkflowService {
       executionAnnotations.put("boomerang.io/task-timeout", taskTimeoutSetting);
     }
 
-    // Add Context, Global, and Workspace parameters to the WorkflowRun request
-    ParamLayers paramLayers = paramLayerService.buildParamLayers(team, workflow);
-    executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
-    executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
-    executionAnnotations.put("boomerang.io/workspace-params", paramLayers.getWorkspaceParams());
+    // Global, workspace and context parameters are not copied onto the run: the engine reads them
+    // from their stores each time it resolves. A child run's request carries its parent's
+    // annotations, so the keys older runs were given are dropped here too.
+    request.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.

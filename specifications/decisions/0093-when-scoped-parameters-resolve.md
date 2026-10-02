@@ -1,6 +1,6 @@
 # 0093 — Scoped parameters resolve from their stores, and untrusted text is never expanded
 
-**Status:** proposed · **Date:** 2026-10-01
+**Status:** accepted · **Date:** 2026-10-02
 
 ## Context
 
@@ -30,8 +30,8 @@ the workflow context from the run's revision. Three rules apply under either:
 
 ## Decision
 
-Proposed: option 2 with the three rules. Option 5's one advantage, a single set of values per run, has no
-reported need, and it widens where secrets are stored. Pending the maintainer's choice.
+Option 2 with the three rules (`engine/ParameterManager.java`, `workflow/ParamLayerService.java`). Option 5's
+one advantage, a single set of values per run, has no reported need, and it widens where secrets are stored.
 
 ## Consequences
 

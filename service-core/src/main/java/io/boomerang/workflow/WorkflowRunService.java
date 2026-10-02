@@ -41,6 +41,7 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -109,6 +110,7 @@ public class WorkflowRunService {
   // @Lazy for the same reason as TaskExecutionService above: WorkflowService holds this service,
   // so an eager injection closes the cycle at construction time.
   private final WorkflowService workflowService;
+  private final ParamLayerService paramLayerService;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -125,7 +127,8 @@ public class WorkflowRunService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       ObjectMapper objectMapper,
-      @Lazy WorkflowService workflowService) {
+      @Lazy WorkflowService workflowService,
+      ParamLayerService paramLayerService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
@@ -141,6 +144,7 @@ public class WorkflowRunService {
     this.mongoTemplate = mongoTemplate;
     this.objectMapper = objectMapper;
     this.workflowService = workflowService;
+    this.paramLayerService = paramLayerService;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -156,7 +160,7 @@ public class WorkflowRunService {
   public ResponseEntity<WorkflowRun> get(String team, String workflowRunId, boolean withTasks) {
     requireWorkspaceRelationship(team, workflowRunId);
     WorkflowRun wfRun = get(workflowRunId, withTasks);
-    filterSensitiveValues(wfRun);
+    filterSensitiveValues(wfRun, new HashMap<>());
     return ResponseEntity.ok(wfRun);
   }
 
@@ -172,15 +176,19 @@ public class WorkflowRunService {
    *
    * Both are blanked by name, and the UNION of the values they resolve to is then scrubbed
    * run-wide - substitution moves a task-declared secret into a downstream task's param or result
-   * under another name, so the scrub cannot be per task. Mutates the response model only.
+   * under another name, so the scrub cannot be per task. The values of the run workspace's
+   * password-typed global and workspace parameters join the union: no definition above declares
+   * them, yet substitution writes them into task params, scripts and results. Those are read once
+   * per workspace per response (securedByWorkspace). Mutates the response model only.
    */
-  void filterSensitiveValues(WorkflowRun wfRun) {
+  void filterSensitiveValues(WorkflowRun wfRun, Map<String, Set<String>> securedByWorkspace) {
     if (wfRun == null) {
       return;
     }
     // Collected first, while the values are still raw: the workflow pass below scrubs, and a
     // value read back after it would be collected as the redaction marker instead of the secret.
     Set<String> secrets = new HashSet<>(filterTaskDeclaredSensitiveValues(wfRun.getTasks()));
+    secrets.addAll(securedLayerValues(wfRun.getAnnotations(), securedByWorkspace));
     if (wfRun.getWorkflowRevisionRef() != null) {
       workflowRevisionRepository
           .findById(wfRun.getWorkflowRevisionRef())
@@ -284,7 +292,8 @@ public class WorkflowRunService {
             queryWorkflowRuns,
             Optional.of(wfRefs),
             queryTriggers);
-    page.getContent().forEach(this::filterSensitiveValues);
+    Map<String, Set<String>> securedByWorkspace = new HashMap<>();
+    page.getContent().forEach(run -> filterSensitiveValues(run, securedByWorkspace));
     return new WorkflowRunResponsePage(
         page.getContent(), page.getPageable(), page.getTotalElements());
   }
@@ -455,19 +464,34 @@ public class WorkflowRunService {
     workflowRunRepository
         .findById(workflowRunRef)
         .ifPresent(
-            run ->
-                Optional.ofNullable(run.getWorkflowRevisionRef())
-                    .flatMap(workflowRevisionRepository::findById)
-                    .ifPresent(
-                        revision ->
-                            secrets.addAll(
-                                DataAdapterUtil.sensitiveValues(
-                                    revision.getParams(),
-                                    run.getParams(),
-                                    FieldType.PASSWORD.value()))));
+            run -> {
+              secrets.addAll(securedLayerValues(run.getAnnotations(), new HashMap<>()));
+              Optional.ofNullable(run.getWorkflowRevisionRef())
+                  .flatMap(workflowRevisionRepository::findById)
+                  .ifPresent(
+                      revision ->
+                          secrets.addAll(
+                              DataAdapterUtil.sensitiveValues(
+                                  revision.getParams(),
+                                  run.getParams(),
+                                  FieldType.PASSWORD.value())));
+            });
     // Throwaway models, read only to collect the values - the blanking they undergo is discarded.
     secrets.addAll(filterTaskDeclaredSensitiveValues(getTaskRuns(workflowRunRef)));
     return secrets;
+  }
+
+  /*
+   * The values of the password-typed global and workspace parameters a run's values were resolved
+   * from - its workspace is the one the engine resolved against (boomerang.io/workspace-name).
+   * Cached per workspace for the response being filtered.
+   */
+  private Set<String> securedLayerValues(
+      Map<String, Object> annotations, Map<String, Set<String>> securedByWorkspace) {
+    Object workspace = annotations != null ? annotations.get("boomerang.io/workspace-name") : null;
+    String key = workspace != null ? workspace.toString() : "";
+    return securedByWorkspace.computeIfAbsent(
+        key, name -> paramLayerService.securedValues(name.isEmpty() ? null : name));
   }
 
   /**
@@ -1125,11 +1149,8 @@ public class WorkflowRunService {
       wfRun.setWorkflowName(optWorkflow.get().getName());
       wfRun.setWorkflowDisplayName(optWorkflow.get().getDisplayName());
     }
-    // Remove Annotations
-    // TODO determine if this should be done elsewhere
-    wfRun.getAnnotations().remove("boomerang.io/global-params");
-    wfRun.getAnnotations().remove("boomerang.io/context-params");
-    wfRun.getAnnotations().remove("boomerang.io/workspace-params");
+    // Runs created before the parameter layers were read from their stores still carry them.
+    wfRun.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
   }
 
   /*
