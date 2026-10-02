@@ -25,6 +25,7 @@ import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Build every index the application reads through, the same set on an empty and an upgraded
@@ -176,7 +177,8 @@ public class _0021__Indexes {
           new Index("artifacts", "workflow_status_idx", keys("workflowRef", "status"), new IndexOptions()));
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     dedupeTaskRuns(db, names.resolve("task_runs"));
     dedupeActions(db, names.resolve("actions"));
     dedupeDispatchers(db, names.resolve("dispatchers"));
@@ -347,7 +349,8 @@ public class _0021__Indexes {
   }
 
   @Rollback
-  public void rollback(MongoDatabase db, CollectionNames names) {
+  public void rollback(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     for (Index index : INVENTORY) {
       dropIndex(db, names.resolve(index.collection()), index.name());
     }

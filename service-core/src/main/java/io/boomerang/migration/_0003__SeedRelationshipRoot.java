@@ -9,6 +9,7 @@ import io.flamingock.api.annotations.TargetSystem;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Seed the relationship graph's root node — the anchor every other node hangs off.
@@ -30,7 +31,8 @@ public class _0003__SeedRelationshipRoot {
   private static final Logger LOG = LoggerFactory.getLogger(_0003__SeedRelationshipRoot.class);
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     Document root = SeedResources.node("root", "root", "root");
     boolean inserted =
         SeedResources.insertIfAbsent(

@@ -1,7 +1,6 @@
 package io.boomerang.migration;
 
 import com.mongodb.client.MongoClient;
-import io.boomerang.core.config.MongoConfiguration;
 import io.flamingock.api.annotations.EnableFlamingock;
 import io.flamingock.api.annotations.Stage;
 import io.flamingock.internal.core.external.store.CommunityAuditStore;
@@ -9,6 +8,7 @@ import io.flamingock.store.mongodb.sync.MongoDBSyncAuditStore;
 import io.flamingock.targetsystem.mongodb.sync.MongoDBSyncTargetSystem;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
 
 /**
@@ -25,23 +25,19 @@ public class MigrationConfiguration {
 
   @Bean
   public MongoDBSyncTargetSystem migrationTargetSystem(
-      MongoClient mongoClient,
-      MongoDatabaseFactory databaseFactory,
-      MongoConfiguration mongoConfiguration) {
+      MongoClient mongoClient, MongoDatabaseFactory databaseFactory, Environment environment) {
     MongoDBSyncTargetSystem targetSystem =
         new MongoDBSyncTargetSystem(
             TARGET_SYSTEM_ID, mongoClient, databaseFactory.getMongoDatabase().getName());
-    // Registered by explicit type: change units take CollectionNames, which Flamingock does not
-    // resolve on its own.
-    targetSystem.addDependency(
-        CollectionNames.class, new CollectionNames(mongoConfiguration.collectionPrefix()));
+    // Registered by explicit type: change units take the Environment for the collection prefix.
+    targetSystem.addDependency(Environment.class, environment);
     return targetSystem;
   }
 
   @Bean
   public CommunityAuditStore migrationAuditStore(
-      MongoDBSyncTargetSystem migrationTargetSystem, MongoConfiguration mongoConfiguration) {
-    CollectionNames names = new CollectionNames(mongoConfiguration.collectionPrefix());
+      MongoDBSyncTargetSystem migrationTargetSystem, Environment environment) {
+    CollectionNames names = CollectionNames.from(environment);
     return MongoDBSyncAuditStore.from(migrationTargetSystem)
         .withAuditRepositoryName(names.resolve("sys_migration_changelog"))
         .withLockRepositoryName(names.resolve("sys_migration_lock"));

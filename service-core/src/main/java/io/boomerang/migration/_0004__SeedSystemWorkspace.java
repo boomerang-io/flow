@@ -11,6 +11,7 @@ import java.util.List;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Seed the {@code system} workspace and its graph, mirroring what {@code WorkspaceService.create}
@@ -72,7 +73,8 @@ public class _0004__SeedSystemWorkspace {
   private static final String ADMIN_ROLE = "owner";
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     String workspaceId = seedWorkspace(db, names);
     String workspaceNodeId = "workspace:" + workspaceId;
 

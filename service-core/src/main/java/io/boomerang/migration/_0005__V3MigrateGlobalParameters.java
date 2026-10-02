@@ -10,6 +10,7 @@ import io.flamingock.api.annotations.TargetSystem;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Moves the v3 global parameters into {@code parameters}, the collection {@code
@@ -28,7 +29,8 @@ public class _0005__V3MigrateGlobalParameters {
   private static final Logger LOG = LoggerFactory.getLogger(_0005__V3MigrateGlobalParameters.class);
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install - no v3 global parameters to migrate.");
       return;

@@ -13,6 +13,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Runs immediately after {@code _0010__V3MigrateWorkflows} (same chain, next numeric
@@ -82,7 +83,8 @@ public class _0011__V3ExtractWorkflowTemplates {
   private static final Logger LOG = LoggerFactory.getLogger(_0011__V3ExtractWorkflowTemplates.class);
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — template workflows already extracted (or never existed).");
       return;

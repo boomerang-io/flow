@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only, before anything is seeded: rename {@code teams} to {@code workspaces}, so the system
@@ -42,7 +43,8 @@ public class _0002__V3PrepareCollections {
       List.of("jobs", "triggers", "calendars", "paused_trigger_groups", "locks", "schedulers");
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — no v3 collections to prepare.");
       return;

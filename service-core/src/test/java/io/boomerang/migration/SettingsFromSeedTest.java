@@ -133,7 +133,7 @@ class SettingsFromSeedTest {
   void secondRunChangesNothing() {
     for (MongoDatabase db : List.of(migrate("rerunempty"), migrateV3("rerunv3"))) {
       List<Document> before = snapshot(db);
-      new _0016__BuildSettingsFromSeed().execute(db, new CollectionNames(PREFIX));
+      new _0016__BuildSettingsFromSeed().execute(db, MigrationRunner.environment(PREFIX));
       assertThat(snapshot(db)).isEqualTo(before);
     }
   }

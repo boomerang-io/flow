@@ -20,6 +20,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Build every settings document from {@code seed/settings.json}, so an empty database and an
@@ -88,7 +89,8 @@ public class _0016__BuildSettingsFromSeed {
   private static final ObjectId WORKFLOW_STORAGE_ID = new ObjectId("60245b56226920beece547e3");
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     MongoCollection<Document> settings = db.getCollection(names.resolve("settings"));
     List<Document> seed = SeedResources.load("seed/settings.json");
     int inserted = 0;

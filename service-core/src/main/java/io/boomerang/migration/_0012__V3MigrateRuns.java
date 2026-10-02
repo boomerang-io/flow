@@ -21,6 +21,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Migrates the three v3 execution-history collections into their v5 shapes: {@code
@@ -144,7 +145,8 @@ public class _0012__V3MigrateRuns {
   private static final int BATCH_SIZE = 1000;
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — runs/actions/schedules already migrated (or never existed).");
       return;

@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Bring the migrated catalogue up to what the engine runs, after the catalogue seed has
@@ -45,7 +46,8 @@ public class _0019__V3UpgradeCatalogueRevisions {
   private static final List<String> CHILD_RUN_TASKS = List.of("run-workflow", "run-scheduled-workflow");
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install - the seeded catalogue is already current.");
       return;

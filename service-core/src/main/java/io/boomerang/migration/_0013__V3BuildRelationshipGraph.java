@@ -23,6 +23,7 @@ import java.util.Set;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Builds the {@code rel_nodes}/{@code rel_edges} relationship graph for the v3-migrated
@@ -137,7 +138,8 @@ public class _0013__V3BuildRelationshipGraph {
   private static final int BATCH_SIZE = 1000;
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — the relationship graph is already built (or was never a gap).");
       return;

@@ -8,6 +8,7 @@ import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.List;
 import org.bson.Document;
+import org.springframework.core.env.Environment;
 
 /**
  * Seed the remaining catalogue documents a fresh install needs: the starter workflow templates
@@ -43,7 +44,8 @@ import org.bson.Document;
 public class _0020__SeedTemplates {
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     List<Document> workflowTemplates = SeedResources.load("seed/workflow-templates.json");
     int workflowsInserted = 0;
     for (Document template : workflowTemplates) {

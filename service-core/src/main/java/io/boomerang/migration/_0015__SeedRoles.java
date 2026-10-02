@@ -8,6 +8,7 @@ import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.List;
 import org.bson.Document;
+import org.springframework.core.env.Environment;
 
 /**
  * Seed the five roles the authorization layer resolves against — {@code RoleRepository} looks them
@@ -47,7 +48,8 @@ import org.bson.Document;
 public class _0015__SeedRoles {
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     List<Document> roles = SeedResources.load("seed/roles.json");
     int inserted = 0;
     for (Document role : roles) {

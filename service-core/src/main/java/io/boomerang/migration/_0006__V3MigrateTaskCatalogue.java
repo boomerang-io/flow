@@ -13,6 +13,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Merges the task-catalogue migration with the task-run reference fix (formerly separate
@@ -127,7 +128,8 @@ public class _0006__V3MigrateTaskCatalogue {
   private static final ObjectId SLEEP_TASK_ID = new ObjectId("5bd97bea5a5df954ad592c06");
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — task_templates already migrated (or never existed) in v5 shape.");
       return;

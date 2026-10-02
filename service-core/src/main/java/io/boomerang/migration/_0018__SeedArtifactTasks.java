@@ -13,6 +13,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Adds the {@code upload-artifact} and {@code download-artifact} catalogue tasks (types {@code
@@ -36,7 +37,8 @@ public class _0018__SeedArtifactTasks {
   private static final String FILLED_BY_FLOW = "Filled in by Flow when the task runs.";
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     seed(
         db,
         names,

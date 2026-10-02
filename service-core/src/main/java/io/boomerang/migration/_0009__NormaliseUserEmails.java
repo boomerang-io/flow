@@ -14,6 +14,7 @@ import java.util.Set;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Lower-cases every {@code users.email} so the {@code users.email_lookup} index built by {@code
@@ -53,7 +54,8 @@ public class _0009__NormaliseUserEmails {
   private static final Document LOWERCASED_EMAIL = new Document("$toLower", "$email");
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     MongoCollection<Document> users = db.getCollection(names.resolve("users"));
 
     Set<Object> collidingIds = reportCollisions(users);

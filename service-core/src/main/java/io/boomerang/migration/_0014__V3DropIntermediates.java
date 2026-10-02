@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Final cleanup pass of the v3→v5 migration chain: asserts/drops two different classes
@@ -83,7 +84,8 @@ public class _0014__V3DropIntermediates {
           "workflows_schedules");
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — no v3-era intermediates to clean up.");
       return;

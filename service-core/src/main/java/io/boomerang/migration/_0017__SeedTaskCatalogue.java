@@ -12,6 +12,7 @@ import java.util.Map;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * Seed the out-of-the-box task catalogue — 88 tasks and their 131 revisions: the 87 tasks / 130
@@ -77,7 +78,8 @@ public class _0017__SeedTaskCatalogue {
   private static final String ROOT_NODE_ID = "root:root";
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     Map<String, String> resolvedIds = seedTasks(db, names);
     seedRevisions(db, names, resolvedIds);
     seedGraph(db, names, resolvedIds);

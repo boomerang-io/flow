@@ -9,6 +9,7 @@ import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * First unit of the chain, before anything is written: refuse a database the chain cannot
@@ -36,7 +37,8 @@ public class _0001__GuardAndDetectGeneration {
   static final String BETA_CHANGELOG = "sys_changelog_loader";
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     refuseUnsupportedDatabase(db, names);
     logExistingInstallation(db, names);
     recordGeneration(db, names);

@@ -17,6 +17,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Single pass: v3 {@code teams} (28 documents on the verified real dump) -> v5 {@code
@@ -112,7 +113,8 @@ public class _0007__V3MigrateWorkspaces {
   private static final int DEFAULT_MAX_WORKFLOW_RUN_STORAGE = 2;
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — teams already migrated (or never existed) in v5 shape.");
       return;

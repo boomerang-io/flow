@@ -18,6 +18,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 
 /**
  * V3-only. Single pass: v3 {@code workflows} (67 documents on the verified real dump) reshaped in
@@ -212,7 +213,8 @@ public class _0010__V3MigrateWorkflows {
   private static final Logger LOG = LoggerFactory.getLogger(_0010__V3MigrateWorkflows.class);
 
   @Apply
-  public void execute(MongoDatabase db, CollectionNames names) {
+  public void execute(MongoDatabase db, Environment env) {
+    CollectionNames names = CollectionNames.from(env);
     if (LegacyGenerationMarker.read(db, names) != InstallGeneration.V3) {
       LOG.info("Not a v3 install — workflows already migrated (or never existed) in v5 shape.");
       return;
