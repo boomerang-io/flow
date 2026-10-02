@@ -132,8 +132,15 @@ public class ParamLayerService {
     return secured;
   }
 
+  // Only values long enough to scrub safely: the log stream replaces every occurrence of each value,
+  // so an empty or 1-3 character value would mangle unrelated text (the same floor the run reads
+  // apply).
+  private static final int MIN_SECURED_VALUE_LENGTH = 4;
+
   private static boolean isSecured(AbstractParam param) {
-    return FieldType.PASSWORD.value().equals(param.getType()) && param.getValue() != null;
+    return FieldType.PASSWORD.value().equals(param.getType())
+        && param.getValue() != null
+        && param.getValue().toString().length() >= MIN_SECURED_VALUE_LENGTH;
   }
 
   /*
