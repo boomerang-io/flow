@@ -9,14 +9,13 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.IndexOptions;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
@@ -26,9 +25,8 @@ import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Runs the loader main flow against a Testcontainers MongoDB seeded like an existing
- * installation (legacy loader changelog, duplicate task_runs/actions/agents) and asserts the
- * migrated schema: expected indexes, correct dedupe outcomes, and a clean no-op second run.
+ * The chain against its two starting points, an empty database and a v3 install, and against the
+ * databases it refuses. Each test runs the chain outside Spring on its own database.
  */
 class MigrationChainTest {
 
@@ -40,814 +38,96 @@ class MigrationChainTest {
   private static final Date LATER = Date.from(Instant.parse("2026-01-02T00:00:00Z"));
 
   private static MongoClient client;
-  private static MongoDatabase db;
-
-  private static ObjectId taskARunning;
-  private static ObjectId taskASucceeded;
-  private static ObjectId taskBFirst;
-  private static ObjectId taskBSecond;
-  private static ObjectId soloTask;
-  private static ObjectId earliestGate;
-  private static ObjectId latestConnectedAgent;
-  private static ObjectId taskRunWithAgentRef;
-  private static ObjectId workflowRunWithAgentRef;
-  private static ObjectId finalizedWorkflowRun;
-  private static ObjectId finalizedTaskRun;
-  private static ObjectId tokenWithTeamScope;
-  private static ObjectId survivingGlobalToken;
-  private static ObjectId teamAudit;
-  private static ObjectId roleWithTeamType;
-  private static ObjectId adminUser;
-  private static ObjectId regularUser;
-  /** {@code seed/settings.json}'s _id for the workspace-quota defaults document. */
-  private static final ObjectId LEGACY_TEAM_QUOTAS_SETTINGS_ID =
-      new ObjectId("61393f5966c5eea103dfe134");
-  /** {@code seed/settings.json}'s _id for the feature-flag toggles document. */
-  private static final ObjectId LEGACY_FEATURES_SETTINGS_ID =
-      new ObjectId("612904d60b07a54cdc4dc6a9");
 
   @BeforeAll
-  static void seedExistingInstallation() {
+  static void startMongo() {
     MONGO.start();
-    client = MongoClients.create(MONGO.getReplicaSetUrl("boomerang"));
-    db = client.getDatabase("boomerang");
-
-    collection("sys_changelog_flow").insertOne(new Document("changeId", "001"));
-    collection("workflows").insertOne(new Document("name", "wf"));
-
-    seedTeamRelationshipGraph();
-    tokenWithTeamScope = insertToken("team");
-    // T6-3: a `global`-typed token, seeded to prove _0028__TokenClassRestructure's deletion is
-    // narrow - only the retired workspace/workflow classes are touched.
-    survivingGlobalToken = insertToken("global");
-    roleWithTeamType = insertRole("team");
-    teamAudit = insertTeamAudit("t1", "acme");
-    adminUser = insertUser("admin@example.com", "admin");
-    regularUser = insertUser("user@example.com", "user");
-
-    taskARunning = insertTaskRun("wfr1", "task-a", "running", EARLIER);
-    taskASucceeded = insertTaskRun("wfr1", "task-a", "succeeded", LATER);
-    taskBFirst = insertTaskRun("wfr1", "task-b", "running", EARLIER);
-    taskBSecond = insertTaskRun("wfr1", "task-b", "running", LATER);
-    soloTask = insertTaskRun("wfr2", "task-a", "succeeded", EARLIER);
-
-    earliestGate = insertAction("tr1", EARLIER);
-    insertAction("tr1", LATER);
-    insertAction("tr2", EARLIER);
-
-    insertAgent("agent-1", "host-a", EARLIER);
-    latestConnectedAgent = insertAgent("agent-1", "host-a", LATER);
-    insertAgent("agent-2", "host-a", EARLIER);
-
-    taskRunWithAgentRef = insertTaskRunWithAgentRef("wfr-claimed", "agent-1", EARLIER);
-    workflowRunWithAgentRef = insertWorkflowRunWithAgentRef("agent-1", EARLIER);
-
-    seedRetiredFinalizedPhase();
-    seedV4ResidualCollections();
-    seedLegacyWorkerFlowRevision();
-    seedLegacyRunWorkflowCatalogue();
-    seedOrphanedFieldResidue();
-    seedLegacyTeamQuotaSettings();
-    seedLegacyFeatureFlagSettings();
-    seedLegacyWorkflowRunSettings();
-  }
-
-  /**
-   * Residue for {@code _0043__RunPhaseFinalizedIsCompleted}: a WorkflowRun and a TaskRun an earlier
-   * v5 install left on the retired {@code finalized} phase, which no longer deserialises to
-   * anything.
-   */
-  private static void seedRetiredFinalizedPhase() {
-    finalizedWorkflowRun = new ObjectId();
-    collection("workflow_runs")
-        .insertOne(
-            new Document("_id", finalizedWorkflowRun)
-                .append("status", "succeeded")
-                .append("phase", "finalized")
-                .append("creationDate", EARLIER));
-    finalizedTaskRun = new ObjectId();
-    collection("task_runs")
-        .insertOne(
-            new Document("_id", finalizedTaskRun)
-                .append("workflowRunRef", finalizedWorkflowRun.toHexString())
-                .append("name", "finalized-task")
-                .append("status", "succeeded")
-                .append("phase", "finalized")
-                .append("creationDate", EARLIER));
-  }
-
-  /**
-   * Residue for {@code _0031__DropOrphanedFieldsAndCollections}: the v3-migration hand-off fields
-   * ({@code workflows}/{@code workflow_runs} {@code scope}/{@code ownerRef}, {@code
-   * users.flowTeamRefs}, {@code approver_groups.workspaceRef}) that no v5 entity declares, plus the
-   * v4 engine's {@code event_queue} collection whose entity was deleted.
-   */
-  private static void seedLegacyWorkerFlowRevision() {
-    collection("task_revisions")
-        .insertOne(
-            new Document("displayName", "Legacy Pin")
-                .append(
-                    "spec",
-                    new Document("image", "boomerangio/worker-flow:2.5.26")
-                        .append("command", List.of("boomerangio/worker-flow:2.5.26"))
-                        .append("arguments", List.of("mail", "sendEmail"))));
-  }
-
-  /**
-   * A pre-{@code _0040} install: the catalogue's {@code run-workflow} Task and its version-1
-   * revision already exist (matched by name and by parentRef+version respectively), so {@code
-   * _0022__SeedTaskCatalogue} skips both and this empty-{@code spec.params} shape survives to
-   * where {@code _0040__DeclareRunWorkflowParams} must fix it.
-   */
-  private static final ObjectId LEGACY_RUN_WORKFLOW_TASK_ID =
-      new ObjectId("603591f5c267b8ce33782571");
-
-  private static void seedLegacyRunWorkflowCatalogue() {
-    collection("tasks")
-        .insertOne(
-            new Document("_id", LEGACY_RUN_WORKFLOW_TASK_ID)
-                .append("name", "run-workflow")
-                .append("status", "active"));
-    collection("task_revisions")
-        .insertOne(
-            new Document("displayName", "Run Workflow")
-                .append("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString())
-                .append("version", 1)
-                .append("spec", new Document("params", List.of()).append("arguments", List.of("runworkflow"))));
-  }
-
-  /**
-   * A pre-{@code _0046} {@code workflowrun} settings document under the seed's own {@code _id}:
-   * {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
-   * _0046__DeclareRunWorkflowWaitParam} must add {@code max.nesting.depth} to the config list it
-   * already carries rather than leaving the key absent.
-   */
-  private static final ObjectId LEGACY_WORKFLOWRUN_SETTINGS_ID =
-      new ObjectId("60245957226920beece4fdf9");
-
-  private static void seedLegacyWorkflowRunSettings() {
-    collection("settings")
-        .insertOne(
-            new Document("_id", LEGACY_WORKFLOWRUN_SETTINGS_ID)
-                .append("key", "workflowrun")
-                .append("name", "Workspace Configuration - Activity Storage")
-                .append("type", "ValuesList")
-                .append(
-                    "config",
-                    List.of(
-                        new Document("key", "storage.size").append("value", "1Gi"),
-                        new Document("key", "storage.class").append("value", ""),
-                        new Document("key", "storage.accessMode").append("value", "ReadWriteMany"),
-                        new Document("key", "max.storage.size").append("value", "5Gi"))));
-  }
-
-  private static void seedOrphanedFieldResidue() {
-    collection("workflows")
-        .updateOne(Filters.eq("name", "wf"), Updates.combine(Updates.set("scope", "team"), Updates.set("ownerRef", "t1")));
-    collection("workflow_runs")
-        .updateOne(
-            Filters.eq("_id", workflowRunWithAgentRef),
-            Updates.combine(Updates.set("scope", "team"), Updates.set("ownerRef", "t1")));
-    collection("users")
-        .updateOne(Filters.eq("_id", regularUser), Updates.set("flowTeamRefs", List.of("t1")));
-    collection("approver_groups")
-        .insertOne(
-            new Document("name", "approvers")
-                .append("creationDate", EARLIER)
-                .append("approvers", List.of())
-                .append("workspaceRef", "t1"));
-    collection("event_queue")
-        .insertOne(new Document("url", "http://sink").append("creationDate", EARLIER));
-  }
-
-  /**
-   * A pre-DD-01 quota settings document under the seed's own {@code _id} but the legacy {@code
-   * key="teams"}: {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
-   * _0032__WorkspaceQuotaSettingsKey} must rename it in place.
-   */
-  private static void seedLegacyTeamQuotaSettings() {
-    collection("settings")
-        .insertOne(
-            new Document("_id", LEGACY_TEAM_QUOTAS_SETTINGS_ID)
-                .append("key", "teams")
-                .append("name", "Team Quotas")
-                .append("description", "Define default team quotas which are referenced unless overridden on the Team.")
-                .append("type", "ValuesList")
-                .append(
-                    "config",
-                    List.of(
-                        new Document("key", "max.workflow.count").append("value", "10"),
-                        new Document("key", "max.workflow.storage").append("value", "5Gi"),
-                        new Document("key", "max.workflowrun.concurrent").append("value", "4"),
-                        new Document("key", "max.workflowrun.monthly").append("value", "100"),
-                        new Document("key", "max.workflowrun.duration").append("value", "30"),
-                        new Document("key", "max.workflowrun.storage").append("value", "2Gi"))));
-  }
-
-  /**
-   * A pre-DD-01 {@code features} document under the seed's own {@code _id} but still carrying the
-   * legacy {@code teamQuotas}/{@code teamParameters}/{@code teamManagement}/{@code teamTasks}
-   * config keys: {@code _0021__SeedSettings} skips it (matched by {@code _id}), so {@code
-   * _0034__WorkspaceFeatureFlagSettingsKeys} must rename each in place.
-   */
-  private static void seedLegacyFeatureFlagSettings() {
-    collection("settings")
-        .insertOne(
-            new Document("_id", LEGACY_FEATURES_SETTINGS_ID)
-                .append("key", "features")
-                .append("name", "Features")
-                .append(
-                    "config",
-                    List.of(
-                        new Document("key", "activity").append("value", "true"),
-                        new Document("key", "teamQuotas")
-                            .append("label", "Team Quotas")
-                            .append("value", "true"),
-                        new Document("key", "teamParameters")
-                            .append("label", "Team Parameters")
-                            .append("value", "true"),
-                        new Document("key", "teamManagement")
-                            .append("label", "Team Management")
-                            .append("value", "true"),
-                        new Document("key", "teamTasks")
-                            .append("label", "Team Tasks")
-                            .append("value", "true"))));
-  }
-
-  /**
-   * H11 fixture: residue from the two retired JobRunr instances, RAW string-concatenated exactly
-   * like their historical {@code org.jobrunr.database.table-prefix} properties ({@code
-   * <collectionPrefix>jr_} for engine's timeout jobs, {@code <collectionPrefix>_sch_} for flow's
-   * schedule firing - PREFIX has no trailing "_" of its own, so these are NOT reachable via the
-   * {@code collection(String)} helper's {@code PREFIX + "_" + name} joining), plus the genuinely
-   * unprefixed {@code locks} collection {@code alturkovic/distributed-lock} wrote verbatim.
-   */
-  /**
-   * _0039: no task revision or default.image setting may still reference the retired
-   * worker-flow lineage after migration - the repoint covers seeded rows and this pre-seeded
-   * legacy pin alike, and clears the corrupt image-in-command shape.
-   */
-  private void assertWorkerFlowImagesRepointed() {
-    assertThat(
-            collection("task_revisions")
-                .countDocuments(new Document("spec.image", new Document("$regex", "worker-flow"))))
-        .isZero();
-    assertThat(
-            collection("task_revisions")
-                .countDocuments(new Document("spec.command", new Document("$regex", "worker-flow"))))
-        .isZero();
-    assertThat(
-            collection("settings")
-                .countDocuments(
-                    new Document(
-                        "config",
-                        new Document(
-                            "$elemMatch",
-                            new Document("key", "default.image")
-                                .append("value", new Document("$regex", "worker-flow"))))))
-        .isZero();
-  }
-
-  /**
-   * _0040: the latest {@code run-workflow} revision - here the pre-existing legacy one {@code
-   * seedLegacyRunWorkflowCatalogue} left with an empty {@code spec.params} - must end up declaring
-   * {@code workflowRef}, the param {@code TaskExecutionService.runWorkflow} actually reads. A
-   * fresh-install {@code run-scheduled-workflow} (seeded straight from the updated {@code
-   * seed/task-revisions.json}, no legacy fixture needed) must declare all five params {@code
-   * runScheduledWorkflow} reads.
-   */
-  private void assertRunWorkflowParamsDeclared() {
-    Document runWorkflowRevision =
-        collection("task_revisions")
-            .find(Filters.eq("parentRef", LEGACY_RUN_WORKFLOW_TASK_ID.toString()))
-            .first();
-    assertThat(runWorkflowRevision).isNotNull();
-    // workflowRef from _0040, wait from _0046 - both appended to the same surviving revision.
-    assertThat(paramNames(runWorkflowRevision)).contains("workflowRef", "wait");
-
-    Document runScheduledWorkflowRevision =
-        collection("task_revisions")
-            .find(Filters.eq("parentRef", "61dcb509c570b75ec2c432f8"))
-            .first();
-    assertThat(runScheduledWorkflowRevision).isNotNull();
-    assertThat(paramNames(runScheduledWorkflowRevision))
-        .contains("workflowRef", "futureIn", "futurePeriod", "timezone", "time");
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<String> paramNames(Document revision) {
-    Document spec = revision.get("spec", Document.class);
-    List<Document> params = (List<Document>) spec.get("params");
-    return params.stream().map(p -> p.getString("name")).collect(Collectors.toList());
-  }
-
-  private static void seedV4ResidualCollections() {
-    db.getCollection(PREFIX + "jr_jobs").insertOne(new Document("state", "SUCCEEDED"));
-    db.getCollection(PREFIX + "jr_recurring-jobs").insertOne(new Document("id", "timeout-sweep"));
-    db.getCollection(PREFIX + "_sch_jobs").insertOne(new Document("state", "SUCCEEDED"));
-    db.getCollection(PREFIX + "_sch_metadata").insertOne(new Document("name", "version"));
-    db.getCollection("locks").insertOne(new Document("keyGroup", "wf").append("keyName", "1"));
-    // Must survive: v5's OWN current lock collection, a different literal name entirely.
-    collection("task_locks").insertOne(new Document("key", "wf1").append("owner", "instance-a"));
+    client = MongoClients.create(MONGO.getReplicaSetUrl());
   }
 
   @AfterAll
   static void closeClient() {
-    if (client != null) {
-      client.close();
-    }
+    client.close();
   }
+
+  // ===================================================================================
+  // An empty database
+  // ===================================================================================
 
   @Test
-  void migratesSeededDatabaseAndSecondRunIsANoOp() {
-    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl("boomerang"), PREFIX))
-        .doesNotThrowAnyException();
+  void anEmptyDatabaseIsSeededAndASecondRunChangesNothing() {
+    MongoDatabase db = migrate("empty");
 
-    assertTaskRunIndexes();
-    assertWorkflowRunIndexes();
-    assertUniqueIndex("actions", "task_run", List.of("taskRunRef"));
-    assertUniqueIndex("dispatchers", "registration", List.of("name", "host"));
-    assertEventCollectionIndexes();
-    assertLockAndWorkflowIndexes();
-    assertWorkspaceSearchIndexes();
-    assertTaskRunDedupe();
-    assertActionDedupe();
-    assertAgentDedupe();
-    assertAgentsCollectionRenamed();
-    assertClaimOwnerResidueRemoved();
-    assertOrphanedFieldResidueRemoved();
-    assertWorkspaceQuotaSettingsKeyRenamed();
-    assertWorkspaceFeatureFlagSettingsKeysRenamed();
-    assertDefinitionIndexes();
-    assertRelationshipAndAuditIndexes();
-    assertAuditRestructured();
-    assertSweepIndexes();
-    assertQuotaCountIndexes();
-    assertFinalizedPhaseRewritten();
-    assertWorkspaceRenameApplied();
-    assertV4ResidualCollectionsDropped();
-    assertWorkerFlowImagesRepointed();
-    assertRunWorkflowParamsDeclared();
-    assertChildWorkflowNestingCapAndIndex();
-    assertForeachCapAndIndex();
-    assertDeletionPolicyDescribed();
-    assertArtifactsAdded();
-    assertArtifactTasksSeeded();
-    assertSettingsGroupsNamed();
-    assertStorageSettingsRetired();
-    assertRootNodeSeeded();
-    assertSystemWorkspaceSeeded();
-    assertRolesSeeded();
-    assertSettingsSeeded();
-    assertTaskCatalogueSeeded();
-    assertTemplatesSeeded();
-    assertThat(collection("sys_changelog_loader").countDocuments()).isGreaterThanOrEqualTo(18);
-
-    List<Document> taskRunsBefore = snapshot("task_runs");
-    List<Document> workflowRunsBefore = snapshot("workflow_runs");
-    List<Document> actionsBefore = snapshot("actions");
-    List<Document> dispatchersBefore = snapshot("dispatchers");
-    List<Document> relNodesBefore = snapshotByStringId("rel_nodes");
-    List<Document> relEdgesBefore = snapshot("rel_edges");
-    List<Document> tokensBefore = snapshot("tokens");
-    List<Document> rolesBefore = snapshot("roles");
-    List<Document> settingsBefore = snapshot("settings");
-    List<Document> tasksBefore = snapshot("tasks");
-    List<Document> taskRevisionsBefore = snapshot("task_revisions");
-    List<Document> workspacesBefore = snapshot("workspaces");
-    List<Document> workflowTemplatesBefore = snapshot("workflow_templates");
-    List<Document> integrationTemplatesBefore = snapshot("integration_templates");
-
-    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl("boomerang"), PREFIX))
-        .doesNotThrowAnyException();
-
-    assertThat(snapshot("task_runs")).isEqualTo(taskRunsBefore);
-    assertThat(snapshot("workflow_runs")).isEqualTo(workflowRunsBefore);
-    assertThat(snapshot("actions")).isEqualTo(actionsBefore);
-    assertThat(snapshot("dispatchers")).isEqualTo(dispatchersBefore);
-    assertThat(snapshotByStringId("rel_nodes")).isEqualTo(relNodesBefore);
-    assertThat(snapshot("rel_edges")).isEqualTo(relEdgesBefore);
-    assertThat(snapshot("tokens")).isEqualTo(tokensBefore);
-    assertThat(snapshot("roles")).isEqualTo(rolesBefore);
-    // The seed change units are insert-if-absent, so a second run adds nothing anywhere.
-    assertThat(snapshot("settings")).isEqualTo(settingsBefore);
-    assertThat(snapshot("tasks")).isEqualTo(tasksBefore);
-    assertThat(snapshot("task_revisions")).isEqualTo(taskRevisionsBefore);
-    assertThat(snapshot("workspaces")).isEqualTo(workspacesBefore);
-    assertThat(snapshot("workflow_templates")).isEqualTo(workflowTemplatesBefore);
-    assertThat(snapshot("integration_templates")).isEqualTo(integrationTemplatesBefore);
-
-    // The run above was skipped wholesale by Flamingock's audit log, so it proves the pipeline is
-    // re-entrant but not that the change units themselves are. Drop the audit log and run again:
-    // every unit re-executes against the already-migrated, already-seeded database, which is the
-    // module's stated contract ("every subsequent change unit is idempotent regardless of prior
-    // state") and the guarantee the seed units' insert-if-absent guards exist to provide.
-    collection("sys_changelog_loader").drop();
-    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl("boomerang"), PREFIX))
-        .doesNotThrowAnyException();
-
-    assertThat(snapshotByStringId("rel_nodes")).isEqualTo(relNodesBefore);
-    assertThat(snapshot("rel_edges")).isEqualTo(relEdgesBefore);
-    assertThat(snapshot("roles")).isEqualTo(rolesBefore);
-    assertThat(snapshot("settings")).isEqualTo(settingsBefore);
-    assertThat(snapshot("tasks")).isEqualTo(tasksBefore);
-    assertThat(snapshot("task_revisions")).isEqualTo(taskRevisionsBefore);
-    assertThat(snapshot("workspaces")).isEqualTo(workspacesBefore);
-    assertThat(snapshot("workflow_templates")).isEqualTo(workflowTemplatesBefore);
-    assertThat(snapshot("integration_templates")).isEqualTo(integrationTemplatesBefore);
-  }
-
-  private void assertRootNodeSeeded() {
-    Document root = collection("rel_nodes").find(Filters.eq("_id", "root:root")).first();
-    assertThat(root).isNotNull();
-    assertThat(root.getString("type")).isEqualTo("root");
-    assertThat(root.getString("ref")).isEqualTo("root");
-    assertThat(root.getString("slug")).isEqualTo("root");
-    assertThat(root.get("data", Document.class)).isEmpty();
-    assertThat(root.getDate("creationDate")).isNotNull();
-  }
-
-  private void assertSystemWorkspaceSeeded() {
-    Document workspace = collection("workspaces").find(Filters.eq("name", "system")).first();
-    assertThat(workspace).isNotNull();
-    assertThat(workspace.getString("displayName")).isEqualTo("System and Administration");
-    assertThat(workspace.getString("type")).isEqualTo("system");
-    assertThat(workspace.getString("status")).isEqualTo("active");
-    assertThat(workspace.get("quotas", Document.class))
-        .containsOnlyKeys(
-            "maxWorkflowCount",
-            "maxWorkflowRunMonthly",
-            "maxWorkflowStorage",
-            "maxWorkflowRunStorage",
-            "maxWorkflowRunDuration",
-            "maxConcurrentRuns");
-    assertThat(workspace.get("quotas", Document.class).getInteger("maxWorkflowCount"))
-        .isEqualTo(Integer.MAX_VALUE);
-
-    // The graph WorkspaceService.create would have written: a workspace node slugged by name,
-    // reachable from the root.
-    String workspaceId = workspace.get("_id").toString();
-    Document node = collection("rel_nodes").find(Filters.eq("_id", "workspace:" + workspaceId)).first();
-    assertThat(node).isNotNull();
-    assertThat(node.getString("type")).isEqualTo("workspace");
-    assertThat(node.getString("ref")).isEqualTo(workspaceId);
-    assertThat(node.getString("slug")).isEqualTo("system");
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(
-                    Filters.and(
-                        Filters.eq("from", "root:root"),
-                        Filters.eq("label", "contains"),
-                        Filters.eq("to", "workspace:" + workspaceId))))
-        .isEqualTo(1);
-
-    // The pre-seeded admin user joins it; the non-admin does not.
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(
-                    Filters.and(
-                        Filters.eq("from", "user:" + adminUser.toString()),
-                        Filters.eq("label", "memberOf"),
-                        Filters.eq("to", "workspace:" + workspaceId))))
-        .isEqualTo(1);
-    Document membership =
-        collection("rel_edges")
-            .find(
-                Filters.and(
-                    Filters.eq("from", "user:" + adminUser.toString()),
-                    Filters.eq("to", "workspace:" + workspaceId)))
-            .first();
-    assertThat(membership.get("data", Document.class).getString("role")).isEqualTo("owner");
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(Filters.eq("from", "user:" + regularUser.toString())))
-        .isZero();
-  }
-
-  private void assertRolesSeeded() {
-    // The pre-existing "workspace/owner" role (migrated from type "team" by _0016) is matched by
-    // the natural key and left alone rather than duplicated.
-    assertThat(collection("roles").countDocuments()).isEqualTo(5);
-    assertThat(collection("roles").countDocuments(Filters.eq("name", "owner"))).isEqualTo(1);
-    assertThat(collection("roles").find(Filters.eq("_id", roleWithTeamType)).first())
-        .isNotNull();
-
-    Document reader =
-        collection("roles")
-            .find(Filters.and(Filters.eq("type", "workspace"), Filters.eq("name", "reader")))
-            .first();
-    assertThat(reader).isNotNull();
-    assertThat(reader.getList("permissions", String.class)).containsExactly("**/read");
-
-    Document admin =
-        collection("roles")
-            .find(Filters.and(Filters.eq("type", "global"), Filters.eq("name", "admin")))
-            .first();
-    assertThat(admin).isNotNull();
-    assertThat(admin.getList("permissions", String.class)).containsExactly("**/**");
-    // No role kept the pre-DD-01 scope value.
-    assertThat(collection("roles").countDocuments(Filters.eq("type", "team"))).isZero();
-  }
-
-  private void assertSettingsSeeded() {
-    assertThat(collection("settings").countDocuments()).isEqualTo(9);
-    List<String> keys =
-        collection("settings").distinct("key", String.class).into(new ArrayList<>());
-    assertThat(keys)
-        .containsExactlyInAnyOrder(
-            "artifacts", "audit", "auth", "customizations", "features", "integration", "task", "quotas",
-            "workflowrun");
-
-    // The trusted OIDC issuer configuration - seeded empty.
-    Document auth = collection("settings").find(Filters.eq("key", "auth")).first();
-    assertThat(
-            auth.getList("config", Document.class).stream()
-                .map(config -> config.getString("key"))
-                .toList())
-        .containsExactlyInAnyOrder("oidc.issuer", "oidc.clientId");
-    assertThat(
-            auth.getList("config", Document.class).stream()
-                .map(config -> config.getString("value"))
-                .toList())
-        .allMatch(String::isEmpty);
-
-    // The quota defaults WorkspaceService.setDefaultQuotas resolves at read time.
-    Document quotas = collection("settings").find(Filters.eq("key", "quotas")).first();
-    assertThat(
-            quotas.getList("config", Document.class).stream()
-                .map(config -> config.getString("key"))
-                .toList())
-        .contains(
-            "max.workflow.count",
-            "max.workflow.storage",
-            "max.workflowrun.concurrent",
-            "max.workflowrun.monthly",
-            "max.workflowrun.duration",
-            "max.workflowrun.storage");
-  }
-
-  /** _0055: every group reads as a noun and a sentence, and the quota defaults are keyed "quotas". */
-  private void assertSettingsGroupsNamed() {
-    assertThat(collection("settings").countDocuments(Filters.eq("key", "workspaces"))).isZero();
-    Document quotas = collection("settings").find(Filters.eq("key", "quotas")).first();
-    assertThat(quotas).isNotNull();
-    assertThat(quotas.get("_id")).isEqualTo(LEGACY_TEAM_QUOTAS_SETTINGS_ID);
-    assertThat(quotas.getString("name")).isEqualTo("Quotas");
-    Document customizations = collection("settings").find(Filters.eq("key", "customizations")).first();
-    assertThat(customizations.getString("name")).isEqualTo("Customization");
-    Document runLimits = collection("settings").find(Filters.eq("key", "workflowrun")).first();
-    assertThat(runLimits.getString("name")).isEqualTo("Run limits");
-  }
-
-  /** _0056: the v3 storage settings nothing reads are gone; the engine's two ceilings remain. */
-  private void assertStorageSettingsRetired() {
-    assertThat(collection("settings").countDocuments(Filters.eq("key", "workflow"))).isZero();
-    Document runLimits =
-        collection("settings").find(Filters.eq("_id", LEGACY_WORKFLOWRUN_SETTINGS_ID)).first();
-    assertThat(runLimits).isNotNull();
-    assertThat(
-            runLimits.getList("config", Document.class).stream()
-                .map(config -> config.getString("key"))
-                .toList())
-        .containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items");
-  }
-
-  private void assertTaskCatalogueSeeded() {
-    assertThat(collection("tasks").countDocuments()).isEqualTo(90);
-    // 131 seeded + the pre-seeded legacy worker-flow pin from seedLegacyWorkerFlowRevision()
-    // (repointed in place by _0039, not removed).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(134);
-
-    Document sleep = collection("tasks").find(Filters.eq("name", "sleep")).first();
-    assertThat(sleep).isNotNull();
-    assertThat(sleep.getString("type")).isEqualTo("sleep");
-    assertThat(sleep.getString("status")).isEqualTo("active");
-    assertThat(sleep.getBoolean("verified")).isTrue();
-    // Map keys keep the legacy "#"-for-"." escaping MongoConfiguration still applies.
-    assertThat(sleep.get("annotations", Document.class).getString("boomerang#io/kind"))
-        .isEqualTo("Task");
-
-    // Every revision points at a real task, and the split carries the versioned fields.
-    String sleepId = sleep.get("_id").toString();
-    Document revision =
-        collection("task_revisions").find(Filters.eq("parentRef", sleepId)).first();
-    assertThat(revision).isNotNull();
-    assertThat(revision.getString("displayName")).isEqualTo("Sleep");
-    assertThat(revision.getInteger("version")).isEqualTo(1);
-    // Legacy changeset 4043 folded the v4 config[] into spec.params[]; the UI metadata rides on
-    // the param, which is TaskRevisionEntity.spec.params (AbstractParam).
-    Document duration =
-        revision.get("spec", Document.class).getList("params", Document.class).get(0);
-    assertThat(duration.getString("name")).isEqualTo("duration");
-    assertThat(duration.getString("label")).isEqualTo("Duration");
-
-    // Global catalogue graph: every task is a task: node reachable from root by hasTask.
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(90);
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(
-                    Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(90);
-    Document sleepNode =
-        collection("rel_nodes").find(Filters.eq("_id", "task:" + sleepId)).first();
-    assertThat(sleepNode).isNotNull();
-    assertThat(sleepNode.getString("slug")).isEqualTo("sleep");
-    assertThat(sleepNode.getString("ref")).isEqualTo(sleepId);
-
-    assertAiTaskPresent(db);
-  }
-
-  /**
-   * The {@code ai} catalogue task: a first-class dispatched type whose params are the whole
-   * authoring surface, so the seed is the contract. Declares no image - the dispatcher resolves
-   * the configured worker image for the type - and its {@code token} param is password-typed,
-   * which is the only marker the sensitive-value filter reads.
-   */
-  private static void assertAiTaskPresent(MongoDatabase database) {
-    MongoCollection<Document> tasks = database.getCollection(PREFIX + "_tasks");
-    Document ai = tasks.find(Filters.eq("name", "ai")).first();
-    assertThat(ai).isNotNull();
-    assertThat(ai.getString("type")).isEqualTo("ai");
-    assertThat(ai.getString("status")).isEqualTo("active");
-    String aiId = ai.get("_id").toString();
-
-    Document revision =
-        database
-            .getCollection(PREFIX + "_task_revisions")
-            .find(Filters.and(Filters.eq("parentRef", aiId), Filters.eq("version", 1)))
-            .first();
-    assertThat(revision).isNotNull();
-    assertThat(revision.getString("category")).isEqualTo("AI");
-    // The icon key client-web maps (Utils/taskIcons.tsx); anything else renders a generic node.
-    assertThat(revision.getString("icon")).isEqualTo("AI");
-    Document spec = revision.get("spec", Document.class);
-    assertThat(spec.getString("image")).as("the dispatcher resolves the AI worker image").isEmpty();
-
-    List<Document> params = spec.getList("params", Document.class);
-    assertThat(params.stream().map(p -> p.getString("name")))
-        .containsExactly(
-            "endpoint",
-            "token",
-            "model",
-            "systemPrompt",
-            "prompt",
-            "temperature",
-            "maxTokens",
-            "responseFormat",
-            "jsonSchema",
-            "seed",
-            "files",
-            "maxContextBytes");
-    Document token =
-        params.stream().filter(p -> "token".equals(p.getString("name"))).findFirst().orElseThrow();
-    assertThat(token.getString("type")).isEqualTo("password");
-    Document temperature =
-        params.stream()
-            .filter(p -> "temperature".equals(p.getString("name")))
-            .findFirst()
-            .orElseThrow();
-    assertThat(temperature.getString("type")).isEqualTo("slider");
-    assertThat(temperature.getDouble("min")).isEqualTo(0.0);
-    assertThat(temperature.getDouble("max")).isEqualTo(2.0);
-    assertThat(temperature.getDouble("step")).isEqualTo(0.1);
-
-    assertThat(spec.getList("results", Document.class).stream().map(r -> r.getString("name")))
-        .containsExactly(
-            "output",
-            "promptTokens",
-            "completionTokens",
-            "totalTokens",
-            "finishReason",
-            "model");
-
-    assertThat(database.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "task:" + aiId)).first())
-        .isNotNull();
-    assertThat(
-            database
-                .getCollection(PREFIX + "_rel_edges")
-                .countDocuments(
-                    Filters.and(
-                        Filters.eq("from", "root:root"),
-                        Filters.eq("label", "hasTask"),
-                        Filters.eq("to", "task:" + aiId))))
-        .isEqualTo(1);
-  }
-
-  private void assertTemplatesSeeded() {
-    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
-    assertThat(
-            collection("workflow_templates")
-                .countDocuments(Filters.eq("name", "mongodb-email-query-results")))
-        .isEqualTo(1);
-
-    assertThat(collection("integration_templates").countDocuments()).isEqualTo(2);
-    Document github =
-        collection("integration_templates").find(Filters.eq("name", "GitHub")).first();
-    assertThat(github).isNotNull();
-    assertThat(github.getString("type")).isEqualTo("github_app");
-    assertThat(github.getString("status")).isEqualTo("active");
-  }
-
-  /**
-   * The fresh-install path: an empty database, no legacy loader history. Everything the running
-   * services need to bootstrap has to come out of the seed change units, and nothing in the
-   * application creates the root node or the system workspace.
-   */
-  @Test
-  void seedsAnEmptyDatabase() {
-    String uri = MONGO.getReplicaSetUrl("freshinstall");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-
-    MongoDatabase fresh = client.getDatabase("freshinstall");
-    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "root:root")).first())
-        .isNotNull();
-
-    Document workspace =
-        fresh.getCollection(PREFIX + "_workspaces").find(Filters.eq("name", "system")).first();
+    assertThat(collection(db, "rel_nodes").find(Filters.eq("_id", "root:root")).first()).isNotNull();
+    Document workspace = collection(db, "workspaces").find(Filters.eq("name", "system")).first();
     assertThat(workspace).isNotNull();
     assertThat(workspace.getString("type")).isEqualTo("system");
     String workspaceNode = "workspace:" + workspace.get("_id");
-    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", workspaceNode)).first())
-        .isNotNull();
+    assertThat(collection(db, "rel_nodes").find(Filters.eq("_id", workspaceNode)).first()).isNotNull();
     assertThat(
-            fresh.getCollection(PREFIX + "_rel_edges")
-                .countDocuments(
-                    Filters.and(
-                        Filters.eq("from", "root:root"), Filters.eq("to", workspaceNode))))
+            collection(db, "rel_edges")
+                .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("to", workspaceNode))))
         .isEqualTo(1);
-    // No users on a fresh install, so no membership edges - the admin bootstrap is a no-op here.
-    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("label", "memberOf")))
-        .isZero();
+    // No users yet, so no memberships.
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "memberOf"))).isZero();
 
-    assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
-    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(90);
-    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(133);
-    assertThat(fresh.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
-    assertThat(fresh.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
-    // Every task is in the global catalogue: a task: node reachable from root by hasTask.
-    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments(Filters.eq("type", "task")))
-        .isEqualTo(90);
-    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("label", "hasTask")))
-        .isEqualTo(90);
-    assertAiTaskPresent(fresh);
+    assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
+    assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
+    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(90);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(133);
+    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
+    // Every task is in the global catalogue: a task node the root reaches by hasTask.
+    assertThat(collection(db, "rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(90);
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(90);
+    assertAiTaskSeeded(db);
+    assertArtifactTasksSeeded(db);
+    assertIndexInventory(db);
 
-    // Re-running the change units against the seeded database inserts nothing.
-    fresh.getCollection(PREFIX + "_sys_changelog_loader").drop();
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(fresh.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
-    assertThat(fresh.getCollection(PREFIX + "_settings").countDocuments()).isEqualTo(9);
-    assertThat(fresh.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(90);
-    assertThat(fresh.getCollection(PREFIX + "_task_revisions").countDocuments()).isEqualTo(133);
-    assertThat(fresh.getCollection(PREFIX + "_workspaces").countDocuments()).isEqualTo(1);
-    assertThat(fresh.getCollection(PREFIX + "_rel_nodes").countDocuments()).isEqualTo(92);
-    assertThat(fresh.getCollection(PREFIX + "_rel_edges").countDocuments()).isEqualTo(91);
+    long nodes = collection(db, "rel_nodes").countDocuments();
+    long edges = collection(db, "rel_edges").countDocuments();
+    forgetHistory(db);
+    migrate("empty");
+    assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
+    assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
+    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(90);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(133);
+    assertThat(collection(db, "workspaces").countDocuments()).isEqualTo(1);
+    assertThat(collection(db, "rel_nodes").countDocuments()).isEqualTo(nodes);
+    assertThat(collection(db, "rel_edges").countDocuments()).isEqualTo(edges);
   }
 
+  // ===================================================================================
+  // A v3 install
+  // ===================================================================================
+
   /**
-   * The v3-shaped fixture: a legacy loader changelog carrying changeset {@code "112"} (the v3
-   * chain) but not {@code "4000"} (the v4 chain), the seven legacy settings {@code _id}s already
-   * present under their v3-era {@code key} values, and a non-empty {@code task_templates}
-   * collection (the v3 catalogue location; {@code tasks} is empty, matching a real v3 database).
-   * Before {@link InstallGeneration} existed, the settings seed threw {@code
-   * DuplicateKeyException} on exactly this shape and aborted the whole migration run. This
-   * asserts the run now completes; that {@code _0005__V3MigrateSettings} (Phase 2) DOES migrate
-   * the three real-keyed settings documents (controller/extensions/activity) in place - the other
-   * four carry fictional placeholder v3 keys ("execution"/"toggles"/"quota"/"branding") this
-   * fixture never claimed matched any real v3 install, so {@code _0005} leaves their {@code key}
-   * field alone (it only renames the top-level key for the three documents whose v3 key actually
-   * changes: controller/activity/extensions); that {@code _0021__SeedSettings}/{@code
-   * _0022__SeedTaskCatalogue} (Phase 5, ungated) insert NOTHING new over this v3-migrated data
-   * (their insert-if-absent guards match the already-migrated documents); and that {@code
-   * _0023__SeedTemplates} (Phase 5, still v3-gated) skips itself outright.
+   * A v3-shaped fixture: the legacy changelog's v3 marker, settings under their v3 ids, the v3
+   * catalogue in {@code task_templates}, a task run on the old reference fields, and one team with
+   * an approver group. The real-data counterpart is {@link V3DumpMigrationTest}.
    */
   @Test
-  void v3InstallSkipsGenerationBlindSeedsAndMigratesCleanly() {
-    String uri = MONGO.getReplicaSetUrl("v3install");
-    MongoDatabase v3 = client.getDatabase("v3install");
+  void aV3InstallIsMigratedInPlace() {
+    MongoDatabase db = database("v3");
+    markV3(db);
+    for (String[] setting :
+        new String[][] {
+          {"5f32cb19d09662744c0df51d", "controller"},
+          {"62a7bec0a6166d30aff64a5b", "extensions"},
+          {"60245957226920beece4fdf9", "activity"},
+          {"60245b56226920beece547e3", "execution"},
+          {"612904d60b07a54cdc4dc6a9", "toggles"},
+          {"61393f5966c5eea103dfe134", "quota"},
+          {"62b0f1f5a6166d30af05fa5d", "branding"}
+        }) {
+      collection(db, "settings")
+          .insertOne(new Document("_id", new ObjectId(setting[0])).append("key", setting[1]));
+    }
 
-    v3.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
-
-    // The seven legacy settings ids, each already present under its v3-era key - a different key
-    // than the v5 seed uses for the same _id.
-    insertV3Setting(v3, "5f32cb19d09662744c0df51d", "controller");
-    insertV3Setting(v3, "62a7bec0a6166d30aff64a5b", "extensions");
-    insertV3Setting(v3, "60245957226920beece4fdf9", "activity");
-    insertV3Setting(v3, "60245b56226920beece547e3", "execution");
-    insertV3Setting(v3, "612904d60b07a54cdc4dc6a9", "toggles");
-    insertV3Setting(v3, "61393f5966c5eea103dfe134", "quota");
-    insertV3Setting(v3, "62b0f1f5a6166d30af05fa5d", "branding");
-
-    // v3's task catalogue location - empty "tasks" (v5 shape), non-empty "task_templates" (the
-    // pre-v4-split collection the seed _ids would otherwise collide with). One minimal legacy
-    // doc missing every optional field (exercises _0006's null-handling), one fuller doc with a
-    // revision (exercises the config->params merge and provides a real name for the task_runs
-    // fixture below).
     ObjectId minimalTaskId = new ObjectId();
-    v3.getCollection(PREFIX + "_task_templates")
-        .insertOne(new Document("_id", minimalTaskId).append("name", "legacy-task"));
+    collection(db, "task_templates").insertOne(new Document("_id", minimalTaskId).append("name", "legacy-task"));
     ObjectId customTaskId = new ObjectId();
-    v3.getCollection(PREFIX + "_task_templates")
+    collection(db, "task_templates")
         .insertOne(
             new Document("_id", customTaskId)
                 .append("name", "Custom Task Example")
@@ -877,596 +157,166 @@ class MigrationChainTest {
                             .append(
                                 "changelog",
                                 new Document("userId", "5e831153d0827100011c29f6")
-                                    .append("userName", "Tyson Lawrie")
+                                    .append("userName", "A Person")
                                     .append("reason", "")
                                     .append("date", EARLIER)))));
-
-    // v3's task_runs referencing that task by its (already-slugified, per legacy convention)
-    // name and the OLD templateVersion key - exercises _0006's rename + its 4033-bug fix.
     ObjectId taskRunId = new ObjectId();
-    v3.getCollection(PREFIX + "_task_runs")
+    collection(db, "task_runs")
         .insertOne(
             new Document("_id", taskRunId)
                 .append("name", "step-1")
                 .append("templateRef", "custom-task-example")
                 .append("templateVersion", 1));
+    ObjectId teamId = new ObjectId();
+    collection(db, "teams")
+        .insertOne(
+            new Document("_id", teamId)
+                .append("_class", "net.boomerangplatform.mongo.entity.TeamEntity")
+                .append("name", "Platform Team")
+                .append("isActive", true)
+                .append(
+                    "approverGroups",
+                    List.of(
+                        new Document("name", "Release approvers")
+                            .append("approvers", List.of(new Document("userId", "user-1"))))));
 
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
+    migrate("v3");
 
-    // _0005__V3MigrateSettings (Phase 2) DID migrate the 7 v3-era documents in place - same
-    // count, but the three real-keyed ones now carry their v5 keys. _0021__SeedSettings (Phase 5,
-    // ungated) then inserts nothing new for those 7: its OR-guard matches every one of them by
-    // _id. The "auth", "audit" and "artifacts" documents have no v3 predecessors to match,
-    // so _0021 inserts them fresh; _0056 then removes "workflow" - 9 in all.
-    MongoCollection<Document> settings = v3.getCollection(PREFIX + "_settings");
+    // Settings: the seven v3 documents keep their ids under the seed's keys; auth, audit and
+    // artifacts are new; the v3 workflow storage document is gone.
+    MongoCollection<Document> settings = collection(db, "settings");
     assertThat(settings.countDocuments()).isEqualTo(9);
-    assertThat(
-            settings
-                .find(Filters.eq("_id", new ObjectId("5f32cb19d09662744c0df51d")))
-                .first()
-                .getString("key"))
-        .isEqualTo("task");
-    assertThat(
-            settings
-                .find(Filters.eq("_id", new ObjectId("62a7bec0a6166d30aff64a5b")))
-                .first()
-                .getString("key"))
-        .isEqualTo("integration");
-    assertThat(
-            settings
-                .find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9")))
-                .first()
-                .getString("key"))
-        .isEqualTo("workflowrun");
+    assertThat(keyOf(settings, "5f32cb19d09662744c0df51d")).isEqualTo("task");
+    assertThat(keyOf(settings, "62a7bec0a6166d30aff64a5b")).isEqualTo("integration");
+    assertThat(keyOf(settings, "60245957226920beece4fdf9")).isEqualTo("workflowrun");
+    assertThat(settings.find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first()).isNull();
 
-    // _0006__V3MigrateTaskCatalogue (Phase 2) migrated the 2 fixture docs (2 tasks, 1 revision -
-    // the minimal doc has none) directly and dropped task_templates. _0022__SeedTaskCatalogue
-    // (Phase 5, ungated) then reconciles the 88-task/131-revision seed catalogue on top by NAME:
-    // neither fixture task's name ("legacy-task"/"custom-task-example") matches any of the 88
-    // canonical catalogue names, so none of the 88 pre-exist under this fixture and all 88 tasks
-    // + 131 revisions are freshly inserted by the seed, and _0052 adds the 2 artifact tasks - 92
-    // tasks / 134 revisions total, the same
-    // outcome the former _0034__V3ReconcileCatalogue unit (dropped, folded into this seed's own
-    // insert-if-absent logic - see _0022's javadoc) used to produce by matching on _id instead.
-    MongoCollection<Document> tasks = v3.getCollection(PREFIX + "_tasks");
-    MongoCollection<Document> taskRevisions = v3.getCollection(PREFIX + "_task_revisions");
+    // The catalogue: both v3 tasks migrated beside the 90 seeded ones; task_templates is gone.
+    MongoCollection<Document> tasks = collection(db, "tasks");
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
     assertThat(tasks.countDocuments()).isEqualTo(92);
-    assertThat(taskRevisions.countDocuments()).isEqualTo(134);
-    assertThat(v3.getCollection(PREFIX + "_task_templates").countDocuments()).isZero();
-
-    // The minimal fixture doc (every optional field absent) migrated without throwing.
-    Document minimalTask = tasks.find(Filters.eq("_id", minimalTaskId)).first();
-    assertThat(minimalTask).isNotNull();
-    assertThat(minimalTask.getString("name")).isEqualTo("legacy-task");
-
-    // The fuller fixture doc: slugified name, templateTask->template mapping, config folded into
-    // spec.params (key->name, label/type/placeholder/readOnly carried straight across).
+    assertThat(revisions.countDocuments()).isEqualTo(134);
+    assertThat(collection(db, "task_templates").countDocuments()).isZero();
+    assertThat(tasks.find(Filters.eq("_id", minimalTaskId)).first().getString("name")).isEqualTo("legacy-task");
     Document customTask = tasks.find(Filters.eq("_id", customTaskId)).first();
-    assertThat(customTask).isNotNull();
     assertThat(customTask.getString("name")).isEqualTo("custom-task-example");
     assertThat(customTask.getString("type")).isEqualTo("template");
-    Document customRevision = taskRevisions.find(Filters.eq("parentRef", customTaskId.toString())).first();
-    assertThat(customRevision).isNotNull();
+    Document customRevision = revisions.find(Filters.eq("parentRef", customTaskId.toString())).first();
     assertThat(customRevision.getString("displayName")).isEqualTo("Custom Task Example");
     assertThat(customRevision.containsKey("config")).isFalse();
-    Document customChangelog = (Document) customRevision.get("changelog");
-    assertThat(customChangelog.getString("author")).isEqualTo("5e831153d0827100011c29f6");
-    assertThat(customChangelog.containsKey("userName")).isFalse();
-    Document customSpec = (Document) customRevision.get("spec");
-    @SuppressWarnings("unchecked")
-    List<Document> customParams = (List<Document>) customSpec.get("params");
-    assertThat(customParams).hasSize(1);
-    assertThat(customParams.get(0).getString("name")).isEqualTo("path");
-    assertThat(customParams.get(0).getString("label")).isEqualTo("Path");
+    Document changelog = customRevision.get("changelog", Document.class);
+    assertThat(changelog.getString("author")).isEqualTo("5e831153d0827100011c29f6");
+    assertThat(changelog.containsKey("userName")).as("the author's name is not carried").isFalse();
+    List<Document> params = customRevision.get("spec", Document.class).getList("params", Document.class);
+    assertThat(params).extracting(param -> param.getString("name")).containsExactly("path");
 
-    // _0006__V3MigrateTaskCatalogue's task_runs sub-step (formerly _0026__V3MigrateTaskRunRefs):
-    // task_runs migrated - templateRef resolved to the new task's id, templateVersion correctly
-    // read into taskVersion (the legacy 4033 bug read the new, absent key instead).
-    Document taskRun = v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
-    assertThat(taskRun).isNotNull();
+    // The task run resolves the old template reference and version.
+    Document taskRun = collection(db, "task_runs").find(Filters.eq("_id", taskRunId)).first();
     assertThat(taskRun.getString("taskRef")).isEqualTo(customTaskId.toString());
-    assertThat(taskRun.containsKey("templateRef")).isFalse();
     assertThat(taskRun.getInteger("taskVersion")).isEqualTo(1);
+    assertThat(taskRun.containsKey("templateRef")).isFalse();
     assertThat(taskRun.containsKey("templateVersion")).isFalse();
 
-    // _0023__SeedTemplates is not generation-gated: this fixture has no scope=template workflows
-    // for _0010 to extract, so the two starter workflow templates and the two integration
-    // templates are seeded exactly as on a fresh install.
-    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
-    assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
+    // Workspaces live in one collection: the team, the system workspace beside it.
+    assertThat(database("v3").listCollectionNames().into(new ArrayList<>())).doesNotContain(PREFIX + "_teams");
+    Document team = collection(db, "workspaces").find(Filters.eq("_id", teamId)).first();
+    assertThat(team.getString("name")).isEqualTo("platform-team");
+    assertThat(collection(db, "workspaces").find(Filters.eq("name", "system")).first()).isNotNull();
 
-    // _0002/_0003/_0020 are NOT v3-skipped: the graph root, system workspace and roles are seeded
-    // exactly as on a fresh/v4 install.
-    assertThat(v3.getCollection(PREFIX + "_rel_nodes").find(Filters.eq("_id", "root:root")).first())
-        .isNotNull();
-    assertThat(v3.getCollection(PREFIX + "_workspaces").find(Filters.eq("name", "system")).first())
-        .isNotNull();
-    assertThat(v3.getCollection(PREFIX + "_roles").countDocuments()).isEqualTo(5);
+    // The approver group stays reachable from its workspace, and its hand-off field is gone.
+    Document group = collection(db, "approver_groups").find(Filters.eq("name", "Release approvers")).first();
+    assertThat(group.getList("approvers", String.class)).containsExactly("user-1");
+    assertThat(group.containsKey("workspaceRef")).isFalse();
+    assertThat(
+            collection(db, "rel_edges")
+                .countDocuments(
+                    Filters.and(
+                        Filters.eq("from", "workspace:" + teamId),
+                        Filters.eq("label", "hasApproverGroup"),
+                        Filters.eq("to", "approvergroup:" + group.get("_id")))))
+        .isEqualTo(1);
 
-    // _0005 has neither global_config nor global_params to migrate on this fixture - no-op,
-    // nothing thrown, "parameters" stays empty.
-    assertThat(v3.getCollection(PREFIX + "_parameters").countDocuments()).isZero();
+    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
+    assertThat(collection(db, "parameters").countDocuments()).isZero();
+    assertIndexInventory(db);
 
-    // Re-running against the same v3-shaped database stays a no-op skip, not a second attempt to
-    // seed - _0005/_0006's own re-runs are no-op rewrites/insert-if-absent passes over the
-    // already-migrated documents (task_templates is already gone, so _0006 iterates nothing), and
-    // _0022__SeedTaskCatalogue's own re-run inserts nothing further (every task/revision it
-    // reconciled on the first run already exists).
-    v3.getCollection(PREFIX + "_sys_changelog_loader").drop();
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
+    // Every unit again over the migrated database changes nothing.
+    forgetHistory(db);
+    migrate("v3");
     assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(tasks.countDocuments()).isEqualTo(92);
-    assertThat(taskRevisions.countDocuments()).isEqualTo(134);
-    Document taskRunAfterSecondRun =
-        v3.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
-    assertThat(taskRunAfterSecondRun.getString("taskRef")).isEqualTo(customTaskId.toString());
-    assertThat(taskRunAfterSecondRun.containsKey("templateRef")).isFalse();
-    assertThat(v3.getCollection(PREFIX + "_workflow_templates").countDocuments()).isEqualTo(2);
-    assertThat(v3.getCollection(PREFIX + "_integration_templates").countDocuments()).isEqualTo(2);
-  }
-
-  private static void insertV3Setting(MongoDatabase db, String id, String v3Key) {
-    db.getCollection(PREFIX + "_settings")
-        .insertOne(new Document("_id", new ObjectId(id)).append("key", v3Key));
+    assertThat(revisions.countDocuments()).isEqualTo(134);
+    assertThat(collection(db, "approver_groups").countDocuments()).isEqualTo(1);
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasApproverGroup"))).isEqualTo(1);
+    assertThat(collection(db, "task_runs").find(Filters.eq("_id", taskRunId)).first().getString("taskRef"))
+        .isEqualTo(customTaskId.toString());
   }
 
   /**
-   * V4-shaped fixture for {@code _0024__V4RepairTaskVersions}/{@code
-   * _0025__V4RepairWorkflowAudit} — the two "best-effort v4 repair" units. Unlike every other
-   * test in this class, this fixture must be v4-shaped, not v3-shaped: the
-   * real v3 dump {@code V3DumpMigrationTest} runs against never exercises these two units at all
-   * (they are gated {@code InstallGeneration.V4}), so a synthetic fixture is the only way to prove
-   * them.
+   * Emails are lower-cased before the v3 graph is built, so user nodes are slugged by the stored
+   * address. Two accounts that would share one address are left exactly as they are and reported.
    */
   @Test
-  void v4InstallRepairsTaskVersionsAndWorkflowAudit() {
-    String uri = MONGO.getReplicaSetUrl("v4install");
-    MongoDatabase v4 = client.getDatabase("v4install");
-
-    // changeId "4000" is the v4-chain marker InstallGeneration keys V4 detection on directly
-    // (see that enum's javadoc) - "112" is included too since a real v4 install always completed
-    // the v3 chain first.
-    v4.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
-    v4.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "4000"));
-
-    // ---- _0024__V4RepairTaskVersions fixture ----
-    // Three tasks exercising the three possible outcomes: exactly one task_revisions match
-    // (repairable), more than one (genuinely ambiguous - left null), and zero (unresolved - left
-    // null). None of these tasks need a "tasks" document of their own - the repair unit only
-    // consults task_revisions.parentRef, matching the class javadoc's "What IS recoverable"
-    // section.
-    ObjectId taskSingleRev = new ObjectId();
-    ObjectId taskMultiRev = new ObjectId();
-    ObjectId taskNoRev = new ObjectId();
-    v4.getCollection(PREFIX + "_task_revisions")
-        .insertOne(new Document("parentRef", taskSingleRev.toString()).append("version", 3));
-    v4.getCollection(PREFIX + "_task_revisions")
-        .insertOne(new Document("parentRef", taskMultiRev.toString()).append("version", 1));
-    v4.getCollection(PREFIX + "_task_revisions")
-        .insertOne(new Document("parentRef", taskMultiRev.toString()).append("version", 2));
-
-    ObjectId wfRevId = new ObjectId();
-    v4.getCollection(PREFIX + "_workflow_revisions")
-        .insertOne(
-            new Document("_id", wfRevId)
-                .append("workflowRef", new ObjectId().toString())
-                .append("version", 1)
-                .append(
-                    "tasks",
-                    List.of(
-                        new Document("name", "stepSingle")
-                            .append("taskRef", taskSingleRev.toString())
-                            .append("taskVersion", null),
-                        new Document("name", "stepMulti")
-                            .append("taskRef", taskMultiRev.toString())
-                            .append("taskVersion", null),
-                        new Document("name", "stepNoRev")
-                            .append("taskRef", taskNoRev.toString())
-                            .append("taskVersion", null),
-                        // Already carries a version - must never be recomputed/overwritten.
-                        new Document("name", "stepAlready")
-                            .append("taskRef", taskSingleRev.toString())
-                            .append("taskVersion", 5),
-                        // No taskRef at all (start/end nodes) - must be skipped, never crash.
-                        new Document("name", "start").append("taskVersion", null))));
-
-    ObjectId wfTemplateId = new ObjectId();
-    v4.getCollection(PREFIX + "_workflow_templates")
-        .insertOne(
-            new Document("_id", wfTemplateId)
-                .append(
-                    "tasks",
-                    List.of(
-                        new Document("name", "tstep")
-                            .append("taskRef", taskSingleRev.toString())
-                            .append("taskVersion", null))));
-
-    ObjectId taskRunId = new ObjectId();
-    v4.getCollection(PREFIX + "_task_runs")
-        .insertOne(
-            new Document("_id", taskRunId)
-                .append("name", "run-step")
-                .append("workflowRunRef", "wfr-v4-repair")
-                .append("status", "succeeded")
-                .append("taskRef", taskSingleRev.toString())
-                .append("taskVersion", null));
-
-    // ---- _0025__V4RepairWorkflowAudit fixture ----
-    // A workspace whose (pre-H14, still "TEAM"-scoped at seed time - _0016 renames it to
-    // "WORKSPACE" before _0025 ever reads it) audit record already exists (v4's own 4038 workspace
-    // half worked),
-    // one workflow that resolves cleanly (the repair case), one whose hasWorkflow edge is
-    // missing (skip case 1), and one whose edge resolves but whose workspace has no audit record
-    // at all (skip case 2 - defensive, should not happen on a genuine v4 install).
-    ObjectId workspaceId = new ObjectId();
-    v4.getCollection(PREFIX + "_teams")
-        .insertOne(new Document("_id", workspaceId).append("name", "acme-v4").append("type", "hobby"));
-    ObjectId workspaceAuditId = new ObjectId();
-    v4.getCollection(PREFIX + "_audit")
-        .insertOne(
-            new Document("_id", workspaceAuditId)
-                .append("scope", "TEAM")
-                .append("selfRef", workspaceId.toString())
-                .append("selfName", "acme-v4")
-                .append("creationDate", EARLIER)
-                .append("events", List.of())
-                .append("data", new Document("name", "acme-v4")));
-
-    ObjectId workflowId = new ObjectId();
-    v4.getCollection(PREFIX + "_workflows").insertOne(new Document("_id", workflowId).append("name", "v4-workflow"));
-    v4.getCollection(PREFIX + "_rel_edges")
-        .insertOne(
-            new Document("from", "workspace:" + workspaceId)
-                .append("label", "hasWorkflow")
-                .append("to", "workflow:" + workflowId)
-                .append("data", new Document()));
-
-    ObjectId workflowNoEdgeId = new ObjectId();
-    v4.getCollection(PREFIX + "_workflows")
-        .insertOne(new Document("_id", workflowNoEdgeId).append("name", "orphan-workflow"));
-
-    ObjectId workspaceNoAuditId = new ObjectId();
-    v4.getCollection(PREFIX + "_teams")
-        .insertOne(new Document("_id", workspaceNoAuditId).append("name", "no-audit-workspace-v4").append("type", "hobby"));
-    ObjectId workflowNoWorkspaceAuditId = new ObjectId();
-    v4.getCollection(PREFIX + "_workflows")
-        .insertOne(new Document("_id", workflowNoWorkspaceAuditId).append("name", "orphan-workspace-workflow"));
-    v4.getCollection(PREFIX + "_rel_edges")
-        .insertOne(
-            new Document("from", "workspace:" + workspaceNoAuditId)
-                .append("label", "hasWorkflow")
-                .append("to", "workflow:" + workflowNoWorkspaceAuditId)
-                .append("data", new Document()));
-
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-
-    assertV4TaskVersionsRepaired(v4, wfRevId, wfTemplateId, taskRunId, taskSingleRev, taskMultiRev);
-    assertV4WorkflowAuditRepaired(v4, workflowId, workspaceAuditId, workflowNoEdgeId, workflowNoWorkspaceAuditId);
-
-    // Idempotency - a second run repairs nothing further (already-repaired entries are no longer
-    // null) and creates no duplicate audit records.
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertV4TaskVersionsRepaired(v4, wfRevId, wfTemplateId, taskRunId, taskSingleRev, taskMultiRev);
-    assertV4WorkflowAuditRepaired(v4, workflowId, workspaceAuditId, workflowNoEdgeId, workflowNoWorkspaceAuditId);
-  }
-
-  @SuppressWarnings("unchecked")
-  private void assertV4TaskVersionsRepaired(
-      MongoDatabase v4,
-      ObjectId wfRevId,
-      ObjectId wfTemplateId,
-      ObjectId taskRunId,
-      ObjectId taskSingleRev,
-      ObjectId taskMultiRev) {
-    Document revision =
-        v4.getCollection(PREFIX + "_workflow_revisions").find(Filters.eq("_id", wfRevId)).first();
-    List<Document> tasks = (List<Document>) revision.get("tasks");
-    assertThat(taskNamed(tasks, "stepSingle").getInteger("taskVersion"))
-        .as("exactly one task_revisions match - unambiguously repairable")
-        .isEqualTo(3);
-    assertThat(taskNamed(tasks, "stepMulti").get("taskVersion"))
-        .as("more than one task_revisions match - genuinely ambiguous, left null")
-        .isNull();
-    assertThat(taskNamed(tasks, "stepNoRev").get("taskVersion"))
-        .as("no task_revisions match at all - unresolved, left null")
-        .isNull();
-    assertThat(taskNamed(tasks, "stepAlready").getInteger("taskVersion"))
-        .as("already carried a version - must never be recomputed")
-        .isEqualTo(5);
-    assertThat(taskNamed(tasks, "start").get("taskVersion"))
-        .as("no taskRef at all - skipped, never crashes")
-        .isNull();
-
-    Document template =
-        v4.getCollection(PREFIX + "_workflow_templates").find(Filters.eq("_id", wfTemplateId)).first();
-    List<Document> templateTasks = (List<Document>) template.get("tasks");
-    assertThat(taskNamed(templateTasks, "tstep").getInteger("taskVersion")).isEqualTo(3);
-
-    Document taskRun = v4.getCollection(PREFIX + "_task_runs").find(Filters.eq("_id", taskRunId)).first();
-    assertThat(taskRun.getInteger("taskVersion")).isEqualTo(3);
-  }
-
-  private Document taskNamed(List<Document> tasks, String name) {
-    return tasks.stream()
-        .filter(t -> name.equals(t.getString("name")))
-        .findFirst()
-        .orElseThrow(() -> new AssertionError("No task named " + name));
-  }
-
-  /**
-   * The per-object records _0025 repairs mid-chain (and the fixture's pre-existing workspace
-   * record) are all dropped again by _0042__AuditEventRestructure at the end of the same chain -
-   * the repair keeps earlier units' invariants intact for installs pinned before the
-   * restructure, but the post-chain observable state is an empty, flat-event-indexed audit
-   * collection. The unit itself stays untouched and the fixture stays in place so the
-   * repair-then-drop path keeps executing.
-   */
-  private void assertV4WorkflowAuditRepaired(
-      MongoDatabase v4,
-      ObjectId workflowId,
-      ObjectId workspaceAuditId,
-      ObjectId workflowNoEdgeId,
-      ObjectId workflowNoWorkspaceAuditId) {
-    MongoCollection<Document> audit = v4.getCollection(PREFIX + "_audit");
-
-    assertThat(audit.countDocuments(Filters.exists("scope")))
-        .as("every per-object audit record - repaired or pre-existing - is dropped by the restructure")
-        .isZero();
-    assertThat(audit.countDocuments()).isZero();
-  }
-
-  /**
-   * {@code _0038__NormaliseUserEmails}: {@code users.email} is lower-cased so the exact-match
-   * lookups that replaced the {@code ...IgnoreCase} derivations can seek {@code email_lookup}
-   * instead of scanning it.
-   *
-   * <p>The fixture carries the v3 changelog marker ({@code "112"}) deliberately: that is the only
-   * generation on which {@code _0019__DomainIndexes} builds the UNIQUE {@code email_unique} index,
-   * and lower-casing a case-colliding pair underneath a unique index would fail with {@code E11000}
-   * and abort the deploy. Skipping collisions is what keeps the run green — and the two accounts
-   * are LEFT IN PLACE (never merged, never deleted), because deciding which of them is the real
-   * user is not a migration's call to make.
-   */
-  @Test
-  void normalisesUserEmailsAndLeavesCaseCollisionsIntact() {
-    String uri = MONGO.getReplicaSetUrl("emailnormalise");
-    MongoDatabase emailDb = client.getDatabase("emailnormalise");
-    emailDb.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
-
-    MongoCollection<Document> users = emailDb.getCollection(PREFIX + "_users");
-    ObjectId alreadyLower = insertPlainUser(users, "ada.lovelace@example.com");
-    ObjectId mixedCase = insertPlainUser(users, "Grace.Hopper@Example.COM");
-    ObjectId collidingUpper = insertPlainUser(users, "Collide@example.com");
-    ObjectId collidingLower = insertPlainUser(users, "collide@example.com");
+  void userEmailsAreLowerCasedBeforeTheGraphAndCaseCollisionsAreLeftAlone() {
+    MongoDatabase db = database("emails");
+    markV3(db);
+    MongoCollection<Document> users = collection(db, "users");
+    ObjectId alreadyLower = insertUser(users, "ada.lovelace@example.com");
+    ObjectId mixedCase = insertUser(users, "Grace.Hopper@Example.COM");
+    ObjectId collidingUpper = insertUser(users, "Collide@example.com");
+    ObjectId collidingLower = insertUser(users, "collide@example.com");
     ObjectId withoutEmail = new ObjectId();
     users.insertOne(new Document("_id", withoutEmail).append("name", "no email at all"));
 
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-
-    assertThat(emailOf(users, alreadyLower)).isEqualTo("ada.lovelace@example.com");
-    assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
-    assertThat(emailOf(users, collidingUpper))
-        .as("colliding accounts keep their stored value - reported, never rewritten")
-        .isEqualTo("Collide@example.com");
-    assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
-    assertThat(users.countDocuments()).as("no user row is merged or deleted").isEqualTo(5);
-    // A missing email stays missing - $toLower would otherwise coerce it to "".
-    assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
-
-    // This fixture is v3-marked, so _0019 builds the unique email_unique over {email:1} and
-    // _0036's ensureIndexKeys finds those keys already covered - email_lookup is skipped rather
-    // than creating a second index over the same field. That skip is why the colliding pair must
-    // be left un-normalised: lowercasing it underneath a unique index would fail E11000 and abort
-    // the deploy.
-    Map<String, Document> userIndexes = new java.util.HashMap<>();
-    users.listIndexes().forEach(index -> userIndexes.put(index.getString("name"), index));
-    assertThat(userIndexes.get("email_unique").getBoolean("unique"))
-        .as("the v3-gated unique index is untouched by this change")
-        .isTrue();
-    assertThat(userIndexes.get("email_lookup"))
-        .as("skipped on v3 - email_unique already covers {email:1}")
-        .isNull();
-
-    // Idempotency: the pipeline re-runs (skipped by the audit log), then every change unit re-runs
-    // against the already-normalised data with the audit log dropped. Neither changes anything.
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    emailDb.getCollection(PREFIX + "_sys_changelog_loader").drop();
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
+    migrate("emails");
 
     assertThat(emailOf(users, alreadyLower)).isEqualTo("ada.lovelace@example.com");
     assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
     assertThat(emailOf(users, collidingUpper)).isEqualTo("Collide@example.com");
     assertThat(emailOf(users, collidingLower)).isEqualTo("collide@example.com");
-    assertThat(users.countDocuments()).isEqualTo(5);
+    assertThat(users.countDocuments()).as("no account is merged or deleted").isEqualTo(5);
     assertThat(users.find(Filters.eq("_id", withoutEmail)).first().containsKey("email")).isFalse();
+    assertThat(collection(db, "rel_nodes").find(Filters.eq("_id", "user:" + mixedCase)).first().getString("slug"))
+        .isEqualTo("grace.hopper@example.com");
+    assertThat(indexesOf(db, "users").get("email_unique").getBoolean("unique")).isTrue();
+
+    forgetHistory(db);
+    migrate("emails");
+    assertThat(emailOf(users, mixedCase)).isEqualTo("grace.hopper@example.com");
+    assertThat(emailOf(users, collidingUpper)).isEqualTo("Collide@example.com");
+    assertThat(users.countDocuments()).isEqualTo(5);
   }
 
-  /**
-   * The upgrade path {@code _0047__SeedAiTask} exists for: an install whose audit log already
-   * records {@code _0022__SeedTaskCatalogue}, so the catalogue seed never runs again and a task
-   * added to {@code seed/tasks.json} afterwards would otherwise never arrive.
-   */
+  // ===================================================================================
+  // Databases the chain refuses
+  // ===================================================================================
+
   @Test
-  void existingInstallGainsTheAiTask() {
-    String uri = MONGO.getReplicaSetUrl("aitaskupgrade");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
+  void aBetaDatabaseIsRefusedUntilItIsReset() {
+    MongoDatabase db = database("beta");
+    collection(db, "sys_changelog_loader").insertOne(new Document("changeId", "0001-baseline"));
 
-    MongoDatabase upgraded = client.getDatabase("aitaskupgrade");
-    assertAiTaskPresent(upgraded);
+    // Flamingock logs the guard's message at ERROR and fails the run with its own exception.
+    assertThatThrownBy(() -> MigrationRunner.run(uriOf("beta"), PREFIX)).isInstanceOf(Exception.class);
+    assertThat(collection(db, "rel_nodes").countDocuments()).as("nothing is written").isZero();
 
-    // Rewind to the state of an install deployed before the ai task existed: the task, its
-    // revision and its graph edge are gone, and only this unit's audit row is forgotten - every
-    // other change unit, _0022 included, stays recorded and will not run again.
-    String aiId =
-        upgraded.getCollection(PREFIX + "_tasks").find(Filters.eq("name", "ai")).first().get("_id").toString();
-    upgraded.getCollection(PREFIX + "_tasks").deleteOne(Filters.eq("name", "ai"));
-    upgraded.getCollection(PREFIX + "_task_revisions").deleteMany(Filters.eq("parentRef", aiId));
-    upgraded.getCollection(PREFIX + "_rel_nodes").deleteOne(Filters.eq("_id", "task:" + aiId));
-    upgraded.getCollection(PREFIX + "_rel_edges").deleteMany(Filters.eq("to", "task:" + aiId));
-    forgetChangeUnit(upgraded, "0047-seed-ai-task");
-    long tasksWithoutAi = upgraded.getCollection(PREFIX + "_tasks").countDocuments();
-
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertAiTaskPresent(upgraded);
-    assertThat(upgraded.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(tasksWithoutAi + 1);
-
-    // A second run inserts nothing further, whether or not the audit row is there to stop it.
-    forgetChangeUnit(upgraded, "0047-seed-ai-task");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertAiTaskPresent(upgraded);
-    assertThat(upgraded.getCollection(PREFIX + "_tasks").countDocuments()).isEqualTo(tasksWithoutAi + 1);
-    assertThat(upgraded.getCollection(PREFIX + "_task_revisions").countDocuments(Filters.eq("parentRef", aiId)))
-        .isEqualTo(1);
-    assertThat(upgraded.getCollection(PREFIX + "_rel_edges").countDocuments(Filters.eq("to", "task:" + aiId)))
-        .isEqualTo(1);
+    // The check reruns on the next start, so a reset database migrates.
+    collection(db, "sys_changelog_loader").drop();
+    migrate("beta");
+    assertThat(collection(db, "rel_nodes").find(Filters.eq("_id", "root:root")).first()).isNotNull();
   }
 
-  /**
-   * {@code _0054__DeclareAiJsonSchemaParam}: an install whose ai revision predates task-ai 1.1.0
-   * gains the {@code jsonSchema} param, placed after {@code responseFormat}, exactly once.
-   */
   @Test
-  void existingInstallGainsTheAiJsonSchemaParam() {
-    String uri = MONGO.getReplicaSetUrl("aijsonschema");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    MongoDatabase upgraded = client.getDatabase("aijsonschema");
-    String aiId =
-        upgraded.getCollection(PREFIX + "_tasks").find(Filters.eq("name", "ai")).first().get("_id").toString();
-    MongoCollection<Document> revisions = upgraded.getCollection(PREFIX + "_task_revisions");
+  void aV4DatabaseIsRefused() {
+    MongoDatabase db = database("v4");
+    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "112"));
+    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "4000"));
 
-    // Rewind to an ai revision without the param, and forget only this unit.
-    revisions.updateOne(
-        Filters.eq("parentRef", aiId),
-        Updates.pull("spec.params", new Document("name", "jsonSchema")));
-    assertThat(aiParamNames(revisions, aiId)).doesNotContain("jsonSchema");
-    forgetChangeUnit(upgraded, "0054-declare-ai-json-schema-param");
-
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    List<String> names = aiParamNames(revisions, aiId);
-    assertThat(names).containsSubsequence("responseFormat", "jsonSchema", "seed");
-    assertThat(names.stream().filter("jsonSchema"::equals)).hasSize(1);
-
-    forgetChangeUnit(upgraded, "0054-declare-ai-json-schema-param");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(aiParamNames(revisions, aiId).stream().filter("jsonSchema"::equals)).hasSize(1);
-  }
-
-  private static List<String> aiParamNames(MongoCollection<Document> revisions, String aiId) {
-    return revisions.find(Filters.eq("parentRef", aiId)).first().get("spec", Document.class)
-        .getList("params", Document.class).stream()
-        .map(p -> p.getString("name"))
-        .toList();
-  }
-
-  /**
-   * Drop one change unit's audit rows so the next run applies it again. Matched on the rendered
-   * document rather than a named field, because the audit entry's shape belongs to Flamingock.
-   */
-  private static void forgetChangeUnit(MongoDatabase database, String changeId) {
-    MongoCollection<Document> changelog = database.getCollection(PREFIX + "_sys_changelog_loader");
-    List<Object> stale = new ArrayList<>();
-    changelog
-        .find()
-        .forEach(entry -> {
-          if (entry.toJson().contains(changeId)) {
-            stale.add(entry.get("_id"));
-          }
-        });
-    assertThat(stale).as("audit rows for " + changeId).isNotEmpty();
-    changelog.deleteMany(Filters.in("_id", stale));
-  }
-
-  /**
-   * {@code _0048__TaskDefaultTimeoutInheritsTheRun}: the shipped 90-minute per-task default
-   * becomes 0 - "no ceiling, inherit the run's timeout" - but only where it is still the seeded
-   * 90. An install whose operator chose their own number keeps it, and the display wording tracks
-   * the seed either way.
-   */
-  @Test
-  void taskDefaultTimeoutDropsTheSeededNinetyAndLeavesOperatorValuesAlone() {
-    String uri = MONGO.getReplicaSetUrl("tasktimeoutdefault");
-    MongoDatabase upgraded = client.getDatabase("tasktimeoutdefault");
-    // A pre-_0048 task settings document under the seed's own _id, so _0021__SeedSettings skips
-    // it (matched by _id) and the legacy 90 is what _0048 has to find.
-    upgraded
-        .getCollection(PREFIX + "_settings")
-        .insertOne(
-            new Document("_id", SEEDED_TASK_SETTINGS_ID)
-                .append("key", "task")
-                .append("name", "Task Configuration")
-                .append("type", "ValuesList")
-                .append(
-                    "config",
-                    List.of(
-                        new Document("key", "debug").append("value", "false"),
-                        new Document("key", "default.timeout")
-                            .append("label", "Task Timeout Configuration")
-                            .append("description", "Task Timeout Configuration specified in minutes")
-                            .append("type", "number")
-                            .append("value", "90"))));
-
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(taskDefaultTimeout(upgraded).getString("value"))
-        .as("the seeded 90 becomes 0 - a task inherits its run's timeout")
-        .isEqualTo("0");
-    assertThat(taskDefaultTimeout(upgraded).getString("label")).isEqualTo("Maximum task duration");
-    assertThat(taskDefaultTimeout(upgraded).getString("description"))
-        .contains("Set to 0 to let tasks inherit");
-    assertThat(taskDefaultTimeout(upgraded).getString("type"))
-        .as("only value/label/description move - the input type is untouched")
-        .isEqualTo("number");
-
-    // A second run changes nothing, whether or not the audit row is there to stop it: 0 is not
-    // the seeded 90, so the value gate declines it.
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    forgetChangeUnit(upgraded, "0048-task-default-timeout-inherits-the-run");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(taskDefaultTimeout(upgraded).getString("value")).isEqualTo("0");
-
-    // An operator's own number is theirs: 45 survives a re-run untouched, wording and all.
-    setTaskDefaultTimeout(upgraded, "45");
-    forgetChangeUnit(upgraded, "0048-task-default-timeout-inherits-the-run");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(taskDefaultTimeout(upgraded).getString("value"))
-        .as("45 is an operator choice, not the seeded default")
-        .isEqualTo("45");
-    assertThat(taskDefaultTimeout(upgraded).getString("label")).isEqualTo("Maximum task duration");
-
-    // And the gate is the value, not the run count: put 90 back and it is rewritten again.
-    setTaskDefaultTimeout(upgraded, "90");
-    forgetChangeUnit(upgraded, "0048-task-default-timeout-inherits-the-run");
-    assertThatCode(() -> MigrationRunner.run(uri, PREFIX)).doesNotThrowAnyException();
-    assertThat(taskDefaultTimeout(upgraded).getString("value")).isEqualTo("0");
-  }
-
-  /** {@code seed/settings.json}'s _id for the task configuration document. */
-  private static final ObjectId SEEDED_TASK_SETTINGS_ID =
-      new ObjectId("5f32cb19d09662744c0df51d");
-
-  @SuppressWarnings("unchecked")
-  private static Document taskDefaultTimeout(MongoDatabase database) {
-    Document task =
-        database.getCollection(PREFIX + "_settings").find(Filters.eq("key", "task")).first();
-    return ((List<Document>) task.get("config"))
-        .stream().filter(c -> "default.timeout".equals(c.getString("key"))).findFirst().orElseThrow();
-  }
-
-  private static void setTaskDefaultTimeout(MongoDatabase database, String value) {
-    database
-        .getCollection(PREFIX + "_settings")
-        .updateOne(
-            Filters.and(Filters.eq("key", "task"), Filters.eq("config.key", "default.timeout")),
-            Updates.set("config.$.value", value));
-  }
-
-  private static ObjectId insertPlainUser(MongoCollection<Document> users, String email) {
-    ObjectId id = new ObjectId();
-    users.insertOne(new Document("_id", id).append("email", email).append("type", "user"));
-    return id;
-  }
-
-  private static String emailOf(MongoCollection<Document> users, ObjectId id) {
-    return users.find(Filters.eq("_id", id)).first().getString("email");
+    assertThatThrownBy(() -> MigrationRunner.run(uriOf("v4"), PREFIX)).isInstanceOf(Exception.class);
+    assertThat(collection(db, "rel_nodes").countDocuments()).as("nothing is written").isZero();
+    assertThat(collection(db, "settings").countDocuments()).isZero();
   }
 
   @Test
@@ -1479,699 +329,174 @@ class MigrationChainTest {
         .isInstanceOf(Exception.class);
   }
 
-  private void assertTaskRunIndexes() {
-    Map<String, Document> indexes = indexesByName("task_runs");
-    assertThat(indexes.get("claim_page").get("key", Document.class).keySet())
-        .containsExactly("type", "status", "phase", "creationDate");
-    assertThat(indexes.get("run_tasks").get("key", Document.class).keySet())
-        .containsExactly("workflowRunRef", "status", "name");
-    assertThat(indexes.get("lease_sweep").get("key", Document.class).keySet())
-        .containsExactly("claim.leaseExpiresAt");
-    assertThat(indexes.get("lease_sweep").getBoolean("sparse")).isTrue();
-    assertThat(indexes.get("timeout_sweep").getBoolean("sparse")).isTrue();
-    assertThat(indexes.get("wait_sweep").getBoolean("sparse")).isTrue();
-    assertThat(indexes.get("node_uniqueness").get("key", Document.class).keySet())
-        .containsExactly("workflowRunRef", "name");
-    assertThat(indexes.get("node_uniqueness").getBoolean("unique")).isTrue();
+  // ===================================================================================
+  // The index unit
+  // ===================================================================================
+
+  @Test
+  void theIndexUnitDedupesAndReplacesOnlyConflictingIndexes() {
+    MongoDatabase db = database("indexes");
+    MongoCollection<Document> taskRuns = collection(db, "task_runs");
+    ObjectId stillRunning = insertTaskRun(taskRuns, "run-1", "build", "running", EARLIER);
+    ObjectId finished = insertTaskRun(taskRuns, "run-1", "build", "succeeded", LATER);
+    MongoCollection<Document> actions = collection(db, "actions");
+    ObjectId firstGate = insertAction(actions, "task-run-1", EARLIER);
+    ObjectId repeatGate = insertAction(actions, "task-run-1", LATER);
+    ObjectId nullRef = insertAction(actions, null, EARLIER);
+    actions.updateOne(Filters.eq("_id", nullRef), new Document("$set", new Document("taskRunRef", null)));
+    ObjectId noRef = new ObjectId();
+    actions.insertOne(new Document("_id", noRef).append("creationDate", EARLIER));
+    ObjectId anotherNoRef = new ObjectId();
+    actions.insertOne(new Document("_id", anotherNoRef).append("creationDate", LATER));
+    MongoCollection<Document> dispatchers = collection(db, "dispatchers");
+    ObjectId staleRegistration = insertDispatcher(dispatchers, EARLIER);
+    ObjectId latestRegistration = insertDispatcher(dispatchers, LATER);
+    // An index an older tool built on the email keys, and one an operator added for themselves.
+    collection(db, "users").createIndex(new Document("email", 1.0), new IndexOptions().name("email"));
+    collection(db, "workflows").createIndex(new Document("owner", 1), new IndexOptions().name("operator_owner"));
+
+    migrate("indexes");
+
+    assertThat(taskRuns.find(Filters.eq("_id", finished)).first()).as("the finished run is kept").isNotNull();
+    assertThat(taskRuns.find(Filters.eq("_id", stillRunning)).first()).isNull();
+    assertThat(actions.find(Filters.eq("_id", firstGate)).first()).as("the earliest gate is kept").isNotNull();
+    assertThat(actions.find(Filters.eq("_id", repeatGate)).first()).isNull();
+    assertThat(actions.countDocuments(Filters.in("_id", nullRef, noRef, anotherNoRef)))
+        .as("gates without a task run are kept")
+        .isEqualTo(3);
+    assertThat(actions.find(Filters.eq("_id", nullRef)).first().containsKey("taskRunRef")).isFalse();
+    assertThat(dispatchers.find(Filters.eq("_id", latestRegistration)).first()).isNotNull();
+    assertThat(dispatchers.find(Filters.eq("_id", staleRegistration)).first()).isNull();
+
+    assertIndexInventory(db);
+    assertThat(indexesOf(db, "users")).doesNotContainKey("email");
+    assertThat(indexesOf(db, "workflows")).containsKey("operator_owner");
+    assertThat(actions.find(Filters.eq("taskRunRef", "task-run-1")).explain().toJson())
+        .as("a lookup by task run uses the partial index")
+        .contains("\"indexName\": \"task_run\"");
   }
 
-  private void assertWorkflowRunIndexes() {
-    Map<String, Document> indexes = indexesByName("workflow_runs");
-    assertThat(indexes.get("claim_page").get("key", Document.class).keySet())
-        .containsExactly("status", "phase", "creationDate");
-    assertThat(indexes.get("timeout_sweep").getBoolean("sparse")).isTrue();
-    assertThat(indexes.get("paused_lookup").get("key", Document.class).keySet())
-        .containsExactly("pauseRequestedAt");
-    assertThat(indexes.get("paused_lookup").getBoolean("sparse")).isTrue();
-  }
+  // ===================================================================================
+  // Seeded content and helpers
+  // ===================================================================================
 
-  private void assertEventCollectionIndexes() {
-    Map<String, Document> outbox = indexesByName("events_outbox");
-    assertThat(outbox.get("dispatch_page").get("key", Document.class).keySet())
-        .containsExactly("status", "occurredAt");
-    assertThat(ttlSeconds(outbox.get("sent_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
-
-    Map<String, Document> inbox = indexesByName("events_inbox");
-    assertThat(ttlSeconds(inbox.get("received_ttl"))).isEqualTo(TimeUnit.DAYS.toSeconds(7));
-    assertThat(inbox.get("redrive_page").get("key", Document.class).keySet())
-        .containsExactly("status", "receivedAt");
-  }
-
-  private void assertLockAndWorkflowIndexes() {
-    Map<String, Document> locks = indexesByName("task_locks");
-    assertThat(locks.get("lease_ttl").get("key", Document.class).keySet())
-        .containsExactly("expiresAt");
-    assertThat(ttlSeconds(locks.get("lease_ttl"))).isZero();
-
-    Map<String, Document> workflows = indexesByName("workflows");
-    assertThat(workflows.get("status_lookup").get("key", Document.class).keySet())
-        .containsExactly("status");
-  }
-
-  private void assertWorkspaceSearchIndexes() {
-    Map<String, Document> workspaces = indexesByName("workspaces");
-    assertThat(workspaces.get("name_lookup").get("key", Document.class).keySet())
-        .containsExactly("name");
-    assertThat(workspaces.get("display_name_lookup").get("key", Document.class).keySet())
-        .containsExactly("displayName");
-  }
-
-  private static long ttlSeconds(Document index) {
-    return ((Number) index.get("expireAfterSeconds")).longValue();
-  }
-
-  private void assertIndex(String collection, String indexName, List<String> keys) {
-    Document index = indexesByName(collection).get(indexName);
-    assertThat(index).as("index %s on %s", indexName, collection).isNotNull();
-    assertThat(index.get("key", Document.class).keySet()).containsExactlyElementsOf(keys);
-  }
-
-  private void assertUniqueIndex(String collection, String indexName, List<String> keys) {
-    Document index = indexesByName(collection).get(indexName);
-    assertThat(index).isNotNull();
-    assertThat(index.get("key", Document.class).keySet()).containsExactlyElementsOf(keys);
-    assertThat(index.getBoolean("unique")).isTrue();
-  }
-
-  private void assertTaskRunDedupe() {
-    // task-a — the terminal (succeeded) document is kept even though it is the later one; the
-    // duplicate is deleted.
-    assertThat(findTaskRun(taskASucceeded)).isNotNull();
-    assertThat(findTaskRun(taskARunning)).isNull();
-
-    // task-b — no terminal document, so the earliest created is kept and the later one deleted.
-    assertThat(findTaskRun(taskBFirst)).isNotNull();
-    assertThat(findTaskRun(taskBSecond)).isNull();
-
-    // Singleton untouched.
-    assertThat(findTaskRun(soloTask)).isNotNull();
-  }
-
-  private void assertActionDedupe() {
-    List<Document> gatesForTr1 = new ArrayList<>();
-    collection("actions").find(Filters.eq("taskRunRef", "tr1")).into(gatesForTr1);
-    assertThat(gatesForTr1).hasSize(1);
-    assertThat(gatesForTr1.get(0).getObjectId("_id")).isEqualTo(earliestGate);
-    assertThat(collection("actions").countDocuments(Filters.eq("taskRunRef", "tr2"))).isEqualTo(1);
-  }
-
-  private void assertAgentDedupe() {
-    // Phase 3's rename unit (_0015__DispatcherRename) renames "agents" -> "dispatchers" BEFORE
-    // Phase 4's dedupe unit (_0019__DomainIndexes) runs - the opposite order from the old chain,
-    // where the dedupe ran against the still-legacy "agents" name ahead of the rename. _0019's
-    // dedupe logic now targets "dispatchers" directly (see that unit's javadoc), so the deduped
-    // rows are asserted under that same post-rename name either way.
-    List<Document> registrations = new ArrayList<>();
-    collection("dispatchers")
-        .find(Filters.and(Filters.eq("name", "agent-1"), Filters.eq("host", "host-a")))
-        .into(registrations);
-    assertThat(registrations).hasSize(1);
-    assertThat(registrations.get(0).getObjectId("_id")).isEqualTo(latestConnectedAgent);
-    assertThat(collection("dispatchers").countDocuments()).isEqualTo(2);
-  }
-
-  private void assertAgentsCollectionRenamed() {
-    List<String> names = new ArrayList<>();
-    db.listCollectionNames().into(names);
-    assertThat(names).doesNotContain(PREFIX + "_agents");
-    assertThat(names).contains(PREFIX + "_dispatchers");
-  }
-
-  /**
-   * The claim owner lives on {@code claim.by} only: {@code _0031} removes both the pre-DD-06
-   * {@code agentRef} spelling and the {@code dispatcherRef} duplicate from every run.
-   */
-  private void assertClaimOwnerResidueRemoved() {
-    Document taskRun = collection("task_runs").find(Filters.eq("_id", taskRunWithAgentRef)).first();
-    assertThat(taskRun).isNotNull();
-    assertThat(taskRun.containsKey("agentRef")).isFalse();
-    assertThat(taskRun.containsKey("dispatcherRef")).isFalse();
-
-    Document workflowRun =
-        collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
-    assertThat(workflowRun).isNotNull();
-    assertThat(workflowRun.containsKey("agentRef")).isFalse();
-    assertThat(workflowRun.containsKey("dispatcherRef")).isFalse();
-  }
-
-  /** {@code _0031}: the {@link #seedOrphanedFieldResidue} hand-off fields and collection are gone. */
-  private void assertOrphanedFieldResidueRemoved() {
-    Document workflow = collection("workflows").find(Filters.eq("name", "wf")).first();
-    assertThat(workflow.containsKey("scope")).isFalse();
-    assertThat(workflow.containsKey("ownerRef")).isFalse();
-    Document workflowRun =
-        collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
-    assertThat(workflowRun.containsKey("scope")).isFalse();
-    assertThat(workflowRun.containsKey("ownerRef")).isFalse();
-    Document user = collection("users").find(Filters.eq("_id", regularUser)).first();
-    assertThat(user.containsKey("flowTeamRefs")).isFalse();
-    Document approverGroup = collection("approver_groups").find(Filters.eq("name", "approvers")).first();
-    assertThat(approverGroup).isNotNull();
-    assertThat(approverGroup.containsKey("workspaceRef")).isFalse();
-    assertThat(db.listCollectionNames().into(new ArrayList<>()))
-        .doesNotContain(PREFIX + "_event_queue");
-  }
-
-  /** {@code _0032}: the legacy {@code key="teams"} quota document is renamed in place. */
-  private void assertWorkspaceQuotaSettingsKeyRenamed() {
-    assertThat(collection("settings").countDocuments(Filters.eq("key", "teams"))).isZero();
-    Document quotas =
-        collection("settings").find(Filters.eq("_id", LEGACY_TEAM_QUOTAS_SETTINGS_ID)).first();
-    assertThat(quotas).isNotNull();
-    // _0032 renamed the key to "workspaces"; _0055 later renames it again to "quotas".
-    assertThat(quotas.getString("key")).isEqualTo("quotas");
-    assertThat(collection("settings").countDocuments(Filters.eq("key", "quotas"))).isEqualTo(1);
-  }
-
-  /** {@code _0034}: the "features" document's legacy team.* config keys are renamed in place. */
-  private void assertWorkspaceFeatureFlagSettingsKeysRenamed() {
-    Document features =
-        collection("settings").find(Filters.eq("_id", LEGACY_FEATURES_SETTINGS_ID)).first();
-    assertThat(features).isNotNull();
-    List<Document> config = features.getList("config", Document.class);
-    List<String> keys = config.stream().map(c -> c.getString("key")).toList();
-    assertThat(keys)
-        .contains("workspaceQuotas", "workspaceParameters", "workspaceManagement", "workspaceTasks");
-    assertThat(keys)
-        .doesNotContain("teamQuotas", "teamParameters", "teamManagement", "teamTasks");
-
-    Document workspaceManagement =
-        config.stream().filter(c -> "workspaceManagement".equals(c.getString("key"))).findFirst().get();
-    assertThat(workspaceManagement.getString("label")).isEqualTo("Workspace Management");
-  }
-
-  /** {@code _0033}: the definition-side lookup indexes the inert entity annotations described. */
-  private void assertDefinitionIndexes() {
-    assertIndex("workflows", "name_lookup", List.of("name"));
-    assertIndex("workflow_revisions", "workflow_ref_version", List.of("workflowRef", "version"));
-    assertIndex("workflow_templates", "name_version", List.of("name", "version"));
-    assertIndex("tasks", "name_lookup", List.of("name"));
-    assertIndex("task_revisions", "parent_ref_version", List.of("parentRef", "version"));
-    assertIndex("workflow_schedules", "fire_sweep", List.of("status", "nextFireAt"));
-    assertIndex("workflow_schedules", "workflow_lookup", List.of("workflowRef"));
-  }
-
-  /**
-   * {@code _0036}: the relationship-walk, audit-trail and user-lookup indexes. The relationship
-   * pairs are asserted key-by-key (not just by name) because the {@code $or} shape {@code
-   * RelationshipNodeRepository} issues needs BOTH {@code (type, slug)} and {@code (type, ref)} — one
-   * alone leaves the query a collection scan.
-   */
-  /**
-   * The audit restructure: every old per-object record (including the seeded legacy one) is
-   * dropped, the scope indexes _0036 created earlier in this same chain are gone, and the
-   * flat-event indexes - TTL on createdAt plus the time/workspace/actor/resource lookups - are
-   * the only ones left beside _id. The capture-gate settings document is seeded alongside.
-   */
-  private void assertAuditRestructured() {
-    assertThat(collection("audit").countDocuments()).isZero();
-    assertThat(collection("audit").find(Filters.eq("_id", teamAudit)).first()).isNull();
-
-    Map<String, Document> indexes = indexesByName("audit");
-    assertThat(indexes.keySet())
-        .containsExactlyInAnyOrder(
-            "_id_", "createdAt_ttl", "time_desc", "workspace_time", "actor_time", "resource_time");
-    assertThat(indexes.get("createdAt_ttl").get("expireAfterSeconds", Number.class).longValue())
-        .isEqualTo(365L * 24 * 60 * 60);
-    assertIndex("audit", "workspace_time", List.of("workspaceId", "time"));
-    assertIndex("audit", "actor_time", List.of("actorId", "time"));
-    assertIndex("audit", "resource_time", List.of("resourceType", "resourceId", "time"));
-
-    Document auditSettings = collection("settings").find(Filters.eq("key", "audit")).first();
-    assertThat(auditSettings).isNotNull();
-    assertThat(
-            auditSettings.getList("config", Document.class).stream()
-                .map(config -> config.getString("key"))
-                .toList())
-        .containsExactlyInAnyOrder("enabled", "level", "retentionDays");
-  }
-
-  /**
-   * {@code _0046}: the nesting cap lands in the {@code workflowrun} settings document the legacy
-   * fixture already occupied, and the cascade cancel's child-run lookup gets its index.
-   */
-  private void assertChildWorkflowNestingCapAndIndex() {
-    Document workflowRun = collection("settings").find(Filters.eq("key", "workflowrun")).first();
-    assertThat(workflowRun).isNotNull();
-    Document cap =
-        workflowRun.getList("config", Document.class).stream()
-            .filter(config -> "max.nesting.depth".equals(config.getString("key")))
-            .findFirst()
-            .orElse(null);
-    assertThat(cap).isNotNull();
-    assertThat(cap.getString("value")).isEqualTo("5");
-    assertIndex("workflow_runs", "initiated_by_phase", List.of("initiatedByRef", "phase"));
-  }
-
-  /**
-   * {@code _0049}: the foreach item cap lands in the same legacy {@code workflowrun} document, and
-   * a parent's items get their sparse lookup index.
-   */
-  private void assertForeachCapAndIndex() {
-    Document workflowRun = collection("settings").find(Filters.eq("key", "workflowrun")).first();
-    Document cap =
-        workflowRun.getList("config", Document.class).stream()
-            .filter(config -> "max.foreach.items".equals(config.getString("key")))
-            .findFirst()
-            .orElse(null);
-    assertThat(cap).isNotNull();
-    assertThat(cap.getString("value")).isEqualTo("256");
-    assertIndex("task_runs", "parent_index", List.of("parentRef", "index"));
-    assertThat(indexesByName("task_runs").get("parent_index").getBoolean("sparse")).isTrue();
-  }
-
-  /**
-   * {@code _0050}: the task deletion policy says what each choice does, and the admin's selected
-   * value is left as it was.
-   */
-  private void assertDeletionPolicyDescribed() {
-    Document task = collection("settings").find(Filters.eq("key", "task")).first();
-    Document policy =
-        task.getList("config", Document.class).stream()
-            .filter(config -> "deletion.policy".equals(config.getString("key")))
-            .findFirst()
-            .orElse(null);
-    assertThat(policy).isNotNull();
-    assertThat(policy.getString("description")).contains("retention period");
-    assertThat(policy.getList("options", Document.class))
-        .extracting(option -> option.getString("value"))
+  /** The ai task: its params are its whole authoring surface, and the dispatcher picks its image. */
+  private static void assertAiTaskSeeded(MongoDatabase db) {
+    Document ai = collection(db, "tasks").find(Filters.eq("name", "ai")).first();
+    assertThat(ai.getString("type")).isEqualTo("ai");
+    Document revision =
+        collection(db, "task_revisions")
+            .find(Filters.and(Filters.eq("parentRef", ai.get("_id").toString()), Filters.eq("version", 1)))
+            .first();
+    assertThat(revision.getString("icon")).isEqualTo("AI");
+    Document spec = revision.get("spec", Document.class);
+    assertThat(spec.getString("image")).isEmpty();
+    List<Document> params = spec.getList("params", Document.class);
+    assertThat(params)
+        .extracting(param -> param.getString("name"))
         .containsExactly(
-            "Never (keep until the retention period)",
-            "On Success (remove when a task succeeds)",
-            "Always (remove when a task ends)");
+            "endpoint", "token", "model", "systemPrompt", "prompt", "temperature", "maxTokens",
+            "responseFormat", "jsonSchema", "seed", "files", "maxContextBytes");
+    assertThat(params.get(1).getString("type")).as("the token is a secret").isEqualTo("password");
   }
 
-  /**
-   * {@code _0051}: the artifacts collection's indexes, with the run/name one unique, the {@code
-   * artifacts} settings document, and the artifact storage default beside the other workspace
-   * quota defaults.
-   */
-  private void assertArtifactsAdded() {
-    assertIndex("artifacts", "run_name_idx", List.of("workflowRunRef", "name"));
-    assertThat(indexesByName("artifacts").get("run_name_idx").getBoolean("unique")).isTrue();
-    assertIndex("artifacts", "status_expiration_idx", List.of("status", "expirationDate"));
-    assertIndex("artifacts", "workflow_status_idx", List.of("workflowRef", "status"));
-
-    Document artifacts = collection("settings").find(Filters.eq("key", "artifacts")).first();
-    assertThat(artifacts).isNotNull();
-    assertThat(artifacts.getList("config", Document.class))
-        .extracting(config -> config.getString("key") + "=" + config.getString("value"))
-        .containsExactly(
-            "retention.default.days=30", "retention.max.days=90", "max.artifact.size=1024");
-
-    Document workspaces = collection("settings").find(Filters.eq("key", "quotas")).first();
-    assertThat(workspaces.getList("config", Document.class))
-        .filteredOn(config -> "max.artifact.storage".equals(config.getString("key")))
-        .extracting(config -> config.getString("value"))
-        .containsExactly("5Gi");
-  }
-
-  /**
-   * {@code _0052}: the two artifact catalogue tasks, typed, each with its version 1 revision
-   * declaring the author params and the read-only link params Flow fills, and reachable from root.
-   */
-  private void assertArtifactTasksSeeded() {
-    for (String[] task :
-        List.of(
-            new String[] {"upload-artifact", "uploadartifact", "name,path,retention-days,url,headers"},
-            new String[] {
-              "download-artifact", "downloadartifact", "name,path,url,headers,sha256,contentType"
-            })) {
-      Document seeded = collection("tasks").find(Filters.eq("name", task[0])).first();
-      assertThat(seeded).as(task[0]).isNotNull();
-      assertThat(seeded.getString("type")).isEqualTo(task[1]);
-      String id = seeded.get("_id").toString();
+  private static void assertArtifactTasksSeeded(MongoDatabase db) {
+    for (String name : List.of("upload-artifact", "download-artifact")) {
+      Document task = collection(db, "tasks").find(Filters.eq("name", name)).first();
+      assertThat(task).as(name).isNotNull();
       Document revision =
-          collection("task_revisions")
-              .find(Filters.and(Filters.eq("parentRef", id), Filters.eq("version", 1)))
-              .first();
-      assertThat(revision).as(task[0] + " revision").isNotNull();
-      assertThat(
-              revision.get("spec", Document.class).getList("params", Document.class).stream()
-                  .map(param -> param.getString("name"))
-                  .toList())
-          .containsExactly(task[2].split(","));
-      assertThat(collection("rel_nodes").find(Filters.eq("_id", "task:" + id)).first()).isNotNull();
-      // _0053: the path help says a relative path resolves against /workspace.
-      assertThat(
-              revision.get("spec", Document.class).getList("params", Document.class).stream()
-                  .filter(param -> "path".equals(param.getString("name")))
-                  .map(param -> param.getString("helpertext"))
-                  .findFirst()
-                  .orElseThrow())
-          .contains("Relative to /workspace");
+          collection(db, "task_revisions").find(Filters.eq("parentRef", task.get("_id").toString())).first();
+      Document path =
+          revision.get("spec", Document.class).getList("params", Document.class).stream()
+              .filter(param -> "path".equals(param.getString("name")))
+              .findFirst()
+              .orElseThrow();
+      assertThat(path.getString("helpertext")).contains("Relative to /workspace");
     }
   }
 
-  private void assertRelationshipAndAuditIndexes() {
-    assertIndex("rel_nodes", "type_slug", List.of("type", "slug"));
-    assertIndex("rel_nodes", "type_ref", List.of("type", "ref"));
-    assertIndex("rel_edges", "from_label", List.of("from", "label"));
-    assertIndex("rel_edges", "to_label", List.of("to", "label"));
-
-    // The seeded changelog carries neither the "112" nor the "4000" marker, so this fixture is
-    // detected as V4 (see InstallGeneration.detect) — _0019__DomainIndexes' v3-gated email_unique
-    // is therefore NOT created, which is exactly the gap email_lookup exists to close. Asserting
-    // both facts together proves the new index is the only email index a non-v3 install gets, and
-    // that it did not silently inherit uniqueness.
-    assertThat(indexesByName("users")).doesNotContainKey("email_unique");
-    assertIndex("users", "email_lookup", List.of("email"));
-    assertThat(indexesByName("users").get("email_lookup").getBoolean("unique")).isNull();
+  private static void assertIndexInventory(MongoDatabase db) {
+    for (_0021__Indexes.Index index : _0021__Indexes.INVENTORY) {
+      Document built = indexesOf(db, index.collection()).get(index.name());
+      assertThat(built).as("%s.%s", index.collection(), index.name()).isNotNull();
+      assertThat(Boolean.TRUE.equals(built.getBoolean("unique")))
+          .as("%s.%s unique", index.collection(), index.name())
+          .isEqualTo(index.options().isUnique());
+    }
   }
 
-  /**
-   * {@code _0037}: the WorkflowWatcher sweep and dispatcher long-poll indexes. Each of these
-   * queries filters {@code phase} (or {@code status} on {@code actions}) WITHOUT the leading key of
-   * {@code _0017__RunIndexes}' {@code claim_page} compounds, so none of them could seek an existing
-   * index.
-   */
-  private void assertSweepIndexes() {
-    assertIndex("workflow_runs", "phase_creation_sweep", List.of("phase", "creationDate"));
-    assertIndex("workflow_runs", "phase_start_sweep", List.of("phase", "startTime"));
-    assertIndex("workflow_runs", "workflow_ref_phase", List.of("workflowRef", "phase"));
-    assertIndex("task_runs", "claimed_sweep", List.of("phase", "claim.at"));
-    assertIndex("actions", "status_sweep", List.of("status", "creationDate"));
+  private static MongoDatabase migrate(String database) {
+    assertThatCode(() -> MigrationRunner.run(uriOf(database), PREFIX)).doesNotThrowAnyException();
+    return database(database);
   }
 
-  /**
-   * {@code _0041}: the quota-count indexes. Both quota counters anchor on {@code workflowRef $in},
-   * which only {@code workflow_ref_phase} prefixes - and neither count filters {@code phase}.
-   */
-  /**
-   * {@code completed} is the terminal phase: every run left on the retired {@code finalized} string
-   * is rewritten, in both run collections, leaving none behind. The second-run no-op is covered by
-   * the {@code task_runs}/{@code workflow_runs} snapshot comparisons in the test above.
-   */
-  private void assertFinalizedPhaseRewritten() {
-    Document workflowRun =
-        collection("workflow_runs").find(Filters.eq("_id", finalizedWorkflowRun)).first();
-    assertThat(workflowRun).isNotNull();
-    assertThat(workflowRun.getString("phase")).isEqualTo("completed");
-    Document taskRun = collection("task_runs").find(Filters.eq("_id", finalizedTaskRun)).first();
-    assertThat(taskRun).isNotNull();
-    assertThat(taskRun.getString("phase")).isEqualTo("completed");
-    assertThat(collection("workflow_runs").countDocuments(Filters.eq("phase", "finalized")))
-        .isZero();
-    assertThat(collection("task_runs").countDocuments(Filters.eq("phase", "finalized"))).isZero();
+  /** Drop the change log so the next run executes every unit again. */
+  private static void forgetHistory(MongoDatabase db) {
+    collection(db, "sys_migration_changelog").drop();
   }
 
-  private void assertQuotaCountIndexes() {
-    assertIndex("workflow_runs", "workflow_ref_creation", List.of("workflowRef", "creationDate"));
-    assertIndex("workflow_runs", "workflow_ref_status", List.of("workflowRef", "status"));
+  private static void markV3(MongoDatabase db) {
+    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "112"));
   }
 
-  private void assertWorkspaceRenameApplied() {
-    // rel_nodes: re-keyed from "team:t1"/type=team to "workspace:t1"/type=workspace.
-    assertThat(collection("rel_nodes").find(Filters.eq("_id", "team:t1")).first()).isNull();
-    Document node = collection("rel_nodes").find(Filters.eq("_id", "workspace:t1")).first();
-    assertThat(node).isNotNull();
-    assertThat(node.getString("type")).isEqualTo("workspace");
-    assertThat(node.getString("ref")).isEqualTo("t1");
-    assertThat(node.getString("slug")).isEqualTo("acme");
-
-    // rel_edges: every "team:" prefixed from/to becomes "workspace:"; unrelated node types
-    // (root, user, workflow) are untouched.
-    assertThat(collection("rel_edges").countDocuments(Filters.regex("from", "^team:")))
-        .isZero();
-    assertThat(collection("rel_edges").countDocuments(Filters.regex("to", "^team:"))).isZero();
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(
-                    Filters.and(Filters.eq("from", "root:root"), Filters.eq("to", "workspace:t1"))))
-        .isEqualTo(1);
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(
-                    Filters.and(
-                        Filters.eq("from", "user:u1"), Filters.eq("to", "workspace:t1"))))
-        .isEqualTo(1);
-    assertThat(
-            collection("rel_edges")
-                .countDocuments(
-                    Filters.and(
-                        Filters.eq("from", "workspace:t1"), Filters.eq("to", "workflow:w1"))))
-        .isEqualTo(1);
-
-    // roles.type: "team" -> "workspace" (unaffected by T6-3 - roles are never deleted, only the
-    // AuthScope->PermissionScope Java type changed, and the stored string values were already
-    // correct).
-    Document role = collection("roles").find(Filters.eq("_id", roleWithTeamType)).first();
-    assertThat(role).isNotNull();
-    assertThat(role.getString("type")).isEqualTo("workspace");
-
-    // H14-c: roles.permissions[] "team/x" -> "workspace/x", unrelated resources untouched.
-    assertThat(role.getList("permissions", String.class))
-        .containsExactlyInAnyOrder("workspace/read", "**/write");
-
-    // T6-3 (_0028__TokenClassRestructure): the token that was type "team" -> "workspace" by
-    // _0016 is a retired class - it is DELETED outright (no deprecation window; its raw bearer
-    // could never authenticate again since "bft"/"bfw" prefixes are dropped from the pre-DB
-    // shape gate), not merely renamed to "key".
-    assertThat(collection("tokens").find(Filters.eq("_id", tokenWithTeamScope)).first()).isNull();
-    assertThat(collection("tokens").countDocuments(Filters.in("type", List.of("workspace", "workflow"))))
-        .as("no surviving token may carry a retired class")
-        .isZero();
-
-    // The surviving `global` token is completely untouched by the T6-3 deletion (narrow filter -
-    // only workspace/workflow classes are touched), but H14-c's tokens.permissions[].actions[]
-    // "team/x" -> "workspace/x" rewrite still applies to it (nested inside the ResolvedPermissions
-    // subdocument array) since that rewrite is not type-scoped.
-    Document survivingToken =
-        collection("tokens").find(Filters.eq("_id", survivingGlobalToken)).first();
-    assertThat(survivingToken).isNotNull();
-    assertThat(survivingToken.getString("type")).isEqualTo("global");
-    List<Document> tokenPermissions = survivingToken.getList("permissions", Document.class);
-    assertThat(tokenPermissions).hasSize(1);
-    assertThat(tokenPermissions.get(0).getList("actions", String.class))
-        .containsExactlyInAnyOrder("workspace/read", "workflow/write");
-
-    // The seeded legacy audit record's fate is asserted in assertAuditRestructured() - the
-    // per-object shape (and with it the H14-c scope rename's output) is dropped by the audit
-    // restructure at the end of the chain.
-
-    // H14-b: the "#"-escaped boomerang#io/team-* annotation keys -> boomerang#io/workspace-*, on
-    // both task_runs and workflow_runs.
-    Document taskRunAnnotated =
-        collection("task_runs").find(Filters.eq("_id", taskRunWithAgentRef)).first();
-    Document taskRunAnnotations = taskRunAnnotated.get("annotations", Document.class);
-    assertThat(taskRunAnnotations.getString("boomerang#io/workspace-name")).isEqualTo("acme");
-    assertThat(taskRunAnnotations.containsKey("boomerang#io/team-name")).isFalse();
-
-    Document workflowRunAnnotated =
-        collection("workflow_runs").find(Filters.eq("_id", workflowRunWithAgentRef)).first();
-    Document workflowRunAnnotations = workflowRunAnnotated.get("annotations", Document.class);
-    assertThat(workflowRunAnnotations.getString("boomerang#io/workspace-name")).isEqualTo("acme");
-    assertThat(workflowRunAnnotations.get("boomerang#io/workspace-params", Document.class))
-        .isEqualTo(new Document("foo", "bar"));
-    assertThat(workflowRunAnnotations.containsKey("boomerang#io/team-name")).isFalse();
-    assertThat(workflowRunAnnotations.containsKey("boomerang#io/team-params")).isFalse();
-
-    // H14-d: the "teams" collection is gone, "workspaces" carries its documents.
-    assertThat(db.listCollectionNames().into(new ArrayList<>())).doesNotContain(PREFIX + "_teams");
-    assertThat(collection("workspaces").countDocuments()).isGreaterThan(0);
+  private static String uriOf(String database) {
+    return MONGO.getReplicaSetUrl(database);
   }
 
-  /** H11: the JobRunr/distributed-lock residue {@link #seedV4ResidualCollections} planted. */
-  private void assertV4ResidualCollectionsDropped() {
-    List<String> names = db.listCollectionNames().into(new ArrayList<>());
-    assertThat(names)
-        .doesNotContain(
-            PREFIX + "jr_jobs",
-            PREFIX + "jr_recurring-jobs",
-            PREFIX + "_sch_jobs",
-            PREFIX + "_sch_metadata",
-            "locks");
-    // task_locks is a different, current collection and must never be touched by this cleanup.
-    assertThat(collection("task_locks").countDocuments()).isEqualTo(1);
+  private static MongoDatabase database(String name) {
+    return client.getDatabase(name);
   }
 
-  private static MongoCollection<Document> collection(String name) {
+  private static MongoCollection<Document> collection(MongoDatabase db, String name) {
     return db.getCollection(PREFIX + "_" + name);
   }
 
-  private static Document findTaskRun(ObjectId id) {
-    return collection("task_runs").find(Filters.eq("_id", id)).first();
-  }
-
-  private Map<String, Document> indexesByName(String collection) {
-    Map<String, Document> indexes = new java.util.HashMap<>();
-    collection(collection).listIndexes().forEach(index -> indexes.put(index.getString("name"), index));
+  private static Map<String, Document> indexesOf(MongoDatabase db, String collection) {
+    Map<String, Document> indexes = new HashMap<>();
+    collection(db, collection).listIndexes().forEach(index -> indexes.put(index.getString("name"), index));
     return indexes;
   }
 
-  private List<Document> snapshot(String collection) {
-    return collection(collection).find().into(new ArrayList<>()).stream()
-        .sorted(java.util.Comparator.comparing(doc -> doc.getObjectId("_id")))
-        .collect(Collectors.toList());
+  private static String keyOf(MongoCollection<Document> settings, String id) {
+    return settings.find(Filters.eq("_id", new ObjectId(id))).first().getString("key");
   }
 
-  // rel_nodes carries a plain-string "type:ref" _id (not an ObjectId), so it needs its own
-  // sort key.
-  private List<Document> snapshotByStringId(String collection) {
-    return collection(collection).find().into(new ArrayList<>()).stream()
-        .sorted(java.util.Comparator.comparing(doc -> doc.getString("_id")))
-        .collect(Collectors.toList());
+  private static ObjectId insertUser(MongoCollection<Document> users, String email) {
+    ObjectId id = new ObjectId();
+    users.insertOne(new Document("_id", id).append("email", email).append("type", "user"));
+    return id;
+  }
+
+  private static String emailOf(MongoCollection<Document> users, ObjectId id) {
+    return users.find(Filters.eq("_id", id)).first().getString("email");
   }
 
   private static ObjectId insertTaskRun(
-      String workflowRunRef, String name, String status, Date creationDate) {
+      MongoCollection<Document> taskRuns, String workflowRunRef, String name, String status, Date created) {
     ObjectId id = new ObjectId();
-    collection("task_runs")
-        .insertOne(
-            new Document("_id", id)
-                .append("workflowRunRef", workflowRunRef)
-                .append("name", name)
-                .append("status", status)
-                .append("creationDate", creationDate));
+    taskRuns.insertOne(
+        new Document("_id", id)
+            .append("workflowRunRef", workflowRunRef)
+            .append("name", name)
+            .append("status", status)
+            .append("creationDate", created));
     return id;
   }
 
-  private static ObjectId insertAction(String taskRunRef, Date creationDate) {
+  private static ObjectId insertAction(MongoCollection<Document> actions, String taskRunRef, Date created) {
     ObjectId id = new ObjectId();
-    collection("actions")
-        .insertOne(
-            new Document("_id", id)
-                .append("taskRunRef", taskRunRef)
-                .append("creationDate", creationDate));
+    Document action = new Document("_id", id).append("creationDate", created);
+    if (taskRunRef != null) {
+      action.append("taskRunRef", taskRunRef);
+    }
+    actions.insertOne(action);
     return id;
   }
 
-  private static ObjectId insertAgent(String name, String host, Date lastConnectedDate) {
+  private static ObjectId insertDispatcher(MongoCollection<Document> dispatchers, Date lastConnected) {
     ObjectId id = new ObjectId();
-    collection("agents")
-        .insertOne(
-            new Document("_id", id)
-                .append("name", name)
-                .append("host", host)
-                .append("lastConnectedDate", lastConnectedDate));
-    return id;
-  }
-
-  private static ObjectId insertTaskRunWithAgentRef(
-      String workflowRunRef, String agentRef, Date creationDate) {
-    ObjectId id = new ObjectId();
-    // "#"-escaped dotted annotation keys, matching MongoConfiguration's setMapKeyDotReplacement
-    // convention (see _0016__WorkspaceRename's H14-b annotation-key rename).
-    Document annotations = new Document("boomerang#io/team-name", "acme");
-    collection("task_runs")
-        .insertOne(
-            new Document("_id", id)
-                .append("workflowRunRef", workflowRunRef)
-                .append("name", "claimed-task")
-                .append("status", "running")
-                .append("creationDate", creationDate)
-                .append("agentRef", agentRef)
-                .append("annotations", annotations));
-    return id;
-  }
-
-  private static ObjectId insertWorkflowRunWithAgentRef(String agentRef, Date creationDate) {
-    ObjectId id = new ObjectId();
-    Document annotations =
-        new Document("boomerang#io/team-name", "acme")
-            .append("boomerang#io/team-params", new Document("foo", "bar"));
-    collection("workflow_runs")
-        .insertOne(
-            new Document("_id", id)
-                .append("status", "running")
-                .append("creationDate", creationDate)
-                .append("agentRef", agentRef)
-                .append("annotations", annotations));
-    return id;
-  }
-
-  /**
-   * Seeds a pre-DD-01 relationship fixture: a "team" node (root -> team:t1) with a member edge
-   * (user:u1 -> team:t1) and an owned-workflow edge (team:t1 -> workflow:w1), so the migration's
-   * node re-key and edge from/to prefix rewrite both have "team:" data to act on.
-   */
-  private static void seedTeamRelationshipGraph() {
-    collection("rel_nodes")
-        .insertOne(
-            new Document("_id", "team:t1")
-                .append("type", "team")
-                .append("ref", "t1")
-                .append("slug", "acme")
-                .append("data", new Document()));
-    collection("rel_edges")
-        .insertOne(
-            new Document("_id", new ObjectId())
-                .append("from", "root:root")
-                .append("label", "contains")
-                .append("to", "team:t1")
-                .append("data", new Document()));
-    collection("rel_edges")
-        .insertOne(
-            new Document("_id", new ObjectId())
-                .append("from", "user:u1")
-                .append("label", "memberOf")
-                .append("to", "team:t1")
-                .append("data", new Document("role", "owner")));
-    collection("rel_edges")
-        .insertOne(
-            new Document("_id", new ObjectId())
-                .append("from", "team:t1")
-                .append("label", "hasWorkflow")
-                .append("to", "workflow:w1")
-                .append("data", new Document()));
-  }
-
-  /**
-   * A user plus its relationship node, as an install that has run the legacy loader would carry.
-   * The seed change unit adds {@code admin} users to the system workspace and leaves the rest.
-   */
-  private static ObjectId insertUser(String email, String type) {
-    ObjectId id = new ObjectId();
-    collection("users").insertOne(new Document("_id", id).append("email", email).append("type", type));
-    collection("rel_nodes")
-        .insertOne(
-            new Document("_id", "user:" + id)
-                .append("type", "user")
-                .append("ref", id.toString())
-                .append("slug", email)
-                .append("data", new Document()));
-    return id;
-  }
-
-  private static ObjectId insertToken(String type) {
-    ObjectId id = new ObjectId();
-    Document resolvedPermissions =
-        new Document("scope", type)
-            .append("principal", "t1")
-            .append("actions", List.of("team/read", "workflow/write"));
-    collection("tokens")
-        .insertOne(
-            new Document("_id", id)
-                .append("type", type)
-                .append("name", "legacy-team-token")
-                .append("principal", "t1")
-                .append("permissions", List.of(resolvedPermissions)));
-    return id;
-  }
-
-  private static ObjectId insertRole(String type) {
-    ObjectId id = new ObjectId();
-    collection("roles")
-        .insertOne(
-            new Document("_id", id)
-                .append("type", type)
-                .append("name", "owner")
-                .append("permissions", List.of("team/read", "**/write")));
-    return id;
-  }
-
-  /** Legacy pre-DD-01 audit record: {@code scope="TEAM"} (AuditScope's raw enum name). */
-  private static ObjectId insertTeamAudit(String selfRef, String selfName) {
-    ObjectId id = new ObjectId();
-    collection("audit")
-        .insertOne(
-            new Document("_id", id)
-                .append("scope", "TEAM")
-                .append("selfRef", selfRef)
-                .append("selfName", selfName)
-                .append("creationDate", new Date())
-                .append("events", new ArrayList<>())
-                .append("data", new Document("name", selfName)));
+    dispatchers.insertOne(
+        new Document("_id", id).append("name", "kube").append("host", "node-1").append("lastConnectedDate", lastConnected));
     return id;
   }
 }
