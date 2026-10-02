@@ -36,11 +36,11 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Idempotent: rebuilding a document that was built from the seed writes the same document.
  */
-@Change(id = "0021-build-settings-from-seed", author = "boomerang", transactional = false)
+@Change(id = "0016-build-settings-from-seed", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0021__BuildSettingsFromSeed {
+public class _0016__BuildSettingsFromSeed {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0021__BuildSettingsFromSeed.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0016__BuildSettingsFromSeed.class);
 
   /** Earlier keys of a settings document, newest first. */
   private static final Map<String, List<String>> EARLIER_DOCUMENT_KEYS =

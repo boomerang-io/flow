@@ -6,7 +6,7 @@ import com.mongodb.client.model.Filters;
 /**
  * The install generation a database was bootstrapped under, detected from the legacy loader's
  * Mongock changelog ({@code sys_changelog_flow}) — the same collection {@link
- * _0001__BaselineAndGenerationDetect} inspects for existing-install detection.
+ * _0001__GuardAndDetectGeneration} inspects for existing-install detection.
  *
  * <p>The legacy {@code flow.loader} runs on {@code io.mongock:mongock-springboot-v3:5.3.3}
  * ({@code mongock.migration-repository-name=${flow.mongo.collection.prefix}sys_changelog_flow} in

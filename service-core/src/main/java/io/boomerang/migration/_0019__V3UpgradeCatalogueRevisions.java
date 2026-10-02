@@ -33,12 +33,12 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Idempotent: only {@code worker-flow} values and params missing by name are written.
  */
-@Change(id = "0039-v3-upgrade-catalogue-revisions", author = "boomerang", transactional = false)
+@Change(id = "0019-v3-upgrade-catalogue-revisions", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0039__V3UpgradeCatalogueRevisions {
+public class _0019__V3UpgradeCatalogueRevisions {
 
   private static final Logger LOG =
-      LoggerFactory.getLogger(_0039__V3UpgradeCatalogueRevisions.class);
+      LoggerFactory.getLogger(_0019__V3UpgradeCatalogueRevisions.class);
 
   static final String TARGET_IMAGE = "boomerangio/task-flow:3.1.0";
   private static final String RETIRED_IMAGE = "worker-flow";

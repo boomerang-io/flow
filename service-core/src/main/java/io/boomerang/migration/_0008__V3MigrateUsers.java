@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
  * <p>This squashes the user-reshaping half of legacy changeset {@code 4014} ({@code
  * v4MigrateUsersToTeam}) - the other half (creating a {@code MEMBEROF} relationship document and
  * re-pointing every prior workflow/run -\> user relationship at the new personal team) is
- * relationship-graph work and belongs to Batch E ({@code _0012__V3BuildRelationshipGraph}), which
+ * relationship-graph work and belongs to Batch E ({@code _0013__V3BuildRelationshipGraph}), which
  * this unit deliberately never touches (see the "user -\> personal-workspace linkage" section
  * below for how it stays discoverable there).
  *
@@ -74,7 +74,7 @@ import org.slf4j.LoggerFactory;
  *       discoverability technique as {@code _0023}'s {@code scope}/{@code ownerRef} and {@code
  *       _0027}'s {@code workspaceRef}): the real v3 team ids the user belonged to, passed through
  *       verbatim (empty list when absent/empty - 2 of the 3 real users spot-checked in this program
- *       carry an empty {@code flowTeams}). Batch E ({@code _0012__V3BuildRelationshipGraph}) reads
+ *       carry an empty {@code flowTeams}). Batch E ({@code _0013__V3BuildRelationshipGraph}) reads
  *       this to emit {@code user:<id> --memberOf--> workspace:<teamId>} edges for real (non-personal)
  *       team membership, skipping any id that does not resolve to a migrated workspace.
  * </ul>
@@ -145,7 +145,7 @@ public class _0008__V3MigrateUsers {
     }
 
     MongoCollection<Document> users = db.getCollection(names.resolve("users"));
-    String teamsCollection = names.resolve("teams");
+    String teamsCollection = names.resolve("workspaces");
 
     long migrated = 0;
     long personalWorkspacesCreated = 0;

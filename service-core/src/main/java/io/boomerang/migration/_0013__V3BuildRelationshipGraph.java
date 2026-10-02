@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
  *       task_templates} carries no team-scoping field at all (verified against the real dump and
  *       {@code _0022}'s own javadoc/code - no {@code flowTeamId}/{@code scope} read anywhere), so
  *       there are zero {@code teamtask} nodes to write for v3 data; every migrated task is global,
- *       matching {@code _0022__SeedTaskCatalogue}'s seeded-catalogue shape exactly (this unit is
+ *       matching {@code _0017__SeedTaskCatalogue}'s seeded-catalogue shape exactly (this unit is
  *       that seed's v3 counterpart - {@code _0016} skips entirely on a v3 install specifically so
  *       this unit can do it once {@code task_templates} has been folded into {@code tasks}).
  *   <li>{@code root:root --contains--> workspace:<id>} for EVERY row in {@code teams} (real v3
@@ -116,7 +116,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>{@code _0030__V3SystemWorkspaceMembers} FOLDED IN here</b> (as {@link
  * #attachSystemWorkspaceAdminMembers}), exactly per plan - not dropped. {@code
- * _0003__SeedSystemWorkspace} was moved EARLY (right after generation detection, ahead of this
+ * _0004__SeedSystemWorkspace} was moved EARLY (right after generation detection, ahead of this
  * whole v3 migration) specifically so the {@code teams} "system" document exists before {@link
  * #buildWorkflowOwnershipEdges}/{@link #buildWorkflowRunOwnershipEdges} need to resolve {@code
  * scope=system} ownership below - discovered the hard way: with system-workspace seeding deferred
@@ -127,11 +127,11 @@ import org.slf4j.LoggerFactory;
  * gap the original chain had at {@code _0013}'s old early position, which the original chain's
  * {@code _0030} existed to close once the graph existed. Reproduced verbatim here as a final step.
  */
-@Change(id = "0012-v3-build-relationship-graph", author = "boomerang", transactional = false)
+@Change(id = "0013-v3-build-relationship-graph", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0012__V3BuildRelationshipGraph {
+public class _0013__V3BuildRelationshipGraph {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0012__V3BuildRelationshipGraph.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0013__V3BuildRelationshipGraph.class);
 
   private static final String ROOT_NODE_ID = "root:root";
   private static final int BATCH_SIZE = 1000;
@@ -217,7 +217,7 @@ public class _0012__V3BuildRelationshipGraph {
       long edgesInserted) {}
 
   private WorkspaceGraph buildWorkspaceGraph(MongoDatabase db, CollectionNames names) {
-    MongoCollection<Document> teams = db.getCollection(names.resolve("teams"));
+    MongoCollection<Document> teams = db.getCollection(names.resolve("workspaces"));
     Set<String> allWorkspaceIds = new HashSet<>();
     Map<String, String> personalByUser = new HashMap<>();
     String systemWorkspaceId = null;
@@ -348,7 +348,7 @@ public class _0012__V3BuildRelationshipGraph {
   // =====================================================================================
 
   /**
-   * Re-attempts {@code _0003__SeedSystemWorkspace}'s admin-bootstrap step, now that {@link
+   * Re-attempts {@code _0004__SeedSystemWorkspace}'s admin-bootstrap step, now that {@link
    * #buildUserGraph} (earlier in this SAME unit) has created every admin's {@code user:<id>}
    * node — {@code _0003} ran too early (deliberately, ahead of this whole v3 migration — see the
    * class javadoc) to have found them itself. Reproduces {@code _0003#addAdminMembers} verbatim

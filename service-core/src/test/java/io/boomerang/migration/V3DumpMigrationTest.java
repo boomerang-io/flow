@@ -333,7 +333,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0001__BaselineAndGenerationDetect invariants
+  // _0001__GuardAndDetectGeneration invariants
   // =====================================================================================
 
   private void assertGenerationRecorded() {
@@ -348,7 +348,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0004__V3DropDeadCollections invariants
+  // _0002__V3PrepareCollections invariants
   // =====================================================================================
 
   private void assertDeadCollectionsDropped() {
@@ -399,9 +399,9 @@ class V3DumpMigrationTest {
   // =====================================================================================
   // Phase 5 seed invariants, re-proven here against REAL v3 data rather than
   // LoaderMigrationTest's synthetic fixture. Phase 5 runs strictly AFTER the v3->v5 migration
-  // (Phase 2) now, so _0021__SeedSettings/_0022__SeedTaskCatalogue no longer need (or carry) a v3
+  // (Phase 2) now, so _0021__SeedSettings/_0017__SeedTaskCatalogue no longer need (or carry) a v3
   // skip guard - they are plain insert-if-absent over already-migrated data. Only
-  // _0023__SeedTemplates keeps its v3 gate (see that unit's javadoc for why).
+  // _0020__SeedTemplates keeps its v3 gate (see that unit's javadoc for why).
   // =====================================================================================
 
   private void assertGenerationAwareSeedsSkipped() {
@@ -413,7 +413,7 @@ class V3DumpMigrationTest {
     // them fresh.
     assertThat(collection("settings").countDocuments()).isEqualTo(9);
 
-    // _0022__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
+    // _0017__SeedTaskCatalogue also runs unconditionally: tasks/task_revisions are ALREADY
     // populated by this point (by _0006__V3MigrateTaskCatalogue), so its name-matching insert-if-
     // absent logic finds every one of the 87 legacy catalogue tasks already present and
     // reconciles only the genuine gaps (the former _0034__V3ReconcileCatalogue unit's job, now
@@ -423,9 +423,9 @@ class V3DumpMigrationTest {
     assertThat(collection("tasks").countDocuments()).isGreaterThan(0);
     assertThat(collection("task_revisions").countDocuments()).isGreaterThan(0);
 
-    // _0010__V3ExtractWorkflowTemplates has, by this point in the same migration run, already
+    // _0011__V3ExtractWorkflowTemplates has, by this point in the same migration run, already
     // extracted the real v3 scope=template workflows into workflow_templates (asserted in detail
-    // in assertTemplatesExtracted() below) under the SAME two _id values _0023__SeedTemplates
+    // in assertTemplatesExtracted() below) under the SAME two _id values _0020__SeedTemplates
     // carries, so the seed's guard makes its two workflow templates a no-op - the count is 2, the
     // migrated content, not the seed. integration_templates has no v3 counterpart, so the seed
     // gives the upgraded install the two out-of-the-box integration templates.
@@ -581,7 +581,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0006__V3MigrateTaskCatalogue (task migration) + _0022__SeedTaskCatalogue (Phase 5
+  // _0006__V3MigrateTaskCatalogue (task migration) + _0017__SeedTaskCatalogue (Phase 5
   // reconciliation, formerly _0034__V3ReconcileCatalogue - see _0022's javadoc) invariants
   // =====================================================================================
 
@@ -592,7 +592,7 @@ class V3DumpMigrationTest {
     assertThat(names).as("task_templates dropped after migration").doesNotContain(prefixed("task_templates"));
 
     // 89 real v3 task_templates documents, all migrated (none dropped) - see _0006's javadoc.
-    // _0022__SeedTaskCatalogue (Phase 5) reconciles the 88-task seed catalogue against them by
+    // _0017__SeedTaskCatalogue (Phase 5) reconciles the 88-task seed catalogue against them by
     // name (all 87 legacy ones already present by legacy _id/name) and inserts exactly one new
     // task, the v5-native ai entry; the install's own extra 2 (Kubernetes CLI, Tysons Test Task)
     // are untouched additions. _0052 then adds the upload-artifact and download-artifact tasks.
@@ -666,7 +666,7 @@ class V3DumpMigrationTest {
         .as("v3's duration config never carried a defaultValue - none should be invented")
         .isFalse();
 
-    // Manual Approval: the install's own v1 survives untouched, and _0022__SeedTaskCatalogue
+    // Manual Approval: the install's own v1 survives untouched, and _0017__SeedTaskCatalogue
     // (Phase 5) reconciled the missing seeded v2 (real gap found comparing the dump to the seed
     // catalogue).
     long approvalRevisions =
@@ -952,7 +952,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0009__V3MigrateWorkflows invariants (Batch D)
+  // _0010__V3MigrateWorkflows invariants (Batch D)
   // =====================================================================================
 
   @SuppressWarnings("unchecked")
@@ -1091,7 +1091,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0010__V3ExtractWorkflowTemplates invariants (Batch D)
+  // _0011__V3ExtractWorkflowTemplates invariants (Batch D)
   // =====================================================================================
 
   @SuppressWarnings("unchecked")
@@ -1099,7 +1099,7 @@ class V3DumpMigrationTest {
     assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
 
     // The two source workflows/revisions - collision-guard ids the batch instructions and
-    // _0023__SeedTemplates both name - are gone from their v3-shaped collections.
+    // _0020__SeedTemplates both name - are gone from their v3-shaped collections.
     assertThat(collection("workflows").find(Filters.eq("_id", new ObjectId("62be6a3266ff43491f09d2e7"))).first())
         .as("source template workflow must be deleted")
         .isNull();
@@ -1160,7 +1160,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0011__V3MigrateRuns invariants (Batch D) - workflows_activity -> workflow_runs
+  // _0012__V3MigrateRuns invariants (Batch D) - workflows_activity -> workflow_runs
   // =====================================================================================
 
   private void assertRunsMigrated() {
@@ -1233,7 +1233,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0011__V3MigrateRuns invariants (Batch D) - workflows_activity_approval -> actions
+  // _0012__V3MigrateRuns invariants (Batch D) - workflows_activity_approval -> actions
   // =====================================================================================
 
   @SuppressWarnings("unchecked")
@@ -1277,7 +1277,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0011__V3MigrateRuns invariants (Batch D) - workflows_schedules -> workflow_schedules
+  // _0012__V3MigrateRuns invariants (Batch D) - workflows_schedules -> workflow_schedules
   // =====================================================================================
 
   @SuppressWarnings("unchecked")
@@ -1333,7 +1333,7 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0012__V3BuildRelationshipGraph invariants (Batch E)
+  // _0013__V3BuildRelationshipGraph invariants (Batch E)
   // =====================================================================================
 
   private void assertRelationshipGraphBuilt() {
@@ -1508,9 +1508,9 @@ class V3DumpMigrationTest {
   }
 
   // =====================================================================================
-  // _0012__V3BuildRelationshipGraph's attachSystemWorkspaceAdminMembers step invariants (the
+  // _0013__V3BuildRelationshipGraph's attachSystemWorkspaceAdminMembers step invariants (the
   // former separate _0030__V3SystemWorkspaceMembers unit is FOLDED IN here, not dropped - see
-  // _0015's javadoc: _0003__SeedSystemWorkspace runs early, before this graph exists, so its own
+  // _0015's javadoc: _0004__SeedSystemWorkspace runs early, before this graph exists, so its own
   // admin-bootstrap step finds no user:<id> nodes yet; this unit re-attempts it once buildUserGraph,
   // earlier in the SAME unit, has created them)
   // =====================================================================================
@@ -1562,7 +1562,7 @@ class V3DumpMigrationTest {
 
   private void assertIndexInventoryBuilt() {
     // The same inventory an empty database gets; the dump's 57 users share no email.
-    for (_0057__Indexes.Index index : _0057__Indexes.INVENTORY) {
+    for (_0021__Indexes.Index index : _0021__Indexes.INVENTORY) {
       Document built = indexesByName(index.collection()).get(index.name());
       assertThat(built).as("%s.%s", index.collection(), index.name()).isNotNull();
       assertThat(built.get("key", Document.class).keySet())

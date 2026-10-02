@@ -23,14 +23,14 @@ import org.slf4j.LoggerFactory;
  * <p>The former THIRD sibling in this area, {@code _0034__V3ReconcileCatalogue} (which topped up a
  * v3 install's migrated catalogue with any of the 87 out-of-the-box seed tasks/revisions it was
  * missing), is DROPPED entirely rather than folded in here — now that the seed change units run
- * AFTER this whole migration chain (Phase 5, {@code _0022__SeedTaskCatalogue}), that unit's own
+ * AFTER this whole migration chain (Phase 5, {@code _0017__SeedTaskCatalogue}), that unit's own
  * insert-if-absent logic (match existing tasks by name, insert missing ones under the seed's own
  * ids, insert missing revisions by {@code (parentRef, version)}) already performs the exact same
  * reconciliation over the exact same data — verified against the real v3 dump (still lands on 89
  * tasks / 132 revisions, the one true gap being the seed catalogue's {@code Manual Approval} v2)
  * and against {@code LoaderMigrationTest}'s synthetic v3 fixture (89 tasks / 131 revisions, no v2
  * gap there). {@code _0034}'s own global-task-graph step is likewise subsumed: {@code
- * _0012__V3BuildRelationshipGraph} (Phase 2, runs before the Phase 5 seed) already writes a {@code
+ * _0013__V3BuildRelationshipGraph} (Phase 2, runs before the Phase 5 seed) already writes a {@code
  * task:<id>} node + {@code root--hasTask-->} edge for every row this unit leaves in {@code tasks},
  * and the seed's own graph step covers anything it inserts afterwards.
  *
@@ -355,7 +355,7 @@ public class _0006__V3MigrateTaskCatalogue {
    * task steps, etc.) uses.
    *
    * <p><b>On a real v3 dump this method is a no-op</b>: v3's task activity lives entirely in
-   * {@code workflows_activity_task}, which {@link _0004__V3DropDeadCollections} drops by design
+   * {@code workflows_activity_task}, which {@link _0002__V3PrepareCollections} drops by design
    * (no v5 equivalent) - {@code task_runs} does not exist pre-migration on a v3 install (verified:
    * absent from the 23-collection real dump), and no unit in this chain ever populates {@code
    * task_runs} from v3 source data either (v3 has no per-task execution record at all). Positioned

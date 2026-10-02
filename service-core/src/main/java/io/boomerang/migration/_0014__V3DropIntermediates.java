@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>Class 1 — v4-era relationship-model/lock/scheduler intermediates.</b> These have no v5
  * use whatsoever (v5's relationship model is {@code rel_nodes}/{@code rel_edges}, built fresh by
- * {@link _0012__V3BuildRelationshipGraph} for a v3 install), the same way {@link
- * _0004__V3DropDeadCollections}'s Quartz collections have none — dropped unconditionally,
+ * {@link _0013__V3BuildRelationshipGraph} for a v3 install), the same way {@link
+ * _0002__V3PrepareCollections}'s Quartz collections have none — dropped unconditionally,
  * logging how much data (if any) was discarded:
  *
  * <ul>
@@ -46,8 +46,8 @@ import org.slf4j.LoggerFactory;
  * <p><b>Class 2 — v3 source collections a specific earlier unit should have fully drained AND
  * dropped as its own last step</b> ({@code task_templates} by {@link _0006__V3MigrateTaskCatalogue},
  * {@code global_config} by {@link _0005__V3MigrateSettings}, {@code workflows_revisions}
- * by {@link _0009__V3MigrateWorkflows}, {@code workflows_activity}/{@code
- * workflows_activity_approval}/{@code workflows_schedules} by {@link _0011__V3MigrateRuns}) —
+ * by {@link _0010__V3MigrateWorkflows}, {@code workflows_activity}/{@code
+ * workflows_activity_approval}/{@code workflows_schedules} by {@link _0012__V3MigrateRuns}) —
  * verified against the real v3 dump ({@code flowabl-live-dump-20231106}, 23 collections) to be
  * gone by this point in every one of those cases (see {@code V3DumpMigrationTest}'s per-batch
  * assertions, each of which already proves its own unit's drop). Unlike Class 1, presence WITH
@@ -111,7 +111,7 @@ public class _0014__V3DropIntermediates {
 
   /**
    * Class 1: always drop (a no-op if absent — {@code MongoCollection.drop()} tolerates that,
-   * matching {@link _0004__V3DropDeadCollections#dropIfPresent}), logging how much (if anything)
+   * matching {@link _0002__V3PrepareCollections#dropIfPresent}), logging how much (if anything)
    * was discarded.
    */
   private long dropDeadIntermediate(MongoDatabase db, String collection) {

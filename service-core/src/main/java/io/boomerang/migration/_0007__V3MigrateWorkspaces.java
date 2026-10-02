@@ -118,7 +118,7 @@ public class _0007__V3MigrateWorkspaces {
       return;
     }
 
-    MongoCollection<Document> teams = db.getCollection(names.resolve("teams"));
+    MongoCollection<Document> teams = db.getCollection(names.resolve("workspaces"));
     MongoCollection<Document> approverGroups = db.getCollection(names.resolve("approver_groups"));
 
     long migrated = 0;

@@ -1,10 +1,12 @@
 package io.boomerang.migration;
 
+import com.mongodb.MongoNamespace;
 import com.mongodb.client.MongoDatabase;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +17,7 @@ import org.slf4j.LoggerFactory;
  * v4-current install has nothing in them).
  *
  * <p>Generation gated on {@link LegacyGenerationMarker#read} (the value {@link
- * _0001__BaselineAndGenerationDetect} captured before any prior unit in this chain could mutate the
+ * _0001__GuardAndDetectGeneration} captured before any prior unit in this chain could mutate the
  * database) rather than a live {@link InstallGeneration#detect} — see that unit's javadoc.
  *
  * <p>Classification, verified against a real v3 dump (23 collections,
@@ -66,11 +68,11 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Idempotent: {@code MongoCollection.drop()} on an already-absent collection is a no-op.
  */
-@Change(id = "0004-v3-drop-dead-collections", author = "boomerang", transactional = false)
+@Change(id = "0002-v3-prepare-collections", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0004__V3DropDeadCollections {
+public class _0002__V3PrepareCollections {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0004__V3DropDeadCollections.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0002__V3PrepareCollections.class);
 
   /** The Quartz MongoDB job-store schema in full — see class javadoc. */
   private static final List<String> QUARTZ_COLLECTIONS =
@@ -82,6 +84,7 @@ public class _0004__V3DropDeadCollections {
       LOG.info("Not a v3 install — no dead collections to drop.");
       return;
     }
+    renameTeamsToWorkspaces(db, names);
     long dropped = 0;
     dropped += dropIfPresent(db, names.resolve("workflows_activity_task"));
     for (String quartzCollection : QUARTZ_COLLECTIONS) {
@@ -92,6 +95,24 @@ public class _0004__V3DropDeadCollections {
     // Unprefixed: the collection a v3 distributed-lock library kept beside Flow's own.
     dropped += dropIfPresent(db, "locks");
     LOG.info("v3 dead-collection cleanup — {} documents discarded across dropped collections", dropped);
+  }
+
+  /** Rename once; a database already holding {@code workspaces} keeps both for investigation. */
+  private void renameTeamsToWorkspaces(MongoDatabase db, CollectionNames names) {
+    String teams = names.resolve("teams");
+    String workspaces = names.resolve("workspaces");
+    List<String> existing = new ArrayList<>();
+    db.listCollectionNames().into(existing);
+    if (!existing.contains(teams)) {
+      return;
+    }
+    if (existing.contains(workspaces)) {
+      throw new IllegalStateException(
+          "Both " + teams + " and " + workspaces + " exist; resolve which one holds the v3"
+              + " workspaces before upgrading");
+    }
+    db.getCollection(teams).renameCollection(new MongoNamespace(db.getName(), workspaces));
+    LOG.info("Renamed {} to {}", teams, workspaces);
   }
 
   private long dropIfPresent(MongoDatabase db, String collection) {

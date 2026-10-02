@@ -24,13 +24,13 @@ import org.slf4j.LoggerFactory;
  * keeps answering {@link InstallGeneration#V3} long after the upgrade; {@link
  * LegacyGenerationMarker} records the answer once so later runs are not re-derived from it.
  */
-@Change(id = "0001-baseline-and-generation-detect", author = "boomerang", transactional = false)
+@Change(id = "0001-guard-and-detect-generation", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
 @Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
-public class _0001__BaselineAndGenerationDetect {
+public class _0001__GuardAndDetectGeneration {
 
   private static final Logger LOG =
-      LoggerFactory.getLogger(_0001__BaselineAndGenerationDetect.class);
+      LoggerFactory.getLogger(_0001__GuardAndDetectGeneration.class);
 
   /** The change log a 5.0 beta's separate loader kept. */
   static final String BETA_CHANGELOG = "sys_changelog_loader";

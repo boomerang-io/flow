@@ -47,25 +47,25 @@ import org.slf4j.LoggerFactory;
  * insert-if-absent.
  *
  * <p><b>Positioned early, right after generation detection, ahead of the whole v3 migration.</b>
- * The other Phase 5 seeds ({@code _0020__SeedRoles}/{@code _0021__SeedSettings}/{@code
- * _0022__SeedTaskCatalogue}/{@code _0023__SeedTemplates}) run AFTER the v3 migration and index
- * phases, but {@code _0012__V3BuildRelationshipGraph} resolves {@code scope=system} workflow/run
+ * The other Phase 5 seeds ({@code _0015__SeedRoles}/{@code _0021__SeedSettings}/{@code
+ * _0017__SeedTaskCatalogue}/{@code _0020__SeedTemplates}) run AFTER the v3 migration and index
+ * phases, but {@code _0013__V3BuildRelationshipGraph} resolves {@code scope=system} workflow/run
  * ownership via {@code teams} where {@code type=system} - it needs THIS unit's {@code teams}
  * document to already exist, or every system-scoped workflow/run silently loses its graph node and
  * edge (found the hard way: {@code V3DumpMigrationTest} went from 65 to 55 {@code workflow} rel_nodes
  * when this seed was still positioned late). Running early means this unit's OWN admin-bootstrap
  * step (see {@link #addAdminMembers}) instead finds NO {@code user:<id>} nodes yet on a v3 install
  * (they do not exist until the relationship graph builds them, later) - {@code
- * _0012__V3BuildRelationshipGraph} re-attempts it once those nodes exist, folding in what was
+ * _0013__V3BuildRelationshipGraph} re-attempts it once those nodes exist, folding in what was
  * previously the standalone {@code _0030__V3SystemWorkspaceMembers} unit (see that unit's own
- * javadoc). {@code _0002__SeedRelationshipRoot} moves alongside this unit for the same graph-anchor
+ * javadoc). {@code _0003__SeedRelationshipRoot} moves alongside this unit for the same graph-anchor
  * reasoning, though nothing strictly requires it (Mongo does not enforce the edge-to-node reference).
  */
-@Change(id = "0003-seed-system-workspace", author = "boomerang", transactional = false)
+@Change(id = "0004-seed-system-workspace", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0003__SeedSystemWorkspace {
+public class _0004__SeedSystemWorkspace {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0003__SeedSystemWorkspace.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0004__SeedSystemWorkspace.class);
 
   private static final String WORKSPACE_NAME = "system";
   private static final String ROOT_NODE_ID = "root:root";
@@ -104,7 +104,7 @@ public class _0003__SeedSystemWorkspace {
    * build the graph against — the existing document's id on an upgrade, the seeded one otherwise.
    */
   private String seedWorkspace(MongoDatabase db, CollectionNames names) {
-    String collection = names.resolve("teams");
+    String collection = names.resolve("workspaces");
     Document existing =
         db.getCollection(collection).find(Filters.eq("name", WORKSPACE_NAME)).first();
     if (existing != null) {

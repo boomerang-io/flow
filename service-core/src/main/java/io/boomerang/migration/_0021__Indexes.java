@@ -32,11 +32,11 @@ import org.slf4j.LoggerFactory;
  * final data. An existing index that holds an inventory index's keys under another name, or its
  * name with other keys or options, is dropped first; any other index (an operator's own) is kept.
  */
-@Change(id = "0057-indexes", author = "boomerang", transactional = false)
+@Change(id = "0021-indexes", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0057__Indexes {
+public class _0021__Indexes {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0057__Indexes.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0021__Indexes.class);
 
   private static final Set<String> TERMINAL_STATUSES =
       Set.of("succeeded", "failed", "invalid", "skipped", "cancelled", "timedout");

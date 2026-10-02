@@ -24,11 +24,11 @@ import org.slf4j.LoggerFactory;
  * <p>Ids are assigned on insert. Idempotent: each task is matched by name, its version 1 revision
  * by parent and version, and its graph node and root edge by id.
  */
-@Change(id = "0052-seed-artifact-tasks", author = "boomerang", transactional = false)
+@Change(id = "0018-seed-artifact-tasks", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0052__SeedArtifactTasks {
+public class _0018__SeedArtifactTasks {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0052__SeedArtifactTasks.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0018__SeedArtifactTasks.class);
 
   static final String UPLOAD_TASK = "upload-artifact";
   static final String DOWNLOAD_TASK = "download-artifact";

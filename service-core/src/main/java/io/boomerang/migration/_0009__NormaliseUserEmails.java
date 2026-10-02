@@ -44,11 +44,11 @@ import org.slf4j.LoggerFactory;
  * explicit {@code $type} guard rather than relying on {@code $toLower}'s null-to-empty-string
  * coercion, which would otherwise rewrite them to {@code ""}.
  */
-@Change(id = "0038-normalise-user-emails", author = "boomerang", transactional = false)
+@Change(id = "0009-normalise-user-emails", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0038__NormaliseUserEmails {
+public class _0009__NormaliseUserEmails {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0038__NormaliseUserEmails.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0009__NormaliseUserEmails.class);
 
   private static final Document LOWERCASED_EMAIL = new Document("$toLower", "$email");
 

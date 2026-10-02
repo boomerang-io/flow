@@ -116,7 +116,7 @@ import org.slf4j.LoggerFactory;
  *       instructions say to drop (dropped BY NAME - the WorkflowEntity shape never carries them -
  *       while the ownership fact itself survives under DD-08-compliant typed fields, never an
  *       annotation). Two consumers: (1) THIS SAME BATCH's {@code
- *       _0010__V3ExtractWorkflowTemplates}, which depends on finding {@code scope=template}
+ *       _0011__V3ExtractWorkflowTemplates}, which depends on finding {@code scope=template}
  *       workflows AFTER this unit has already reshaped them (it runs immediately after, in the same
  *       chain); (2) Batch E's relationship-graph build, which depends on B/C/D and therefore cannot
  *       read the original v3-shaped {@code workflows}/{@code flowTeamId}/{@code ownerUserId} at
@@ -132,7 +132,7 @@ import org.slf4j.LoggerFactory;
  *       extracted document later using the SAME id the real dump's seeded templates already use -
  *       verified: the real dump's template-scope workflows' v1 revision ids, {@code
  *       62be6a3266ff43491f09d2e8} and {@code 62be6a3e66ff43491f09d2ea}, are EXACTLY the two ids
- *       {@code _0023__SeedTemplates}'s collision guard names).
+ *       {@code _0020__SeedTemplates}'s collision guard names).
  *   <li>{@code workflowRef} <- v3 {@code workFlowId} (a v3 string, already the workflow's {@code
  *       _id.toString()}).
  *   <li>{@code version} <- v3 {@code version} (a v3 {@code Long}), narrowed to {@code Integer}.
@@ -205,11 +205,11 @@ import org.slf4j.LoggerFactory;
  * workflow has been processed (matching {@code _0022}'s {@code task_templates.drop()} - a no-op on
  * an already-dropped collection).
  */
-@Change(id = "0009-v3-migrate-workflows", author = "boomerang", transactional = false)
+@Change(id = "0010-v3-migrate-workflows", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0009__V3MigrateWorkflows {
+public class _0010__V3MigrateWorkflows {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0009__V3MigrateWorkflows.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0010__V3MigrateWorkflows.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

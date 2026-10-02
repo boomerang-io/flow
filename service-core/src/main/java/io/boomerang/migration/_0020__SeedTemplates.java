@@ -31,16 +31,16 @@ import org.bson.Document;
  * whose {@code _id} already exists even if its natural key has since changed.
  *
  * <p>Not generation-gated. The v3->v5 units run before this seed, so on a v3-sourced install
- * {@code _0010__V3ExtractWorkflowTemplates} has already extracted the source template workflows
+ * {@code _0011__V3ExtractWorkflowTemplates} has already extracted the source template workflows
  * into {@code workflow_templates} under the same {@code _id}s this seed carries, and the guard
  * makes those two documents a no-op. {@code integration_templates} has no v3 counterpart at all -
  * integrations are a v5 feature - so an upgraded install receives the out-of-the-box GitHub and
  * Slack integration templates exactly as a fresh install does; leaving it empty would have left
  * every upgraded install unable to configure an integration.
  */
-@Change(id = "0023-seed-templates", author = "boomerang", transactional = false)
+@Change(id = "0020-seed-templates", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0023__SeedTemplates {
+public class _0020__SeedTemplates {
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

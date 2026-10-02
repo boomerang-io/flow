@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * V3-only. Runs immediately after {@code _0009__V3MigrateWorkflows} (same chain, next numeric
+ * V3-only. Runs immediately after {@code _0010__V3MigrateWorkflows} (same chain, next numeric
  * order) — it depends on that unit having ALREADY reshaped every v3 workflow (including {@code
  * scope=template} ones) into v5 {@code WorkflowEntity}/{@code WorkflowRevisionEntity} shape,
  * including the {@code scope} extra field {@code _0023} preserves specifically so this unit (and
@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  *       of inserting the revision document itself, {@code _id} untouched, into {@code
  *       workflow_templates}). Verified against the real dump: the two source workflows' v1
  *       revisions carry ids {@code 62be6a3266ff43491f09d2e8} and {@code 62be6a3e66ff43491f09d2ea} —
- *       EXACTLY the two ids {@code _0023__SeedTemplates}'s collision guard names.
+ *       EXACTLY the two ids {@code _0020__SeedTemplates}'s collision guard names.
  *   <li>{@code name}/{@code displayName}/{@code icon}/{@code description}/{@code labels}
  *       <- the owning workflow's ALREADY-migrated fields directly (unlike legacy {@code 4016},
  *       which had to re-derive the slug and the description/shortDescription fallback inline
@@ -59,7 +59,7 @@ import org.slf4j.LoggerFactory;
  *       legacy {@code 4016}'s explicit {@code revision.remove("workflowRef")}).
  * </ul>
  *
- * <p><b>Collision guard</b> (batch instructions): {@code _0023__SeedTemplates} seeds two documents
+ * <p><b>Collision guard</b> (batch instructions): {@code _0020__SeedTemplates} seeds two documents
  * with {@code _id} {@code 62be6a32…e8}/{@code 62be6a3e…ea} whose SOURCE workflows are {@code
  * 62be6a32…e7}/{@code 62be6a3e…e9} — on v3, {@code _0017} always SKIPS (generation-aware, see its
  * own javadoc), so this unit is what actually produces them on a v3 install. Still made safe if
@@ -75,11 +75,11 @@ import org.slf4j.LoggerFactory;
  * but before deleting the workflow itself simply finds zero revisions for that workflow on retry
  * (the per-revision loop body does nothing) and proceeds straight to deleting the workflow.
  */
-@Change(id = "0010-v3-extract-workflow-templates", author = "boomerang", transactional = false)
+@Change(id = "0011-v3-extract-workflow-templates", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0010__V3ExtractWorkflowTemplates {
+public class _0011__V3ExtractWorkflowTemplates {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0010__V3ExtractWorkflowTemplates.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0011__V3ExtractWorkflowTemplates.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

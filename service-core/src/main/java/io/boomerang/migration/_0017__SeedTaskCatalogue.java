@@ -68,11 +68,11 @@ import org.slf4j.LoggerFactory;
  * unchanged). Both totals gain one task and one revision from the {@code ai} entry, which no v3
  * install can hold.
  */
-@Change(id = "0022-seed-task-catalogue", author = "boomerang", transactional = false)
+@Change(id = "0017-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0022__SeedTaskCatalogue {
+public class _0017__SeedTaskCatalogue {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0022__SeedTaskCatalogue.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0017__SeedTaskCatalogue.class);
 
   private static final String ROOT_NODE_ID = "root:root";
 

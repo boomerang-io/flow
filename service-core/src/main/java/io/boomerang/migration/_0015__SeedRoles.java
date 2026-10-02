@@ -31,8 +31,8 @@ import org.bson.Document;
  * one an operator has since edited) keeps its own definition untouched.
  *
  * <p><b>Must run AFTER {@code _0016__WorkspaceRename}</b> - the only ordering constraint that
- * kept this seed out of the early bootstrap group ({@code _0002__SeedRelationshipRoot}/{@code
- * _0003__SeedSystemWorkspace}, moved ahead of the v3 migration for a different reason - see
+ * kept this seed out of the early bootstrap group ({@code _0003__SeedRelationshipRoot}/{@code
+ * _0004__SeedSystemWorkspace}, moved ahead of the v3 migration for a different reason - see
  * {@code _0003}'s own javadoc). A pre-existing role still carrying the legacy {@code team} type
  * (an upgraded v4 install, or a role written before {@code _0016} ran) does NOT natural-key-match
  * this seed's {@code workspace}-typed content, so seeding BEFORE the rename would insert a
@@ -42,9 +42,9 @@ import org.bson.Document;
  * restructure. Running after {@code _0016} means every legacy {@code team}-typed role has already
  * become {@code workspace}-typed, so the natural-key match (and skip) works correctly.
  */
-@Change(id = "0020-seed-roles", author = "boomerang", transactional = false)
+@Change(id = "0015-seed-roles", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0020__SeedRoles {
+public class _0015__SeedRoles {
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {

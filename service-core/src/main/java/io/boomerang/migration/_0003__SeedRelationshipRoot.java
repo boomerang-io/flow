@@ -23,11 +23,11 @@ import org.slf4j.LoggerFactory;
  * <p>The legacy loader created the same node in changeset 4041; this change unit is the
  * fresh-install equivalent and is skipped on an install that already has it.
  */
-@Change(id = "0002-seed-relationship-root", author = "boomerang", transactional = false)
+@Change(id = "0003-seed-relationship-root", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
-public class _0002__SeedRelationshipRoot {
+public class _0003__SeedRelationshipRoot {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0002__SeedRelationshipRoot.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0003__SeedRelationshipRoot.class);
 
   @Apply
   public void execute(MongoDatabase db, CollectionNames names) {
