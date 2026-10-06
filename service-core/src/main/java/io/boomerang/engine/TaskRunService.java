@@ -10,6 +10,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskRunStartRequest;
+import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
@@ -22,6 +23,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +54,11 @@ public class TaskRunService {
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
+
+  // Reasons a dispatcher gives when it could not START a task: the cluster refused it on quota, or
+  // its pod never left Pending. Nothing ran, so the task is handed back for another attempt on any
+  // dispatcher, on the same budget as a timed-out claimant, and fails only once that is spent.
+  private static final Set<String> RETRYABLE_END_REASONS = Set.of("ExceededQuota", "StartTimeout");
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -898,6 +905,10 @@ public class TaskRunService {
         Optional<String> claimedBy =
             optRunRequest.map(TaskRunEndRequest::getDispatcherRef).filter(StringUtils::hasText);
         rejectSupersededClaimant(taskRunEntity, claimedBy);
+        if (optRunRequest.isPresent() && requeuedForRetry(taskRunEntity, optRunRequest.get())) {
+          return ResponseEntity.ok(
+              new TaskRun(taskRunRepository.findById(taskRunId).orElse(taskRunEntity)));
+        }
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
           taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
@@ -956,6 +967,35 @@ public class TaskRunService {
       }
     }
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+  }
+
+  /**
+   * Requeue a task its dispatcher could not start, while its retry budget lasts, through the same
+   * fenced transition a timed-out claimant takes. Return false when the end must go ahead instead:
+   * any other reason, a type the engine does not requeue, a spent budget, or a lost race.
+   */
+  private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
+    if (!RunStatus.failed.equals(request.getStatus())
+        || !RETRYABLE_END_REASONS.contains(request.getStatusReason())) {
+      return false;
+    }
+    int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
+    if (!EngineConstants.REQUEUEABLE_TYPES.contains(taskRun.getType())
+        || attempts >= EngineConstants.MAX_RETRIES) {
+      return false;
+    }
+    Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
+    if (tryRequeue(taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+        == null) {
+      return false;
+    }
+    LOGGER.info(
+        "[{}] Dispatcher could not start the task ({}: {}). Requeued as attempt {}.",
+        taskRun.getId(),
+        request.getStatusReason(),
+        request.getStatusMessage(),
+        attempts + 1);
+    return true;
   }
 
   /*

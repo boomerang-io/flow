@@ -25,7 +25,9 @@ public class TaskRunEndRequest {
    * the UI to filter by; {@code statusMessage} stays the human-readable text. Closed set:
    * DeadlineExceeded, JobDeleted, JobFailed, OOMKilled, ImagePull, AdmissionDenied,
    * ResultsTooLarge, DispatchError, DispatcherGone, LeaseExpired, ChildRunFailed,
-   * NestingDepthExceeded, ItemFailed, ForeachItemsInvalid, ForeachTooManyItems.
+   * NestingDepthExceeded, ItemFailed, ForeachItemsInvalid, ForeachTooManyItems, ExceededQuota,
+   * StartTimeout. The last two mean the task never started; the engine requeues it while its
+   * retry budget lasts instead of failing it.
    */
   private String statusReason;
 

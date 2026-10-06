@@ -96,8 +96,15 @@ public class DispatcherControllerV1 {
       })
   public ResponseEntity<List<TaskRun>> dispatcherTasksQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
-          String id) {
-    return dispatcherService.getTaskQueue(id);
+          String id,
+      @Parameter(
+              name = "limit",
+              description =
+                  "Most new TaskRuns to claim for execution (the dispatcher's free slots), capped"
+                      + " at a page of 20. 0 claims none and still returns termination orders.")
+          @RequestParam(required = false)
+          Integer limit) {
+    return dispatcherService.getTaskQueue(id, limit);
   }
 
   @PutMapping(value = "/{id}/heartbeat")

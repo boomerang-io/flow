@@ -176,10 +176,10 @@ public class DispatcherService {
     LOGGER.debug("Starting long poll queue for agent: {}", agentId);
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug("Checking queue for agent: {}", agentId);
+      // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
+      // provision and start. Runs claimed before an error are still handed out.
+      List<WorkflowRun> workflowRuns = new LinkedList<>();
       try {
-        // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
-        // provision and start.
-        List<WorkflowRun> workflowRuns = new LinkedList<>();
         for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
@@ -187,15 +187,16 @@ public class DispatcherService {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
-
-        LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
-        if (!workflowRuns.isEmpty()) {
-          return ResponseEntity.ok(workflowRuns);
-        }
-        // Sleep for a short interval before checking again
-        Thread.sleep(MAX_SLEEP_INTERVAL);
       } catch (Exception e) {
         LOGGER.error("Error retrieving workflows for agent {}: {}", agentId, e.getMessage());
+      }
+
+      LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
+      if (!workflowRuns.isEmpty()) {
+        return ResponseEntity.ok(workflowRuns);
+      }
+      if (!pauseBeforeRecheck()) {
+        break;
       }
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
@@ -235,6 +236,15 @@ public class DispatcherService {
   }
 
   public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId) {
+    return getTaskQueue(agentId, null);
+  }
+
+  /**
+   * Long-poll for TaskRuns, claiming at most {@code limit} new ones to execute - the slots the
+   * dispatcher has free - and never more than a page. A limit of 0 claims none and still hands out
+   * termination orders, which free slots rather than take them. No limit means a full page.
+   */
+  public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId, Integer limit) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
@@ -252,6 +262,7 @@ public class DispatcherService {
     }
 
     LOGGER.debug("Entity: {}", entity);
+    int executionPage = (limit == null) ? PAGE_SIZE : Math.min(PAGE_SIZE, Math.max(0, limit));
 
     // Long poll logic
     Instant endTime =
@@ -260,13 +271,16 @@ public class DispatcherService {
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug(
           "Checking queue for agent: {} with task types: {}", agentId, entity.getTaskTypes());
+      // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
+      // another agent claimed between page and claim is simply skipped. The returned pre-images
+      // carry the pending/ready wire shape the dispatcher executes. Runs claimed before an error
+      // are still handed out, so no claim is left with an agent that never hears of it.
+      List<TaskRun> taskRuns = new LinkedList<>();
       try {
-        // Page then claim: the Compare-And-Set re-checks eligibility per document, so a
-        // candidate another agent claimed between page and claim is simply skipped. The
-        // returned pre-images carry the pending/ready wire shape the dispatcher executes.
-        List<TaskRun> taskRuns = new LinkedList<>();
         for (TaskRunEntity candidate :
-            taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
+            (executionPage > 0)
+                ? taskRunService.findClaimable(entity.getTaskTypes(), executionPage)
+                : List.<TaskRunEntity>of()) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
             TaskRun taskRun = new TaskRun(claimed);
@@ -289,19 +303,35 @@ public class DispatcherService {
             taskRuns.add(new TaskRun(claimed));
           }
         }
-
-        LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
-        if (!taskRuns.isEmpty()) {
-          return ResponseEntity.ok(taskRuns);
-        }
-        // Sleep for a short interval before checking again
-        Thread.sleep(MAX_SLEEP_INTERVAL);
       } catch (Exception e) {
         LOGGER.error("Error retrieving tasks for agent {}: {}", agentId, e.getMessage());
+      }
+
+      LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
+      if (!taskRuns.isEmpty()) {
+        return ResponseEntity.ok(taskRuns);
+      }
+      if (!pauseBeforeRecheck()) {
+        break;
       }
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Wait one re-check interval before the poll looks again - after an error too, so a query that
+   * fails fast is not re-run in a tight loop for the rest of the window. Return false when the
+   * thread is interrupted, so the poll ends and the thread can stop.
+   */
+  private static boolean pauseBeforeRecheck() {
+    try {
+      Thread.sleep(MAX_SLEEP_INTERVAL);
+      return true;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
   }
 
   /**
