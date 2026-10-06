@@ -638,7 +638,7 @@ public class TaskRunService {
             .in(RunPhase.queued, RunPhase.running)
             .and("timeoutAt")
             .lte(new Date());
-    fence(criteria, observedClaimSeq);
+    criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", RunStatus.timedout)
@@ -661,7 +661,7 @@ public class TaskRunService {
       String id, Long observedClaimSeq, String statusMessage, String statusReason) {
     Criteria criteria =
         Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
-    fence(criteria, observedClaimSeq);
+    criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", RunStatus.timedout)
@@ -724,7 +724,7 @@ public class TaskRunService {
             .in(RunPhase.queued, RunPhase.running)
             .and("claim.by")
             .exists(claimed);
-    fence(criteria, observedClaimSeq);
+    criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", toStatus)
@@ -819,14 +819,14 @@ public class TaskRunService {
     return claim;
   }
 
-  // A null observed seq fences on the run being unclaimed - a claim arriving between page and
-  // Compare-And-Set carries a seq and fails the guard.
-  private static void fence(Criteria criteria, Long observedClaimSeq) {
-    if (observedClaimSeq != null) {
-      criteria.and("claim.seq").is(observedClaimSeq);
-    } else {
-      criteria.and("claim.seq").exists(false);
-    }
+  // Return the criteria fenced on the observed claim seq. A null observed seq fences on the run
+  // being unclaimed - a claim arriving between page and Compare-And-Set carries a seq and fails
+  // the guard. Criteria.and builds on a copy of the chain, so a caller must query with the
+  // returned criteria, never the one it passed in.
+  private static Criteria fence(Criteria criteria, Long observedClaimSeq) {
+    return (observedClaimSeq != null)
+        ? criteria.and("claim.seq").is(observedClaimSeq)
+        : criteria.and("claim.seq").exists(false);
   }
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
