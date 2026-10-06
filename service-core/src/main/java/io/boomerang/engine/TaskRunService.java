@@ -976,6 +976,7 @@ public class TaskRunService {
    */
   private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
     if (!RunStatus.failed.equals(request.getStatus())
+        || request.getStatusReason() == null
         || !RETRYABLE_END_REASONS.contains(request.getStatusReason())) {
       return false;
     }

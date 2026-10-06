@@ -118,6 +118,22 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aFailureWithNoReasonStillEndsTheTask() {
+    // Engine-side ends - an action rejected, a child run failed - carry no reason at all.
+    String[] claimed = claimedTask("no-reason", 0);
+
+    taskRunService.end(claimed[0], Optional.of(failed(null, claimed[1])));
+
+    awaitEngine("a failure with no reason to end the task")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity after = taskRunRepository.findById(claimed[0]).orElseThrow();
+              assertEquals(RunPhase.completed, after.getPhase());
+              assertEquals(RunStatus.failed, after.getStatus());
+            });
+  }
+
+  @Test
   void anyOtherFailureStillEndsTheTask() {
     String[] claimed = claimedTask("job-failed", 0);
 
