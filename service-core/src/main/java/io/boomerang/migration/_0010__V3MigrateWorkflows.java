@@ -4,8 +4,10 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Sorts;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -208,6 +210,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0010-v3-migrate-workflows", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0010__V3MigrateWorkflows {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0010__V3MigrateWorkflows.class);
@@ -441,7 +444,8 @@ public class _0010__V3MigrateWorkflows {
       Object templateId = dagTask.get("templateId");
       if (templateId != null) {
         String taskRef = templateId.toString();
-        if (tasksCollection.find(Filters.eq("_id", new ObjectId(taskRef))).first() == null) {
+        if (!ObjectId.isValid(taskRef)
+            || tasksCollection.find(Filters.eq("_id", new ObjectId(taskRef))).first() == null) {
           LOG.warn("Task {} references unknown task id {} — taskRef carried through unresolved", dagTask.get("label"), taskRef);
         }
         task.put("taskRef", taskRef);

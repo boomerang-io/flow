@@ -17,9 +17,9 @@ import org.springframework.core.env.Environment;
  *
  * <p>The chain migrates exactly two starting points: an empty database and a v3 install. A v4
  * install, or a database a 5.0 beta already migrated (it holds the beta's {@code
- * sys_changelog_loader}), stops startup here with a message that says why. The check reruns on
- * every start ({@link RecoveryStrategy#ALWAYS_RETRY}), so pointing the service at the right
- * database is enough to recover.
+ * sys_changelog_loader}), stops startup here with a message that says why. A refusal is retried
+ * on every start ({@link RecoveryStrategy#ALWAYS_RETRY}), so pointing the service at the right
+ * database is enough to recover; once this unit has passed, it is not run again.
  *
  * <p>The generation is read from the legacy Mongock changelog ({@code sys_changelog_flow}), which
  * keeps answering {@link InstallGeneration#V3} long after the upgrade; {@link

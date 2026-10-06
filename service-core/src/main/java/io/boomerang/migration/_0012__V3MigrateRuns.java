@@ -7,8 +7,10 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.ReplaceOneModel;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.WriteModel;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -141,6 +143,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0012-v3-migrate-runs", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0012__V3MigrateRuns {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0012__V3MigrateRuns.class);

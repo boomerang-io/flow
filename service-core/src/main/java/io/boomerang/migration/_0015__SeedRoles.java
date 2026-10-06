@@ -2,8 +2,10 @@ package io.boomerang.migration;
 
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.List;
@@ -32,6 +34,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0015-seed-roles", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0015__SeedRoles {
 
   @Apply

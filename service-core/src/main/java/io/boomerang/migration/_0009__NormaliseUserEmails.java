@@ -3,8 +3,10 @@ package io.boomerang.migration;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.result.UpdateResult;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -46,6 +48,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0009-normalise-user-emails", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0009__NormaliseUserEmails {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0009__NormaliseUserEmails.class);
@@ -106,8 +109,9 @@ public class _0009__NormaliseUserEmails {
       LOG.error(
           "users.email case collision on '{}' — {} accounts share this address once lower-cased and"
               + " have therefore been LEFT UNCHANGED (mixed case, and so unreachable by the"
-              + " exact-match lookup) rather than merged or deleted. Resolve manually, then re-run"
-              + " this change unit. Colliding _id -> email: {}",
+              + " exact-match lookup) rather than merged or deleted. This unit does not run again:"
+              + " remove or re-address the duplicate account, then lower-case the surviving email"
+              + " by hand. Colliding _id -> email: {}",
           collision.get("_id"),
           ids.size(),
           renderCollision(ids, collision.getList("emails", Object.class)));

@@ -179,6 +179,14 @@ class MigrationChainTest {
                     List.of(
                         new Document("name", "Release approvers")
                             .append("approvers", List.of(new Document("userId", "user-1"))))));
+    // A v3 team that happens to be called "system", the name the seeded system workspace owns.
+    ObjectId systemTeamId = new ObjectId();
+    collection(db, "teams")
+        .insertOne(
+            new Document("_id", systemTeamId)
+                .append("_class", "net.boomerangplatform.mongo.entity.TeamEntity")
+                .append("name", "System")
+                .append("isActive", true));
 
     migrate("v3");
 
@@ -221,7 +229,13 @@ class MigrationChainTest {
     assertThat(database("v3").listCollectionNames().into(new ArrayList<>())).doesNotContain(PREFIX + "_teams");
     Document team = collection(db, "workspaces").find(Filters.eq("_id", teamId)).first();
     assertThat(team.getString("name")).isEqualTo("platform-team");
-    assertThat(collection(db, "workspaces").find(Filters.eq("name", "system")).first()).isNotNull();
+    // The seeded system workspace is the one named "system"; the v3 team of that name is renamed.
+    List<Document> named =
+        collection(db, "workspaces").find(Filters.eq("name", "system")).into(new ArrayList<>());
+    assertThat(named).hasSize(1);
+    assertThat(named.get(0).getString("type")).isEqualTo("system");
+    assertThat(collection(db, "workspaces").find(Filters.eq("_id", systemTeamId)).first().getString("name"))
+        .isEqualTo("system-team");
 
     // The approver group stays reachable from its workspace, and its hand-off field is gone.
     Document group = collection(db, "approver_groups").find(Filters.eq("name", "Release approvers")).first();

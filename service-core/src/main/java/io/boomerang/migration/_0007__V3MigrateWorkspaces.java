@@ -3,8 +3,10 @@ package io.boomerang.migration;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -104,6 +106,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0007-v3-migrate-workspaces", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0007__V3MigrateWorkspaces {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0007__V3MigrateWorkspaces.class);
@@ -145,7 +148,13 @@ public class _0007__V3MigrateWorkspaces {
     workspace.put("_id", workspaceId);
     String displayName = source.getString("name");
     workspace.put("displayName", displayName);
-    workspace.put("name", slugify(displayName));
+    String name = slugify(displayName);
+    // "system" names the seeded system workspace, which the application resolves by name.
+    if ("system".equals(name)) {
+      name = "system-team";
+      LOG.warn("v3 team {} is named 'system'; its workspace is named {}", workspaceId, name);
+    }
+    workspace.put("name", name);
     workspace.put("creationDate", new Date());
     workspace.put("type", "hobby");
     workspace.put("status", Boolean.TRUE.equals(source.getBoolean("isActive")) ? "active" : "inactive");

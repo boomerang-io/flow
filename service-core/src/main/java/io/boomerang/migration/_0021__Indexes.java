@@ -11,8 +11,10 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.Updates;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0021-indexes", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0021__Indexes {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0021__Indexes.class);

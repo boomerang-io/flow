@@ -9,8 +9,10 @@ import com.mongodb.client.model.InsertOneModel;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.model.WriteModel;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -126,6 +128,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0013-v3-build-relationship-graph", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0013__V3BuildRelationshipGraph {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0013__V3BuildRelationshipGraph.class);

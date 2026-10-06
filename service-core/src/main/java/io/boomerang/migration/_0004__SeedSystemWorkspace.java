@@ -3,8 +3,10 @@ package io.boomerang.migration;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.List;
@@ -55,6 +57,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0004-seed-system-workspace", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0004__SeedSystemWorkspace {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0004__SeedSystemWorkspace.class);
@@ -98,8 +101,11 @@ public class _0004__SeedSystemWorkspace {
    */
   private String seedWorkspace(MongoDatabase db, CollectionNames names) {
     String collection = names.resolve("workspaces");
+    // By name and type: on a v3 install a team may also be called "system" before it is migrated.
     Document existing =
-        db.getCollection(collection).find(Filters.eq("name", WORKSPACE_NAME)).first();
+        db.getCollection(collection)
+            .find(Filters.and(Filters.eq("name", WORKSPACE_NAME), Filters.eq("type", "system")))
+            .first();
     if (existing != null) {
       LOG.info("System workspace already present — building the graph against its id");
       return existing.get("_id").toString();

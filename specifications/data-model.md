@@ -146,7 +146,11 @@ the scheduler and the dispatcher API (`migration/MigrationConfiguration.java:21`
 
 The chain migrates exactly two starting points, an empty database and an in-place v3 install, to the shape the
 application reads. `_0001` refuses anything else before writing: a v4 install, or a database a 5.0 beta already
-migrated (it holds `sys_changelog_loader`), and rechecks on every start (`_0001__GuardAndDetectGeneration.java:30,47`).
+migrated (it holds `sys_changelog_loader`); a refusal is retried on every start (`_0001__GuardAndDetectGeneration.java:30,47`).
+Every unit retries after a failure (`@Recovery(ALWAYS_RETRY)`), so a start interrupted mid-migration resumes on
+the next one. Before upgrading a v3 database, check for two users sharing one email: `_0021` refuses to delete an
+account, so a shared email fails the unique index and startup with it; two emails that differ only by case are
+left as they are and logged (`_0009__NormaliseUserEmails.java:109`).
 It records the generation once in `sys_migration_state` (`LegacyGenerationMarker.java:40`); v3-only units read that
 marker. `V3DumpMigrationTest` runs the chain against a real v3 dump and pins what an upgraded install ends with;
 `MigrationChainTest` and `SettingsFromSeedTest` cover the empty path, a v3 fixture, the refusals and the dedupes. Once

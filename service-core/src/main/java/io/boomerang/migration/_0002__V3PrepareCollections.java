@@ -2,8 +2,10 @@ package io.boomerang.migration;
 
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.MongoDatabase;
+import io.flamingock.api.RecoveryStrategy;
 import io.flamingock.api.annotations.Apply;
 import io.flamingock.api.annotations.Change;
+import io.flamingock.api.annotations.Recovery;
 import io.flamingock.api.annotations.Rollback;
 import io.flamingock.api.annotations.TargetSystem;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import org.springframework.core.env.Environment;
  */
 @Change(id = "0002-v3-prepare-collections", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
+@Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
 public class _0002__V3PrepareCollections {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0002__V3PrepareCollections.class);
