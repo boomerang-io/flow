@@ -11,23 +11,37 @@ zone, remove `ai` from the general dispatcher's list and run a second dispatcher
 
 ## Dispatcher protocol
 
-The dispatcher registers once, polls two queues every 5 seconds, sends one lease heartbeat every 30 seconds, calls three lifecycle routes, and asks one reconciliation question.
+The dispatcher registers once, long-polls two queues, sends one lease heartbeat every 30 seconds, calls three lifecycle routes, and asks one reconciliation question.
 
-| Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:50-180`) | Direction | Payload |
+| Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:45-180`) | Direction | Payload |
 | --- | --- | --- |
-| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:88-114`) |
-| `GET /{id}/workflows` | poll, 5 s (`client/EngineClient.java:25`) | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none (`DispatcherService.java:154-200`) |
-| `GET /{id}/tasks` | poll, 5 s | 200 = TaskRuns claimed for execution or termination, filtered by the registered types (`DispatcherService.java:212-271`) |
+| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:95-122`) |
+| `GET /{id}/workflows` | long poll | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none within the window (`DispatcherService.java:161-204`) |
+| `GET /{id}/tasks?limit=` | long poll | 200 = TaskRuns claimed for execution or termination, filtered by the registered types; 204 = none within the window. `limit` caps the new execution claims at the dispatcher's free slots, never above a page; `0` claims none and still returns termination orders (`DispatcherService.java:247-320`) |
 | `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:63-82`). A provisioning failure is only logged; the run stays claimed until the engine's watcher releases the stale claim for another attempt, failing the run after three (see `execution-model.md`) |
-| `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:288`) |
-| `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed |
+| `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:347`) |
+| `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `start` answers with the TaskRun; the dispatcher creates nothing when it comes back `completed` (cancelled while being handed over) or the engine refuses with a 4xx, and goes ahead when the engine cannot be reached (`client/EngineClient.java:123`, `QueueService.java:105`). `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed. `ExceededQuota` and `StartTimeout` mean the task never started: the engine requeues it instead (see "Starting a task") |
 | `PUT /{id}/heartbeat` | dispatcher → engine, every `flow.dispatcher.lease.beat-ms` (30 s) | `ids` of the task runs whose executor threads stamped `LeaseRegistry` since the last beat (`dispatcher/LeaseHeartbeat.java`); the engine renews `claim.leaseExpiresAt` for the ids this dispatcher owns (`DispatcherService.heartbeat`, `flow.dispatcher.lease-ms` 90 s) |
 
+Each queue call is a long poll: the engine holds it up to 30 s, re-checks every 1 s, and answers once it has
+claimed something, at most a page of 20 per kind; a failed claim step still hands out what that pass claimed
+(`DispatcherService.java:47-49`, `:271-317`). The dispatcher polls again at once after runs or a held window,
+and waits until 5 s after the start of a poll that failed or was answered empty at once, such as while
+claiming is off (`client/EngineClient.java:29-36`, `:236-281`). A newly ready task is claimed within about
+1 s while a dispatcher for its type has a free slot.
+
+**Slots.** A dispatcher runs at most `flow.dispatcher.task.max-in-flight` tasks at once (25; 0 is no cap). A
+slot is taken when a task to execute arrives, before the hand-off, and given back when its executor work ends,
+a Pending pod included; each task poll sends `limit` = the free slots (`dispatcher/TaskSlots.java`,
+`EngineClient.java:220-224,264`, `QueueService.java:149`). Termination orders take no slot, so a full
+dispatcher still hears that its own tasks were cancelled. Work it does not claim stays claimable by others.
+
 Claims are compare-and-set per document, so two dispatchers never receive the same run
-(`DispatcherService.java:176-182`). Releasing storage is not claimed work and carries no run state: the
+(`DispatcherService.java:280-305`). Releasing storage is not claimed work and carries no run state: the
 dispatcher lists what it holds from the cluster and the engine answers which owners are finished, so the same
 question asked twice gets the same answer. A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
-is a termination order: the dispatcher cancels the runtime object and reports nothing (`QueueService.java:88-95`).
+is a termination order: the dispatcher cancels the runtime object and reports nothing, not even when there is
+nothing left to cancel (`QueueService.java:117-128`).
 
 **Token.** The dispatcher sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on every engine
 call (`config/RestConfig.java:52,120`): an ordinary global-scope Flow token with a machine actor kind, minted
@@ -85,6 +99,24 @@ after `kube.timeout.failedConditionGraceSeconds` (60) without a condition it is 
 instead of creating a second one. The
 Jobs executor mounts a `script` task's body from a per-task ConfigMap at `/scripts/script`, which MUST
 start with a shebang (`KubeJobsExecutor.java:295-311`).
+
+**Starting a task.** Starting is bounded apart from running, and a task that never started is handed back
+rather than failed:
+
+| Situation | Reported as | Then |
+| --- | --- | --- |
+| Create refused by a namespace quota (403 "exceeded quota") | `ExceededQuota` (`dispatcher/TaskService.java:89`) | the engine requeues it |
+| Create refused by an admission webhook | `AdmissionDenied` (`:95`) | the task fails |
+| A container held on an image it cannot pull (`ErrImagePull`, `ImagePullBackOff`, `InvalidImageName`, `ImageInspectError`) for `kube.timeout.startFailureGraceSeconds` (60) | `ImagePull` | the runtime object is deleted; the task fails |
+| A container that cannot be created (`CreateContainerConfigError`, `CreateContainerError`) for the same grace | `DispatchError` | the runtime object is deleted; the task fails |
+| The pod still Pending - unschedulable, held by a quota, never created - `kube.timeout.startMinutes` (15; 0 is off) after the watch began | `StartTimeout` | the runtime object is deleted; the engine requeues it |
+
+Each reconcile tick reads the task's pod - init containers included, and Tekton's `step-task` container as well
+as the Jobs executor's `task` - until the pod leaves Pending (`kube/KubeHelperService.java:480-523`,
+`executor/PodStartWatch.java`, `KubeJobsExecutor.java:439`, `TektonServiceImpl.java:540`). The engine requeues
+`ExceededQuota` and `StartTimeout` on the same budget as a timed-out claimant: three more attempts with backoff,
+then the task fails with that reason (`engine/TaskRunService.java:977`). Kubernetes 429, 5xx and network errors
+are retried inside the Kubernetes client before any of this applies.
 
 ## What the container receives
 
@@ -366,7 +398,7 @@ six results come back through `RESULTS_PATH`, and that contract is shared betwee
 catalogue revision in this repository — a param or result added on one side has to land on the other.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
-(`DispatcherService.java:212-271`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
+(`DispatcherService.java:247-320`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
 deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
 isolation tiers. No configuration separates zones inside one dispatcher.
 

@@ -72,3 +72,6 @@ things by name, not by code.
 | 0086 | [Engine mode runs schedules and insights](0086-engine-mode-runs-schedules-and-insights.md) | accepted | 2026-09-29 |
 | 0087 | [One page header on every route, and a page inside an object is titled with its name](0087-one-page-header-and-object-names-as-titles.md) | accepted | 2026-09-29 |
 | 0092 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0092-workspace-parameter-references.md) | accepted | 2026-09-30 |
+| 0094 | [The dispatcher reconnects at once after a poll](0094-dispatcher-reconnects-at-once-after-a-poll.md) | accepted | 2026-10-02 |
+| 0095 | [A dispatcher claims only what it has slots for](0095-a-dispatcher-claims-only-what-it-has-slots-for.md) | accepted | 2026-10-05 |
+| 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
