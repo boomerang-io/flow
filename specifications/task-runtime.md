@@ -41,7 +41,7 @@ QUERY_INVALID_FILTERS`), `task` (task slugs, resolved to `taskRef`s) and `workfl
 on the workflow definition, resolved to `workflowRef`s). Values are comma-separated with `*` as the only,
 anchored wildcard; filters are ANDed and values ORed. Resolutions are cached 30 s; a filter that matches
 nothing answers 204 at once. Termination orders follow the same filters. An unfiltered poll can still claim
-filtered work (`dispatcher/ClaimFilterService.java`, `engine/TaskRunService.java:97-119,181-189`).
+filtered work (`dispatcher/ClaimFilterService.java`, `engine/TaskRunService.java:97-119,182-191`).
 
 Claims are compare-and-set per document, so two dispatchers never receive the same run
 (`DispatcherService.java:300-325`). Releasing storage is not claimed work and carries no run state: the

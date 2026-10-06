@@ -343,7 +343,7 @@ pull-based and separate from its control plane; none pushes. What they have that
 | Filter | State | Evidence |
 | ------ | ----- | -------- |
 | By task type | Present — registration carries `taskTypes`, the claim query filters on them | `DispatcherService.java:260-340`; `TaskRunService.findClaimable:97-119` |
-| By task or workflow, per poll | Present — optional `type`, `task` and `workflowLabel` filters, resolved to typed refs; an unfiltered dispatcher still competes for filtered work | `dispatcher/ClaimFilterService.java`; `TaskRunService.java:181-189` |
+| By task or workflow, per poll | Present — optional `type`, `task` and `workflowLabel` filters, resolved to typed refs; an unfiltered dispatcher still competes for filtered work | `dispatcher/ClaimFilterService.java`; `TaskRunService.java:182-191` |
 | By dispatcher capability (zone, cluster) | Absent — a dispatcher declares nothing about where it runs | `findClaimable` has no capability criterion |
 | Run → dispatcher affinity | Absent, and a latent multi-cluster bug: the run-scoped volume is created in whichever cluster claimed `workflowrun/start`, but each TaskRun is claimed independently, so a dispatcher in another cluster can claim a task whose workspace it cannot mount | `WorkspaceService.java:44-102`; `findClaimable` |
 

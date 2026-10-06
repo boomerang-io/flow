@@ -22,7 +22,7 @@ could re-route every task in a run.
 
 C. `ClaimFilterService` resolves `task` slugs to task ids and `workflowLabel` to the ids of the workflows
 carrying it, cached 30 s; `TaskRunService.findClaimable` and the termination pages add `taskRef in` and
-`workflowRef in` after the claim index (`service-core/.../engine/TaskRunService.java:97-119,181-189`). Claims,
+`workflowRef in` after the claim index (`service-core/.../engine/TaskRunService.java:97-119,182-191`). Claims,
 sweeps and fencing read typed fields only; a label on the workflow definition scopes which work a poll asks
 for, and is never read once the claim query runs.
 
