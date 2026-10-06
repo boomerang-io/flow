@@ -11,6 +11,7 @@ import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
+import io.boomerang.executor.PodStartWatch;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.executor.TaskResourceResolver;
@@ -78,6 +79,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Value("${kube.timeout.reconcileSeconds}")
   protected long reconcileSeconds;
+
+  @Value("${kube.timeout.startMinutes:15}")
+  protected long startMinutes;
+
+  @Value("${kube.timeout.startFailureGraceSeconds:60}")
+  protected long startFailureGraceSeconds;
 
   @Override
   public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
@@ -494,6 +501,11 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     List<TaskRunResult> tknResults;
 
     TaskWatcher taskWatcher = new TaskWatcher(latch);
+    PodStartWatch podStartWatch =
+        new PodStartWatch(
+            Instant.now(),
+            java.time.Duration.ofMinutes(startMinutes),
+            java.time.Duration.ofSeconds(startFailureGraceSeconds));
     Watch watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
 
     try {
@@ -522,6 +534,17 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
           watch.close();
           watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
           taskWatcher.resetWatchLost();
+        }
+        if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
+          TaskExecutionException startFailure =
+              podStartWatch.check(
+                  helperKubeService.podStart(client.adapt(KubernetesClient.class), taskLabels),
+                  Instant.now());
+          if (startFailure != null) {
+            // Nothing ran: remove the TaskRun so a pod that cannot start stops holding capacity.
+            deleteTaskRun(workflowId, workflowActivityId, taskActivityId, customLabels);
+            throw startFailure;
+          }
         }
       }
 
