@@ -26,13 +26,14 @@ released by the dispatcher reconciling what it holds against the engine, never b
 
 ## The claim-based queue
 
-Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates with `findClaimable` and claims each one individually (`dispatcher/DispatcherService.java:280-305`); the poll window, re-check and reconnect timing are in `task-runtime.md`.
+Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates with `findClaimable` and claims each one individually (`dispatcher/DispatcherService.java:300-325`); the poll window, re-check and reconnect timing are in `task-runtime.md`.
 
 - `findClaimable` selects `status=ready`, `phase=pending`, `type` in the dispatcher's registered types, no `claim.by`,
-  and `retry.after` absent or elapsed, oldest `creationDate` first (`engine/TaskRunService.java:84-104`).
+  and `retry.after` absent or elapsed, oldest `creationDate` first, narrowed by any `taskRef`/`workflowRef` a poll's
+  filters resolved to (see `task-runtime.md`) (`engine/TaskRunService.java:97-119`).
 - `tryClaim` is one `findAndModify` that re-checks the full eligibility and, in the same write, sets
   `phase=queued`, `claim.by`, `claim.at`, `$inc claim.seq`, clears `retry.after` and bakes `timeoutAt`
-  (`TaskRunService.java:241-282`). A null result means another dispatcher won; the loser skips the candidate.
+  (`TaskRunService.java:275-316`). A null result means another dispatcher won; the loser skips the candidate.
 - `claim.seq` is never cleared and fences stale claimants. The dispatcher names itself on every `start` and `end`
   (`dispatcherRef` on `TaskRunStartRequest`/`TaskRunEndRequest`, the value the engine wrote to `claim.by`;
   `service-dispatcher/.../client/EngineClient.java`). A request whose `dispatcherRef` does not match `claim.by` is
@@ -47,7 +48,7 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   sets the lease 90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases`, fenced on `claim.by`;
   `flow.dispatcher.lease-ms`). A requeue unsets it (`TaskRunService.java:583`). A claim that was never
   heartbeated holds no lease and is recovered by the deadline and gone-dispatcher sweeps alone.
-- A global kill switch exists: `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`DispatcherService.java:56-57`, `:162`, `:248`).
+- A global kill switch exists: `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`DispatcherService.java:57-58`, `:166`, `:262`).
 
 ## Compare-and-set transitions instead of locks
 
@@ -132,7 +133,7 @@ jitter (`lib-common/.../util/Backoff.java:12-21`). The result is stored as `retr
 | Situation | Retried? | Where |
 | --- | --- | --- |
 | Task run times out or its dispatcher disappears, type is requeueable, attempts < 3 | yes, requeued with backoff | `EngineConstants.java:18-34`, `WorkflowWatcher.java:199`, `:517` |
-| Dispatcher reports it could not start the task (`ExceededQuota`, `StartTimeout`), type is requeueable, attempts < 3 | yes, requeued with backoff on the same budget; once spent, the task fails with that reason | `TaskRunService.java:61`, `:977` |
+| Dispatcher reports it could not start the task (`ExceededQuota`, `StartTimeout`), type is requeueable, attempts < 3 | yes, requeued with backoff on the same budget; once spent, the task fails with that reason | `TaskRunService.java:62`, `:1004` |
 | Task run reported `failed`/`invalid` by the dispatcher for any other reason | no — the run advances or fails | `TaskExecutionService.java:463-473` |
 | Gate, wait or inline system task times out | no — terminal `timedout` | `EngineConstants.java:18-31` |
 | Workflow run times out and `retries` > 0 | yes, as a NEW workflow run (`trigger=retry`, `initiatedByRef`) | `WorkflowExecutionService.java:245-264`, `WorkflowRunService.java:941-1010` |
