@@ -12,6 +12,7 @@ import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.ArtifactService;
@@ -89,18 +90,25 @@ public class TaskRunService {
   // Return the page of TaskRuns eligible for claiming by an executor of the given types: ready,
   // pending, unclaimed, with any retry backoff elapsed, oldest first.
   public List<TaskRunEntity> findClaimable(List<TaskType> types, int limit) {
+    return findClaimable(ClaimFilter.of(types), limit);
+  }
+
+  // The same page, narrowed to a dispatcher poll's task and workflow filters.
+  public List<TaskRunEntity> findClaimable(ClaimFilter filter, int limit) {
     Criteria criteria =
-        Criteria.where("status")
-            .is(RunStatus.ready)
-            .and("phase")
-            .is(RunPhase.pending)
-            .and("type")
-            .in(types)
-            .and("claim.by")
-            .exists(false)
-            .orOperator(
-                Criteria.where("retry.after").exists(false),
-                Criteria.where("retry.after").lte(new Date()));
+        narrowed(
+            Criteria.where("status")
+                .is(RunStatus.ready)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("type")
+                .in(filter.types())
+                .and("claim.by")
+                .exists(false),
+            filter);
+    criteria.orOperator(
+        Criteria.where("retry.after").exists(false),
+        Criteria.where("retry.after").lte(new Date()));
     Query query =
         Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
@@ -124,10 +132,16 @@ public class TaskRunService {
   //
   // A run that was never claimed provisioned nothing and is deliberately excluded from both.
   public List<TaskRunEntity> findClaimableForTermination(List<TaskType> types, int limit) {
+    return findClaimableForTermination(ClaimFilter.of(types), limit);
+  }
+
+  // The same pages, narrowed to a dispatcher poll's task and workflow filters, so a filtered
+  // dispatcher is told to terminate exactly the work it could have claimed.
+  public List<TaskRunEntity> findClaimableForTermination(ClaimFilter filter, int limit) {
     List<TaskRunEntity> candidates =
         new ArrayList<>(
             findOwnedResidue(
-                types,
+                filter,
                 limit,
                 Criteria.where("phase")
                     .is(RunPhase.completed)
@@ -143,22 +157,37 @@ public class TaskRunService {
                     .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))));
     candidates.addAll(
         findOwnedResidue(
-            types,
+            filter,
             limit,
             Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
     return candidates;
   }
 
   // One indexed termination page: the given status/phase shape, restricted to the agent's task
-  // types and to runs a dispatcher still owns, oldest first.
-  private List<TaskRunEntity> findOwnedResidue(List<TaskType> types, int limit, Criteria shape) {
+  // types and filters and to runs a dispatcher still owns, oldest first.
+  private List<TaskRunEntity> findOwnedResidue(ClaimFilter filter, int limit, Criteria shape) {
     Query query =
-        Query.query(shape.and("type").in(types).and("claim.by").exists(true))
+        Query.query(
+                narrowed(shape.and("type").in(filter.types()).and("claim.by").exists(true), filter))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     // The claim page only needs the id - tryClaimForTermination re-reads and transitions by id.
     query.fields().include("_id");
     return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // A poll's task and workflow filters apply after the index has picked the ready (or owned) runs
+  // of the right types, so the oldest-first order is kept and the unfiltered page loses nothing.
+  // Criteria.and builds on a copy of the chain, so only the returned criteria carries the filter.
+  private static Criteria narrowed(Criteria criteria, ClaimFilter filter) {
+    Criteria narrowed = criteria;
+    if (filter.taskRefs() != null) {
+      narrowed = narrowed.and("taskRef").in(filter.taskRefs());
+    }
+    if (filter.workflowRefs() != null) {
+      narrowed = narrowed.and("workflowRef").in(filter.workflowRefs());
+    }
+    return narrowed;
   }
 
   // Termination Compare-And-Set: re-checks one of the two owned-residue shapes and RELEASES the

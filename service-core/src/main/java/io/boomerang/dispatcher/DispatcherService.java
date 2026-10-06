@@ -21,6 +21,7 @@ import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
+import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.workflow.ArtifactService;
 import java.time.Instant;
 import java.util.Date;
@@ -66,18 +67,21 @@ public class DispatcherService {
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
   private final ArtifactService artifactService;
+  private final ClaimFilterService claimFilterService;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
       WorkflowRunStateHelper workflowRunStateHelper,
       TaskRunService taskRunService,
       MongoTemplate mongoTemplate,
-      ArtifactService artifactService) {
+      ArtifactService artifactService,
+      ClaimFilterService claimFilterService) {
     this.agentRepository = agentRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
     this.artifactService = artifactService;
+    this.claimFilterService = claimFilterService;
   }
 
   /**
@@ -245,6 +249,16 @@ public class DispatcherService {
    * termination orders, which free slots rather than take them. No limit means a full page.
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId, Integer limit) {
+    return getTaskQueue(agentId, limit, null, null, null);
+  }
+
+  /**
+   * Long-poll for TaskRuns as above, narrowed by optional filters: task types, task slugs, and a
+   * label on the workflow definition (see {@link ClaimFilterService}). Termination orders follow
+   * the same filters. A filter that matches nothing answers at once with no content.
+   */
+  public ResponseEntity<List<TaskRun>> getTaskQueue(
+      String agentId, Integer limit, String type, String task, String workflowLabel) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
@@ -263,6 +277,12 @@ public class DispatcherService {
 
     LOGGER.debug("Entity: {}", entity);
     int executionPage = (limit == null) ? PAGE_SIZE : Math.min(PAGE_SIZE, Math.max(0, limit));
+    ClaimFilter filter =
+        claimFilterService.resolve(entity.getTaskTypes(), type, task, workflowLabel);
+    if (filter.matchesNothing()) {
+      LOGGER.debug("Agent {} poll filters match no TaskRun. Returning 204.", agentId);
+      return ResponseEntity.noContent().build();
+    }
 
     // Long poll logic
     Instant endTime =
@@ -270,7 +290,7 @@ public class DispatcherService {
     LOGGER.debug("Starting long poll queue for agent: {}", agentId);
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug(
-          "Checking queue for agent: {} with task types: {}", agentId, entity.getTaskTypes());
+          "Checking queue for agent: {} with task types: {}", agentId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
       // another agent claimed between page and claim is simply skipped. The returned pre-images
       // carry the pending/ready wire shape the dispatcher executes. Runs claimed before an error
@@ -279,7 +299,7 @@ public class DispatcherService {
       try {
         for (TaskRunEntity candidate :
             (executionPage > 0)
-                ? taskRunService.findClaimable(entity.getTaskTypes(), executionPage)
+                ? taskRunService.findClaimable(filter, executionPage)
                 : List.<TaskRunEntity>of()) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
@@ -296,7 +316,7 @@ public class DispatcherService {
         // claim release is what makes it one agent's job, stops the run being redelivered on the
         // next poll, and (for a retry) is what re-arms the node for its next attempt.
         for (TaskRunEntity candidate :
-            taskRunService.findClaimableForTermination(entity.getTaskTypes(), PAGE_SIZE)) {
+            taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
           TaskRunEntity claimed =
               taskRunService.tryClaimForTermination(candidate.getId(), agentId);
           if (claimed != null) {
