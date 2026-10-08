@@ -1,9 +1,9 @@
 package io.boomerang.kube;
 
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskEnvVar;
-import io.boomerang.common.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
 import io.fabric8.tekton.v1.TaskRun;
 import java.text.ParseException;
 import java.util.List;

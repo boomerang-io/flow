@@ -3,7 +3,7 @@ package io.boomerang.kube;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.boomerang.client.EngineClient;
+import io.boomerang.dispatcher.sdk.Dispatcher;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -31,7 +31,7 @@ class KubeServiceImplWorkspaceTest {
 
   @Autowired private KubeServiceImpl kubeService;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   void setUp() {

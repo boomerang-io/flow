@@ -57,8 +57,8 @@ second, and answers as soon as it has claimed something — at most a page of 20
 
 A dispatcher SHOULD poll again as soon as a poll returns runs or was held for its window, and SHOULD wait about
 5 s after a poll that failed or was answered at once with nothing — claiming switched off
-(`flow.queue.enabled=false`) and a filter that matches nothing both answer that way. Flow's dispatcher does
-exactly this (`service-dispatcher/.../client/EngineClient.java:29-36`).
+(`flow.queue.enabled=false`) and a filter that matches nothing both answer that way. The SDK's poller does
+exactly this (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:68-87`).
 
 The task poll takes optional query parameters:
 
@@ -136,6 +136,27 @@ dispatcher that runs nothing on shared storage MAY skip both.
 
 Every error body is the engine's standard shape — `timestamp`, `code`, `reason`, `message`, `status` — except
 the authentication filter's bare 401 (`CLAUDE.md`, "API errors").
+
+## SDK
+
+`dispatcher-sdk`, the dispatcher software development kit (SDK), is this protocol as a Java library, so a
+dispatcher author writes only the work; Flow's Kubernetes dispatcher is built on it. It depends on `spring-web`
+and Jackson and nothing else, owns its wire
+models (`model/*`, unknown fields ignored, an unknown enum value read as `unknown`), and its own
+`DispatcherContractTest` fails when a schema, property, enum value or route in `contracts/dispatcher-v1.yaml` is
+neither modelled nor listed as deliberately not. Paths are under `dispatcher-sdk/.../dispatcher/sdk/`.
+
+| Class | Gives the author |
+| --- | --- |
+| `DispatcherClient` | One method per route over the host's `RestClient` (keeping its proxy, certificates and timeouts), the token on engine calls only (`DispatcherClient.java:56-64`) |
+| `Dispatcher` | Registration retried with backoff until the engine answers; one long-poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java:100-148`, `:189-224`) |
+| `TaskRunner` | The start answer honoured; the end retried with backoff until the engine takes it or refuses it with a 4xx, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`TaskRunner.java:89-220`) |
+| `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` (`TaskFailure.exceededQuota`, `startTimeout` for the requeued reasons); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal and the artifact transfer |
+| `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim time, the download verified against `sha256` (`ArtifactTransfer.java:83-131`) |
+
+It is published to GitHub Packages as `io.boomerang:dispatcher-sdk`, versioned with the product tag
+(`https://maven.pkg.github.com/boomerang-io/flow`; `.github/workflows/ci-release.yml`, job `publish-sdk`), and is
+the only Flow library published. Reading it needs a GitHub token with `read:packages`.
 
 ## Changes
 

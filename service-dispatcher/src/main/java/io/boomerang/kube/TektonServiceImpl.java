@@ -1,13 +1,12 @@
 package io.boomerang.kube;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.dispatcher.WorkspaceService;
-import io.boomerang.common.enums.StorageType;
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskEnvVar;
-import io.boomerang.common.model.TaskWorkspace;
+import io.boomerang.kube.StorageType;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
@@ -87,7 +86,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   protected long startFailureGraceSeconds;
 
   @Override
-  public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
+  public void create(io.boomerang.dispatcher.sdk.model.TaskRun task, Long timeoutMinutes)
       throws InterruptedException, ParseException {
     createTaskRun(
         task.getWorkflowRef(),
@@ -110,7 +109,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   }
 
   @Override
-  public List<RunResult> watch(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
+  public List<RunResult> watch(io.boomerang.dispatcher.sdk.model.TaskRun task, Long timeoutMinutes)
       throws InterruptedException {
     return watchTaskRun(
         task.getWorkflowRef(),
@@ -121,12 +120,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   }
 
   @Override
-  public void cancel(io.boomerang.common.model.TaskRun task) {
+  public void cancel(io.boomerang.dispatcher.sdk.model.TaskRun task) {
     cancelTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
   }
 
   @Override
-  public void delete(io.boomerang.common.model.TaskRun task) {
+  public void delete(io.boomerang.dispatcher.sdk.model.TaskRun task) {
     deleteTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
   }
 
@@ -163,13 +162,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Value("${dispatcher.tasks.runtimeClassName}")
   private String kubeWorkerRuntimeClassName;
 
-  private final LeaseRegistry leaseRegistry;
-
   TektonClient client = null;
 
-  public TektonServiceImpl(TektonClient client, LeaseRegistry leaseRegistry) {
+  public TektonServiceImpl(TektonClient client) {
     this.client = client;
-    this.leaseRegistry = leaseRegistry;
   }
 
   // Tests swap in the mock-server client after the context is up.
@@ -509,14 +505,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     Watch watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
 
     try {
-      leaseRegistry.beat(taskActivityId);
       // A backstop only, for the case where Tekton's own timeout interrupt never reaches this
       // watch. The engine owns the deadline and reaps at the task budget plus a few seconds, so it
       // always acts first; this grace exists to release the thread and report, not to wait for
       // provisioning. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
       Instant deadline = Instant.now().plus(java.time.Duration.ofMinutes(timeout + watchGraceMinutes));
       while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
-        leaseRegistry.beat(taskActivityId);
         if (Instant.now().isAfter(deadline)) {
           throw new TaskExecutionException(
               "DeadlineExceeded", "TaskRunTimeout - Task timed out while waiting for completion.");
@@ -568,7 +562,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       throw e;
     } finally {
       watch.close();
-      leaseRegistry.remove(taskActivityId);
     }
   }
 

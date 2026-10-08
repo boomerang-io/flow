@@ -53,12 +53,13 @@ other burst. Each item end reads its siblings once to decide whether the parent 
 costs n indexed reads of at most n documents.
 
 Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`DispatcherService.java:48-50`),
-and reconnect as soon as a poll returns (`service-dispatcher/.../client/EngineClient.java:29-36`). Each
+and reconnect as soon as a poll returns (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:68-87`). Each
 connected dispatcher therefore costs about 3 indexed queries per second when idle (task claim, task
 termination, run provision) and one request every 30 s per queue. A newly ready task waits at most about
-1 s for a connected dispatcher with a free slot. A dispatcher runs at most `flow.dispatcher.task.max-in-flight`
-tasks (25), a Pending pod included, and each poll claims no more than its free slots, so under a backlog the
-work it cannot run stays claimable by other dispatchers (`service-dispatcher/.../dispatcher/TaskSlots.java`).
+1 s for a connected dispatcher with a free slot. A dispatcher holds at most `flow.dispatcher.task.max-in-flight`
+tasks (25), a Pending pod and a retried end report included, and each poll claims no more than its free slots, so
+under a backlog the work it cannot run stays claimable by other dispatchers
+(`dispatcher-sdk/.../dispatcher/sdk/InFlightTasks.java:28`).
 `flow.queue.enabled=false` stops claiming only; sweeps keep running (`DispatcherService.java:57-58,166,262`).
 While claiming is off the engine answers each poll at once with 204, and the dispatcher then waits 5 s between
 polls.
@@ -112,12 +113,13 @@ these beans has to ask for virtual threads itself.
 | `asyncTaskExecutor` | `engine/config/AsyncConfig.java:20-23` | Task-run transitions (`TaskExecutionService`), audit writes |
 | `asyncWorkflowExecutor` | `engine/config/AsyncConfig.java:25-28` | Workflow-run execution and timeout (`WorkflowExecutionService:125,155`) |
 | `logStreamExecutor` | `core/config/AsyncConfiguration.java:24-30` | The default `@Async` executor, and Spring MVC's async dispatch — a log stream parks its thread for the life of the stream |
-| `applicationTaskExecutor` (dispatcher) | `service-dispatcher/.../config/ThreadConfig.java:33-40` | Every dispatcher `@Async` method: `QueueService.processWorkflowRun`, `processTaskRun` (blocks for the whole life of the Task), `TaskService.deleteTaskRun` |
+| `applicationTaskExecutor` (dispatcher) | `service-dispatcher/.../config/ThreadConfig.java:32-39` | The dispatcher's one `@Async` method, `TaskService.deleteTaskRun` |
+| Dispatcher SDK work | `dispatcher-sdk/.../dispatcher/sdk/Dispatcher.java:68-69` | One virtual thread per claimed task (start, handler, end report) and per workflow run to provision; the polls and the heartbeat have virtual threads of their own |
 
 The dispatcher bean has to stay `@Primary`. Spring resolves `@Async` by asking for the one `TaskExecutor`
-bean, and a `ThreadPoolTaskScheduler` is itself a `TaskExecutor` — so while the 3-thread `taskScheduler`
-(`ThreadConfig.java:15-22`) was the module's only one, every hand-off landed on the scheduler's threads,
-behind the queue polls and the lease heartbeat. `AsyncExecutorResolutionTest` pins the resolution.
+bean, and a `ThreadPoolTaskScheduler` is itself a `TaskExecutor` — so without it every hand-off would land on
+the 2-thread `taskScheduler` (`ThreadConfig.java:15-24`) behind the reconcilers. `AsyncExecutorResolutionTest`
+pins the resolution.
 
 Nothing caps how many tasks run at once on any of them — the fixed pools these replaced bounded only the
 queue (100 000 deep), and a full queue rejected with an exception nothing handled. What shapes load is the

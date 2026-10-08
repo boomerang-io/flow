@@ -36,7 +36,7 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   (`TaskRunService.java:275-316`). A null result means another dispatcher won; the loser skips the candidate.
 - `claim.seq` is never cleared and fences stale claimants. The dispatcher names itself on every `start` and `end`
   (`dispatcherRef` on `TaskRunStartRequest`/`TaskRunEndRequest`, the value the engine wrote to `claim.by`;
-  `service-dispatcher/.../client/EngineClient.java`). A request whose `dispatcherRef` does not match `claim.by` is
+  `dispatcher-sdk/.../dispatcher/sdk/TaskRunner.java:157-206`). A request whose `dispatcherRef` does not match `claim.by` is
   rejected with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged (`TaskRunService.rejectSupersededClaimant`,
   called at `:755` and `:792`), and the claimant is re-checked on the handler's entry (`claimantIsValid`,
   `engine/TaskExecutionService.java:546-570`). A request with no identity is accepted as the legacy protocol.
@@ -64,7 +64,7 @@ workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its 
 on the submit route, so parking is the explicit opt-out.
 
 A dispatcher that fails to provision, or dies holding the claim, does not tell the engine; the run stays
-`ready/queued` and claimed (`service-dispatcher/.../dispatcher/QueueService.java:77-81`). The
+`ready/queued` and claimed (`dispatcher-sdk/.../dispatcher/sdk/WorkflowRunner.java:38-49`). The
 `recoverStaleProvisionClaims` sweep recovers it: a claim older than `flow.watcher.provision-claim-grace-ms`
 (default 5 minutes, well above the dispatcher's 30 s wait per storage claim) is released for the next poll, and
 once `claim.seq` shows the third claim went stale the run is completed `failed` with the message "Workspace

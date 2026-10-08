@@ -8,7 +8,8 @@ import org.springframework.context.annotation.Bean;
 import io.swagger.v3.oas.models.OpenAPI;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@EnableAsync
+// Class proxies: TaskService implements the SDK's TaskHandler and is still injected by its class.
+@EnableAsync(proxyTargetClass = true)
 @SpringBootApplication
 @EnableAutoConfiguration
 @EnableScheduling

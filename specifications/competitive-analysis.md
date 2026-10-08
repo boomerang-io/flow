@@ -25,7 +25,7 @@ target its job runs.
 | Typed failure reason per instance (`last_failure_reason`, `retries`) | `statusReason` is a typed string on `TaskRunEndRequest` and `TaskRunEntity` (`OOMKilled`, `ImagePull`, `DeadlineExceeded`, `AdmissionDenied`, `ResultsTooLarge`, `DispatchError`, `DispatcherGone`, `LeaseExpired`); the container's exit code is not recorded | `exitCode` beside `statusReason`. Needs the data-model review. |
 | Attempt number visible to the task (`JOB_INDEX_RETRY_COUNT`, `JOB_RETRY_LIMIT`) | The engine tracks `retry.count` (`lib-common/src/main/java/io/boomerang/common/model/RunRetry.java:15-19`) but the pod environment carries none of it (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:111-150`); a requeued task re-runs blind | `FLOW_ATTEMPT` and `FLOW_MAX_ATTEMPTS` beside `FLOW_VERSION`. Dispatcher only; lets tasks checkpoint and key their side effects. |
 | Resources mandatory, defaulted and clamped | No `resources` on `TaskSpec`/`TaskRunSpec` (`lib-common/src/main/java/io/boomerang/common/model/TaskSpec.java:15-23`); `KubeJobsExecutor` sets no `ResourceRequirements`; Tekton's are commented out (`service-dispatcher/src/main/java/io/boomerang/kube/TektonServiceImpl.java:205-228, 410`). Every task pod is `BestEffort`: first evicted, invisible to bin-packing | `resources {cpu, memory, ephemeralStorage}` on `TaskSpec`, dispatcher defaults plus a per-dispatcher clamp, reusing the quota family that already clamps `maxWorkflowDuration` (`WorkflowService.java:614-619`). Needs the data-model review. |
-| Admission is quota-bounded: runs wait `pending` until capacity | A dispatcher holds a fixed number of slots, `flow.dispatcher.task.max-in-flight` (25), each held from claim until the Task's runtime object finishes; each poll claims no more than the free slots, so unclaimed work stays in Mongo for other dispatchers (`service-dispatcher/src/main/java/io/boomerang/dispatcher/TaskSlots.java`, `service-core/src/main/java/io/boomerang/dispatcher/DispatcherService.java:260-340`) | Adopted as a per-dispatcher count, not per type or class: those caps still wait for load evidence. |
+| Admission is quota-bounded: runs wait `pending` until capacity | A dispatcher holds a fixed number of slots, `flow.dispatcher.task.max-in-flight` (25), each held from claim until the engine has taken the task's end; each poll claims no more than the free slots, so unclaimed work stays in Mongo for other dispatchers (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/InFlightTasks.java`, `service-core/src/main/java/io/boomerang/dispatcher/DispatcherService.java:260-340`) | Adopted as a per-dispatcher count, not per type or class: those caps still wait for load evidence. |
 
 Parity already: 7-day cleanup (`kube.task.ttlDays`, `service-dispatcher/src/main/resources/application.properties:39`); one run per
 inbound event with a small typed payload (their 4 KB cron cap against Flow's 16 KB `flow.engine.task.params.max-bytes`,
@@ -314,8 +314,8 @@ Each row is a design three or more products converged on independently.
 **Liveness.** Temporal, Trigger.dev, Kestra, n8n and Code Engine all detect a dead worker within seconds to a minute,
 and Flow now matches them. The dispatcher runs a reconcile loop (`kube.timeout.reconcileSeconds=30`) that re-lists
 the Job by label, re-opens a lost watch and adopts an existing Job for a re-claimed TaskRun instead of creating a
-second one; `TaskWatcher` no longer exits the process on a closed watch. Each executor thread stamps a local
-`LeaseRegistry` and one `LeaseHeartbeat` per dispatcher sends `PUT /api/v1/dispatcher/{id}/heartbeat {ids}` every
+second one; `TaskWatcher` no longer exits the process on a closed watch. One heartbeat per dispatcher, from the
+dispatcher SDK, sends `PUT /api/v1/dispatcher/{id}/heartbeat {ids}` for every task in flight every
 `flow.dispatcher.lease.beat-ms=30000`; the engine's `renewLeases` writes `claim.leaseExpiresAt` with
 `flow.dispatcher.lease-ms=90000` in one multi-document update fenced on `claim.by`, and the `reapExpiredLeases`
 sweep requeues or abandons with `statusReason=LeaseExpired`. A per-task heartbeat request was rejected: at 200
@@ -327,7 +327,7 @@ in-flight tasks it is 6.7 requests per second per dispatcher; the batch is one r
 | Pod dies, watch open | `JobWatcher.eventReceived` → `end(failed)` with a typed reason | Seconds |
 | Pod dies, watch closed | The reconcile loop re-lists the Job and re-opens the watch | One reconcile interval (30 s) |
 | Pod hangs, no progress | `activeDeadlineSeconds` + `timeoutAt` | The task timeout — accepted; container-per-task has no generic progress signal |
-| Dispatcher thread dies or an exception is swallowed | `QueueService` reports `failed` with `statusReason=DispatchError` | Immediate |
+| Dispatcher thread dies or an exception is swallowed | The SDK's `TaskRunner` reports `failed` with `statusReason=DispatchError`, retrying the report until the engine takes it | Immediate |
 
 **Where Flow is differentiated.** A durable DAG with joins and typed per-task timeouts (against code-first replay: Temporal,
 Trigger.dev, Vercel); Apache-2.0 with RBAC, audit, Kubernetes execution and workspaces in the open-source product (against
