@@ -5,9 +5,11 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.executor.PodStart;
 import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.ContainerState;
+import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.HostAlias;
@@ -466,12 +468,58 @@ public class KubeHelperService {
         .map(PodStatus::getContainerStatuses)
         .orElse(List.of())
         .stream()
-        .filter(cs -> "task".equals(cs.getName()))
+        .filter(cs -> isTaskContainer(cs.getName()))
         .map(ContainerStatus::getState)
         .filter(Objects::nonNull)
         .findFirst()
         .map(this::reasonFromContainerState)
         .orElse(null);
+  }
+
+  // The Jobs executor names the container "task"; Tekton prefixes each step's container "step-".
+  private static boolean isTaskContainer(String name) {
+    return "task".equals(name) || "step-task".equals(name);
+  }
+
+  /**
+   * Look at how far the Task's pod has got towards running: started once it has left Pending.
+   * While it waits, report the first container - init containers included - held on a waiting
+   * reason, else why the scheduler has not placed it.
+   */
+  public PodStart podStart(KubernetesClient client, Map<String, String> taskLabels) {
+    List<Pod> pods = client.pods().withLabels(taskLabels).list().getItems();
+    if (pods.isEmpty()) {
+      return PodStart.notCreated();
+    }
+    PodStatus status = pods.get(0).getStatus();
+    if (status != null && status.getPhase() != null && !"Pending".equals(status.getPhase())) {
+      return PodStart.running();
+    }
+    List<ContainerStatus> containers = new ArrayList<>();
+    if (status != null) {
+      containers.addAll(Optional.ofNullable(status.getInitContainerStatuses()).orElse(List.of()));
+      containers.addAll(Optional.ofNullable(status.getContainerStatuses()).orElse(List.of()));
+    }
+    for (ContainerStatus container : containers) {
+      if (container.getState() != null && container.getState().getWaiting() != null) {
+        ContainerStateWaiting waiting = container.getState().getWaiting();
+        if (waiting.getReason() != null && !"PodInitializing".equals(waiting.getReason())
+            && !"ContainerCreating".equals(waiting.getReason())) {
+          return PodStart.pending(
+              waiting.getReason(), container.getName() + ": " + waiting.getMessage());
+        }
+      }
+    }
+    String unscheduled =
+        Optional.ofNullable(status)
+            .map(PodStatus::getConditions)
+            .orElse(List.of())
+            .stream()
+            .filter(c -> "PodScheduled".equals(c.getType()) && "False".equals(c.getStatus()))
+            .map(c -> "not scheduled: " + c.getMessage())
+            .findFirst()
+            .orElse("the pod is pending");
+    return PodStart.pending(null, unscheduled);
   }
 
   private String reasonFromContainerState(ContainerState state) {

@@ -74,7 +74,7 @@ crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two
 | `position` | each task in a workflow revision (canvas coordinates) | `WorkflowService.java:1136` | No |
 | `workspace-name` | workflow run at submit; copied to task runs | `WorkflowService.java:648`, `DAGUtility.java:157-160` | Yes — `TaskExecutionService.java:760` |
 | `task-timeout`, `task-default-image`, `task-deletion` | workflow run at submit (workspace executor settings) | `WorkflowService.java:631-637` | Yes — `DAGUtility.java:198-247` |
-| `global-params`, `context-params`, `workspace-params` | workflow run at submit; stripped from read payloads | `WorkflowService.java:642-644`, `WorkflowRunService.java:977-979` | Yes — `ParameterManager.java:179-192` |
+| `global-params`, `context-params`, `workspace-params` | No longer written; runs created earlier still carry them, stripped from read payloads and from a child run's request | `WorkflowRunService.java:1153`, `WorkflowService.java:708` | No — the layers are read from their stores (`ParameterManager.java:247`) |
 | `status` | task run, by the inbound-event handler (escaped key) | `TaskRunService.java:357-370` | Yes — `TaskExecutionService.java:931` |
 
 Not stored: `icon`, `params`, `category`, `displayName`, `version`, `verified` exist only in Tekton YAML exports

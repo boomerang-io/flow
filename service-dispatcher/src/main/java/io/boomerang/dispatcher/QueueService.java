@@ -53,17 +53,21 @@ public class QueueService {
 
   private final LeaseRegistry leaseRegistry;
 
+  private final TaskSlots taskSlots;
+
   public QueueService(
       WorkflowService workflowService,
       WorkspaceService workspaceService,
       TaskService taskService,
       @Lazy EngineClient engineClient,
-      LeaseRegistry leaseRegistry) {
+      LeaseRegistry leaseRegistry,
+      TaskSlots taskSlots) {
     this.workflowService = workflowService;
     this.workspaceService = workspaceService;
     this.taskService = taskService;
     this.engineClient = engineClient;
     this.leaseRegistry = leaseRegistry;
+    this.taskSlots = taskSlots;
   }
 
   @Async
@@ -98,7 +102,10 @@ public class QueueService {
         LOGGER.info("Executing TaskRun...");
         // Communicate the start with the Engine
         // prior to Tekton starting as it is a blocking Watch call.
-        engineClient.startTask(request.getId());
+        if (!engineClient.startTask(request.getId())) {
+          LOGGER.info("TaskRun ({}) is no longer to be run. Not creating it.", request.getId());
+          return;
+        }
         TaskResponse response = new TaskResponse();
         response = taskService.execute(request);
         TaskRunEndRequest endRequest = new TaskRunEndRequest();
@@ -111,7 +118,14 @@ public class QueueService {
           && (RunStatus.cancelled.equals(request.getStatus())
               || RunStatus.timedout.equals(request.getStatus()))) {
         LOGGER.info("Cancelling TaskRun...");
-        taskService.terminate(request);
+        try {
+          taskService.terminate(request);
+        } catch (Exception e) {
+          // A termination order has no end to report: the engine has already finished or requeued
+          // the TaskRun. Nothing left to cancel is the ordinary case after a start failure, which
+          // deletes the runtime object before reporting.
+          LOGGER.warn("TaskRun ({}) termination: {}", request.getId(), e.getMessage());
+        }
       } else {
         // TODO turn this into the types of tasks that this Agent supports
         LOGGER.info(
@@ -131,6 +145,9 @@ public class QueueService {
       endFailed(request.getId(), "DispatchError", e.getMessage(), List.of());
     } finally {
       leaseRegistry.remove(request.getId());
+      if (TaskSlots.isExecutionClaim(request)) {
+        taskSlots.release();
+      }
     }
   }
 

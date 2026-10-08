@@ -13,6 +13,7 @@ import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
 import io.boomerang.error.TaskExecutionException;
+import io.boomerang.executor.PodStartWatch;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.executor.TaskResourceResolver;
@@ -101,6 +102,12 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   @Value("${kube.timeout.failedConditionGraceSeconds}")
   private long failedConditionGraceSeconds;
+
+  @Value("${kube.timeout.startMinutes:15}")
+  private long startMinutes;
+
+  @Value("${kube.timeout.startFailureGraceSeconds:60}")
+  private long startFailureGraceSeconds;
 
   @Value("${kube.image.pullPolicy}")
   private String kubeImagePullPolicy;
@@ -395,6 +402,9 @@ public class KubeJobsExecutor implements TaskExecutor {
 
     final CountDownLatch latch = new CountDownLatch(1);
     JobWatcher jobWatcher = new JobWatcher(latch, Duration.ofSeconds(failedConditionGraceSeconds));
+    PodStartWatch podStartWatch =
+        new PodStartWatch(
+            Instant.now(), Duration.ofMinutes(startMinutes), Duration.ofSeconds(startFailureGraceSeconds));
     Watch watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
 
     try {
@@ -423,6 +433,21 @@ public class KubeJobsExecutor implements TaskExecutor {
           watch.close();
           watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
           jobWatcher.resetWatchLost();
+        }
+        if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
+          TaskExecutionException startFailure =
+              podStartWatch.check(helperKubeService.podStart(client, taskLabels), Instant.now());
+          if (startFailure != null) {
+            // Nothing ran: remove the Job so a pod that cannot start stops holding capacity.
+            client
+                .batch()
+                .v1()
+                .jobs()
+                .withLabels(taskLabels)
+                .withPropagationPolicy(DeletionPropagation.BACKGROUND)
+                .delete();
+            throw startFailure;
+          }
         }
       }
 

@@ -19,6 +19,9 @@ import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.TaskExecutionException;
 import java.time.Duration;
+import io.boomerang.error.BoomerangError;
+import io.boomerang.error.BoomerangException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import io.boomerang.common.model.RunResult;
@@ -37,9 +40,16 @@ class QueueServiceDispatchTest {
   private final TaskService taskService = mock(TaskService.class);
   private final EngineClient engineClient = mock(EngineClient.class);
   private final LeaseRegistry leaseRegistry = new LeaseRegistry();
+  private final TaskSlots taskSlots = new TaskSlots(25);
 
   private final QueueService queueService =
-      new QueueService(workflowService, workspaceService, taskService, engineClient, leaseRegistry);
+      new QueueService(
+          workflowService, workspaceService, taskService, engineClient, leaseRegistry, taskSlots);
+
+  @BeforeEach
+  void engineAcceptsTheStart() {
+    when(engineClient.startTask(any())).thenReturn(true);
+  }
 
   private static TaskRun taskRun(RunPhase phase) {
     return taskRun(TaskType.template, phase, RunStatus.ready);
@@ -100,6 +110,42 @@ class QueueServiceDispatchTest {
 
     verify(engineClient).startTask("task-1");
     verify(engineClient).endTask(eq("task-1"), any(TaskRunEndRequest.class));
+  }
+
+  @Test
+  void aTaskTheEngineSaysIsFinishedIsNeverCreated() {
+    // Cancelled while it was being handed over: the engine's start answer says so, and creating
+    // its pod now would run work nobody waits for.
+    when(engineClient.startTask("task-1")).thenReturn(false);
+
+    queueService.processTaskRun(taskRun(RunPhase.queued));
+
+    verify(taskService, never()).execute(any());
+    verify(engineClient, never()).endTask(any(), any());
+  }
+
+  @Test
+  void theSlotIsGivenBackWhenTheTaskEnds() {
+    when(taskService.execute(any())).thenReturn(new TaskResponse());
+    taskSlots.take();
+
+    queueService.processTaskRun(taskRun(RunPhase.queued));
+
+    assertEquals(25, taskSlots.free());
+  }
+
+  @Test
+  void aFailedTerminationReportsNoEnd() {
+    // The runtime object is already gone after a start failure; the engine has requeued or
+    // finished the TaskRun, so there is no end to report.
+    when(taskService.terminate(any()))
+        .thenThrow(
+            new BoomerangException(
+                BoomerangError.TASK_EXECUTION_ERROR, "CANCEL_FAILURE - No jobs found"));
+
+    queueService.processTaskRun(taskRun(TaskType.template, RunPhase.completed, RunStatus.timedout));
+
+    verify(engineClient, never()).endTask(any(), any());
   }
 
   @Test

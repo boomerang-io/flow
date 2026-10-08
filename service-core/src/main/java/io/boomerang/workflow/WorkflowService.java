@@ -9,6 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
@@ -175,6 +176,7 @@ public class WorkflowService {
   private final RunTimeoutPolicy runTimeoutPolicy;
   private final boolean quotasEnabled;
   private final ObjectMapper objectMapper;
+  private final ParamLayerCache paramLayerCache;
 
   // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
   // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
@@ -198,7 +200,8 @@ public class WorkflowService {
       ObjectProvider<WorkspaceService> workspaceService,
       RunTimeoutPolicy runTimeoutPolicy,
       Environment environment,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ParamLayerCache paramLayerCache) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -215,6 +218,7 @@ public class WorkflowService {
     this.runTimeoutPolicy = runTimeoutPolicy;
     this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
     this.objectMapper = objectMapper;
+    this.paramLayerCache = paramLayerCache;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -702,11 +706,10 @@ public class WorkflowService {
       executionAnnotations.put("boomerang.io/task-timeout", taskTimeoutSetting);
     }
 
-    // Add Context, Global, and Workspace parameters to the WorkflowRun request
-    ParamLayers paramLayers = paramLayerService.buildParamLayers(team, workflow);
-    executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
-    executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
-    executionAnnotations.put("boomerang.io/workspace-params", paramLayers.getWorkspaceParams());
+    // Global, workspace and context parameters are not copied onto the run: the engine reads them
+    // from their stores each time it resolves. A child run's request carries its parent's
+    // annotations, so the keys older runs were given are dropped here too.
+    request.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.
@@ -1619,6 +1622,7 @@ public class WorkflowService {
     request.setId(wfEntity.getId());
     wfRevisionEntity.setWorkflowRef(wfEntity.getId());
     workflowRevisionRepository.save(wfRevisionEntity);
+    paramLayerCache.evictAll();
     // TODO: figure out a better approach to rollback
 
     Workflow workflow = ConvertUtil.wfEntityToModel(wfEntity, wfRevisionEntity);
@@ -1910,6 +1914,7 @@ public class WorkflowService {
     newWorkflowRevisionEntity.setWorkflowRef(workflowRevisionEntity.getWorkflowRef());
 
     workflowRevisionRepository.save(newWorkflowRevisionEntity);
+    paramLayerCache.evictAll();
 
     Workflow appliedWorkflow =
         ConvertUtil.wfEntityToModel(workflowEntity, newWorkflowRevisionEntity);
