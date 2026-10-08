@@ -85,12 +85,12 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 | `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:711-731`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:109-110`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`:178-188`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:379-385`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:764-781`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`); or at startup from `flow.security.bootstrap-token` (below) |
+| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`); or at startup from `flow.security.engine-token` (below) |
 
-**The bootstrap token** is how a tokens-only engine is first reached. When `flow.security.bootstrap-token` is
-set — `bfg_` and at least 32 more characters, else the start fails — `BootstrapTokenService` stores its hash at
-startup as a global `**/**` token with `actorKind=SERVICE` under the fixed id `bootstrap`
-(`core/security/BootstrapTokenService.java`). A restart changes nothing, instances starting together converge on
+**The engine token** is how a tokens-only engine is first reached. When `flow.security.engine-token` is
+set — `bfg_` and at least 32 more characters, else the start fails — `EngineTokenService` stores its hash at
+startup as a global `**/**` token with `actorKind=SERVICE` under the fixed id `engine-token`
+(`core/security/EngineTokenService.java`). A restart changes nothing, instances starting together converge on
 one record, and a new value replaces the old hash and evicts it from the local token cache. Blank registers
 nothing, in either mode.
 

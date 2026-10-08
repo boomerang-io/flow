@@ -81,4 +81,4 @@ things by name, not by code.
 | 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
 | 0097 | [A dispatcher's poll filters by task type, task and workflow label, resolved to typed refs](0097-dispatcher-polls-filter-by-task-and-workflow-label.md) | accepted | 2026-10-06 |
 | 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
-| 0098 | [A secured engine accepts only Flow-minted tokens, and a bootstrap token opens it](0098-a-secured-engine-accepts-only-flow-minted-tokens.md) | accepted | 2026-10-08 |
+| 0098 | [A secured engine accepts only Flow-minted tokens, and an engine token opens it](0098-a-secured-engine-accepts-only-flow-minted-tokens.md) | accepted | 2026-10-08 |

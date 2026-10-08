@@ -14,10 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * The bootstrap token is registered once, survives restarts unchanged, is replaced when the
+ * The engine token is registered once, survives restarts unchanged, is replaced when the
  * operator supplies a new value, and refuses a value too weak to be a global token.
  */
-class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
+class EngineTokenServiceTest extends AbstractEngineIntegrationTest {
 
   private static final String FIRST = "bfg_" + "a".repeat(40);
   private static final String SECOND = "bfg_" + "b".repeat(40);
@@ -27,22 +27,22 @@ class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
   @Autowired private TokenLookupCache lookupCache;
 
   @AfterEach
-  void removeBootstrapToken() {
-    tokenRepository.deleteById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID);
+  void removeEngineToken() {
+    tokenRepository.deleteById(EngineTokenService.ENGINE_TOKEN_ID);
     lookupCache.evictAll();
   }
 
-  private BootstrapTokenService bootstrap(String value) {
-    return new BootstrapTokenService(value, tokenService, tokenRepository, lookupCache);
+  private EngineTokenService engineToken(String value) {
+    return new EngineTokenService(value, tokenService, tokenRepository, lookupCache);
   }
 
   @Test
-  void theBootstrapTokenAuthenticatesAsAGlobalServiceToken() {
-    bootstrap(FIRST).register();
+  void theEngineTokenAuthenticatesAsAGlobalServiceToken() {
+    engineToken(FIRST).register();
 
     assertThat(tokenService.validate(FIRST)).isTrue();
     TokenEntity stored =
-        tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID).orElseThrow();
+        tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID).orElseThrow();
     assertThat(stored.getType()).isEqualTo(AuthScope.global);
     assertThat(stored.getActorKind()).isEqualTo(TokenActorKind.SERVICE);
     assertThat(stored.getToken()).isNotEqualTo(FIRST);
@@ -50,23 +50,23 @@ class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void registeringAgainChangesNothing() {
-    bootstrap(FIRST).register();
+    engineToken(FIRST).register();
     TokenEntity first =
-        tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID).orElseThrow();
+        tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID).orElseThrow();
 
-    bootstrap(FIRST).register();
+    engineToken(FIRST).register();
 
     TokenEntity again =
-        tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID).orElseThrow();
+        tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID).orElseThrow();
     assertThat(again.getCreationDate()).isEqualTo(first.getCreationDate());
   }
 
   @Test
   void aNewValueReplacesTheOldOne() {
-    bootstrap(FIRST).register();
+    engineToken(FIRST).register();
     assertThat(tokenService.validate(FIRST)).isTrue();
 
-    bootstrap(SECOND).register();
+    engineToken(SECOND).register();
 
     assertThat(tokenService.validate(SECOND)).isTrue();
     assertThat(tokenService.validate(FIRST)).isFalse();
@@ -74,15 +74,15 @@ class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aWeakValueStopsTheStart() {
-    assertThrows(IllegalStateException.class, () -> bootstrap("bfg_short").register());
+    assertThrows(IllegalStateException.class, () -> engineToken("bfg_short").register());
     assertThrows(
-        IllegalStateException.class, () -> bootstrap("bfk_" + "a".repeat(40)).register());
+        IllegalStateException.class, () -> engineToken("bfk_" + "a".repeat(40)).register());
   }
 
   @Test
   void aBlankValueRegistersNothing() {
-    bootstrap("").register();
+    engineToken("").register();
 
-    assertThat(tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID)).isEmpty();
+    assertThat(tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID)).isEmpty();
   }
 }
