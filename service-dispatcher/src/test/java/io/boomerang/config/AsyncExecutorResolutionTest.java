@@ -13,8 +13,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 /**
  * Pins which executor {@code @Async} work runs on. A ThreadPoolTaskScheduler is itself a
  * TaskExecutor, so leaving it as the module's only one puts every {@code @Async} hand-off - a
- * dispatched TaskRun among them, which blocks for the whole life of the Task - on the three
- * scheduler threads, behind the queue polls and the lease heartbeat.
+ * runtime-object delete among them, which waits out a grace first - on the scheduler threads,
+ * behind the reconcilers.
  */
 class AsyncExecutorResolutionTest {
 

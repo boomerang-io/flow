@@ -1,9 +1,13 @@
 package io.boomerang.dispatcher;
 
-import io.boomerang.dispatcher.model.TaskResponse;
-import io.boomerang.common.enums.TaskDeletion;
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskRun;
+import io.boomerang.dispatcher.sdk.TaskContext;
+import io.boomerang.dispatcher.sdk.TaskFailure;
+import io.boomerang.dispatcher.sdk.TaskHandler;
+import io.boomerang.dispatcher.sdk.TaskResult;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskDeletion;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
@@ -20,8 +24,13 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+/**
+ * The container task handler: runs a task as a Kubernetes object through the configured {@link
+ * TaskExecutor} and turns how it ended into the SDK's outcome. The SDK has already started the
+ * task with the engine, renews its lease while this runs, and reports the end.
+ */
 @Service
-public class TaskService {
+public class TaskService implements TaskHandler {
 
   private static final Logger LOGGER = LogManager.getLogger(TaskService.class);
 
@@ -57,63 +66,72 @@ public class TaskService {
     return timeout != null && timeout != 0 ? timeout : taskTimeout;
   }
 
-  public TaskResponse terminate(TaskRun task) {
-    TaskResponse response =
-        new TaskResponse("0", "Task (" + task.getId() + ") is meant to be terminated now.", null);
-
-    executor.cancel(task);
-
-    return response;
+  @Override
+  public TaskResult run(TaskRun task, TaskContext context) {
+    try {
+      return TaskResult.of(
+          execute(task), "Task (" + task.getId() + ") has been executed successfully.");
+    } catch (TaskExecutionException e) {
+      throw new TaskFailure(e.getStatusReason(), e.getMessage(), e.getResults());
+    } catch (BoomerangException e) {
+      throw new TaskFailure(TaskFailure.DISPATCH_ERROR, e.getMessage(), e);
+    }
   }
 
-  public TaskResponse execute(TaskRun task) {
-    TaskResponse response =
-        new TaskResponse("0", "Task (" + task.getId() + ") has been executed successfully.", null);
+  /** Cancel the task's runtime object; throws when there is none to cancel. */
+  @Override
+  public void cancel(TaskRun task) {
+    executor.cancel(task);
+  }
+
+  /**
+   * Create the task's runtime object, wait for it to finish and return its results. Throws {@link
+   * TaskExecutionException} carrying the typed reason when it failed or never started.
+   */
+  public List<RunResult> execute(TaskRun task) {
     List<RunResult> results = new ArrayList<>();
     // Resolved, not read off the spec: an `ai` task carries no image of its own and the
     // dispatcher supplies the worker image for it (TaskImageResolver).
     if (imageResolver.image(task) == null) {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
-    } else {
-      Long timeout = getTaskTimeout(task.getTimeout());
-      try {
-        executor.create(task, timeout);
-        results = executor.watch(task, timeout);
-        if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
-          // This will only delete on success as failure throws an Exception.
-          self.deleteTaskRun(task);
-        }
-      } catch (KubernetesClientException e) {
-        // A namespace quota refusing the object is the cluster being full, not the task being
-        // wrong: reported as ExceededQuota, which the engine requeues for another attempt.
-        if (e.getCode() == 403 && e.getMessage() != null && e.getMessage().contains("exceeded quota")) {
-          LOGGER.info(e.toString());
-          throw new TaskExecutionException("ExceededQuota", "EXCEEDED_QUOTA - " + e.getMessage());
-        }
-        // KubernetesClientException handles the case where an internal admission
-        // controller rejects the creation
-        if (e.getMessage().contains("admission webhook")) {
-          LOGGER.info(e.toString());
-          throw new TaskExecutionException("AdmissionDenied", "ADMISSION_WEBHOOK_DENIED - " + e.getMessage());
-        } else {
-          throw new TaskExecutionException("DispatchError", e.toString());
-        }
-      } catch (KubeRuntimeException e) {
-        LOGGER.info("DEBUG::Task Is Being Set as Failed");
-        throw new TaskExecutionException("DispatchError", e.toString());
-      } catch (InterruptedException e) {
-        throw new TaskExecutionException("DispatchError", "TASK_CREATION_ERROR - " + e.getMessage());
-      } catch (ParseException e) {
-        throw new TaskExecutionException("DeadlineExceeded", "TASK_CREATION_TIMEOUT_ERROR - " + e.getMessage());
-      } finally {
-        response.setResults(results);
-        if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
-          self.deleteTaskRun(task);
-        }
-        LOGGER.info("Task (" + task.getId() + ") has completed with code " + response.getCode());
-      }
     }
-    return response;
+    Long timeout = getTaskTimeout(task.getTimeout());
+    try {
+      executor.create(task, timeout);
+      results = executor.watch(task, timeout);
+      if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
+        // This will only delete on success as failure throws an Exception.
+        self.deleteTaskRun(task);
+      }
+    } catch (KubernetesClientException e) {
+      // A namespace quota refusing the object is the cluster being full, not the task being
+      // wrong: reported as ExceededQuota, which the engine requeues for another attempt.
+      if (e.getCode() == 403 && e.getMessage() != null && e.getMessage().contains("exceeded quota")) {
+        LOGGER.info(e.toString());
+        throw new TaskExecutionException("ExceededQuota", "EXCEEDED_QUOTA - " + e.getMessage());
+      }
+      // KubernetesClientException handles the case where an internal admission
+      // controller rejects the creation
+      if (e.getMessage().contains("admission webhook")) {
+        LOGGER.info(e.toString());
+        throw new TaskExecutionException("AdmissionDenied", "ADMISSION_WEBHOOK_DENIED - " + e.getMessage());
+      } else {
+        throw new TaskExecutionException("DispatchError", e.toString());
+      }
+    } catch (KubeRuntimeException e) {
+      LOGGER.info("DEBUG::Task Is Being Set as Failed");
+      throw new TaskExecutionException("DispatchError", e.toString());
+    } catch (InterruptedException e) {
+      throw new TaskExecutionException("DispatchError", "TASK_CREATION_ERROR - " + e.getMessage());
+    } catch (ParseException e) {
+      throw new TaskExecutionException("DeadlineExceeded", "TASK_CREATION_TIMEOUT_ERROR - " + e.getMessage());
+    } finally {
+      if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
+        self.deleteTaskRun(task);
+      }
+      LOGGER.info("Task (" + task.getId() + ") has completed.");
+    }
+    return results;
   }
 
   /**

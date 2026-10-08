@@ -2,7 +2,7 @@ package io.boomerang.kube;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.boomerang.client.EngineClient;
+import io.boomerang.dispatcher.sdk.Dispatcher;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
@@ -24,7 +24,7 @@ public class KubeServiceImplTest {
   @Autowired private KubeServiceImpl kubeService;
 
   // The agent registers with the engine at startup; no engine runs in tests.
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {

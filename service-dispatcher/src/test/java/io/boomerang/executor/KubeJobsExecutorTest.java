@@ -6,13 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.client.EngineClient;
-import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunSpec;
-import io.boomerang.common.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.Dispatcher;
+import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.kube.KubeJobsExecutor;
@@ -75,7 +75,7 @@ public class KubeJobsExecutorTest {
   private String flowProduct;
 
   // The agent registers with the engine at startup; no engine runs in tests.
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {
@@ -365,7 +365,7 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
 
   @Autowired private KubeJobsExecutor kubeJobsExecutor;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {
@@ -449,7 +449,7 @@ class KubeJobsExecutorReconcileTest {
 
   @Autowired private KubeJobsExecutor kubeJobsExecutor;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {
@@ -707,7 +707,7 @@ class KubeJobsExecutorTolerationsHostAliasesTest {
 
   @Autowired private KubeJobsExecutor kubeJobsExecutor;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {
@@ -779,7 +779,7 @@ class KubeJobsExecutorEmptyTolerationsHostAliasesTest {
 
   @Autowired private KubeJobsExecutor kubeJobsExecutor;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {

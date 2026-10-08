@@ -1,8 +1,7 @@
 package io.boomerang.kube;
 
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.util.ParameterUtil;
-import io.boomerang.common.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.PodStart;
@@ -144,7 +143,7 @@ public class KubeHelperService {
               params.stream().map(RunParam::getName).collect(Collectors.joining(","))));
       Map<String, String> paramNameByEnvName = new HashMap<>();
       for (RunParam p : params) {
-        String name = "PARAM_" + ParameterUtil.envFold(p.getName());
+        String name = "PARAM_" + envFold(p.getName());
         String collidingParam = paramNameByEnvName.put(name, p.getName());
         if (collidingParam != null) {
           throw new BoomerangException(
@@ -173,6 +172,15 @@ public class KubeHelperService {
     envVars.add(createEnvVar("BMRG_TASKRUN_ID", taskActivityId));
     envVars.add(createEnvVar("BMRG_TASKRUN_NAME", taskName.replace(" ", "")));
     return envVars;
+  }
+
+  /**
+   * Fold a param name into its environment variable suffix: upper-cased, with any character
+   * outside {@code [A-Za-z0-9_]} replaced by {@code _}. Locale.ROOT so the fold matches task-core's
+   * JavaScript toUpperCase() on every JVM locale; the engine refuses names that collide under it.
+   */
+  static String envFold(String name) {
+    return name.toUpperCase(Locale.ROOT).replaceAll("[^A-Za-z0-9_]", "_");
   }
 
   /**

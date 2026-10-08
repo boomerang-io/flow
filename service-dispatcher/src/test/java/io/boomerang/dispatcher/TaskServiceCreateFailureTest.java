@@ -7,9 +7,9 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.common.enums.TaskDeletion;
-import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.TaskDeletion;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;

@@ -3,9 +3,9 @@ package io.boomerang.executor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;

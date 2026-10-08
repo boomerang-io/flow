@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.client.EngineClient;
+import io.boomerang.dispatcher.sdk.Dispatcher;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.PodStatus;
@@ -160,7 +160,7 @@ class KubeLogServiceStreamTest {
   @Autowired private KubeHelperService helperKubeService;
 
   // The agent registers with the engine at startup; no engine runs in tests.
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   @BeforeEach
   public void setUp() {
