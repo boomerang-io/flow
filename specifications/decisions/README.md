@@ -81,3 +81,4 @@ things by name, not by code.
 | 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
 | 0097 | [A dispatcher's poll filters by task type, task and workflow label, resolved to typed refs](0097-dispatcher-polls-filter-by-task-and-workflow-label.md) | accepted | 2026-10-06 |
 | 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
+| 0099 | [Engine mode is a single-workspace installation whose parameters are writable](0099-engine-mode-writes-its-workspace-parameters.md) | accepted | 2026-10-08 |
