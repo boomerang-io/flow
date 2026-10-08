@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -60,6 +61,9 @@ public class SecurityConfiguration {
   @Value("${flow.authorization.basic.password:}")
   private String basicPassword;
 
+  @Autowired
+  private Environment environment;
+
   //TODO figure out why we also have to have the permitAll matches in the doNotFilter of AuthenticationFilter
     // @Order required now that DispatcherSecurityConfiguration's /api/v1/** chain (E8.2a merge)
     // also lives in this context: it must evaluate FIRST (lower value), this chain evaluates last.
@@ -67,7 +71,12 @@ public class SecurityConfiguration {
     @Order(2)
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
-          new AuthenticationFilter(tokenService, settingsService, basicPassword, authEntryPoint);
+          new AuthenticationFilter(
+              tokenService,
+              settingsService,
+              basicPassword,
+              authEntryPoint,
+              FlowSecurityProperties.isTokenOnly(environment));
       http.csrf(csrf -> csrf.disable())
           .authorizeHttpRequests(
               authorize ->

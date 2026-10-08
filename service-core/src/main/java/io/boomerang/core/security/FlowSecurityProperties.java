@@ -27,4 +27,14 @@ public final class FlowSecurityProperties {
     }
     return FlowMode.resolve(environment) == FlowMode.STANDALONE;
   }
+
+  /**
+   * Whether only a Flow-minted token may identify a caller: engine mode with security on. No
+   * authenticating proxy stands in front of an engine, so an unsigned JWT, the shared Basic
+   * password or a forwarded identity header would let any caller name itself. A session cookie is
+   * still accepted - it carries a Flow-minted session token, as the verified sign-in mints it.
+   */
+  public static boolean isTokenOnly(Environment environment) {
+    return isSecurityEnabled(environment) && FlowMode.resolve(environment) == FlowMode.ENGINE;
+  }
 }

@@ -69,17 +69,22 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   private SettingsService settingsService;
   private String basicPassword;
   private AuthenticationEntryPoint authEntryPoint;
+  // Engine mode with security on: only a Flow-minted token identifies a caller - see
+  // FlowSecurityProperties.isTokenOnly. The JWT, Basic and forwarded-identity sources are skipped.
+  private boolean tokenOnly;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
-      AuthenticationEntryPoint authEntryPoint) {
+      AuthenticationEntryPoint authEntryPoint,
+      boolean tokenOnly) {
     super();
     this.tokenService = tokenService;
     this.settingsService = settingsService;
     this.basicPassword = basicPassword;
     this.authEntryPoint = authEntryPoint;
+    this.tokenOnly = tokenOnly;
   }
 
   /*
@@ -99,14 +104,14 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       if (req.getHeader(AUTHORIZATION_HEADER) != null) {
         if (req.getHeader(AUTHORIZATION_HEADER).matches(TOKEN_PATTERN)) {
           authentication = getTokenAuthentication(req.getHeader(AUTHORIZATION_HEADER));
-        } else {
+        } else if (!tokenOnly) {
           authentication = getUserSessionAuthentication(req);
         }
       } else if (req.getHeader(X_ACCESS_TOKEN_HEADER) != null) {
         authentication = getTokenAuthentication(req.getHeader(X_ACCESS_TOKEN_HEADER));
       } else if (req.getParameter(TOKEN_URL_PARAM_NAME) != null) {
         authentication = getTokenAuthentication(req.getParameter(TOKEN_URL_PARAM_NAME));
-      } else if (req.getHeader(X_FORWARDED_EMAIL) != null) {
+      } else if (!tokenOnly && req.getHeader(X_FORWARDED_EMAIL) != null) {
         authentication = getGithubUserAuthentication(req);
       } else if (getSessionCookieValue(req) != null) {
         authentication = getTokenAuthentication(getSessionCookieValue(req));

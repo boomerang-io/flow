@@ -18,25 +18,34 @@ returns the property when it is set, otherwise `true` for `flow.mode=standalone`
 The worker-facing `/api/v1/**` chain (`dispatcher/DispatcherSecurityConfiguration.java:41-50`) is ordered
 first and is independent of this switch — see "Dispatcher endpoints".
 
+**A secured engine accepts only Flow-minted tokens.** With `flow.mode=engine` and security on,
+`FlowSecurityProperties.isTokenOnly` holds and `AuthenticationFilter` skips the sources that mint an identity from
+unverified input — an unsigned JWT (row 1b), the Basic password (1c) and forwarded identity headers (4) — so they
+end in 401 (`core/security/AuthenticationFilter.java:104-118`). A Flow token in the header, `x-access-token`,
+the query parameter or the `flow_session` cookie still authenticates. No authenticating proxy stands in front of an
+engine. The webapp runs against an engine with security off (`architecture.md`, run modes); with security on it has
+no way to sign in, because the sign-in endpoints (`AuthControllerV2`, `AuthExchangeService`) load only in
+standalone mode. Its session cookie is a Flow-minted token, so a verified sign-in loaded in engine mode would pass.
+
 ## Authentication: how a caller becomes a `Token`
 
 `AuthenticationFilter` checks the identity sources in a fixed order and stops at the first one present
-(`core/security/AuthenticationFilter.java:103-117`). It is loaded only when security is on (`:43`).
+(`core/security/AuthenticationFilter.java:104-118`). It is loaded only when security is on (`:41`).
 
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
-| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token) | `getTokenAuthentication` (`:271-286`) | SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:398-423`) |
-| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:184-231`) | JWT is parsed for `email`/`emailAddress` and names, **not signature-verified**; a session token is minted for that email |
-| 1c | `Authorization: Basic email:password` | same method (`:232-261`) | password must equal `flow.authorization.basic.password`; session token minted for the email |
+| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token) | `getTokenAuthentication` (`:272-287`) | SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:398-423`) |
+| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:185-232`) | JWT is parsed for `email`/`emailAddress` and names, **not signature-verified**; a session token is minted for that email |
+| 1c | `Authorization: Basic email:password` | same method (`:233-262`) | password must equal `flow.authorization.basic.password`; session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
-| 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:50-57`) |
-| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:291-315`) | session token minted for the forwarded email |
-| 5 | `flow_session` cookie | `getTokenAuthentication` (`:115-116,148-159`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
+| 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:48-54`) |
+| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:292-316`) | session token minted for the forwarded email |
+| 5 | `flow_session` cookie | `getTokenAuthentication` (`:116-117,149-160`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
 normalised email for 60 seconds per instance (`core/TokenService.java:585-619`). User creation is allowed
 only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
-(`AuthenticationFilter.java:172-182`).
+(`AuthenticationFilter.java:173-183`).
 
 Rows 1, 2, 3 and 5 resolve the bearer through `TokenLookupCache` (`core/security/TokenLookupCache.java`), a
 per-instance Caffeine cache keyed by the stored SHA-256 hash and holding the validated `TokenEntity`, so the
@@ -48,10 +57,10 @@ on every hit. Entries live 60 seconds and the cache holds at most 10 000 (`flow.
 (`core/TokenService.java:458-472`); `touchLastUsed` does not evict. Eviction is per instance: after a revoke on
 one instance, another instance MAY still honour the token until its own entry ages out, at most the TTL.
 
-No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:128-132`), except on
+No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:129-133`), except on
 `/api/v2/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
-(`:123-127`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
-`/api/v2/auth/config` (`:339-346`); `SecurityConfiguration.java:74-77` also permits `/info`, `/webjars`, the
+(`:124-128`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
+`/api/v2/auth/config` (`:320-327`); `SecurityConfiguration.java:74-77` also permits `/info`, `/webjars`, the
 Slack install URL and the exchange endpoint.
 
 ### Session sign-in (the browser flow)
@@ -77,7 +86,14 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 | `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:711-731`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:109-110`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`:178-188`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:379-385`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:764-781`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`) |
+| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`); or at startup from `flow.security.engine-token` (below) |
+
+**The engine token** is how a tokens-only engine is first reached. When `flow.security.engine-token` is
+set — `bfg_` and at least 32 more characters, else the start fails — `EngineTokenService` stores its hash at
+startup as a global `**/**` token with `actorKind=SERVICE` under the fixed id `engine-token`
+(`core/security/EngineTokenService.java`). A restart changes nothing, instances starting together converge on
+one record, and a new value replaces the old hash and evicts it from the local token cache. Blank registers
+nothing, in either mode.
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
 human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:388-391`), and a bearer that does
@@ -163,4 +179,4 @@ The rest of `/api/v1/**` is `permitAll` and relies on network isolation.
 ## Known gaps
 
 - **Machine tokens cannot approve group approvals.** `ActionService.action` resolves the current *user*; a `key`/`global` token resolves none and is denied membership, so an automation must be given a real user identity placed in the approver group (`workflow/ActionService.java:137-146`). The controller's `assignableScopes` still admit machine tokens.
-- **Proxy-forwarded JWTs are trusted unverified.** Row 1b parses the bearer JWT and mints a session for its `email` claim without checking a signature (`AuthenticationFilter.java:164-165,188-206`); deployments MUST ensure only an authenticating proxy can reach the service on that path.
+- **Proxy-forwarded JWTs are trusted unverified in standalone mode.** Row 1b parses the bearer JWT and mints a session for its `email` claim without checking a signature (`AuthenticationFilter.java:165-166,189-207`); standalone deployments MUST ensure only an authenticating proxy can reach the service on that path. A secured engine refuses it (tokens only, above).
