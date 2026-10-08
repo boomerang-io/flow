@@ -23,8 +23,9 @@ first and is independent of this switch — see "Dispatcher endpoints".
 unverified input — an unsigned JWT (row 1b), the Basic password (1c) and forwarded identity headers (4) — so they
 end in 401 (`core/security/AuthenticationFilter.java:104-118`). A Flow token in the header, `x-access-token`,
 the query parameter or the `flow_session` cookie still authenticates. No authenticating proxy stands in front of an
-engine, and engine mode serves no sign-in or profile endpoints (`AuthControllerV2`, `ProfileControllerV2` are
-standalone-only), so the webapp does not run against an engine; its session cookie would be accepted if it did.
+engine. The webapp runs against an engine with security off (`architecture.md`, run modes); with security on it has
+no way to sign in, because the sign-in endpoints (`AuthControllerV2`, `AuthExchangeService`) load only in
+standalone mode. Its session cookie is a Flow-minted token, so a verified sign-in loaded in engine mode would pass.
 
 ## Authentication: how a caller becomes a `Token`
 

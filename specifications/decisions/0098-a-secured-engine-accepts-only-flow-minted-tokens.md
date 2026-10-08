@@ -31,4 +31,5 @@ as a global `**/**` service token under the fixed id `engine-token`. Engine mode
 - A secured engine is reachable only with a token: its operator supplies the engine token and mints the rest.
 - Callers already send `Authorization: Bearer` (Cheer's `flow.execution.token`, every dispatcher), so they change
   configuration, not code.
-- The webapp does not run against an engine today; if it ever does, its OIDC session cookie already qualifies.
+- The webapp runs against an engine only with security off; a secured engine needs the OIDC sign-in loaded in
+  engine mode before the webapp can use it, and its session cookie already qualifies.
