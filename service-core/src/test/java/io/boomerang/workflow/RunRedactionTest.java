@@ -27,6 +27,8 @@ import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.workspace.entity.WorkspaceEntity;
+import io.boomerang.workspace.repository.WorkspaceRepository;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +54,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private TaskRepository taskRepository;
+  @Autowired private WorkspaceRepository workspaceRepository;
   @MockitoSpyBean private TaskRevisionRepository spiedTaskRevisionRepository;
 
   @BeforeEach
@@ -94,7 +97,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
 
     // The display path redacts by name at the workflow level and by value below it.
     WorkflowRun display = workflowRunService.get(run.getId(), true);
-    workflowRunService.filterSensitiveValues(display);
+    workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
     assertEquals("", display.getParams().get(0).getValue(), "name-join blanks to empty, matching filterRunParamValueByFieldType");
     assertEquals(DataAdapterUtil.REDACTED, display.getTasks().get(0).getParams().get(0).getValue());
     assertFalse(display.getTasks().get(0).getSpec().getScript().contains(SECRET));
@@ -146,7 +149,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
     assertEquals(TASK_SECRET, taskByName(unscoped, "calls-api").getParams().get(0).getValue());
 
     WorkflowRun display = workflowRunService.get(run.getId(), true);
-    workflowRunService.filterSensitiveValues(display);
+    workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
     assertEquals(
         "",
         taskByName(display, "calls-api").getParams().get(0).getValue(),
@@ -185,7 +188,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
     taskRunRepository.save(caller);
 
     WorkflowRun display = workflowRunService.get(run.getId(), true);
-    workflowRunService.filterSensitiveValues(display);
+    workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
     assertEquals("", taskByName(display, "uses-pin").getParams().get(0).getValue());
     assertEquals(
         "pin is " + SHORT_SECRET,
@@ -205,7 +208,7 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
 
     WorkflowRun display = workflowRunService.get(run.getId(), true);
     clearInvocations(spiedTaskRevisionRepository);
-    workflowRunService.filterSensitiveValues(display);
+    workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
 
     verify(spiedTaskRevisionRepository, times(1)).findByParentRefInAndVersionIn(any(), any());
     assertEquals("", taskByName(display, "a").getParams().get(0).getValue());
@@ -240,11 +243,56 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
             Optional.of(List.of(run.getId())),
             Optional.empty(),
             Optional.empty());
-    page.getContent().forEach(workflowRunService::filterSensitiveValues);
+    page.getContent().forEach(r -> workflowRunService.filterSensitiveValues(r, new java.util.HashMap<>()));
 
     assertEquals(1, page.getContent().size());
     assertNull(page.getContent().get(0).getTasks(), "the paged query carries no tasks");
     verify(spiedTaskRevisionRepository, never()).findByParentRefInAndVersionIn(any(), any());
+  }
+
+  /**
+   * A secured workspace parameter is declared by neither the workflow nor the task, yet substitution
+   * writes its value into a text-typed task param and the script. The display read scrubs it there,
+   * looked up through the workspace the engine resolved the run against.
+   */
+  @Test
+  void securedWorkspaceValueIsScrubbedWhereverSubstitutionPutIt() {
+    String workspaceSecret = "ws-secured-token-77";
+    AbstractParam secured = new AbstractParam();
+    secured.setName("githubToken");
+    secured.setType("password");
+    secured.setValue(workspaceSecret);
+    WorkspaceEntity workspace = new WorkspaceEntity();
+    workspace.setName("redaction-workspace");
+    workspace.setParameters(List.of(secured));
+    workspaceRepository.save(workspace);
+
+    WorkflowRunEntity run =
+        savedWorkflowRun("redaction-ws-wf", RunStatus.succeeded, RunPhase.completed);
+    run.getAnnotations().put("boomerang.io/workspace-name", "redaction-workspace");
+    workflowRunRepository.save(run);
+    TaskRunEntity task =
+        savedTaskRun(
+            "calls-github",
+            TaskType.template,
+            RunStatus.succeeded,
+            RunPhase.completed,
+            run.getWorkflowRef(),
+            run.getId());
+    task.setParams(new LinkedList<>(List.of(new RunParam("header", "Bearer " + workspaceSecret))));
+    task.getSpec().setScript("#!/bin/sh\ncurl -H 'Authorization: Bearer " + workspaceSecret + "'");
+    taskRunRepository.save(task);
+
+    WorkflowRun display = workflowRunService.get(run.getId(), true);
+    workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
+
+    assertEquals(
+        "Bearer " + DataAdapterUtil.REDACTED, display.getTasks().get(0).getParams().get(0).getValue());
+    assertFalse(display.getTasks().get(0).getSpec().getScript().contains(workspaceSecret));
+    // The unscoped read the engine and dispatcher use keeps the real value.
+    assertEquals(
+        "Bearer " + workspaceSecret,
+        workflowRunService.get(run.getId(), true).getTasks().get(0).getParams().get(0).getValue());
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────

@@ -1,18 +1,25 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.workflow.ParamLayerService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,13 +41,32 @@ class ParameterManagerTest {
 
   private TaskRunRepository taskRunRepository;
   private ParameterManager parameterManager;
+  private ParamLayerService paramLayerService;
+  // What the stores hold for this test: ParamLayerService returns fresh copies on every call, as
+  // it reads them from their stores each time.
+  private final Map<String, Object> globalStore = new HashMap<>();
+  private final Map<String, Object> workspaceStore = new HashMap<>();
+  private final Map<String, Object> contextStore = new HashMap<>();
 
   @BeforeEach
   void setUp() {
     taskRunRepository = mock(TaskRunRepository.class);
+    paramLayerService = mock(ParamLayerService.class);
+    when(paramLayerService.buildParamLayers(any(), any(), any()))
+        .thenAnswer(
+            invocation -> {
+              ParamLayers layers = new ParamLayers();
+              layers.setGlobalParams(new HashMap<>(globalStore));
+              layers.setWorkspaceParams(new HashMap<>(workspaceStore));
+              layers.setContextParams(new HashMap<>(contextStore));
+              return layers;
+            });
     parameterManager =
         new ParameterManager(
-            mock(WorkflowRunRepository.class), taskRunRepository, new ObjectMapper());
+            mock(WorkflowRunRepository.class),
+            taskRunRepository,
+            new ObjectMapper(),
+            paramLayerService);
   }
 
   // (a) plain param: $(params.<name>) resolves from the flattened layer.
@@ -64,7 +90,7 @@ class ParameterManagerTest {
   @Test
   void resolvesScopedParam() {
     WorkflowRunEntity run = run(str("ref", "$(global.params.g1)"));
-    run.getAnnotations().put("boomerang.io/global-params", Map.of("g1", "gv"));
+    globalStore.put("g1", "gv");
     parameterManager.resolveParamLayers(run, Optional.empty());
     assertEquals("gv", resolved(run, "ref"));
   }
@@ -75,7 +101,7 @@ class ParameterManagerTest {
   void resolvesWorkspaceScopeAndItsDeprecatedTeamSpelling() {
     WorkflowRunEntity run =
         run(str("current", "$(workspace.params.w1)"), str("deprecated", "$(team.params.w1)"));
-    run.getAnnotations().put("boomerang.io/workspace-params", Map.of("w1", "wv"));
+    workspaceStore.put("w1", "wv");
     parameterManager.resolveParamLayers(run, Optional.empty());
     assertEquals("wv", resolved(run, "current"));
     assertEquals("wv", resolved(run, "deprecated"));
@@ -85,10 +111,7 @@ class ParameterManagerTest {
   @Test
   void resolvesScopedObjectPathParam() {
     WorkflowRunEntity run = run(str("ref", "$(context.params.co.k)"));
-    // The context-params layer must be mutable: the engine puts workflowrun-* context keys into
-    // it. In production it is a deserialized-JSON HashMap, so mirror that here.
-    run.getAnnotations()
-        .put("boomerang.io/context-params", new HashMap<>(Map.of("co", Map.of("k", "cv"))));
+    contextStore.put("co", Map.of("k", "cv"));
     parameterManager.resolveParamLayers(run, Optional.empty());
     assertEquals("cv", resolved(run, "ref"));
   }
@@ -133,7 +156,7 @@ class ParameterManagerTest {
   @Test
   void resolvesScopedParamCaseInsensitively() {
     WorkflowRunEntity run = run(str("ref", "$(GLOBAL.params.G1)"));
-    run.getAnnotations().put("boomerang.io/global-params", Map.of("g1", "gv"));
+    globalStore.put("g1", "gv");
     parameterManager.resolveParamLayers(run, Optional.empty());
     assertEquals("gv", resolved(run, "ref"));
   }
@@ -427,6 +450,160 @@ class ParameterManagerTest {
 
     assertEquals("#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF", task.getSpec().getScript());
     assertEquals(prompt, task.getSpec().getEnvs().get(0).getValue());
+  }
+
+  // ── layers read from their stores; values supplied or produced are inserted as written ─────────
+
+  // The layers come from ParamLayerService for the run's workspace, its workflow and the revision it
+  // runs - nothing is read from the run's annotations.
+  @Test
+  void readsTheLayersForTheRunsWorkspaceWorkflowAndRevision() {
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    when(paramLayerService.getRevision("rev-ref")).thenReturn(revision);
+    WorkflowRunEntity run = run(str("ref", "$(workspace.params.w1)"));
+    run.setWorkflowRef("wf-ref");
+    run.setWorkflowRevisionRef("rev-ref");
+    run.getAnnotations().put("boomerang.io/workspace-name", "cheer");
+    run.getAnnotations().put("boomerang.io/workspace-params", Map.of("w1", "stale snapshot"));
+    workspaceStore.put("w1", "current");
+
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("current", resolved(run, "ref"));
+    verify(paramLayerService).buildParamLayers(eq("cheer"), eq("wf-ref"), eq(revision));
+  }
+
+  // A value a task produced is inserted as written: a reference inside it is not expanded, so a
+  // task's output cannot pull a workspace value into a later task.
+  @Test
+  void insertsTaskResultsAsWritten() {
+    workspaceStore.put("w1", "wv");
+    stubTask("t1", new RunResult("r1", "says $(workspace.params.w1) and $(workflowrun-ref)"));
+    WorkflowRunEntity run = run(str("ref", "got: $(tasks.t1.results.r1)"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("p", "$(tasks.t1.results.r1)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("says $(workspace.params.w1) and $(workflowrun-ref)", task.getParams().get(0).getValue());
+  }
+
+  // Configuration still composes configuration: a workspace value may reference a global one.
+  @Test
+  void workspaceValuesStillComposeGlobalValues() {
+    globalStore.put("g1", "GV");
+    workspaceStore.put("w2", "has $(global.params.g1) inside");
+    WorkflowRunEntity run = run(str("ref", "$(workspace.params.w2)"));
+
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("has GV inside", resolved(run, "ref"));
+  }
+
+  // A webhook's payload is kept as it arrived at run start, and inserted as written into a task.
+  @Test
+  void insertsWebhookPayloadParamsAsWritten() {
+    workspaceStore.put("w1", "wv");
+    WorkflowRunEntity run = run(str("data", "payload $(workspace.params.w1)"));
+    run.setTrigger("webhook");
+
+    parameterManager.resolveParamLayers(run, Optional.empty());
+    assertEquals("payload $(workspace.params.w1)", resolved(run, "data"), "kept as it arrived");
+
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("viaFlat", "$(params.data)"), str("viaScope", "$(workflow.params.data)")));
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+    assertEquals("payload $(workspace.params.w1)", task.getParams().get(0).getValue());
+    assertEquals("payload $(workspace.params.w1)", task.getParams().get(1).getValue());
+  }
+
+  // On a webhook run, a param still holding its revision default was written in the workspace and
+  // resolves; only values that differ from it were supplied.
+  @Test
+  void resolvesAWebhookRunsDefaultValues() {
+    workspaceStore.put("defaultBranch", "main");
+    AbstractParam branch = new AbstractParam();
+    branch.setName("branch");
+    branch.setDefaultValue("$(workspace.params.defaultBranch)");
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setParams(List.of(branch));
+    when(paramLayerService.getRevision("rev-ref")).thenReturn(revision);
+    WorkflowRunEntity run = run(str("branch", "$(workspace.params.defaultBranch)"));
+    run.setTrigger("webhook");
+    run.setWorkflowRevisionRef("rev-ref");
+
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("main", resolved(run, "branch"));
+  }
+
+  // People, schedules and authenticated API callers may reference parameters in the values they
+  // give a run.
+  @Test
+  void resolvesValuesSuppliedOnAManualRun() {
+    workspaceStore.put("w1", "wv");
+    WorkflowRunEntity run = run(str("given", "$(workspace.params.w1)"));
+    run.setTrigger("manual");
+
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("wv", resolved(run, "given"));
+  }
+
+  // A child run's values were resolved by its parent and a retry's by the run it retries; neither
+  // is expanded again.
+  @Test
+  void insertsChildAndRetryRunValuesAsWritten() {
+    workspaceStore.put("w1", "wv");
+    for (String trigger : List.of("task", "retry")) {
+      WorkflowRunEntity run = run(str("carried", "literal $(workspace.params.w1)"));
+      run.setTrigger(trigger);
+      parameterManager.resolveParamLayers(run, Optional.empty());
+      assertEquals("literal $(workspace.params.w1)", resolved(run, "carried"), trigger);
+    }
+  }
+
+  // $(params.x) reads the nearest layer: when the task defines x itself, its own value - written in
+  // the workflow - resolves even though the run's x was supplied.
+  @Test
+  void aTasksOwnParamShadowsASuppliedRunParam() {
+    globalStore.put("g1", "GV");
+    WorkflowRunEntity run = run(str("data", "supplied $(global.params.g1)"));
+    run.setTrigger("webhook");
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("data", "authored $(global.params.g1)"), str("ref", "$(params.data)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("authored GV", task.getParams().get(1).getValue());
+  }
+
+  // Escaping keeps a value's own "$$(" sequences as they were.
+  @Test
+  void keepsDoubledDollarSequencesInAnInsertedValue() {
+    stubTask("t1", new RunResult("r1", "cost $$(5) and $(x)"));
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("p", "[$(tasks.t1.results.r1)]")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("[cost $$(5) and $(x)]", task.getParams().get(0).getValue());
+  }
+
+  // A whole-value reference to a structured result returns the structure itself, untouched.
+  @Test
+  void returnsAWholeStructuredResultUnchanged() {
+    Map<String, Object> structure = Map.of("text", "$(workspace.params.w1)");
+    workspaceStore.put("w1", "wv");
+    stubTask("t1", new RunResult("r1", structure));
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(object("p", "$(tasks.t1.results.r1)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertSame(structure, task.getParams().get(0).getValue());
   }
 
   private void stubTask(String name, RunResult result) {
