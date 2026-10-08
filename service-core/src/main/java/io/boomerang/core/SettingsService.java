@@ -32,10 +32,15 @@ public class SettingsService {
 
   private final SettingsRepository settingsRepository;
   private final EncryptionConfig encryptConfig;
+  private final ParamLayerCache paramLayerCache;
 
-  public SettingsService(SettingsRepository settingsRepository, EncryptionConfig encryptConfig) {
+  public SettingsService(
+      SettingsRepository settingsRepository,
+      EncryptionConfig encryptConfig,
+      ParamLayerCache paramLayerCache) {
     this.settingsRepository = settingsRepository;
     this.encryptConfig = encryptConfig;
+    this.paramLayerCache = paramLayerCache;
   }
 
   public List<Setting> getAllSettings() {
@@ -130,6 +135,7 @@ public class SettingsService {
     setEncryptedValues(configuration);
 
     this.settingsRepository.save(configuration);
+    paramLayerCache.evictAll();
   }
 
   private void setEncryptedValues(SettingEntity configuration) {

@@ -20,6 +20,22 @@ so the `lease_sweep` index at `_0017__RunIndexes.java:78-83` stays empty);
 crash recovery is the absolute `timeoutAt` written at claim = now + timeout + 5 s grace
 (`TaskRunService.java:251,260`; `engine/RunTimeouts.java:14-17`) plus the gone-dispatcher sweep below.
 
+Two caches are per instance and trade a bounded staleness for fewer reads; a write clears them only on the
+instance that took it.
+
+| Cache | Holds | Lifetime / size | Another instance sees a write |
+| --- | --- | --- | --- |
+| `core/security/TokenLookupCache.java` | Validated tokens by hash | 60 s / 10,000 | A revoked token is honoured for up to 60 s |
+| `core/ParamLayerCache.java` | Global, workspace and context parameter layers by workspace, workflow and revision; revisions by id | 10 s / 1,000 | A parameter, setting or revision edit reaches its task admissions within 10 s |
+
+Without the parameter cache each resolution reads the revision, the workflow, the features setting, the global
+parameters, the workspace and the workflow's tokens: six reads per task admission and per for-each item. With it,
+the tasks of every run of one revision in one workspace admitted within 10 s share those six. Every global
+parameter, workspace, setting, workflow and revision write calls `evictAll` (`ParameterService.java:74,100,115`,
+`WorkspaceService.java:234,331,639`, `SettingsService.java:138`, `WorkflowService.java:1625,1917`); token writes do
+not, because the scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s.
+Redaction reads secured values uncached (`ParamLayerService.java:161`).
+
 ## Queue fairness and the indexes behind it
 
 The claim page is oldest-first with backoff exclusion inside the query, so a retried task cannot
