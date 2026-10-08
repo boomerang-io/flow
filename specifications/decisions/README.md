@@ -81,3 +81,4 @@ things by name, not by code.
 | 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
 | 0097 | [A dispatcher's poll filters by task type, task and workflow label, resolved to typed refs](0097-dispatcher-polls-filter-by-task-and-workflow-label.md) | accepted | 2026-10-06 |
 | 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
+| 0100 | [The dispatcher protocol is a published contract, and the SDK owns its own wire models](0100-the-dispatcher-protocol-is-a-published-contract.md) | accepted | 2026-10-08 |

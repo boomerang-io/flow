@@ -9,55 +9,34 @@ so a `generic` task waits in the queue until a dispatcher registers that type. T
 zone, remove `ai` from the general dispatcher's list and run a second dispatcher deployment with
 `flow.dispatcher.task-types=ai`.
 
-## Dispatcher protocol
+## Flow's dispatcher
 
-The dispatcher registers once, long-polls two queues, sends one lease heartbeat every 30 seconds, calls three lifecycle routes, and asks one reconciliation question.
+`service-dispatcher` implements the dispatcher contract (`dispatcher-contract.md`, the routes, polling, claims,
+start and end semantics and the compatibility policy) for Kubernetes. It registers once, long-polls both
+queues, sends one batched lease heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) listing the task runs its
+executor threads stamped in `LeaseRegistry` (`dispatcher/LeaseHeartbeat.java`), and asks which held volumes it may
+release.
 
-| Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:45-180`) | Direction | Payload |
-| --- | --- | --- |
-| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:99-126`) |
-| `GET /{id}/workflows` | long poll | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none within the window (`DispatcherService.java:165-208`) |
-| `GET /{id}/tasks?limit=&type=&task=&workflowLabel=` | long poll | 200 = TaskRuns claimed for execution or termination, within the registered types and the poll's filters; 204 = none within the window. `limit` caps the new execution claims at the dispatcher's free slots, never above a page; `0` claims none and still returns termination orders (`DispatcherService.java:260-340`) |
-| `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:63-82`). A provisioning failure is only logged; the run stays claimed until the engine's watcher releases the stale claim for another attempt, failing the run after three (see `execution-model.md`) |
-| `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:347`) |
-| `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `start` answers with the TaskRun; the dispatcher creates nothing when it comes back `completed` (cancelled while being handed over) or the engine refuses with a 4xx, and goes ahead when the engine cannot be reached (`client/EngineClient.java:123`, `QueueService.java:105`). `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed. `ExceededQuota` and `StartTimeout` mean the task never started: the engine requeues it instead (see "Starting a task") |
-| `PUT /{id}/heartbeat` | dispatcher → engine, every `flow.dispatcher.lease.beat-ms` (30 s) | `ids` of the task runs whose executor threads stamped `LeaseRegistry` since the last beat (`dispatcher/LeaseHeartbeat.java`); the engine renews `claim.leaseExpiresAt` for the ids this dispatcher owns (`DispatcherService.heartbeat`, `flow.dispatcher.lease-ms` 90 s) |
-
-Each queue call is a long poll: the engine holds it up to 30 s, re-checks every 1 s, and answers once it has
-claimed something, at most a page of 20 per kind; a failed claim step still hands out what that pass claimed
-(`DispatcherService.java:48-50`, `:291-337`). The dispatcher polls again at once after runs or a held window,
-and waits until 5 s after the start of a poll that failed or was answered empty at once, such as while
-claiming is off (`client/EngineClient.java:29-36`, `:236-281`). A newly ready task is claimed within about
-1 s while a dispatcher for its type has a free slot.
-
-**Slots.** A dispatcher runs at most `flow.dispatcher.task.max-in-flight` tasks at once (25; 0 is no cap). A
-slot is taken when a task to execute arrives, before the hand-off, and given back when its executor work ends,
-a Pending pod included; each task poll sends `limit` = the free slots (`dispatcher/TaskSlots.java`,
-`EngineClient.java:220-224,264`, `QueueService.java:149`). Termination orders take no slot, so a full
-dispatcher still hears that its own tasks were cancelled. Work it does not claim stays claimable by others.
-
-**Filters.** A poll may narrow what it claims: `type` (a subset of the registered types, else `400
-QUERY_INVALID_FILTERS`), `task` (task slugs, resolved to `taskRef`s) and `workflowLabel` (`key=value[,value]`
-on the workflow definition, resolved to `workflowRef`s). Values are comma-separated with `*` as the only,
-anchored wildcard; filters are ANDed and values ORed. Resolutions are cached 30 s; a filter that matches
-nothing answers 204 at once. Termination orders follow the same filters. An unfiltered poll can still claim
-filtered work (`dispatcher/ClaimFilterService.java`, `engine/TaskRunService.java:97-119,182-191`).
-
-Claims are compare-and-set per document, so two dispatchers never receive the same run
-(`DispatcherService.java:300-325`). Releasing storage is not claimed work and carries no run state: the
-dispatcher lists what it holds from the cluster and the engine answers which owners are finished, so the same
-question asked twice gets the same answer. A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
-is a termination order: the dispatcher cancels the runtime object and reports nothing, not even when there is
-nothing left to cancel (`QueueService.java:117-128`).
-
-**Token.** The dispatcher sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on every engine
-call (`config/RestConfig.java:52,120`): an ordinary global-scope Flow token with a machine actor kind, minted
-through the token API (`dispatcher/DispatcherAuthFilter.java:18-22`). `DispatcherAuthFilter` guards
-`/api/v1/dispatcher/**` in its own security chain (`DispatcherSecurityConfiguration.java:42-47`); a bearer not
-shaped like a Flow token is rejected before any database lookup, otherwise `TokenService.validateActorToken`
-decides (`DispatcherAuthFilter.java:87-104`), and `flow.security.enabled=false` permits everything (`:83-86`).
-Logs flow the other way: the dispatcher serves `/api/v1/logs[/stream]` (`dispatcher/LogV1Controller.java:14-30`)
-and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClient.java:34`).
+- **Reconnect.** It polls again at once after a poll that brought runs or was held for its window, and waits until
+  5 s after the start of one that failed or was answered empty at once (`client/EngineClient.java:29-36`,
+  `:236-281`). A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
+- **Slots.** It runs at most `flow.dispatcher.task.max-in-flight` tasks at once (25; 0 is no cap). A slot is taken
+  when a task to execute arrives, before the hand-off, and given back when its executor work ends, a Pending pod
+  included; each task poll sends `limit` = the free slots (`dispatcher/TaskSlots.java`,
+  `EngineClient.java:220-224,264`, `QueueService.java:149`). It sends no filters.
+- **Start answer.** It creates nothing when start answers `completed` or a 4xx, and goes ahead when the engine
+  cannot be reached (`client/EngineClient.java:123`, `QueueService.java:105`).
+- **Termination.** A terminate order cancels the runtime object and reports nothing, not even when there is
+  nothing left to cancel (`QueueService.java:117-128`).
+- **End.** Any executor exception ends the task `failed` with a typed `statusReason`
+  (`error/TaskExecutionException.java`) and the results the task wrote before it failed; "Starting a task" below
+  lists the reasons it sends for a task that never started.
+- **Storage.** It provisions a claimed run's volumes before `workflowrun/{id}/start` (`QueueService.java:63-82`)
+  and lists the volumes it holds from the cluster to ask which may go.
+- **Token.** It sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on every engine call
+  (`config/RestConfig.java:52,120`); what the engine accepts is in the contract.
+- **Logs** flow the other way: the dispatcher serves `/api/v1/logs[/stream]` (`dispatcher/LogV1Controller.java:14-30`)
+  and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClient.java:34`).
 
 ## Executors
 
