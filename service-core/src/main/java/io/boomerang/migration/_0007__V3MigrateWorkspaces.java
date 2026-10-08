@@ -254,8 +254,18 @@ public class _0007__V3MigrateWorkspaces {
       approverGroup.put("approvers", resolveApprovers(rawGroup.get("approvers")));
       // Not a declared ApproverGroupEntity field - see the class javadoc for why this is here.
       approverGroup.put("workspaceRef", workspaceId.toString());
-      approverGroups.insertOne(approverGroup);
-      extracted++;
+      // A team is rewritten only after its groups are written, so a re-run after an interruption
+      // finds the team still in its v3 shape: skip the groups the earlier run already wrote.
+      if (approverGroups
+              .find(
+                  Filters.and(
+                      Filters.eq("workspaceRef", workspaceId.toString()),
+                      Filters.eq("name", approverGroup.getString("name"))))
+              .first()
+          == null) {
+        approverGroups.insertOne(approverGroup);
+        extracted++;
+      }
     }
     return extracted;
   }

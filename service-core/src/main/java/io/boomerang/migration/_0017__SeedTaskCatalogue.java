@@ -1,5 +1,6 @@
 package io.boomerang.migration;
 
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import io.flamingock.api.RecoveryStrategy;
@@ -85,15 +86,18 @@ public class _0017__SeedTaskCatalogue {
     int inserted = 0;
     for (Document task : tasks) {
       String seededId = task.get("_id").toString();
-      Document existing =
-          db.getCollection(names.resolve("tasks"))
-              .find(Filters.eq("name", task.getString("name")))
-              .first();
+      // A v3 task keeps the seed's id but takes its name from v3's display name, which an install
+      // may have changed - so the id matches first, then the name.
+      MongoCollection<Document> liveTasks = db.getCollection(names.resolve("tasks"));
+      Document existing = liveTasks.find(Filters.eq("_id", task.get("_id"))).first();
+      if (existing == null) {
+        existing = liveTasks.find(Filters.eq("name", task.getString("name"))).first();
+      }
       if (existing != null) {
         resolvedIds.put(seededId, existing.get("_id").toString());
         continue;
       }
-      db.getCollection(names.resolve("tasks")).insertOne(task);
+      liveTasks.insertOne(task);
       resolvedIds.put(seededId, seededId);
       inserted++;
     }

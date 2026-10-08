@@ -21,6 +21,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.Environment;
 import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -341,6 +342,64 @@ class MigrationChainTest {
                     "mongodb://localhost:1/boomerang?serverSelectionTimeoutMS=1500&connectTimeoutMS=1500",
                     PREFIX))
         .isInstanceOf(Exception.class);
+  }
+
+  // ===================================================================================
+  // Units re-run after an interruption
+  // ===================================================================================
+
+  /**
+   * A team is rewritten only after its approver groups are written. Interrupted in between, the
+   * re-run finds the team still in its v3 shape and must not write its groups a second time.
+   */
+  @Test
+  void aWorkspaceUnitReRunAfterItsGroupsWereWrittenDoesNotDuplicateThem() {
+    MongoDatabase db = database("approver-rerun");
+    markV3(db);
+    Document team =
+        new Document("_id", new ObjectId())
+            .append("_class", "net.boomerangplatform.mongo.entity.TeamEntity")
+            .append("name", "Platform Team")
+            .append("isActive", true)
+            .append(
+                "approverGroups",
+                List.of(
+                    new Document("name", "Release approvers")
+                        .append("approvers", List.of(new Document("userId", "user-1")))));
+    collection(db, "workspaces").insertOne(team);
+    Environment environment = MigrationRunner.environment(PREFIX);
+
+    new _0007__V3MigrateWorkspaces().execute(db, environment);
+    // The interruption: the groups are written, the team is not yet rewritten.
+    collection(db, "workspaces").replaceOne(Filters.eq("_id", team.get("_id")), team);
+    new _0007__V3MigrateWorkspaces().execute(db, environment);
+
+    assertThat(collection(db, "approver_groups").countDocuments()).isEqualTo(1);
+    assertThat(collection(db, "workspaces").find(Filters.eq("_id", team.get("_id"))).first())
+        .doesNotContainKey("_class");
+  }
+
+  /**
+   * A v3 task keeps the seed's id but takes its name from v3's display name. A task an install
+   * renamed is still found by its id, rather than inserted again under that id.
+   */
+  @Test
+  void theCatalogueSeedFindsARenamedV3TaskByItsId() {
+    MongoDatabase db = database("renamed-task");
+    ObjectId seededId = new ObjectId("600b2f5520a674b1d2cb4635");
+    collection(db, "tasks")
+        .insertOne(new Document("_id", seededId).append("name", "our-lock").append("status", "active"));
+
+    assertThatCode(
+            () -> new _0017__SeedTaskCatalogue().execute(db, MigrationRunner.environment(PREFIX)))
+        .doesNotThrowAnyException();
+
+    MongoCollection<Document> tasks = collection(db, "tasks");
+    assertThat(tasks.countDocuments(Filters.eq("_id", seededId))).isEqualTo(1);
+    assertThat(tasks.find(Filters.eq("_id", seededId)).first().getString("name")).isEqualTo("our-lock");
+    assertThat(tasks.countDocuments(Filters.eq("name", "acquire-lock"))).isZero();
+    assertThat(collection(db, "task_revisions").countDocuments(Filters.eq("parentRef", seededId.toString())))
+        .isPositive();
   }
 
   // ===================================================================================
