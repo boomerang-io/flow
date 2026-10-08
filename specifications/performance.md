@@ -40,10 +40,10 @@ Redaction reads secured values uncached (`ParamLayerService.java:161`).
 
 The claim page is oldest-first with backoff exclusion inside the query, so a retried task cannot
 starve fresh work and a burst of one workflow's tasks cannot jump the queue.
-`findClaimable` (`TaskRunService.java:75-95`) selects `status=ready`, `phase=pending`, `type` in the
+`findClaimable` (`TaskRunService.java:84-104`) selects `status=ready`, `phase=pending`, `type` in the
 dispatcher's registered types, `claim.by` absent, and `retry.after` absent or elapsed, sorted by
 `creationDate`, projected to `_id` only, then claims each candidate by CAS (page-then-CAS,
-`dispatcher/DispatcherService.java:206-212`). Backoff is one generic class: 10 s base, doubling per
+`dispatcher/DispatcherService.java:280-305`). Backoff is one generic class: 10 s base, doubling per
 attempt, 5 min ceiling, up to 5 s jitter (`lib-common/src/main/java/io/boomerang/common/util/Backoff.java:12-22`),
 with a budget of 3 requeues (`WorkflowWatcher.java:58`).
 
@@ -52,12 +52,18 @@ parent's `creationDate` order, so a large fan-out queues behind older work and a
 other burst. Each item end reads its siblings once to decide whether the parent is done, so a fan-out of n items
 costs n indexed reads of at most n documents.
 
-Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`DispatcherService.java:34-36`).
-Each connected dispatcher therefore costs about 4 indexed queries per second when idle (task claim,
-task termination, run provision, run teardown). `flow.queue.enabled=false` stops claiming only; sweeps
-keep running (`DispatcherService.java:38-40,111,176`).
+Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`DispatcherService.java:47-49`),
+and reconnect as soon as a poll returns (`service-dispatcher/.../client/EngineClient.java:29-36`). Each
+connected dispatcher therefore costs about 3 indexed queries per second when idle (task claim, task
+termination, run provision) and one request every 30 s per queue. A newly ready task waits at most about
+1 s for a connected dispatcher with a free slot. A dispatcher runs at most `flow.dispatcher.task.max-in-flight`
+tasks (25), a Pending pod included, and each poll claims no more than its free slots, so under a backlog the
+work it cannot run stays claimable by other dispatchers (`service-dispatcher/.../dispatcher/TaskSlots.java`).
+`flow.queue.enabled=false` stops claiming only; sweeps keep running (`DispatcherService.java:56-57,162,248`).
+While claiming is off the engine answers each poll at once with 204, and the dispatcher then waits 5 s between
+polls.
 
-Indexes are loader-owned; entity annotations are inert (`spring.data.mongodb.auto-index-creation=false`, `service-core/src/main/resources/application.properties:56`).
+Indexes are loader-owned; entity annotations are inert (`spring.data.mongodb.auto-index-creation=false`, `service-core/src/main/resources/application.properties:78`).
 
 | Index | Collection / keys | Loader change unit | Serves |
 | --- | --- | --- | --- |
@@ -90,7 +96,7 @@ No interval is set in `application.properties`; the defaults come from the `@Sch
 ## Virtual threads
 
 Request handling runs on virtual threads (`spring.threads.virtual.enabled=true`,
-`application.properties:75`) because each connected dispatcher parks one request thread for its 30 s poll.
+`application.properties:86`) because each connected dispatcher parks one request thread for its 30 s poll.
 **Measured**: `service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java`
 drives 200 pollers through 10 cycles under Java Flight Recorder and asserts zero carrier-pinning events on
 the claim path, so dispatcher count is not bound by the platform-thread pool. **Not measured**: any
@@ -229,7 +235,8 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 | Retry rate-limit and deterministic-terminal classes | One `Backoff`; `retry` carries only `after`/`count`; a dispatcher-reported failure is not retried | A runtime that returns typed rate-limit signals is integrated |
 | Worker leases and renewal | Absolute `timeoutAt` at claim; gone-dispatcher sweep at 60 s | Worker-crash recovery latency is shown to matter |
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`kube/TektonServiceImpl.java`, `executor/JobWatcher.java`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
-| An event-driven dispatcher poll | A 1 s sleep loop between claims and a 30 s long-poll on the engine side (`client/EngineClient.java`) | A measured idle-query cost at the dispatcher count in use — the per-poll claim query against Mongo, multiplied by connected dispatchers, is what would justify it |
+| An event-driven dispatcher poll | A 30 s long poll that re-checks every 1 s (`dispatcher/DispatcherService.java:47-48`); the dispatcher reconnects at once | A measured idle-query cost at the dispatcher count in use, or a workload that needs task-to-task hops well under 1 s |
+| A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
 
 ## Also worth knowing
 

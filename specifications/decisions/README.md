@@ -76,4 +76,7 @@ things by name, not by code.
 | 0090 | [Administration is one "Manage" link to a tabbed page, and workflow templates leave the product UI](0090-manage-is-one-tabbed-area.md) | accepted | 2026-09-30 |
 | 0091 | [Settings groups are named for what they control, and storage defaults stay with the dispatcher](0091-settings-groups-named-for-what-they-control.md) | accepted | 2026-09-30 |
 | 0092 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0092-workspace-parameter-references.md) | accepted | 2026-09-30 |
+| 0094 | [The dispatcher reconnects at once after a poll](0094-dispatcher-reconnects-at-once-after-a-poll.md) | accepted | 2026-10-02 |
+| 0095 | [A dispatcher claims only what it has slots for](0095-a-dispatcher-claims-only-what-it-has-slots-for.md) | accepted | 2026-10-05 |
+| 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
 | 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |

@@ -24,7 +24,6 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import java.time.Duration;
 import java.util.Date;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -57,19 +56,9 @@ public class WorkflowWatcher {
   // so freshly-started runs whose first tasks are still being queued are not churned.
   private static final long STALL_GRACE_MILLIS = 60000;
 
-  // Only agent-executed types are requeued on timeout - that is the crash recovery for a killed
-  // claimant. Gates, waits and inline system tasks time out terminally, as they always have.
-  private static final Set<TaskType> REQUEUEABLE_TYPES =
-      EnumSet.of(
-          TaskType.template,
-          TaskType.custom,
-          TaskType.script,
-          TaskType.generic,
-          TaskType.ai,
-          TaskType.uploadartifact,
-          TaskType.downloadartifact);
+  private static final Set<TaskType> REQUEUEABLE_TYPES = EngineConstants.REQUEUEABLE_TYPES;
 
-  private static final int MAX_RETRIES = 3;
+  private static final int MAX_RETRIES = EngineConstants.MAX_RETRIES;
 
   // A run is provisioned at most this many times; a stale claim on the last attempt fails it.
   private static final int MAX_PROVISION_ATTEMPTS = 3;
@@ -77,12 +66,13 @@ public class WorkflowWatcher {
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
-  // A dispatcher is treated as gone once it has not connected for this long. Its queue poll
-  // refreshes lastConnectedDate every 5s, so this is twelve missed cycles - short enough that a
-  // dead dispatcher's claims are recovered promptly, long enough that a GC pause or network blip
-  // does not reap a healthy one. Recovering a claim re-dispatches the task while the original
-  // executor may still be running it, and nothing kills that executor, so this cannot be tightened
-  // further until the dispatch protocol can cancel in-flight work.
+  // A dispatcher is treated as gone once it has not connected for this long. Each queue poll
+  // refreshes lastConnectedDate as it starts, at least every 30 s (the longest the engine holds a
+  // poll), so this is two missed polls - short enough that a dead dispatcher's claims are
+  // recovered promptly, long enough that a GC pause or network blip does not reap a healthy one.
+  // Recovering a claim re-dispatches the task while the original executor may still be running
+  // it, and nothing kills that executor, so this cannot be tightened further until the dispatch
+  // protocol can cancel in-flight work.
   private static final long DISPATCHER_STALE_MILLIS = 60000;
 
   private final TaskRunService taskRunService;

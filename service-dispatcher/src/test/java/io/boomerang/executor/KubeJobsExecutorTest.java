@@ -21,6 +21,7 @@ import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerState;
 import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
+import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.Pod;
@@ -437,7 +438,8 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
     properties = {
       "dispatcher.executor=kube-jobs",
       "kube.timeout.reconcileSeconds=1",
-      "kube.timeout.failedConditionGraceSeconds=2"
+      "kube.timeout.failedConditionGraceSeconds=2",
+      "kube.timeout.startFailureGraceSeconds=0"
     })
 class KubeJobsExecutorReconcileTest {
 
@@ -532,6 +534,44 @@ class KubeJobsExecutorReconcileTest {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  public void testWatchFailsAPodThatCannotPullItsImageAndRemovesTheJob() throws Exception {
+    TaskRun task = task("taskrun-reconcile-image-pull");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    Map<String, String> taskLabels = created.getMetadata().getLabels();
+
+    ContainerStateWaiting waiting = new ContainerStateWaiting();
+    waiting.setReason("ImagePullBackOff");
+    waiting.setMessage("Back-off pulling image \"alpine:missing\"");
+    ContainerState state = new ContainerState();
+    state.setWaiting(waiting);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setPhase("Pending");
+    podStatus.setContainerStatuses(List.of(containerStatus));
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(taskLabels)
+            .endMetadata()
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("ImagePull", ex.getStatusReason());
+    assertTrue(
+        client.batch().v1().jobs().withLabels(taskLabels).list().getItems().isEmpty(),
+        "a Job whose pod cannot start is removed, not left holding capacity");
   }
 
   @Test

@@ -84,6 +84,12 @@ public class TaskService {
           self.deleteTaskRun(task);
         }
       } catch (KubernetesClientException e) {
+        // A namespace quota refusing the object is the cluster being full, not the task being
+        // wrong: reported as ExceededQuota, which the engine requeues for another attempt.
+        if (e.getCode() == 403 && e.getMessage() != null && e.getMessage().contains("exceeded quota")) {
+          LOGGER.info(e.toString());
+          throw new TaskExecutionException("ExceededQuota", "EXCEEDED_QUOTA - " + e.getMessage());
+        }
         // KubernetesClientException handles the case where an internal admission
         // controller rejects the creation
         if (e.getMessage().contains("admission webhook")) {
