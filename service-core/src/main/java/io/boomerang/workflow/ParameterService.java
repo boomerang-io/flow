@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.DataAdapterUtil;
@@ -26,9 +27,12 @@ public class ParameterService {
   private final Logger LOGGER = LogManager.getLogger(getClass());
 
   private final GlobalParamRepository paramRepository;
+  private final ParamLayerCache paramLayerCache;
 
-  public ParameterService(@Autowired GlobalParamRepository paramRepository) {
+  public ParameterService(
+      @Autowired GlobalParamRepository paramRepository, ParamLayerCache paramLayerCache) {
     this.paramRepository = paramRepository;
+    this.paramLayerCache = paramLayerCache;
   }
 
   public List<AbstractParam> getAll() {
@@ -66,7 +70,9 @@ public class ParameterService {
         FieldType.PASSWORD.value().equals(entity.getType()) && isBlank(param.getValue());
     BeanUtils.copyProperties(
         param, entity, preserveStoredValue ? new String[] {"id", "value"} : new String[] {"id"});
-    return convertToAbstractParamAndFilter(paramRepository.save(entity));
+    entity = paramRepository.save(entity);
+    paramLayerCache.evictAll();
+    return convertToAbstractParamAndFilter(entity);
   }
 
   // Blank covers both a null value (Jackson never emits the omitted field, so it decodes as
@@ -91,6 +97,7 @@ public class ParameterService {
       BeanUtils.copyProperties(request, entity, "id");
       LOGGER.debug("Creating GlobalParamEntity: " + entity.toString());
       entity = paramRepository.save(entity);
+      paramLayerCache.evictAll();
       LOGGER.debug("Saving GlobalParamEntity: " + entity.toString());
       return convertToAbstractParamAndFilter(entity);
     }
@@ -105,6 +112,7 @@ public class ParameterService {
       throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
     }
     paramRepository.deleteByName(name);
+    paramLayerCache.evictAll();
   }
 
   /*

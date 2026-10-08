@@ -71,4 +71,9 @@ things by name, not by code.
 | 0085 | [Artifacts are uploaded by built-in tasks and expire into a kept record](0085-artifacts-are-uploaded-by-tasks-and-expire-into-a-kept-record.md) | accepted | 2026-09-28 |
 | 0086 | [Engine mode runs schedules and insights](0086-engine-mode-runs-schedules-and-insights.md) | accepted | 2026-09-29 |
 | 0087 | [One page header on every route, and a page inside an object is titled with its name](0087-one-page-header-and-object-names-as-titles.md) | accepted | 2026-09-29 |
+| 0088 | [Home's cross-workspace rollup fans out from the route loader instead of a new summary endpoint](0088-home-rollup-fans-out-per-workspace.md) | accepted | 2026-09-29 |
+| 0089 | [Insights read the runs a workspace still holds; the audit trail serves quotas only](0089-insights-read-retained-runs-audit-serves-quotas.md) | accepted | 2026-09-30 |
+| 0090 | [Administration is one "Manage" link to a tabbed page, and workflow templates leave the product UI](0090-manage-is-one-tabbed-area.md) | accepted | 2026-09-30 |
+| 0091 | [Settings groups are named for what they control, and storage defaults stay with the dispatcher](0091-settings-groups-named-for-what-they-control.md) | accepted | 2026-09-30 |
 | 0092 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0092-workspace-parameter-references.md) | accepted | 2026-09-30 |
+| 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
