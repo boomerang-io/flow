@@ -108,6 +108,7 @@ public class WorkspaceService {
   private final TaskService taskService;
   private final ArtifactService artifactService;
   private final ParamLayerCache paramLayerCache;
+  private final WorkspaceParameterService workspaceParameterService;
 
   public WorkspaceService(
       WorkspaceRepository workspaceRepository,
@@ -125,7 +126,8 @@ public class WorkspaceService {
       TokenService tokenService,
       TaskService taskService,
       ArtifactService artifactService,
-      ParamLayerCache paramLayerCache) {
+      ParamLayerCache paramLayerCache,
+      WorkspaceParameterService workspaceParameterService) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -142,6 +144,7 @@ public class WorkspaceService {
     this.taskService = taskService;
     this.artifactService = artifactService;
     this.paramLayerCache = paramLayerCache;
+    this.workspaceParameterService = workspaceParameterService;
   }
 
   /*
@@ -222,7 +225,8 @@ public class WorkspaceService {
       // Create / Update Parameters
       if (request.getParameters() != null && !request.getParameters().isEmpty()) {
         workspaceEntity.setParameters(
-            createOrUpdateParameters(workspaceEntity.getParameters(), request.getParameters()));
+            workspaceParameterService.createOrUpdateParameters(
+                workspaceEntity.getParameters(), request.getParameters()));
       }
 
       // Create / Update ApproverGroups
@@ -319,7 +323,8 @@ public class WorkspaceService {
       if (request.getParameters() != null && !request.getParameters().isEmpty()) {
         LOGGER.debug("Request Parameters: " + request.getParameters().toString());
         workspaceEntity.setParameters(
-            createOrUpdateParameters(workspaceEntity.getParameters(), request.getParameters()));
+            workspaceParameterService.createOrUpdateParameters(
+                workspaceEntity.getParameters(), request.getParameters()));
       }
 
       // Create / Update ApproverGroups
@@ -562,56 +567,6 @@ public class WorkspaceService {
   }
 
   /*
-   * Creates or Updates Workspace Parameters
-   */
-  private List<AbstractParam> createOrUpdateParameters(
-      List<AbstractParam> parameters, List<AbstractParam> request) {
-    if (!request.isEmpty()) {
-      LOGGER.debug("Starting Parameters: " + parameters.toString());
-      // A secured parameter's value is never returned to the caller, so a request that only
-      // edits another field arrives with a blank value - carry the stored secret forward
-      // instead of letting the wholesale replacement below wipe it out.
-      Map<String, AbstractParam> existingByName =
-          parameters.stream()
-              .collect(Collectors.toMap(AbstractParam::getName, p -> p, (a, b) -> a));
-      request.forEach(
-          p -> {
-            AbstractParam existing = existingByName.get(p.getName());
-            if (existing != null
-                && FieldType.PASSWORD.value().equals(existing.getType())
-                && isBlankValue(p.getValue())) {
-              p.setValue(existing.getValue());
-            }
-          });
-
-      List<String> names = request.stream().map(AbstractParam::getName).toList();
-      names.stream()
-          .filter(name -> !ParameterUtil.isValidParamName(name))
-          .findFirst()
-          .ifPresent(
-              name -> {
-                throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
-              });
-      // Check if parameter exists and remove
-      parameters =
-          parameters.stream()
-              .filter(p -> !names.contains(p.getName()))
-              .collect(Collectors.toList());
-
-      // Add all new / updated params
-      parameters.addAll(request);
-    }
-    LOGGER.debug("Ending Parameters: " + parameters.toString());
-    return parameters;
-  }
-
-  // Blank covers both a null value (a filtered secured value is never serialised) and an empty
-  // string (a client that round-trips a form field literally).
-  private static boolean isBlankValue(Object value) {
-    return value == null || (value instanceof String s && s.isBlank());
-  }
-
-  /*
    * Delete parameters by key
    */
   public void deleteParameter(String team, String name) {
@@ -626,21 +581,7 @@ public class WorkspaceService {
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
-
-    if (workspaceEntity.getParameters() != null) {
-      List<AbstractParam> parameters = workspaceEntity.getParameters();
-      Optional<AbstractParam> optionalParameter =
-          parameters.stream().filter(p -> p.getName().equals(name)).findAny();
-      if (optionalParameter.isPresent()) {
-        parameters.remove(optionalParameter.get());
-        workspaceEntity.setParameters(parameters);
-        workspaceRepository.save(workspaceEntity);
-        paramLayerCache.evictAll();
-      } else {
-        throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
-      }
-    }
+    workspaceParameterService.deleteParameter(optWorkspaceEntity.get(), name);
   }
 
   /*
