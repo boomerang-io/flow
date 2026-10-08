@@ -45,7 +45,9 @@ class AuthenticationFilterTest {
 
   @BeforeEach
   void setUp() {
-    filter = new AuthenticationFilter(tokenService, settingsService, "basic-pass", authEntryPoint);
+    filter =
+        new AuthenticationFilter(
+            tokenService, settingsService, "basic-pass", authEntryPoint, false);
     SecurityContextHolder.clearContext();
   }
 
@@ -100,6 +102,83 @@ class AuthenticationFilterTest {
     verify(filterChain, times(1)).doFilter(request, response);
     verify(authEntryPoint, never()).commence(any(), any(), any());
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  private AuthenticationFilter tokenOnlyFilter() {
+    return new AuthenticationFilter(
+        tokenService, settingsService, "basic-pass", authEntryPoint, true);
+  }
+
+  private void assertRefused(MockHttpServletRequest request) throws Exception {
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    tokenOnlyFilter().doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  private static MockHttpServletRequest workflowRequest() {
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    return request;
+  }
+
+  @Test
+  void tokenOnlyRefusesAnUnsignedJwt() throws Exception {
+    MockHttpServletRequest request = workflowRequest();
+    request.addHeader("Authorization", "Bearer eyJhbGciOiJub25lIn0.eyJlbWFpbCI6ImFAYi5jIn0.");
+    assertRefused(request);
+  }
+
+  @Test
+  void tokenOnlyRefusesTheBasicPassword() throws Exception {
+    MockHttpServletRequest request = workflowRequest();
+    request.addHeader("Authorization", "Basic YUBiLmM6YmFzaWMtcGFzcw==");
+    assertRefused(request);
+  }
+
+  @Test
+  void tokenOnlyIgnoresAForwardedIdentity() throws Exception {
+    MockHttpServletRequest request = workflowRequest();
+    request.addHeader("x-forwarded-email", "admin@example.com");
+    assertRefused(request);
+  }
+
+  @Test
+  void tokenOnlyAcceptsAFlowMintedToken() throws Exception {
+    Token machine = new Token(AuthScope.global);
+    machine.setPrincipal("machine");
+    when(tokenService.validate("bfg_machine-value")).thenReturn(true);
+    when(tokenService.get("bfg_machine-value")).thenReturn(machine);
+    MockHttpServletRequest request = workflowRequest();
+    request.addHeader("Authorization", "Bearer bfg_machine-value");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    tokenOnlyFilter().doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(machine);
+  }
+
+  @Test
+  void tokenOnlyStillAcceptsASessionCookieBesideAForwardedHeader() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.validate("bfs_raw-value")).thenReturn(true);
+    when(tokenService.get("bfs_raw-value")).thenReturn(sessionToken);
+    MockHttpServletRequest request = workflowRequest();
+    request.addHeader("x-forwarded-email", "admin@example.com");
+    request.setCookies(new Cookie(SessionCookie.NAME, "bfs_raw-value"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    tokenOnlyFilter().doFilter(request, response, filterChain);
+
+    verify(filterChain, times(1)).doFilter(request, response);
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
+        .isEqualTo(sessionToken);
   }
 
   @Test
