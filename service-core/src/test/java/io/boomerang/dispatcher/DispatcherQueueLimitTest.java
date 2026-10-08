@@ -1,8 +1,8 @@
 package io.boomerang.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -18,6 +18,7 @@ import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
+import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.workflow.ArtifactService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +46,8 @@ class DispatcherQueueLimitTest {
           mock(WorkflowRunStateHelper.class),
           taskRunService,
           mock(MongoTemplate.class),
-          mock(ArtifactService.class));
+          mock(ArtifactService.class),
+          new ClaimFilterService(mock(MongoTemplate.class)));
 
   @BeforeEach
   void setUp() {
@@ -56,7 +58,8 @@ class DispatcherQueueLimitTest {
     when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
     when(dispatcherRepository.findTaskTypesByAgentId(AGENT)).thenReturn(dispatcher);
     // One claimable run, so a poll answers at once instead of holding for its window.
-    when(taskRunService.findClaimable(anyList(), anyInt())).thenReturn(List.of(taskRun("ready")));
+    when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
+        .thenReturn(List.of(taskRun("ready")));
     when(taskRunService.tryClaim("ready", AGENT)).thenReturn(taskRun("ready"));
   }
 
@@ -71,21 +74,21 @@ class DispatcherQueueLimitTest {
   void aLimitSizesTheExecutionPage() {
     dispatcherService.getTaskQueue(AGENT, 3);
 
-    verify(taskRunService).findClaimable(eq(TYPES), eq(3));
+    verify(taskRunService).findClaimable(eq(ClaimFilter.of(TYPES)), eq(3));
   }
 
   @Test
   void noLimitClaimsAFullPage() {
     dispatcherService.getTaskQueue(AGENT);
 
-    verify(taskRunService).findClaimable(eq(TYPES), eq(20));
+    verify(taskRunService).findClaimable(eq(ClaimFilter.of(TYPES)), eq(20));
   }
 
   @Test
   void aLimitAboveAPageIsHeldToAPage() {
     dispatcherService.getTaskQueue(AGENT, 50);
 
-    verify(taskRunService).findClaimable(eq(TYPES), eq(20));
+    verify(taskRunService).findClaimable(eq(ClaimFilter.of(TYPES)), eq(20));
   }
 
   @Test
@@ -93,13 +96,13 @@ class DispatcherQueueLimitTest {
     TaskRunEntity cancelled = taskRun("cancelled");
     cancelled.setPhase(RunPhase.completed);
     cancelled.setStatus(RunStatus.cancelled);
-    when(taskRunService.findClaimableForTermination(anyList(), anyInt()))
+    when(taskRunService.findClaimableForTermination(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(cancelled));
     when(taskRunService.tryClaimForTermination("cancelled", AGENT)).thenReturn(cancelled);
 
     ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, 0);
 
-    verify(taskRunService, never()).findClaimable(anyList(), anyInt());
+    verify(taskRunService, never()).findClaimable(any(ClaimFilter.class), anyInt());
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).extracting(TaskRun::getId).containsExactly("cancelled");
   }

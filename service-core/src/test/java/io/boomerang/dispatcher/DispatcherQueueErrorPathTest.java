@@ -1,8 +1,8 @@
 package io.boomerang.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -15,6 +15,7 @@ import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
+import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.workflow.ArtifactService;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -46,7 +47,8 @@ class DispatcherQueueErrorPathTest {
           mock(WorkflowRunStateHelper.class),
           taskRunService,
           mock(MongoTemplate.class),
-          mock(ArtifactService.class));
+          mock(ArtifactService.class),
+          new ClaimFilterService(mock(MongoTemplate.class)));
 
   @BeforeEach
   void setUp() {
@@ -67,7 +69,7 @@ class DispatcherQueueErrorPathTest {
 
   @Test
   void runsClaimedBeforeAnErrorAreStillHandedOut() {
-    when(taskRunService.findClaimable(anyList(), anyInt()))
+    when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(taskRun("claimed"), taskRun("failing")));
     when(taskRunService.tryClaim("claimed", AGENT)).thenReturn(taskRun("claimed"));
     when(taskRunService.tryClaim("failing", AGENT))
@@ -81,7 +83,7 @@ class DispatcherQueueErrorPathTest {
 
   @Test
   void aFailingQueryIsRetriedOncePerRecheckAndAnInterruptEndsThePoll() throws Exception {
-    when(taskRunService.findClaimable(anyList(), anyInt()))
+    when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenThrow(new IllegalStateException("query failed"));
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -91,7 +93,7 @@ class DispatcherQueueErrorPathTest {
       Thread.sleep(2500);
 
       // Three cycles at most in 2.5 s: one at once, then one per 1 s re-check.
-      verify(taskRunService, atMost(3)).findClaimable(anyList(), anyInt());
+      verify(taskRunService, atMost(3)).findClaimable(any(ClaimFilter.class), anyInt());
 
       executor.shutdownNow();
       ResponseEntity<List<TaskRun>> response = poll.get(2, TimeUnit.SECONDS);

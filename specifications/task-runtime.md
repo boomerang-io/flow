@@ -15,9 +15,9 @@ The dispatcher registers once, long-polls two queues, sends one lease heartbeat 
 
 | Route (`/api/v1/dispatcher`, `dispatcher/DispatcherControllerV1.java:45-180`) | Direction | Payload |
 | --- | --- | --- |
-| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:95-122`) |
-| `GET /{id}/workflows` | long poll | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none within the window (`DispatcherService.java:161-204`) |
-| `GET /{id}/tasks?limit=` | long poll | 200 = TaskRuns claimed for execution or termination, filtered by the registered types; 204 = none within the window. `limit` caps the new execution claims at the dispatcher's free slots, never above a page; `0` claims none and still returns termination orders (`DispatcherService.java:247-320`) |
+| `POST /register` | dispatcher → engine | `name`, `host`, `version`, `taskTypes`; upserted on name+host, returns the dispatcher id (`DispatcherService.java:99-126`) |
+| `GET /{id}/workflows` | long poll | 200 = WorkflowRuns that declare workspaces, claimed by this call for provisioning; 204 = none within the window (`DispatcherService.java:165-208`) |
+| `GET /{id}/tasks?limit=&type=&task=&workflowLabel=` | long poll | 200 = TaskRuns claimed for execution or termination, within the registered types and the poll's filters; 204 = none within the window. `limit` caps the new execution claims at the dispatcher's free slots, never above a page; `0` claims none and still returns termination orders (`DispatcherService.java:260-340`) |
 | `PUT /workflowrun/{id}/start` | dispatcher → engine | Called once the run's workspaces are provisioned (`QueueService.java:63-82`). A provisioning failure is only logged; the run stays claimed until the engine's watcher releases the stale claim for another attempt, failing the run after three (see `execution-model.md`) |
 | `POST /workspaces/releasable` | dispatcher → engine | `workflowRunRefs`, `workflowRefs` — the owners of the volumes this dispatcher still holds (500 each at most, larger is `400`); the response echoes back the subset whose owner is finished, meaning the run is completed or gone and the workflow deleted or gone (`DispatcherService.releasable:347`) |
 | `PUT /taskrun/{id}/start`, `/end` | dispatcher → engine | `start` answers with the TaskRun; the dispatcher creates nothing when it comes back `completed` (cancelled while being handed over) or the engine refuses with a 4xx, and goes ahead when the engine cannot be reached (`client/EngineClient.java:123`, `QueueService.java:105`). `end` carries `status`, `statusReason`, `statusMessage`, `results` (`QueueService.java`, `endFailed`); any executor exception ends the task `failed` with a typed `statusReason` from the closed set on `TaskRunEndRequest` (`error/TaskExecutionException.java`) and the results the task wrote before it failed. `ExceededQuota` and `StartTimeout` mean the task never started: the engine requeues it instead (see "Starting a task") |
@@ -25,7 +25,7 @@ The dispatcher registers once, long-polls two queues, sends one lease heartbeat 
 
 Each queue call is a long poll: the engine holds it up to 30 s, re-checks every 1 s, and answers once it has
 claimed something, at most a page of 20 per kind; a failed claim step still hands out what that pass claimed
-(`DispatcherService.java:47-49`, `:271-317`). The dispatcher polls again at once after runs or a held window,
+(`DispatcherService.java:48-50`, `:291-337`). The dispatcher polls again at once after runs or a held window,
 and waits until 5 s after the start of a poll that failed or was answered empty at once, such as while
 claiming is off (`client/EngineClient.java:29-36`, `:236-281`). A newly ready task is claimed within about
 1 s while a dispatcher for its type has a free slot.
@@ -36,8 +36,15 @@ a Pending pod included; each task poll sends `limit` = the free slots (`dispatch
 `EngineClient.java:220-224,264`, `QueueService.java:149`). Termination orders take no slot, so a full
 dispatcher still hears that its own tasks were cancelled. Work it does not claim stays claimable by others.
 
+**Filters.** A poll may narrow what it claims: `type` (a subset of the registered types, else `400
+QUERY_INVALID_FILTERS`), `task` (task slugs, resolved to `taskRef`s) and `workflowLabel` (`key=value[,value]`
+on the workflow definition, resolved to `workflowRef`s). Values are comma-separated with `*` as the only,
+anchored wildcard; filters are ANDed and values ORed. Resolutions are cached 30 s; a filter that matches
+nothing answers 204 at once. Termination orders follow the same filters. An unfiltered poll can still claim
+filtered work (`dispatcher/ClaimFilterService.java`, `engine/TaskRunService.java:97-119,182-191`).
+
 Claims are compare-and-set per document, so two dispatchers never receive the same run
-(`DispatcherService.java:280-305`). Releasing storage is not claimed work and carries no run state: the
+(`DispatcherService.java:300-325`). Releasing storage is not claimed work and carries no run state: the
 dispatcher lists what it holds from the cluster and the engine answers which owners are finished, so the same
 question asked twice gets the same answer. A TaskRun arriving in phase `completed` with status `cancelled` or `timedout`
 is a termination order: the dispatcher cancels the runtime object and reports nothing, not even when there is
@@ -115,7 +122,7 @@ Each reconcile tick reads the task's pod - init containers included, and Tekton'
 as the Jobs executor's `task` - until the pod leaves Pending (`kube/KubeHelperService.java:480-523`,
 `executor/PodStartWatch.java`, `KubeJobsExecutor.java:439`, `TektonServiceImpl.java:540`). The engine requeues
 `ExceededQuota` and `StartTimeout` on the same budget as a timed-out claimant: three more attempts with backoff,
-then the task fails with that reason (`engine/TaskRunService.java:977`). Kubernetes 429, 5xx and network errors
+then the task fails with that reason (`engine/TaskRunService.java:1004`). Kubernetes 429, 5xx and network errors
 are retried inside the Kubernetes client before any of this applies.
 
 ## What the container receives
@@ -428,7 +435,7 @@ six results come back through `RESULTS_PATH`, and that contract is shared betwee
 catalogue revision in this repository — a param or result added on one side has to land on the other.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
-(`DispatcherService.java:247-320`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
+(`DispatcherService.java:260-340`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
 deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
 isolation tiers. No configuration separates zones inside one dispatcher.
 

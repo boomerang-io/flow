@@ -103,8 +103,27 @@ public class DispatcherControllerV1 {
                   "Most new TaskRuns to claim for execution (the dispatcher's free slots), capped"
                       + " at a page of 20. 0 claims none and still returns termination orders.")
           @RequestParam(required = false)
-          Integer limit) {
-    return dispatcherService.getTaskQueue(id, limit);
+          Integer limit,
+      @Parameter(
+              name = "type",
+              description =
+                  "Task types to claim, a subset of those registered; comma-separated, `*` the only"
+                      + " wildcard. Absent means every registered type.")
+          @RequestParam(required = false)
+          String type,
+      @Parameter(
+              name = "task",
+              description = "Task slugs to claim; comma-separated, `*` the only wildcard.")
+          @RequestParam(required = false)
+          String task,
+      @Parameter(
+              name = "workflowLabel",
+              description =
+                  "One label on the workflow definition, as key=value[,value]; `*` the only"
+                      + " wildcard in the values.")
+          @RequestParam(required = false)
+          String workflowLabel) {
+    return dispatcherService.getTaskQueue(id, limit, type, task, workflowLabel);
   }
 
   @PutMapping(value = "/{id}/heartbeat")
