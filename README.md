@@ -103,6 +103,33 @@ One product tag builds the whole compatible image set — there is no per-servic
 ```
 
 Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
+Operator-facing changes for the next release are collected in [`CHANGELOG.md`](./CHANGELOG.md) as they merge.
+
+## Upgrading from v3
+
+`service-core` migrates its database as it starts, before it serves anything: there is no separate loader
+Job. The migrations take exactly two starting points to the current shape, an **empty database** and a
+**v3 database**. A v4 database, or one a 5.0 beta already migrated, is refused at startup with a message
+saying why; reset it, or restore the v3 database it came from.
+
+Before the first start against a v3 database:
+
+1. **Back up the database.** The migration is forward-only; the v3 source collections are dropped once
+   migrated.
+2. **Check for two users sharing one email.** The migration refuses to delete an account, so a shared
+   email fails the unique index and startup with it. Two addresses that differ only by case are kept as they
+   are and logged; lower-case the survivor by hand afterwards.
+3. **Set the encryption keys.** v3 encrypted secured settings with the pair in `mongo.encrypt.secret` and
+   `mongo.encrypt.salt`, blank unless the deployment set them. Provide that same pair under the same names:
+   it is read once, to decrypt those values during the migration. Provide the key v5 encrypts with as
+   `flow.encrypt.secret` and `flow.encrypt.salt`; it can be a fresh pair, and it is required on every
+   install. A wrong v3 pair stops startup rather than leaving a credential unreadable.
+4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB v3 database
+   migrates in under a minute; set the startup probe for the largest instance's run history, and roll out
+   one replica first. Replicas that start together wait on the migration lock for up to 30 minutes.
+
+Remove the `flow-service-loader` Job and image from the deployment: one product tag now builds
+`flow-service-core`, `flow-service-dispatcher` and `flow-client-web`.
 
 ## Design details
 

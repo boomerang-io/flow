@@ -1,4 +1,4 @@
-# 0093 — Migrations run inside service-core as it starts, before it serves
+# 0098 — Migrations run inside service-core as it starts, before it serves
 
 **Status:** accepted · **Date:** 2026-10-01
 

@@ -1,4 +1,4 @@
-# 0094 — The change-unit chain migrates an empty or a v3 database, and nothing else
+# 0099 — The change-unit chain migrates an empty or a v3 database, and nothing else
 
 **Status:** accepted · **Date:** 2026-10-01
 

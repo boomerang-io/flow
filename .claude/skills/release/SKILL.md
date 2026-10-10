@@ -45,7 +45,10 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
   re-run this step after.
 
 ### 3. Release notes
-- Derive the story from `git log <previous-5.x-tag>..HEAD` (newest existing `5.*` tag).
+- Start from the unreleased section of `CHANGELOG.md`: every operator-facing change and upgrade step
+  listed there MUST appear in the notes. Then derive the rest of the story from
+  `git log <previous-5.x-tag>..HEAD` (newest existing `5.*` tag). After tagging, move that section
+  under the released version in `CHANGELOG.md`.
 - Write 2–4 plain, confident sentences: lead with what changed for the user/operator; keep the
   framework/dependency detail as background. No marketing, no exclamation marks.
 - Show the draft to the user for approval/edit **before** tagging.
