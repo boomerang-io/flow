@@ -13,9 +13,10 @@ import org.springframework.stereotype.Service;
  * flows where the SecurityContext is not populated, and the engine's run transition listener.
  * Annotated controller methods should use {@link Audited} instead.
  *
- * <p>Capture gates on the {@code audit} settings document ({@code enabled}, {@code level}) the
- * loader seeds — read per emission, like the other feature settings. A missing document disables
- * capture (only an unseeded database lacks it).
+ * <p>Capture gates on the {@code audit} settings document ({@code enabled}, {@code level}) that
+ * {@code io.boomerang.migration._0016__BuildSettingsFromSeed} builds — read per emission, like the
+ * other feature settings. A missing document disables capture (only an unmigrated database lacks
+ * it).
  *
  * <p>Actor rule: a tokenless HTTP caller records as {@code anonymous}, a tokenless non-HTTP call
  * site as {@code system} — an unauthenticated request is by definition not the system.

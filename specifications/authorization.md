@@ -83,7 +83,7 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:388-391`), and a bearer that does
 not match `^bf[gkus]_.+` is rejected before any database lookup (`core/enums/TokenTypePrefix.java:35`).
 
-Seeded roles (`service-loader/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
+Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
 (`**/read`, `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`,
 `**/action`) and `reader` (`**/read`). A permission string is `<resource>/<action>` with `**` as a wildcard on
 either side; resources and actions are the `PermissionResource` and `PermissionAction` enums.

@@ -13,12 +13,14 @@ test("manage: the root lands on the first tab and the tabs navigate", async ({ p
   // The redirect is server-side: the first response already carries the tab's URL.
   await expect(page).toHaveURL(/\/admin\/settings\/[^/?]+$/);
   await expect(page.getByRole("heading", { name: "Manage" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+  // The tab row, not the Settings side navigation, which also has an "Audit" group.
+  const tabs = page.getByLabel("Manage pages");
+  await expect(tabs.getByRole("link", { name: "Settings" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Audit" }).click();
+  await tabs.getByRole("link", { name: "Audit" }).click();
   await expect(page).toHaveURL(/\/admin\/audit$/);
   await expect(page.getByRole("heading", { name: "Manage" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Users" }).click();
+  await tabs.getByRole("link", { name: "Users" }).click();
   await expect(page).toHaveURL(/\/admin\/users$/);
 });

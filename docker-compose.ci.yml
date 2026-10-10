@@ -17,9 +17,5 @@ services:
     depends_on: !override
       mongo:
         condition: service_healthy
-      service-loader:
-        condition: service_completed_successfully
-      auth-oidc-seed:
-        condition: service_completed_successfully
       idpzero:
         condition: service_healthy

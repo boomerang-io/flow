@@ -17,8 +17,6 @@ class WorkspaceTypePatchTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
   }
 
   @Test

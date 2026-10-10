@@ -76,12 +76,12 @@ public class UserService {
   /**
    * The single normalisation point for {@code users.email}: every read and every write of an email
    * in this service passes through here, and this service is the only writer of {@code users.email}
-   * in the application (the loader's {@code _0038__NormaliseUserEmails} covers rows written before
-   * this rule existed).
+   * in the application ({@code io.boomerang.migration._0009__NormaliseUserEmails} lower-cases rows
+   * written before this rule existed, such as an upgraded v3 install's users).
    *
    * <p>Storing emails already lower-cased is what lets {@link UserRepository}'s lookups be exact
    * equality rather than {@code ...IgnoreCase} — an {@code $options:'i'} regex has no computable
-   * index bounds, so it can only scan {@code users.email_lookup}, never seek it. {@code
+   * index bounds, so it can only scan {@code users.email_unique}, never seek it. {@code
    * Locale.ROOT} is mandatory: the default locale would lower-case {@code "I"} to a dotless {@code
    * "ı"} under a Turkish locale and silently split an account across two rows.
    *
@@ -213,7 +213,7 @@ public class UserService {
 
   /**
    * Resolves a user by email. The internal store is queried with an exact-match equality on the
-   * normalised value (see {@link #normaliseEmail}) so the lookup seeks {@code users.email_lookup};
+   * normalised value (see {@link #normaliseEmail}) so the lookup seeks {@code users.email_unique};
    * the external-IdP branch passes the caller's value through untouched, because that email is the
    * external directory's key (and the subject of the JWT minted for the call), not ours to rewrite.
    */

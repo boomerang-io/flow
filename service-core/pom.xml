@@ -21,6 +21,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <http.proxyHost/>
         <http.proxyPort/>
+        <flamingock.version>1.4.4</flamingock.version>
         <jacoco.out.path>${project.build.directory}</jacoco.out.path>
         <sonar.jacoco.reportPath>${jacoco.out.path}/jacoco.exec</sonar.jacoco.reportPath>
     </properties>
@@ -36,6 +37,14 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>2.0.5</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Flamingock BOM: the change-unit runner behind io.boomerang.migration. -->
+            <dependency>
+                <groupId>io.flamingock</groupId>
+                <artifactId>flamingock-bom</artifactId>
+                <version>${flamingock.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -244,6 +253,26 @@
             <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Database migrations: the change units in io.boomerang.migration run on Flamingock as
+             the context starts. -->
+        <dependency>
+            <groupId>io.flamingock</groupId>
+            <artifactId>flamingock-community</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.flamingock</groupId>
+            <artifactId>flamingock-springboot-integration</artifactId>
+        </dependency>
+        <!-- Generates the pipeline metadata from @EnableFlamingock at compile time; the runner
+             throws at startup without it. Found on the classpath by <proc>full</proc>, beside
+             Lombok, and kept out of the packaged jar. -->
+        <dependency>
+            <groupId>io.flamingock</groupId>
+            <artifactId>flamingock-processor</artifactId>
+            <version>${flamingock.version}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -257,6 +286,16 @@
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <!-- Test sources need no processor, and a Flamingock pass over them would
+                                 generate empty pipeline metadata that shadows the real one. -->
+                            <proc>none</proc>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

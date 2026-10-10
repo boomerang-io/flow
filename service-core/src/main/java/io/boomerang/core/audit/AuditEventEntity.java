@@ -19,8 +19,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * time}/{@code subject}) so an event can be exported without reshaping; the flat
  * actor/resource/outcome fields are what the query indexes serve.
  *
- * <p>Indexes are owned by the loader ({@code _0042__AuditEventRestructure};
- * auto-index-creation is off): a TTL on {@code createdAt} driven by the {@code audit.retentionDays}
+ * <p>Indexes are built by {@code io.boomerang.migration._0021__Indexes} (auto-index-creation is
+ * off): a TTL on {@code createdAt} driven by the {@code audit.retentionDays}
  * setting, {@code time} descending for the default listing, and the {@code (workspaceId, time)},
  * {@code (actorId, time)}, {@code (resourceType, resourceId, time)} compounds. The collection is
  * insert-only — no single-field indexes on low-cardinality fields (action, outcome); those

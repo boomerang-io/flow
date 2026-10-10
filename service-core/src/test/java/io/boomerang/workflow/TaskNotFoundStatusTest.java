@@ -28,7 +28,6 @@ class TaskNotFoundStatusTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
     // Under the root, as WorkspaceService.create writes it - the scoped filter walks down from
     // root for a global identity, so a bare node is unreachable.
     relationshipService.createNodeAndEdge(

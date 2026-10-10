@@ -2,8 +2,8 @@ import { test, expect } from "@playwright/test";
 import { uniqueName, APP_BASENAME } from "../support/api";
 
 /*
- * Admin screen journey: change a platform setting seeded by service-loader
- * (service-loader/src/main/resources/seed/settings.json - "customizations"."appName") and
+ * Admin screen journey: change a platform setting seeded by service-core's migrations
+ * (service-core/src/main/resources/seed/settings.json - "customizations"."appName") and
  * confirm it round-trips through the real backend and Mongo, not just local component state.
  *
  * The stack is secured (FLOW_SECURITY_ENABLED=true) and this runs as the founding admin (the

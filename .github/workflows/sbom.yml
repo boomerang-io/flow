@@ -6,7 +6,7 @@ on:
   schedule:
     - cron: '0 6 * * 1'
   # Scan on every release tag so a release always has a fresh report behind it.
-  # v5 releases the whole image set (core/agent/loader) off one product tag (DD-03 / AM-9).
+  # One product tag releases the whole image set (core, dispatcher, webapp).
   push:
     tags:
       - '5.[0-9]+.[0-9]+'

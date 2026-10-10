@@ -25,9 +25,9 @@ things by name, not by code.
 | 0019 | [Workflow delete is a tombstone swept by the watcher](0019-workflow-delete-is-a-tombstone.md) | accepted | 2026-07-23 |
 | 0020 | [Control and execution state are typed fields; annotations and labels are metadata only](0020-control-state-is-typed-fields.md) | accepted | 2026-07-24 |
 | 0021 | [Versioned documents use the subset pattern (parent plus revision documents)](0021-versioned-documents-use-the-subset-pattern.md) | accepted | 2023-08-14 |
-| 0022 | [Migrations run as a pre-deploy loader job on Flamingock, one execution per deploy](0022-migrations-run-as-a-pre-deploy-loader-job.md) | accepted | 2026-07-23 |
+| 0022 | [Migrations run as a pre-deploy loader job on Flamingock, one execution per deploy](0022-migrations-run-as-a-pre-deploy-loader-job.md) | superseded by 0093 | 2026-07-23 |
 | 0023 | [Indexes are created by loader change units, not entity annotations](0023-indexes-are-created-by-loader-change-units.md) | accepted | 2026-08-14 |
-| 0024 | [The v3 upgrade path is kept in place through the change-unit chain](0024-v3-upgrade-path-kept-in-place-through-the-change-unit-chain.md) | accepted | 2026-09-01 |
+| 0024 | [The v3 upgrade path is kept in place through the change-unit chain](0024-v3-upgrade-path-kept-in-place-through-the-change-unit-chain.md) | superseded by 0094 | 2026-09-01 |
 | 0030 | [Relationship checks use direct queries anchored on the caller, not an in-memory graph](0030-relationship-checks-use-direct-queries-anchored-on-the-caller.md) | accepted | 2026-07-23 |
 | 0031 | [Permission checks enforce: a mismatch is a real 403, not a shadow metric](0031-permission-checks-enforce-a-mismatch-is-a-real-403.md) | accepted | 2026-08-31 |
 | 0032 | [With security off, requests run as a synthetic global admin that is never stored](0032-security-off-runs-as-a-synthetic-global-admin-that-is-never-stored.md) | accepted | 2026-08-26 |
@@ -76,8 +76,11 @@ things by name, not by code.
 | 0090 | [Administration is one "Manage" link to a tabbed page, and workflow templates leave the product UI](0090-manage-is-one-tabbed-area.md) | accepted | 2026-09-30 |
 | 0091 | [Settings groups are named for what they control, and storage defaults stay with the dispatcher](0091-settings-groups-named-for-what-they-control.md) | accepted | 2026-09-30 |
 | 0092 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0092-workspace-parameter-references.md) | accepted | 2026-09-30 |
+| 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
 | 0094 | [The dispatcher reconnects at once after a poll](0094-dispatcher-reconnects-at-once-after-a-poll.md) | accepted | 2026-10-02 |
 | 0095 | [A dispatcher claims only what it has slots for](0095-a-dispatcher-claims-only-what-it-has-slots-for.md) | accepted | 2026-10-05 |
 | 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
 | 0097 | [A dispatcher's poll filters by task type, task and workflow label, resolved to typed refs](0097-dispatcher-polls-filter-by-task-and-workflow-label.md) | accepted | 2026-10-06 |
-| 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
+| 0098 | [Migrations run inside service-core as it starts, before it serves](0098-migrations-run-inside-service-core-before-it-serves.md) | accepted | 2026-10-01 |
+| 0099 | [The change-unit chain migrates an empty or a v3 database, and nothing else](0099-the-chain-migrates-an-empty-or-a-v3-database-only.md) | accepted | 2026-10-01 |
+| 0100 | [One key encrypts every secret at rest; the v3 pair is read once to re-encrypt](0100-one-encryption-key-for-secrets-at-rest-and-the-v3-pair-read-once.md) | accepted | 2026-10-10 |

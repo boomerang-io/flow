@@ -304,7 +304,6 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
    * {@code createGlobal} nulls the id on the way out, so both halves are read back from the store.
    */
   private TaskService.TaskRef seedTaskWithPasswordParam(String name, String paramName) {
-    seedRelationshipRoot();
     AbstractParam param = new AbstractParam();
     param.setName(paramName);
     param.setType("password");

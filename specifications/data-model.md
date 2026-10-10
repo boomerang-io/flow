@@ -1,23 +1,24 @@
 # Data Model
 
 Boomerang Flow stores everything in one MongoDB database: 25 application collections owned by `lib-common` and
-the feature packages of `service-core`, plus 3 loader-owned bookkeeping collections. Definitions use the subset
-pattern, runs carry typed control fields, and every index and schema change is applied by `service-loader`.
+the feature packages of `service-core`, plus 3 migration bookkeeping collections. Definitions use the subset
+pattern, runs carry typed control fields, and every index and schema change is applied by the change units in
+`service-core/src/main/java/io/boomerang/migration/`.
 
 ## Collection naming
 Every collection is named `<prefix>_<name>`; the prefix comes from `flow.mongo.collection.prefix` (default
-`flow`, `service-core/src/main/resources/application.properties:58`). Each entity declares
+`flow`, `service-core/src/main/resources/application.properties:77`). Each entity declares
 `@Document(collection = "#{@mongoConfiguration.fullCollectionName('<name>')}")`, resolved by
 `service-core/src/main/java/io/boomerang/core/config/MongoConfiguration.java:16-27` (a blank prefix gives the
-bare name); the loader applies the same rule (`service-loader/src/main/java/io/boomerang/loader/CollectionNames.java:13-16`),
-so both MUST get the same prefix. Map keys containing `.` are stored with `#` (`MongoConfiguration.java:38`),
+bare name); the change units apply the same rule through `migration/CollectionNames.java:15-32`, built from the same
+property (`CollectionNames.java:26-28`). Map keys containing `.` are stored with `#` (`MongoConfiguration.java:38`),
 so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 
 ## Collections
 | Collection | Holds | Entity (owner package) |
 | --- | --- | --- |
 | `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations) + one document per version (tasks, params, timeout, retries) | `WorkflowEntity`, `WorkflowRevisionEntity` (`lib-common`; used by `workflow`) |
-| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by the loader (`_0023__SeedTemplates` seeds them, `_0010__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`lib-common`; `workflow`) |
+| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by migrations (`_0020__SeedTemplates` seeds them, `_0011__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`lib-common`; `workflow`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`lib-common`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`lib-common`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`lib-common`; `engine`) |
@@ -35,7 +36,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `rel_nodes`, `rel_edges` | The relationship graph (schema below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
 | `integrations`, `integration_templates` | Installed integrations and their catalogue | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
-| `sys_changelog_loader`, `sys_lock_loader`, `sys_migration_state` | Flamingock audit log and lock; the recorded install generation | loader only (`LoaderApplication.java:55-56`, `LegacyGenerationMarker.java:28`) |
+| `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `LegacyGenerationMarker.java:27`) |
 
 ## Versioned definitions: the subset pattern
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version, joined
@@ -87,27 +88,34 @@ labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kub
 | `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`service-core/src/main/java/io/boomerang/core/entity/RelationshipNodeEntity.java:38`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `teamtask`, `task`. |
 | `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from`/`to` are node ids; `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup` (`RelationshipEdgeEntity.java:26-31`). |
 
-The `root:root` node and the `system` workspace are seeded by the loader (`_0002`, `_0003`).
+The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
+`_0004__SeedSystemWorkspace`.
 
 ## Indexes
-Indexes exist only because a loader change unit created them (`MigrationUtils.ensureIndex`, by name,
-`service-loader/src/main/java/io/boomerang/loader/migration/MigrationUtils.java:30-33`). `spring.data.mongodb.auto-index-creation=false`
-(`application.properties:56`) makes every entity `@Indexed` / `@CompoundIndex` inert; they have drifted and MUST NOT be read as the inventory.
+Indexes exist only because `_0021__Indexes` built them: its `INVENTORY` is the whole set, the same on an empty and an
+upgraded database (`service-core/src/main/java/io/boomerang/migration/_0021__Indexes.java:50`).
+`spring.data.mongodb.auto-index-creation=false` (`application.properties:75`) makes every entity `@Indexed` /
+`@CompoundIndex` inert; they have drifted and MUST NOT be read as the inventory. A new query that needs an index
+MUST add it to the inventory.
 
-| Change unit | Collections | Indexes |
-| --- | --- | --- |
-| `_0017__RunIndexes` | `task_runs`, `workflow_runs`, `workflows` | first-in-first-out claim page, `timeout_sweep`, `wait_sweep`, `paused_lookup`, unique `node_uniqueness` on `(workflowRunRef, name)` after a dedupe pass (`_0017__RunIndexes.java:109-123`) |
-| `_0018__EventAndLockIndexes` | `events_outbox`, `events_inbox`, `task_locks` | delivery lookup, `sent_ttl` / `received_ttl` expiry, `lease_ttl` |
-| `_0019__DomainIndexes` | `actions`, `dispatchers`, `users`, `workflows`, `workflow_revisions`, `tasks`, `task_runs`, `workflow_runs` | action uniqueness per task run, dispatcher registration, `email_unique`, creation-date sorts, `label_wildcard` |
-| `_0026__TokenIndexes` | `tokens` | `token_hash_lookup` on the stored hash |
-| `_0030__WorkspaceSearchIndexes` | `workspaces` | `name_lookup`, `display_name_lookup` |
-| `_0033__DefinitionIndexes` | `workflows`, `workflow_revisions`, `workflow_templates`, `tasks`, `task_revisions`, `workflow_schedules` | `name_lookup`, `(parent, version)` lookups, `fire_sweep` |
-| `_0036__RelationshipAndAuditIndexes` | `rel_nodes`, `rel_edges`, `audit`, `users` | `type_ref`, `type_slug`, `from_label`, `to_label`, `email_lookup` (its audit scope lookups are dropped again by `_0042`) |
-| `_0042__AuditEventRestructure` | `audit` | `createdAt_ttl` (365-day TTL; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
-| `_0037__SweepIndexes` | `task_runs`, `workflow_runs`, `actions` | `status_sweep`, `claimed_sweep` for the watcher and dispatcher polls |
-| `_0046__DeclareRunWorkflowWaitParam` | `workflow_runs` | `initiated_by_phase` on `(initiatedByRef, phase)`, the child-run lookup the cascade cancel pages |
-| `_0049__ForeachItems` | `task_runs` | sparse `parent_index` on `(parentRef, index)`, the item-order read every item end makes; only items carry `parentRef`. `node_uniqueness` is unchanged: items are distinct names |
-| `_0051__Artifacts` | `artifacts` | unique `run_name_idx` on `(workflowRunRef, name)`, `status_expiration_idx` for the expiry and stale-upload sweeps, `workflow_status_idx` for the workspace list, the storage total and the workflow prune |
+| Collection | Indexes |
+| --- | --- |
+| `task_runs` | `claim_page` (type, status, phase, creationDate); `run_tasks`; sparse `lease_sweep`, `timeout_sweep`, `wait_sweep`; `claimed_sweep`; unique `node_uniqueness` (workflowRunRef, name); sparse `parent_index` (a foreach parent's items); `label_wildcard` (labels.$**) |
+| `workflow_runs` | `claim_page`; sparse `timeout_sweep`, `paused_lookup`; `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase`, `workflow_ref_creation`, `workflow_ref_status`; `initiated_by_phase` (the child runs a cascade cancel pages); `label_wildcard` |
+| `workflows`, `workflow_revisions`, `workflow_templates`, `workflow_schedules` | `status_lookup`, `name_lookup`, `creation_date_sort`; `workflow_ref_version`; `name_version`; `fire_sweep`, `workflow_lookup` |
+| `tasks`, `task_revisions` | `name_lookup`, `creation_date_sort`; `parent_ref_version` |
+| `events_outbox`, `events_inbox`, `task_locks` | `dispatch_page`, `sent_ttl` (7 days); `received_ttl` (7 days), `redrive_page`; `lease_ttl` (at `expiresAt`) |
+| `actions` | `task_run`, unique where `taskRunRef` exists (`:125-132`); `status_sweep` |
+| `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`; `token_hash_lookup` |
+| `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
+| `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
+| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx` |
+
+Before the unique indexes are built, duplicates are removed (`:182-185`): task runs keep the finished one, else the
+earliest; actions keep the earliest per task run, after a null `taskRunRef` is unset; dispatchers keep the most
+recently connected. Users are never deleted: a shared email is logged and fails the build. An existing index that
+holds an inventory index's keys under another name, or its name with another shape, is dropped first
+(`:284`); any other index, such as one an operator added, is kept.
 
 ## Artifacts
 
@@ -131,64 +139,53 @@ The store is any S3-compatible service (`workflow/S3ArtifactStore.java`), config
 and off unless `flow.artifacts.enabled` (`workflow/config/ArtifactStoreConfiguration.java:28`).
 
 ## Migrations
-`service-loader` runs every pending change unit on Flamingock and exits non-zero on failure, so a deployment runs
-it once as a pre-deploy job before `service-core` starts (`LoaderApplication.java:15-20,44-63`; `docker-compose.yml:124-125`
-gates on `service_completed_successfully`). Units live in `service-loader/src/main/java/io/boomerang/loader/migration/`,
-run in numeric order and are idempotent. `_0001` detects the install generation (v3 / v4 / fresh) from the legacy
-Mongock changelog (`InstallGeneration.java:31-54`) and records it once in `sys_migration_state` (`LegacyGenerationMarker.java:28-41`);
-v3-only and v4-only units read that marker. The chain is the in-place upgrade path from v3: it MUST NOT be collapsed
-into a fresh baseline, and schema changes MUST be appended as new units. `V3DumpMigrationTest` runs the whole chain
-against a real v3 dump (`service-loader/src/test/java/io/boomerang/loader/V3DumpMigrationTest.java:39-40`).
+`service-core` runs every pending change unit on Flamingock while its context starts, before the web server,
+the scheduler and the dispatcher API (`migration/MigrationConfiguration.java:21`;
+`flamingock.management-mode=INITIALIZING_BEAN`, `application.properties:81`). Replicas that start together wait on
+`sys_migration_lock`, then skip what another replica applied; a failed unit fails startup.
+
+The chain migrates exactly two starting points, an empty database and an in-place v3 install, to the shape the
+application reads. `_0001` refuses anything else before writing: a v4 install, or a database a 5.0 beta already
+migrated (it holds `sys_changelog_loader`); a refusal is retried on every start (`_0001__GuardAndDetectGeneration.java:30,47`).
+Every unit retries after a failure (`@Recovery(ALWAYS_RETRY)`), so a start interrupted mid-migration resumes on
+the next one. Before upgrading a v3 database, check for two users sharing one email: `_0021` refuses to delete an
+account, so a shared email fails the unique index and startup with it; two emails that differ only by case are
+left as they are and logged (`_0009__NormaliseUserEmails.java:109`).
+It records the generation once in `sys_migration_state` (`LegacyGenerationMarker.java:40`); v3-only units read that
+marker. `V3DumpMigrationTest` runs the chain against a real v3 dump and pins what an upgraded install ends with;
+`MigrationChainTest` and `SettingsFromSeedTest` cover the empty path, a v3 fixture, the refusals and the dedupes. Once
+a release ships the chain, changes are appended as new units.
 
 | Unit | Gate | Does |
 | --- | --- | --- |
-| `_0001__BaselineAndGenerationDetect` | all | Detects v3 / v4 / fresh from `sys_changelog_flow`; records it in `sys_migration_state` |
-| `_0002__SeedRelationshipRoot` | all | Seeds the `root:root` graph node |
-| `_0003__SeedSystemWorkspace` | all | Seeds the `system` workspace and its graph nodes and edges |
-| `_0004__V3DropDeadCollections` | v3 | Drops the Quartz store, `tokens`, `tasks_locks`, `workflows_activity_task` |
-| `_0005__V3MigrateSettings` | v3 | `settings` + `global_config` → `settings` + `parameters` |
-| `_0006__V3MigrateTaskCatalogue` | v3 | `task_templates` with embedded revisions → `tasks` + `task_revisions` |
-| `_0007__V3MigrateWorkspaces` | v3 | Reshapes `teams` in place; extracts `approver_groups` |
-| `_0008__V3MigrateUsers` | v3 | Reshapes `users`; creates one personal workspace per user |
-| `_0009__V3MigrateWorkflows` | v3 | Reshapes `workflows`; `workflows_revisions` → `workflow_revisions` |
-| `_0010__V3ExtractWorkflowTemplates` | v3 | Workflows with `scope=template` → `workflow_templates` |
-| `_0011__V3MigrateRuns` | v3 | `workflows_activity` → `workflow_runs`; approvals → `actions`; schedules → `workflow_schedules` |
-| `_0012__V3BuildRelationshipGraph` | v3 | Builds `rel_nodes` / `rel_edges` for the migrated data |
-| `_0013__V3SeedAudit` | v3 | Creates one per-object `audit` record per workspace and per workflow (dropped again by `_0042`) |
-| `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections (`workflows_activity`, `relationships`, …) |
-| `_0015__DispatcherRename` | all | Renames the worker-tier fields from `agent` to `dispatcher` on stored runs |
-| `_0016__WorkspaceRename` | all | Renames `teams` → `workspaces` and `team` → `workspace` in graph ids, types and scopes |
-| `_0017` – `_0019` | all | Index units (table above) |
-| `_0020__SeedRoles` | all | Seeds the five roles |
-| `_0021__SeedSettings` | all | Seeds the seven instance settings documents |
-| `_0022__SeedTaskCatalogue` | all | Seeds the 87 out-of-the-box tasks and their 130 revisions |
-| `_0023__SeedTemplates` | all | Seeds the starter workflow templates and the integration templates |
-| `_0024__V4RepairTaskVersions` | v4 | Repairs task version numbering left inconsistent by the v4 loader |
-| `_0025__V4RepairWorkflowAudit` | v4 | Creates the workflow-scope per-object `audit` records the v4 loader never wrote (dropped again by `_0042`) |
-| `_0026__TokenIndexes` | all | Index unit (table above) |
-| `_0027__V4DropResidualCollections` | all | Drops the leftover JobRunr collections (`<prefix>jr_*`, `<prefix>_sch_*`) |
-| `_0028__TokenClassRestructure` | all | Restructures tokens by actor kind; deletes team-, workspace- and workflow-typed tokens |
-| `_0029__AddGitHubOAuthSettings` | all | Adds the GitHub OAuth client settings entries |
-| `_0030__WorkspaceSearchIndexes` | all | Index unit (table above) |
-| `_0031__DropOrphanedFieldsAndCollections` | all | Removes migration hand-off fields (`scope`, `ownerRef`, `flowTeamRefs`, `workspaceRef`, `agentRef`, `dispatcherRef`) and `event_queue` |
-| `_0032__WorkspaceQuotaSettingsKey` | all | Renames the workspace quota settings key |
-| `_0033__DefinitionIndexes` | all | Index unit (table above) |
-| `_0034__WorkspaceFeatureFlagSettingsKeys` | all | Renames the four feature-flag settings entries |
-| `_0035__AddAuthSettings` | all | Seeds the `auth` settings document (`oidc.issuer`, `oidc.clientId`) |
-| `_0036`, `_0037` | all | Index units (table above) |
-| `_0038__NormaliseUserEmails` | all | Lower-cases every `users.email` so the equality index serves lookups |
-| `_0039__RepointWorkerFlowImages` | all | Repoints catalogue tasks off the retired `worker-flow` image |
-| `_0040__DeclareRunWorkflowParams` | all | Declares the params the `run-workflow` and `run-scheduled-workflow` catalogue tasks read |
-| `_0042__AuditEventRestructure` | all | Drops the per-object `audit` records and their indexes, creates the flat-event indexes (table above), seeds the `audit` settings document |
-| `_0043__RunPhaseFinalizedIsCompleted` | all | Rewrites the retired `finalized` phase to `completed` on `workflow_runs` and `task_runs`; `completed` is terminal and `RunPhase` no longer has the old member |
-| `_0046__DeclareRunWorkflowWaitParam` | all | Declares the `wait` param on the `run-workflow` catalogue task, adds `max.nesting.depth` to the `workflowrun` settings document, creates the child-run index (table above) |
-| `_0047__SeedAiTask` | all | Inserts the `ai` catalogue task, its version 1 revision and its `root:root --hasTask-->` edge from the same seed documents `_0022` reads — the upgrade path for a catalogue entry added after `_0022` was already recorded as applied |
-| `_0048__TaskDefaultTimeoutInheritsTheRun` | all | Sets `task`/`default.timeout` to `0` (no per-task ceiling, a task inherits its run's timeout) — but only where the value is still the shipped `90`; any other number is an operator's choice and stays. Brings the entry's `label`/`description` to the seed's wording either way |
-| `_0049__ForeachItems` | all | Creates the `parent_index` index (table above) and adds `max.foreach.items` (default 256) to the `workflowrun` settings document when absent |
-| `_0050__DescribeTaskDeletionPolicy` | all | Rewrites the `task`/`deletion.policy` description and option labels to say what each choice does to a task's worker, logs and run storage; the selected value is left as the admin set it |
-| `_0052__SeedArtifactTasks` | all | Inserts the `upload-artifact` and `download-artifact` catalogue tasks with ids assigned on insert (no seed file), each revision declaring its author params and the read-only link params Flow fills |
-| `_0055__RenameSettingsGroups` | all | Names every settings group for what it controls (Authentication, Customization, Integrations, Tasks, Quotas, Run limits) and renames the quota defaults' key `workspaces` → `quotas` in lock-step with `WorkspaceService.QUOTAS_SETTINGS_KEY`; values and entry keys untouched (decision 0091) |
-| `_0056__RetireStorageSettings` | all | Removes the `workflow` settings document and the four v3 storage entries of `workflowrun`, none of which any code reads (a volume is sized by the workflow's spec, the workspace quota and the dispatcher's `kube.workspace.storage.*`); `workflowrun` keeps `max.nesting.depth` and `max.foreach.items` |
+| `_0001__GuardAndDetectGeneration` | all | Refuses a v4 or beta database; records v3 / fresh |
+| `_0002__V3PrepareCollections` | v3 | Renames `teams` to `workspaces`; drops the Quartz store, `tokens`, `tasks_locks`, `workflows_activity_task` and the unprefixed `locks` |
+| `_0003__SeedRelationshipRoot` | all | Seeds the `root:root` graph node |
+| `_0004__SeedSystemWorkspace` | all | Seeds the `system` workspace and its graph node and edge |
+| `_0005__V3MigrateGlobalParameters` | v3 | `global_config` → `parameters` |
+| `_0006__V3MigrateTaskCatalogue` | v3 | `task_templates` with embedded revisions → `tasks` + `task_revisions`; task runs' template references |
+| `_0007__V3MigrateWorkspaces` | v3 | Reshapes v3 teams in `workspaces`; extracts `approver_groups` |
+| `_0008__V3MigrateUsers` | v3 | Reshapes `users`; one personal workspace per user |
+| `_0009__NormaliseUserEmails` | all | Lower-cases `users.email`, leaving case collisions as they are and logging them |
+| `_0010__V3MigrateWorkflows` | v3 | Reshapes `workflows`; `workflows_revisions` → `workflow_revisions` |
+| `_0011__V3ExtractWorkflowTemplates` | v3 | Workflows with `scope=template` → `workflow_templates` |
+| `_0012__V3MigrateRuns` | v3 | `workflows_activity` → `workflow_runs`; approvals → `actions`; schedules → `workflow_schedules` |
+| `_0013__V3BuildRelationshipGraph` | v3 | Builds `rel_nodes` / `rel_edges`, approver group edges included; clears the hand-off fields |
+| `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections |
+| `_0015__SeedRoles` | all | Seeds the five roles |
+| `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
+| `_0017__SeedTaskCatalogue` | all | Seeds the 88 catalogue tasks and their revisions, matched by name |
+| `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact`, ids assigned on insert |
+| `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
+| `_0020__SeedTemplates` | all | Seeds the starter workflow templates and the integration templates |
+| `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |
+
+`_0016` finds each stored settings document by id, key or earlier key and rebuilds it from the seed under the stored
+id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3
+`max.team.*` quota keys, `teamQuotas` → `workspaceQuotas`), except a value stored as another type (secured values
+are decrypted by type), the shipped 90-minute task ceiling, a `worker-flow` image and a choice that is no longer an
+option: those take the seed value. Entries the seed does not define are kept; retired entries and the v3 User
+Defaults and workflow storage documents are removed (`_0016__BuildSettingsFromSeed.java:47-89`).
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.
