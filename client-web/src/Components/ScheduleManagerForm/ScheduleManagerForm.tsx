@@ -1,13 +1,14 @@
 import React from "react";
 import {
+  Accordion,
+  AccordionItem,
   Button,
+  DatePicker,
+  DatePickerInput,
   InlineNotification,
   ModalBody,
   ModalFooter,
-  RadioButtonGroup,
   RadioButton,
-  Accordion,
-  AccordionItem,
   StructuredListWrapper,
   StructuredListHead,
   StructuredListRow,
@@ -16,29 +17,31 @@ import {
 } from "@carbon/react";
 import {
   Creatable,
-  CheckboxList,
   ComboBox,
   DynamicFormik,
   Loading,
   ModalForm,
-  TextArea,
   TextInput,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import cronstrue from "cronstrue";
 import moment from "moment-timezone";
 import * as Yup from "yup";
 import { useWorkspaceContext } from "Hooks";
-import { cronToDateTime, daysOfWeekCronList } from "Utils/cronHelper";
-import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone } from "Utils/dateHelper";
-import { scheduleTypeLabelMap } from "Constants";
-import { validateCronExpression } from "Config/resourceRoutes";
 import {
-  DataDrivenInput,
-  DayOfWeekKey,
-  ScheduleManagerFormInputs,
-  ScheduleUnion,
-  Workflow,
-} from "Types";
+  ALL_DAYS,
+  DAYS_MONDAY_FIRST,
+  WEEKDAYS,
+  ScheduleFrequency,
+  describeCron,
+  frequencyToSchedule,
+  nextOccurrence,
+  scheduleFrequency,
+  weeklyCron,
+} from "Utils/cronHelper";
+import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone } from "Utils/dateHelper";
+import { validateCronExpression } from "Config/resourceRoutes";
+import { DataDrivenInput, DayOfWeekKey, ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
+import TimeField from "./TimeField";
 import styles from "./ScheduleManagerForm.module.scss";
 
 interface CreateEditFormProps {
@@ -60,41 +63,62 @@ interface CreateEditFormProps {
   workflowOptions?: Array<Workflow>;
 }
 
-export default function CreateEditForm(props: CreateEditFormProps) {
-  const { workspace } = useWorkspaceContext();
-  const [workflowParams, setWorkflowParams] = React.useState<Array<DataDrivenInput> | undefined>(
-    props.workflow?.params?.map((param) => ({
+const FREQUENCIES: Array<{ value: ScheduleFrequency; label: string }> = [
+  { value: "once", label: "Once" },
+  { value: "hourly", label: "Hourly" },
+  { value: "daily", label: "Daily" },
+  { value: "weekdays", label: "Weekdays" },
+  { value: "weekly", label: "Weekly" },
+  { value: "custom", label: "Custom (cron)" },
+];
+
+const DATE_FORMAT = "MM/DD/YYYY";
+const TIME_PATTERN = /^\d{2}:\d{2}$/;
+const needsTime = (frequency: ScheduleFrequency) => ["daily", "weekdays", "weekly"].includes(frequency);
+
+// Required parameters first, each labelled by its Label or else its name, with the description as helper text.
+function toScheduleInputs(params: Workflow["params"]): Array<DataDrivenInput> {
+  return [...(params ?? [])]
+    .sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
+    .map((param) => ({
       ...param,
       key: `$parameter:${param.name}`,
+      label: param.label || param.name,
+      helperText: param.description,
+      description: undefined,
       defaultValue: param.default,
-    })) ?? [],
+    }));
+}
+
+export default function CreateEditForm(props: CreateEditFormProps) {
+  const { workspace } = useWorkspaceContext();
+  const [workflowParams, setWorkflowParams] = React.useState<Array<DataDrivenInput>>(
+    toScheduleInputs(props.workflow?.params),
   );
 
-  console.log("workflowProperties", workflowParams);
+  const when = props.schedule ? scheduleFrequency(props.schedule as any) : scheduleFrequency({ type: "runOnce" });
   let initFormValues: Partial<ScheduleManagerFormInputs> = {
     id: props.schedule?.id,
     name: props.schedule?.name ?? "",
     dateTime: "",
     description: props.schedule?.description ?? "",
-    type: props.schedule?.type || "runOnce",
+    frequency: props.type === "edit" ? when.frequency : "once",
+    days: when.days,
+    time: when.time,
+    minute: when.minute,
     timezone: transformTimeZone(defaultTimeZone),
     workflow: props.workflow,
-    days: [],
     labels: [],
   };
 
   /**
    * Default values if they exist. Has to be before the values from the saved schedule
    */
-  if (workflowParams) {
-    workflowParams.forEach((param) => {
-      const key = param.name;
-      if (key) {
-        //@ts-ignore
-        initFormValues[`$parameter:${key}`] = param.default;
-      }
-    });
-  }
+  workflowParams.forEach((param) => {
+    if (param.name) {
+      initFormValues[`$parameter:${param.name}`] = param.default;
+    }
+  });
 
   /**
    * Namespace parameter values if they exist from saved schedule
@@ -113,9 +137,6 @@ export default function CreateEditForm(props: CreateEditFormProps) {
     initFormValues["dateTime"] = moment(props.schedule.dateSchedule).format(DATETIME_LOCAL_INPUT_FORMAT);
   }
 
-  /**
-   * Lots of manipulating of data for the inputs based on type
-   */
   if (props.type === "edit" && props.schedule) {
     const timeZoneObj = transformTimeZone(props.schedule.timezone);
     initFormValues["timezone"] = timeZoneObj;
@@ -127,63 +148,50 @@ export default function CreateEditForm(props: CreateEditFormProps) {
         .format(DATETIME_LOCAL_INPUT_FORMAT);
     }
 
-    if (props.schedule.type === "advancedCron") {
-      initFormValues["cronSchedule"] = props.schedule.cronSchedule;
-    }
-
-    if (props.schedule.type === "cron") {
-      const cronSchedule = props.schedule.cronSchedule;
-      const cronToData = cronToDateTime(Boolean(cronSchedule), cronSchedule);
-      const { cronTime, selectedDays }: { cronTime: string; selectedDays: { [day in DayOfWeekKey]: boolean } } =
-        cronToData;
-
-      let activeDays: DayOfWeekKey[] = [];
-      for (let entry in selectedDays) {
-        const day = entry as DayOfWeekKey;
-        const value = selectedDays[day];
-        if (value) {
-          activeDays.push(day);
-        }
-      }
-      initFormValues["time"] = cronTime;
-      initFormValues["days"] = activeDays;
+    if (when.frequency === "custom") {
+      initFormValues["cronSchedule"] = (props.schedule as { cronSchedule?: string }).cronSchedule;
     }
 
     const scheduleLabelsMap = props.schedule.labels;
     if (scheduleLabelsMap && Object.keys(scheduleLabelsMap).length > 0) {
-      const scheduleLabels: Array<string> = Object.entries(scheduleLabelsMap).map(
-        ([key, value]) => `${key}:${value}`,
-      );
-      initFormValues["labels"] = scheduleLabels;
+      initFormValues["labels"] = Object.entries(scheduleLabelsMap).map(([key, value]) => `${key}:${value}`);
     }
   }
 
-  console.log("initFormValues", initFormValues);
+  const requiredCount = workflowParams.filter((param) => param.required).length;
 
   return (
     <DynamicFormik
       enableReinitialize
       validateOnMount
       initialValues={initFormValues}
-      inputs={workflowParams ?? []}
-      onSubmit={(args: ScheduleManagerFormInputs) => props.handleSubmit(args, props.modalProps.closeModal)}
+      inputs={workflowParams}
+      onSubmit={({ frequency, minute, ...values }: ScheduleManagerFormInputs) => {
+        const stored = frequencyToSchedule(frequency, {
+          days: values.days,
+          time: values.time,
+          minute,
+          cronSchedule: values.cronSchedule,
+        });
+        props.handleSubmit({ ...values, ...stored } as ScheduleManagerFormInputs, props.modalProps.closeModal);
+      }}
       validationSchemaExtension={Yup.object().shape({
         name: Yup.string().required("Name is required").max(200, "Enter less than 200 characters"),
         description: Yup.string().max(500, "Enter less than 500 characters"),
-        type: Yup.string().required("Enter a type"),
-        dateTime: Yup.string().when("type", {
-          is: "runOnce",
+        frequency: Yup.string().required("Choose when the schedule runs"),
+        dateTime: Yup.string().when("frequency", {
+          is: "once",
           then: Yup.string()
-            .required("Date and Time are required")
+            .required("Date and time are required")
             .test("isAfterNow", "Enter a date and time after now", (value: string | undefined, ctx) => {
               return moment.tz(value, ctx.parent.timezone.value).isAfter(new Date());
             }),
         }),
         labels: Yup.array().max(20, "Enter less than 20 labels"),
-        cronSchedule: Yup.string().when("type", {
-          is: "advancedCron",
+        cronSchedule: Yup.string().when("frequency", {
+          is: "custom",
           then: Yup.string()
-            .required("Cron Expression is required")
+            .required("Cron expression is required")
             .test({
               name: "isValidCron",
               test: async (value: string | undefined, { createError, path }) => {
@@ -200,17 +208,28 @@ export default function CreateEditForm(props: CreateEditFormProps) {
               },
             }),
         }),
-        days: Yup.array().when("type", {
-          is: "cron",
-          then: Yup.array().min(1, "At least one day is required"),
+        days: Yup.array().when("frequency", {
+          is: "weekly",
+          then: Yup.array().min(1, "Choose at least one day"),
         }),
-        time: Yup.string().when("type", { is: "cron", then: Yup.string().required("Time is required") }),
+        time: Yup.string().when("frequency", {
+          is: needsTime,
+          then: Yup.string().required("Time is required").matches(TIME_PATTERN, "Enter a time as h:mm"),
+        }),
+        minute: Yup.number().when("frequency", {
+          is: "hourly",
+          then: Yup.number()
+            .typeError("Enter a minute from 0 to 59")
+            .required("Enter a minute from 0 to 59")
+            .min(0, "Enter a minute from 0 to 59")
+            .max(59, "Enter a minute from 0 to 59"),
+        }),
         timezone: Yup.object().shape({ label: Yup.string(), value: Yup.string() }),
       })}
     >
       {({ inputs, formikProps }: any) => (
         <ModalForm noValidate onSubmit={formikProps.handleSubmit}>
-          <ModalBody>
+          <ModalBody className={styles.body}>
             {props.isLoading && <Loading />}
             {props.includeWorkflowDropdown && (
               <ComboBox
@@ -224,121 +243,66 @@ export default function CreateEditForm(props: CreateEditFormProps) {
                 onChange={({ selectedItem }: { selectedItem: Workflow }) => {
                   formikProps.setFieldValue("workflow", selectedItem);
                   if (selectedItem?.name) {
-                    setWorkflowParams(
-                      selectedItem.params?.map((param) => ({
-                        ...param,
-                        key: `$parameter:${param.name}`,
-                        defaultValue: param.default,
-                      })),
-                    );
+                    setWorkflowParams(toScheduleInputs(selectedItem.params));
                   }
                 }}
                 placeholder="e.g. Number 1 Workflow"
                 titleText="Workflow"
               />
             )}
-            <TextInput
-              id="name"
-              invalidText={formikProps.errors.name}
-              invalid={formikProps.errors.name && formikProps.touched.name}
-              labelText="Name"
-              onBlur={formikProps.handleBlur}
-              onChange={formikProps.handleChange}
-              placeholder="e.g. Daily task"
-              value={formikProps.values.name}
-            />
-            <TextArea
-              id="description"
-              invalid={formikProps.errors.description && formikProps.touched.description}
-              invalidText={formikProps.errors.description}
-              labelText="Description (optional)"
-              onBlur={formikProps.handleBlur}
-              onChange={formikProps.handleChange}
-              placeholder="e.g. Runs very important daily task."
-              value={formikProps.values.description}
-            />
-            <Creatable
-              createKeyValuePair
-              keyLabelText="Label key"
-              keyPlaceholder="level"
-              valueLabelText="Label value"
-              valuePlaceholder="important"
-              value={formikProps.values.labels}
-              onChange={(labels) => formikProps.setFieldValue("labels", labels)}
-            />
-            <p>
-              <b>Schedule</b>
-            </p>
-            <section>
-              <p style={{ marginBottom: "0.375rem" }}>What type of Schedule do you want to create?</p>
-              <RadioButtonGroup
-                id="type"
-                labelPosition="right"
-                name="type"
-                onChange={(type: React.ReactNode) => formikProps.setFieldValue("type", type)}
-                orientation="horizontal"
-                valueSelected={formikProps.values["type"]}
-              >
-                <RadioButton
-                  key={"runOnce"}
-                  id={"runOnce"}
-                  labelText={scheduleTypeLabelMap["runOnce"]}
-                  value={"runOnce"}
-                />
-                <RadioButton key={"cron"} id={"cron"} labelText={scheduleTypeLabelMap["cron"]} value={"cron"} />
-                <RadioButton
-                  id={"advanced-cron"}
-                  key={"advanced-cron"}
-                  labelText={scheduleTypeLabelMap["advancedCron"]}
-                  value={"advancedCron"}
-                />
-              </RadioButtonGroup>
-            </section>
-            {formikProps.values["type"] === "runOnce" ? (
-              <>
-                <div style={{ width: "23.5rem" }}>
-                  <TextInput
-                    helperText="When you want it to execute"
-                    id="dateTime"
-                    invalid={formikProps.errors.dateTime && formikProps.touched.dateTime}
-                    invalidText={formikProps.errors.dateTime}
-                    labelText="Date and Time"
-                    min={moment().format(DATETIME_LOCAL_INPUT_FORMAT)}
-                    name="dateTime"
-                    onBlur={formikProps.handleBlur}
-                    onChange={formikProps.handleChange}
-                    type="datetime-local"
-                    value={formikProps.values.dateTime ?? ""}
-                  />
-                </div>
-                <div style={{ width: "23.5rem" }}>
-                  <ComboBox
-                    helperText="What time zone do you want to use"
-                    id="timezone"
-                    initialSelectedItem={formikProps.values.timezone}
-                    items={timezoneOptions}
-                    onChange={({ selectedItem }: { selectedItem: { label: string; value: string } }) => {
-                      const item = selectedItem ?? { label: "", value: "" };
-                      formikProps.setFieldValue("timezone", item);
-                    }}
-                    placeholder="e.g. US/Central (UTC -06:00)"
-                    titleText="Time Zone"
-                  />
-                </div>
-              </>
-            ) : (
-              <CronJobConfig formikProps={formikProps} timezoneOptions={timezoneOptions} />
-            )}
-            <>
-              <p>
-                <b>Workflow Parameters</b>
-              </p>
+            <div className={styles.detailsRow}>
+              <TextInput
+                id="name"
+                invalidText={formikProps.errors.name}
+                invalid={formikProps.errors.name && formikProps.touched.name}
+                labelText="Name"
+                onBlur={formikProps.handleBlur}
+                onChange={formikProps.handleChange}
+                placeholder="e.g. Nightly analysis"
+                value={formikProps.values.name}
+              />
+              <TextInput
+                id="description"
+                invalid={formikProps.errors.description && formikProps.touched.description}
+                invalidText={formikProps.errors.description}
+                labelText="Description (optional)"
+                onBlur={formikProps.handleBlur}
+                onChange={formikProps.handleChange}
+                placeholder="e.g. Pins the latest release every weekday"
+                value={formikProps.values.description}
+              />
+            </div>
+            <When formikProps={formikProps} />
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>Parameters</h3>
               {formikProps.values.workflow && inputs.length ? (
-                inputs
+                <>
+                  <p className={styles.sectionDescription}>Values every scheduled run starts with.</p>
+                  <div className={styles.parameters}>{inputs.slice(0, requiredCount)}</div>
+                  {inputs.length > requiredCount && (
+                    <Accordion className={styles.optionalParameters}>
+                      <AccordionItem title={`Optional parameters (${inputs.length - requiredCount})`}>
+                        <div className={styles.parameters}>{inputs.slice(requiredCount)}</div>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
+                </>
               ) : (
-                <div>No parameters to configure for this Workflow</div>
+                <p className={styles.sectionDescription}>This workflow has no parameters.</p>
               )}
-            </>
+            </section>
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>Labels (optional)</h3>
+              <Creatable
+                createKeyValuePair
+                keyLabelText="Label key"
+                keyPlaceholder="level"
+                valueLabelText="Label value"
+                valuePlaceholder="important"
+                value={formikProps.values.labels}
+                onChange={(labels) => formikProps.setFieldValue("labels", labels)}
+              />
+            </section>
             {props.isError && (
               <InlineNotification
                 lowContrast
@@ -370,137 +334,212 @@ export default function CreateEditForm(props: CreateEditFormProps) {
   );
 }
 
-type Props = {
-  timezoneOptions?: Array<{ label: string; value: string }>;
-  formikProps: any;
-};
+/**
+ * When: one radio per choice; the chosen one opens its settings underneath. The time zone applies to all of
+ * them, and a line under it says what will happen.
+ */
+function When({ formikProps }: { formikProps: any }) {
+  const { values, errors, touched, setFieldValue, setFieldTouched, handleBlur, handleChange } = formikProps;
+  const frequency: ScheduleFrequency = values.frequency;
 
-type State = {
-  errorMessage?: string;
-  message: string | undefined;
-  isValidatingCron: boolean;
-  hasValidated: boolean;
-};
-
-class CronJobConfig extends React.Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      errorMessage: undefined,
-      message: props.formikProps.values?.cronSchedule && cronstrue.toString(props.formikProps.values.cronSchedule),
-      isValidatingCron: false,
-      hasValidated: true,
-    };
-  }
-
-  handleTimeChange = (selectedItem: any, id: string, setFieldValue: (id: string, item: any) => void) => {
-    setFieldValue(id, selectedItem);
-  };
-
-  validateCron = async (value: string) => {
-    try {
-      const message = cronstrue.toString(value); //just need to run it
-      this.setState({ message });
-    } catch (e) {
-      this.setState({ message: undefined });
-    }
-  };
-
-  handleCheckboxListChange = (setFieldValue: (id: string, value: any) => void, ...args: any) => {
-    const currDays = args[args.length - 1];
-    setFieldValue("days", currDays);
-  };
-
-  render() {
-    const { values, touched, errors, handleBlur, handleChange, setFieldValue } = this.props.formikProps;
-
-    return (
-      <>
-        {values.type === "advancedCron" ? (
-          <>
-            <CronInfoSection />
-            <div className={styles.cronContainer}>
-              <div className={styles.inputContainer}>
-                <TextInput
-                  helperText={this.state.message}
-                  id="cronSchedule"
-                  invalid={(errors.cronSchedule || this.state.errorMessage) && touched.cronSchedule}
-                  invalidText={this.state.errorMessage || errors.cronSchedule}
-                  labelText="Cron Expression"
-                  onChange={(e: any) => {
-                    handleChange(e);
-                    this.validateCron(e.target.value);
-                  }}
-                  onBlur={handleBlur}
-                  placeholder="e.g. 0 18 * * *"
-                  value={values.cronSchedule}
-                  style={{ width: "23.5rem" }}
-                />
-              </div>
-            </div>
-            <div className={styles.timezone}>
-              <ComboBox
-                helperText="What time zone do you want to use"
-                id="timezone"
-                initialSelectedItem={values.timezone}
-                items={this.props?.timezoneOptions ?? []}
-                onChange={({ selectedItem }: { selectedItem: { label: string; value: string } }) => {
-                  const item = selectedItem ?? { label: "", value: "" };
-                  this.props.formikProps.setFieldValue("timezone", item);
-                }}
-                placeholder="e.g. US/Central (UTC -06:00)"
-                titleText="Time Zone"
+  return (
+    <fieldset className={styles.section}>
+      <legend className={styles.sectionTitle}>When</legend>
+      <div className={styles.frequencyList}>
+        {FREQUENCIES.map((option) => {
+          const checked = frequency === option.value;
+          return (
+            <div key={option.value} className={styles.frequencyOption}>
+              <RadioButton
+                checked={checked}
+                id={`frequency-${option.value}`}
+                labelText={option.label}
+                name="frequency"
+                onChange={() => setFieldValue("frequency", option.value)}
+                value={option.value}
               />
+              {checked && <div className={styles.frequencySettings}>{renderSettings(option.value)}</div>}
             </div>
-          </>
-        ) : (
-          <div className={styles.container}>
+          );
+        })}
+      </div>
+      <div className={styles.timezone}>
+        <ComboBox
+          id="timezone"
+          initialSelectedItem={values.timezone}
+          items={timezoneOptions}
+          onChange={({ selectedItem }: { selectedItem: { label: string; value: string } }) => {
+            setFieldValue("timezone", selectedItem ?? { label: "", value: "" });
+          }}
+          placeholder="e.g. US/Central (UTC -06:00)"
+          titleText="Time zone"
+        />
+      </div>
+      <InlineNotification
+        className={styles.summary}
+        hideCloseButton
+        kind="info"
+        lowContrast
+        role="status"
+        subtitle={summarise(values)}
+        title=""
+      />
+    </fieldset>
+  );
+
+  function renderSettings(option: ScheduleFrequency) {
+    const timeField = (
+      <TimeField
+        id="time"
+        invalid={Boolean(errors.time && touched.time)}
+        invalidText={errors.time}
+        labelText="At"
+        onBlur={() => setFieldTouched("time", true)}
+        onChange={(time) => setFieldValue("time", time)}
+        value={values.time}
+      />
+    );
+    switch (option) {
+      case "once": {
+        const [date = "", time = ""] = (values.dateTime ?? "").split("T");
+        const setDateTime = (nextDate: string, nextTime: string) =>
+          setFieldValue("dateTime", nextDate ? `${nextDate}T${nextTime || "09:00"}` : "");
+        return (
+          <div className={styles.settingsRow}>
+            <DatePicker
+              datePickerType="single"
+              minDate={moment().format(DATE_FORMAT)}
+              onChange={([picked]: Array<Date>) => setDateTime(picked ? moment(picked).format("YYYY-MM-DD") : "", time)}
+              value={date ? moment(date).format(DATE_FORMAT) : ""}
+            >
+              <DatePickerInput
+                id="dateTime"
+                invalid={Boolean(errors.dateTime && touched.dateTime)}
+                invalidText={errors.dateTime}
+                labelText="Date"
+                onBlur={() => setFieldTouched("dateTime", true)}
+                placeholder="mm/dd/yyyy"
+              />
+            </DatePicker>
+            <TimeField
+              id="dateTime-time"
+              labelText="At"
+              onChange={(nextTime) => setDateTime(date, nextTime)}
+              value={time}
+            />
+          </div>
+        );
+      }
+      case "hourly":
+        return (
+          <div className={styles.minute}>
             <TextInput
-              id="time"
-              invalid={Boolean(errors.time && touched.time)}
-              invalidText={errors.time}
-              labelText={"Time"}
-              name="time"
+              id="minute"
+              invalid={Boolean(errors.minute && touched.minute)}
+              invalidText={errors.minute}
+              labelText="At minute"
+              max={59}
+              min={0}
               onBlur={handleBlur}
               onChange={handleChange}
-              placeholder="Time"
-              style={{ width: "23.5rem" }}
-              type="time"
-              value={values.time}
+              type="number"
+              value={values.minute}
             />
-            <div className={styles.timezone}>
-              <ComboBox
-                id="timezone"
-                initialSelectedItem={values.timezone}
-                //@ts-ignore
-                items={this.props.timezoneOptions}
-                onChange={({ selectedItem }: { selectedItem: { label: string; value: string } }) => {
-                  const item = selectedItem ?? { label: "", value: "" };
-                  this.props.formikProps.setFieldValue("timezone", item);
-                }}
-                placeholder="e.g. US/Central (UTC -06:00)"
-                titleText="Time Zone"
-              />
-            </div>
-            <div className={styles.daysContainer}>
-              <CheckboxList
-                initialSelectedItems={values.days}
-                labelText="Choose day(s)"
-                options={daysOfWeekCronList}
-                onChange={(...args: any) => this.handleCheckboxListChange(setFieldValue, ...args)}
-              />
-            </div>
           </div>
-        )}
-      </>
-    );
+        );
+      case "weekly":
+        return (
+          <div className={styles.settingsRow}>
+            <fieldset className={styles.days}>
+              <legend className="cds--label">On</legend>
+              <div className={styles.dayButtons}>
+                {DAYS_MONDAY_FIRST.map((day: DayOfWeekKey) => {
+                  const picked = values.days.includes(day);
+                  return (
+                    <Button
+                      aria-label={day[0].toUpperCase() + day.slice(1)}
+                      aria-pressed={picked}
+                      className={styles.dayButton}
+                      key={day}
+                      kind={picked ? "primary" : "tertiary"}
+                      onClick={() =>
+                        setFieldValue(
+                          "days",
+                          picked ? values.days.filter((value: DayOfWeekKey) => value !== day) : [...values.days, day],
+                        )
+                      }
+                      size="md"
+                    >
+                      {day[0].toUpperCase() + day.slice(1, 2)}
+                    </Button>
+                  );
+                })}
+              </div>
+              {errors.days && <div className="cds--form-requirement" style={{ display: "block" }}>{errors.days}</div>}
+            </fieldset>
+            {timeField}
+          </div>
+        );
+      case "custom":
+        return <CustomCron formikProps={formikProps} />;
+      default:
+        return timeField;
+    }
   }
 }
+
+function CustomCron({ formikProps }: { formikProps: any }) {
+  const { values, errors, touched, handleBlur, handleChange } = formikProps;
+  let reading: string | undefined;
+  try {
+    reading = values.cronSchedule ? cronstrue.toString(values.cronSchedule) : undefined;
+  } catch (e) {
+    reading = undefined;
+  }
+  return (
+    <div className={styles.cron}>
+      <TextInput
+        helperText={reading ?? "minute · hour · day of month · month · day of week"}
+        id="cronSchedule"
+        invalid={Boolean(errors.cronSchedule && touched.cronSchedule)}
+        invalidText={errors.cronSchedule}
+        labelText="Cron expression"
+        onBlur={handleBlur}
+        onChange={handleChange}
+        placeholder="e.g. 0 18 * * *"
+        value={values.cronSchedule ?? ""}
+      />
+      <CronInfoSection />
+    </div>
+  );
+}
+
+/** What the chosen settings will do, in words, with the next run where it can be worked out here. */
+function summarise(values: any): string {
+  const zone = values.timezone?.value || defaultTimeZone;
+  const frequency: ScheduleFrequency = values.frequency;
+  if (frequency === "once") {
+    const at = values.dateTime ? moment(values.dateTime, DATETIME_LOCAL_INPUT_FORMAT) : undefined;
+    return at?.isValid() ? `Runs once on ${at.format("ddd D MMM YYYY")} at ${at.format("h:mm A")} (${zone})` : "Choose a date and time.";
+  }
+  if (frequency === "custom") {
+    return values.cronSchedule ? `${describeCron(values.cronSchedule)} (${zone})` : "Enter a cron expression.";
+  }
+  const days = frequency === "daily" ? ALL_DAYS : frequency === "weekdays" ? WEEKDAYS : values.days;
+  const cron = frequency === "hourly" ? `${Number(values.minute) || 0} * * * *` : days.length ? weeklyCron(days, values.time) : "";
+  if (!cron || (needsTime(frequency) && !TIME_PATTERN.test(values.time ?? ""))) {
+    return frequency === "weekly" && !values.days.length ? "Choose at least one day." : "Enter a time.";
+  }
+  const next = nextOccurrence(frequency, { days: values.days, time: values.time, minute: values.minute, timezone: zone });
+  return `Runs ${lowerFirst(describeCron(cron))} (${zone})${next ? ` · next ${next.format("ddd D MMM, h:mm A")}` : ""}`;
+}
+
+const lowerFirst = (text: string) => (text.startsWith("Every") ? `e${text.slice(1)}` : text);
 
 const CronInfoSection: React.FC = () => {
   return (
     <Accordion>
-      <AccordionItem title="Cron Expression Information & Examples">
+      <AccordionItem title="Cron syntax and examples">
         <p>The cron expression is made of five fields. Each field can have the following values:</p>
         <StructuredListWrapper className={styles.cronStructuredList}>
           <StructuredListHead>
@@ -514,7 +553,6 @@ const CronInfoSection: React.FC = () => {
             </StructuredListRow>
           </StructuredListHead>
           <StructuredListBody>
-            <StructuredListRow></StructuredListRow>
             <StructuredListRow>
               <StructuredListCell>Every minute</StructuredListCell>
               <StructuredListCell>*</StructuredListCell>

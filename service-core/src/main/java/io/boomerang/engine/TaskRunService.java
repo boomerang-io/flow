@@ -10,9 +10,12 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskRunStartRequest;
+import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.ResultUtil;
@@ -21,9 +24,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
@@ -45,11 +50,16 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class TaskRunService {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  @Value("${flow.engine.task.results.max-bytes:4096}")
+  @Value("${flow.engine.task.results.max-bytes:1048576}")
   private int resultsMaxBytes;
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
+
+  // Reasons a dispatcher gives when it could not START a task: the cluster refused it on quota, or
+  // its pod never left Pending. Nothing ran, so the task is handed back for another attempt on any
+  // dispatcher, on the same budget as a timed-out claimant, and fails only once that is spent.
+  private static final Set<String> RETRYABLE_END_REASONS = Set.of("ExceededQuota", "StartTimeout");
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -57,6 +67,8 @@ public class TaskRunService {
   private final MongoTemplate mongoTemplate;
   private final ApplicationEventPublisher eventPublisher;
   private final ObjectMapper objectMapper;
+  // The upload task's completion lives with the artifacts; resolved late, as the two call each other.
+  private final ObjectProvider<ArtifactService> artifactService;
 
   public TaskRunService(
       @Lazy TaskExecutionService taskExecutionService,
@@ -64,30 +76,39 @@ public class TaskRunService {
       TaskRunRepository taskRunRepository,
       MongoTemplate mongoTemplate,
       ApplicationEventPublisher eventPublisher,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ObjectProvider<ArtifactService> artifactService) {
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
     this.taskRunRepository = taskRunRepository;
     this.mongoTemplate = mongoTemplate;
     this.eventPublisher = eventPublisher;
     this.objectMapper = objectMapper;
+    this.artifactService = artifactService;
   }
 
   // Return the page of TaskRuns eligible for claiming by an executor of the given types: ready,
   // pending, unclaimed, with any retry backoff elapsed, oldest first.
   public List<TaskRunEntity> findClaimable(List<TaskType> types, int limit) {
+    return findClaimable(ClaimFilter.of(types), limit);
+  }
+
+  // The same page, narrowed to a dispatcher poll's task and workflow filters.
+  public List<TaskRunEntity> findClaimable(ClaimFilter filter, int limit) {
     Criteria criteria =
-        Criteria.where("status")
-            .is(RunStatus.ready)
-            .and("phase")
-            .is(RunPhase.pending)
-            .and("type")
-            .in(types)
-            .and("claim.by")
-            .exists(false)
-            .orOperator(
-                Criteria.where("retry.after").exists(false),
-                Criteria.where("retry.after").lte(new Date()));
+        narrowed(
+            Criteria.where("status")
+                .is(RunStatus.ready)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("type")
+                .in(filter.types())
+                .and("claim.by")
+                .exists(false),
+            filter);
+    criteria.orOperator(
+        Criteria.where("retry.after").exists(false),
+        Criteria.where("retry.after").lte(new Date()));
     Query query =
         Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
@@ -111,10 +132,16 @@ public class TaskRunService {
   //
   // A run that was never claimed provisioned nothing and is deliberately excluded from both.
   public List<TaskRunEntity> findClaimableForTermination(List<TaskType> types, int limit) {
+    return findClaimableForTermination(ClaimFilter.of(types), limit);
+  }
+
+  // The same pages, narrowed to a dispatcher poll's task and workflow filters, so a filtered
+  // dispatcher is told to terminate exactly the work it could have claimed.
+  public List<TaskRunEntity> findClaimableForTermination(ClaimFilter filter, int limit) {
     List<TaskRunEntity> candidates =
         new ArrayList<>(
             findOwnedResidue(
-                types,
+                filter,
                 limit,
                 Criteria.where("phase")
                     .is(RunPhase.completed)
@@ -130,22 +157,37 @@ public class TaskRunService {
                     .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))));
     candidates.addAll(
         findOwnedResidue(
-            types,
+            filter,
             limit,
             Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
     return candidates;
   }
 
   // One indexed termination page: the given status/phase shape, restricted to the agent's task
-  // types and to runs a dispatcher still owns, oldest first.
-  private List<TaskRunEntity> findOwnedResidue(List<TaskType> types, int limit, Criteria shape) {
+  // types and filters and to runs a dispatcher still owns, oldest first.
+  private List<TaskRunEntity> findOwnedResidue(ClaimFilter filter, int limit, Criteria shape) {
     Query query =
-        Query.query(shape.and("type").in(types).and("claim.by").exists(true))
+        Query.query(
+                narrowed(shape.and("type").in(filter.types()).and("claim.by").exists(true), filter))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
     // The claim page only needs the id - tryClaimForTermination re-reads and transitions by id.
     query.fields().include("_id");
     return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // A poll's task and workflow filters apply after the index has picked the ready (or owned) runs
+  // of the right types, so the oldest-first order is kept and the unfiltered page loses nothing.
+  // Criteria.and builds on a copy of the chain, so only the returned criteria carries the filter.
+  private static Criteria narrowed(Criteria criteria, ClaimFilter filter) {
+    Criteria narrowed = criteria;
+    if (filter.taskRefs() != null) {
+      narrowed = narrowed.and("taskRef").in(filter.taskRefs());
+    }
+    if (filter.workflowRefs() != null) {
+      narrowed = narrowed.and("workflowRef").in(filter.workflowRefs());
+    }
+    return narrowed;
   }
 
   // Termination Compare-And-Set: re-checks one of the two owned-residue shapes and RELEASES the
@@ -412,6 +454,105 @@ public class TaskRunService {
     return preImage;
   }
 
+  // Fan-out Compare-And-Set for a foreach parent: notstarted/pending becomes running with the given
+  // start time, recording the resolved item array (null when it failed to resolve) in the same
+  // guarded write. The parent never passes through ready, so it is never claimable, and it carries
+  // no claim and no timeoutAt, so no lease, orphan or timeout sweep ever reaps it - its items carry
+  // the timeouts. Returns the pre-image, or null when another caller already fanned it out.
+  public TaskRunEntity tryStartForeach(String id, Date startTime, List<Object> items) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(RunStatus.notstarted)
+                .and("phase")
+                .is(RunPhase.pending));
+    Update update =
+        new Update()
+            .set("status", RunStatus.running)
+            .set("phase", RunPhase.running)
+            .set("startTime", startTime)
+            .set("foreach.items", items);
+    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.running, RunPhase.running);
+    }
+    return preImage;
+  }
+
+  // Record a foreach parent's outcome - its status, message, typed reason and, when given, the
+  // per-item result arrays - field-scoped and fenced on the running phase, for end() to complete it
+  // through the ordinary completion Compare-And-Set. Concurrent last-item enders compute the same
+  // outcome from the same terminal items, so a repeated write is harmless, and a completed parent
+  // is never touched.
+  public void tryRecordForeachOutcome(
+      String id, RunStatus status, String statusMessage, String statusReason, List<RunResult> results) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", status).set("statusMessage", statusMessage);
+    if (statusReason != null) {
+      update.set("statusReason", statusReason);
+    }
+    if (results != null) {
+      update.set("results", results);
+    }
+    mongoTemplate.updateFirst(query, update, TaskRunEntity.class);
+  }
+
+  // Return the page of foreach parents in the running phase since before the given time - the
+  // candidates for recovering a fan-out or a parent completion that a crash cut short. Matched by
+  // phase alone: a parent whose outcome is recorded but whose end was lost keeps a terminal status
+  // in the running phase.
+  public List<TaskRunEntity> findRunningForeachParents(Date startedBefore, int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("phase")
+                    .is(RunPhase.running)
+                    .and("foreach")
+                    .exists(true)
+                    .and("startTime")
+                    .lte(startedBefore))
+            .with(Sort.by(Sort.Direction.ASC, "startTime"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    query.fields().include("_id").include("status").include("workflowRunRef");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Whether every item of a foreach parent is completed and all the expected items exist - an
+  // exists and a count on the parent's items, so no item document is loaded until the last ends.
+  public boolean allItemsCompleted(String parentRef, int expected) {
+    Query unfinished =
+        Query.query(Criteria.where("parentRef").is(parentRef).and("phase").ne(RunPhase.completed));
+    return !mongoTemplate.exists(unfinished, TaskRunEntity.class)
+        && mongoTemplate.count(Query.query(Criteria.where("parentRef").is(parentRef)), TaskRunEntity.class)
+            >= expected;
+  }
+
+  // A foreach parent's items in item order, holding only what the parent's outcome is built from.
+  public List<TaskRunEntity> findItemOutcomes(String parentRef) {
+    Query query =
+        Query.query(Criteria.where("parentRef").is(parentRef))
+            .with(Sort.by(Sort.Direction.ASC, "index"));
+    query.fields().include("index").include("status").include("results");
+    return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // Whether a foreach parent has an item in flight, by the same test as
+  // existsInFlightByWorkflowRunRef. None in flight on a running parent means its items are all
+  // terminal or never queued, and the fan-out must be recovered.
+  public boolean existsInFlightItem(String parentRef) {
+    Query query =
+        Query.query(
+                Criteria.where("parentRef")
+                    .is(parentRef)
+                    .orOperator(
+                        Criteria.where("phase").in(RunPhase.queued, RunPhase.running),
+                        Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
+            .maxTimeMsec(5000);
+    return mongoTemplate.exists(query, TaskRunEntity.class);
+  }
+
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
   // set only when provided; claimant identity enforced as fencing when provided. Returns the
   // pre-image, or null when already completed - a terminal status is never overwritten.
@@ -526,7 +667,7 @@ public class TaskRunService {
             .in(RunPhase.queued, RunPhase.running)
             .and("timeoutAt")
             .lte(new Date());
-    fence(criteria, observedClaimSeq);
+    criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", RunStatus.timedout)
@@ -549,7 +690,7 @@ public class TaskRunService {
       String id, Long observedClaimSeq, String statusMessage, String statusReason) {
     Criteria criteria =
         Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
-    fence(criteria, observedClaimSeq);
+    criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", RunStatus.timedout)
@@ -612,7 +753,7 @@ public class TaskRunService {
             .in(RunPhase.queued, RunPhase.running)
             .and("claim.by")
             .exists(claimed);
-    fence(criteria, observedClaimSeq);
+    criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", toStatus)
@@ -671,11 +812,14 @@ public class TaskRunService {
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
-  // Arm an eventwait: status -> waiting as a field-scoped Compare-And-Set fenced on the running
-  // phase. An event delivered between execute()'s entry read and this write lands through
-  // applyEventDelivery (preApproved, status annotation, results) and survives; the whole-document
-  // save this replaces rolled those fields back. Returns whether the arm was applied.
-  public boolean tryArmEventWait(String id) {
+  // Arm a wait with no wake time - an eventwait, or a runworkflow task waiting on its child.
+  // status -> waiting as a field-scoped Compare-And-Set fenced on the running phase, leaving
+  // waitUntil absent so the watcher's time-based resume never picks the row up: only the arriving
+  // event, the child's completion, or the timeout reap ends it. An event delivered between
+  // execute()'s entry read and this write lands through applyEventDelivery (preApproved, status
+  // annotation, results) and survives; the whole-document save this replaces rolled those fields
+  // back. Returns whether the arm was applied.
+  public boolean tryArmWait(String id) {
     Query query =
         Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
     Update update = new Update().set("status", RunStatus.waiting);
@@ -704,14 +848,14 @@ public class TaskRunService {
     return claim;
   }
 
-  // A null observed seq fences on the run being unclaimed - a claim arriving between page and
-  // Compare-And-Set carries a seq and fails the guard.
-  private static void fence(Criteria criteria, Long observedClaimSeq) {
-    if (observedClaimSeq != null) {
-      criteria.and("claim.seq").is(observedClaimSeq);
-    } else {
-      criteria.and("claim.seq").exists(false);
-    }
+  // Return the criteria fenced on the observed claim seq. A null observed seq fences on the run
+  // being unclaimed - a claim arriving between page and Compare-And-Set carries a seq and fails
+  // the guard. Criteria.and builds on a copy of the chain, so a caller must query with the
+  // returned criteria, never the one it passed in.
+  private static Criteria fence(Criteria criteria, Long observedClaimSeq) {
+    return (observedClaimSeq != null)
+        ? criteria.and("claim.seq").is(observedClaimSeq)
+        : criteria.and("claim.seq").exists(false);
   }
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
@@ -790,6 +934,10 @@ public class TaskRunService {
         Optional<String> claimedBy =
             optRunRequest.map(TaskRunEndRequest::getDispatcherRef).filter(StringUtils::hasText);
         rejectSupersededClaimant(taskRunEntity, claimedBy);
+        if (optRunRequest.isPresent() && requeuedForRetry(taskRunEntity, optRunRequest.get())) {
+          return ResponseEntity.ok(
+              new TaskRun(taskRunRepository.findById(taskRunId).orElse(taskRunEntity)));
+        }
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
           taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
@@ -820,9 +968,9 @@ public class TaskRunService {
           } else {
             taskRunEntity.setStatus(optRunRequest.get().getStatus());
           }
-          // Engine-enforced results cap, identical on every executor (4096 bytes is the portable
-          // Kubernetes termination-message ceiling). Oversize fails the task and keeps the
-          // pre-merge results rather than persisting a payload every downstream reader re-reads.
+          // Storage guard on results, so a faulty dispatcher cannot grow a TaskRun toward Mongo's
+          // document limit; each executor enforces its own limit before this. Oversize fails the
+          // task and keeps the pre-merge results rather than persisting them.
           byte[] resultBytes = objectMapper.writeValueAsBytes(taskRunEntity.getResults());
           if (resultBytes.length > resultsMaxBytes) {
             taskRunEntity.setResults(priorResults);
@@ -835,6 +983,7 @@ public class TaskRunService {
                     + " byte cap. Pass large outputs by reference (workspace path or URI).");
             taskRunEntity.setStatusReason("ResultsTooLarge");
           }
+          completeArtifactUpload(taskRunEntity);
         }
         // Persist the request merge for the handler to re-read. The handler ignores an end
         // request for a completed TaskRun, so a terminal record stays untouched.
@@ -849,11 +998,60 @@ public class TaskRunService {
     throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
   }
 
+  /**
+   * Requeue a task its dispatcher could not start, while its retry budget lasts, through the same
+   * fenced transition a timed-out claimant takes. Return false when the end must go ahead instead:
+   * any other reason, a type the engine does not requeue, a spent budget, or a lost race.
+   */
+  private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
+    if (!RunStatus.failed.equals(request.getStatus())
+        || request.getStatusReason() == null
+        || !RETRYABLE_END_REASONS.contains(request.getStatusReason())) {
+      return false;
+    }
+    int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
+    if (!EngineConstants.REQUEUEABLE_TYPES.contains(taskRun.getType())
+        || attempts >= EngineConstants.MAX_RETRIES) {
+      return false;
+    }
+    Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
+    if (tryRequeue(taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+        == null) {
+      return false;
+    }
+    LOGGER.info(
+        "[{}] Dispatcher could not start the task ({}: {}). Requeued as attempt {}.",
+        taskRun.getId(),
+        request.getStatusReason(),
+        request.getStatusMessage(),
+        attempts + 1);
+    return true;
+  }
+
+  /*
+   * A succeeded upload task is only done once the engine has verified its file; a refusal (too
+   * large, storage quota reached, nothing uploaded) ends the task failed with the reason.
+   */
+  private void completeArtifactUpload(TaskRunEntity taskRunEntity) {
+    if (!TaskType.uploadartifact.equals(taskRunEntity.getType())
+        || !RunStatus.succeeded.equals(taskRunEntity.getStatus())) {
+      return;
+    }
+    ArtifactService artifacts = artifactService.getObject();
+    try {
+      artifacts.completeUpload(taskRunEntity);
+    } catch (BoomerangException e) {
+      taskRunEntity.setStatus(RunStatus.failed);
+      taskRunEntity.setStatusReason("ArtifactRefused");
+      taskRunEntity.setStatusMessage(artifacts.refusalMessage(e));
+    }
+  }
+
   // Wire-level fence: a request that names its dispatcher must match claim.by. A request with no
   // dispatcherRef is the legacy protocol and passes unfenced (TaskExecutionService applies the
   // same rule on its entry). claim.seq is not on the wire, so a dispatcher that lost and re-won
   // the same claim is not distinguished from its earlier self.
-  private static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
+  public static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
     if (claimedBy.isEmpty() || taskRun.getClaim() == null || taskRun.getClaim().getBy() == null) {
       return;
     }

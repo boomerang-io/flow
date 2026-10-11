@@ -26,8 +26,6 @@ public class KubeServiceImpl implements KubeService {
 
   @Autowired protected KubeHelperService helperKubeService;
 
-  protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
-
   @Value("${kube.image.pullPolicy}")
   protected String kubeImagePullPolicy;
 
@@ -39,9 +37,6 @@ public class KubeServiceImpl implements KubeService {
 
   @Value("${kube.task.restartPolicy}")
   protected String kubeJobRestartPolicy;
-
-  @Value("${kube.task.ttlDays}")
-  protected Integer kubeJobTTLDays;
 
   @Value("${dispatcher.tasks.serviceaccount}")
   protected String kubeJobServiceAccount;
@@ -202,16 +197,18 @@ public class KubeServiceImpl implements KubeService {
 
     client
         .resource(result)
-        .waitUntilCondition(
-            r ->
-                r.getStatus() != null
-                    && ("Bound".equals(r.getStatus().getPhase())
-                        || "Pending".equals(r.getStatus().getPhase())),
-            waitSeconds,
-            TimeUnit.SECONDS);
+        .waitUntilCondition(KubeServiceImpl::isClaimSettled, waitSeconds, TimeUnit.SECONDS);
 
     LOGGER.info(result);
     return result;
+  }
+
+  // The watch hands over null while the claim is momentarily absent - keep waiting, never throw.
+  static boolean isClaimSettled(PersistentVolumeClaim claim) {
+    return claim != null
+        && claim.getStatus() != null
+        && ("Bound".equals(claim.getStatus().getPhase())
+            || "Pending".equals(claim.getStatus().getPhase()));
   }
 
   private boolean isPVCAvailable(

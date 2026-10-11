@@ -137,7 +137,13 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   // hands it to SignedOut (which sign-in surface to server-render), an authenticated bootstrap
   // hands it to the Navbar (the Sign Out affordance). This replaced the browser-side
   // GET /auth/config (the retired useAuthConfig hook) - the BFF direction, 2026-09-01.
-  const authConfigPromise = settle(api.get<AuthConfig>(getAuthConfigUrl));
+  // Skipped only when the flags say there is no sign-in surface (engine mode, or security off) -
+  // a signed-out caller gets a 401 from /features, and then the sign-in surface needs the config.
+  const authConfigPromise = featuresPromise.then((result) =>
+    result.ok && result.data.features?.authentication === false
+      ? ({ ok: false } as const)
+      : settle(api.get<AuthConfig>(getAuthConfigUrl)),
+  );
   const resolveAuthConfig = async () => {
     const result = await authConfigPromise;
     return result.ok ? result.data : null;
@@ -225,6 +231,11 @@ export function buildFeatureFlags(feature: FlowFeatures["features"]) {
     WorkspaceQuotasEnabled: feature["workspace.quotas"],
     WorkflowTokensEnabled: feature["workflow.tokens"],
     WorkflowTriggersEnabled: feature["workflow.triggers"],
+    SingleWorkspaceEnabled: feature["workspace.single"],
+    SchedulesEnabled: feature["schedules"],
+    IntegrationsEnabled: feature["integrations"],
+    AuthenticationEnabled: feature["authentication"],
+    TokensEnabled: feature["tokens"],
   };
 }
 
@@ -435,11 +446,13 @@ const AppFeatures = React.memo(function AppFeatures() {
   // the global read/write it actually needs, resolved from the profile's permission list.
   const canReadSettings = hasPermission(user, "system", "read");
   const canReadParameters = hasPermission(user, "parameter", "read");
-  const canReadWorkflowTemplates = hasPermission(user, "workflowtemplate", "read");
   const canReadTasks = hasPermission(user, "task", "read");
   const canReadTokens = hasPermission(user, "token", "read");
   const canReadWorkspaces = hasPermission(user, "workspace", "read");
   const canReadUsers = hasPermission(user, "user", "read");
+  // The audit trail spans every workspace, so it rides the same global system/read grant the
+  // settings screen does - hasPermission with no workspaceRef only matches a global grant.
+  const canReadAudit = hasPermission(user, "system", "read");
 
   // The route tree itself now lives in the router config (AppRoutes.tsx / Root.tsx) so that
   // loaders/actions can attach to it. These permission/feature-flag gates depend on hooks
@@ -449,11 +462,11 @@ const AppFeatures = React.memo(function AppFeatures() {
   const routePermissions: RoutePermissions = {
     canReadSettings,
     canReadParameters,
-    canReadWorkflowTemplates,
     canReadTasks,
     canReadTokens,
     canReadWorkspaces,
     canReadUsers,
+    canReadAudit,
     activityEnabled: Boolean(activityEnabled),
     insightsEnabled: Boolean(insightsEnabled),
     workspaceParametersEnabled: Boolean(workspaceParametersEnabled),

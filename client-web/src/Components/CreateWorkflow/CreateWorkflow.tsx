@@ -21,8 +21,7 @@ interface CreateWorkflowProps {
 // "create"/"import" intents - see Features/Workflows/Workflows.tsx for the actual action. Renders
 // as a descendant of that route's element with no nested <Route> of its own, so `useFetcher()`
 // resolves against it - see GlobalParameters.tsx for the closeModalRef-style pattern the import
-// flow below follows, and WorkflowTemplateCard.tsx/CreateWorkflowTemplate.tsx for the sibling
-// conversion (Workflow Templates) this mirrors.
+// flow below follows.
 type ActionResult = { intent: "create" | "import"; workflow: Workflow } | ({ intent: "create" | "import" } & ActionError);
 
 const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWorkflowLimit, workflows, viewType }) => {

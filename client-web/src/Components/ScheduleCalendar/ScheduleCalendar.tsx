@@ -11,7 +11,7 @@ import "./big-calendar.scss";
 
 const localizer = momentLocalizer(moment);
 
-interface ScheduleCalendarProps extends CalendarProps {
+interface ScheduleCalendarProps extends Omit<CalendarProps, "localizer"> {
   events: Array<CalendarEvent>;
   heightOffset?: number;
   [key: string]: any;
@@ -19,15 +19,19 @@ interface ScheduleCalendarProps extends CalendarProps {
 
 export default function ScheduleCalendar(props: ScheduleCalendarProps) {
   const { heightOffset = 260 } = props;
-  const [height, setHeight] = React.useState(window.innerHeight - heightOffset); //meh
+  // The server has no window: render at a default height, then size to the viewport on mount.
+  const [height, setHeight] = React.useState(
+    (typeof window !== "undefined" ? window.innerHeight : 900) - heightOffset,
+  );
 
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     function updateSize() {
       setHeight(window.innerHeight - heightOffset);
     }
+    updateSize();
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  });
+  }, [heightOffset]);
 
   return (
     <Calendar<CalendarEvent>
@@ -38,9 +42,11 @@ export default function ScheduleCalendar(props: ScheduleCalendarProps) {
       drilldownView="agenda"
       // @ts-ignore
       localizer={localizer}
-      messages={{ noEventsInRange: "" }}
+      length={30}
+      messages={{ noEventsInRange: "No runs scheduled in this period." }}
       style={{ height }}
-      views={["month", "agenda"]}
+      toolbar={false}
+      views={["month", "week", "agenda"]}
       eventPropGetter={() => ({
         className: styles.event,
       })}

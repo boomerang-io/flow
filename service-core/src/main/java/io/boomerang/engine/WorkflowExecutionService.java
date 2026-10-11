@@ -13,6 +13,7 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.GraphProcessor;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -250,8 +251,19 @@ public class WorkflowExecutionService {
       long retryCount = wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
       if (retryCount < wfRunEntity.getRetries()) {
         retryCount++;
-        // An automatic retry always starts - a queued-but-unstarted retry would stall.
-        workflowRunService.retry(wfRunId, true, retryCount);
+        try {
+          // An automatic retry always starts - a queued-but-unstarted retry would stall.
+          workflowRunService.retry(wfRunId, true, retryCount);
+        } catch (BoomerangException e) {
+          // The retry is a new run and the workspace's quotas may have no room for it. The source
+          // run is already terminal at this point, so refusing the retry is the whole outcome -
+          // throwing here would only fail the timeout path that got us here.
+          LOGGER.warn(
+              "[{}] Retry refused: {} {}",
+              wfRunId,
+              e.getReason(),
+              Arrays.toString(e.getArgs()));
+        }
       }
     }
   }
@@ -260,12 +272,12 @@ public class WorkflowExecutionService {
     // Cancel Running & Queued Tasks. The run's TaskRuns are all materialised at start, so the
     // stored set is the graph; the revision is only needed to materialise a task that does not
     // exist yet. When the revision is gone (deleted workflow), wind down what is stored rather
-    // than throw after the run is already terminal and orphan its in-flight TaskRuns.
-    List<TaskRunEntity> tasks =
-        workflowRevisionRepository
-            .findById(wfRunEntity.getWorkflowRevisionRef())
-            .map(revision -> dagUtility.createTaskList(revision, wfRunEntity))
-            .orElseGet(() -> taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId()));
+    // than throw after the run is already terminal and orphan its in-flight TaskRuns. The stored
+    // set includes the items of a foreach task, which are not graph vertices.
+    workflowRevisionRepository
+        .findById(wfRunEntity.getWorkflowRevisionRef())
+        .ifPresent(revision -> dagUtility.createTaskList(revision, wfRunEntity));
+    List<TaskRunEntity> tasks = taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId());
 
     // Running and queued (claimed but not yet started) tasks get the same treatment: end() ends
     // up completing them as cancelled through the completion Compare-And-Set, which is

@@ -335,6 +335,64 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
         "a parked run without Workspaces must never be claimable for provisioning");
   }
 
+  // boomerang-io/flow#439: a quoted, multi-line param must reach the task as its literal value.
+  // Before the fix, substitution round-tripped the value through JSON, the re-parse failed on the
+  // embedded quotes and newlines, and the param resolved to null - surfacing components away as a
+  // parameter with no value (TaskExecutionService.runWorkflow, "resolved to no value").
+  @Test
+  void aQuotedMultiLineParamReachesTheTaskAsItsLiteralValue() {
+    String prompt =
+        "Summarise the text below.\n"
+            + "\"The quick brown fox jumps over the lazy dog.\"\n"
+            + "Answer as JSON: {\"summary\": \"...\"}\n";
+    String taskSlug = customTaskWithDeclaredSpecParams("custom-lifecycle-quoted-multiline");
+
+    Workflow workflow = new Workflow();
+    workflow.setName("run-custom-lifecycle-quoted-multiline");
+    WorkflowTask work = workflowTask("work", TaskType.custom, taskSlug, "start");
+    work.setParams(
+        new LinkedList<>(
+            List.of(
+                new RunParam("image", "alpine:3.19"),
+                new RunParam("shellScript", "#!/bin/sh\ncat <<'EOF'\n$(params.prompt)\nEOF"))));
+    workflow.setTasks(
+        List.of(
+            workflowTask("start", TaskType.start, null),
+            work,
+            workflowTask("end", TaskType.end, null, "work")));
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setParams(new LinkedList<>(List.of(new RunParam("prompt", prompt))));
+    // start=true: substitution happens at admission (TaskExecutionService.queue), not at
+    // materialisation, so the run has to be started for the TaskRun to carry resolved values.
+    String wfRunId = workflowService.submit(workflowId, request, true).getId();
+    awaitEngine("custom TaskRun admitted with its params resolved")
+        .untilAsserted(
+            () -> {
+              Optional<TaskRunEntity> taskRun =
+                  taskRunRepository.findFirstByNameAndWorkflowRunRef("work", wfRunId);
+              assertTrue(taskRun.isPresent());
+              assertEquals(RunStatus.ready, taskRun.get().getStatus());
+              assertEquals(RunPhase.pending, taskRun.get().getPhase());
+            });
+
+    TaskRunEntity taskRun =
+        taskRunRepository.findFirstByNameAndWorkflowRunRef("work", wfRunId).orElseThrow();
+    assertEquals(
+        "#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF",
+        taskRun.getSpec().getScript(),
+        "the literal prompt must reach the container's script");
+    assertEquals(
+        "#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF",
+        taskRun.getParams().stream()
+            .filter(p -> "shellScript".equals(p.getName()))
+            .findFirst()
+            .orElseThrow()
+            .getValue(),
+        "the resolved param must carry the literal value, not null");
+  }
+
   private String simpleTemplate(String name) {
     Task template = new Task();
     template.setName(name);

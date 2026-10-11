@@ -147,7 +147,7 @@ function Layout(props: LayoutProps) {
         header={
           <>
             <HeaderTitle>Integrations</HeaderTitle>
-            <HeaderSubtitle>Extend your Workflows by using integrations for your favorite tools.</HeaderSubtitle>
+            <HeaderSubtitle>Connect the tools this workspace’s workflows work with.</HeaderSubtitle>
           </>
         }
       />

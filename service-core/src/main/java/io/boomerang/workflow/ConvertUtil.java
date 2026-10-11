@@ -2,7 +2,9 @@ package io.boomerang.workflow;
 
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
+import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowTrigger;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import java.lang.reflect.InvocationTargetException;
@@ -26,7 +28,23 @@ public class ConvertUtil {
     Workflow model = new Workflow();
     BeanUtils.copyProperties(wfEntity, model);
     BeanUtils.copyProperties(wfRevisionEntity, model, "id");
+    model.setTriggers(triggersWithDefaults(wfEntity.getTriggers()));
     return model;
+  }
+
+  /*
+   * Returns a copy with every missing trigger set to its default: manual on, the rest off. Stored
+   * workflows can lack a trigger (v3-migrated ones have no github), and requests can leave any out.
+   */
+  public static WorkflowTrigger triggersWithDefaults(WorkflowTrigger triggers) {
+    WorkflowTrigger filled = new WorkflowTrigger();
+    WorkflowTrigger source = (triggers != null) ? triggers : new WorkflowTrigger();
+    filled.setManual(Objects.requireNonNullElseGet(source.getManual(), () -> new Trigger(true)));
+    filled.setSchedule(Objects.requireNonNullElseGet(source.getSchedule(), () -> new Trigger(false)));
+    filled.setWebhook(Objects.requireNonNullElseGet(source.getWebhook(), () -> new Trigger(false)));
+    filled.setEvent(Objects.requireNonNullElseGet(source.getEvent(), () -> new Trigger(false)));
+    filled.setGithub(Objects.requireNonNullElseGet(source.getGithub(), () -> new Trigger(false)));
+    return filled;
   }
 
   /*

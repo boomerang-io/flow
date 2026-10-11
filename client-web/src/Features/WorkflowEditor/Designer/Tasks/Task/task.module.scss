@@ -1,69 +1,52 @@
 @import "Styles/mixins";
 
-@import "Styles/mixins";
-
+// A 40px single-line row (Carbon's medium row); a workspace task's second line grows it.
 .container {
   align-items: center;
   background-color: var(--cds-ui-01);
-  border: 0.0625rem solid var(--cds-interactive-01);
+  border: 0.0625rem solid var(--cds-border-subtle);
   cursor: grab;
-  // display: flex;
-  // height: 3.1875rem;
-  height: 4.375rem;
-  margin-bottom: 0.5rem;
+  display: flex;
+  margin-bottom: 0.25rem;
+  min-height: 2.5rem;
   overflow: hidden;
-  padding: 1rem;
+  padding: 0.5rem 0.75rem;
   white-space: nowrap;
   @include border-radius();
+  &:hover {
+    border-color: var(--cds-border-interactive);
+  }
   &:focus {
     @include focus-outline();
   }
 
-  &.globalTask {
-    padding-top: 1.5625rem;
-  }
-
   .taskName {
     color: var(--cds-text-01);
+    flex-grow: 1;
     font-size: 0.875rem;
     line-height: 1.125rem;
-    padding-left: 1rem;
-    width: 90%;
+    padding-left: 0.75rem;
     @include text-overflow-ellipsis();
   }
 
   .taskSubtext {
-    color: #4d5358;
+    color: var(--cds-text-secondary);
     font-size: 0.75rem;
     letter-spacing: 0.02rem;
-    line-height: 0.9375rem;
-    margin-left: 2rem;
-    margin-top: 0.25rem;
-  }
-  .taskIcon {
-    &.workspaceTask {
-      position: relative;
-      top: 0.5rem;
-    }
-  }
-
-  .tooltipHover {
-    &.workspaceTask {
-      position: relative;
-      top: 0.5rem;
-    }
+    line-height: 1rem;
+    margin-left: 1.75rem;
   }
 
   .rowContainer {
+    align-items: center;
     display: flex;
     flex-direction: row;
-    // margin-bottom: 0.25rem;
   }
 
   .columnContainer {
     display: flex;
-
     flex-direction: column;
+    width: 100%;
   }
 }
 

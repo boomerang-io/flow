@@ -13,9 +13,10 @@ import org.springframework.stereotype.Service;
  * flows where the SecurityContext is not populated, and the engine's run transition listener.
  * Annotated controller methods should use {@link Audited} instead.
  *
- * <p>Capture gates on the {@code audit} settings document ({@code enabled}, {@code level}) the
- * loader seeds — read per emission, like the other feature settings. A missing document disables
- * capture (only an unseeded database lacks it).
+ * <p>Capture gates on the {@code audit} settings document ({@code enabled}, {@code level}) that
+ * {@code io.boomerang.migration._0016__BuildSettingsFromSeed} builds — read per emission, like the
+ * other feature settings. A missing document disables capture (only an unmigrated database lacks
+ * it).
  *
  * <p>Actor rule: a tokenless HTTP caller records as {@code anonymous}, a tokenless non-HTTP call
  * site as {@code system} — an unauthenticated request is by definition not the system.
@@ -47,6 +48,22 @@ public class AuditEventEmitter {
     boolean enabled = !"false".equalsIgnoreCase(configValue(settings, "enabled", "true"));
     AuditLevel configured = AuditLevel.fromString(configValue(settings, "level", null));
     return enabled && siteLevel.enabledAt(configured);
+  }
+
+  /** True when capture is on at all, whatever the level - what a reader of the trail asks. */
+  public boolean captureEnabled() {
+    SettingEntity settings = settingsRepository.findOneByKey(SETTINGS_KEY);
+    return settings != null
+        && settings.getConfig() != null
+        && !"false".equalsIgnoreCase(configValue(settings, "enabled", "true"));
+  }
+
+  /** The configured capture verbosity; WRITE on an unseeded or unparseable setting. */
+  public AuditLevel configuredLevel() {
+    SettingEntity settings = settingsRepository.findOneByKey(SETTINGS_KEY);
+    return (settings == null || settings.getConfig() == null)
+        ? AuditLevel.WRITE
+        : AuditLevel.fromString(configValue(settings, "level", null));
   }
 
   /** Emit with the actor resolved from the SecurityContext. Gate-checked. */

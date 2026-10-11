@@ -2,15 +2,16 @@ package io.boomerang.event;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.event.config.EventSinkProperties;
+import io.boomerang.event.config.EventSinkProperties.Destination;
 import io.boomerang.event.model.TaskRunStatusEvent;
 import io.boomerang.event.model.WorkflowRunStatusEvent;
-import io.boomerang.event.EventFactory;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.format.EventFormat;
 import io.cloudevents.core.provider.EventFormatProvider;
 import io.cloudevents.jackson.JsonFormat;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -26,15 +27,12 @@ public class EventSinkService {
   private EventFormat CEFormat =
       EventFormatProvider.getInstance().resolveFormat(JsonFormat.CONTENT_TYPE);
 
-  @Value("${flow.events.sink.urls}")
-  private String sinkUrls;
-
-  @Value("${flow.events.sink.enabled}")
-  private boolean sinkEnabled;
-
+  private final EventSinkProperties properties;
   private final RestTemplate restTemplate;
 
-  public EventSinkService(@Qualifier("internalRestTemplate") RestTemplate restTemplate) {
+  public EventSinkService(
+      EventSinkProperties properties, @Qualifier("internalRestTemplate") RestTemplate restTemplate) {
+    this.properties = properties;
     this.restTemplate = restTemplate;
   }
 
@@ -43,7 +41,7 @@ public class EventSinkService {
    * the caller can retry. A disabled sink delivers trivially.
    */
   public void deliverStatusCloudEvent(TaskRunEntity taskRunEntity) throws Exception {
-    if (sinkEnabled) {
+    if (properties.enabled()) {
       httpSinkStrict(statusEvent(taskRunEntity).toCloudEvent());
     }
   }
@@ -53,13 +51,14 @@ public class EventSinkService {
    * the caller can retry. A disabled sink delivers trivially.
    */
   public void deliverStatusCloudEvent(WorkflowRunEntity workflowRunEntity) throws Exception {
-    if (sinkEnabled) {
+    if (properties.enabled()) {
       httpSinkStrict(statusEvent(workflowRunEntity).toCloudEvent());
     }
   }
 
   private TaskRunStatusEvent statusEvent(TaskRunEntity taskRunEntity) {
-    TaskRunStatusEvent statusEvent = EventFactory.buildStatusUpdateEvent(taskRunEntity);
+    TaskRunStatusEvent statusEvent =
+        EventFactory.buildStatusUpdateEvent(taskRunEntity, properties.payload());
     statusEvent.setInitiatorId(initiatorLabel(taskRunEntity.getLabels(), LABEL_KEY_INITIATOR_ID));
     statusEvent.setInitiatorContext(
         initiatorLabel(taskRunEntity.getLabels(), LABEL_KEY_INITIATOR_CONTEXT));
@@ -67,7 +66,8 @@ public class EventSinkService {
   }
 
   private WorkflowRunStatusEvent statusEvent(WorkflowRunEntity workflowRunEntity) {
-    WorkflowRunStatusEvent statusEvent = EventFactory.buildStatusUpdateEvent(workflowRunEntity);
+    WorkflowRunStatusEvent statusEvent =
+        EventFactory.buildStatusUpdateEvent(workflowRunEntity, properties.payload());
     statusEvent.setInitiatorId(
         initiatorLabel(workflowRunEntity.getLabels(), LABEL_KEY_INITIATOR_ID));
     statusEvent.setInitiatorContext(
@@ -75,21 +75,28 @@ public class EventSinkService {
     return statusEvent;
   }
 
-  private static String initiatorLabel(java.util.Map<String, String> labels, String key) {
+  private static String initiatorLabel(Map<String, String> labels, String key) {
     return labels != null && labels.get(key) != null ? labels.get(key) : "";
   }
 
-  // Best-effort delivery to every configured sink - transport failures propagate so the outbox
-  // dispatcher can retry the row.
+  // Delivery to every configured sink - transport failures propagate so the outbox dispatcher can
+  // retry the row.
   private void httpSinkStrict(CloudEvent cloudEvent) {
-    if (sinkUrls == null || sinkUrls.isEmpty()) {
-      return;
+    final byte[] body = CEFormat.serialize(cloudEvent);
+    for (Destination sink : properties.sinks()) {
+      restTemplate.exchange(
+          sink.url(), HttpMethod.POST, new HttpEntity<>(body, headers(sink)), String.class);
     }
+  }
+
+  // A sink's secret travels in its own header, on its own request, and is never logged. A bare URL
+  // sink sends the content type alone, exactly as before.
+  private static HttpHeaders headers(Destination sink) {
     final HttpHeaders headers = new HttpHeaders();
     headers.add("Content-Type", JsonFormat.CONTENT_TYPE);
-    final HttpEntity<byte[]> req = new HttpEntity<>(CEFormat.serialize(cloudEvent), headers);
-    for (String sinkUrl : sinkUrls.split(",")) {
-      restTemplate.exchange(sinkUrl, HttpMethod.POST, req, String.class);
+    if (sink.authenticated()) {
+      headers.add(sink.headerName(), sink.headerValue());
     }
+    return headers;
   }
 }

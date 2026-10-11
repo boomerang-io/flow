@@ -13,4 +13,9 @@ public interface WorkflowRunRepository extends MongoRepository<WorkflowRunEntity
 
   List<WorkflowRunEntity> findByWorkflowRefAndPhaseIn(String workflowRef, List<RunPhase> phases);
 
+  // The child runs a set of TaskRuns submitted that are still in flight - the cascade cancel of a
+  // parent run. Served by the {initiatedByRef, phase} index.
+  List<WorkflowRunEntity> findByInitiatedByRefInAndPhaseIn(
+      List<String> initiatedByRefs, List<RunPhase> phases);
+
 }

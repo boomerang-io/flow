@@ -13,7 +13,7 @@ import org.springframework.core.env.Environment;
  * only in {@code standalone} ({@code @ConditionalOnFlowMode(STANDALONE)}). Engine mode serves the
  * single {@code system} workspace and has no quota record to enforce against, so the subsystem is
  * off there and callers fall back to the platform defaults in the {@code workspaces} settings
- * document ({@link WorkspaceService#WORKSPACES_SETTINGS_KEY}).
+ * document ({@link WorkspaceService#QUOTAS_SETTINGS_KEY}).
  *
  * <p>This is the coarse "does the subsystem exist" switch. The existing operator-facing {@code
  * "features"."workspaceQuotas"} setting is unchanged and still decides whether an active subsystem

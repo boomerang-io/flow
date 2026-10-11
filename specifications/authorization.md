@@ -90,7 +90,7 @@ not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejecte
 paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above (`:289-294`) and
 `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:94`) — so a retired `bft_`/`bfw_` bearer never reaches Mongo.
 
-Seeded roles (`service-loader/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
+Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
 (`**/read`, `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`,
 `**/action`) and `reader` (`**/read`). A permission string is `<resource>/<action>` with `**` as a wildcard on
 either side; resources and actions are the `PermissionResource` and `PermissionAction` enums.
@@ -116,6 +116,13 @@ applies advisor beans with that role. `authorize()` (`core/security/AuthCriteria
 The annotation lookup tries the invoked method first, then falls back to its declaring class
 (`authCriteriaFor`, `:116-121`) — the one behavioural fix over the retired `SecurityInterceptor`, which only
 ever read the method and so silently ignored a class-level placement. No endpoint currently uses one.
+
+Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
+workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore
+re-check the scope themselves: `GET /api/v2/audit` and `/api/v2/audit/stats`
+(`core/audit/AuditControllerV2.java:217-232`) and `PATCH`/`DELETE /api/v2/user/{userId}`'s non-self path
+(`core/UserService.java:537-555`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
+(HTTP 401) otherwise.
 
 ### Layer 2 — `RelationshipService` on the data
 
@@ -181,13 +188,16 @@ A `settings.config[]` entry typed `secured` is encrypted on every save and decry
 label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value already labelled pass
 through untouched (`:147-156`).
 
-Two historical populations are brought forward by `service-loader`'s `_0044__ReencryptSettingsAesGcm`, which
-must complete before service-core starts: values under the retired static-IV AES/CBC label `crypt_v1{AES|…}`
-are decrypted with a frozen copy of that cipher and re-encrypted, and values carrying no label at all — every
-secured value saved while the service's encryption guard was inverted, so the stored value was its own
-plaintext — are encrypted in place. The unit is idempotent on the label, so a second run changes nothing.
+The key is `flow.encrypt.secret` and `flow.encrypt.salt` (`core/model/EncryptionConfig.java`), required on every
+install: a blank pair refuses startup. Two historical populations are brought forward by the change unit
+`_0022__ReencryptSettingsAesGcm`, which runs as the context starts, after the settings seed: values under the
+retired static-IV AES/CBC label `crypt_v1{AES|…}`, written by v3 under the pair in `mongo.encrypt.secret` and
+`mongo.encrypt.salt`, are decrypted with a frozen copy of that cipher and re-encrypted under the new key; and
+values carrying no label at all — every secured value saved while the service's encryption guard was inverted, so
+the stored value was its own plaintext — are encrypted in place. A legacy value that does not decrypt stops the
+migration rather than leaving a credential unreadable. The unit is idempotent on the label, so a second run
+changes nothing (decision 0100).
 
 ## Known gaps
 
 - **Machine tokens cannot approve group approvals.** `ActionService.action` resolves the current *user*; a `key`/`global` token resolves none and is denied membership, so an automation must be given a real user identity placed in the approver group (`workflow/ActionService.java:137-146`). The controller's `assignableScopes` still admit machine tokens.
-- **`PATCH`/`DELETE /api/v2/user/{userId}` have no self-scoping.** Any token holding `user/write` or `user/delete` may edit or delete any user (`core/UserControllerV2.java:128-165`).

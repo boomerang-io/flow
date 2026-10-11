@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { Component } from "react";
-import { Button, ModalBody, ModalFooter } from "@carbon/react";
+import { Button, Dropdown, ModalBody, ModalFooter, TextInput as CarbonTextInput } from "@carbon/react";
 import {
   ComboBox,
   Creatable,
@@ -110,7 +110,7 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
           <Toggle
             data-testid="toggle"
             id={InputProperty.DefaultValue}
-            label="Default Value"
+            labelText="Default value"
             onToggle={(value: string | boolean) =>
               this.handleOnFieldValueChange(value.toString(), InputProperty.DefaultValue, setFieldValue)
             }
@@ -139,7 +139,7 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
               }
               items={options || []}
               initialSelectedItem={values.default || {}}
-              label="Default Option"
+              titleText="Default option"
               placeholder="Select option"
             />
           </>
@@ -149,10 +149,10 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
           <TextArea
             data-testid="text-area"
             id={InputProperty.DefaultValue}
-            labelText="Default Value"
+            labelText="Default value (optional)"
             onBlur={handleBlur}
             onChange={handleChange}
-            placeholder="Default Value"
+            placeholder="No default"
             style={{ resize: "none" }}
             value={values.default || ""}
           />
@@ -163,17 +163,17 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
           <TextInput
             data-testid="text-input"
             id={InputProperty.DefaultValue}
-            labelText="Default Value"
+            labelText="Default value (optional)"
             onBlur={handleBlur}
             onChange={handleChange}
             placeholder={
-              this.props.isEdit && values.type.value === InputType.Password ? PASSWORD_CONSTANT : "Default Value"
+              this.props.isEdit && values.type.value === InputType.Password ? PASSWORD_CONSTANT : "No default"
             }
             type={values.type.value}
             value={values.default || ""}
             helperText={
               values.type.value === InputType.Password
-                ? "Passwords are saved securely in our database. To update the saved value, provide a new default value."
+                ? "Hidden here and in logs. Enter a new default to replace it."
                 : null
             }
           />
@@ -231,9 +231,7 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
               "Only alphanumeric, hyphen and underscore characters allowed. Must begin with a letter or underscore",
               this.validateKey,
             ),
-          [InputProperty.Label]: Yup.string()
-            .required("Enter a Label")
-            .max(128, "Label must not be greater than 128 characters"),
+          [InputProperty.Label]: Yup.string().max(128, "Label must not be greater than 128 characters"),
           [InputProperty.Description]: Yup.string().max(128, "Description must not be greater than 128 characters"),
           [InputProperty.Required]: Yup.boolean(),
           [InputProperty.Type]: Yup.object({ label: Yup.string().required(), value: Yup.string().required() }),
@@ -250,69 +248,93 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
           return (
             <ModalFlowForm onSubmit={handleSubmit}>
               <ModalBody aria-label="inputs" className={styles.container}>
-                <TextInput
-                  readOnly={isEdit}
-                  helperText="Reference value for parameter in workflow. It can't be changed after parameter creation."
-                  id={InputProperty.Name}
-                  invalid={Boolean(errors.name && touched.name)}
-                  invalidText={errors.name}
-                  labelText={isEdit ? "Name (read-only)" : "Name"}
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  placeholder=".e.g. token"
-                  value={values.name}
-                />
-                <ComboBox
-                  id={InputProperty.Type}
-                  onChange={({ selectedItem }: any) =>
-                    this.handleOnTypeChange(
-                      selectedItem !== null ? selectedItem : { label: "", value: "" },
-                      setFieldValue,
-                    )
-                  }
-                  items={inputTypeItems}
-                  initialSelectedItem={values.type}
-                  itemToString={(item: { label: string }) => item && item.label}
-                  placeholder="Select an item"
-                  titleText="Type"
-                />
-                <TextInput
-                  id={InputProperty.Label}
-                  invalid={Boolean(errors.label && touched.label)}
-                  invalidText={errors.label}
-                  labelText="Label"
-                  placeholder="e.g. Token"
-                  value={values.label}
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                />
-                <TextInput
-                  id={InputProperty.Description}
-                  invalid={Boolean(errors.description && touched.description)}
-                  invalidText={errors.description}
-                  labelText="Description (optional)"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  value={values.description}
-                />
-                <Toggle
-                  data-testid="toggle-test-id"
-                  id={InputProperty.Required}
-                  labelText="Required"
-                  onToggle={(value: string) =>
-                    this.handleOnFieldValueChange(value, InputProperty.Required, setFieldValue)
-                  }
-                  orientation="vertical"
-                  toggled={values.required}
-                />
-                {this.renderDefaultValue(formikProps)}
+                <div className={styles.fields}>
+                  {isEdit ? (
+                    <div>
+                      <p className="cds--label">Name</p>
+                      <p className={styles.name}>{values.name}</p>
+                      <p className="cds--form__helper-text">
+                        {`Tasks read it as $(params.${values.name}). The name can't change once created.`}
+                      </p>
+                    </div>
+                  ) : (
+                    <TextInput
+                      helperText="Letters, numbers, hyphens and underscores; it can't change once created."
+                      id={InputProperty.Name}
+                      invalid={Boolean(errors.name && touched.name)}
+                      invalidText={errors.name}
+                      labelText="Name"
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      placeholder="e.g. commitSHA"
+                      value={values.name}
+                    />
+                  )}
+                  <div className={styles.row}>
+                    <TextInput
+                      helperText="Shown when a run starts. Empty shows the name."
+                      id={InputProperty.Label}
+                      invalid={Boolean(errors.label && touched.label)}
+                      invalidText={errors.label}
+                      labelText="Label (optional)"
+                      placeholder="e.g. Commit"
+                      value={values.label}
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                    />
+                    <TextInput
+                      id={InputProperty.Description}
+                      invalid={Boolean(errors.description && touched.description)}
+                      invalidText={errors.description}
+                      labelText="Description (optional)"
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      value={values.description}
+                    />
+                  </div>
+                  <Dropdown
+                    id={InputProperty.Type}
+                    items={inputTypeItems}
+                    itemToString={(item: { label: string }) => (item ? item.label : "")}
+                    label="Type"
+                    onChange={({ selectedItem }: any) => this.handleOnTypeChange(selectedItem ?? textInputItem, setFieldValue)}
+                    selectedItem={values.type}
+                    titleText="Type"
+                  />
+                  {this.renderDefaultValue(formikProps)}
+                  <Toggle
+                    data-testid="toggle-test-id"
+                    id={InputProperty.Required}
+                    labelText="Required"
+                    labelA="Not required"
+                    labelB="Required — Run workflow and schedules ask for a value"
+                    onToggle={(value: string) =>
+                      this.handleOnFieldValueChange(value, InputProperty.Required, setFieldValue)
+                    }
+                    orientation="vertical"
+                    toggled={values.required}
+                  />
+                </div>
+                <aside className={styles.preview} aria-label="Preview">
+                  <p className={styles.previewTitle}>When a run starts</p>
+                  <div className={styles.previewField}>
+                    <CarbonTextInput
+                      disabled
+                      helperText={values.description || undefined}
+                      id="parameter-preview"
+                      labelText={`${values.label || values.name || "Your parameter"}${values.required ? " *" : ""}`}
+                      placeholder={values.default ? String(values.default) : ""}
+                    />
+                  </div>
+                  <p className={styles.previewNote}>The same field appears in Run workflow and in a schedule's parameters.</p>
+                </aside>
               </ModalBody>
               <ModalFooter>
                 <Button kind="secondary" onClick={this.props.closeModal} type="button">
                   Cancel
                 </Button>
                 <Button disabled={!isValid || !dirty} type="submit" data-testid="parameter-modal-confirm-button">
-                  {isEdit ? "Update" : "Create"}
+                  {isEdit ? "Save" : "Add"}
                 </Button>
               </ModalFooter>
             </ModalFlowForm>

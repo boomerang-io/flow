@@ -5,7 +5,7 @@ import { useFetcher } from "react-router-dom";
 import ScheduleManagerForm from "Components/ScheduleManagerForm";
 import { labelStringsToRecord } from "Utils";
 import { isActionError, type ActionError } from "Utils/actionResult";
-import { cronDayNumberMap } from "Utils/cronHelper";
+import { weeklyCron } from "Utils/cronHelper";
 import { ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
 import styles from "./ScheduleEditor.module.scss";
 
@@ -99,14 +99,7 @@ function ScheduleEditor(props: ScheduleEditorProps) {
     }
 
     if (schedule.type === "cron") {
-      let daysCron: Array<string> | [] = [];
-      Object.values(days).forEach((day) => {
-        //@ts-ignore
-        daysCron.push(cronDayNumberMap[day]);
-      });
-      const timeCron = !time ? ["0", "0"] : time.split(":");
-      const cronSchedule = `0 ${timeCron[1]} ${timeCron[0]} ? * ${daysCron.length !== 0 ? daysCron.toString() : "*"}`;
-      schedule["cronSchedule"] = cronSchedule;
+      schedule["cronSchedule"] = weeklyCron(days, time);
     }
 
     if (schedule.type === "advancedCron") {
@@ -125,7 +118,8 @@ function ScheduleEditor(props: ScheduleEditorProps) {
         containerClassName: styles.modalContainer,
       }}
       modalHeaderProps={{
-        title: "Edit a Schedule",
+        title: "Edit schedule",
+        label: props.workflow?.displayName,
       }}
     >
       {(modalProps) => (

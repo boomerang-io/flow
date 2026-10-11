@@ -137,3 +137,33 @@
   letter-spacing: 0.02rem;
   line-height: 1rem;
 }
+
+// Status as Activity shows it: an icon and coloured text.
+.status {
+  align-items: center;
+  display: flex;
+  gap: 0.375rem;
+
+  p {
+    font-size: 0.875rem;
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  &[data-status="submitted"] {
+    color: var(--cds-link-primary);
+    svg { fill: var(--cds-link-primary); }
+  }
+
+  &[data-status="approved"] {
+    color: var(--cds-support-02);
+    svg { fill: var(--cds-support-02); }
+  }
+
+  &[data-status="rejected"] {
+    color: var(--flow-failure);
+    svg { fill: var(--flow-failure); }
+  }
+}

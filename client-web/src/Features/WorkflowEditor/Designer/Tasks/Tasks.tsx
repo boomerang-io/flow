@@ -1,12 +1,13 @@
 // @ts-nocheck
 import { Component } from "react";
 import { Accordion, AccordionItem, Checkbox, Layer, OverflowMenu, Search } from "@carbon/react";
-import { ChevronLeft, SettingsAdjust, Recommend } from "@carbon/react/icons";
+import { ChevronLeft, Recommend, Repeat, SettingsAdjust } from "@carbon/react/icons";
 import { CheckboxList } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sortByProp } from "@boomerang-io/utils";
 import cx from "classnames";
 import uniqBy from "lodash/uniqBy";
 import { matchSorter } from "match-sorter";
+import { FOREACH_PALETTE_TYPE } from "Features/Reactflow/components/shared/foreach";
 import { groupTasksByName } from "Utils";
 import { taskIcons } from "Utils/taskIcons";
 import type { Task as TaskType } from "Types";
@@ -14,6 +15,24 @@ import Task from "./Task";
 import styles from "./tasks.module.scss";
 
 const FIRST_TASK_CATEGORY = "workflow";
+
+// Catalogue categories arrive capitalised ("Workflow"); compare them without case.
+const isFirstTaskCategory = (category: string) => category?.toLowerCase() === FIRST_TASK_CATEGORY;
+
+// Not a catalogue task: dropping it opens "Repeat a task for each item" on the canvas, which then
+// places the chosen task with its for-each setting on. Only `type` is read on drop.
+const FOREACH_PALETTE_ENTRY = {
+  id: FOREACH_PALETTE_TYPE,
+  name: FOREACH_PALETTE_TYPE,
+  displayName: "For each",
+  description: "Repeat a task once per item of a list",
+  type: FOREACH_PALETTE_TYPE,
+  // Built into Flow like the catalogue's system tasks, so it carries their verified badge.
+  verified: true,
+};
+const ForeachIcon = ({ className = "", ...props }) => (
+  <Repeat alt="Task node type for each" style={{ willChange: "auto" }} className={className} {...props} />
+);
 
 interface TaskProps {
   tasks: Array<TaskType>;
@@ -113,6 +132,12 @@ export default class Tasks extends Component<TaskProps> {
   handleSearchFilter = (searchQuery: string, tasksToDisplay) =>
     matchSorter(tasksToDisplay, searchQuery, { keys: ["category", "name"] });
 
+  // The "For each" entry follows the search box. It is verified, so the verified filter keeps it; it
+  // has no task type, so any type filter hides it.
+  showForeachEntry = () =>
+    this.state.activeFilters.length === 0 &&
+    matchSorter([FOREACH_PALETTE_ENTRY], this.state.searchQuery, { keys: ["displayName", "name"] }).length > 0;
+
   determineTasks = () => {
     const taskTemplatesByName = groupTasksByName(this.state.tasksToDisplay);
     // List of distinct task names by latest version
@@ -129,10 +154,20 @@ export default class Tasks extends Component<TaskProps> {
       return accum;
     }, {});
 
+    const showForeach = this.showForeachEntry();
+    const foreachCategory = Object.keys(catgegoriesWithTasks).find(isFirstTaskCategory) ?? "Workflow";
+    if (showForeach && !catgegoriesWithTasks[foreachCategory]) {
+      catgegoriesWithTasks[foreachCategory] = [];
+    }
+
     // Push "workflow" to front of array and delete the other instance of it w/ set
     const uniqueCategories = uniqBy(Object.keys(catgegoriesWithTasks)).sort((categoryA, categoryB) => {
-      if (categoryA === FIRST_TASK_CATEGORY) {
+      if (isFirstTaskCategory(categoryA)) {
         return -1;
+      }
+
+      if (isFirstTaskCategory(categoryB)) {
+        return 1;
       }
 
       if (categoryA < categoryB) {
@@ -152,15 +187,27 @@ export default class Tasks extends Component<TaskProps> {
         {uniqueCategories.map((category) => (
           <AccordionItem
             className={styles.taskCategory}
-            title={`${category} (${catgegoriesWithTasks[category].length})`}
+            title={`${category} (${
+              catgegoriesWithTasks[category].length + (showForeach && category === foreachCategory ? 1 : 0)
+            })`}
             open={
-              this.state.isAccordionOpen || (category === FIRST_TASK_CATEGORY && this.state.firstTaskCategoryIsOpen)
+              this.state.isAccordionOpen || (isFirstTaskCategory(category) && this.state.firstTaskCategoryIsOpen)
                 ? true
                 : null
             }
             key={category}
           >
             <ul className={styles.taskSection} key={category}>
+              {showForeach && category === foreachCategory ? (
+                <Task
+                  key={FOREACH_PALETTE_ENTRY.id}
+                  name={FOREACH_PALETTE_ENTRY.displayName}
+                  renderIcon={ForeachIcon}
+                  verified={FOREACH_PALETTE_ENTRY.verified}
+                  scope="global"
+                  taskData={FOREACH_PALETTE_ENTRY}
+                />
+              ) : null}
               {sortByProp(catgegoriesWithTasks[category], "name").map((task) => (
                 <Task
                   key={task.id}
@@ -182,8 +229,22 @@ export default class Tasks extends Component<TaskProps> {
     return (
       <aside className={cx(styles.container, { [styles.collapsed]: !this.state.isSidenavOpen })}>
         <header className={styles.header}>
-          <h1 className={styles.heading}>Add a task</h1>
+          <h2 className={styles.heading}>Add a task</h2>
+          {this.state.isSidenavOpen && (
+            <button
+              className={styles.expandButton}
+              onClick={() => {
+                this.setState((prevState) => ({
+                  isAccordionOpen: !prevState.isAccordionOpen,
+                  firstTaskCategoryIsOpen: false,
+                }));
+              }}
+            >
+              {this.state.isAccordionOpen ? "Collapse all" : "Expand all"}
+            </button>
+          )}
           <button
+            aria-label={this.state.isSidenavOpen ? "Collapse the task palette" : "Expand the task palette"}
             className={styles.collapseButton}
             onClick={() => this.setState((prevState) => ({ isSidenavOpen: !prevState.isSidenavOpen }))}
           >
@@ -199,7 +260,7 @@ export default class Tasks extends Component<TaskProps> {
                 size="sm"
                 labelText="Search"
                 onChange={this.handleOnSearchInputChange}
-                placeholder="Search for a task"
+                placeholder={`Search ${this.state.tasksToDisplay.length} tasks`}
                 value={this.state.searchQuery}
               />
               <OverflowMenu
@@ -207,11 +268,7 @@ export default class Tasks extends Component<TaskProps> {
                 size="sm"
                 iconDescription="Filter"
                 renderIcon={SettingsAdjust}
-                style={{
-                  backgroundColor:
-                    this.state.activeFilters.length > 0 || this.state.showVerified ? "#3DDBD9" : "initial",
-                  borderRadius: "0.25rem",
-                }}
+                className={cx({ [styles.filterActive]: this.state.activeFilters.length > 0 || this.state.showVerified })}
                 flipped={true}
                 menuOptionsClass={styles.filters}
               >
@@ -254,20 +311,6 @@ export default class Tasks extends Component<TaskProps> {
                 </section>
               </OverflowMenu>
             </Layer>
-            <section className={styles.detail}>
-              <h3 className={styles.totalCount}>{`Showing ${this.state.tasksToDisplay.length} tasks`}</h3>
-              <button
-                className={styles.expandButton}
-                onClick={() => {
-                  this.setState((prevState) => ({
-                    isAccordionOpen: !prevState.isAccordionOpen,
-                    firstTaskCategoryIsOpen: false,
-                  }));
-                }}
-              >
-                {this.state.isAccordionOpen ? "Collapse all" : "Expand all"}
-              </button>
-            </section>
             <section className={styles.content}>{this.determineTasks()}</section>
           </>
         )}

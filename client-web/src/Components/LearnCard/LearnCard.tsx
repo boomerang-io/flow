@@ -1,7 +1,6 @@
 import React from "react";
 import { Tag } from "@carbon/react";
 import { Launch } from "@carbon/react/icons";
-import { Link } from "react-router-dom";
 import styles from "./learnCard.module.scss";
 
 interface CardProps {
@@ -13,40 +12,33 @@ interface CardProps {
 }
 
 /**
- * The Card component link to the Boomerang Docs
+ * One row in Home's "Learn" list, linking to the Boomerang docs.
  *
- * Uses <a> for absolute urls to avoid basename being prefixed to the link
- *
- * @param title
- * @param description
- * @param tags
- * @param link
- * @param icon
- *
- * @returns {JSX.Element}
+ * Uses <a> for absolute urls to avoid basename being prefixed to the link.
  */
 function LearnCard({ title, description, tags, link, icon }: CardProps) {
   return (
-    <div className={styles.container}>
-      <a href={link} target="_blank">
-        <div className={styles.content}>
-          <div className={styles.image}>{icon}</div>
-          <h1 title={title} className={styles.name} data-testid="card-title">
-            {title}
-          </h1>
-          <p title={description} className={styles.description}>
-            {description}
-          </p>
-        </div>
-        <div className={styles.bottom}>
-          {tags.map((t) => (
-            <Tag className={styles.tag}>{t}</Tag>
-          ))}
-          {/* Change to external link icon */}
-          <Launch size={24} className={styles.ctaIcon} />
-        </div>
-      </a>
-    </div>
+    <a className={styles.row} href={link} target="_blank" rel="noreferrer">
+      <span className={styles.icon} aria-hidden="true">
+        {icon}
+      </span>
+      <span className={styles.body}>
+        <span className={styles.title} title={title} data-testid="card-title">
+          {title}
+          <Launch size={12} className={styles.launch} aria-label="Opens the docs in a new tab" />
+        </span>
+        <span className={styles.description} title={description}>
+          {description}
+        </span>
+      </span>
+      <span className={styles.tags}>
+        {tags.map((tag) => (
+          <Tag key={tag} type="teal" size="sm">
+            {tag}
+          </Tag>
+        ))}
+      </span>
+    </a>
   );
 }
 

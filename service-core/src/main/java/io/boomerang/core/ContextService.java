@@ -117,7 +117,10 @@ public class ContextService {
     HeaderPlatform platform = new HeaderPlatform();
     platform.setName(name.trim());
     platform.setVersion(platformVersion);
-    platform.setSignOutUrl(platformBaseUrl + platformSignOutUrl);
+    platform.setBaseEnvUrl(platformBaseUrl);
+    if (!platformSignOutUrl.isBlank()) {
+      platform.setSignOutUrl(platformSignOutUrl);
+    }
     platform.setAppName(appName);
     platform.setPlatformName(platformName);
     platform.setDisplayLogo(Boolean.valueOf(displayLogo));

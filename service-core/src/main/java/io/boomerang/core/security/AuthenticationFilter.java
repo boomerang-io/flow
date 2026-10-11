@@ -1,8 +1,6 @@
 package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.slack.api.app_backend.SlackSignature.Generator;
-import com.slack.api.app_backend.SlackSignature.Verifier;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
@@ -56,8 +54,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   private static final String TOKEN_URL_PARAM_NAME = "access_token";
   private static final String X_ACCESS_TOKEN_HEADER = "x-access-token";
   private static final String AUTHORIZATION_HEADER = "Authorization";
-  //  private static final String X_SLACK_SIGNATURE = "X-Slack-Signature";
-  //  private static final String X_SLACK_TIMESTAMP = "X-Slack-Request-Timestamp";
   private static final String PATH_ACTIVATE = "/api/v2/activate";
   private static final String PATH_PROFILE = "/api/v2/profile";
   // The unified token exchange (PATH_AUTH_EXCHANGE) is now, alongside
@@ -337,26 +333,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       return authToken;
     }
     return null;
-  }
-
-  /*
-   * Utlity method for verifying requests are signed by Slack
-   *
-   * <h4>Specifications</h4> <ul> <li><a
-   * href="https://api.slack.com/authentication/verifying-requests-from-slack">Verifying Requests
-   * from Slack</a></li> </ul>
-   */
-  private Boolean verifySignature(String signature, String timestamp, String body) {
-    String key =
-        this.settingsService.getSettingConfig("extensions", "slack.signingSecret").getValue();
-    LOGGER.debug("Key: " + key);
-    LOGGER.debug("Slack Timestamp: " + timestamp);
-    LOGGER.debug("Slack Body: " + body);
-    Generator generator = new Generator(key);
-    Verifier verifier = new Verifier(generator);
-    LOGGER.debug("Slack Signature: " + signature);
-    LOGGER.debug("Computed Signature: " + generator.generate(timestamp, body));
-    return verifier.isValid(timestamp, body, signature);
   }
 
   /*

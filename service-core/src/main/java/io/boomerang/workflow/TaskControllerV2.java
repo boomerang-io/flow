@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Sort.Direction;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -253,5 +254,23 @@ public class TaskControllerV2 {
       })
   public void validateYaml(@RequestBody TektonTask tektonTask) {
     taskService.validateAsTekton(tektonTask);
+  }
+
+  @DeleteMapping(value = "/{name}")
+  @AuthCriteria(
+      action = PermissionAction.DELETE,
+      resource = PermissionResource.TASK,
+      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
+  @Operation(summary = "Delete a Task")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "409", description = "Referenced by a run in flight")
+      })
+  public void delete(
+      @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
+          String name) {
+    taskService.deleteGlobal(name);
   }
 }

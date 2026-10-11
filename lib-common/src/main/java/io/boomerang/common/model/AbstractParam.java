@@ -25,6 +25,12 @@ public class AbstractParam {
   private Integer minValueLength;
   private Integer maxValueLength;
   private List<KeyValuePair> options;
+
+  // Numeric range for the slider control, the counterpart of options for select. Nullable: a
+  // param of any other type carries none, so no stored document changes.
+  private Double min;
+  private Double max;
+  private Double step;
   private Boolean required;
   private String placeholder;
   private String helpertext;

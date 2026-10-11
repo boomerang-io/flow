@@ -39,16 +39,24 @@ export default [
   route("/res/activate", "routes/resActivate.tsx"),
   route("/res/taskrun/:id/log", "routes/resTaskrunLog.tsx"),
   route("/res/workspace/:workspace/workflow/:workflow/export", "routes/resWorkflowExport.tsx"),
+  route("/res/workspace/:workspace/workflowrun/:runId/artifacts/:name", "routes/resArtifactDownload.tsx"),
   layout("../src/Features/App/index.tsx", [
     route("/home", "routes/home.tsx"),
     route("/profile", "routes/profile.tsx"),
-    route("/admin/settings", "routes/settings.tsx"),
-    route("/admin/parameters", "routes/globalParameters.tsx"),
-    route("/admin/template-workflows", "routes/templateWorkflows.tsx"),
-    route("/admin/task-manager/*", "routes/adminTasks.tsx"),
-    route("/admin/tokens", "routes/tokens.tsx"),
-    route("/admin/workspaces", "routes/workspaceList.tsx"),
-    route("/admin/users", "routes/userList.tsx"),
+    // The Manage area: one layout route owns the header and the tab row, each tab is a nested
+    // route with its own loader/action (the same shape as Manage Workspace below). The index
+    // sends the caller to the first tab their grants allow. A user's detail page stays outside
+    // the tabs: it is a page inside one object, titled with the user's name.
+    route("/admin", "routes/admin.tsx", [
+      index("routes/adminIndex.tsx"),
+      route("settings/:group?", "routes/settings.tsx"),
+      route("workspaces", "routes/workspaceList.tsx"),
+      route("users", "routes/userList.tsx"),
+      route("parameters", "routes/globalParameters.tsx"),
+      route("tokens", "routes/tokens.tsx"),
+      route("task-manager/*", "routes/adminTasks.tsx"),
+      route("audit", "routes/audit.tsx"),
+    ]),
     route("/admin/users/:userId/*", "routes/userDetailed.tsx"),
     // Every workspace-scoped route sits under one pathless layout route (BFF wave 2): its loader
     // resolves the `:workspace` param to the workspace record server-side and its element renders
@@ -71,6 +79,7 @@ export default [
         index("routes/manageWorkspaceMembers.tsx"),
         route("workflows", "routes/manageWorkspaceWorkflows.tsx"),
         route("approver-groups", "routes/manageWorkspaceApproverGroups.tsx"),
+        route("artifacts", "routes/manageWorkspaceArtifacts.tsx"),
         route("quotas", "routes/manageWorkspaceQuotas.tsx"),
         route("tokens", "routes/manageWorkspaceTokens.tsx"),
         route("settings", "routes/manageWorkspaceSettings.tsx"),

@@ -74,6 +74,10 @@ export const serviceUrl = {
   // Resources/actions/role presets a token's permission grid is allowed to offer - server-driven
   // so the picker can't drift from what is actually enforced.
   getTokenCatalog: ({ query }) => `${BASE_URL}/token/catalog${query ? "?" + query : ""}`,
+  // Audit trail. Both take the same filter set; the listing pages, the stats endpoint counts the
+  // same window by outcome and reports the configured capture state.
+  getAuditEvents: ({ query }: QueryArg) => `${BASE_URL}/audit${query ? "?" + query : ""}`,
+  getAuditStats: ({ query }: QueryArg) => `${BASE_URL}/audit/stats${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserWorkspaces: ({ userId }) => `${BASE_URL}/user/${userId}/workspaces`,
@@ -110,10 +114,10 @@ export const serviceUrl = {
       `${BASE_URL}/task/${name}?replace=${replace ? replace : false}`,
     postValidateYaml: () => `${BASE_URL}/task/validate`,
   },
+  // Workflow Templates are seeded, read-only content - the two reads are the whole surface.
   template: {
     getWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}`,
     getWorkflowTemplates: () => `${BASE_URL}/workflowtemplate/query`,
-    postWorkflowTemplate: () => `${BASE_URL}/workflowtemplate`,
   },
   workspace: {
     deleteWorkspaceMembers: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/members`,
@@ -123,6 +127,8 @@ export const serviceUrl = {
     deleteWorkspaceParameter: ({ workspace, name }) => `${BASE_URL}/workspace/${workspace}/parameters/${name}`,
     getInsights: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
       `${BASE_URL}/workspace/${workspace}/insights${query ? "?" + query : ""}`,
+    getInsightsWorkflow: ({ workspace, workflow, query }: WorkspaceArg & WorkflowArg & Partial<QueryArg>) =>
+      `${BASE_URL}/workspace/${workspace}/insights/workflow/${workflow}${query ? "?" + query : ""}`,
     action: {
       getActionsSummary: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/action/summary${query ? "?" + query : ""}`,
@@ -174,6 +180,22 @@ export const serviceUrl = {
       putApplyWorkflow: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow`,
       getExportWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/export`,
+    },
+    // Files a task run uploaded during a run (the `uploadartifact` task type). Per-run reads/writes
+    // take `runId` + the artifact `name` (the run's own artifact list has no numeric id in its
+    // path); the workspace-wide list/delete below take the artifact's `id` instead, matching the
+    // two distinct backend routes (WorkspaceArtifactControllerV2 vs the run-scoped one).
+    artifact: {
+      getRunArtifacts: ({ workspace, runId }: WorkspaceArg & { runId: string }) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts`,
+      getRunArtifact: ({ workspace, runId, name }: WorkspaceArg & { runId: string } & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
+      deleteRunArtifact: ({ workspace, runId, name }: WorkspaceArg & { runId: string } & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
+      getWorkspaceArtifacts: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/artifacts${query ? "?" + query : ""}`,
+      deleteWorkspaceArtifact: ({ workspace, artifactId }: WorkspaceArg & { artifactId: string }) =>
+        `${BASE_URL}/workspace/${workspace}/artifacts/${artifactId}`,
     },
     workflowrun: {
       deleteCancelWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>

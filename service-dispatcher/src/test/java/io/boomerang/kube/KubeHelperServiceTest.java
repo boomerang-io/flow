@@ -104,4 +104,63 @@ public class KubeHelperServiceTest {
     assertTrue(ex.getDescription().contains("PARAM_NAME_COLLISION"));
     assertTrue(ex.getDescription().contains("PARAM_MY_PARAM"));
   }
+
+  /*
+   * Kubernetes rejects the whole object when a label breaks its rules, so run labels - user
+   * metadata that reaches us unchecked - are coerced into shape rather than passed through.
+   */
+  @Test
+  public void testWorkspaceLabelsSanitiseASlashInAUserLabel() {
+    Map<String, String> labels =
+        helperKubeService.getWorkspaceLabels(
+            "wf-1", "ws-1", "workflowRun", Map.of("team/name", "platform/flow"));
+
+    assertEquals("platform_flow", labels.get("team/name"));
+  }
+
+  @Test
+  public void testWorkspaceLabelsTruncateAnOverlongValue() {
+    String overlong = "v".repeat(80);
+
+    Map<String, String> labels =
+        helperKubeService.getWorkspaceLabels("wf-1", "ws-1", "workflowRun", Map.of("size", overlong));
+
+    assertEquals(63, labels.get("size").length());
+  }
+
+  @Test
+  public void testTaskLabelsSanitiseKeysAndTrimNonAlphanumericEnds() {
+    Map<String, String> labels =
+        helperKubeService.getTaskLabels(
+            "wf-1", "wfr-1", "tr-1", Map.of("My Team/my label", "-release candidate-"));
+
+    assertTrue(labels.containsKey("my-team/my_label"));
+    assertEquals("release_candidate", labels.get("my-team/my_label"));
+  }
+
+  @Test
+  public void testAUserLabelNeverReplacesOneTheDispatcherSets() {
+    Map<String, String> labels =
+        helperKubeService.getWorkspaceLabels(
+            "wf-1", "ws-1", "workflowRun", Map.of("boomerang.io/workspace-ref", "hijacked"));
+
+    assertEquals("ws-1", labels.get("boomerang.io/workspace-ref"));
+  }
+
+  @Test
+  public void testALabelKeyWithNoUsableNameIsDropped() {
+    Map<String, String> labels =
+        helperKubeService.getWorkspaceLabels("wf-1", "ws-1", "workflowRun", Map.of("///", "value"));
+
+    assertTrue(labels.values().stream().noneMatch("value"::equals));
+  }
+
+  @Test
+  public void testTheDispatchersOwnLabelsAreUnchanged() {
+    Map<String, String> labels = helperKubeService.getWorkspaceLabels("wf-1", "ws-1", "workflowRun", null);
+
+    assertEquals("wf-1", labels.get("boomerang.io/workflow-ref"));
+    assertEquals("ws-1", labels.get("boomerang.io/workspace-ref"));
+    assertEquals("workflowRun", labels.get("boomerang.io/workspace-type"));
+  }
 }

@@ -2,7 +2,9 @@ package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 
+import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
@@ -81,13 +83,14 @@ public class WorkspaceService {
 
   public static final List<String> RESERVED_WORKSPACE_NAMES =
       List.of("home", "admin", "system", "profile", "connect");
-  public static final String WORKSPACES_SETTINGS_KEY = "workspaces";
+  public static final String QUOTAS_SETTINGS_KEY = "quotas";
   public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
   public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
   public static final String QUOTA_MAX_WORKFLOWRUN_CONCURRENT = "max.workflowrun.concurrent";
   public static final String QUOTA_MAX_WORKFLOWRUN_MONTHLY = "max.workflowrun.monthly";
   public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
   public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
+  public static final String QUOTA_MAX_ARTIFACT_STORAGE = "max.artifact.storage";
 
   private final WorkspaceRepository workspaceRepository;
   private final IdentityService identityService;
@@ -103,6 +106,8 @@ public class WorkspaceService {
   private final AuditQueryService auditQueryService;
   private final TokenService tokenService;
   private final TaskService taskService;
+  private final ArtifactService artifactService;
+  private final ParamLayerCache paramLayerCache;
 
   public WorkspaceService(
       WorkspaceRepository workspaceRepository,
@@ -118,7 +123,9 @@ public class WorkspaceService {
       WorkflowRunService workflowRunService,
       AuditQueryService auditQueryService,
       TokenService tokenService,
-      TaskService taskService) {
+      TaskService taskService,
+      ArtifactService artifactService,
+      ParamLayerCache paramLayerCache) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -133,6 +140,8 @@ public class WorkspaceService {
     this.auditQueryService = auditQueryService;
     this.tokenService = tokenService;
     this.taskService = taskService;
+    this.artifactService = artifactService;
+    this.paramLayerCache = paramLayerCache;
   }
 
   /*
@@ -149,7 +158,7 @@ public class WorkspaceService {
       }
       return ResponseEntity.ok().build();
     }
-    throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+    throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
   }
 
   /*
@@ -222,6 +231,7 @@ public class WorkspaceService {
       }
 
       workspaceEntity = workspaceRepository.save(workspaceEntity);
+      paramLayerCache.evictAll();
       relationshipService.createNodeAndEdge(
           RelationshipType.ROOT,
           "root",
@@ -252,7 +262,7 @@ public class WorkspaceService {
 
       return convertWorkspaceEntityToWorkspace(workspaceEntity);
     } else {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
   }
 
@@ -263,7 +273,7 @@ public class WorkspaceService {
     if (request != null) {
       LOGGER.debug("Request: " + request.toString());
       if (team == null || team.isBlank()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
       }
       if (!relationshipService.check(
           RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
@@ -318,6 +328,7 @@ public class WorkspaceService {
       }
 
       workspaceRepository.save(workspaceEntity);
+      paramLayerCache.evictAll();
 
       // Update any existing relationships if the name has changed
       if (updatedName) {
@@ -329,7 +340,7 @@ public class WorkspaceService {
       createOrUpdateUserRelationships(workspaceEntity.getName(), request.getMembers());
       return convertWorkspaceEntityToWorkspace(workspaceEntity);
     }
-    throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+    throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
   }
 
   /*
@@ -337,7 +348,7 @@ public class WorkspaceService {
    */
   public void delete(String team) {
     if (team == null || team.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
 
     // If no relationship, user has no access or team doesn't exist
@@ -499,7 +510,7 @@ public class WorkspaceService {
   public void removeMembers(String team, List<WorkspaceMember> request) {
     if (request != null && !request.isEmpty()) {
       if (team == null || team.isBlank()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
       }
       if (!relationshipService.check(
           RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
@@ -537,7 +548,7 @@ public class WorkspaceService {
    */
   public void leave(String team) {
     if (team == null || team.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
@@ -605,7 +616,7 @@ public class WorkspaceService {
    */
   public void deleteParameter(String team, String name) {
     if (team == null || team.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
@@ -625,6 +636,7 @@ public class WorkspaceService {
         parameters.remove(optionalParameter.get());
         workspaceEntity.setParameters(parameters);
         workspaceRepository.save(workspaceEntity);
+        paramLayerCache.evictAll();
       } else {
         throw new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE);
       }
@@ -645,7 +657,7 @@ public class WorkspaceService {
     for (ApproverGroupRequest r : request) {
       // Ensure ApproverGroupName is not blank or null
       if (r.getName() == null || r.getName().isBlank()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
       }
 
       // Match by id when supplied so a rename updates the existing group; name matching is the
@@ -732,7 +744,7 @@ public class WorkspaceService {
    */
   public void deleteApproverGroups(String team, List<String> request) {
     if (team == null || team.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
@@ -757,7 +769,7 @@ public class WorkspaceService {
    */
   public void deleteCustomQuotas(String team) {
     if (team == null || team.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
@@ -770,7 +782,7 @@ public class WorkspaceService {
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
 
     // Delete any custom quotas set on the team
-    // This will then reset and default to the Workspace Quotas set in Settings
+    // This will then reset and default to the Quotas group in Settings
     workspaceEntity.setQuotas(new Quotas());
     workspaceRepository.save(workspaceEntity);
   }
@@ -927,35 +939,42 @@ public class WorkspaceService {
     quotas.setMaxWorkflowCount(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
                 .getValue()));
     quotas.setMaxWorkflowRunMonthly(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
                 .getValue()));
     quotas.setMaxWorkflowStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunDuration(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue()));
     quotas.setMaxConcurrentRuns(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
                 .getValue()));
+    quotas.setMaxArtifactStorage(
+        Integer.valueOf(
+            settingsService
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_ARTIFACT_STORAGE)
+                .getValue()
+                .replace("Gi", "")));
+    quotas.setArtifactRetentionDays(artifactService.defaultRetentionDays());
     return quotas;
   }
 
@@ -985,6 +1004,12 @@ public class WorkspaceService {
       if (customQuotas.getMaxConcurrentRuns() != null) {
         quotas.setMaxConcurrentRuns(customQuotas.getMaxConcurrentRuns());
       }
+      if (customQuotas.getMaxArtifactStorage() != null) {
+        quotas.setMaxArtifactStorage(customQuotas.getMaxArtifactStorage());
+      }
+      if (customQuotas.getArtifactRetentionDays() != null) {
+        quotas.setArtifactRetentionDays(customQuotas.getArtifactRetentionDays());
+      }
     }
   }
 
@@ -992,7 +1017,7 @@ public class WorkspaceService {
     Integer d =
         Integer.valueOf(
             settingsService
-                .getSettingConfig(WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue());
 
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
@@ -1079,6 +1104,8 @@ public class WorkspaceService {
                         RunStatus.ready,
                         RunStatus.running,
                         RunStatus.waiting))));
+
+    currentQuotas.setCurrentArtifactStorage(artifactService.storedBytes(workflowRefs));
 
     WorkflowCount count =
         workflowService.count(

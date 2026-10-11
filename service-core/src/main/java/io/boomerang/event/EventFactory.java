@@ -5,7 +5,9 @@ import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.event.enums.EventPayload;
 import io.boomerang.event.enums.EventType;
+import io.boomerang.event.model.RunStatusSummary;
 import io.boomerang.event.model.TaskRunStatusEvent;
 import io.boomerang.event.model.WorkflowRunStatusEvent;
 import io.boomerang.event.model.WorkflowStatusEvent;
@@ -44,7 +46,8 @@ public class EventFactory {
   //    }
   //  }
 
-  public static WorkflowRunStatusEvent buildStatusUpdateEvent(WorkflowRunEntity wfRunEntity) {
+  public static WorkflowRunStatusEvent buildStatusUpdateEvent(
+      WorkflowRunEntity wfRunEntity, EventPayload payload) {
 
     // Event subject
     // @formatter:off
@@ -61,12 +64,15 @@ public class EventFactory {
     statusEvent.setSubject(eventSubject);
     statusEvent.setDate(new Date());
     statusEvent.setType(EventType.WORKFLOWRUN_STATUS_UPDATE);
-    statusEvent.setWorkflowRun(ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class));
+    statusEvent.setData(
+        RunStatusSummary.project(
+            ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class), payload));
 
     return statusEvent;
   }
 
-  public static TaskRunStatusEvent buildStatusUpdateEvent(TaskRunEntity taskRunEntity) {
+  public static TaskRunStatusEvent buildStatusUpdateEvent(
+      TaskRunEntity taskRunEntity, EventPayload payload) {
 
     // Event subject
     // @formatter:off
@@ -83,7 +89,7 @@ public class EventFactory {
     statusUpdateEvent.setSubject(eventSubject);
     statusUpdateEvent.setDate(new Date());
     statusUpdateEvent.setType(EventType.TASKRUN_STATUS_UPDATE);
-    statusUpdateEvent.setTaskRun(new TaskRun(taskRunEntity));
+    statusUpdateEvent.setData(RunStatusSummary.project(new TaskRun(taskRunEntity), payload));
 
     return statusUpdateEvent;
   }

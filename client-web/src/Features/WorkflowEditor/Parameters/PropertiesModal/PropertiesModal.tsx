@@ -1,42 +1,29 @@
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
-import { Add } from "@carbon/react/icons";
 import React from "react";
 import styles from "./PropertiesModal.module.scss";
 import PropertiesModalContent from "./PropertiesModalContent";
-import WorkflowEditButton from "./WorkflowEditButton";
-import { DataDrivenInput, ModalTriggerProps, WorkflowPropertyActionType } from "Types";
+import { DataDrivenInput, WorkflowPropertyActionType } from "Types";
 
 interface PropertiesModalProps {
   isEdit: boolean;
+  isOpen: boolean;
+  onClose: () => void;
   property?: DataDrivenInput;
   propertyKeys: Array<string>;
   updateWorkflowProperties: (args: { param: DataDrivenInput; type: WorkflowPropertyActionType }) => void;
+  workflowName: string;
 }
 
 function PropertiesModal(props: PropertiesModalProps) {
   return (
     <ComposedModal
+      composedModalProps={{ containerClassName: styles.modalContainer }}
+      isOpen={props.isOpen}
       modalHeaderProps={{
-        title: props.isEdit ? "Update Parameter" : "Create Parameter",
-        subtitle: props.isEdit ? "Let's change some stuff" : "Let's create a new one",
+        label: props.workflowName,
+        title: props.isEdit ? "Edit parameter" : "Add parameter",
       }}
-      modalTrigger={({ openModal }: ModalTriggerProps) => {
-        return props.isEdit ? (
-          <WorkflowEditButton
-            aria-label="Edit"
-            data-testid="edit-parameter-button"
-            className={styles.editContainer}
-            onClick={openModal}
-          />
-        ) : (
-          <button className={styles.createPropertyCard} onClick={openModal} data-testid="create-parameter-button">
-            <div className={styles.createContainer}>
-              <Add className={styles.createIcon} aria-label="Add" size={32} />
-              <p className={styles.createText}>Create a new parameter</p>
-            </div>
-          </button>
-        );
-      }}
+      onCloseModal={props.onClose}
     >
       {({ closeModal }) => {
         return <PropertiesModalContent closeModal={closeModal} {...props} />;

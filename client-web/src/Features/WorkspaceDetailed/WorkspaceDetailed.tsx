@@ -13,6 +13,7 @@ import { useAppContext } from "Hooks";
 import { FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
+import { hasPermission } from "Utils/permissionHelper";
 import { FlowUser, FlowWorkspace } from "Types";
 import Header from "./Header";
 import styles from "./workspaceDetailed.module.scss";
@@ -102,7 +103,8 @@ export function shouldRevalidate({
 
 /**
  * Handed to every tab through <Outlet context>. `canEdit` and `user` are client-only derivations
- * (a feature flag and AppContext), so they're computed here once rather than in each tab.
+ * (the caller's grants, a feature flag and AppContext), so they're computed here once rather than
+ * in each tab.
  */
 export type WorkspaceDetailedContext = {
   workspace: FlowWorkspace;
@@ -149,7 +151,15 @@ function WorkspaceDetailedContainer() {
     );
   }
 
-  const canEdit = Boolean(workspaceManagementEnabled) && workspace.status === "active";
+  // The write controls on these tabs all post to endpoints guarded by `workspace/write` scoped to
+  // this workspace (WorkspaceControllerV2's PATCH and the members/approvers/quotas/parameters
+  // mappings). Since decision 0031 a caller without that grant gets a real 403, so a reader-role
+  // member must see the tabs read-only rather than be shown controls that fail on submit. The
+  // feature flag and the workspace status stay as they were - they say whether workspace
+  // management is switched on at all and whether this workspace is editable; the grant says
+  // whether THIS caller may edit it.
+  const canEditWorkspace = hasPermission(user, "workspace", "write", workspace.name);
+  const canEdit = Boolean(workspaceManagementEnabled) && workspace.status === "active" && canEditWorkspace;
   const context: WorkspaceDetailedContext = { workspace, canEdit, user };
 
   return (

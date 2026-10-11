@@ -199,166 +199,170 @@ const Header: React.FC<HeaderProps> = ({
   const params = { workspace: rawParams.workspace ?? "", name: rawParams.name ?? "", version: rawParams.version ?? "" };
 
   const TaskIcon = taskIcons.find((icon) => icon.name === selectedTaskTemplate.icon);
+  // A sorted copy, never an in-place reverse: changelog is the route's loader data, so reversing it
+  // here flipped it again on every render. The API lists revisions in storage order, so sort by
+  // version rather than trust that order.
+  const changelogNewestFirst = [...changelog].sort((a, b) => b.version - a.version);
   const versionCount = changelog.length;
-  const lastUpdated = changelog[versionCount - 1] ?? {};
-  changelog.reverse();
+  const lastUpdated = changelogNewestFirst[0] ?? {};
   const canEdit = !selectedTaskTemplate?.verified || (editVerifiedTasksEnabled && selectedTaskTemplate?.verified);
 
   return (
     <FeatureHeader
       className={styles.featureHeader}
       footer={
-        <Tabs ariaLabel="Task template views">
-          <Tab
-            end
-            label="Overview"
-            to={
-              params.workspace
-                ? appLink.manageTasksEdit({
-                    workspace: params.workspace,
-                    name: selectedTaskTemplate.name,
-                    version: selectedTaskTemplate.version.toString(),
-                  })
-                : appLink.adminTasksDetail({
-                    name: selectedTaskTemplate.name,
-                    version: selectedTaskTemplate.version.toString(),
-                  })
-            }
-          />
-          <Tab
-            end
-            label="Editor"
-            to={
-              params.workspace
-                ? appLink.manageTasksYaml({
-                    workspace: params.workspace,
-                    name: selectedTaskTemplate.name,
-                    version: selectedTaskTemplate.version.toString(),
-                  })
-                : appLink.adminTasksEditor({
-                    name: selectedTaskTemplate.name,
-                    version: selectedTaskTemplate.version.toString(),
-                  })
-            }
-          />
-        </Tabs>
-      }
-      actions={
-        <div className={styles.buttons}>
-          <VersionSwitcher selectedTaskTemplate={selectedTaskTemplate} versionCount={versionCount} canEdit={canEdit} />
-          <Button
-            size="md"
-            hasIconOnly
-            iconDescription="Download this version as JSON"
-            tooltipPosition="bottom"
-            kind="ghost"
-            renderIcon={Download}
-            onClick={handleDownloadTaskTemplate}
-          />
-          {!isOldVersion && isActive && (
-            <ConfirmModal
-              affirmativeAction={formikProps.resetForm}
-              affirmativeText="Reset changes"
-              children="You are about to reset to the last save of this version, all unsaved changes will be erased. This action cannot be undone, are you sure you want to reset to the latest save?"
-              title="Reset changes"
-              modalTrigger={({ openModal }: ModalTriggerProps) => (
-                <Button
-                  size="md"
-                  hasIconOnly
-                  iconDescription="Restore the last save of this version"
-                  tooltipPosition="bottom"
-                  kind="ghost"
-                  renderIcon={Reset}
-                  onClick={openModal}
-                />
-              )}
-            />
-          )}
-          {!isOldVersion && isActive && (
-            <ConfirmModal
-              affirmativeAction={handleArchiveTaskTemplate}
-              affirmativeText="Archive this task"
-              containerClassName={styles.archiveContainer}
-              children={<ArchiveText />}
-              title="Archive"
-              modalTrigger={({ openModal }) => (
-                <Button
-                  hasIconOnly
-                  iconDescription="Archive"
-                  disabled={!canEdit}
-                  tooltipPosition="bottom"
-                  renderIcon={Archive}
-                  kind="danger--ghost"
-                  size="md"
-                  onClick={openModal}
-                />
-              )}
-            />
-          )}
-          {isOldVersion ? (
-            <ConfirmModal
-              affirmativeAction={() =>
-                handleSaveTaskTemplate(
-                  formikProps.values,
-                  formikProps.resetForm,
-                  TemplateRequestType.Copy,
-                )
+        // Tabs and the version actions share one row, so the task's name keeps the full width.
+        <div className={styles.footer}>
+          <Tabs ariaLabel="Task template views">
+            <Tab
+              end
+              label="Overview"
+              to={
+                params.workspace
+                  ? appLink.manageTasksEdit({
+                      workspace: params.workspace,
+                      name: selectedTaskTemplate.name,
+                      version: selectedTaskTemplate.version.toString(),
+                    })
+                  : appLink.adminTasksDetail({
+                      name: selectedTaskTemplate.name,
+                      version: selectedTaskTemplate.version.toString(),
+                    })
               }
-              children={
-                <>
-                  <p className={styles.confirmModalText}>Sometimes revisiting the past is a good thing.</p>
-                  <p
-                    className={styles.confirmModalText}
-                  >{`This action will create a new version that’s an exact copy of Version ${
-                    selectedTaskTemplate.version
-                  }, but it shall be named Version ${versionCount + 1}. Make sure this is what you want to do.`}</p>
-                </>
+            />
+            <Tab
+              end
+              label="Editor"
+              to={
+                params.workspace
+                  ? appLink.manageTasksYaml({
+                      workspace: params.workspace,
+                      name: selectedTaskTemplate.name,
+                      version: selectedTaskTemplate.version.toString(),
+                    })
+                  : appLink.adminTasksEditor({
+                      name: selectedTaskTemplate.name,
+                      version: selectedTaskTemplate.version.toString(),
+                    })
               }
-              affirmativeText="Copy to new version"
-              title="Copy to new version"
-              modalTrigger={({ openModal }: ModalTriggerProps) => (
-                <TooltipHover direction="bottom" tooltipText={"Copy this version to a new version to enable editing"}>
+            />
+          </Tabs>
+          <div className={styles.buttons}>
+            <VersionSwitcher selectedTaskTemplate={selectedTaskTemplate} versionCount={versionCount} canEdit={canEdit} />
+            <Button
+              size="md"
+              hasIconOnly
+              iconDescription="Download this version as JSON"
+              tooltipPosition="bottom"
+              kind="ghost"
+              renderIcon={Download}
+              onClick={handleDownloadTaskTemplate}
+            />
+            {!isOldVersion && isActive && (
+              <ConfirmModal
+                affirmativeAction={formikProps.resetForm}
+                affirmativeText="Reset changes"
+                children="You are about to reset to the last save of this version, all unsaved changes will be erased. This action cannot be undone, are you sure you want to reset to the latest save?"
+                title="Reset changes"
+                modalTrigger={({ openModal }: ModalTriggerProps) => (
                   <Button
-                    className={styles.copyButton}
                     size="md"
-                    renderIcon={Copy}
+                    hasIconOnly
+                    iconDescription="Restore the last save of this version"
+                    tooltipPosition="bottom"
+                    kind="ghost"
+                    renderIcon={Reset}
                     onClick={openModal}
+                  />
+                )}
+              />
+            )}
+            {!isOldVersion && isActive && (
+              <ConfirmModal
+                affirmativeAction={handleArchiveTaskTemplate}
+                affirmativeText="Archive this task"
+                containerClassName={styles.archiveContainer}
+                children={<ArchiveText />}
+                title="Archive"
+                modalTrigger={({ openModal }) => (
+                  <Button
+                    hasIconOnly
+                    iconDescription="Archive"
                     disabled={!canEdit}
-                  >
-                    Copy to new version
+                    tooltipPosition="bottom"
+                    renderIcon={Archive}
+                    kind="danger--ghost"
+                    size="md"
+                    onClick={openModal}
+                  />
+                )}
+              />
+            )}
+            {isOldVersion ? (
+              <ConfirmModal
+                affirmativeAction={() =>
+                  handleSaveTaskTemplate(
+                    formikProps.values,
+                    formikProps.resetForm,
+                    TemplateRequestType.Copy,
+                  )
+                }
+                children={
+                  <>
+                    <p className={styles.confirmModalText}>Sometimes revisiting the past is a good thing.</p>
+                    <p
+                      className={styles.confirmModalText}
+                    >{`This action will create a new version that’s an exact copy of Version ${
+                      selectedTaskTemplate.version
+                    }, but it shall be named Version ${versionCount + 1}. Make sure this is what you want to do.`}</p>
+                  </>
+                }
+                affirmativeText="Copy to new version"
+                title="Copy to new version"
+                modalTrigger={({ openModal }: ModalTriggerProps) => (
+                  <TooltipHover direction="bottom" tooltipText={"Copy this version to a new version to enable editing"}>
+                    <Button
+                      className={styles.copyButton}
+                      size="md"
+                      renderIcon={Copy}
+                      onClick={openModal}
+                      disabled={!canEdit}
+                    >
+                      Copy to new version
+                    </Button>
+                  </TooltipHover>
+                )}
+              />
+            ) : isActive ? (
+              <SaveModal
+                name={selectedTaskTemplate.name}
+                formikProps={formikProps}
+                handleSubmit={handleSaveTaskTemplate}
+                isLoading={isLoading}
+                canEdit={canEdit}
+              />
+            ) : (
+              <ConfirmModal
+                affirmativeAction={handleRestoreTaskTemplate}
+                children={
+                  <>
+                    <p className={styles.confirmModalText}>
+                      Restoring a task will remove it from the Archive and make it visible in the Workflow Editor, as the
+                      most recent version.
+                    </p>
+                    <p className={styles.confirmModalText}>Are you sure you’d like to restore this task?</p>
+                  </>
+                }
+                affirmativeText="Restore this task"
+                title="Restore"
+                modalTrigger={({ openModal }: ModalTriggerProps) => (
+                  <Button className={styles.mainActionButton} size="md" renderIcon={Reset} onClick={openModal}>
+                    Restore
                   </Button>
-                </TooltipHover>
-              )}
-            />
-          ) : isActive ? (
-            <SaveModal
-              name={selectedTaskTemplate.name}
-              formikProps={formikProps}
-              handleSubmit={handleSaveTaskTemplate}
-              isLoading={isLoading}
-              canEdit={canEdit}
-            />
-          ) : (
-            <ConfirmModal
-              affirmativeAction={handleRestoreTaskTemplate}
-              children={
-                <>
-                  <p className={styles.confirmModalText}>
-                    Restoring a task will remove it from the Archive and make it visible in the Workflow Editor, as the
-                    most recent version.
-                  </p>
-                  <p className={styles.confirmModalText}>Are you sure you’d like to restore this task?</p>
-                </>
-              }
-              affirmativeText="Restore this task"
-              title="Restore"
-              modalTrigger={({ openModal }: ModalTriggerProps) => (
-                <Button className={styles.mainActionButton} size="md" renderIcon={Reset} onClick={openModal}>
-                  Restore
-                </Button>
-              )}
-            />
-          )}
+                )}
+              />
+            )}
+          </div>
         </div>
       }
     >
@@ -378,7 +382,7 @@ const Header: React.FC<HeaderProps> = ({
             Archived
           </Tag>
         )}
-        <VersionHistory changelog={changelog} />
+        <VersionHistory changelog={changelogNewestFirst} />
         {selectedTaskTemplate.verified ? (
           <TooltipHover
             direction="right"
@@ -404,10 +408,10 @@ const Header: React.FC<HeaderProps> = ({
             <Identification style={{ marginLeft: "0.5rem" }} />
           </TooltipHover>
         )}
+        <p className={styles.lastUpdate}>{`Version ${versionCount === 1 ? "created" : "updated"} ${moment(
+          lastUpdated.date,
+        ).format("MMM DD, YYYY")}`}</p>
       </div>
-      <p className={styles.lastUpdate}>{`Version ${versionCount === 1 ? "created" : "updated"} ${moment(
-        lastUpdated.date,
-      ).format("MMM DD, YYYY")}`}</p>
     </FeatureHeader>
   );
 };

@@ -1,25 +1,68 @@
 @import "Styles/mixins";
 
-.accordionTitle {
+.section {
   display: flex;
-  align-items: center;
-  position: relative;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 44rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: var(--cds-heading-03-font-size, 1.25rem);
+  font-weight: var(--cds-heading-03-font-weight, 400);
+  line-height: var(--cds-heading-03-line-height, 1.4);
   margin: 0;
-  font-size: 1.125rem;
-  padding: 0.25rem;
 }
 
-.accordionDescription {
-  color: var(--cds-text-01);
-  font-size: 0.875rem;
-  letter-spacing: 0.01rem;
-  line-height: 1.125rem;
-  margin-left: 1rem;
-  @include multiline-text-overflow-ellipsis();
+.description {
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-body-01-font-size, 0.875rem);
+  letter-spacing: var(--cds-body-01-letter-spacing, 0.16px);
+  line-height: var(--cds-body-01-line-height, 1.42857);
+  margin: 0;
 }
 
-.saveButton {
-  position: absolute;
-  right: 0rem;
-  top: -2.5rem;
+// One input per row at a readable width; the library lays its inputs out inline by default.
+.form {
+  @include border-radius();
+  background-color: var(--cds-layer-01, var(--cds-ui-01));
+  box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+
+  :global .cds--bmrg-text-input,
+  :global .cds--bmrg-text-area,
+  :global .cds--bmrg-select,
+  :global .cds--bmrg-multi-select,
+  :global .cds--dropdown__wrapper,
+  :global .cds--bmrg-toggle__container {
+    width: 100%;
+  }
+}
+
+.saveBar {
+  align-items: center;
+  background-color: var(--cds-layer-01, var(--cds-ui-01));
+  border-top: 1px solid var(--cds-border-subtle-01, var(--cds-ui-03));
+  bottom: 0;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin: 0 -2rem -3rem;
+  padding: 0.75rem 2rem;
+  position: sticky;
+}
+
+.saveHint {
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-label-01-font-size, 0.75rem);
+  margin-right: auto;
 }

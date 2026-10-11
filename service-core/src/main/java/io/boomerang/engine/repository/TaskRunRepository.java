@@ -10,6 +10,12 @@ public interface TaskRunRepository extends MongoRepository<TaskRunEntity, String
 
   List<TaskRunEntity> findByWorkflowRunRef(String workflowRunRef);
 
+  // The run's graph vertices: every TaskRun except the items of a foreach task.
+  List<TaskRunEntity> findByWorkflowRunRefAndParentRefIsNull(String workflowRunRef);
+
+  // A foreach task's items in item order. Served by the sparse (parentRef, index) index.
+  List<TaskRunEntity> findByParentRefOrderByIndexAsc(String parentRef);
+
   Optional<TaskRunEntity> findFirstByNameAndWorkflowRunRef(String name, String workflowRunRef);
 
   void deleteByWorkflowRef(String workflowRef);

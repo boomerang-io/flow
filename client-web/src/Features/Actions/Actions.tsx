@@ -7,7 +7,6 @@ import {
   ErrorDragon,
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
   FeatureNavTab as Tab,
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
@@ -23,7 +22,7 @@ import { approvalStatusOptions } from "Constants/filterOptions";
 import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import { Action, PaginatedWorkflowResponse } from "Types";
+import { Action, ApprovalStatus, PaginatedWorkflowResponse } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./Actions.module.scss";
 import ActionsTable from "./ActionsTable";
@@ -43,6 +42,20 @@ const DEFAULT_ORDER = "DESC";
 const DEFAULT_PAGE = 0;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_SORT = "creationDate";
+// Actions opens on what is waiting. Clearing the status filter sets `statuses=any`, since an absent
+// parameter means "the default" and an empty one is dropped from the URL.
+const DEFAULT_STATUSES = [ApprovalStatus.Submitted];
+const ANY_STATUS = "any";
+
+function resolveStatuses(statuses: unknown): Array<string> | undefined {
+  if (statuses === undefined || statuses === null) {
+    return DEFAULT_STATUSES;
+  }
+  if (statuses === ANY_STATUS) {
+    return undefined;
+  }
+  return typeof statuses === "string" ? [statuses] : (statuses as Array<string>);
+}
 /*
  * Computed per call, not hoisted to module constants: this module is imported ONCE into a
  * long-lived Node server (ssr:true), so a module-level `moment()` freezes the default window at
@@ -85,7 +98,8 @@ export async function loader({
   const page = parsedQuery.page ?? DEFAULT_PAGE;
   const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
-  const { workflows, statuses, fromDate, toDate } = parsedQuery;
+  const { workflows, fromDate, toDate } = parsedQuery;
+  const statuses = resolveStatuses(parsedQuery.statuses);
 
   /*
    * One wave, not four. None of these reads depends on another - they were four independent
@@ -106,8 +120,11 @@ export async function loader({
     { order, page, limit, sort, statuses, workspaces: workspace, types: actionType, workflows, fromDate, toDate },
     queryStringOptions,
   );
-  /** Number of approvals/manual tasks under the current filters, for the tab labels */
-  const actionsUrlSummaryQuery = queryString.stringify({ workflows, fromDate, toDate }, queryStringOptions);
+  /** Number of approvals/manual tasks under the current filters, for the tab labels - the same statuses as the table */
+  const actionsUrlSummaryQuery = queryString.stringify(
+    { workflows, fromDate, toDate, statuses: statuses ?? Object.values(ApprovalStatus) },
+    queryStringOptions,
+  );
 
   const [summaryResult, tableResult, filterSummaryResult, workflowsResult] = await Promise.allSettled([
     api.get(serviceUrl.workspace.action.getActionsSummary({ workspace, query: summaryQuery })),
@@ -238,7 +255,7 @@ function Actions() {
   }
 
   function handleSelectStatuses({ selectedItems }) {
-    const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : undefined;
+    const statuses = selectedItems.length > 0 ? selectedItems.map((status) => status.value) : ANY_STATUS;
     updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), statuses: statuses, page: 0 });
     return;
   }
@@ -273,9 +290,9 @@ function Actions() {
   }
 
   if (workspace && workflowsData?.content) {
-    const { workflows = "", statuses = "" } = queryString.parse(location.search, queryStringOptions);
+    const { workflows = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
-    const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
+    const selectedStatuses = resolveStatuses(queryString.parse(location.search, queryStringOptions).statuses) ?? [];
     const maxDate = moment().format("MM/DD/YYYY");
 
     const NavigationComponent = () => {
@@ -319,17 +336,10 @@ function Actions() {
           <Route path="" element={<Navigate to={appLink.actionsApprovals({ workspace: workspace.name })} replace />} />
         </Routes>
         <Header
-          className={styles.header}
           includeBorder={false}
           nav={<NavigationComponent />}
-          header={
-            <>
-              <HeaderTitle className={styles.headerTitle}>Actions</HeaderTitle>
-              <HeaderSubtitle className={styles.headerMessage}>
-                View and manage your approvals and manual tasks.
-              </HeaderSubtitle>
-            </>
-          }
+          // The tabs name what the page holds, so it carries no description line.
+          header={<HeaderTitle className={styles.headerTitle}>Actions</HeaderTitle>}
           actions={
             <section className={styles.headerSummary}>
               <p className={styles.headerSummaryText}>Today's numbers</p>

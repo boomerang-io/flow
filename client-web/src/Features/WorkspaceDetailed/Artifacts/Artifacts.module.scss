@@ -1,0 +1,47 @@
+.container {
+  padding: 1.5rem 2rem;
+}
+
+.notificationsContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  :global .cds--inline-notification {
+    max-width: 100%;
+  }
+}
+
+.summary {
+  margin-bottom: 1.5rem;
+}
+
+.summaryTitle {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.filtersContainer {
+  margin-bottom: 1rem;
+}
+
+.tableTextarea {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.runLink {
+  color: var(--cds-link-01);
+}
+
+.expiredRow {
+  opacity: 0.6;
+}
+
+.empty {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  padding: 1.5rem 0;
+}

@@ -6,10 +6,12 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowTrigger;
 import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.LinkedList;
@@ -39,7 +41,9 @@ class TriggerAgnosticWorkspacesTest extends AbstractEngineIntegrationTest {
 
     Workflow workflow = new Workflow();
     workflow.setName("trigger-agnostic-workspaces");
-    workflow.getTriggers().getWebhook().setEnabled(true);
+    WorkflowTrigger triggers = new WorkflowTrigger();
+    triggers.setWebhook(new Trigger(true));
+    workflow.setTriggers(triggers);
     workflow.setTasks(
         new LinkedList<>(
             List.of(

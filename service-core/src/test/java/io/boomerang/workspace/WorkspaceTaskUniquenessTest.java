@@ -38,8 +38,6 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
     // TaskService.internalCreate touches the changelog author off the current identity -
     // a global principal keeps that path populated without needing a workspace membership edge.
     seedGlobalIdentity();

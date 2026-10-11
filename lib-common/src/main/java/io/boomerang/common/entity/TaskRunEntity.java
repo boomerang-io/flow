@@ -12,6 +12,7 @@ import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskWorkspace;
+import io.boomerang.common.model.WorkflowTaskForeach;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import java.util.Date;
 import java.util.HashMap;
@@ -30,7 +31,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('task_runs')}")
 @CompoundIndexes({
-  @CompoundIndex(name = "status_phase_type_idx", def = "{'status': 1, 'phase': 1, 'type': 1}")
+  @CompoundIndex(name = "status_phase_type_idx", def = "{'status': 1, 'phase': 1, 'type': 1}"),
+  @CompoundIndex(name = "parent_index", def = "{'parentRef': 1, 'index': 1}", sparse = true)
 })
 public class TaskRunEntity {
 
@@ -60,6 +62,14 @@ public class TaskRunEntity {
   private String workflowRef;
   private String workflowRevisionRef;
   @Indexed private String workflowRunRef; // Indexed when retrieving task runs for a workflow run
+
+  // A foreach task's item: the parent TaskRun's id and the item's position from 0. Absent on every
+  // other TaskRun. Items are never graph vertices; the parent stands for them in the graph.
+  private String parentRef;
+  private Integer index;
+
+  // The foreach setting, on a parent only. Holds the resolved item array once the parent fans out.
+  @JsonIgnore private WorkflowTaskForeach foreach;
 
   // Claim ownership. claim.by is the registered dispatcher id holding the claim; absent =
   // unclaimed and eligible; written only by the claim Compare-And-Set. claim.seq increments on every claim and is never cleared, fencing

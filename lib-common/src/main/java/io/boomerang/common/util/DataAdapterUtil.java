@@ -136,15 +136,49 @@ public class DataAdapterUtil {
    * resolved secrets from the run's results and tasks (where substitution can place them under any
    * name). Mutates the model only - callers must never persist a filtered object.
    */
-  public static void filterWorkflowRunValueByFieldType(
+  public static Set<String> filterWorkflowRunValueByFieldType(
       WorkflowRun run, List<AbstractParam> specParams, String fieldType) {
     if (run == null) {
-      return;
+      return Set.of();
     }
     // Collect the resolved values BEFORE the name-join blanks them.
     Set<String> secrets = sensitiveValues(specParams, run.getParams(), fieldType);
     if (specParams != null && run.getParams() != null) {
       filterRunParamValueByFieldType(specParams, run.getParams(), fieldType);
+    }
+    scrubWorkflowRunValues(run, secrets);
+    return secrets;
+  }
+
+  /**
+   * Filter sensitive data from a TaskRun MODEL against the CATALOGUE TASK's own param spec - the
+   * second type authority beside the workflow revision, and the only one that marks a value typed
+   * straight into a task node's password-typed param (that param has no workflow-level param to
+   * join against). Blanks those params by name, the same way
+   * {@link #filterRunParamValueByFieldType} does at the workflow level, and RETURNS the resolved
+   * values so the caller can scrub them RUN-WIDE: substitution carries one into a downstream
+   * task's param or result under another name. Mutates the model only - callers must never persist
+   * a filtered object.
+   */
+  public static Set<String> filterTaskRunValueByFieldType(
+      TaskRun task, List<AbstractParam> specParams, String fieldType) {
+    if (task == null || specParams == null || task.getParams() == null) {
+      return Set.of();
+    }
+    // Collect the resolved values BEFORE the name-join blanks them.
+    Set<String> secrets = sensitiveValues(specParams, task.getParams(), fieldType);
+    filterRunParamValueByFieldType(specParams, task.getParams(), fieldType);
+    return secrets;
+  }
+
+  /**
+   * Scrub every occurrence of the given secret values from a WorkflowRun MODEL's results and from
+   * every task on it. Run-wide rather than per task: a secret declared on one task can be
+   * substituted into any other task's param, spec field or result. Mutates the model only.
+   */
+  public static void scrubWorkflowRunValues(WorkflowRun run, Set<String> secrets) {
+    if (run == null || secrets == null || secrets.isEmpty()) {
+      return;
     }
     scrubResults(run.getResults(), secrets);
     if (run.getTasks() != null) {

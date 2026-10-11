@@ -12,6 +12,4 @@ public interface WorkflowTemplateRepository
   Optional<WorkflowTemplateEntity> findByNameAndLatestVersion(String name);
 
   Optional<WorkflowTemplateEntity> findByNameAndVersion(String name, Integer version);
-
-  void deleteAllByName(String name);
 }

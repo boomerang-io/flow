@@ -1,88 +1,41 @@
-.header {
-  padding: 1rem 2rem 0;
-}
-
-.headerTitle {
-  margin: 0;
-}
-
 .tableContainer {
-  margin: 2.5rem 2.5rem 4.5rem 2.5rem;
+  margin: 1.5rem;
 
   :global .cds--pagination__control-buttons {
     z-index: 1;
   }
 }
 
-.tableActions {
-  align-items: flex-end;
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  margin-bottom: 1.25rem;
-}
-
-.dropdown {
-  width: 20rem;
-}
-
-.tableHeadHeader {
-  font-size: inherit;
-  font-family: inherit;
-  height: 3rem;
-
-  button {
-    width: 100% !important;
-  }
-
-  &.label {
-    width: 20%;
-  }
-
-  &.key {
-    width: 20%;
-  }
-
-  &.description {
-    width: 25%;
-  }
-
-  &.value {
-    width: 25%;
-  }
-
-  &.secured {
-    width: 5%;
+.table {
+  td {
+    vertical-align: middle;
   }
 }
 
-.tableBody {
-  font-weight: 300;
+// Name first, in the monospace tasks type it in; the free text columns take what's left.
+.name {
+  font-family: var(--cds-code-01-font-family, "IBM Plex Mono", monospace);
+  font-size: 0.8125rem;
 }
 
-.tableCell {
-  .tableSecured {
-    height: 1.25rem;
-    width: 1.25rem;
-  }
-
-  .secured {
-    path {
-      fill: var(--cds-support-02);
-    }
-  }
-
-  .unsecured {
-    path {
-      fill: var(--cds-support-01);
-    }
-  }
+.value,
+.text {
+  display: block;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.wombat {
-  display: flex;
-  flex-direction: column;
-  height: 21rem;
-  margin-top: 5rem;
-  width: 100%;
+.none {
+  color: var(--cds-text-placeholder);
+}
+
+.tag {
+  width: 7rem;
+}
+
+.actions {
+  text-align: right;
+  width: 3rem;
 }

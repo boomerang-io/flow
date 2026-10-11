@@ -1,10 +1,13 @@
 package io.boomerang.kube;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.client.EngineClient;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
 import java.util.List;
@@ -65,5 +68,20 @@ class KubeServiceImplPvcTest {
   void namedClassIsPassedThrough() {
     PersistentVolumeClaim pvc = create("run-named", "local-path");
     assertEquals("local-path", pvc.getSpec().getStorageClassName());
+  }
+
+  // The watch passes null while the claim is momentarily absent (boomerang-io/flow#455): the wait
+  // must keep waiting rather than throw.
+  @Test
+  void claimWaitToleratesAnAbsentClaim() {
+    assertFalse(KubeServiceImpl.isClaimSettled(null));
+    assertFalse(KubeServiceImpl.isClaimSettled(new PersistentVolumeClaim()));
+    assertTrue(KubeServiceImpl.isClaimSettled(withPhase("Pending")));
+    assertTrue(KubeServiceImpl.isClaimSettled(withPhase("Bound")));
+    assertFalse(KubeServiceImpl.isClaimSettled(withPhase("Lost")));
+  }
+
+  private static PersistentVolumeClaim withPhase(String phase) {
+    return new PersistentVolumeClaimBuilder().withNewStatus().withPhase(phase).endStatus().build();
   }
 }

@@ -11,6 +11,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import java.util.List;
+import java.util.stream.Collectors;
 import io.boomerang.dispatcher.model.TaskResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +23,26 @@ import org.springframework.stereotype.Service;
 public class QueueService {
   private static final Logger LOGGER = LogManager.getLogger(QueueService.class);
 
+  /*
+   * The types this dispatcher can actually run in a container. Which of them it is handed is the
+   * engine's decision, made from the types registered at startup (flow.dispatcher.task-types); this
+   * is the second gate, so a type the dispatcher has no runtime for is skipped rather than failed.
+   * `ai` and the two artifact types run the worker image the dispatcher resolves for them
+   * (TaskImageResolver).
+   */
+  private static final List<TaskType> EXECUTABLE_TYPES =
+      List.of(
+          TaskType.template,
+          TaskType.custom,
+          TaskType.script,
+          TaskType.ai,
+          TaskType.uploadartifact,
+          TaskType.downloadartifact);
+
+  private static boolean isExecutable(TaskType type) {
+    return EXECUTABLE_TYPES.contains(type);
+  }
+
   private final WorkflowService workflowService;
 
   private final WorkspaceService workspaceService;
@@ -32,17 +53,21 @@ public class QueueService {
 
   private final LeaseRegistry leaseRegistry;
 
+  private final TaskSlots taskSlots;
+
   public QueueService(
       WorkflowService workflowService,
       WorkspaceService workspaceService,
       TaskService taskService,
       @Lazy EngineClient engineClient,
-      LeaseRegistry leaseRegistry) {
+      LeaseRegistry leaseRegistry,
+      TaskSlots taskSlots) {
     this.workflowService = workflowService;
     this.workspaceService = workspaceService;
     this.taskService = taskService;
     this.engineClient = engineClient;
     this.leaseRegistry = leaseRegistry;
+    this.taskSlots = taskSlots;
   }
 
   @Async
@@ -60,11 +85,10 @@ public class QueueService {
         workflowService.execute(request);
         engineClient.startWorkflow(request.getId());
       }
-    } catch (BoomerangException e) {
-      LOGGER.fatal("A fatal error has occurred while processing the message!", e);
-      // TODO catch failure and end workflow with error status
     } catch (Exception e) {
-      LOGGER.fatal("A fatal error has occurred while processing the message!", e);
+      // The run stays claimed; the engine's watcher releases a stale provisioning claim for another
+      // attempt and fails the run once its attempts are spent.
+      LOGGER.fatal("Failed to provision WorkflowRun ({}).", request.getId(), e);
     }
   }
 
@@ -72,15 +96,16 @@ public class QueueService {
   public void processTaskRun(TaskRun request) {
     try {
       LOGGER.debug(request.toString());
-      if ((TaskType.template.equals(request.getType())
-              || TaskType.custom.equals(request.getType())
-              || TaskType.script.equals(request.getType()))
+      if (isExecutable(request.getType())
           && RunPhase.queued.equals(request.getPhase())
           && RunStatus.ready.equals(request.getStatus())) {
         LOGGER.info("Executing TaskRun...");
         // Communicate the start with the Engine
         // prior to Tekton starting as it is a blocking Watch call.
-        engineClient.startTask(request.getId());
+        if (!engineClient.startTask(request.getId())) {
+          LOGGER.info("TaskRun ({}) is no longer to be run. Not creating it.", request.getId());
+          return;
+        }
         TaskResponse response = new TaskResponse();
         response = taskService.execute(request);
         TaskRunEndRequest endRequest = new TaskRunEndRequest();
@@ -88,18 +113,25 @@ public class QueueService {
         endRequest.setStatusMessage(response.getMessage());
         endRequest.setResults(response.getResults());
         engineClient.endTask(request.getId(), endRequest);
-      } else if ((TaskType.template.equals(request.getType())
-              || TaskType.custom.equals(request.getType())
-              || TaskType.script.equals(request.getType()))
+      } else if (isExecutable(request.getType())
           && RunPhase.completed.equals(request.getPhase())
           && (RunStatus.cancelled.equals(request.getStatus())
               || RunStatus.timedout.equals(request.getStatus()))) {
         LOGGER.info("Cancelling TaskRun...");
-        taskService.terminate(request);
+        try {
+          taskService.terminate(request);
+        } catch (Exception e) {
+          // A termination order has no end to report: the engine has already finished or requeued
+          // the TaskRun. Nothing left to cancel is the ordinary case after a start failure, which
+          // deletes the runtime object before reporting.
+          LOGGER.warn("TaskRun ({}) termination: {}", request.getId(), e.getMessage());
+        }
       } else {
         // TODO turn this into the types of tasks that this Agent supports
         LOGGER.info(
-            "Skipping TaskRun as criteria not met; (Type: template, custom, or script), (Status: ready, cancelled, timedout), and (Phase: pending, completed).");
+            "Skipping TaskRun as criteria not met; (Type: "
+                + EXECUTABLE_TYPES.stream().map(TaskType::getLabel).collect(Collectors.joining(", "))
+                + "), (Status: ready, cancelled, timedout), and (Phase: queued, completed).");
       }
     } catch (BoomerangException e) {
       LOGGER.fatal("Failed to execute TaskRun.", e);
@@ -113,6 +145,9 @@ public class QueueService {
       endFailed(request.getId(), "DispatchError", e.getMessage(), List.of());
     } finally {
       leaseRegistry.remove(request.getId());
+      if (TaskSlots.isExecutionClaim(request)) {
+        taskSlots.release();
+      }
     }
   }
 

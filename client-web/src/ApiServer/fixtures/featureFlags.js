@@ -10,7 +10,12 @@ const featureFlag = {
     "user.management": true,
     "workspace.quotas": true,
     "workflow.tokens": true,
+    tokens: true,
     "workflow.triggers": true,
+    "workspace.single": false,
+    schedules: true,
+    integrations: true,
+    authentication: true,
   },
 };
 

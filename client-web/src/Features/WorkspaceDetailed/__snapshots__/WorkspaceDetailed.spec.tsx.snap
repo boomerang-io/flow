@@ -160,6 +160,13 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 <a
                   class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
                   data-discover="true"
+                  href="/ibm-services-engineering/manage/artifacts"
+                >
+                  Artifacts
+                </a>
+                <a
+                  class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                  data-discover="true"
                   href="/ibm-services-engineering/manage/quotas"
                 >
                   Quotas

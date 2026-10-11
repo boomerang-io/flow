@@ -6,14 +6,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
+import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
-import io.boomerang.core.enums.RelationshipLabel;
-import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.common.model.WorkflowTrigger;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.common.entity.WorkflowScheduleEntity;
+import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.schedule.ScheduleService;
+import io.boomerang.schedule.ScheduleWatcher;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workspace.WorkspaceService;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,31 +47,29 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "engine-submit-test-task";
 
-  // The platform default in the seeded "workspaces" settings document - what the run-duration
+  // The platform default in the seeded "quotas" settings document - what the run-duration
   // ceiling must fall back to with no workspace quota record to read.
   private static final long PLATFORM_DEFAULT_DURATION = 30L;
 
   @Autowired private WorkflowService workflowService;
+  @Autowired private ScheduleService scheduleService;
+  @Autowired private ScheduleWatcher scheduleWatcher;
+  @Autowired private WorkflowScheduleRepository scheduleRepository;
   @Autowired private ApplicationContext context;
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     // ParamLayerService reads both parameter feature flags on every submit.
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     seedGlobalTask(TASK_SLUG);
-    seedSystemWorkspaceNode();
   }
 
   @Test
-  void theQuotaAndScheduleBeansAreAbsentInEngineMode() {
-    // Guards the premise: if either bean were present the submit assertions below would pass for
-    // the wrong reason.
+  void theQuotaBeanIsAbsentInEngineMode() {
+    // Guards the premise: if it were present the submit assertions below would pass for the wrong
+    // reason.
     assertTrue(context.getBeansOfType(WorkspaceService.class).isEmpty());
-    assertTrue(context.getBeansOfType(ScheduleService.class).isEmpty());
   }
 
   @Test
@@ -103,7 +107,7 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void deletingAWorkflowSucceedsInEngineModeDespiteNoScheduleService() {
+  void deletingAWorkflowSucceedsInEngineMode() {
     createWorkflow("engine-delete-no-schedules");
 
     workflowService.delete(SYSTEM_WORKSPACE, "engine-delete-no-schedules");
@@ -122,6 +126,35 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
             .isEmpty());
   }
 
+  @Test
+  void aDueScheduleStartsARunInEngineMode() {
+    Workflow workflow = runnableWorkflow("engine-schedule-fires", TASK_SLUG);
+    WorkflowTrigger triggers = new WorkflowTrigger();
+    triggers.setSchedule(new Trigger(true));
+    workflow.setTriggers(triggers);
+    workflowService.create(SYSTEM_WORKSPACE, workflow);
+    WorkflowSchedule request = new WorkflowSchedule();
+    request.setName("hourly");
+    request.setWorkflowRef("engine-schedule-fires");
+    request.setType(WorkflowScheduleType.cron);
+    request.setCronSchedule("0 * * * *");
+    request.setTimezone("UTC");
+    WorkflowSchedule schedule = scheduleService.create(SYSTEM_WORKSPACE, request);
+    WorkflowScheduleEntity due = scheduleRepository.findById(schedule.getId()).orElseThrow();
+    due.setNextFireAt(new Date(System.currentTimeMillis() - 60_000));
+    scheduleRepository.save(due);
+
+    scheduleWatcher.fireDueSchedules();
+
+    assertTrue(
+        workflowRunRepository.findAll().stream()
+            .anyMatch(
+                run ->
+                    TriggerEnum.schedule.getTrigger().equals(run.getTrigger())
+                        && schedule.getId().equals(run.getInitiatedByRef())),
+        "the fired schedule starts a run");
+  }
+
   private void createWorkflow(String name) {
     workflowService.create(SYSTEM_WORKSPACE, runnableWorkflow(name, TASK_SLUG));
   }
@@ -134,26 +167,6 @@ class EngineModeWorkflowSubmitTest extends AbstractEngineIntegrationTest {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(TriggerEnum.manual);
     return request;
-  }
-
-  // Engine mode has no workspace CRUD, so the `system` workspace's relationship node is seeded by
-  // changeunit _0003__SeedSystemWorkspace rather than by any service - the loader does not run
-  // against this Testcontainers Mongo, so stand up the same shape directly: a workspace node plus
-  // the root:root --contains--> edge every anchored walk starts from.
-  private void seedSystemWorkspaceNode() {
-    if (relationshipService.doesSlugOrRefExistForType(
-        RelationshipType.WORKSPACE, SYSTEM_WORKSPACE)) {
-      return;
-    }
-    relationshipService.createNodeAndEdge(
-        RelationshipType.ROOT,
-        "root",
-        RelationshipLabel.CONTAINS,
-        RelationshipType.WORKSPACE,
-        SYSTEM_WORKSPACE,
-        SYSTEM_WORKSPACE,
-        Optional.empty(),
-        Optional.empty());
   }
 
 }

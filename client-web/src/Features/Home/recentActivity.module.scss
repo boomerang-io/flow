@@ -1,0 +1,55 @@
+@import "Styles/mixins";
+
+.table {
+  @include border-radius();
+  background-color: var(--cds-layer-01, var(--cds-ui-01));
+  box-shadow: 0 0 0 1px var(--cds-border-subtle-01, var(--cds-ui-03));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  :global .cds--data-table td,
+  :global .cds--data-table th {
+    white-space: nowrap;
+  }
+}
+
+.name {
+  color: var(--cds-text-primary);
+  font-weight: 600;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus {
+    @include focus-outline($offset: 0.125rem);
+  }
+}
+
+.muted {
+  color: var(--cds-text-secondary);
+}
+
+.trigger {
+  text-transform: capitalize;
+}
+
+.started {
+  text-align: right;
+}
+
+// The middle columns go first when the page narrows; status, name and time stay.
+.wide {
+  @media screen and (max-width: 66rem) {
+    display: none;
+  }
+}
+
+.empty {
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-body-compact-01-font-size, 0.875rem);
+  letter-spacing: var(--cds-body-compact-01-letter-spacing, 0.16px);
+  margin: 0;
+  padding: 1.5rem 1rem;
+}

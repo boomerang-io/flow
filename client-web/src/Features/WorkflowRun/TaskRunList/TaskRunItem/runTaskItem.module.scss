@@ -1,7 +1,8 @@
 @import "Styles/mixins";
 
+// Name and status, one line of time, then the actions; the entry is as tall as its content.
 .taskitem {
-  height: 12.5rem;
+  padding-bottom: 0.25rem;
   position: relative;
   width: 100%;
 
@@ -70,25 +71,97 @@
     border-bottom: 0.0625rem solid #d5d9e0;
   }
 
-  // START/END markers skip the time/duration section, so they only need room for the header.
-  &.slim {
-    height: 4.5rem;
+  // A for-each task's items list gets a little room below it.
+  &.foreach {
+    padding-bottom: 0.5rem;
   }
+}
+
+.foreachSummary {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem 1rem 0 2.5rem;
+}
+
+.foreachTag {
+  margin: 0;
+}
+
+.foreachSummaryText {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.itemList {
+  list-style: none;
+  margin: 0 1rem 0 2.5rem;
+  padding: 0;
+}
+
+.item {
+  border-top: 0.0625rem solid var(--cds-ui-03);
+  padding: 0.5rem 0;
+}
+
+.itemHeader {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.itemName {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  min-width: 0;
+  @include text-overflow-ellipsis();
+}
+
+.itemIndex {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.itemValue {
+  color: var(--cds-text-02);
+}
+
+.itemReason {
+  color: var(--flow-failure);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-top: 0.25rem;
+}
+
+.itemFooter {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+}
+
+.itemDuration {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 .header {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin: 1.25rem 1rem 0.25rem 1rem;
+  margin: 0.75rem 1rem 0 1rem;
 }
 
 .title {
   align-items: center;
   color: var(--cds-text-01);
   display: flex;
-  font-size: 0.875rem;
-  line-height: 1rem;
+  font-size: 1rem;
+  line-height: 1.375rem;
   white-space: nowrap;
 
   p {
@@ -154,8 +227,23 @@
 
 .data {
   margin-left: 2.5rem;
-  margin-top: 2rem;
+  margin-top: 0.25rem;
   white-space: nowrap;
+}
+
+.timeLine {
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin: 0.5rem 1rem 0 2.5rem;
+}
+
+// The entry's actions (View Details, View Log, Show items) sit on one row with a gap between them.
+.actions {
+  align-items: center;
+  column-gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .modalTrigger {
@@ -169,27 +257,8 @@
   margin-bottom: 1.5rem;
 }
 
-.time {
-  display: flex;
-  margin-bottom: 1rem;
-
-  &:last-of-type {
-    margin-bottom: 1.5rem;
-  }
-}
-
-.timeTitle {
-  color: var(--cds-text-01);
-  font-size: 0.875rem;
-  font-weight: 300;
-  line-height: 1.125rem;
-  width: 4.8125rem;
-}
-
 .timeValue {
-  color: var(--cds-text-01);
-  font-size: 0.875rem;
-  line-height: 1.125rem;
+  color: var(--cds-text-primary);
 }
 
 .approvalResultsModalContainer {

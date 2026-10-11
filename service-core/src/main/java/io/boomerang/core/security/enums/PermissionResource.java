@@ -4,10 +4,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /*
- * H14-c (DD-01 wire-name sweep): TEAM's label became "workspace". Stored permission strings
- * (roles.permissions[], tokens.permissions[].actions[]) are migrated by loader changeunit
- * _0016__WorkspaceRename, so no "team" value survives migration; the input alias was removed
- * (ruled 2026-09-01: no v4 client compatibility).
+ * The former TEAM resource is labelled "workspace". No stored permission string
+ * (roles.permissions[], tokens.permissions[].actions[]) says "team": _0015__SeedRoles writes
+ * workspace permissions and _0002__V3PrepareCollections drops v3 tokens, so there is no "team"
+ * input alias.
  */
 public enum PermissionResource {
   SYSTEM("system"),

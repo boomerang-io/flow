@@ -23,10 +23,11 @@ function ApprovalNodeEditor(props: WorkflowNodeProps) {
       value: approverGroup.name,
     })) ?? [];
 
+  // Matched to the template's param by `name`, the field a task param is keyed on.
   const formInputsToMerge =
     options.length > 0
-      ? [{ key: "approverGroupId", options }]
-      : [{ key: "approverGroupId", disabled: true, description: "No approver groups configured for this workspace." }];
+      ? [{ name: "approverGroupId", options }]
+      : [{ name: "approverGroupId", disabled: true, helperText: "No approver groups configured for this workspace." }];
 
   return <TemplateNode {...props} formInputsToMerge={formInputsToMerge} />;
 }

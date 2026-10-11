@@ -11,7 +11,10 @@ import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
+import io.boomerang.executor.PodStartWatch;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.api.model.DeletionPropagation;
 import io.fabric8.kubernetes.api.model.Duration;
@@ -64,7 +67,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Autowired private WorkspaceService workspaceService;
 
-  protected static final Integer ONE_DAY_IN_SECONDS = 86400; // 60*60*24
+  @Autowired protected TaskImageResolver imageResolver;
+
+  @Autowired protected TaskResourceResolver resourceResolver;
 
   @Value("${kube.timeout.waitUntil}")
   protected long waitUntilTimeout;
@@ -75,6 +80,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Value("${kube.timeout.reconcileSeconds}")
   protected long reconcileSeconds;
 
+  @Value("${kube.timeout.startMinutes:15}")
+  protected long startMinutes;
+
+  @Value("${kube.timeout.startFailureGraceSeconds:60}")
+  protected long startFailureGraceSeconds;
+
   @Override
   public void create(io.boomerang.common.model.TaskRun task, Long timeoutMinutes)
       throws InterruptedException, ParseException {
@@ -84,10 +95,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         task.getId(),
         task.getName(),
         task.getLabels(),
-        task.getSpec().getImage(),
-        task.getSpec().getCommand(),
-        task.getSpec().getScript(),
-        task.getSpec().getArguments(),
+        imageResolver.image(task),
+        imageResolver.command(task),
+        imageResolver.script(task),
+        imageResolver.arguments(task),
         task.getParams(),
         task.getSpec().getEnvs(),
         task.getResults(),
@@ -119,6 +130,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     deleteTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
   }
 
+  @Value("${tekton.results.maxBytes:4096}")
+  private int tektonResultsMaxBytes;
+
   @Value("${kube.image.pullPolicy}")
   protected String kubeImagePullPolicy;
 
@@ -130,21 +144,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   @Value("${kube.task.restartPolicy}")
   protected String kubeJobRestartPolicy;
-
-  @Value("${kube.task.ttlDays}")
-  protected Integer kubeJobTTLDays;
-
-  @Value("${kube.resource.limit.ephemeral-storage}")
-  private String kubeResourceLimitEphemeralStorage;
-
-  @Value("${kube.resource.request.ephemeral-storage}")
-  private String kubeResourceRequestEphemeralStorage;
-
-  @Value("${kube.resource.limit.memory}")
-  private String kubeResourceLimitMemory;
-
-  @Value("${kube.resource.request.memory}")
-  private String kubeResourceRequestMemory;
 
   @Value("${kube.task.storage.data.memory}")
   private Boolean kubeTaskStorageDataMemory;
@@ -211,34 +210,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     //    securityContext.setPrivileged(true);
 
     /*
-     * Create a resource request and limit for ephemeral-storage Defaults to application.properties,
-     * can be overridden by user property.
-     * Create a resource request and limit for memory Defaults to application.properties, can be
-     * overridden by user property. Maximum of 32Gi.
-     */
-    //    ResourceRequirements resources = new ResourceRequirements();
-    //    Map<String, Quantity> resourceRequests = new HashMap<>();
-    //    resourceRequests.put("ephemeral-storage", new
-    // Quantity(kubeResourceRequestEphemeralStorage));
-    //    resourceRequests.put("memory", new Quantity(kubeResourceRequestMemory));
-    //    Map<String, Quantity> resourceLimits = new HashMap<>();
-    //    resourceLimits.put("ephemeral-storage", new Quantity(kubeResourceLimitEphemeralStorage));
-    //    String kubeResourceLimitMemoryQuantity =
-    // taskProperties.get("worker.resource.memory.size");
-    //    if (kubeResourceLimitMemoryQuantity != null &&
-    // !(Integer.valueOf(kubeResourceLimitMemoryQuantity.replace("Gi", "")) > 32)) {
-    //      LOGGER.info("Setting Resource Memory Limit to " + kubeResourceLimitMemoryQuantity +
-    // "...");
-    //      resourceLimits.put("memory", new Quantity(kubeResourceLimitMemoryQuantity));
-    //    } else {
-    //      LOGGER
-    //          .info("Setting Resource Memory Limit to default of: " + kubeResourceLimitMemory + "
-    // ...");
-    //      resourceLimits.put("memory", new Quantity(kubeResourceLimitMemory));
-    //    }
-    //    resources.setLimits(resourceLimits);
-
-    /*
      * Create Workspaces and PVCs
      * - /workspace for cross workflow persistence such as caches (optional if mounted prior)
      * - /workflow for workflow based sharing between tasks (optional if mounted prior)
@@ -295,12 +266,11 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     }
 
     /*
-     * The following code is integrated to the helm chart and CICD properties It allows for
-     * containers that breach the standard ephemeral-storage size by off-loading to memory See:
-     * https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
-     *
      * Create volumes and Volume Mounts
-     * - /data for task storage (optional - needed if using in memory storage)
+     * - /data for task storage. Memory-backed when the deployment and the task both ask for it,
+     *   which is how a container that would breach the ephemeral-storage limit off-loads to memory
+     *   instead - a tmpfs counts against the memory limit, not against ephemeral-storage.
+     *   See: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
      */
     List<VolumeMount> volumeMounts = new ArrayList<>();
     List<Volume> volumes = new ArrayList<>();
@@ -381,7 +351,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
             debug,
             params,
             envVars,
-            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"));
+            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"),
+            // Tekton's own results limit: 4096 bytes in its default termination-message mode, or
+            // the cluster's max-result-size under sidecar-logs. Set to match the cluster.
+            helperKubeService.createEnvVar("RESULTS_MAX_BYTES", String.valueOf(tektonResultsMaxBytes)));
 
     /*
      * Define Task Params and Task Spec Params
@@ -419,8 +392,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     taskStep.setEnv(tknEnvVars);
     taskStep.setVolumeMounts(volumeMounts);
     taskStep.setWorkingDir(workingDir);
+    // Null when nothing is configured, so the step carries no computeResources block at all.
+    taskStep.setComputeResources(resourceResolver.requirements());
     //    taskStep.setSecurityContext(securityContext);
-    //    taskContainer.setResources(resources);
     taskSteps.add(taskStep);
 
     /*
@@ -527,6 +501,11 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     List<TaskRunResult> tknResults;
 
     TaskWatcher taskWatcher = new TaskWatcher(latch);
+    PodStartWatch podStartWatch =
+        new PodStartWatch(
+            Instant.now(),
+            java.time.Duration.ofMinutes(startMinutes),
+            java.time.Duration.ofSeconds(startFailureGraceSeconds));
     Watch watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
 
     try {
@@ -555,6 +534,17 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
           watch.close();
           watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
           taskWatcher.resetWatchLost();
+        }
+        if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
+          TaskExecutionException startFailure =
+              podStartWatch.check(
+                  helperKubeService.podStart(client.adapt(KubernetesClient.class), taskLabels),
+                  Instant.now());
+          if (startFailure != null) {
+            // Nothing ran: remove the TaskRun so a pod that cannot start stops holding capacity.
+            deleteTaskRun(workflowId, workflowActivityId, taskActivityId, customLabels);
+            throw startFailure;
+          }
         }
       }
 
@@ -604,7 +594,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
     }
     if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-      return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
+      return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
     }
     String podReason = helperKubeService.getPodFailureReason(client.adapt(KubernetesClient.class), taskLabels);
     if ("OOMKilled".equals(podReason)) {

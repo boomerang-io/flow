@@ -10,6 +10,7 @@ public enum ConfigType {
   TEXTAREA("textarea"),
   EMAIL("email"),
   NUMBER("number"),
+  SLIDER("slider"),
   URL("url"),
   BOOLEAN("boolean"),
   PASSWORD("password"),

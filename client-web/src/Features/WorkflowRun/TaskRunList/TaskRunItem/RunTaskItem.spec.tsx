@@ -97,10 +97,9 @@ describe("TaskItem --- RTL", () => {
     expect(screen.queryByText("Duration")).not.toBeInTheDocument();
   });
 
-  it("Renders a normal task type with start time and duration", () => {
+  it("Renders a normal task type with its start time and duration as one sentence", () => {
     renderWithRouter(<TaskItem {...props} />);
 
-    expect(screen.getByText("Start time")).toBeInTheDocument();
-    expect(screen.getByText("Duration")).toBeInTheDocument();
+    expect(screen.getByTestId("taskitem-time")).toHaveTextContent(/^Started at .+ in .+$/);
   });
 });

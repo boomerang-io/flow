@@ -32,10 +32,15 @@ public class SettingsService {
 
   private final SettingsRepository settingsRepository;
   private final EncryptionConfig encryptConfig;
+  private final ParamLayerCache paramLayerCache;
 
-  public SettingsService(SettingsRepository settingsRepository, EncryptionConfig encryptConfig) {
+  public SettingsService(
+      SettingsRepository settingsRepository,
+      EncryptionConfig encryptConfig,
+      ParamLayerCache paramLayerCache) {
     this.settingsRepository = settingsRepository;
     this.encryptConfig = encryptConfig;
+    this.paramLayerCache = paramLayerCache;
   }
 
   public List<Setting> getAllSettings() {
@@ -130,6 +135,7 @@ public class SettingsService {
     setEncryptedValues(configuration);
 
     this.settingsRepository.save(configuration);
+    paramLayerCache.evictAll();
   }
 
   private void setEncryptedValues(SettingEntity configuration) {
@@ -162,8 +168,8 @@ public class SettingsService {
       return value;
     }
 
-    // Only the AESGCM label exists in storage: the loader's _0044 change unit rewrites the
-    // retired CBC scheme before service-core starts.
+    // Only the AESGCM label exists in storage: _0022__ReencryptSettingsAesGcm rewrites the retired
+    // CBC scheme as the context starts, before anything is served.
     String replacedValue = value.replace("crypt_v1{AESGCM|", "").replace("}", "");
     return AESAlgorithm.decrypt(
         replacedValue, encryptConfig.getSecretKey(), encryptConfig.getSalt());

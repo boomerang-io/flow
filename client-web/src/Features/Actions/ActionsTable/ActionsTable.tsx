@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, DataTableSkeleton, DataTable, Pagination } from "@carbon/react";
-import { CheckmarkOutline, CloseOutline, Help, Warning } from "@carbon/react/icons";
+import { CheckmarkFilled, CheckmarkOutline, CloseOutline, Help, MisuseOutline, Time, Warning } from "@carbon/react/icons";
 import { TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import cx from "classnames";
@@ -30,6 +30,13 @@ interface ActionsTableProps {
 }
 
 const PAGE_SIZES = [10, 20, 25, 50, 100];
+
+// An action's status as Activity shows a run's: an icon and coloured text. "submitted" is waiting on someone.
+const actionStatus: Record<string, { label: string; Icon: React.ComponentType<any> }> = {
+  [ApprovalStatus.Submitted]: { label: "Waiting", Icon: Time },
+  [ApprovalStatus.Approved]: { label: "Approved", Icon: CheckmarkFilled },
+  [ApprovalStatus.Rejected]: { label: "Rejected", Icon: MisuseOutline },
+};
 
 const HeadersHeader = {
   Workflow: "Workflow",
@@ -173,12 +180,19 @@ function ActionsTable(props: ActionsTableProps) {
     const column = headerList[cellIndex];
 
     switch (column?.key) {
-      case HeadersKey.Status:
+      case HeadersKey.Status: {
+        const status = actionStatus[value];
+        if (!status) {
+          return <p className={styles.tableTextarea} style={{ textTransform: "capitalize" }}>{value || "---"}</p>;
+        }
+        const { Icon, label } = status;
         return (
-          <p className={styles.tableTextarea} style={{ textTransform: "capitalize" }}>
-            {value || "---"}
-          </p>
+          <div className={styles.status} data-status={value}>
+            <Icon aria-hidden="true" />
+            <p>{label}</p>
+          </div>
         );
+      }
       case HeadersKey.Approvals:
         if (value >= currentAction?.approvalsRequired && currentAction?.status === ApprovalStatus.Submitted) {
           return (
@@ -264,7 +278,7 @@ function ActionsTable(props: ActionsTableProps) {
                               renderIcon={CloseOutline}
                               size="md"
                             >
-                              Reject selected
+                              {noSelectedActions ? "Reject selected" : `Reject ${selectedActions.length} selected`}
                             </Button>
                           )}
                           onSuccessfulApprovalRejection={onSuccessfulApprovalRejection}
@@ -282,7 +296,7 @@ function ActionsTable(props: ActionsTableProps) {
                               renderIcon={CheckmarkOutline}
                               size="md"
                             >
-                              Approve selected
+                              {noSelectedActions ? "Approve selected" : `Approve ${selectedActions.length} selected`}
                             </Button>
                           )}
                           onSuccessfulApprovalRejection={onSuccessfulApprovalRejection}

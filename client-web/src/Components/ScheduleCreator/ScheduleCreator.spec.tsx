@@ -1,11 +1,10 @@
 import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import moment from "moment-timezone";
 import { server } from "ApiServer/msw/node";
 import { serviceUrl } from "Config/servicesConfig";
 import { scheduleAction } from "Features/Schedules/scheduleRoute";
-import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type Workflow } from "Types";
 import { renderWithContext } from "Utils/testing/render";
 import ScheduleCreator from "./ScheduleCreator";
@@ -62,11 +61,11 @@ function renderCreator(overrides: Partial<React.ComponentProps<typeof ScheduleCr
   );
 }
 
+// A run-once schedule opened from a calendar day arrives with its date filled in, so only the name is typed.
+const tomorrow = { type: "runOnce" as const, dateSchedule: moment().add(1, "day").hour(9).minute(0).toISOString() };
+
 async function fillMinimumRunOnceForm() {
   await userEvent.type(screen.getByLabelText("Name"), "Nightly Backup");
-  fireEvent.change(screen.getByLabelText("Date and Time"), {
-    target: { value: moment().add(1, "day").format(DATETIME_LOCAL_INPUT_FORMAT) },
-  });
 }
 
 describe("ScheduleCreator", () => {
@@ -85,9 +84,9 @@ describe("ScheduleCreator", () => {
     );
 
     const onCloseModal = vi.fn();
-    renderCreator({ onCloseModal });
+    renderCreator({ onCloseModal, schedule: tomorrow });
 
-    expect(await screen.findByText("Create a Schedule")).toBeInTheDocument();
+    expect(await screen.findByText("Create schedule")).toBeInTheDocument();
 
     await fillMinimumRunOnceForm();
 
@@ -127,9 +126,9 @@ describe("ScheduleCreator", () => {
     );
 
     const onCloseModal = vi.fn();
-    renderCreator({ onCloseModal });
+    renderCreator({ onCloseModal, schedule: tomorrow });
 
-    expect(await screen.findByText("Create a Schedule")).toBeInTheDocument();
+    expect(await screen.findByText("Create schedule")).toBeInTheDocument();
 
     await fillMinimumRunOnceForm();
 
@@ -153,5 +152,32 @@ describe("ScheduleCreator", () => {
 
     await waitFor(() => expect(createdBody).toMatchObject({ name: "Nightly Backup", type: "runOnce" }));
     await waitFor(() => expect(onCloseModal).toHaveBeenCalled());
+  });
+
+  test("saves Weekdays as a five-field cron the scheduler reads: minute, hour, day of month, month, day of week", async () => {
+    let createdBody: any;
+    server.use(
+      http.post(serviceUrl.workspace.schedule.postSchedule({ workspace: ":workspace" }), async ({ request }) => {
+        createdBody = await request.json();
+        return HttpResponse.json({ ...createdBody, id: "new-schedule" }, { status: 201 });
+      }),
+    );
+
+    renderCreator();
+
+    expect(await screen.findByText("Create schedule")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Name"), "Nightly analysis");
+    await userEvent.click(screen.getByLabelText("Weekdays"));
+    expect(await screen.findByText(/Runs Monday to Friday at 9:00 AM/)).toBeInTheDocument();
+
+    const createButton = await screen.findByRole("button", { name: "Create", hidden: true }, { timeout: 3000 });
+    await waitFor(() => expect(createButton).toBeEnabled());
+    await userEvent.click(createButton);
+
+    await waitFor(() =>
+      expect(createdBody).toMatchObject({ name: "Nightly analysis", type: "cron", cronSchedule: "0 9 * * MON,TUE,WED,THU,FRI" }),
+    );
+    expect(createdBody).not.toHaveProperty("$parameter:frequency");
+    expect(createdBody.params.map((param: { name: string }) => param.name)).not.toContain("frequency");
   });
 });

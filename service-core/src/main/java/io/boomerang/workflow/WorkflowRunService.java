@@ -41,6 +41,8 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +99,7 @@ public class WorkflowRunService {
   private final TaskRunRepository taskRunRepository;
   private final ActionRepository actionRepository;
   private final TaskRunService taskRunService;
+  private final TaskService taskService;
   private final WorkflowExecutionService workflowExecutionService;
   private final TaskExecutionService taskExecutionService;
   private final EventInboxRepository eventInboxRepository;
@@ -104,6 +107,10 @@ public class WorkflowRunService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final ObjectMapper objectMapper;
+  // @Lazy for the same reason as TaskExecutionService above: WorkflowService holds this service,
+  // so an eager injection closes the cycle at construction time.
+  private final WorkflowService workflowService;
+  private final ParamLayerService paramLayerService;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -112,19 +119,23 @@ public class WorkflowRunService {
       TaskRunRepository taskRunRepository,
       ActionRepository actionRepository,
       TaskRunService taskRunService,
+      TaskService taskService,
       WorkflowExecutionService workflowExecutionService,
       @Lazy TaskExecutionService taskExecutionService,
       EventInboxRepository eventInboxRepository,
       WorkflowRunStateHelper workflowRunStateHelper,
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      @Lazy WorkflowService workflowService,
+      ParamLayerService paramLayerService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.actionRepository = actionRepository;
     this.taskRunService = taskRunService;
+    this.taskService = taskService;
     this.workflowExecutionService = workflowExecutionService;
     this.taskExecutionService = taskExecutionService;
     this.eventInboxRepository = eventInboxRepository;
@@ -132,6 +143,8 @@ public class WorkflowRunService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.objectMapper = objectMapper;
+    this.workflowService = workflowService;
+    this.paramLayerService = paramLayerService;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -147,28 +160,85 @@ public class WorkflowRunService {
   public ResponseEntity<WorkflowRun> get(String team, String workflowRunId, boolean withTasks) {
     requireWorkspaceRelationship(team, workflowRunId);
     WorkflowRun wfRun = get(workflowRunId, withTasks);
-    filterSensitiveValues(wfRun);
+    filterSensitiveValues(wfRun, new HashMap<>());
     return ResponseEntity.ok(wfRun);
   }
 
   /*
    * Sensitive params are sensitive UPWARD (engine to UI/API consumer), so filtering happens on
    * the workspace-scoped v2 surface only - never on the unscoped reads the engine and dispatcher
-   * use, which must see real values. Password-typed params (the workflow revision's param spec is
-   * the type authority; RunParam carries no type on the wire) are blanked by name, and their
-   * resolved values are scrubbed from task params, spec fields and results, where they can appear
-   * under any name after substitution. Mutates the response model only.
+   * use, which must see real values. RunParam carries no type on the wire, so the type comes from
+   * the definition - and there are TWO definitions that can declare it:
+   *
+   *   - the workflow revision's param spec, for a workflow-level param referenced as $(params.x);
+   *   - the CATALOGUE TASK's own spec, for a value typed straight into a task node's param, which
+   *     has no workflow-level param to join against at all.
+   *
+   * Both are blanked by name, and the UNION of the values they resolve to is then scrubbed
+   * run-wide - substitution moves a task-declared secret into a downstream task's param or result
+   * under another name, so the scrub cannot be per task. The values of the run workspace's
+   * password-typed global and workspace parameters join the union: no definition above declares
+   * them, yet substitution writes them into task params, scripts and results. Those are read once
+   * per workspace per response (securedByWorkspace). Mutates the response model only.
    */
-  void filterSensitiveValues(WorkflowRun wfRun) {
-    if (wfRun == null || wfRun.getWorkflowRevisionRef() == null) {
+  void filterSensitiveValues(WorkflowRun wfRun, Map<String, Set<String>> securedByWorkspace) {
+    if (wfRun == null) {
       return;
     }
-    workflowRevisionRepository
-        .findById(wfRun.getWorkflowRevisionRef())
-        .ifPresent(
-            revision ->
-                DataAdapterUtil.filterWorkflowRunValueByFieldType(
-                    wfRun, revision.getParams(), FieldType.PASSWORD.value()));
+    // Collected first, while the values are still raw: the workflow pass below scrubs, and a
+    // value read back after it would be collected as the redaction marker instead of the secret.
+    Set<String> secrets = new HashSet<>(filterTaskDeclaredSensitiveValues(wfRun.getTasks()));
+    secrets.addAll(securedLayerValues(wfRun.getAnnotations(), securedByWorkspace));
+    if (wfRun.getWorkflowRevisionRef() != null) {
+      workflowRevisionRepository
+          .findById(wfRun.getWorkflowRevisionRef())
+          .ifPresent(
+              revision ->
+                  secrets.addAll(
+                      DataAdapterUtil.filterWorkflowRunValueByFieldType(
+                          wfRun, revision.getParams(), FieldType.PASSWORD.value())));
+    }
+    DataAdapterUtil.scrubWorkflowRunValues(wfRun, secrets);
+  }
+
+  /**
+   * Blanks every password-typed param each TaskRun's OWN catalogue task declares, and returns the
+   * values they resolved to. The join is what the TaskRun already records - {@code taskRef} and
+   * {@code taskVersion} - so no field, wire change or migration is involved.
+   *
+   * <p>The lookup is BATCHED: the distinct (taskRef, taskVersion) pairs across the whole response
+   * are resolved in one call to {@link TaskService#getSpecs}, never one query per task. Tasks are
+   * attached only by {@code get(id, withTasks=true)}; the paged {@code query} leaves them null, so
+   * a list page reaches the early return here and issues no lookup at all.
+   *
+   * <p>Mutates the given models - callers pass response models or throwaway reads, never
+   * something they will persist.
+   */
+  private Set<String> filterTaskDeclaredSensitiveValues(List<TaskRun> tasks) {
+    if (tasks == null || tasks.isEmpty()) {
+      return Set.of();
+    }
+    Set<TaskService.TaskRef> refs =
+        tasks.stream()
+            .filter(t -> t.getTaskRef() != null && t.getTaskVersion() != null)
+            .map(t -> new TaskService.TaskRef(t.getTaskRef(), t.getTaskVersion()))
+            .collect(Collectors.toSet());
+    if (refs.isEmpty()) {
+      return Set.of();
+    }
+    Map<TaskService.TaskRef, TaskSpec> specs = taskService.getSpecs(refs);
+    Set<String> secrets = new HashSet<>();
+    tasks.forEach(
+        task -> {
+          TaskSpec spec =
+              specs.get(new TaskService.TaskRef(task.getTaskRef(), task.getTaskVersion()));
+          if (spec != null) {
+            secrets.addAll(
+                DataAdapterUtil.filterTaskRunValueByFieldType(
+                    task, spec.getParams(), FieldType.PASSWORD.value()));
+          }
+        });
+    return secrets;
   }
 
   /*
@@ -192,7 +262,20 @@ public class WorkflowRunService {
 
     List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
     if (wfRefs.isEmpty()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      // No reachable Workflow. A workspace the caller cannot reach (or that does not exist) is a
+      // 404 like every other unresolvable workspace reference; a reachable workspace with nothing
+      // to list - new, emptied, or a workflows= filter that matches none - is an empty page, the
+      // same answer insight and count already give for the same input.
+      if (!relationshipService.check(
+          RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
+        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      }
+      Sort sort = Sort.by(new Order(queryOrder.orElse(Direction.ASC), "creationDate"));
+      Pageable pageable =
+          queryLimit.isPresent()
+              ? PageRequest.of(queryPage.orElse(0), queryLimit.get(), sort)
+              : Pageable.unpaged();
+      return new WorkflowRunResponsePage(List.of(), pageable, 0);
     }
     // The run-id filter is applied on top of the workspace's workflows, so a caller cannot reach
     // a run outside the workspace by naming its id.
@@ -209,7 +292,8 @@ public class WorkflowRunService {
             queryWorkflowRuns,
             Optional.of(wfRefs),
             queryTriggers);
-    page.getContent().forEach(this::filterSensitiveValues);
+    Map<String, Set<String>> securedByWorkspace = new HashMap<>();
+    page.getContent().forEach(run -> filterSensitiveValues(run, securedByWorkspace));
     return new WorkflowRunResponsePage(
         page.getContent(), page.getPageable(), page.getTotalElements());
   }
@@ -348,7 +432,7 @@ public class WorkflowRunService {
    */
   public StreamingResponseBody streamTaskRunLog(String taskRunId) {
     if (Objects.isNull(taskRunId) || taskRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REQ);
     }
     TaskRun taskRun = taskRunService.get(taskRunId).getBody();
     if (!relationshipService.check(
@@ -370,22 +454,44 @@ public class WorkflowRunService {
     return outputStream -> body.writeTo(new FilterValuesOutputStream(outputStream, secrets));
   }
 
-  // The resolved values of the owning run's password-typed params, per DataAdapterUtil's
-  // name-join against the workflow revision's param spec (the type authority).
+  // The resolved values of every password-typed param on the owning run, per DataAdapterUtil's
+  // name-join against BOTH type authorities filterSensitiveValues uses: the workflow revision's
+  // param spec, and each task's own catalogue spec. Every task of the run is included, not just
+  // the one being streamed - substitution can carry a sibling task's declared secret into this
+  // task's script, and a script that echoes either shows it in this log.
   private Set<String> taskRunSensitiveValues(String workflowRunRef) {
-    return workflowRunRepository
+    Set<String> secrets = new HashSet<>();
+    workflowRunRepository
         .findById(workflowRunRef)
-        .flatMap(
-            run ->
-                Optional.ofNullable(run.getWorkflowRevisionRef())
-                    .flatMap(workflowRevisionRepository::findById)
-                    .map(
-                        revision ->
-                            DataAdapterUtil.sensitiveValues(
-                                revision.getParams(),
-                                run.getParams(),
-                                FieldType.PASSWORD.value())))
-        .orElse(Set.of());
+        .ifPresent(
+            run -> {
+              secrets.addAll(securedLayerValues(run.getAnnotations(), new HashMap<>()));
+              Optional.ofNullable(run.getWorkflowRevisionRef())
+                  .flatMap(workflowRevisionRepository::findById)
+                  .ifPresent(
+                      revision ->
+                          secrets.addAll(
+                              DataAdapterUtil.sensitiveValues(
+                                  revision.getParams(),
+                                  run.getParams(),
+                                  FieldType.PASSWORD.value())));
+            });
+    // Throwaway models, read only to collect the values - the blanking they undergo is discarded.
+    secrets.addAll(filterTaskDeclaredSensitiveValues(getTaskRuns(workflowRunRef)));
+    return secrets;
+  }
+
+  /*
+   * The values of the password-typed global and workspace parameters a run's values were resolved
+   * from - its workspace is the one the engine resolved against (boomerang.io/workspace-name).
+   * Cached per workspace for the response being filtered.
+   */
+  private Set<String> securedLayerValues(
+      Map<String, Object> annotations, Map<String, Set<String>> securedByWorkspace) {
+    Object workspace = annotations != null ? annotations.get("boomerang.io/workspace-name") : null;
+    String key = workspace != null ? workspace.toString() : "";
+    return securedByWorkspace.computeIfAbsent(
+        key, name -> paramLayerService.securedValues(name.isEmpty() ? null : name));
   }
 
   /**
@@ -399,7 +505,7 @@ public class WorkflowRunService {
    * owner, because a global-scope token passes {@link RelationshipService#check} for any workspace
    * (RelationshipService:417-419) - which is precisely how such a caller reaches a graph-orphaned
    * run - and adopting it is the wrong-owner bug this resolution exists to fix. So this refuses
-   * with the mapped {@link BoomerangError#TEAM_INVALID_REF} (400) the rest of the product already
+   * with the mapped {@link BoomerangError#TEAM_INVALID_REF} (404) the rest of the product already
    * uses for an unresolvable workspace, rather than minting a run no workspace owns.
    */
   private String owningWorkspace(String workflowRunId) {
@@ -408,6 +514,22 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
     return workspace;
+  }
+
+  /**
+   * The workspace's name for the ref an ownership edge records. The quota lookups are by name, so
+   * the ref the graph stores has to be resolved before either can answer for this workspace.
+   */
+  private String workspaceNameOrNull(String workspaceRef) {
+    if (workspaceRef == null || workspaceRef.isBlank()) {
+      return null;
+    }
+    try {
+      return relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspaceRef);
+    } catch (RuntimeException e) {
+      LOGGER.warn("Owning workspace {} has no relationship node.", workspaceRef);
+      return null;
+    }
   }
 
   /**
@@ -478,12 +600,13 @@ public class WorkflowRunService {
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {
     if (wfRunId == null || wfRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     Optional<WorkflowRunEntity> wfRunEntity = workflowRunRepository.findById(wfRunId);
     if (wfRunEntity.isPresent()) {
       WorkflowRun wfRun = ConvertUtil.entityToModel(wfRunEntity.get(), WorkflowRun.class);
       updateWorkflowDetails(wfRunEntity.get(), wfRun);
+      resolveInitiatingRun(wfRunEntity.get(), wfRun);
       if (withTasks) {
         wfRun.setTasks(getTaskRuns(wfRunId));
       }
@@ -800,7 +923,7 @@ public class WorkflowRunService {
 
   public WorkflowRun start(String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
@@ -839,7 +962,7 @@ public class WorkflowRunService {
 
   public WorkflowRun cancel(String workflowRunId) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     final Optional<WorkflowRunEntity> optWfRunEntity =
         workflowRunRepository.findById(workflowRunId);
@@ -855,7 +978,7 @@ public class WorkflowRunService {
 
   public WorkflowRun pause(String workflowRunId) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Pause Compare-And-Set: only a running, not-yet-paused run gains the flag. Claiming,
     // admission and the recovery sweeps exclude it from here on.
@@ -871,7 +994,7 @@ public class WorkflowRunService {
 
   public WorkflowRun resume(String workflowRunId) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Resume = clear the flag + reconcile: the advance resumes whatever the pause held back.
     if (workflowRunStateHelper.tryResume(workflowRunId)) {
@@ -892,7 +1015,7 @@ public class WorkflowRunService {
    */
   public WorkflowRun timeout(String workflowRunId, boolean taskRunTimeout) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
     // can never overwrite a terminal status. Only the winner drives the timeout to completion.
@@ -919,7 +1042,7 @@ public class WorkflowRunService {
 
   public WorkflowRun retry(String workflowRunId, boolean start, long retryCount) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
     // Ownership travels with creation: user retries and the engine's auto-retry both come through
     // here, so both record the same owner through this one path. Resolved BEFORE the clone is
@@ -936,6 +1059,23 @@ public class WorkflowRunService {
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isPresent()) {
       WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
+      // The clone is a new run, so it clears the same quotas a submit clears, and it is clamped
+      // to the ceiling as it stands now - which may have been lowered since the original submit.
+      // The floor cannot have moved: a retry re-runs the same revision with the same request.
+      // Checked before anything is written, so a refusal leaves the source run untouched. A run
+      // no workspace owns has no quotas to check and no ceiling to clamp to.
+      String ownerName = workspaceNameOrNull(owner);
+      if (ownerName != null) {
+        workflowService.assertRunQuotas(
+            ownerName, Optional.ofNullable(wfRunEntity.getWorkspaces()));
+        long ceiling = workflowService.maxWorkflowDuration(ownerName);
+        if (ceiling > 0
+            && (wfRunEntity.getTimeout() == null
+                || wfRunEntity.getTimeout() == 0
+                || wfRunEntity.getTimeout() > ceiling)) {
+          wfRunEntity.setTimeout(ceiling);
+        }
+      }
       wfRunEntity.setCreationDate(new Date());
       wfRunEntity.setStatus(RunStatus.notstarted);
       wfRunEntity.setPhase(RunPhase.pending);
@@ -987,6 +1127,20 @@ public class WorkflowRunService {
     }
   }
 
+  /*
+   * A child run's initiatedByRef is the submitting TaskRun; resolve the run that owns it so a
+   * client can link back to the parent. Derived on read, exactly like workflowName, and only on
+   * the single-run read - the query page has no use for it and would pay a lookup per row.
+   */
+  private void resolveInitiatingRun(WorkflowRunEntity wfRunEntity, WorkflowRun wfRun) {
+    if (TriggerEnum.task.getTrigger().equals(wfRunEntity.getTrigger())
+        && wfRunEntity.getInitiatedByRef() != null) {
+      taskRunRepository
+          .findById(wfRunEntity.getInitiatedByRef())
+          .ifPresent(taskRun -> wfRun.setInitiatedByWorkflowRunRef(taskRun.getWorkflowRunRef()));
+    }
+  }
+
   private void updateWorkflowDetails(WorkflowRunEntity wfRunEntity, WorkflowRun wfRun) {
     // Set WorkflowName
     final Optional<WorkflowEntity> optWorkflow =
@@ -995,11 +1149,8 @@ public class WorkflowRunService {
       wfRun.setWorkflowName(optWorkflow.get().getName());
       wfRun.setWorkflowDisplayName(optWorkflow.get().getDisplayName());
     }
-    // Remove Annotations
-    // TODO determine if this should be done elsewhere
-    wfRun.getAnnotations().remove("boomerang.io/global-params");
-    wfRun.getAnnotations().remove("boomerang.io/context-params");
-    wfRun.getAnnotations().remove("boomerang.io/workspace-params");
+    // Runs created before the parameter layers were read from their stores still carry them.
+    wfRun.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
   }
 
   /*
@@ -1007,7 +1158,7 @@ public class WorkflowRunService {
    */
   public void event(String workflowRunId, WorkflowRunEventRequest request) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
 
     final Optional<WorkflowRunEntity> optWfRunEntity =

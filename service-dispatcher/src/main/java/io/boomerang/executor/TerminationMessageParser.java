@@ -14,7 +14,12 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Parses a Kubernetes container termination message into declared Task Results. Tasks emit
  * either a JSON object ({@code {"name": "value"}}) or Tekton's array form
- * ({@code [{"key": .., "value": ..}]}). Empty or non-JSON input yields no Results.
+ * ({@code [{"key": .., "value": ..}]}).
+ *
+ * <p>"No results" and "this is not a results payload" are different answers and the caller has to
+ * tell them apart: Kubernetes truncates a termination message above 4096 bytes, and the truncated
+ * prefix is broken JSON. Reading that as "no results" is how an oversize payload used to end as a
+ * success with every result missing and nothing said. An absent Optional is the unparseable case.
  */
 public abstract class TerminationMessageParser {
 
@@ -24,11 +29,12 @@ public abstract class TerminationMessageParser {
 
   /**
    * Parse the termination message. When {@code declaredResults} is non-empty, only the names it
-   * lists are returned; otherwise everything parsed is returned.
+   * lists are returned; otherwise everything parsed is returned. An empty or absent message is an
+   * empty result list; a message that is not a JSON object or array is {@code Optional.empty()}.
    */
-  public static List<RunResult> parse(String message, List<RunResult> declaredResults) {
+  public static Optional<List<RunResult>> parse(String message, List<RunResult> declaredResults) {
     if (message == null || message.isBlank()) {
-      return List.of();
+      return Optional.of(List.of());
     }
 
     List<RunResult> parsed = new ArrayList<>();
@@ -49,18 +55,21 @@ public abstract class TerminationMessageParser {
                   entry.getKey(), value.isValueNode() ? value.asText() : value.toString()));
         }
       } else {
-        return List.of();
+        return Optional.empty();
       }
     } catch (JacksonException e) {
-      return List.of();
+      return Optional.empty();
     }
 
     Set<String> declaredNames =
         Optional.ofNullable(declaredResults).orElse(List.of()).stream()
             .map(RunResult::getName)
             .collect(Collectors.toSet());
-    return declaredNames.isEmpty()
-        ? parsed
-        : parsed.stream().filter(r -> declaredNames.contains(r.getName())).collect(Collectors.toList());
+    return Optional.of(
+        declaredNames.isEmpty()
+            ? parsed
+            : parsed.stream()
+                .filter(r -> declaredNames.contains(r.getName()))
+                .collect(Collectors.toList()));
   }
 }

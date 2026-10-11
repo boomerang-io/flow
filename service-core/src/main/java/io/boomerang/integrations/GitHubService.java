@@ -110,7 +110,7 @@ public class GitHubService {
       response.setRepositories(repositories.repositories().stream().map(r -> r.name()).toList());
       return ResponseEntity.ok(response);
     } catch (Exception ex) {
-      throw new BoomerangException(ex, BoomerangError.ACTION_INVALID_REF);
+      throw new BoomerangException(ex, BoomerangError.INTEGRATION_INVALID_REF);
     }
   }
 
@@ -123,7 +123,7 @@ public class GitHubService {
         return this.getInstallation(Integer.valueOf(optEntity.get().getRef()));
       }
     }
-    throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
+    throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
   }
 
   private GithubAppClient getGitHubAppClient(Integer installationId) {

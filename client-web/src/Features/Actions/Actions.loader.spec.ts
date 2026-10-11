@@ -72,6 +72,41 @@ describe("Actions --- loader", () => {
     expect(captured[0]).not.toBe(captured[1]);
   });
 
+  // Actions opens on what is waiting; clearing the filter (statuses=any) asks for every status.
+  test("asks for waiting actions by default, and for every status once the filter is cleared", async () => {
+    const statuses: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.action.getActions({ workspace: ":workspace" }), ({ request }) => {
+        statuses.push(new URL(request.url).searchParams.get("statuses"));
+        return HttpResponse.json({ number: 0, size: 10, totalElements: 0, content: [] });
+      }),
+    );
+
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request() });
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request("?statuses=any") });
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request("?statuses=approved,rejected") });
+
+    expect(statuses).toEqual(["submitted", null, "approved,rejected"]);
+  });
+
+  // The tab labels count what the table lists: the summary behind them gets the same statuses.
+  test("counts the tab labels with the table's statuses", async () => {
+    const statuses: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.workspace.action.getActionsSummary({ workspace: ":workspace" }), ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        // Today's numbers carry their own 24-hour window and no statuses; the tab summary carries them.
+        if (params.has("statuses")) statuses.push(params.get("statuses"));
+        return HttpResponse.json({});
+      }),
+    );
+
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request() });
+    await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request("?statuses=any") });
+
+    expect(statuses).toEqual(["submitted", "approved,rejected,submitted"]);
+  });
+
   test("keeps each read's failure independent rather than throwing", async () => {
     server.use(
       http.get(serviceUrl.workspace.action.getActions({ workspace: ":workspace" }), () =>

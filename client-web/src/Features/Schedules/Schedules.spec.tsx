@@ -143,9 +143,8 @@ describe("Schedules --- loader", () => {
   });
 
   // A failed calendar fetch is a partial failure - the schedule list is still accurate - so it
-  // surfaces next to the calendar rather than replacing the page. It used to be piped into a
-  // `data-is-loading` attribute on the calendar container, which showed the user nothing.
-  test("surfaces a failed calendar fetch beside the still-valid schedule list", async () => {
+  // surfaces in the calendar views rather than replacing the page.
+  test("keeps the list and surfaces a failed calendar fetch in the calendar views", async () => {
     server.use(
       http.get(serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace: ":workspace" }), () =>
         HttpResponse.json({}, { status: 500 }),
@@ -154,8 +153,9 @@ describe("Schedules --- loader", () => {
 
     renderSchedules();
 
+    expect(await screen.findByText("Daily event")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Month" }));
     expect(await screen.findByText("Calendar unavailable")).toBeInTheDocument();
-    expect(screen.getByText("Daily event")).toBeInTheDocument();
   });
 
   // The workflows read and the schedules read have no data dependency on each other (only the
