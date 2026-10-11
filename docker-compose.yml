@@ -1,5 +1,5 @@
-# Local/E2E stack for the merged product: Mongo, the one-shot migration/seed Job, the
-# service-core deployable, client-web, and a local IDPZero OIDC provider for real sign-in.
+# Local/E2E stack for the merged product: Mongo, the service-core deployable (which migrates and
+# seeds the database as it starts), client-web, and a local IDPZero OIDC provider for real sign-in.
 # client-web's own SSR server is the single browser-facing origin (http://localhost:3000), and
 # it is the ONLY thing the browser talks to (BFF end state): documents, /res/* resource routes
 # and .data requests - never /api/*. Every service-core call happens server-side via
@@ -15,16 +15,16 @@
 # admin screen) resolves entirely inside service-core. Only reaching `running`/`succeeded` on a
 # run needs a connected agent - out of scope until a local runtime exists.
 #
-# service-core and service-loader are Java services built by Maven, NOT by this compose file.
-# Build the jars first, then build/run the stack:
+# service-core is a Java service built by Maven, NOT by this compose file. Build the jar first,
+# then build/run the stack:
 #
-#   mvn -pl service-core,service-loader -am clean package -DskipTests
-#   docker compose up --build service-loader service-core
+#   mvn -pl service-core -am clean package -DskipTests
+#   docker compose up --build service-core
 #
-# Contract: each Dockerfile does `ADD ./target/<module>.jar service.jar` with its own module
-# directory as the build context (e.g. `context: ./service-core`), so it expects the ordinary
-# Maven output path `service-core/target/service-core.jar` / `service-loader/target/service-loader.jar`
-# to already exist - this compose file does not invoke Maven itself.
+# Contract: the Dockerfile does `ADD ./target/service-core.jar service.jar` with its module
+# directory as the build context (`context: ./service-core`), so it expects the ordinary Maven
+# output path `service-core/target/service-core.jar` to already exist - this compose file does
+# not invoke Maven itself.
 #
 # client-web needs no host-side build: client-web/Dockerfile is a multi-stage build whose first
 # stage runs `pnpm install --frozen-lockfile && pnpm run build` (emitting build/client browser
@@ -40,7 +40,7 @@
 # cookie, and the app renders authenticated. IDPZero's login page is a passwordless user picker
 # (docker/idpzero/server.yaml seeds the users); the first user to sign in on a fresh database
 # becomes the founding admin. The `auth-oidc-seed` one-shot below is what flips the sign-in mode
-# to `oidc` for this stack - service-loader itself seeds the OIDC settings empty on purpose.
+# to `oidc` for this stack - service-core's migrations seed the OIDC settings empty on purpose.
 name: flow
 
 services:
@@ -52,22 +52,6 @@ services:
       timeout: 5s
       retries: 20
     networks: [flow]
-
-  # Run-once migration + seed Job (DD-07). Must complete successfully before service-core
-  # starts, or the app boots against an unmigrated database - enforced below via
-  # `service_completed_successfully` rather than a fixed sleep/wait.
-  service-loader:
-    build:
-      context: ./service-loader
-      dockerfile: Dockerfile
-    environment:
-      FLOW_MONGO_URI: mongodb://mongo:27017/boomerang
-      FLOW_MONGO_COLLECTION_PREFIX: flow
-    depends_on:
-      mongo:
-        condition: service_healthy
-    networks: [flow]
-    restart: "no"
 
   # Local OIDC provider (see docker/idpzero/). ADDRESSING - the dual-reachability problem and
   # its solution: the issuer URL must be ONE string that works from BOTH sides, because
@@ -110,8 +94,9 @@ services:
           - idp.localhost
 
   # One-shot, compose-only: sets the `auth` settings document's oidc.issuer/oidc.clientId (seeded
-  # empty by service-loader - correctly so for non-compose installs) to this stack's IDPZero, so
-  # GET /api/v2/auth/config resolves mode=oidc. See docker/mongo/seed-auth-oidc.js.
+  # empty by service-core's migrations - correctly so for non-compose installs) to this stack's
+  # IDPZero, so GET /api/v2/auth/config resolves mode=oidc. Waits for service-core to be healthy,
+  # which it only is once every migration has run. See docker/mongo/seed-auth-oidc.js.
   auth-oidc-seed:
     image: mongo:7.0
     entrypoint:
@@ -119,10 +104,8 @@ services:
     volumes:
       - ./docker/mongo/seed-auth-oidc.js:/seed-auth-oidc.js:ro
     depends_on:
-      mongo:
+      service-core:
         condition: service_healthy
-      service-loader:
-        condition: service_completed_successfully
     networks: [flow]
     restart: "no"
 
@@ -183,12 +166,6 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      service-loader:
-        condition: service_completed_successfully
-      # Not strictly required for boot (settings are read per-request), but deterministic:
-      # the stack never serves a window where mode still resolves to `proxy`.
-      auth-oidc-seed:
-        condition: service_completed_successfully
       idpzero:
         condition: service_healthy
       seaweedfs-init:
@@ -240,6 +217,9 @@ services:
     depends_on:
       service-core:
         condition: service_healthy
+      # The browser-facing origin only opens once sign-in resolves to `oidc`, never `proxy`.
+      auth-oidc-seed:
+        condition: service_completed_successfully
     networks: [flow]
 
 

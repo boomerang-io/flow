@@ -12,8 +12,6 @@ import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.workflow.TaskService;
-import io.boomerang.workflow.ArtifactService;
-import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.model.Token;
@@ -44,7 +42,8 @@ import org.testcontainers.utility.DockerImageName;
  * Boots the full engine Spring context against a single static Testcontainers MongoDB. All
  * subclasses share one cached context and one database: tests must create their own data and
  * assert on their own ids, never on global collection state. Externals are neutralised (no
- * CloudEvents egress, no audit) so nothing else needs to run.
+ * CloudEvents egress) so nothing else needs to run. The migrations run as the context starts, so
+ * the database holds the seeded roles, settings, catalogue and indexes before any test.
  */
 @SpringBootTest
 public abstract class AbstractEngineIntegrationTest {
@@ -61,7 +60,6 @@ public abstract class AbstractEngineIntegrationTest {
     registry.add("spring.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
     registry.add("flow.mongo.collection.prefix", () -> "flowtest");
     registry.add("flow.events.sink.enabled", () -> "false");
-    // Audit capture gates on the "audit" settings document, which these tests do not seed.
     // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
     registry.add("flow.watcher.enabled", () -> "false");
   }
@@ -108,78 +106,6 @@ public abstract class AbstractEngineIntegrationTest {
     SecurityContextHolder.clearContext();
   }
 
-  // Every workspace/global-task creation anchors on the root relationship node - a fresh install
-  // seeds it via the loader, but this shared Testcontainers Mongo starts empty. The node id is
-  // deterministic ("root:root"), so calling this from more than one test class is a no-op past
-  // the first.
-  protected void seedRelationshipRoot() {
-    relationshipService.createNode(RelationshipType.ROOT, "root", "root", Optional.empty());
-  }
-
-  // WorkspaceService.setDefaultQuotas reads the "quotas" settings document the loader normally
-  // seeds. Mirrors the shipped default quota values (seed/settings.json) so a workspace-creating
-  // test does not need its own copy.
-  protected void seedTeamQuotaSettings() {
-    seedArtifactSettings();
-    if (settingsRepository.findOneByKey(WorkspaceService.QUOTAS_SETTINGS_KEY) != null) {
-      return;
-    }
-    SettingEntity settings = new SettingEntity();
-    settings.setKey(WorkspaceService.QUOTAS_SETTINGS_KEY);
-    settings.setName("Quotas");
-    settings.setConfig(
-        List.of(
-            quotaConfig("max.workflowrun.concurrent", "4"),
-            quotaConfig("max.workflow.count", "10"),
-            quotaConfig("max.workflowrun.monthly", "20"),
-            quotaConfig("max.workflowrun.duration", "30"),
-            quotaConfig("max.workflow.storage", "25Gi"),
-            quotaConfig("max.workflowrun.storage", "2Gi"),
-            quotaConfig("max.artifact.storage", "5Gi")));
-    settingsRepository.save(settings);
-  }
-
-  // The "artifacts" settings document (retention and the largest artifact) the loader normally
-  // seeds - the workspace quota defaults read its default retention. Mirrors seed/settings.json.
-  protected void seedArtifactSettings() {
-    if (settingsRepository.findOneByKey(ArtifactService.ARTIFACTS_SETTINGS_KEY) != null) {
-      return;
-    }
-    SettingEntity settings = new SettingEntity();
-    settings.setKey(ArtifactService.ARTIFACTS_SETTINGS_KEY);
-    settings.setName("Artifacts");
-    settings.setConfig(
-        List.of(
-            settingConfig(ArtifactService.RETENTION_DEFAULT_DAYS, "number", "30"),
-            settingConfig(ArtifactService.RETENTION_MAX_DAYS, "number", "90"),
-            settingConfig(ArtifactService.MAX_ARTIFACT_SIZE, "number", "1024")));
-    settingsRepository.save(settings);
-  }
-
-  private static SettingConfig quotaConfig(String key, String value) {
-    return settingConfig(key, "number", value);
-  }
-
-  // WorkflowService.internalSubmit stamps the boomerang.io/task-* execution annotations
-  // off the "task" settings document the loader normally seeds. Mirrors seed/settings.json.
-  protected void seedTaskSettings() {
-    if (settingsRepository.findOneByKey("task") != null) {
-      return;
-    }
-    SettingEntity settings = new SettingEntity();
-    settings.setKey("task");
-    settings.setName("Task");
-    settings.setConfig(
-        List.of(
-            settingConfig("debug", "boolean", "false"),
-            settingConfig("default.image", "string", "boomerangio/worker-flow:2.11.15"),
-            settingConfig("deletion.policy", "string", "Never"),
-            // 0 = no platform ceiling, which is what the seed now ships: internalSubmit stamps
-            // no boomerang.io/task-timeout annotation and a task inherits its run's timeout.
-            settingConfig("default.timeout", "number", "0")));
-    settingsRepository.save(settings);
-  }
-
   /**
    * Sets one key in the "features" settings document, creating the document or the key as needed.
    * Merges rather than replaces - the shared Testcontainers Mongo means several test classes seed
@@ -215,7 +141,7 @@ public abstract class AbstractEngineIntegrationTest {
   /**
    * Creates a global template Task (idempotently) so workflows have something real to reference:
    * DAGUtility.createTaskList resolves every non-start/end task against the catalogue. Needs the
-   * root relationship node, so call {@link #seedRelationshipRoot()} first. Both the existence
+   * root relationship node, which the migrations seed. Both the existence
    * filter and the changelog author read the current identity, which {@link
    * #establishTestIdentity()} has already put in place - this method no longer installs (and then
    * clears) one of its own, which used to leave the filter call above running with none.

@@ -1,6 +1,6 @@
 # 0022 — Migrations run as a pre-deploy loader job on Flamingock, one execution per deploy
 
-**Status:** accepted · **Date:** 2026-07-23
+**Status:** superseded by 0098 · **Date:** 2026-07-23
 
 ## Context
 

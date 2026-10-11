@@ -6,9 +6,8 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 
 | Module | What it is |
 | --- | --- |
-| `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. |
+| `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. `io.boomerang.migration` holds the Flamingock change units, run as the context starts, before it serves: they take an empty or a v3 database to the current shape and refuse anything else; the v3 units are production upgrade code. |
 | `service-dispatcher` | The execution worker. Polls `/api/v1/dispatcher`, claims task runs, heartbeats their leases, runs them through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs). |
-| `service-loader` | Flamingock migrations and seed data, run as a pre-deploy Job once per deploy. The change-unit chain upgrades a v3 database in place and MUST NOT be collapsed. |
 | `lib-common` | Shared model, entities, enums, error handling. |
 | `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Served only in `standalone` mode. |
 
@@ -89,9 +88,9 @@ is on an older JDK:
 
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)      # macOS
-mvn -pl service-core,service-loader -am clean package -DskipTests
+mvn -pl service-core -am clean package -DskipTests
 cd client-web && pnpm install && pnpm run build && cd ..
-docker compose up --build                             # Mongo, loader Job, IDPZero, SeaweedFS, service-core, client-web
+docker compose up --build                             # Mongo, IDPZero, SeaweedFS, service-core, client-web
 ```
 
 - Browser-facing origin for manual and end-to-end testing: `http://localhost:3000` — client-web's own

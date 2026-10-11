@@ -22,9 +22,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Workflow Templates are read-only content: they are seeded by the loader and, on an upgrade from
- * v3, imported from workflows that carried {@code scope=template}. A caller reads a template and
- * creates a Workflow from it through the workspace Workflow create route; there is no API to
+ * Workflow Templates are read-only content: they are seeded by the migrations and, on an upgrade
+ * from v3, imported from workflows that carried {@code scope=template}. A caller reads a template
+ * and creates a Workflow from it through the workspace Workflow create route; there is no API to
  * author, change or remove one.
  */
 @RestController

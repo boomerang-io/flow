@@ -70,7 +70,6 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedThreeWorkspacesAndAMemberIdentity() {
-    seedRelationshipRoot();
     relationshipService.createNode(RelationshipType.USER, MEMBER, MEMBER, Optional.empty());
     // Wired as WorkspaceService.create wires a real workspace (root CONTAINS workspace), so the
     // workspace-level reachability check the query now performs sees the same graph production does.

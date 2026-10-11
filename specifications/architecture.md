@@ -8,9 +8,8 @@ by `service-core`; the container work for each task is carried out by a separate
 
 | Module | Owns | Depends on |
 | --- | --- | --- |
-| `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, GitHub/Slack integrations. One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:36-39`. | `lib-common` (`service-core/pom.xml:47`) |
+| `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, GitHub/Slack integrations, and the database migrations it runs as it starts (`io.boomerang.migration`; see `data-model.md`). One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:36-39`. | `lib-common` (`service-core/pom.xml:47`) |
 | `service-dispatcher` | The worker that registers with core, polls and claims runs, executes each task in Kubernetes through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-31`), and reports results back. `dispatcher.executor` selects `tekton` (default, `TektonServiceImpl.java:53`) or `kube-jobs` (`KubeJobsExecutor.java:65`). One `dispatcher.tasks.runtimeClassName` per deployment (`service-dispatcher/README.md:15-17`). | `lib-common` (`service-dispatcher/pom.xml:32`) |
-| `service-loader` | Database migrations and seed data on Flamingock, run once before each deploy. `LoaderApplication.java:20` loads every changeunit in `io.boomerang.loader.migration` (`_0001` … `_0039`). It is the only thing that creates indexes: core sets `spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:56`). | Mongo driver only |
 | `lib-common` | The shared wire and storage contract: 9 entities (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError`/`RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`) under `lib-common/src/main/java/io/boomerang/common/`. No beans, no repositories. | — |
 | `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by its own Node server (`client-web/Dockerfile`, `client-web/server/index.js`) with server rendering on (`client-web/react-router.config.ts:16-17`, base path `/apps/flow`). The browser talks only to this server; it calls `service-core` server-side through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:24`). | `service-core` over HTTP |
 
@@ -100,15 +99,14 @@ The one call from core to a dispatcher is log streaming: `engine/LogClient.java:
 
 One git tag builds and pushes the whole compatible set (`.github/workflows/ci-release.yml:9-13`); the tag
 patterns are `5.x.y`, `5.x.y-beta.z` and `5.x.y-rc.z`. `:latest` moves only on a stable tag (`:73-80`).
-`sbom.yml:11-14` fires on the same patterns. Path-filtered `ci-core.yml`, `ci-dispatcher.yml`, `ci-loader.yml`
+`sbom.yml:11-14` fires on the same patterns. Path-filtered `ci-core.yml`, `ci-dispatcher.yml`
 and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 
 | Image | Built from | Runtime | Job in `ci-release.yml` |
 | --- | --- | --- | --- |
 | `boomerangio/flow-service-core` | `service-core/target/service-core.jar` | `eclipse-temurin:25-jre-alpine`, port 7700 (`application.properties:1`) | `build-core`/`deploy-core` (`:18,:49`) |
 | `boomerangio/flow-service-dispatcher` | `service-dispatcher/target/service-dispatcher.jar` | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `build-dispatcher`/`deploy-agent` (`:100,:131`) |
-| `boomerangio/flow-service-loader` | `service-loader/target/service-loader.jar` | same base, runs to completion | `build-loader`/`deploy-loader` (`:180,:206`) |
-| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:24-alpine`, port 3000 | `deploy-webapp` (`:256`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:24-alpine`, port 3000 | `deploy-webapp` (`:182`) |
 
 Every product image is built for `linux/amd64` and `linux/arm64` (`ci-release.yml`, `platforms:` on each
 build step; the QEMU and Buildx setup steps each job already ran were doing nothing without it). A tag
@@ -127,16 +125,16 @@ chain first (`dispatcher/DispatcherSecurityConfiguration.java:42-46`) and the pr
 
 ## Local stack
 
-`docker-compose.yml` runs the product secured: `mongo`, the one-shot `service-loader` (core waits on
-`service_completed_successfully`, `:143-146`), a local IDPZero OpenID provider on `idp.localhost:4380`
-(`:96-110`), the `auth-oidc-seed` one-shot that points the `auth` settings at it (`:115-127`), `service-core`
-on `:7700` with `FLOW_MODE=standalone` and `FLOW_SECURITY_ENABLED=true` (`:129-141`), and `client-web` on
-`:3000` (`:161-191`). The browser-facing origin is `http://localhost:3000`; there is no separate gateway —
-`client-web`'s server is the only thing the browser talks to, and it calls core at
-`http://service-core:7700` (`:191`). `service-dispatcher` is not in the stack because it needs a Kubernetes
-cluster (`:10-16`). Build the jars with Maven and the web app with pnpm first (`:18-33`); the Playwright
-suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`, see `performance.md`) run
-against this stack.
+`docker-compose.yml` runs the product secured: `mongo`, `service-core` on `:7700` with `FLOW_MODE=standalone` and
+`FLOW_SECURITY_ENABLED=true` (`:146-179`), which migrates and seeds the database before its health check passes, a
+local IDPZero OpenID provider on `idp.localhost:4380` (`:80-94`), the `auth-oidc-seed` one-shot that points the
+`auth` settings at it once core is healthy (`:96-110`), SeaweedFS as the artifact store (`:116-144`), and
+`client-web` on `:3000`, which waits for the seed so sign-in never resolves to `proxy` (`:181-223`). The
+browser-facing origin is `http://localhost:3000`; there is no separate gateway — `client-web`'s server is the only
+thing the browser talks to, and it calls core at `http://service-core:7700` (`:210`). `service-dispatcher` is not in
+the stack because it needs a Kubernetes cluster (`:10-16`). Build the jar with Maven and the web app with pnpm
+first (`:18-27`); the Playwright suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`, see
+`performance.md`) run against this stack.
 
 ## Not built
 

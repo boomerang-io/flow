@@ -56,9 +56,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -83,31 +80,19 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   @Autowired private InMemoryArtifactStore store;
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
-  @Autowired private MongoTemplate mongoTemplate;
   @Autowired private WebApplicationContext context;
 
   private String workspace;
   private String workflowRef;
   private TaskRunEntity uploadTask;
+  private int uploadTasks;
 
   @BeforeEach
   void seedRun() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     seedGlobalTask(TASK_SLUG);
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     setFeatureSetting(QUOTA_FEATURE, false);
-    // The loader builds this index; auto-index-creation is off, so the test builds it too.
-    mongoTemplate
-        .indexOps(ArtifactEntity.class)
-        .createIndex(
-            new Index()
-                .on("workflowRunRef", Sort.Direction.ASC)
-                .on("name", Sort.Direction.ASC)
-                .unique()
-                .named("run_name_idx"));
 
     workspace = createWorkspace(new Quotas());
     workflowService.create(workspace, runnableWorkflow("artifact-workflow", TASK_SLUG));
@@ -422,9 +407,10 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   /** A new upload task for the artifact, handed out: its link params are filled. */
   private TaskRun begin(String name, Integer retentionDays) {
+    // Each upload is its own task in the run; task names are unique within a run.
     TaskRunEntity task =
         savedTaskRun(
-            "upload-" + name,
+            "upload-" + name + "-" + ++uploadTasks,
             TaskType.uploadartifact,
             RunStatus.running,
             RunPhase.running,

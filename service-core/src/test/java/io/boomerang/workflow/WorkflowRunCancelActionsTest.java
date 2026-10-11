@@ -51,7 +51,6 @@ class WorkflowRunCancelActionsTest extends AbstractEngineIntegrationTest {
 
   @Test
   void cancelClosesTheRunsOpenActionsAndLeavesAnotherRunsAlone() {
-    seedRelationshipRoot();
     relationshipService.createNode(
         RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, Optional.empty());
 

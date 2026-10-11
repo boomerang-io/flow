@@ -97,7 +97,6 @@ class TaskTimeoutClampedToRunTest extends AbstractEngineIntegrationTest {
    */
   private long materialise(
       String name, Long platformDefault, Long declaredTimeout, long runTimeout) {
-    seedRelationshipRoot();
 
     // An explicit image keeps createTaskList off the task-default-image annotation fallback,
     // which is absent on a run entity built here.

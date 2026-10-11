@@ -48,7 +48,6 @@ class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedGraphRootAndTemplate() {
-    seedRelationshipRoot();
     Task template = new Task();
     template.setName("workspace-inheritance-echo-" + System.nanoTime());
     template.setType(TaskType.template);

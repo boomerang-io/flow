@@ -61,9 +61,6 @@ class WorkflowWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
    */
   @BeforeEach
   void establishMemberIdentity() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     setFeatureSetting("workspaceQuotas", false);
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);

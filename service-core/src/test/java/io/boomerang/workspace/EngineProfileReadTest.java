@@ -6,13 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import io.boomerang.core.entity.RoleEntity;
-import io.boomerang.core.repository.RoleRepository;
-import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.workspace.entity.WorkspaceEntity;
-import io.boomerang.workspace.repository.WorkspaceRepository;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import jakarta.servlet.Filter;
@@ -31,8 +25,6 @@ import org.springframework.web.context.WebApplicationContext;
 class EngineProfileReadTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WebApplicationContext context;
-  @Autowired private WorkspaceRepository workspaceRepository;
-  @Autowired private RoleRepository roleRepository;
 
   @Autowired
   @Qualifier("springSecurityFilterChain")
@@ -41,21 +33,8 @@ class EngineProfileReadTest extends AbstractEngineIntegrationTest {
   private MockMvc mockMvc;
 
   @BeforeEach
-  void seedSystemWorkspaceAndAdminRole() {
+  void buildMockMvc() {
     mockMvc = MockMvcBuilders.webAppContextSetup(context).addFilters(springSecurityFilterChain).build();
-    if (workspaceRepository.findByNameIgnoreCase("system").isEmpty()) {
-      WorkspaceEntity entity = new WorkspaceEntity();
-      entity.setName("system");
-      entity.setDisplayName("System");
-      workspaceRepository.save(entity);
-    }
-    if (roleRepository.findByTypeAndName("global", "admin") == null) {
-      RoleEntity admin = new RoleEntity();
-      admin.setType(PermissionScope.global);
-      admin.setName("admin");
-      admin.setPermissions(List.of("**/**"));
-      roleRepository.save(admin);
-    }
   }
 
   @Test
