@@ -14,8 +14,8 @@ returns the property when it is set, otherwise `true` for `flow.mode=standalone`
 
 | Security | Filter chain | Identity on every request | Authorization |
 | --- | --- | --- | --- |
-| on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:20,73-91`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
-| off | `SecurityDisabledConfiguration` — `anyRequest().permitAll()`, `http.anonymous(...)` (`core/security/SecurityDisabledConfiguration.java:14,20-33`) | a synthetic `UnauthenticatedGlobalToken` (see below) | the advisor is not registered; `RelationshipService` still runs but its `global` branch allows everything |
+| on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:23,81-116`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
+| off | `SecurityDisabledConfiguration` — `anyRequest().permitAll()`, `http.anonymous(...)` (`core/security/SecurityDisabledConfiguration.java:13,20-33`) | a synthetic `UnauthenticatedGlobalToken` (see below) | the advisor is not registered; `RelationshipService` still runs but its `global` branch allows everything |
 
 The worker-facing `/api/v1/**` chain (`dispatcher/DispatcherSecurityConfiguration.java:41-50`) is ordered
 first and is independent of this switch — see "Dispatcher endpoints".
@@ -23,25 +23,25 @@ first and is independent of this switch — see "Dispatcher endpoints".
 ## Authentication: how a caller becomes a `Token`
 
 `AuthenticationFilter` checks the identity sources in a fixed order and stops at the first one present
-(`core/security/AuthenticationFilter.java:112-126`). It is loaded only when security is on (`:43`). Every
+(`core/security/AuthenticationFilter.java:108-122`). It is loaded only when security is on (`:41`). Every
 branch maps the resolved `Token`'s permission actions (e.g. `workflow/write`) onto `GrantedAuthority` via
-`authoritiesFor` (`:369-380`) before installing the `Authentication` — `Token` itself, via `setDetails`,
+`authoritiesFor` (`:345-356`) before installing the `Authentication` — `Token` itself, via `setDetails`,
 remains what every scope/relationship check actually reads.
 
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
-| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `isFlowBearer` `:308-311`) | `getTokenAuthentication` (`:285-305`) | shape gate `TokenTypePrefix.isFlowToken` (`:289-294`), then SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:403-417`) |
-| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:185-244`) | `OidcTokenVerifier.verifyBearerToken` checks the signature against the configured OIDC issuer's JWKS and `iss`/`aud`/`exp` (no nonce — this is not a one-time login exchange); an unsigned or wrongly-signed token is refused, and an unconfigured issuer means the path cannot authenticate at all. A session token is minted for the verified `email`/`emailAddress` claim |
-| 1c | `Authorization: Basic email:password` | same method (`:245-277`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `:82-96`), not a raw string comparison; session token minted for the email |
+| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `isFlowBearer` `:304-307`) | `getTokenAuthentication` (`:281-301`) | shape gate `TokenTypePrefix.isFlowToken` (`:285-289`), then SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:403-417`) |
+| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:181-240`) | `OidcTokenVerifier.verifyBearerToken` checks the signature against the configured OIDC issuer's JWKS and `iss`/`aud`/`exp` (no nonce — this is not a one-time login exchange); an unsigned or wrongly-signed token is refused, and an unconfigured issuer means the path cannot authenticate at all. A session token is minted for the verified `email`/`emailAddress` claim |
+| 1c | `Authorization: Basic email:password` | same method (`:241-271`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `:78-92`), not a raw string comparison; session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
-| 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:50-57`) |
-| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:316-340`) | session token minted for the forwarded email |
-| 5 | `flow_session` cookie | `getTokenAuthentication` (`:124-125,166-177`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
+| 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:48-55`) |
+| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:312-336`) | session token minted for the forwarded email |
+| 5 | `flow_session` cookie | `getTokenAuthentication` (`:120-121,162-173`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
 normalised email for 60 seconds per instance (`core/TokenService.java:585-619`). User creation is allowed
 only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
-(`AuthenticationFilter.java:190-200`).
+(`AuthenticationFilter.java:186-196`).
 
 Rows 1, 2, 3 and 5 resolve the bearer through `TokenLookupCache` (`core/security/TokenLookupCache.java`), a
 per-instance Caffeine cache keyed by the stored SHA-256 hash and holding the validated `TokenEntity`, so the
@@ -53,10 +53,10 @@ on every hit. Entries live 60 seconds and the cache holds at most 10 000 (`flow.
 (`core/TokenService.java:458-472`); `touchLastUsed` does not evict. Eviction is per instance: after a revoke on
 one instance, another instance MAY still honour the token until its own entry ages out, at most the TTL.
 
-No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:137-141`), except on
+No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:133-137`), except on
 `/api/v2/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
-(`:132-136`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
-`/api/v2/auth/config` (`:384-391`); `SecurityConfiguration.java:104-107` also permits `/info`, `/webjars`, the
+(`:128-132`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
+`/api/v2/auth/config` (`:360-367`); `SecurityConfiguration.java:104-107` also permits `/info`, `/webjars`, the
 Slack install URL and the exchange endpoint.
 
 ### Session sign-in (the browser flow)
@@ -87,7 +87,7 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
 human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a token that does
 not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any database lookup on both
-paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above (`:289-294`) and
+paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above (`:285-289`) and
 `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:94`) — so a retired `bft_`/`bfw_` bearer never reaches Mongo.
 
 Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
@@ -102,19 +102,21 @@ either side; resources and actions are the `PermissionResource` and `PermissionA
 Every protected controller method (or, since `@AuthCriteria` targets `TYPE` as well as `METHOD`, an entire
 controller class) declares `resource`, `action` and `assignableScopes` (`core/security/AuthCriteria.java:11-19`).
 Enforcement is Spring Security method security, not a `HandlerInterceptor`:
-`MethodSecurityConfiguration` (`core/security/MethodSecurityConfiguration.java:34-52`) registers
+`MethodSecurityConfiguration` (`core/security/MethodSecurityConfiguration.java:36-58`) registers
 `AuthCriteriaAuthorizationManager` as an `Advisor` — `AuthorizationManagerBeforeMethodInterceptor` over a
-`Pointcut` that unions class- and method-level `@AuthCriteria` matches (`:44-51`) — via `@EnableMethodSecurity`;
+`Pointcut` that unions class- and method-level `@AuthCriteria` matches (`:46-57`) — via `@EnableMethodSecurity`;
 the bean carries `@Role(ROLE_INFRASTRUCTURE)` because `EnableMethodSecurity`'s auto-proxy creator only ever
-applies advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:66-108`):
+applies advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:66-114`):
 
 1. No `@AuthCriteria` on the method or its declaring class → the pointcut never selects the method at all, so the call proceeds unintercepted. Public endpoints such as `GET /api/v2/auth/config` rely on this deliberately.
-2. Annotated but no identity → throws `AuthenticationCredentialsNotFoundException`, caught by `AuthenticationFilter`'s exception handling like any other authentication failure → structured 401 (`:74-79`).
-3. Token class not in `assignableScopes` → same exception, counted in `flow.security.denied` (`:81-89`).
-4. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`) → plain 403, counted in `flow.security.denied` (`:91-104`).
+2. Annotated but no identity → throws `AuthenticationCredentialsNotFoundException` (`:76-82`), which `RestExceptionHandler` renders as the structured 401 before it leaves the dispatcher (`core/RestExceptionHandler.java:116-134`).
+3. Token class not in `assignableScopes` → same exception and response, counted in `flow.security.denied` (`:84-93`).
+4. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`); Spring Security's exception translation answers it with a 403 that carries no `RestErrorResponse` body, counted in `flow.security.denied` (`:95-112`).
+
+`EndpointAuthorizationResponseTest` pins the 401 and the 403 over HTTP against real endpoints.
 
 The annotation lookup tries the invoked method first, then falls back to its declaring class
-(`authCriteriaFor`, `:116-121`) — the one behavioural fix over the retired `SecurityInterceptor`, which only
+(`authCriteriaFor`, `:116-122`) — the one behavioural fix over the retired `SecurityInterceptor`, which only
 ever read the method and so silently ignored a class-level placement. No endpoint currently uses one.
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a

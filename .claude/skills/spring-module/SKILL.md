@@ -146,8 +146,8 @@ Conventions:
 - Team-scoped resources nest under `/api/v2/team/{team}/...`.
 - **Authorization is annotation-driven.** Every protected endpoint method carries
   `@AuthCriteria(assignableScopes = {...}, resource = PermissionResource.X, action = PermissionAction.Y)`.
-  `SecurityInterceptor.preHandle` enforces it: a method with **no** `@AuthCriteria` is treated as
-  unauthenticated/public (the interceptor logs a warning and skips authz) — so an endpoint that
+  `AuthCriteriaAuthorizationManager` enforces it: a method with **no** `@AuthCriteria` is not
+  checked at all (any authenticated caller reaches it, and nothing is logged) — so an endpoint that
   should be protected but omits the annotation is a **silent auth hole**. See the `security-audit`
   skill.
 - `resource`/`action` must be real enum values: `PermissionResource` (system, workflow,

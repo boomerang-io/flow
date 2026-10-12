@@ -35,10 +35,8 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 /**
  * T6-3 (actor/ceiling-typed token model) coverage. Deliberately unit-level (mocked repositories,
  * no Spring context / MockMvc) so it exercises {@code TokenService}'s enforcement DECISIONS
- * directly — this matters here specifically because {@code SecurityInterceptor} soft-fails
- * permission mismatches (logs + allows), so an end-to-end request test could pass even if
- * authorization semantics regressed; these tests instead assert on the actual guard methods and
- * thrown exceptions.
+ * directly: these tests assert on the actual guard methods and thrown exceptions. What a denied
+ * request receives over HTTP is pinned by {@code EndpointAuthorizationResponseTest}.
  */
 @ExtendWith(MockitoExtension.class)
 class TokenServiceTest {
@@ -167,7 +165,7 @@ class TokenServiceTest {
   // =====================================================================================
   // A `key` token holding grants for TWO workspaces (incident.io's plural `team_ids` case) —
   // both the data shape and the authorization-decision (permission-action matching, mirroring
-  // SecurityInterceptor's own regex check) resolve independently for each workspace grant.
+  // AuthCriteriaAuthorizationManager's own regex check) resolve independently for each workspace grant.
   // =====================================================================================
 
   @Test
@@ -194,9 +192,8 @@ class TokenServiceTest {
         .extracting(ResolvedPermissions::getScope)
         .containsOnly(PermissionScope.workspace);
 
-    // Same permission-action matching SecurityInterceptor performs (a permission mismatch there
-    // only counts a metric and allows the request - see the testing hazard - so this asserts on
-    // the DECISION itself rather than an HTTP status).
+    // Same permission-action matching AuthCriteriaAuthorizationManager performs, asserted on the
+    // decision itself rather than an HTTP status.
     assertThat(matchesRequiredAction(entity, "workflow", "read")).isTrue();
     assertThat(matchesRequiredAction(entity, "workflow", "write")).isTrue();
     assertThat(matchesRequiredAction(entity, "task", "read")).isFalse();

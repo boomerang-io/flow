@@ -28,7 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * The self-vs-admin split on {@code PATCH}/{@code DELETE /api/v2/user/&#123;userId&#125;}.
  *
  * <p>The route-level {@code @AuthCriteria(resource = USER)} match is scope-blind:
- * SecurityInterceptor matches {@code user/write} against EVERY grant's action strings with no
+ * AuthCriteriaAuthorizationManager matches {@code user/write} against EVERY grant's action strings with no
  * scope filter, and the seeded workspace {@code editor} ({@code **}/{@code write}) and {@code
  * owner} ({@code **}/{@code **}) roles both satisfy it - so before this guard, any plain member of
  * any workspace could modify (and an owner delete) ANY user's account. The service now permits

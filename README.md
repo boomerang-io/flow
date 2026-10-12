@@ -193,7 +193,7 @@ it, `engine` disables it — unless set explicitly. These classes load condition
 | Class | Loaded when |
 |---|---|
 | `AuthenticationFilter` | true |
-| `SecurityInterceptorConfiguration` (and so `SecurityInterceptor`) | true |
+| `MethodSecurityConfiguration` (and so `AuthCriteriaAuthorizationManager`) | true |
 | `SecurityConfiguration` | true |
 | `SecurityDisabledConfiguration` | false |
 

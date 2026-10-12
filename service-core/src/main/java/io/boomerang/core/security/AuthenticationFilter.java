@@ -32,8 +32,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /*
- * The Filter ensures that the user is Authenticated prior to the Interceptor which validates
- * Authorization
+ * The Filter ensures that the user is Authenticated before AuthCriteriaAuthorizationManager
+ * validates Authorization on the endpoint
  *
  * Note: This cannot be auto marked as a Service/Component that Spring Boot would auto inject as
  * then it will apply to all routes
@@ -139,15 +139,15 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       LOGGER.error(ex);
       res.sendError(ex.getStatusCode().value());
     } catch (AccessDeniedException ex) {
-      // Thrown by AuthCriteriaAuthorizationManager (method security) for a permission mismatch -
-      // a plain 403, matching the retired SecurityInterceptor's raw response for the same case
-      // exactly (no structured body; the mismatch itself is already logged/counted there).
+      // A backstop only. A permission mismatch raised by AuthCriteriaAuthorizationManager is
+      // answered with 403 by Spring Security's own exception translation, further down the
+      // chain, before it can reach this filter.
       LOGGER.error(ex);
       res.setStatus(HttpServletResponse.SC_FORBIDDEN);
     } catch (AuthenticationException ex) {
-      // Covers both this filter's own identity resolution failures and
-      // AuthCriteriaAuthorizationManager throwing for "no identity"/"scope not assignable" - the
-      // same structured 401 entry point either way.
+      // This filter's own identity resolution failures. AuthCriteriaAuthorizationManager's "no
+      // identity" and "scope not assignable" are answered with the same structured 401 by
+      // RestExceptionHandler, inside the dispatcher, and never arrive here.
       LOGGER.error(ex);
       authEntryPoint.commence(
           req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, ex.getMessage()));
