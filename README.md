@@ -80,9 +80,13 @@ cd e2e && npm ci && npx playwright test    # requires the compose stack above to
 
 ```bash
 mvn clean install                                   # build everything
+export FLOW_ENCRYPT_SECRET=local-secret FLOW_ENCRYPT_SALT=local-salt   # required: core refuses a blank key
 mvn -pl service-core -am spring-boot:run            # run the API + engine
 cd client-web && pnpm start                         # run the webapp with hot reload
 ```
+
+`service-core` encrypts secured settings with `flow.encrypt.secret` and `flow.encrypt.salt` and will not start
+without them. The `local` profile and the compose stack set local-only values; any other deployment sets its own.
 
 ## Deploying behind a reverse proxy
 
