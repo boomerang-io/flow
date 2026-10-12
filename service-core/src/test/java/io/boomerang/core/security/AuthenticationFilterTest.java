@@ -210,6 +210,29 @@ class AuthenticationFilterTest {
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"person@example.test:", "person@example.test"})
+  void aBlankConfiguredBasicPasswordAuthenticatesNobody(String credentials) throws Exception {
+    // flow.authorization.basic.password is unset by default, and a header with no password
+    // supplies an empty one: the two must not match, or Basic would admit any email.
+    AuthenticationFilter unconfigured =
+        new AuthenticationFilter(
+            tokenService, settingsService, "", authEntryPoint, oidcTokenVerifier, passwordEncoder);
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
+    request.setServletPath("/api/v2/workflow");
+    request.addHeader(
+        "Authorization",
+        "Basic " + java.util.Base64.getEncoder().encodeToString(credentials.getBytes()));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    unconfigured.doFilter(request, response, filterChain);
+
+    verify(filterChain, never()).doFilter(any(), any());
+    verify(authEntryPoint, times(1)).commence(eq(request), eq(response), any());
+    verifyNoInteractions(tokenService);
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
   @Test
   void anUnsignedBearerJwtIsRejected() throws Exception {
     // OidcTokenVerifier.verifyBearerToken refuses a PlainJWT outright (Nimbus's
