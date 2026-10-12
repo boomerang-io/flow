@@ -56,9 +56,6 @@ public class SecurityConfiguration {
   private SettingsService settingsService;
 
   @Autowired
-  private OidcTokenVerifier oidcTokenVerifier;
-
-  @Autowired
   @Qualifier("delegatedAuthenticationEntryPoint")
   AuthenticationEntryPoint authEntryPoint;
 
@@ -83,12 +80,7 @@ public class SecurityConfiguration {
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
           new AuthenticationFilter(
-              tokenService,
-              settingsService,
-              basicPassword,
-              authEntryPoint,
-              oidcTokenVerifier,
-              passwordEncoder());
+              tokenService, settingsService, basicPassword, authEntryPoint, passwordEncoder());
       http.csrf(csrf -> csrf.disable())
           .authorizeHttpRequests(
               authorize ->

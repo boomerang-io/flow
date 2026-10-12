@@ -1,8 +1,10 @@
 package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.JWTParser;
+import com.nimbusds.jwt.PlainJWT;
+import com.nimbusds.jwt.SignedJWT;
 import io.boomerang.common.error.BoomerangError;
-import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.TokenTypePrefix;
@@ -14,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -24,7 +27,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -73,14 +75,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   // never a raw String.equals.
   private String encodedBasicPassword;
   private AuthenticationEntryPoint authEntryPoint;
-  private OidcTokenVerifier oidcTokenVerifier;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
       AuthenticationEntryPoint authEntryPoint,
-      OidcTokenVerifier oidcTokenVerifier,
       PasswordEncoder passwordEncoder) {
     super();
     this.tokenService = tokenService;
@@ -88,7 +88,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     this.passwordEncoder = passwordEncoder;
     this.encodedBasicPassword = passwordEncoder.encode(basicPassword);
     this.authEntryPoint = authEntryPoint;
-    this.oidcTokenVerifier = oidcTokenVerifier;
   }
 
   /*
@@ -199,12 +198,16 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       LOGGER.debug("AuthFilter() - " + token);
       JWTClaimsSet claims;
       try {
-        // Cryptographically verified against the configured OIDC issuer's published JWKS - an
-        // unsigned (PlainJWT) or wrongly-signed token is refused here, never trusted on its claims
-        // alone. See OidcTokenVerifier.verifyBearerToken.
-        claims = oidcTokenVerifier.verifyBearerToken(token.replace("Bearer ", ""));
-      } catch (BoomerangException e) {
-        LOGGER.error("AuthFilter() - Error verifying Bearer token: " + e.getMessage());
+        Object jwt = JWTParser.parse(token.replace("Bearer ", ""));
+        if (jwt instanceof PlainJWT) {
+          claims = ((PlainJWT) jwt).getJWTClaimsSet();
+        } else if (jwt instanceof SignedJWT) {
+          claims = ((SignedJWT) jwt).getJWTClaimsSet();
+        } else {
+          throw new IllegalArgumentException("Unsupported JWT type");
+        }
+      } catch (Exception e) {
+        LOGGER.error("AuthFilter() - Error parsing Bearer token: " + e.getMessage());
         return null;
       }
       LOGGER.debug("AuthFilter() - claims: " + claims.toString());
@@ -233,8 +236,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         final Token sessionToken =
             tokenService.createSessionToken(
                 email, firstName, lastName, allowActivation, allowUserCreation);
+        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, null, authoritiesFor(sessionToken));
+            new UsernamePasswordAuthenticationToken(email, null, authorities);
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -263,8 +267,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       if (email != null && !email.isBlank()) {
         final Token sessionToken =
             tokenService.createSessionToken(email, null, null, allowActivation, allowUserCreation);
+        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, password, authoritiesFor(sessionToken));
+            new UsernamePasswordAuthenticationToken(email, password, authorities);
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -290,9 +295,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     if (tokenService.validate(accessToken)) {
       Token token = tokenService.get(accessToken);
       if (token != null) {
+        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(
-                token.getPrincipal(), null, authoritiesFor(token));
+            new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
         authToken.setDetails(token);
         return authToken;
       }
@@ -326,33 +331,13 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     final Token token =
         tokenService.createSessionToken(email, userName, null, allowActivation, allowUserCreation);
     if (email != null && !email.isBlank()) {
+      final List<GrantedAuthority> authorities = new ArrayList<>();
       final UsernamePasswordAuthenticationToken authToken =
-          new UsernamePasswordAuthenticationToken(
-              token.getPrincipal(), null, authoritiesFor(token));
+          new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
       authToken.setDetails(token);
       return authToken;
     }
     return null;
-  }
-
-  /*
-   * Maps a resolved Token's permission actions (e.g. "workflow/write") straight onto
-   * GrantedAuthority, so Spring Security's own authorization machinery can act on them natively
-   * instead of every check having to re-derive them from Token.getPermissions() by hand. Token
-   * itself remains the source of truth - setDetails(Token) below is unchanged, and callers that
-   * still read scope/relationship semantics off the Token keep doing so.
-   */
-  private static List<GrantedAuthority> authoritiesFor(Token token) {
-    if (token == null || token.getPermissions() == null) {
-      return List.of();
-    }
-    return token.getPermissions().stream()
-        .filter(permission -> permission.getActions() != null)
-        .flatMap(permission -> permission.getActions().stream())
-        .distinct()
-        .map(SimpleGrantedAuthority::new)
-        .map(GrantedAuthority.class::cast)
-        .toList();
   }
 
   @Override
