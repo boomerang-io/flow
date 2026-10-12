@@ -15,12 +15,20 @@ import org.springframework.mock.env.MockEnvironment;
  */
 abstract class MigrationRunner {
 
+  /** The key the chain encrypts with in tests; the v3 pair is blank unless a test sets it. */
+  static final String TEST_SECRET = "test-encrypt-secret";
+
+  static final String TEST_SALT = "test-encrypt-salt";
+
   private MigrationRunner() {}
 
   /** Run every pending change unit against {@code uri}; throws on any failure. */
   static void run(String uri, String collectionPrefix) {
+    run(uri, environment(collectionPrefix));
+  }
+
+  static void run(String uri, Environment environment) {
     ConnectionString connection = new ConnectionString(uri);
-    Environment environment = environment(collectionPrefix);
     CollectionNames names = CollectionNames.from(environment);
     try (MongoClient client = MongoClients.create(connection)) {
       MongoDBSyncTargetSystem targetSystem =
@@ -35,8 +43,13 @@ abstract class MigrationRunner {
     }
   }
 
-  /** The environment a change unit reads its collection prefix from. */
-  static Environment environment(String collectionPrefix) {
-    return new MockEnvironment().withProperty("flow.mongo.collection.prefix", collectionPrefix);
+  /** The environment a change unit reads its collection prefix and keys from. */
+  static MockEnvironment environment(String collectionPrefix) {
+    return new MockEnvironment()
+        .withProperty("flow.mongo.collection.prefix", collectionPrefix)
+        .withProperty(_0022__ReencryptSettingsAesGcm.LEGACY_SECRET, "")
+        .withProperty(_0022__ReencryptSettingsAesGcm.LEGACY_SALT, "")
+        .withProperty(_0022__ReencryptSettingsAesGcm.SECRET, TEST_SECRET)
+        .withProperty(_0022__ReencryptSettingsAesGcm.SALT, TEST_SALT);
   }
 }

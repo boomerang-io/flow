@@ -30,6 +30,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.mock.env.MockEnvironment;
 import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -108,6 +109,66 @@ class V3DumpMigrationTest {
     restoredCounts = restoreDump();
     long totalDocs = restoredCounts.values().stream().mapToLong(Long::longValue).sum();
     LOG.info("Restored {} collections, {} documents total: {}", restoredCounts.size(), totalDocs, restoredCounts);
+    prepareSecuredValues();
+  }
+
+  /** The v3 pair the dump's encrypted settings were written under, when this machine has it. */
+  private static final String V3_SECRET_PROPERTY = "flow.migration.v3dump.secret";
+
+  private static final String V3_SALT_PROPERTY = "flow.migration.v3dump.salt";
+
+  private static int expectedReencrypted;
+
+  private static String v3Pair(String property, String envVar) {
+    String value = System.getProperty(property, System.getenv(envVar));
+    return (value != null) ? value : "";
+  }
+
+  /**
+   * Without the dump's v3 pair its two encrypted values cannot be decrypted, so they are blanked
+   * before the run and the re-encrypt pin expects none; with it, both must end under the new label.
+   */
+  private static void prepareSecuredValues() {
+    if (!v3Pair(V3_SECRET_PROPERTY, "FLOW_MIGRATION_V3DUMP_SECRET").isEmpty()) {
+      expectedReencrypted = 2;
+      return;
+    }
+    LOG.warn(
+        "No v3 encryption pair supplied (-D{} / -D{}); blanking the dump's encrypted settings values",
+        V3_SECRET_PROPERTY,
+        V3_SALT_PROPERTY);
+    for (Document setting : collection("settings").find()) {
+      List<Document> config = setting.getList("config", Document.class);
+      if (config == null) {
+        continue;
+      }
+      boolean changed = false;
+      for (Document entry : config) {
+        String value = entry.getString("value");
+        if (value != null && value.startsWith("crypt_v1{AES|")) {
+          entry.put("value", "");
+          changed = true;
+        }
+      }
+      if (changed) {
+        collection("settings")
+            .updateOne(
+                Filters.eq("_id", setting.get("_id")),
+                new Document("$set", new Document("config", config)));
+      }
+    }
+    expectedReencrypted = 0;
+  }
+
+  private static MockEnvironment migrationEnvironment() {
+    MockEnvironment env = MigrationRunner.environment(COLLECTION_PREFIX);
+    env.setProperty(
+        _0022__ReencryptSettingsAesGcm.LEGACY_SECRET,
+        v3Pair(V3_SECRET_PROPERTY, "FLOW_MIGRATION_V3DUMP_SECRET"));
+    env.setProperty(
+        _0022__ReencryptSettingsAesGcm.LEGACY_SALT,
+        v3Pair(V3_SALT_PROPERTY, "FLOW_MIGRATION_V3DUMP_SALT"));
+    return env;
   }
 
   @AfterAll
@@ -250,7 +311,7 @@ class V3DumpMigrationTest {
     // -----------------------------------------------------------------------------------
     // Run the full Flamingock migration.
     // -----------------------------------------------------------------------------------
-    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl(TARGET_DATABASE), COLLECTION_PREFIX))
+    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl(TARGET_DATABASE), migrationEnvironment()))
         .doesNotThrowAnyException();
 
     assertGenerationRecorded();
@@ -287,7 +348,7 @@ class V3DumpMigrationTest {
         collection(LegacyGenerationMarker.COLLECTION).find(Filters.eq("_id", "legacyGeneration")).first();
     assertThat(markerAfterFirstRun).isNotNull();
 
-    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl(TARGET_DATABASE), COLLECTION_PREFIX))
+    assertThatCode(() -> MigrationRunner.run(MONGO.getReplicaSetUrl(TARGET_DATABASE), migrationEnvironment()))
         .doesNotThrowAnyException();
 
     assertThat(snapshotCounts()).isEqualTo(countsAfterFirstRun);
@@ -498,6 +559,20 @@ class V3DumpMigrationTest {
             "slack.token",
             "slack.installURL");
     assertThat(configKeys(integration)).doesNotContain("github.pem");
+
+    // v3's two encrypted secured values are carried through and re-encrypted under the new key;
+    // every other secured value is blank; without the v3 pair both are blanked before the run.
+    int reencrypted = 0;
+    for (Document setting : collection("settings").find()) {
+      for (Document entry : configOf(setting)) {
+        String value = entry.getString("value");
+        if ("secured".equalsIgnoreCase(entry.getString("type")) && value != null && !value.isEmpty()) {
+          assertThat(value).as("%s/%s", setting.getString("key"), entry.getString("key")).startsWith("crypt_v1{AESGCM|");
+          reencrypted++;
+        }
+      }
+    }
+    assertThat(reencrypted).isEqualTo(expectedReencrypted);
 
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
     // max.workflowrun.storage entry legacy 4039 introduced, and the artifact storage default.

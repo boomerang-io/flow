@@ -309,7 +309,7 @@ The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered sc
 owning run rather than the streamed task alone. The dispatcher ends the stream when the pod is already
 finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
 asynchronous completion of a streamed response without re-running authorization on it
-(`core/security/SecurityConfiguration.java:81`, `SecurityInterceptor.java:45`). Engine and dispatcher reads, and delivery into the
+(`core/security/SecurityConfiguration.java:94-95`). Engine and dispatcher reads, and delivery into the
 container, carry the real values. A resolved value shorter than four characters is blanked by name but not
 value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
 

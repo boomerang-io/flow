@@ -59,6 +59,8 @@ public abstract class AbstractEngineIntegrationTest {
   static void engineTestProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
     registry.add("flow.mongo.collection.prefix", () -> "flowtest");
+    registry.add("flow.encrypt.secret", () -> "test-encrypt-secret");
+    registry.add("flow.encrypt.salt", () -> "test-encrypt-salt");
     registry.add("flow.events.sink.enabled", () -> "false");
     // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
     registry.add("flow.watcher.enabled", () -> "false");

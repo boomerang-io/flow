@@ -7,9 +7,9 @@ description: Systematic audit of authorization (@AuthCriteria coverage) and audi
 
 Boomerang Flow enforces authorization with a **method-annotation model**, not per-method
 `requirePermission` calls. Every protected controller endpoint carries an `@AuthCriteria`
-annotation; `SecurityInterceptor.preHandle` reads it and enforces both the token scope and the
-`resource/action` permission. **A method with no `@AuthCriteria` is silently treated as public**
-— the interceptor logs a warning and returns `true`. That makes "missing annotation on a
+annotation; `AuthCriteriaAuthorizationManager` reads it and enforces both the token scope and the
+`resource/action` permission. **A method with no `@AuthCriteria` is not checked at all** — any
+authenticated caller reaches it, and nothing is logged. That makes "missing annotation on a
 mutating endpoint" the single highest-value thing this audit looks for.
 
 Produces a structured, severity-ranked report.
@@ -27,7 +27,8 @@ Read and record:
 3. **`security/enums/AuthScope.java`** — session, user, team, workflow, global.
 4. **`security/AuthCriteria.java`** — the annotation contract: `resource`, `action`,
    `assignableScopes`.
-5. **`security/SecurityInterceptor.java`** — the enforcement logic. Note precisely:
+5. **`security/AuthCriteriaAuthorizationManager.java`** — the enforcement logic, wrapped around
+   every annotated method by `MethodSecurityConfiguration`. Note precisely:
    - No `@AuthCriteria` → **authz skipped** (this is the hole to hunt).
    - Token `type` (scope) must be in `assignableScopes`, else 401.
    - Permission regex: `(\*{2}|<resource>)/(\*{2}|<action>)` matched against the token's

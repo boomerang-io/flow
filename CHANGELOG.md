@@ -15,7 +15,7 @@ tag's release notes.
 - **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean the v3 pair, read
   once to decrypt v3's secured settings during the upgrade. `flow.encrypt.secret`/`flow.encrypt.salt` is the
   key v5 encrypts with and is required on every install. Set both before the first start against a v3
-  database. (Lands with the AES-GCM settings encryption change, #408.)
+  database. Secured settings are encrypted with AES-GCM; v3's values are re-encrypted on the first start.
 - **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so a
   shared email stops startup until it is resolved. See "Upgrading from v3" in the README.
 

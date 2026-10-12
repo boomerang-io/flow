@@ -526,7 +526,7 @@ public class UserService {
    * Permit self-service, otherwise require a global-scoped {@code user/<action>} grant.
    *
    * <p>The route-level {@code @AuthCriteria(resource = USER)} match is scope-blind:
-   * SecurityInterceptor matches the required action against every grant's action strings without
+   * AuthCriteriaAuthorizationManager matches the required action against every grant's action strings without
    * looking at the grant's scope, so a workspace editor/owner's {@code **}/{@code write} grant
    * satisfies it - yet that grant is authority over the workspace's resources, not over other
    * users' accounts. Only a global-scoped grant reaches past the caller's own record: the platform

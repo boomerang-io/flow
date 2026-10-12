@@ -24,8 +24,9 @@ change unit on its one run. `flow.encrypt.secret`/`salt` is the one key v5 encry
 `password`-typed global and workspace parameters and `secret`-typed run parameters when they move to rest. A blank
 v5 key refuses startup; a v3 pair that fails to decrypt stops the migration rather than leaving a credential
 unreadable. The one reason that decided it between A and B: the re-encrypt pass already decrypts with one key and
-encrypts with another, so rotating at upgrade costs nothing extra. Implemented by #408's rebase onto the chain in
-`io.boomerang.migration`.
+encrypts with another, so rotating at upgrade costs nothing extra. Implemented by
+`service-core/src/main/java/io/boomerang/migration/_0022__ReencryptSettingsAesGcm.java` and
+`core/model/EncryptionConfig.java`.
 
 ## Consequences
 

@@ -80,9 +80,13 @@ cd e2e && npm ci && npx playwright test    # requires the compose stack above to
 
 ```bash
 mvn clean install                                   # build everything
+export FLOW_ENCRYPT_SECRET=local-secret FLOW_ENCRYPT_SALT=local-salt   # required: core refuses a blank key
 mvn -pl service-core -am spring-boot:run            # run the API + engine
 cd client-web && pnpm start                         # run the webapp with hot reload
 ```
+
+`service-core` encrypts secured settings with `flow.encrypt.secret` and `flow.encrypt.salt` and will not start
+without them. The `local` profile and the compose stack set local-only values; any other deployment sets its own.
 
 ## Deploying behind a reverse proxy
 
@@ -119,9 +123,10 @@ Before the first start against a v3 database:
 2. **Check for two users sharing one email.** The migration refuses to delete an account, so a shared
    email fails the unique index and startup with it. Two addresses that differ only by case are kept as they
    are and logged; lower-case the survivor by hand afterwards.
-3. **Set the encryption keys.** v3 encrypted secured settings with the pair in `mongo.encrypt.secret` and
-   `mongo.encrypt.salt`, blank unless the deployment set them. Provide that same pair under the same names:
-   it is read once, to decrypt those values during the migration. Provide the key v5 encrypts with as
+3. **Set the encryption keys.** v3 encrypted secured settings (Slack and GitHub credentials) with the pair in
+   `mongo.encrypt.secret` and `mongo.encrypt.salt`, set on the v3 deployment; a v3 instance that never set
+   them holds no encrypted values. Provide that same pair under the same names: it is read once, to decrypt
+   those values during the migration. Provide the key v5 encrypts with as
    `flow.encrypt.secret` and `flow.encrypt.salt`; it can be a fresh pair, and it is required on every
    install. A wrong v3 pair stops startup rather than leaving a credential unreadable.
 4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB v3 database
@@ -188,7 +193,7 @@ it, `engine` disables it — unless set explicitly. These classes load condition
 | Class | Loaded when |
 |---|---|
 | `AuthenticationFilter` | true |
-| `SecurityInterceptorConfiguration` (and so `SecurityInterceptor`) | true |
+| `MethodSecurityConfiguration` (and so `AuthCriteriaAuthorizationManager`) | true |
 | `SecurityConfiguration` | true |
 | `SecurityDisabledConfiguration` | false |
 

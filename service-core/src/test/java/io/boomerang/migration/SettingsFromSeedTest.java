@@ -107,7 +107,8 @@ class SettingsFromSeedTest {
     assertThat(value(db, "features", "workspaceQuotas")).isEqualTo("false");
     assertThat(value(db, "features", "workspaceTasks")).isEqualTo("false");
     assertThat(value(db, "features", "insights")).isEqualTo("false");
-    assertThat(value(db, "integration", "slack.token")).isEqualTo("crypt_v1{AES|slack-token}");
+    // A secured value is carried, then encrypted under the key by _0022.
+    assertThat(decrypted(value(db, "integration", "slack.token"))).isEqualTo("xoxb-slack-token");
     assertThat(value(db, "integration", "slack.appId")).isEqualTo("A0123");
     assertThat(value(db, "customizations", "appName")).isEqualTo("Acme Flow");
 
@@ -184,12 +185,12 @@ class SettingsFromSeedTest {
         .insertOne(
             new Document("_id", new ObjectId(EXTENSIONS_ID))
                 .append("key", "integration")
-                .append("config", List.of(entry("github.pem", "secured", "crypt_v1{AES|pem}"))));
+                .append("config", List.of(entry("github.pem", "secured", "pem-material"))));
     migrate("laterkeys");
 
     assertThat(value(db, "quotas", "max.workflow.count")).isEqualTo("15");
     assertThat(value(db, "features", "workspaceQuotas")).isEqualTo("false");
-    assertThat(value(db, "integration", "github.jwt")).isEqualTo("crypt_v1{AES|pem}");
+    assertThat(decrypted(value(db, "integration", "github.jwt"))).isEqualTo("pem-material");
     assertThat(keysOf(setting(db, "integration"))).doesNotContain("github.pem");
   }
 
@@ -235,7 +236,7 @@ class SettingsFromSeedTest {
         db,
         EXTENSIONS_ID,
         "extensions",
-        entry("slack.token", "secured", "crypt_v1{AES|slack-token}"),
+        entry("slack.token", "secured", "xoxb-slack-token"),
         entry("slack.appId", "text", "A0123"),
         entry("slack.clientId", "text", ""),
         entry("slack.clientSecret", "secured", ""),
@@ -355,6 +356,15 @@ class SettingsFromSeedTest {
         .filter(entry -> entryKey.equals(entry.getString("key")))
         .findFirst()
         .orElseThrow(() -> new AssertionError(key + " has no " + entryKey));
+  }
+
+  /** A stored secured value, decrypted with the key the chain encrypts with in tests. */
+  private static String decrypted(String stored) {
+    assertThat(stored).startsWith("crypt_v1{AESGCM|").endsWith("}");
+    return io.boomerang.core.model.AESAlgorithm.decrypt(
+        stored.substring("crypt_v1{AESGCM|".length(), stored.length() - 1),
+        MigrationRunner.TEST_SECRET,
+        MigrationRunner.TEST_SALT);
   }
 
   private static String value(MongoDatabase db, String key, String entryKey) {
