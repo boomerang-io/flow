@@ -146,10 +146,10 @@ Conventions:
 - Team-scoped resources nest under `/api/v2/team/{team}/...`.
 - **Authorization is annotation-driven.** Every protected endpoint method carries
   `@AuthCriteria(assignableScopes = {...}, resource = PermissionResource.X, action = PermissionAction.Y)`.
-  `AuthCriteriaAuthorizationManager` enforces it: a method with **no** `@AuthCriteria` is not
-  checked at all (any authenticated caller reaches it, and nothing is logged) — so an endpoint that
-  should be protected but omits the annotation is a **silent auth hole**. See the `security-audit`
-  skill.
+  `AuthCriteriaAuthorizationManager` enforces it. A handler with **no** `@AuthCriteria` is denied
+  and fails `AuthCriteriaCoverageTest`; the only opt-out is `@AuthExempt(reason = "…")`, which
+  skips the permission check — so use it only for a route that is public by design or
+  authenticated another way, and say which in the reason. See the `security-audit` skill.
 - `resource`/`action` must be real enum values: `PermissionResource` (system, workflow,
   workflowrun, workflowtemplate, taskrun, task, action, user, team, token, parameter, schedule,
   insights, integration, webhook, `**`=ANY) and `PermissionAction` (read, write, delete, action).

@@ -85,3 +85,4 @@ things by name, not by code.
 | 0098 | [Migrations run inside service-core as it starts, before it serves](0098-migrations-run-inside-service-core-before-it-serves.md) | accepted | 2026-10-01 |
 | 0099 | [The change-unit chain migrates an empty or a v3 database, and nothing else](0099-the-chain-migrates-an-empty-or-a-v3-database-only.md) | accepted | 2026-10-01 |
 | 0100 | [One key encrypts every secret at rest; the v3 pair is read once to re-encrypt](0100-one-encryption-key-for-secrets-at-rest-and-the-v3-pair-read-once.md) | accepted | 2026-10-10 |
+| 0101 | [A REST handler is denied unless it carries `@AuthCriteria` or `@AuthExempt`](0101-rest-handlers-are-denied-unless-annotated.md) | accepted | 2026-09-14 |

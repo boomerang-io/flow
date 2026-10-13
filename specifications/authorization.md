@@ -55,7 +55,7 @@ No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoin
 `/api/v2/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
 (`:127-131`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
 `/api/v2/auth/config` (`:345-352`); `SecurityConfiguration.java:96-99` also permits `/info`, `/webjars`, the
-Slack install URL and the exchange endpoint.
+exchange endpoint and `/api/v2/extensions/slack/install`, a path no controller serves.
 
 ### Session sign-in (the browser flow)
 
@@ -97,25 +97,43 @@ either side; resources and actions are the `PermissionResource` and `PermissionA
 
 ### Layer 1 — `@AuthCriteria` at the endpoint
 
-Every protected controller method (or, since `@AuthCriteria` targets `TYPE` as well as `METHOD`, an entire
-controller class) declares `resource`, `action` and `assignableScopes` (`core/security/AuthCriteria.java:11-19`).
-Enforcement is Spring Security method security, not a `HandlerInterceptor`:
-`MethodSecurityConfiguration` (`core/security/MethodSecurityConfiguration.java:36-58`) registers
-`AuthCriteriaAuthorizationManager` as an `Advisor` — `AuthorizationManagerBeforeMethodInterceptor` over a
-`Pointcut` that unions class- and method-level `@AuthCriteria` matches (`:46-57`) — via `@EnableMethodSecurity`;
-the bean carries `@Role(ROLE_INFRASTRUCTURE)` because `EnableMethodSecurity`'s auto-proxy creator only ever
-applies advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:66-114`):
+Every REST handler MUST carry one of two annotations, on the method or on its controller class.
+`@AuthCriteria` declares `resource`, `action` and `assignableScopes` (`core/security/AuthCriteria.java:11-19`).
+`@AuthExempt(reason = …)` is the explicit opt-out, with a mandatory reason, for a handler that needs no
+permission rule (`core/security/AuthExempt.java:25-29`). A handler with neither is **denied**, so a route cannot
+ship open by omission. `AuthCriteriaCoverageTest` scans every `io.boomerang` `@RestController` and fails the build
+naming any handler without a decision.
 
-1. No `@AuthCriteria` on the method or its declaring class → the pointcut never selects the method at all, so the call proceeds unintercepted. Public endpoints such as `GET /api/v2/auth/config` rely on this deliberately.
-2. Annotated but no identity → throws `AuthenticationCredentialsNotFoundException` (`:76-82`), which `RestExceptionHandler` renders as the structured 401 before it leaves the dispatcher (`core/RestExceptionHandler.java:116-134`).
-3. Token class not in `assignableScopes` → same exception and response, counted in `flow.security.denied` (`:84-93`).
-4. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`); Spring Security's exception translation answers it with a 403 that carries no `RestErrorResponse` body, counted in `flow.security.denied` (`:95-112`).
+Enforcement is Spring Security method security, not a `HandlerInterceptor`: `MethodSecurityConfiguration`
+(`core/security/MethodSecurityConfiguration.java:51-70`) registers `AuthCriteriaAuthorizationManager` as an
+`Advisor` — `AuthorizationManagerBeforeMethodInterceptor` over a `Pointcut` that matches every request-mapped
+method of an `io.boomerang` `@RestController` (`RestHandlerPointcut`, `:73-85`; framework controllers such as
+springdoc stay outside) plus any class or method carrying `@AuthCriteria` — via `@EnableMethodSecurity`; the
+bean carries `@Role(ROLE_INFRASTRUCTURE)` because `EnableMethodSecurity`'s auto-proxy creator only ever applies
+advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:68-138`) reads
+the method's annotations first, then the class's, whichever kind each is:
 
-`EndpointAuthorizationResponseTest` pins the 401 and the 403 over HTTP against real endpoints.
+1. Neither annotation → error log, `flow.security.denied{resource=unannotated}` and a denied `AuthorizationDecision`, answered like the missing permission in step 5 (`:80-98`).
+2. `@AuthExempt` → the call proceeds with no permission check (`:74-76`, `:81-84`).
+3. `@AuthCriteria` but no identity → throws `AuthenticationCredentialsNotFoundException` (`:100-106`), which `RestExceptionHandler` renders as the structured 401 before it leaves the dispatcher (`core/RestExceptionHandler.java:116-134`).
+4. Token class not in `assignableScopes` → same exception and response, counted in `flow.security.denied` (`:108-117`).
+5. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`); Spring Security's exception translation answers it with a 403 that carries no `RestErrorResponse` body, counted in `flow.security.denied` (`:119-136`).
 
-The annotation lookup tries the invoked method first, then falls back to its declaring class
-(`authCriteriaFor`, `:116-122`) — the one behavioural fix over the retired `SecurityInterceptor`, which only
-ever read the method and so silently ignored a class-level placement. No endpoint currently uses one.
+`EndpointAuthorizationResponseTest` pins the 401 and the 403 over HTTP against real endpoints, and that an exempt
+route is public only where the permit list also names it; `MethodSecurityConfigurationTest` pins the denial of an
+unannotated handler and both placements of `@AuthExempt`.
+
+Whether a request must sign in and whether a permission rule applies are separate decisions. The URL rules in
+"Authentication" make the first, by path; the annotation makes the second, on the handler. A public route
+therefore needs both a permit entry and `@AuthExempt`, and an exempt handler outside the permit list still
+requires sign-in. The exempt handlers, each with its reason in the annotation:
+
+| Handlers | Must sign in | Why no permission rule |
+| --- | --- | --- |
+| `GET /api/v2/auth/config`, `POST /api/v2/auth/exchange` | No | Read or called before a session exists |
+| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state |
+| The five `/api/v2/integration/slack/*` routes | Yes | Meant for Slack, which cannot hold a Flow token, so Slack cannot reach them today; request-signature verification is not wired (boomerang-io/flow#374) |
+| The eight routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
 workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore
