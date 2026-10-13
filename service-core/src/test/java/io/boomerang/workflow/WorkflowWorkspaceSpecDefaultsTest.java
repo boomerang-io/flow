@@ -37,10 +37,7 @@ class WorkflowWorkspaceSpecDefaultsTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    // setUpWorkspaceDefaults reads "features"."workspaceQuotas" unconditionally - the loader
-    // normally seeds it, but this shared Testcontainers Mongo starts empty.
+    // Workspace quotas off, so setUpWorkspaceDefaults takes no quota path.
     setFeatureSetting(QUOTA_FEATURE, false);
   }
 

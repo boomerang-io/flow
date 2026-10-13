@@ -61,8 +61,6 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedCatalogue() {
-    seedRelationshipRoot();
-    seedTaskSettings();
     stageRef = template("foreach-stage-" + System.nanoTime(), null, "batches");
     locateRef = template("foreach-locate-" + System.nanoTime(), null, "found");
     reportRef = template("foreach-report-" + System.nanoTime(), "input", null);

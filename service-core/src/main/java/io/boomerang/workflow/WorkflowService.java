@@ -103,8 +103,8 @@ import tools.jackson.databind.ObjectMapper;
  *       values and strips ids.
  *   <li><b>Unscoped</b> ({@code get(workflowId, ...)}, {@code submit(workflowId, ...)}, ...) -
  *       internal callers that carry no workspace and are authorized elsewhere or not at all: the
- *       engine's {@code TaskExecutionService} running a {@code runworkflow} task, {@link
- *       ActionService} resolving an Action's Workflow name, and the loader.
+ *       engine's {@code TaskExecutionService} running a {@code runworkflow} task and {@link
+ *       ActionService} resolving an Action's Workflow name.
  * </ul>
  *
  * <p>F3 collapsed the former {@code api.WorkspaceWorkflowService} pass-through into this class: the
@@ -1397,7 +1397,7 @@ public class WorkflowService {
             });
   }
 
-  // ── Unscoped operations (engine, action and loader callers) ───────────────────
+  // ── Unscoped operations (engine and action callers) ───────────────────────────
 
   public ResponseEntity<Workflow> get(
       String workflowId, Optional<Integer> version, boolean withTasks) {

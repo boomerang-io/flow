@@ -59,7 +59,6 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aWorkflowThePrincipalHasNoRelationshipToIsRejected() {
-    seedRelationshipRoot();
     seedFixture("own"); // the principal's own workspace/workflow
     seedFixture("other"); // a real workflow the principal has no path to
     principalMemberOf("own-owner", "own-ws");
@@ -78,7 +77,6 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aWorkflowThePrincipalHasARelationshipToStillRuns() {
-    seedRelationshipRoot();
     seedFixture("related-a");
     principalMemberOf("related-a-owner", "related-a-ws");
     setUpService();

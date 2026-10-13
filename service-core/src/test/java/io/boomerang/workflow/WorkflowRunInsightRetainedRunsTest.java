@@ -37,9 +37,6 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     seedGlobalTask(TASK_SLUG);

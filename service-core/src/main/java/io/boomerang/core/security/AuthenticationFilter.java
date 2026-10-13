@@ -7,6 +7,7 @@ import com.nimbusds.jwt.SignedJWT;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.enums.TokenTypePrefix;
 import io.boomerang.core.model.Token;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,13 +28,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /*
- * The Filter ensures that the user is Authenticated prior to the Interceptor which validates
- * Authorization
+ * The Filter ensures that the user is Authenticated before AuthCriteriaAuthorizationManager
+ * validates Authorization on the endpoint
  *
  * Note: This cannot be auto marked as a Service/Component that Spring Boot would auto inject as
  * then it will apply to all routes
@@ -63,22 +65,28 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   // body ({idToken}) carries no proxy headers, and the exchange controller verifies that token
   // itself rather than relying on this filter.
   static final String PATH_AUTH_EXCHANGE = "/api/v2/auth/exchange";
-  private static final String TOKEN_PATTERN = "Bearer\\sbf._(.)+";
+  private static final String BEARER_PREFIX = "Bearer ";
 
   private TokenService tokenService;
   private SettingsService settingsService;
-  private String basicPassword;
+  private PasswordEncoder passwordEncoder;
+  // Encoded once at startup from flow.authorization.basic.password - never the raw configured
+  // value, so the comparison below is always through PasswordEncoder.matches (constant-time),
+  // never a raw String.equals.
+  private String encodedBasicPassword;
   private AuthenticationEntryPoint authEntryPoint;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
-      AuthenticationEntryPoint authEntryPoint) {
+      AuthenticationEntryPoint authEntryPoint,
+      PasswordEncoder passwordEncoder) {
     super();
     this.tokenService = tokenService;
     this.settingsService = settingsService;
-    this.basicPassword = basicPassword;
+    this.passwordEncoder = passwordEncoder;
+    this.encodedBasicPassword = passwordEncoder.encode(basicPassword);
     this.authEntryPoint = authEntryPoint;
   }
 
@@ -97,7 +105,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       // and then a token in the URL param - some webhook senders can only set a URL, not
       // headers (see the constant declarations above for why these fallbacks are kept).
       if (req.getHeader(AUTHORIZATION_HEADER) != null) {
-        if (req.getHeader(AUTHORIZATION_HEADER).matches(TOKEN_PATTERN)) {
+        if (isFlowBearer(req.getHeader(AUTHORIZATION_HEADER))) {
           authentication = getTokenAuthentication(req.getHeader(AUTHORIZATION_HEADER));
         } else {
           authentication = getUserSessionAuthentication(req);
@@ -129,7 +137,16 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     } catch (final HttpClientErrorException ex) {
       LOGGER.error(ex);
       res.sendError(ex.getStatusCode().value());
-    } catch (AccessDeniedException | AuthenticationException ex) {
+    } catch (AccessDeniedException ex) {
+      // A backstop only. A permission mismatch raised by AuthCriteriaAuthorizationManager is
+      // answered with 403 by Spring Security's own exception translation, further down the
+      // chain, before it can reach this filter.
+      LOGGER.error(ex);
+      res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+    } catch (AuthenticationException ex) {
+      // This filter's own identity resolution failures. AuthCriteriaAuthorizationManager's "no
+      // identity" and "scope not assignable" are answered with the same structured 401 by
+      // RestExceptionHandler, inside the dispatcher, and never arrive here.
       LOGGER.error(ex);
       authEntryPoint.commence(
           req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, ex.getMessage()));
@@ -241,7 +258,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         password = values[1];
       }
 
-      if (!basicPassword.equals(password)) {
+      // Constant-time via PasswordEncoder.matches - was a raw String.equals against the
+      // configured password, timeable by an attacker probing byte-by-byte.
+      if (!passwordEncoder.matches(password, encodedBasicPassword)) {
         return null;
       }
 
@@ -265,8 +284,13 @@ public class AuthenticationFilter extends OncePerRequestFilter {
    * TOKEN_URL_PARAM_NAME in that order
    */
   private Authentication getTokenAuthentication(String accessToken) {
-    if (accessToken.startsWith("Bearer ")) {
-      accessToken = accessToken.replace("Bearer ", "");
+    if (accessToken.startsWith(BEARER_PREFIX)) {
+      accessToken = accessToken.substring(BEARER_PREFIX.length());
+    }
+    // The same shape gate as DispatcherAuthFilter: a value that is not Flow-token-shaped
+    // (the live bfg_/bfk_/bfu_/bfs_ prefixes) never reaches the hash lookup in Mongo.
+    if (!TokenTypePrefix.isFlowToken(accessToken)) {
+      return null;
     }
     if (tokenService.validate(accessToken)) {
       Token token = tokenService.get(accessToken);
@@ -279,6 +303,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       }
     }
     return null;
+  }
+
+  /** True for an {@code Authorization} header carrying a Flow-minted bearer, false for a JWT or Basic. */
+  private static boolean isFlowBearer(String header) {
+    return header.startsWith(BEARER_PREFIX)
+        && TokenTypePrefix.isFlowToken(header.substring(BEARER_PREFIX.length()));
   }
 
   /*

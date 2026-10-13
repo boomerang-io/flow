@@ -38,7 +38,6 @@ class WorkflowTaskRefValidationTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
     // The workspace needs its edge from root, not just a node: the relationship walk for a global
     // principal starts at root, so a workspace with no incoming edge owns nothing it can reach.
     relationshipService.createNodeAndEdge(

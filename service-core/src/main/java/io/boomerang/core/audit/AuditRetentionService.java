@@ -14,8 +14,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * Applies the {@code audit.retentionDays} setting to the audit collection's TTL index at startup
- * (collMod is idempotent, so every instance applying it is safe). The loader creates the index at
- * the 365-day default; an operator-changed setting takes effect on the next boot.
+ * (collMod is idempotent, so every instance applying it is safe). {@code
+ * io.boomerang.migration._0021__Indexes} creates the index at the 365-day default; an
+ * operator-changed setting takes effect on the next boot.
  *
  * <p>The retention is floored at {@value #MIN_RETENTION_DAYS} days — monthly quota counting relies
  * on at least one month of rows. Best-effort: a missing collection, index, or setting logs and

@@ -9,9 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.Workspace;
-import io.boomerang.workspace.repository.WorkspaceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,19 +29,12 @@ class EngineWorkspaceReadTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WebApplicationContext context;
   @Autowired private EngineWorkspaceService engineWorkspaceService;
-  @Autowired private WorkspaceRepository workspaceRepository;
 
   private MockMvc mockMvc;
 
   @BeforeEach
-  void seedSystemWorkspace() {
+  void buildMockMvc() {
     mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
-    if (workspaceRepository.findByNameIgnoreCase("system").isEmpty()) {
-      WorkspaceEntity entity = new WorkspaceEntity();
-      entity.setName("system");
-      entity.setDisplayName("System");
-      workspaceRepository.save(entity);
-    }
   }
 
   @Test
