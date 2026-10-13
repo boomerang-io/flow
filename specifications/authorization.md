@@ -34,7 +34,7 @@ branch installs the resolved `Token` as the `Authentication`'s details with an e
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
 | 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:50-57`) |
 | 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:317-341`) | session token minted for the forwarded email |
-| 5 | `flow_session` cookie | `getTokenAuthentication` (`:119-120,161-172`) | the opaque `bfs_` value minted by `POST /api/v2/auth/exchange` |
+| 5 | `flow_session` cookie | `getTokenAuthentication` (`:119-120,161-172`) | the opaque `bfs_` value minted by `POST /internal/v1/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
 normalised email for 60 seconds per instance (`core/TokenService.java:585-619`). User creation is allowed
@@ -52,20 +52,23 @@ on every hit. Entries live 60 seconds and the cache holds at most 10 000 (`flow.
 one instance, another instance MAY still honour the token until its own entry ages out, at most the TTL.
 
 No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:132-136`), except on
-`/api/v2/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
+`/internal/v1/auth/exchange`, which continues so the controller can verify an OpenID Connect (OIDC) id_token itself
 (`:127-131`). Paths that skip the filter: `/error`, `/health`, `/api/docs`, the GitHub App callback and
-`/api/v2/auth/config` (`:345-352`); `SecurityConfiguration.java:96-99` also permits `/info`, `/webjars`, the
+`/internal/v1/auth/config` (`:345-352`); `SecurityConfiguration.java:96-99` also permits `/info`, `/webjars`, the
 exchange endpoint and `/api/v2/extensions/slack/install`, a path no controller serves.
 
 ### Session sign-in (the browser flow)
 
-`AuthControllerV2` (`core/AuthControllerV2.java`, standalone mode only, `:43`) exposes three endpoints:
+`InternalAuthControllerV1` (`core/InternalAuthControllerV1.java`, standalone mode only, `:47`) exposes three
+endpoints. They sit under `/internal/v1`, outside the public `/api/v2`, because only the webapp's server calls
+them: a front door that routes `/api/**` to `service-core` does not reach them. The prefix is a routing
+boundary, not a credential, so a caller that reaches `service-core` directly reaches them as before.
 
 | Endpoint | Auth | What it does |
 | --- | --- | --- |
-| `GET /api/v2/auth/config` | public | Returns `mode` = `none` (security off), `oidc` (both `auth.oidc.issuer` and `auth.oidc.clientId` settings set) or `proxy` (`core/security/AuthExchangeService.java:55-66`) |
-| `POST /api/v2/auth/exchange` | public | Empty body: mints a session from the identity the filter already resolved (`:84`). `{idToken, nonce}`: `OidcTokenVerifier.verify` checks the signature against the issuer's published signing keys and exact-matches `iss`, `aud`, `exp`, `nonce` (`core/security/OidcTokenVerifier.java:83-122`); symmetric and `none` algorithms are rejected. Either way the response sets an httpOnly, `Secure`, `SameSite=Lax` `flow_session` cookie (`core/security/SessionCookie.java:22-30`) |
-| `POST /api/v2/auth/logout` | `session` token | Clears the cookie and deletes the token (`AuthExchangeService.java:141-144`) |
+| `GET /internal/v1/auth/config` | public | Returns `mode` = `none` (security off), `oidc` (both `auth.oidc.issuer` and `auth.oidc.clientId` settings set) or `proxy` (`core/security/AuthExchangeService.java:55-66`) |
+| `POST /internal/v1/auth/exchange` | public | Empty body: mints a session from the identity the filter already resolved (`:84`). `{idToken, nonce}`: `OidcTokenVerifier.verify` checks the signature against the issuer's published signing keys and exact-matches `iss`, `aud`, `exp`, `nonce` (`core/security/OidcTokenVerifier.java:83-122`); symmetric and `none` algorithms are rejected. Either way the response sets an httpOnly, `Secure`, `SameSite=Lax` `flow_session` cookie (`core/security/SessionCookie.java:22-30`) |
+| `POST /internal/v1/auth/logout` | `session` token | Clears the cookie and deletes the token (`AuthExchangeService.java:141-144`) |
 
 The cookie carries only the opaque token; the webapp runs the OIDC redirect dance and logout from its own
 server routes (`client-web/app/Features/Auth/`), so the id_token never reaches the browser.
@@ -130,7 +133,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
-| `GET /api/v2/auth/config`, `POST /api/v2/auth/exchange` | No | Read or called before a session exists |
+| `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists |
 | `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state |
 | The five `/api/v2/integration/slack/*` routes | Yes | Meant for Slack, which cannot hold a Flow token, so Slack cannot reach them today; request-signature verification is not wired (boomerang-io/flow#374) |
 | The eight routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines |

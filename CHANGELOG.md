@@ -25,3 +25,6 @@ tag's release notes.
   upgraded and a new install have the same settings documents.
 - The same indexes are built on every install; the token lookup index is now built on a new install.
 - Migrated v3 approver groups are reachable from their workspace again.
+- The sign-in routes the webapp's server calls are `/internal/v1/auth/{config,exchange,logout}`, outside the
+  public `/api/v2`; the 5.0 betas served them under `/api/v2/auth`. Route `/api/v2/**` from outside and leave
+  `/internal/v1/**` unrouted.
