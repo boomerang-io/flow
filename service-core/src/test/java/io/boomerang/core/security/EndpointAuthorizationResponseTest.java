@@ -2,6 +2,7 @@ package io.boomerang.core.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -38,6 +40,10 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
   private static final String FEATURES = "/api/v2/features";
   // A session or user token only: a global token is the wrong kind, whatever it holds.
   private static final String PROFILE = "/api/v2/profile";
+  // Exempt from a permission rule, and on the permit list: public.
+  private static final String AUTH_CONFIG = "/api/v2/auth/config";
+  // Exempt from a permission rule, but not on the permit list.
+  private static final String SLACK_EVENTS = "/api/v2/integration/slack/events";
 
   @Autowired private WebApplicationContext context;
 
@@ -107,6 +113,31 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
         .andExpect(jsonPath("$.code").value(1003))
         .andExpect(jsonPath("$.reason").value("AUTH_REQUIRED"))
         .andExpect(jsonPath("$.status").value("401 UNAUTHORIZED"));
+  }
+
+  @Test
+  void anExemptRouteOnThePermitListIsServedWithoutCredentials() throws Exception {
+    SecurityContextHolder.clearContext();
+
+    // The filter's skip list reads the servlet path, which a container sets to the whole path
+    // and MockMvc leaves empty unless told.
+    mockMvc.perform(get(AUTH_CONFIG).servletPath(AUTH_CONFIG)).andExpect(status().isOk());
+  }
+
+  @Test
+  void anExemptRouteOffThePermitListStillRequiresSignIn() throws Exception {
+    SecurityContextHolder.clearContext();
+
+    // @AuthExempt lifts the permission rule only: whether a request must sign in is decided by
+    // path, and the Slack routes stay behind it while their signature check is not wired.
+    mockMvc
+        .perform(
+            post(SLACK_EVENTS)
+                .servletPath(SLACK_EVENTS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.reason").value("AUTH_REQUIRED"));
   }
 
   /**

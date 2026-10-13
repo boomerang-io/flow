@@ -27,13 +27,12 @@ import org.springframework.web.bind.annotation.RestController;
  * SecurityInterceptorConfiguration} - see {@link AuthCriteriaAuthorizationManager} for the
  * enforcement logic itself.
  *
- * <p>The advisor's {@link Pointcut} matches a method OR its declaring class carrying {@code
- * @AuthCriteria} - the union is what makes class-level placement work at all; a pointcut over
- * method-level presence alone would never select a class-only-annotated controller's methods for
- * interception in the first place, no matter what the {@code AuthorizationManager} does once
- * invoked. {@code @EnableMethodSecurity} activates the AOP auto-proxying this advisor bean needs to
- * be picked up; nothing here uses {@code @PreAuthorize} or the other built-in annotations it also
- * enables.
+ * <p>The advisor's {@link Pointcut} matches every request-mapped method of an {@code io.boomerang}
+ * {@code @RestController}, annotated or not, so the manager sees a handler nobody made a decision
+ * for and can deny it. It also matches a method or class carrying {@code @AuthCriteria} outside a
+ * controller. {@code @EnableMethodSecurity} activates the AOP auto-proxying this advisor bean
+ * needs to be picked up; nothing here uses {@code @PreAuthorize} or the other built-in annotations
+ * it also enables.
  *
  * <p>Gated on {@code flow.security.enabled=true}, exactly like the retired interceptor
  * configuration - see {@link FlowSecurityProperties}.

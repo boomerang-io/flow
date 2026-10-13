@@ -55,6 +55,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class IntegrationControllerV2 {
   private static final Logger LOGGER = LogManager.getLogger();
 
+  // Shared by the five Slack routes.
+  private static final String SLACK_EXEMPT_REASON =
+      "Meant for Slack, which cannot hold a Flow token. Not reachable by Slack today: the route is"
+          + " outside SecurityConfiguration's permit list, so a Flow credential is still required,"
+          + " and request-signature verification is not wired. A signed-in caller meets no"
+          + " permission rule here - the legacy integration, boomerang-io/flow#374.";
+
   @Autowired private IntegrationService integrationService;
 
   @Autowired private SlackService slackService;
@@ -89,10 +96,7 @@ public class IntegrationControllerV2 {
    * @param code
    * @return
    */
-  @AuthExempt(
-      reason =
-          "Inbound from Slack, which cannot hold a Flow token. Request-signature verification is"
-              + " not wired for this route today - the legacy integration, boomerang-io/flow#374.")
+  @AuthExempt(reason = SLACK_EXEMPT_REASON)
   @GetMapping(value = "/slack/auth")
   @Operation(summary = "Receive Slack Oauth2 request")
   @ApiResponses(
@@ -104,10 +108,7 @@ public class IntegrationControllerV2 {
     return slackService.handleAuth(code);
   }
 
-  @AuthExempt(
-      reason =
-          "Inbound from Slack, which cannot hold a Flow token. Request-signature verification is"
-              + " not wired for this route today - the legacy integration, boomerang-io/flow#374.")
+  @AuthExempt(reason = SLACK_EXEMPT_REASON)
   @GetMapping(value = "/slack/install")
   @Operation(summary = "Install URL Redirect")
   @ApiResponses(value = {@ApiResponse(responseCode = "302", description = "Found")})
@@ -115,10 +116,7 @@ public class IntegrationControllerV2 {
     return slackService.installRedirect();
   }
 
-  @AuthExempt(
-      reason =
-          "Inbound from Slack, which cannot hold a Flow token. Request-signature verification is"
-              + " not wired for this route today - the legacy integration, boomerang-io/flow#374.")
+  @AuthExempt(reason = SLACK_EXEMPT_REASON)
   @PostMapping(
       value = "/slack/commands",
       consumes = {MediaType.APPLICATION_FORM_URLENCODED_VALUE})
@@ -143,10 +141,7 @@ public class IntegrationControllerV2 {
   }
 
   // https://api.slack.com/reference/interaction-payloads
-  @AuthExempt(
-      reason =
-          "Inbound from Slack, which cannot hold a Flow token. Request-signature verification is"
-              + " not wired for this route today - the legacy integration, boomerang-io/flow#374.")
+  @AuthExempt(reason = SLACK_EXEMPT_REASON)
   @PostMapping(
       value = "/slack/interactivity",
       consumes = {MediaType.APPLICATION_FORM_URLENCODED_VALUE})
@@ -177,10 +172,7 @@ public class IntegrationControllerV2 {
   }
 
   // https://api.slack.com/apis/connections/events-api#receiving_events
-  @AuthExempt(
-      reason =
-          "Inbound from Slack, which cannot hold a Flow token. Request-signature verification is"
-              + " not wired for this route today - the legacy integration, boomerang-io/flow#374.")
+  @AuthExempt(reason = SLACK_EXEMPT_REASON)
   @PostMapping(
       value = "/slack/events",
       consumes = {MediaType.APPLICATION_JSON_VALUE})
