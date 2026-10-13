@@ -14,7 +14,7 @@ Every run carries `status` (the externally visible outcome) and `phase` (where t
 The normal path is `notstarted/pending` → admit → `ready/pending` → claim → `ready/queued` → start → `running/running`
 → end → `<terminal>/completed`. `completed` is terminal and nothing follows it: a run's workspace storage is
 released by the dispatcher reconciling what it holds against the engine, never by a further phase (see
-`task-runtime.md`). Each arrow is one guarded write:
+`dispatcher-contract.md`, "Storage"). Each arrow is one guarded write:
 
 | Transition | Task run (`engine/TaskRunService.java`) | Workflow run (`engine/WorkflowRunStateHelper.java`) |
 | --- | --- | --- |
@@ -26,11 +26,11 @@ released by the dispatcher reconciling what it holds against the engine, never b
 
 ## The claim-based queue
 
-Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates with `findClaimable` and claims each one individually (`dispatcher/DispatcherService.java:300-325`); the poll window, re-check and reconnect timing are in `task-runtime.md`.
+Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates with `findClaimable` and claims each one individually (`dispatcher/DispatcherService.java:300-325`); the poll window, re-check, filters and reconnect timing are in `dispatcher-contract.md`.
 
 - `findClaimable` selects `status=ready`, `phase=pending`, `type` in the dispatcher's registered types, no `claim.by`,
   and `retry.after` absent or elapsed, oldest `creationDate` first, narrowed by any `taskRef`/`workflowRef` a poll's
-  filters resolved to (see `task-runtime.md`) (`engine/TaskRunService.java:97-119`).
+  filters resolved to (see `dispatcher-contract.md`) (`engine/TaskRunService.java:97-119`).
 - `tryClaim` is one `findAndModify` that re-checks the full eligibility and, in the same write, sets
   `phase=queued`, `claim.by`, `claim.at`, `$inc claim.seq`, clears `retry.after` and bakes `timeoutAt`
   (`TaskRunService.java:275-316`). A null result means another dispatcher won; the loser skips the candidate.

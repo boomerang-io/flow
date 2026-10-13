@@ -1,0 +1,701 @@
+---
+openapi: "3.1.0"
+info:
+  title: "Boomerang Flow dispatcher protocol"
+  description: "What a dispatcher calls on the engine. Semantics and the compatibility\
+    \ policy: specifications/dispatcher-contract.md."
+  version: "1"
+tags:
+- name: "Dispatcher"
+  description: "Manage Dispatcher operations. Register dispatcher. Check for WorkflowRuns\
+    \ and TaskRuns"
+paths:
+  /api/v1/dispatcher/{id}/heartbeat:
+    put:
+      tags:
+      - "Dispatcher"
+      summary: "Renew the lease on the dispatcher's still-owned TaskRuns"
+      operationId: "heartbeat"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Dispatcher ID"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeartbeatRequest"
+        required: true
+      responses:
+        "204":
+          description: "No Content"
+        "400":
+          description: "Bad Request"
+  /api/v1/dispatcher/workflowrun/{workflowRunId}/start:
+    put:
+      tags:
+      - "Dispatcher"
+      summary: "Start WorkflowRun execution. The WorkflowRun has to already have been\
+        \ queued."
+      operationId: "start"
+      parameters:
+      - name: "workflowRunId"
+        in: "path"
+        description: "ID of WorkflowRun to Start"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRunRequest"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRun"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRun"
+  /api/v1/dispatcher/taskrun/{taskRunId}/start:
+    put:
+      tags:
+      - "Dispatcher"
+      summary: "Start a Task Run. The Task Run has to already be queued."
+      operationId: "startTaskRun"
+      parameters:
+      - name: "taskRunId"
+        in: "path"
+        description: "ID of Task Run to Start"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRunStartRequest"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskRun"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskRun"
+  /api/v1/dispatcher/taskrun/{taskRunId}/end:
+    put:
+      tags:
+      - "Dispatcher"
+      summary: "End the Task Run."
+      operationId: "endTaskRun"
+      parameters:
+      - name: "taskRunId"
+        in: "path"
+        description: "ID of Task Run to End"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRunEndRequest"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskRun"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskRun"
+  /api/v1/dispatcher/workspaces/releasable:
+    post:
+      tags:
+      - "Dispatcher"
+      summary: "Ask which owners of the workspace volumes a dispatcher holds are finished,\
+        \ so those volumes can be released."
+      operationId: "releasableWorkspaces"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceReleaseQuery"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkspaceReleaseResponse"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkspaceReleaseResponse"
+  /api/v1/dispatcher/register:
+    post:
+      tags:
+      - "Dispatcher"
+      summary: "Register a Dispatcher"
+      operationId: "registerDispatcher"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DispatcherRegistrationRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "string"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                type: "string"
+  /api/v1/dispatcher/{id}/workflows:
+    get:
+      tags:
+      - "Dispatcher"
+      summary: "Retrieve a dispatcher's Workflows queue"
+      operationId: "dispatcherWorkflowQueue"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Dispatcher ID"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/WorkflowRun"
+        "204":
+          description: "No Items Found"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/WorkflowRun"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/WorkflowRun"
+  /api/v1/dispatcher/{id}/tasks:
+    get:
+      tags:
+      - "Dispatcher"
+      summary: "Retrieve a dispatcher's Tasks queue"
+      operationId: "dispatcherTasksQueue"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Dispatcher ID"
+        required: true
+        schema:
+          type: "string"
+      - name: "limit"
+        in: "query"
+        description: "Most new TaskRuns to claim for execution (the dispatcher's free\
+          \ slots), capped at a page of 20. 0 claims none and still returns termination\
+          \ orders."
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+      - name: "type"
+        in: "query"
+        description: "Task types to claim, a subset of those registered; comma-separated,\
+          \ `*` the only wildcard. Absent means every registered type."
+        required: false
+        schema:
+          type: "string"
+      - name: "task"
+        in: "query"
+        description: "Task slugs to claim; comma-separated, `*` the only wildcard."
+        required: false
+        schema:
+          type: "string"
+      - name: "workflowLabel"
+        in: "query"
+        description: "One label on the workflow definition, as key=value[,value];\
+          \ `*` the only wildcard in the values."
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/TaskRun"
+        "204":
+          description: "No Items Found"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/TaskRun"
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/TaskRun"
+components:
+  schemas:
+    HeartbeatRequest:
+      type: "object"
+      properties:
+        ids:
+          type: "array"
+          items:
+            type: "string"
+    RunParam:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        value: {}
+    WorkflowRunRequest:
+      type: "object"
+      properties:
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        annotations:
+          type: "object"
+          additionalProperties: {}
+        params:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunParam"
+        workspaces:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/WorkflowWorkspace"
+        timeout:
+          type: "integer"
+          format: "int64"
+        retries:
+          type: "integer"
+          format: "int64"
+        debug:
+          type: "boolean"
+    WorkflowWorkspace:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        description:
+          type: "string"
+        type:
+          type: "string"
+        optional:
+          type: "boolean"
+        spec: {}
+    RunResult:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        description:
+          type: "string"
+        value: {}
+    TaskEnvVar:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        value:
+          type: "string"
+    TaskRun:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        type:
+          type: "string"
+          enum:
+          - "start"
+          - "end"
+          - "template"
+          - "custom"
+          - "generic"
+          - "decision"
+          - "approval"
+          - "setwfproperty"
+          - "manual"
+          - "eventwait"
+          - "acquirelock"
+          - "releaselock"
+          - "runworkflow"
+          - "runscheduledworkflow"
+          - "script"
+          - "ai"
+          - "setwfstatus"
+          - "sleep"
+          - "uploadartifact"
+          - "downloadartifact"
+        name:
+          type: "string"
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        annotations:
+          type: "object"
+          additionalProperties: {}
+        creationDate:
+          type: "string"
+          format: "date-time"
+        startTime:
+          type: "string"
+          format: "date-time"
+        duration:
+          type: "integer"
+          format: "int64"
+        timeout:
+          type: "integer"
+          format: "int64"
+        params:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunParam"
+        results:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunResult"
+        workspaces:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/TaskWorkspace"
+        spec:
+          $ref: "#/components/schemas/TaskRunSpec"
+        status:
+          type: "string"
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+        phase:
+          type: "string"
+          enum:
+          - "queued"
+          - "pending"
+          - "running"
+          - "completed"
+        statusMessage:
+          type: "string"
+        statusReason:
+          type: "string"
+        taskRef:
+          type: "string"
+        taskVersion:
+          type: "integer"
+          format: "int32"
+        workflowRef:
+          type: "string"
+        workflowRevisionRef:
+          type: "string"
+        workflowRunRef:
+          type: "string"
+        workflowName:
+          type: "string"
+        parentRef:
+          type: "string"
+        index:
+          type: "integer"
+          format: "int32"
+    TaskRunSpec:
+      type: "object"
+      properties:
+        arguments:
+          type: "array"
+          items:
+            type: "string"
+        command:
+          type: "array"
+          items:
+            type: "string"
+        envs:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/TaskEnvVar"
+        image:
+          type: "string"
+        script:
+          type: "string"
+        workingDir:
+          type: "string"
+        debug:
+          type: "boolean"
+        timeout:
+          type: "integer"
+          format: "int32"
+        deletion:
+          type: "string"
+          enum:
+          - "Never"
+          - "OnSuccess"
+          - "Always"
+    TaskWorkspace:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        type:
+          type: "string"
+        optional:
+          type: "boolean"
+        mountPath:
+          type: "string"
+    WorkflowRun:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        creationDate:
+          type: "string"
+          format: "date-time"
+        status:
+          type: "string"
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+        phase:
+          type: "string"
+          enum:
+          - "queued"
+          - "pending"
+          - "running"
+          - "completed"
+        paused:
+          type: "boolean"
+        startTime:
+          type: "string"
+          format: "date-time"
+        duration:
+          type: "integer"
+          format: "int64"
+        statusMessage:
+          type: "string"
+        timeout:
+          type: "integer"
+          format: "int64"
+        retries:
+          type: "integer"
+          format: "int64"
+        workflowRef:
+          type: "string"
+        workflowRevisionRef:
+          type: "string"
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        annotations:
+          type: "object"
+          additionalProperties: {}
+        params:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunParam"
+        tasks:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/TaskRun"
+        debug:
+          type: "boolean"
+        workflowName:
+          type: "string"
+        workflowDisplayName:
+          type: "string"
+        workflowVersion:
+          type: "integer"
+          format: "int32"
+        trigger:
+          type: "string"
+        initiatedByRef:
+          type: "string"
+        initiatedByWorkflowRunRef:
+          type: "string"
+        results:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunResult"
+        workspaces:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/WorkflowWorkspace"
+        awaitingApproval:
+          type: "boolean"
+    TaskRunStartRequest:
+      type: "object"
+      properties:
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        annotations:
+          type: "object"
+          additionalProperties: {}
+        params:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunParam"
+        workspaces:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        timeout:
+          type: "integer"
+          format: "int64"
+        preApproved:
+          type: "boolean"
+        dispatcherRef:
+          type: "string"
+    TaskRunEndRequest:
+      type: "object"
+      properties:
+        status:
+          type: "string"
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        annotations:
+          type: "object"
+          additionalProperties: {}
+        results:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunResult"
+        statusMessage:
+          type: "string"
+        statusReason:
+          type: "string"
+        dispatcherRef:
+          type: "string"
+    WorkspaceReleaseQuery:
+      type: "object"
+      properties:
+        workflowRunRefs:
+          type: "array"
+          items:
+            type: "string"
+        workflowRefs:
+          type: "array"
+          items:
+            type: "string"
+    WorkspaceReleaseResponse:
+      type: "object"
+      properties:
+        workflowRunRefs:
+          type: "array"
+          items:
+            type: "string"
+        workflowRefs:
+          type: "array"
+          items:
+            type: "string"
+    DispatcherRegistrationRequest:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        version:
+          type: "integer"
+          format: "int32"
+        host:
+          type: "string"
+        workflowAnnotations:
+          type: "array"
+          items:
+            type: "string"
+        taskAnnotations:
+          type: "array"
+          items:
+            type: "string"
+        taskTypes:
+          type: "array"
+          items:
+            type: "string"
+  securitySchemes:
+    BearerAuth:
+      type: "http"
+      scheme: "bearer"
+      bearerFormat: "JWT"
+    x-access-token:
+      type: "apiKey"
+      name: "x-access-token"
+      in: "header"
