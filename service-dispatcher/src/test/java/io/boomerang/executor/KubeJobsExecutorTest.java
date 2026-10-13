@@ -12,7 +12,7 @@ import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
-import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.kube.KubeJobsExecutor;
@@ -101,12 +101,12 @@ public class KubeJobsExecutorTest {
     task.setSpec(spec);
 
     if (withWorkspace) {
-      TaskWorkspace ws = new TaskWorkspace();
-      ws.setName("ws");
-      ws.setType("workflow");
-      task.setWorkspaces(List.of(ws));
+      WorkflowWorkspace ws = new WorkflowWorkspace();
+      ws.setSize("1Gi");
+      ws.setMountPath("/workspace");
+      task.setWorkspace(ws);
     } else {
-      task.setWorkspaces(List.of());
+      task.setWorkspace(null);
     }
     return task;
   }
@@ -161,7 +161,7 @@ public class KubeJobsExecutorTest {
             new RunParam("maxTokens", 1024),
             new RunParam("prompt", "Summarise the run")));
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     task.setSpec(new TaskRunSpec());
 
     kubeJobsExecutor.create(task, 30L);
@@ -208,14 +208,14 @@ public class KubeJobsExecutorTest {
   }
 
   @Test
-  public void testCreateCommandTaskWithWorkflowWorkspace() throws Exception {
+  public void testCreateCommandTaskWithRunWorkspace() throws Exception {
     TaskRun task = commandTask("taskrun-cmd", true);
 
-    // Pre-create the PVC, exactly as TaskService.execute() does before delegating to the
-    // executor.
+    // Pre-create the run's claim, exactly as WorkflowService.execute() does before any task of
+    // the run reaches the executor.
     try {
       kubeService.createWorkspacePVC(
-          task.getWorkflowRef(), task.getWorkflowRef(), "workflow", null, "1Gi", "", "ReadWriteMany", 1L);
+          task.getWorkflowRef(), task.getWorkflowRunRef(), null, "1Gi", "", "ReadWriteMany", 1L);
     } catch (Exception e) {
       // The mock server never reports a PVC phase of Bound/Pending, so the wait times out; the
       // PVC itself is still created and that's all getPVCName() needs.
@@ -239,11 +239,14 @@ public class KubeJobsExecutorTest {
     List<String> volumeNames = volumes.stream().map(Volume::getName).toList();
     assertTrue(volumeNames.contains(volPrefix + "-data"));
     assertFalse(volumeNames.contains(volPrefix + "-params"));
-    assertTrue(volumeNames.contains(volPrefix + "-ws-workflow"));
+    assertTrue(volumeNames.contains(volPrefix + "-ws"));
 
     Container container = job.getSpec().getTemplate().getSpec().getContainers().get(0);
     List<VolumeMount> mounts = container.getVolumeMounts();
-    assertTrue(mounts.stream().anyMatch(m -> "/workspace/workflow".equals(m.getMountPath())));
+    assertTrue(
+        mounts.stream()
+            .anyMatch(
+                m -> (volPrefix + "-ws").equals(m.getName()) && "/workspace".equals(m.getMountPath())));
 
     List<EnvVar> env = container.getEnv();
     assertTrue(env.stream().anyMatch(e -> "CI".equals(e.getName()) && "true".equals(e.getValue())));
@@ -383,7 +386,7 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of());
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -466,7 +469,7 @@ class KubeJobsExecutorReconcileTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of());
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -727,7 +730,7 @@ class KubeJobsExecutorTolerationsHostAliasesTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of());
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -799,7 +802,7 @@ class KubeJobsExecutorEmptyTolerationsHostAliasesTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of());
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));

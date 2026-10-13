@@ -9,8 +9,7 @@ public interface KubeService {
 
   PersistentVolumeClaim createWorkspacePVC(
       String workflowRef,
-      String workspaceRef,
-      String workspaceType,
+      String workflowRunRef,
       Map<String, String> customLabels,
       String size,
       String className,
@@ -18,10 +17,9 @@ public interface KubeService {
       long waitSeconds)
       throws KubernetesClientException, InterruptedException;
 
-  void deleteWorkspacePVC(String workspaceRef, String workspaceType);
+  void deleteWorkspacePVC(String workflowRunRef);
 
   List<PersistentVolumeClaim> listWorkspacePVCs();
 
-  boolean checkWorkspacePVCExists(
-      String workspaceRef, String workspaceType, boolean failIfNotBound);
+  boolean checkWorkspacePVCExists(String workflowRunRef, boolean failIfNotBound);
 }

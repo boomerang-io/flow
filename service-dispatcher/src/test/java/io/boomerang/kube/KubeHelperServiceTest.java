@@ -113,7 +113,7 @@ public class KubeHelperServiceTest {
   public void testWorkspaceLabelsSanitiseASlashInAUserLabel() {
     Map<String, String> labels =
         helperKubeService.getWorkspaceLabels(
-            "wf-1", "ws-1", "workflowRun", Map.of("team/name", "platform/flow"));
+            "wf-1", "ws-1", Map.of("team/name", "platform/flow"));
 
     assertEquals("platform_flow", labels.get("team/name"));
   }
@@ -123,7 +123,7 @@ public class KubeHelperServiceTest {
     String overlong = "v".repeat(80);
 
     Map<String, String> labels =
-        helperKubeService.getWorkspaceLabels("wf-1", "ws-1", "workflowRun", Map.of("size", overlong));
+        helperKubeService.getWorkspaceLabels("wf-1", "ws-1", Map.of("size", overlong));
 
     assertEquals(63, labels.get("size").length());
   }
@@ -142,7 +142,7 @@ public class KubeHelperServiceTest {
   public void testAUserLabelNeverReplacesOneTheDispatcherSets() {
     Map<String, String> labels =
         helperKubeService.getWorkspaceLabels(
-            "wf-1", "ws-1", "workflowRun", Map.of("boomerang.io/workspace-ref", "hijacked"));
+            "wf-1", "ws-1", Map.of("boomerang.io/workspace-ref", "hijacked"));
 
     assertEquals("ws-1", labels.get("boomerang.io/workspace-ref"));
   }
@@ -150,17 +150,16 @@ public class KubeHelperServiceTest {
   @Test
   public void testALabelKeyWithNoUsableNameIsDropped() {
     Map<String, String> labels =
-        helperKubeService.getWorkspaceLabels("wf-1", "ws-1", "workflowRun", Map.of("///", "value"));
+        helperKubeService.getWorkspaceLabels("wf-1", "ws-1", Map.of("///", "value"));
 
     assertTrue(labels.values().stream().noneMatch("value"::equals));
   }
 
   @Test
   public void testTheDispatchersOwnLabelsAreUnchanged() {
-    Map<String, String> labels = helperKubeService.getWorkspaceLabels("wf-1", "ws-1", "workflowRun", null);
+    Map<String, String> labels = helperKubeService.getWorkspaceLabels("wf-1", "ws-1", null);
 
     assertEquals("wf-1", labels.get("boomerang.io/workflow-ref"));
     assertEquals("ws-1", labels.get("boomerang.io/workspace-ref"));
-    assertEquals("workflowRun", labels.get("boomerang.io/workspace-type"));
   }
 }

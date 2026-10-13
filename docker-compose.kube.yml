@@ -43,7 +43,6 @@ services:
       KUBERNETES_TRUST_CERTIFICATES: "true"
       # OrbStack's default StorageClass is ReadWriteOnce-only.
       KUBE_WORKSPACE_STORAGE_ACCESSMODE: ReadWriteOnce
-      KUBE_WORKFLOW_STORAGE_ACCESSMODE: ReadWriteOnce
       KUBE_TASK_TIMEOUT: "10"
     volumes:
       - ./docker/kube/config:/kube/config:ro

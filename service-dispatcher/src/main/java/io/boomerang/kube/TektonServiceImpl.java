@@ -1,12 +1,10 @@
 package io.boomerang.kube;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.boomerang.dispatcher.WorkspaceService;
-import io.boomerang.kube.StorageType;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
-import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
@@ -60,11 +58,12 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   private static final Logger LOGGER = LogManager.getLogger(TektonServiceImpl.class);
 
+  // The Tekton name of the one workspace a task run declares and binds.
+  private static final String WORKSPACE_NAME = "workspace";
+
   @Autowired protected KubeHelperService helperKubeService;
 
   @Autowired protected KubeServiceImpl kubeService;
-
-  @Autowired private WorkspaceService workspaceService;
 
   @Autowired protected TaskImageResolver imageResolver;
 
@@ -102,7 +101,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         task.getSpec().getEnvs(),
         task.getResults(),
         task.getSpec().getWorkingDir(),
-        task.getWorkspaces(),
+        task.getWorkspace(),
         waitUntilTimeout,
         timeoutMinutes,
         task.getSpec().getDebug());
@@ -188,7 +187,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       List<TaskEnvVar> envVars,
       List<RunResult> results,
       String workingDir,
-      List<TaskWorkspace> workspaces,
+      WorkflowWorkspace workspace,
       long waitSeconds,
       Long timeout,
       Boolean debug)
@@ -206,59 +205,28 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     //    securityContext.setPrivileged(true);
 
     /*
-     * Create Workspaces and PVCs
-     * - /workspace for cross workflow persistence such as caches (optional if mounted prior)
-     * - /workflow for workflow based sharing between tasks (optional if mounted prior)
-     * - TODO: determine if optional=true works better than checking if the PVC exists
+     * The run's one workspace, when the task mounts it: a Tekton workspace declaration at the
+     * path the workspace names (blank means /workspace), bound to the claim keyed by the run.
      * - TODO: migrate /data to workspaces
      */
     List<WorkspaceDeclaration> taskSpecWorkspaces = new ArrayList<>();
     List<WorkspaceBinding> taskWorkspaces = new ArrayList<>();
-    if (workspaces != null && !workspaces.isEmpty()) {
-      workspaces.forEach(
-          ws -> {
-            // Based on the Workspace Type we set the workspaceRef to be the WorkflowRef or the
-            // WorkflowRunRef
-            String workspaceRef =
-                workspaceService.getWorkspaceRef(ws.getType(), workflowId, workflowActivityId);
-            //        boolean pvcExists =
-            //            kubeService.checkWorkspacePVCExists(workspaceRef, ws.getType(), false);
-            //        if (pvcExists) {
-            if (StorageType.fromLabel(ws.getType()).isPresent()) {
-              WorkspaceDeclaration wsWorkspaceDeclaration = new WorkspaceDeclaration();
-              wsWorkspaceDeclaration.setName(
-                  helperKubeService.getPrefixVol() + "-ws-" + ws.getType());
-              String mountPath =
-                  ws.getMountPath() != null && !ws.getMountPath().isEmpty()
-                      ? ws.getMountPath()
-                      : "/workspace/" + ws.getType();
-              wsWorkspaceDeclaration.setMountPath(mountPath);
-              String description =
-                  (StorageType.fromLabel(ws.getType()).orElse(null) == StorageType.workflow)
-                      ? "Storage for a workflow across execution"
-                      : "Storage for the specific workflow execution";
-              wsWorkspaceDeclaration.setDescription(description);
-              wsWorkspaceDeclaration.setOptional(ws.isOptional());
-              taskSpecWorkspaces.add(wsWorkspaceDeclaration);
+    if (workspace != null) {
+      WorkspaceDeclaration wsWorkspaceDeclaration = new WorkspaceDeclaration();
+      wsWorkspaceDeclaration.setName(WORKSPACE_NAME);
+      wsWorkspaceDeclaration.setMountPath(helperKubeService.workspaceMountPath(workspace));
+      wsWorkspaceDeclaration.setDescription("Storage shared by the tasks of this workflow run");
+      taskSpecWorkspaces.add(wsWorkspaceDeclaration);
 
-              PersistentVolumeClaimVolumeSource wsPVCVolumeSource =
-                  new PersistentVolumeClaimVolumeSource();
-              wsPVCVolumeSource.setClaimName(
-                  kubeService.getPVCName(
-                      helperKubeService.getWorkspaceLabels(
-                          workflowId, workspaceRef, ws.getType(), null)));
+      PersistentVolumeClaimVolumeSource wsPVCVolumeSource = new PersistentVolumeClaimVolumeSource();
+      wsPVCVolumeSource.setClaimName(
+          kubeService.getPVCName(
+              helperKubeService.getWorkspaceLabels(workflowId, workflowActivityId, null)));
 
-              WorkspaceBinding wsWorkspaceBinding = new WorkspaceBinding();
-              wsWorkspaceBinding.setName(helperKubeService.getPrefixVol() + "-ws-" + ws.getType());
-              wsWorkspaceBinding.setPersistentVolumeClaim(wsPVCVolumeSource);
-              taskWorkspaces.add(wsWorkspaceBinding);
-            } else {
-              LOGGER.warn(
-                  "Skipping Workspace ("
-                      + ws.getName()
-                      + ") as we don't support custom workspaces yet.");
-            }
-          });
+      WorkspaceBinding wsWorkspaceBinding = new WorkspaceBinding();
+      wsWorkspaceBinding.setName(WORKSPACE_NAME);
+      wsWorkspaceBinding.setPersistentVolumeClaim(wsPVCVolumeSource);
+      taskWorkspaces.add(wsWorkspaceBinding);
     }
 
     /*

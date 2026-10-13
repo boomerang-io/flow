@@ -10,6 +10,7 @@ import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
@@ -47,6 +48,8 @@ public class TektonServiceImplTest {
 
   @Autowired private TektonServiceImpl tektonService;
 
+  @Autowired private KubeServiceImpl kubeService;
+
   // The agent registers with the engine at startup; no engine runs in tests.
   @MockitoBean private Dispatcher dispatcher;
 
@@ -68,7 +71,7 @@ public class TektonServiceImplTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of(new RunParam("greeting", "hello")));
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -83,6 +86,46 @@ public class TektonServiceImplTest {
     // The same deployment-wide isolation setting the Kubernetes Jobs executor honours.
     assertEquals(
         "kata-qemu", taskRuns.get(0).getSpec().getPodTemplate().getRuntimeClassName());
+    assertTrue(taskRuns.get(0).getSpec().getWorkspaces().isEmpty(), "no workspace declared");
+  }
+
+  @Test
+  public void testCreateTaskRunMountsTheRunWorkspaceWhereItSays() throws Exception {
+    kubeService.setClient(client);
+    try {
+      // The mock server never reports a claim phase, so the bound/pending wait times out; the
+      // claim itself is created before the wait and is all getPVCName() needs.
+      kubeService.createWorkspacePVC("wf-1", "wfr-ws", null, "1Gi", "", "ReadWriteMany", 1L);
+    } catch (Exception ignored) {
+      // wait timeout on the mock server
+    }
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-ws");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-ws");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    WorkflowWorkspace workspace = new WorkflowWorkspace();
+    workspace.setMountPath("/shared");
+    task.setWorkspace(workspace);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+
+    io.fabric8.tekton.v1.TaskRun taskRun =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems().get(0);
+    assertEquals(1, taskRun.getSpec().getWorkspaces().size());
+    assertEquals("workspace", taskRun.getSpec().getWorkspaces().get(0).getName());
+    assertNotNull(taskRun.getSpec().getWorkspaces().get(0).getPersistentVolumeClaim().getClaimName());
+    assertEquals(1, taskRun.getSpec().getTaskSpec().getWorkspaces().size());
+    assertEquals("workspace", taskRun.getSpec().getTaskSpec().getWorkspaces().get(0).getName());
+    assertEquals("/shared", taskRun.getSpec().getTaskSpec().getWorkspaces().get(0).getMountPath());
   }
   @Test
   public void testCreateTaskRunSizesTheStepFromTheConfiguredResources() throws Exception {
@@ -94,7 +137,7 @@ public class TektonServiceImplTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of(new RunParam("greeting", "hello")));
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -137,7 +180,7 @@ public class TektonServiceImplTest {
             new RunParam("maxTokens", 1024),
             new RunParam("prompt", "Summarise the run")));
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     // The spec an `ai` TaskRun actually carries: empty. An image or command that somehow reached
     // it must not be able to redirect the AI worker at another container.
     TaskRunSpec spec = new TaskRunSpec();
@@ -233,7 +276,7 @@ class TektonServiceImplReconcileTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of());
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -295,7 +338,7 @@ class TektonServiceImplTolerationsHostAliasesTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of(new RunParam("greeting", "hello")));
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -360,7 +403,7 @@ class TektonServiceImplEmptyTolerationsHostAliasesTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of(new RunParam("greeting", "hello")));
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));
@@ -423,7 +466,7 @@ class TektonServiceImplNoResourcesTest {
     task.setLabels(new HashMap<>());
     task.setParams(List.of());
     task.setResults(List.of());
-    task.setWorkspaces(List.of());
+    task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("alpine:3.19");
     spec.setCommand(List.of("echo", "hello"));

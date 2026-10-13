@@ -3,7 +3,7 @@ package io.boomerang.kube;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
-import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.fabric8.tekton.v1.TaskRun;
 import java.text.ParseException;
 import java.util.List;
@@ -31,7 +31,7 @@ public interface TektonService {
       List<TaskEnvVar> envVars,
       List<RunResult> results,
       String workingDir,
-      List<TaskWorkspace> workspaces,
+      WorkflowWorkspace workspace,
       long waitSeconds,
       Long timeout,
       Boolean debug)

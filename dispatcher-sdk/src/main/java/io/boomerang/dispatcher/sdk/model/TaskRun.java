@@ -29,7 +29,7 @@ public class TaskRun {
   private Long timeout;
   private List<RunParam> params = new ArrayList<>();
   private List<RunResult> results = new ArrayList<>();
-  private List<TaskWorkspace> workspaces = new ArrayList<>();
+  private WorkflowWorkspace workspace;
   private TaskRunSpec spec = new TaskRunSpec();
   private RunStatus status;
   private RunPhase phase;
@@ -158,12 +158,12 @@ public class TaskRun {
     this.results = results;
   }
 
-  public List<TaskWorkspace> getWorkspaces() {
-    return workspaces;
+  public WorkflowWorkspace getWorkspace() {
+    return workspace;
   }
 
-  public void setWorkspaces(List<TaskWorkspace> workspaces) {
-    this.workspaces = workspaces;
+  public void setWorkspace(WorkflowWorkspace workspace) {
+    this.workspace = workspace;
   }
 
   public TaskRunSpec getSpec() {

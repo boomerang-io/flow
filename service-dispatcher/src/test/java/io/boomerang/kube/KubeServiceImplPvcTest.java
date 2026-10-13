@@ -45,7 +45,7 @@ class KubeServiceImplPvcTest {
       // The mock server never writes a phase, so the bound/pending wait times out after 1 s;
       // the claim itself is created before the wait and is what this test inspects.
       kubeService.createWorkspacePVC(
-          "wf-1", workspaceRef, "workflowrun", Map.of(), "1Gi", className, "ReadWriteOnce", 1);
+          "wf-1", workspaceRef, Map.of(), "1Gi", className, "ReadWriteOnce", 1);
     } catch (Exception ignored) {
       // wait timeout on the mock server
     }
