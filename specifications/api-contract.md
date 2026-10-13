@@ -3,7 +3,8 @@
 `service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the
 sign-in routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under
 `/dispatcher/v1`. This document states the rules every public endpoint follows. Route-level detail lives in
-the OpenAPI document springdoc generates from the `*ControllerV2` classes.
+the OpenAPI document springdoc generates from the controllers and serves at `/api/docs/spec`;
+`OpenApiDocumentTest` pins that it is served and that it covers the public API and the dispatcher wire.
 
 ## URL shape
 
