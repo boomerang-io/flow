@@ -44,8 +44,15 @@ const NavPanel: React.FC<NavPanelProps> = ({ workspace, workflowRef }) => {
       })}`,
     },
     {
-      name: "Workspaces",
-      path: `${appLink.editorConfigureWorkspaces({
+      name: "Workspace",
+      path: `${appLink.editorConfigureWorkspace({
+        workspace: workspace,
+        workflow: workflowRef,
+      })}`,
+    },
+    {
+      name: "Artifacts",
+      path: `${appLink.editorConfigureArtifacts({
         workspace: workspace,
         workflow: workflowRef,
       })}`,

@@ -27,7 +27,6 @@ const workflow: WorkflowCanvas = {
     webhook: { enabled: false, conditions: [] },
   },
   upgradesAvailable: false,
-  workspaces: [],
   edges: [],
   nodes: [],
   config: [

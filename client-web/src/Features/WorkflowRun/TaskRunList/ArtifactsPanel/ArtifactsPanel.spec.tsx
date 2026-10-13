@@ -1,7 +1,7 @@
 import React from "react";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithRouter } from "Utils/testing/render";
-import { Artifact, ArtifactStatus, RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import { Artifact, ArtifactScope, ArtifactStatus, RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import ArtifactsPanel from "./ArtifactsPanel";
 
 const taskRun: TaskRun = {
@@ -36,7 +36,6 @@ const taskRun: TaskRun = {
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
   workflowRunRef: "run-1",
   workflowName: "test-workflow",
-  workspaces: [],
 };
 
 const workflowRun: WorkflowRun = {
@@ -63,7 +62,6 @@ const workflowRun: WorkflowRun = {
   tasks: [taskRun],
   timeout: 0,
   trigger: "manual",
-  workspaces: [],
   workflowName: "test-workflow",
   workflowRef: "test-workflow",
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
@@ -76,6 +74,7 @@ const availableArtifact: Artifact = {
   workflowRef: "test-workflow",
   workflowRunRef: "run-1",
   taskRunRef: "task-run-1",
+  scope: ArtifactScope.Run,
   size: 2048,
   sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
   contentType: "application/gzip",
@@ -91,6 +90,16 @@ const expiredArtifact: Artifact = {
   name: "old-report.html",
   status: ArtifactStatus.Expired,
   expirationDate: "2023-12-01T09:00:00.000Z",
+};
+
+// Kept between runs: no expiration date on the wire.
+const keptArtifact: Artifact = {
+  ...availableArtifact,
+  id: "artifact-kept",
+  name: "dependency-cache.tar",
+  scope: ArtifactScope.Workflow,
+  retentionDays: 0,
+  expirationDate: null,
 };
 
 function renderPanel(artifacts: Array<Artifact>) {
@@ -126,6 +135,20 @@ describe("ArtifactsPanel", () => {
 
     expect(within(availableItem as HTMLElement).getByRole("link", { name: "Download" })).toBeInTheDocument();
     expect(within(expiredItem as HTMLElement).queryByRole("link", { name: "Download" })).not.toBeInTheDocument();
+  });
+
+  it("shows each artifact's scope, and 'Kept until replaced' instead of an expiry for workflow scope", () => {
+    renderPanel([availableArtifact, keptArtifact]);
+
+    const items = screen.getAllByRole("listitem");
+    const runItem = items.find((item) => within(item).queryByText("build-output.tar.gz")) as HTMLElement;
+    const keptItem = items.find((item) => within(item).queryByText("dependency-cache.tar")) as HTMLElement;
+
+    expect(within(runItem).getByText("Run")).toBeInTheDocument();
+    expect(within(runItem).getByText("2024-02-09 12:00 PM")).toBeInTheDocument();
+    expect(within(keptItem).getByText("Workflow")).toBeInTheDocument();
+    expect(within(keptItem).getByText("Kept until replaced")).toBeInTheDocument();
+    expect(within(keptItem).queryByText("---")).not.toBeInTheDocument();
   });
 
   it("shows an empty state when the run has no artifacts", () => {

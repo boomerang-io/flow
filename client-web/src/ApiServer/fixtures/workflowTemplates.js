@@ -391,17 +391,10 @@ const workflowTemplates = {
           },
         },
       ],
-      workspaces: [
-        {
-          name: "workflowrun",
-          type: "workflowrun",
-          optional: false,
-          spec: {
-            size: 1,
-            mountPath: "/tekton/results",
-          },
-        },
-      ],
+      workspace: {
+        size: 1,
+        mountPath: "/workspace",
+      },
       config: [
         {
           description: "",
@@ -956,17 +949,10 @@ const workflowTemplates = {
           },
         },
       ],
-      workspaces: [
-        {
-          name: "workflowrun",
-          type: "workflowrun",
-          optional: false,
-          spec: {
-            size: 1,
-            mountPath: "/tekton/results",
-          },
-        },
-      ],
+      workspace: {
+        size: 1,
+        mountPath: "/workspace",
+      },
       config: [
         {
           description: "",

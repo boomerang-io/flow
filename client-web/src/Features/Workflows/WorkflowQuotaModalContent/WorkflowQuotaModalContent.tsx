@@ -61,15 +61,9 @@ export default function WorkflowQuotaModalContent({
       </QuotaSection>
       <hr className={styles.divider} />
       <QuotaSection
-        description="Persistent storage size limit per Workflow"
-        title="Workflow Storage size capacity"
-        value={quotas.maxWorkflowStorage}
-        valueUnit="GB"
-      />
-      <QuotaSection
-        description="Persistent storage size limit per Workflow run"
-        title="Run Storage size capacity"
-        value={quotas.maxWorkflowStorage}
+        description="Size limit of the shared workspace a workflow can declare for each run"
+        title="Workspace Storage - Per Run"
+        value={quotas.maxWorkspaceStorage}
         valueUnit="GB"
       />
       <QuotaSection

@@ -26,13 +26,10 @@ const quotas: FlowWorkspaceQuotas = {
   currentConcurrentRuns: 0,
   currentRunTotalDuration: 0,
   currentRunMedianDuration: 0,
-  currentWorkflowStorage: 0,
-  currentWorkflowRunStorage: 0,
   currentArtifactStorage: 0,
   maxWorkflowCount: 10,
   maxWorkflowRunMonthly: 100,
-  maxWorkflowStorage: 100,
-  maxWorkflowRunStorage: 100,
+  maxWorkspaceStorage: 100,
   maxWorkflowRunDuration: 100,
   maxArtifactStorage: 5,
   artifactRetentionDays: 30,
@@ -66,7 +63,6 @@ const workflow: Workflow = {
     webhook: { enabled: false, conditions: [] },
   },
   upgradesAvailable: false,
-  workspaces: [],
 };
 
 const props = {

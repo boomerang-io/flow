@@ -2,7 +2,7 @@ import React from "react";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { appLink } from "Config/appConfig";
 import { workspace as workspaceFixture, profile as userFixture } from "ApiServer/fixtures";
@@ -192,6 +192,53 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByText("Artifact Retention")).toBeInTheDocument();
   });
 
+  // Flow 5 keeps one shared workspace per run: the two storage cards (per Workflow, per Run)
+  // collapsed into one bound to `maxWorkspaceStorage` (workspace.js: 5).
+  test("one Workspace Storage card replaces the per-Workflow and per-Run capacity cards", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await screen.findByText("Number of Workflows");
+    expect(screen.getByText("Workspace Storage - Per Run")).toBeInTheDocument();
+    expect(screen.getByText("5GB per run")).toBeInTheDocument();
+    expect(screen.queryByText("Workspace Capacity - Per Workflow")).not.toBeInTheDocument();
+    expect(screen.queryByText("Workspace Capacity - Per Run")).not.toBeInTheDocument();
+  });
+
+  test("the Scope filter narrows the artifacts list and is written to the URL", async () => {
+    const { history } = renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+    // All scopes by default: the run artifacts and the kept one (artifacts.js's artifact-4).
+    expect(await screen.findByText("build-output.tar.gz")).toBeInTheDocument();
+    expect(screen.getByText("dependency-cache.tar")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Scope"), { target: { value: "workflow" } });
+
+    await screen.findByText("Kept until replaced");
+    expect(screen.queryByText("build-output.tar.gz")).not.toBeInTheDocument();
+    expect(screen.getByText("dependency-cache.tar")).toBeInTheDocument();
+    expect(history.location.search).toContain("scope=workflow");
+    expect(screen.getByLabelText("Scope")).toHaveValue("workflow");
+
+    fireEvent.change(screen.getByLabelText("Scope"), { target: { value: "run" } });
+
+    expect(await screen.findByText("build-output.tar.gz")).toBeInTheDocument();
+    expect(screen.queryByText("dependency-cache.tar")).not.toBeInTheDocument();
+    expect(history.location.search).toContain("scope=run");
+  });
+
+  test("a kept artifact shows its scope and 'Kept until replaced' rather than an expiry date", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+    await screen.findByText("dependency-cache.tar");
+
+    const keptRow = screen.getByRole("row", { name: /dependency-cache\.tar/ });
+    const runRow = screen.getByRole("row", { name: /build-output\.tar\.gz/ });
+    expect(within(keptRow).getByText("Workflow")).toBeInTheDocument();
+    expect(within(keptRow).getByText("Kept until replaced")).toBeInTheDocument();
+    expect(within(runRow).getByText("Run")).toBeInTheDocument();
+    expect(within(runRow).getByText(/Expires 2024-02-09/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Run artifacts expire on their retention date. Workflow artifacts are kept until replaced or deleted."),
+    ).toBeInTheDocument();
+  });
+
   test("Restore defaults previews every quota it resets, artifact quotas included", async () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
     await userEvent.click(await screen.findByRole("button", { name: /Restore defaults/i }));
@@ -201,15 +248,14 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
       "Number of Executions",
       "Run Duration",
       "Concurrent Runs (executions)",
-      "Workspace Capacity - Per Workflow",
-      "Workspace Capacity - Per Run",
+      "Workspace Storage - Per Run",
       "Artifact Storage",
       "Artifact Retention",
     ]) {
       expect(await screen.findAllByText(title)).toHaveLength(2);
     }
     expect(screen.getByText("20 Workflows")).toBeInTheDocument();
-    expect(screen.getByText("3GB per WorkflowRun")).toBeInTheDocument();
+    expect(screen.getByText("10GB per run")).toBeInTheDocument();
     expect(screen.getByText("8GB")).toBeInTheDocument();
     expect(screen.getByText("45 days")).toBeInTheDocument();
   });

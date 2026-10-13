@@ -37,7 +37,6 @@ const taskRun: TaskRun = {
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
   workflowRunRef: "651e4789ab1cb56bc8976ae4",
   workflowName: "Parameter Resolution Check",
-  workspaces: [],
 };
 
 const workflowRun: WorkflowRun = {
@@ -64,7 +63,6 @@ const workflowRun: WorkflowRun = {
   tasks: [taskRun],
   timeout: 0,
   trigger: "manual",
-  workspaces: [],
   workflowName: "Parameter Resolution Check",
   workflowRef: "651b91a77fbb1a64ab8b7154",
   workflowRevisionRef: "651cffa3e99fd73f5122879d",

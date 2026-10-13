@@ -48,7 +48,6 @@ const taskRun: TaskRun = {
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
   workflowRunRef: runId,
   workflowName,
-  workspaces: [],
 };
 
 // The shared fixture (`ApiServer/fixtures/workflowExecution.js`) still holds a v3-era record
@@ -82,7 +81,6 @@ const workflowRun: WorkflowRunType = {
   tasks: [taskRun],
   timeout: 0,
   trigger: "manual",
-  workspaces: [],
   workflowName,
   workflowRef: workflowName,
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
@@ -112,7 +110,6 @@ const workflow: WorkflowCanvas = {
     webhook: { enabled: false, conditions: [] },
   },
   upgradesAvailable: false,
-  workspaces: [],
   edges: [],
   nodes: [],
   config: [],
