@@ -1,6 +1,6 @@
 package io.boomerang.executor;
 
-import io.boomerang.common.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.RunResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

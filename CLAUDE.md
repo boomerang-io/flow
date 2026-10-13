@@ -7,8 +7,9 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 | Module | What it is |
 | --- | --- |
 | `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. `io.boomerang.migration` holds the Flamingock change units, run as the context starts, before it serves: they take an empty or a v3 database to the current shape and refuse anything else; the v3 units are production upgrade code. |
-| `service-dispatcher` | The execution worker. Polls `/api/v1/dispatcher`, claims task runs, heartbeats their leases, runs them through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs). |
-| `lib-common` | Shared model, entities, enums, error handling. |
+| `dispatcher-sdk` | The dispatcher protocol as a library (`io.boomerang:dispatcher-sdk`, the only artifact published, to GitHub Packages): client, polling, start/heartbeat/end runtime, `TaskHandler` interface. Depends on spring-web and Jackson only, never on `lib-common`; owns its wire models, checked against `contracts/dispatcher-v1.yaml`. |
+| `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`. Its `TaskHandler` runs each task through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs); its `WorkflowHandler` provisions workspace volumes. |
+| `lib-common` | `service-core`'s model, entities, enums, error handling. |
 | `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Served only in `standalone` mode. |
 
 `main` is the release branch; `feat-v5` is the integration branch for the current major; work branches are

@@ -4,12 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.client.EngineClient;
-import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.Dispatcher;
+import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
 import io.fabric8.knative.pkg.apis.Condition;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
@@ -48,7 +48,7 @@ public class TektonServiceImplTest {
   @Autowired private TektonServiceImpl tektonService;
 
   // The agent registers with the engine at startup; no engine runs in tests.
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   private TektonClient tektonClient;
 
@@ -213,7 +213,7 @@ class TektonServiceImplReconcileTest {
 
   @Autowired private TektonServiceImpl tektonService;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   private TektonClient tektonClient;
 
@@ -273,7 +273,7 @@ class TektonServiceImplTolerationsHostAliasesTest {
 
   @Autowired private TektonServiceImpl tektonService;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   private TektonClient tektonClient;
 
@@ -338,7 +338,7 @@ class TektonServiceImplEmptyTolerationsHostAliasesTest {
 
   @Autowired private TektonServiceImpl tektonService;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   private TektonClient tektonClient;
 
@@ -403,7 +403,7 @@ class TektonServiceImplNoResourcesTest {
 
   @Autowired private TektonServiceImpl tektonService;
 
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   private TektonClient tektonClient;
 

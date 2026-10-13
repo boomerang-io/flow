@@ -4,37 +4,44 @@ A task runs when the engine in `service-core` admits it to the claim-based queue
 instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image on Kubernetes and
 reports the results back. Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
 (`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the engine. The shipped dispatcher
-registers `template`, `custom`, `script` and `ai` (`flow.dispatcher.task-types`; `dispatcher/QueueService.java:72-76`),
-so a `generic` task waits in the queue until a dispatcher registers that type. To give AI tasks their own network
-zone, remove `ai` from the general dispatcher's list and run a second dispatcher deployment with
-`flow.dispatcher.task-types=ai`.
+registers `template`, `custom`, `script`, `ai`, `uploadartifact` and `downloadartifact` (`flow.dispatcher.task-types`,
+`service-dispatcher/src/main/resources/application.properties:100`), so a `generic` task waits in the queue until a
+dispatcher registers that type. To give AI tasks their own network zone, remove `ai` from the general dispatcher's
+list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`.
 
 ## Flow's dispatcher
 
-`service-dispatcher` implements the dispatcher contract (`dispatcher-contract.md`, the routes, polling, claims,
-start and end semantics and the compatibility policy) for Kubernetes. It registers once, long-polls both
-queues, sends one batched lease heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) listing the task runs its
-executor threads stamped in `LeaseRegistry` (`dispatcher/LeaseHeartbeat.java`), and asks which held volumes it may
-release.
+`service-dispatcher` is the dispatcher SDK's runtime (`dispatcher-contract.md`, "SDK") with two Kubernetes handlers:
+`TaskService` runs each task through a `TaskExecutor` (`dispatcher/TaskService.java:69-85`), and `WorkflowService`
+provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java:36`), wired in
+`config/DispatcherConfig.java:23-52`. SDK paths below are under `dispatcher-sdk/.../dispatcher/sdk/`.
 
-- **Reconnect.** It polls again at once after a poll that brought runs or was held for its window, and waits until
-  5 s after the start of one that failed or was answered empty at once (`client/EngineClient.java:29-36`,
-  `:236-281`). A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
-- **Slots.** It runs at most `flow.dispatcher.task.max-in-flight` tasks at once (25; 0 is no cap). A slot is taken
-  when a task to execute arrives, before the hand-off, and given back when its executor work ends, a Pending pod
-  included; each task poll sends `limit` = the free slots (`dispatcher/TaskSlots.java`,
-  `EngineClient.java:220-224,264`, `QueueService.java:149`). It sends no filters.
-- **Start answer.** It creates nothing when start answers `completed` or a 4xx, and goes ahead when the engine
-  cannot be reached (`client/EngineClient.java:123`, `QueueService.java:105`).
-- **Termination.** A terminate order cancels the runtime object and reports nothing, not even when there is
-  nothing left to cancel (`QueueService.java:117-128`).
+- **Reconnect.** Each queue polls again at once after a poll that brought runs or was held for its window, and
+  waits until 5 s after the start of one that failed or was answered empty at once (`QueuePoller.java:19,68-87`).
+  A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
+- **Slots.** It holds at most `flow.dispatcher.task.max-in-flight` tasks (25; 0 is no cap). A task is in flight from
+  its claim - taken on the poll's thread, so the next poll counts it - until the engine has taken its end, a
+  Pending pod and a retried end included; each task poll sends `limit` = the free slots (`InFlightTasks.java:28`,
+  `TaskRunner.java:89-93`, `Dispatcher.java:246`). It sends no filters; termination orders take no slot.
+- **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, so a lease is
+  renewed for as long as its handler runs and its end is pending (`Dispatcher.java:176-186`).
+- **Start answer.** It runs nothing when start answers `completed` or a 4xx, and goes ahead when the engine cannot
+  be reached (`TaskRunner.java:157-177`). A claim for a type it did not register is skipped (`:90`).
+- **Termination.** A terminate order signals the running task and calls `TaskService.cancel`, which cancels the
+  runtime object, and reports nothing, not even when there is nothing left to cancel (`TaskRunner.java:208-220`).
 - **End.** Any executor exception ends the task `failed` with a typed `statusReason`
-  (`error/TaskExecutionException.java`) and the results the task wrote before it failed; "Starting a task" below
-  lists the reasons it sends for a task that never started.
-- **Storage.** It provisions a claimed run's volumes before `workflowrun/{id}/start` (`QueueService.java:63-82`)
-  and lists the volumes it holds from the cluster to ask which may go.
-- **Token.** It sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on every engine call
-  (`config/RestConfig.java:52,120`); what the engine accepts is in the contract.
+  (`error/TaskExecutionException.java`, `dispatcher/TaskService.java:74-78`) and the results the task wrote before
+  it failed; "Starting a task" below lists the reasons for a task that never started. The end is retried with
+  backoff, 1 s doubling to 30 s, until the engine takes it or refuses it with a 4xx (`TaskRunner.java:180-206`).
+- **Registration and stop.** Registration is retried the same way until the engine answers
+  (`Dispatcher.java:189-224`). Stopping ends the polls and waits 10 s for the tasks in flight; one still running
+  then reports nothing, so its lease lapses, the engine hands it out again, and `create` adopts its runtime
+  object (`Dispatcher.java:119-148`).
+- **Storage.** It provisions a claimed run's volumes before `workflowrun/{id}/start` (`WorkflowRunner.java`) and
+  lists the volumes it holds from the cluster to ask which may go (`dispatcher/WorkspaceReconciler.java`).
+- **Engine and token.** It calls `flow.engine.url` (`http://${flow.engine.service.host}`) through `RestConfig`'s
+  pooled client and sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on engine calls only
+  (`config/DispatcherConfig.java:23-32`, `application.properties:94-95`); what the engine accepts is in the contract.
 - **Logs** flow the other way: the dispatcher serves `/api/v1/logs[/stream]` (`dispatcher/LogV1Controller.java:14-30`)
   and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClient.java:34`).
 
@@ -42,13 +49,13 @@ release.
 
 `TaskExecutor` has four methods — `create`, `watch`, `cancel`, `delete`
 (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-27`). `TaskService` requires an image
-(`dispatcher/TaskService.java:69-71`), falls back to `kube.task.timeout` (60 minutes, `:56-58`) whenever the
+(`dispatcher/TaskService.java:95-97`), falls back to `kube.task.timeout` (60 minutes, `:65-67`) whenever the
 TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per the TaskRun's
-`spec.deletion` (`:52-54,76-79,98-100`). The engine always sets it from the admin "Deletion Policy"
+`spec.deletion` (`:61-63,102-105,129-131`). The engine always sets it from the admin "Deletion Policy"
 (`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:691-694`,
 `engine/DAGUtility.java:293-301`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
 (`kube/KubeLogService.java:54-63`) and go with it. The delete runs off the dispatch thread, through a self proxy to
-an `@Async` method, after a one-second grace (`:41,112-119`).
+an `@Async` method, after a one-second grace (`:39,142-151`).
 
 Whatever the deletion policy says, a finished runtime object is removed `kube.task.ttlDays` (default 7) days
 after completion, so retention means the same on both executors. The Jobs executor stamps
@@ -76,7 +83,7 @@ dispatcher unguarded still gets `kube.task.timeout` as a per-pod backstop.
 
 Both executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every
 `kube.timeout.reconcileSeconds` (default 30) the loop re-lists the object by label, applies the same terminal
-logic, stamps the lease registry, and re-opens the watch if it was closed (`KubeJobsExecutor.java`, `watch`;
+logic, and re-opens the watch if it was closed (`KubeJobsExecutor.java`, `watch`;
 `TektonServiceImpl.java`, `watchTaskRun`); it gives up at `timeout + kube.timeout.watchGraceMinutes` (default 2,
 `application.properties:28`). A Job whose pod count reports a failure before its `Failed` condition exists is
 held until the condition arrives, so a deadline kill is reported as `DeadlineExceeded` rather than `JobFailed`;
@@ -91,8 +98,8 @@ rather than failed:
 
 | Situation | Reported as | Then |
 | --- | --- | --- |
-| Create refused by a namespace quota (403 "exceeded quota") | `ExceededQuota` (`dispatcher/TaskService.java:89`) | the engine requeues it |
-| Create refused by an admission webhook | `AdmissionDenied` (`:95`) | the task fails |
+| Create refused by a namespace quota (403 "exceeded quota") | `ExceededQuota` (`dispatcher/TaskService.java:111`) | the engine requeues it |
+| Create refused by an admission webhook | `AdmissionDenied` (`:117`) | the task fails |
 | A container held on an image it cannot pull (`ErrImagePull`, `ImagePullBackOff`, `InvalidImageName`, `ImageInspectError`) for `kube.timeout.startFailureGraceSeconds` (60) | `ImagePull` | the runtime object is deleted; the task fails |
 | A container that cannot be created (`CreateContainerConfigError`, `CreateContainerError`) for the same grace | `DispatchError` | the runtime object is deleted; the task fails |
 | The pod still Pending - unschedulable, held by a quota, never created - `kube.timeout.startMinutes` (15; 0 is off) after the watch began | `StartTimeout` | the runtime object is deleted; the engine requeues it |
@@ -174,7 +181,7 @@ The dispatcher then sets these environment variables (`kube/KubeHelperService.ja
 
 | Variable | Value |
 | --- | --- |
-| `PARAM_<NAME>` | One per param; the name upper-cased with any character outside `[A-Za-z0-9_]` replaced by `_` (`ParameterUtil.java:91-95`); non-string values JSON-encoded (`service-dispatcher/README.md`) |
+| `PARAM_<NAME>` | One per param; the name upper-cased with any character outside `[A-Za-z0-9_]` replaced by `_` (`kube/KubeHelperService.java:182`); non-string values JSON-encoded (`service-dispatcher/README.md`) |
 | `PARAM_NAMES` | The original names, comma-separated, so a library can map `PARAM_PRIVATEKEY` back to `privateKey` |
 | `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
 | `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`, set by the executor that runs it: `4096` on Jobs (the termination message cap, `KubeJobsExecutor.TERMINATION_MESSAGE_MAX_BYTES`); `tekton.results.maxBytes` on Tekton (default `4096`, raised to the cluster's `max-result-size` under sidecar-logs). A task budgets against it rather than a constant of its own |
@@ -408,7 +415,7 @@ and no meter: a platform sums `totalTokens` across task runs through the existin
 below). The product tag builds the four service and web images and not this one, so the worker and the product
 version lines move independently; `flow.dispatcher.ai.image` defaults to an exact version,
 `boomerangio/task-ai:1.1.0`, and an operator moves it to another `boomerangio/task-ai:<version>`
-(`service-dispatcher/src/main/resources/application.properties:99-106`). What ties the two together is the
+(`service-dispatcher/src/main/resources/application.properties:105-112`). What ties the two together is the
 contract, not the tag: the twelve params above reach the image as `PARAM_<NAME>` environment variables and the
 six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`
 catalogue revision in this repository — a param or result added on one side has to land on the other.

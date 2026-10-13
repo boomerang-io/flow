@@ -6,8 +6,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.common.enums.TaskDeletion;
-import io.boomerang.common.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskDeletion;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
 import java.util.List;
@@ -95,8 +95,9 @@ class TaskDeleteAsyncTest {
     return task;
   }
 
+  // As the application configures it (Application.java).
   @Configuration
-  @EnableAsync
+  @EnableAsync(proxyTargetClass = true)
   static class AsyncTestConfig {
 
     @Bean

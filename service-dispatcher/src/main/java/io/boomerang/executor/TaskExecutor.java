@@ -1,7 +1,7 @@
 package io.boomerang.executor;
 
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
 import java.text.ParseException;
 import java.util.List;
 
