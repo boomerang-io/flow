@@ -189,7 +189,7 @@ class DispatcherContractTest {
     Set<String> parameters = new TreeSet<>();
     contract
         .get("paths")
-        .get("/api/v1/dispatcher/{id}/tasks")
+        .get("/dispatcher/v1/{id}/tasks")
         .get("get")
         .get("parameters")
         .forEach(parameter -> parameters.add(parameter.get("name").asString()));

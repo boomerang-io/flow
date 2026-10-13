@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Publishes the dispatcher protocol on its own: {@code /api/docs/spec/dispatcher-v1} serves only
- * the {@code /api/v1/dispatcher} routes - the contract a dispatcher implements, described in
+ * the {@code /dispatcher/v1} routes - the contract a dispatcher implements, described in
  * {@code specifications/dispatcher-contract.md}. The checked-in {@code contracts/dispatcher-v1.yaml}
  * must match what this serves; {@code DispatcherContractTest} fails on any drift.
  */
@@ -23,7 +23,7 @@ public class DispatcherContractConfiguration {
   public GroupedOpenApi dispatcherContract() {
     return GroupedOpenApi.builder()
         .group(GROUP)
-        .pathsToMatch("/api/v1/dispatcher/**")
+        .pathsToMatch("/dispatcher/v1/**")
         .addOpenApiCustomizer(
             openApi ->
                 openApi.info(

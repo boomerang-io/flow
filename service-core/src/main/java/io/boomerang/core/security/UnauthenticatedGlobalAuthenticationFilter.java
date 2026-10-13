@@ -22,7 +22,7 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
  * reimplementing it: that class's {@code doFilter()} already installs its result only when the
  * {@code SecurityContext} carries no {@code Authentication} yet - exactly the "populate only if
  * empty" guard the previous hand-rolled version reimplemented by hand, needed because the {@code
- * /api/v1/**} dispatcher chain ({@code DispatcherSecurityConfiguration}, {@code @Order(1)}) runs
+ * /dispatcher/**} dispatcher chain ({@code DispatcherSecurityConfiguration}, {@code @Order(1)}) runs
  * ahead of the {@code @Order(2)} chain this filter belongs to. The only customisation required is
  * {@link #createAuthentication(HttpServletRequest)} - WHAT gets installed, never WHEN.
  */

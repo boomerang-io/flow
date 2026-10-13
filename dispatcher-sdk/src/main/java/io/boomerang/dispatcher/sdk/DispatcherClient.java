@@ -36,7 +36,7 @@ import tools.jackson.core.type.TypeReference;
 public class DispatcherClient {
 
   /** The path every dispatcher route sits under. */
-  public static final String BASE_PATH = "/api/v1/dispatcher";
+  public static final String BASE_PATH = "/dispatcher/v1";
 
   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 

@@ -13,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Conditional(SecurityDisabledCondition.class)
 public class SecurityDisabledConfiguration {
 
-  // @Order required now that DispatcherSecurityConfiguration's /api/v1/** chain (E8.2a merge)
+  // @Order required now that DispatcherSecurityConfiguration's /dispatcher/** chain (E8.2a merge)
   // also lives in this context: it must evaluate FIRST (lower value), this chain evaluates last.
   @Bean
   @Order(2)

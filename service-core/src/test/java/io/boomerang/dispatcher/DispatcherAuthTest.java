@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * Security contract guard for the dispatcher endpoints (T6-1). {@code /api/v1/dispatcher/**}
+ * Security contract guard for the dispatcher endpoints (T6-1). {@code /dispatcher/**}
  * requires a real Flow token: {@code global} scope + a machine {@link TokenActorKind}. Covers:
  * missing bearer, a valid dispatcher token, a human/user-scope token (rejected — wrong scope AND
  * no {@code actorKind}), an expired token, and a bearer that isn't Flow-token-shaped at all
@@ -53,7 +53,7 @@ import org.springframework.web.context.WebApplicationContext;
 @TestPropertySource(properties = {"flow.queue.enabled=false"})
 class DispatcherAuthTest extends AbstractEngineIntegrationTest {
 
-  private static final String DISPATCHER_PATH = "/api/v1/dispatcher/any-agent-id/tasks";
+  private static final String DISPATCHER_PATH = "/dispatcher/v1/any-agent-id/tasks";
 
   @Autowired private WebApplicationContext context;
 
@@ -91,6 +91,23 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aPathUnderThePrefixThatNothingServesStillNeedsTheToken() throws Exception {
+    // The chain checks every request it claims, not a list of known routes.
+    mockMvc.perform(get("/dispatcher/v2/anything")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void theFormerPrefixIsNoLongerTheDispatcherWire() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            get("/api/v1/dispatcher/any-agent-id/tasks")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
   void humanScopeTokenIsRejected() throws Exception {
     // A user-scope token: real principal, no actorKind - the shape of a human's token, not a
     // machine's. Rejected on BOTH grounds (validateActorToken requires global scope AND a
@@ -119,16 +136,16 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
    * the same filter. They previously lived on their own path roots ({@code /api/v1/taskrun/**},
    * {@code /api/v1/workflowrun/**}), fell outside the filter's prefix and were fully
    * unauthenticated — anyone with network reach could write terminal status and results onto any
-   * run. They now sit under {@code /api/v1/dispatcher} with the rest of the protocol, which is what
-   * collapsed the filter's prefix set back to one entry; these assertions are what prevent that
-   * consolidation from silently re-opening the hole.
+   * run. They now sit under {@code /dispatcher/v1} with the rest of the protocol, inside the one
+   * filter chain that checks every request it claims; these assertions are what prevent a later
+   * move from silently re-opening the hole.
    */
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "/api/v1/dispatcher/taskrun/any-run-id/start",
-        "/api/v1/dispatcher/taskrun/any-run-id/end",
-        "/api/v1/dispatcher/workflowrun/any-run-id/start"
+        "/dispatcher/v1/taskrun/any-run-id/start",
+        "/dispatcher/v1/taskrun/any-run-id/end",
+        "/dispatcher/v1/workflowrun/any-run-id/start"
       })
   void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
     mockMvc.perform(put(path)).andExpect(status().isUnauthorized());
@@ -143,7 +160,7 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   void releaseQueryRejectsMissingBearerToken() throws Exception {
     mockMvc
         .perform(
-            post("/api/v1/dispatcher/workspaces/releasable")
+            post("/dispatcher/v1/workspaces/releasable")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
         .andExpect(status().isUnauthorized());
@@ -155,7 +172,7 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
 
     mockMvc
         .perform(
-            post("/api/v1/dispatcher/workspaces/releasable")
+            post("/dispatcher/v1/workspaces/releasable")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
@@ -168,7 +185,7 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
 
     mockMvc
         .perform(
-            put("/api/v1/dispatcher/taskrun/any-run-id/end")
+            put("/dispatcher/v1/taskrun/any-run-id/end")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
         .andExpect(status().is(not(401)));
   }
@@ -181,13 +198,11 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
         .andExpect(status().isUnauthorized());
   }
 
-  /** Pure unit coverage of the pre-DB gate {@link DispatcherAuthFilter} relies on. */
   /**
-   * {@link DispatcherAuthFilter#shouldNotFilter} decides using the RAW {@code getRequestURI()}
-   * prefix {@code "/api/v1/dispatcher/"}, while Spring routes using a PARSED, normalised path.
-   * Wherever those two disagree a request could reach the controller with the filter skipped, so
-   * each known divergence class is probed here: path parameters ({@code ;k=v}) in an earlier
-   * segment, a traversal segment, a duplicated leading slash, and case variation.
+   * The dispatcher chain claims a request by its path, and Spring routes it by its path. Wherever
+   * those two could disagree a request might reach the controller outside the chain, so each
+   * known divergence class is probed here: path parameters ({@code ;k=v}) in a segment, a
+   * traversal segment, a duplicated leading slash, and case variation.
    *
    * <p>None of these may produce a success status. Rejection may legitimately come from the filter
    * (401) or from the dispatcher servlet's own normalisation (400/404) — what must never happen is
@@ -197,11 +212,11 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   void pathVariantsCannotBypassTheFilter() throws Exception {
     List<String> bypassAttempts =
         List.of(
-            "/api;x=1/v1/dispatcher/any-agent-id/tasks",
-            "/api/v1;x=1/dispatcher/any-agent-id/tasks",
-            "/api/v1/dispatcher/../dispatcher/any-agent-id/tasks",
-            "//api/v1/dispatcher/any-agent-id/tasks",
-            "/API/V1/DISPATCHER/any-agent-id/tasks");
+            "/dispatcher;x=1/v1/any-agent-id/tasks",
+            "/dispatcher/v1;x=1/any-agent-id/tasks",
+            "/dispatcher/v1/../v1/any-agent-id/tasks",
+            "//dispatcher/v1/any-agent-id/tasks",
+            "/DISPATCHER/V1/any-agent-id/tasks");
 
     for (String attempt : bypassAttempts) {
       int status = mockMvc.perform(get(attempt)).andReturn().getResponse().getStatus();

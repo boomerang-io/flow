@@ -76,6 +76,6 @@ class DispatcherContractTest extends AbstractEngineIntegrationTest {
     served()
         .get("paths")
         .propertyNames()
-        .forEach(path -> assertThat(path).startsWith("/api/v1/dispatcher"));
+        .forEach(path -> assertThat(path).startsWith("/dispatcher/v1"));
   }
 }

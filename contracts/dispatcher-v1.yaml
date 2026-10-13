@@ -10,7 +10,7 @@ tags:
   description: "Manage Dispatcher operations. Register dispatcher. Check for WorkflowRuns\
     \ and TaskRuns"
 paths:
-  /api/v1/dispatcher/{id}/heartbeat:
+  /dispatcher/v1/{id}/heartbeat:
     put:
       tags:
       - "Dispatcher"
@@ -34,7 +34,7 @@ paths:
           description: "No Content"
         "400":
           description: "Bad Request"
-  /api/v1/dispatcher/workflowrun/{workflowRunId}/start:
+  /dispatcher/v1/workflowrun/{workflowRunId}/start:
     put:
       tags:
       - "Dispatcher"
@@ -66,7 +66,7 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
-  /api/v1/dispatcher/taskrun/{taskRunId}/start:
+  /dispatcher/v1/taskrun/{taskRunId}/start:
     put:
       tags:
       - "Dispatcher"
@@ -97,7 +97,7 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/TaskRun"
-  /api/v1/dispatcher/taskrun/{taskRunId}/end:
+  /dispatcher/v1/taskrun/{taskRunId}/end:
     put:
       tags:
       - "Dispatcher"
@@ -128,7 +128,7 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/TaskRun"
-  /api/v1/dispatcher/workspaces/releasable:
+  /dispatcher/v1/workspaces/releasable:
     post:
       tags:
       - "Dispatcher"
@@ -154,7 +154,7 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WorkspaceReleaseResponse"
-  /api/v1/dispatcher/register:
+  /dispatcher/v1/register:
     post:
       tags:
       - "Dispatcher"
@@ -179,7 +179,7 @@ paths:
             '*/*':
               schema:
                 type: "string"
-  /api/v1/dispatcher/{id}/workflows:
+  /dispatcher/v1/{id}/workflows:
     get:
       tags:
       - "Dispatcher"
@@ -217,7 +217,7 @@ paths:
                 type: "array"
                 items:
                   $ref: "#/components/schemas/WorkflowRun"
-  /api/v1/dispatcher/{id}/tasks:
+  /dispatcher/v1/{id}/tasks:
     get:
       tags:
       - "Dispatcher"

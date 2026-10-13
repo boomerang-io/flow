@@ -14,12 +14,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Guards the worker-facing v1 endpoints ({@code /api/v1/dispatcher/**}) with a real Flow
- * token (T6-1) — a global-scope token carrying a machine {@code actorKind} (see {@link
+ * Guards the dispatcher wire ({@code /dispatcher/**}) with a real Flow token — a global-scope
+ * token carrying a machine {@code actorKind} (see {@link
  * io.boomerang.core.security.enums.TokenActorKind}), minted through the existing token API. No
  * new {@code AuthScope} value or token prefix was added: the dispatcher token is deliberately an
  * ordinary {@code bfg_} global token, an orthogonal discriminator field is the only difference
  * from any other global token (ARCHIE pattern, least deviation from the proven model).
+ *
+ * <p>Every request its filter chain claims is checked. {@link DispatcherSecurityConfiguration}'s
+ * matcher is the one statement of which paths those are, so this filter keeps no path list of its
+ * own that could drift from it.
  *
  * <p>Validation order mirrors ARCHIE: a cheap prefix-regex shape gate ({@link
  * TokenTypePrefix#isFlowToken}) runs BEFORE any Mongo lookup, so a bearer that isn't even shaped
@@ -33,25 +37,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * property, which no longer exists: {@code service-dispatcher}'s configured bearer value
  * ({@code flow.engine.dispatcher.token}) is unchanged code-wise, it just now needs to hold a real
  * minted token instead of an arbitrary shared string.
- *
- * <p>Every other path is untouched and stays {@code permitAll} exactly as before.
  */
 public class DispatcherAuthFilter extends OncePerRequestFilter {
-
-  /**
-   * The worker-facing v1 surface — one prefix, because the whole v1 dispatcher protocol now lives
-   * under {@code /api/v1/dispatcher} (see {@link DispatcherControllerV1}).
-   *
-   * <p>History worth keeping: the filter originally matched this same single prefix while the four
-   * agent lifecycle callbacks sat on {@code /api/v1/taskrun/} and {@code /api/v1/workflowrun/}, so
-   * they were fully unauthenticated even though {@code service-dispatcher}'s {@code EngineClient} calls
-   * all seven endpoints with the SAME bearer-attaching {@code internalRestTemplate} — the client was
-   * presenting a credential the server never read. The E1/E2 audit fixed that by adding the two
-   * extra prefixes; consolidating the routes removes the need for them. Those callbacks write
-   * terminal run status and task results, so they are at least as sensitive as the queue polls, and
-   * {@code DispatcherAuthTest} pins every one of them against a regression.
-   */
-  private static final String[] WORKER_PATH_PREFIXES = {"/api/v1/dispatcher/"};
 
   private static final String BEARER_PREFIX = "Bearer ";
 
@@ -61,18 +48,6 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
   public DispatcherAuthFilter(TokenService tokenService, boolean authEnabled) {
     this.tokenService = tokenService;
     this.authEnabled = authEnabled;
-  }
-
-  @Override
-  protected boolean shouldNotFilter(HttpServletRequest request) {
-    // Only guard the worker-facing endpoints; everything else stays permitAll.
-    String uri = request.getRequestURI();
-    for (String prefix : WORKER_PATH_PREFIXES) {
-      if (uri.startsWith(prefix)) {
-        return false;
-      }
-    }
-    return true;
   }
 
   @Override
