@@ -8,5 +8,4 @@ import lombok.Data;
 @Data
 public class WorkspaceReleaseResponse {
   private List<String> workflowRunRefs = new ArrayList<>();
-  private List<String> workflowRefs = new ArrayList<>();
 }

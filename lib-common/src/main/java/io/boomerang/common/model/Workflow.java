@@ -57,7 +57,7 @@ public class Workflow {
   private WorkflowTrigger triggers;
   private List<WorkflowTask> tasks = new LinkedList<>();
   private List<AbstractParam> params = new LinkedList<>();
-  private List<WorkflowWorkspace> workspaces = new LinkedList<>();
+  private WorkflowWorkspace workspace;
   private Map<String, Object> unknownFields = new HashMap<>();
 
   @Override
@@ -98,8 +98,8 @@ public class Workflow {
         + tasks
         + ", params="
         + params
-        + ", workspaces="
-        + workspaces
+        + ", workspace="
+        + workspace
         + ", unknownFields="
         + unknownFields
         + "]";

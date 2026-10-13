@@ -78,5 +78,5 @@ public class WorkflowRunEntity {
 
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
-  private List<WorkflowWorkspace> workspaces = new LinkedList<>();
+  private WorkflowWorkspace workspace;
 }

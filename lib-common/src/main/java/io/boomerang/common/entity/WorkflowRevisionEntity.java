@@ -33,7 +33,7 @@ public class WorkflowRevisionEntity {
   private ChangeLog changelog;
   private String markdown;
   private List<AbstractParam> params;
-  private List<WorkflowWorkspace> workspaces;
+  private WorkflowWorkspace workspace;
   private Long timeout;
   private Long retries;
 
@@ -53,8 +53,8 @@ public class WorkflowRevisionEntity {
         + markdown
         + ", params="
         + params
-        + ", workspaces="
-        + workspaces
+        + ", workspace="
+        + workspace
         + "]";
   }
 }

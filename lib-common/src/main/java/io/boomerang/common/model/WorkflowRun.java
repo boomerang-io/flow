@@ -70,7 +70,7 @@ public class WorkflowRun {
 
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
-  private List<WorkflowWorkspace> workspaces = new LinkedList<>();
+  private WorkflowWorkspace workspace;
   private List<TaskRun> tasks;
 
   @Override
@@ -113,8 +113,8 @@ public class WorkflowRun {
         + params
         + ", results="
         + results
-        + ", workspaces="
-        + workspaces
+        + ", workspace="
+        + workspace
         + "]";
   }
 
