@@ -4,7 +4,7 @@
  * (Arctic underneath) - the browser only ever sees the authorize redirect and the final
  * Set-Cookie relay, so the id_token and code_verifier never reach it. Java stays the verifier
  * and session authority: the verify callback POSTs {idToken, nonce} (field names per
- * AuthExchangeRequest.java) to POST /api/v2/auth/exchange, and the bfs_ Set-Cookie it mints is
+ * AuthExchangeRequest.java) to POST /internal/v1/auth/exchange, and the bfs_ Set-Cookie it mints is
  * relayed VERBATIM onto the redirect. This process holds nothing beyond the two five-minute
  * httpOnly flow cookies below. Standard OIDC only - nothing keyed to any particular provider.
  * The `.server.ts` suffix keeps all of this (and remix-auth/arctic) out of build/client.

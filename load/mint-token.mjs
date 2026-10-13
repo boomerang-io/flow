@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Mints a `bfg_` global token against the compose stack without a browser. Node 20+, no
 // dependencies. Drives the same sign-in the webapp performs: IDPZero authorization-code flow with
-// PKCE as `usr-flow-admin`, POST /api/v2/auth/exchange for a session cookie, then POST /api/v2/token.
+// PKCE as `usr-flow-admin`, POST /internal/v1/auth/exchange for a session cookie, then POST /api/v2/token.
 //
 //   FLOW_TOKEN=$(node load/mint-token.mjs)
 //
@@ -22,7 +22,7 @@ const IDP_USER = process.env.IDP_USER ?? "usr-flow-admin";
 const REDIRECT_URI = process.env.REDIRECT_URI ?? "http://localhost:3000/apps/flow/auth/callback";
 const b64url = (buf) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-const config = await (await fetch(`${FLOW_URL}/api/v2/auth/config`)).json();
+const config = await (await fetch(`${FLOW_URL}/internal/v1/auth/config`)).json();
 if (config.mode !== "oidc") throw new Error(`auth mode is ${config.mode}, not oidc; is the compose stack up?`);
 const issuer = new URL(config.issuer);
 const [connectHost, connectPort] = (process.env.IDP_ADDRESS ?? issuer.host).split(":");
@@ -77,7 +77,7 @@ const token = await idp("POST", "/oauth/token", {
 if (token.status !== 200) throw new Error(`token endpoint ${token.status}: ${token.text.slice(0, 200)}`);
 const idToken = JSON.parse(token.text).id_token;
 
-const exchange = await fetch(`${FLOW_URL}/api/v2/auth/exchange`, {
+const exchange = await fetch(`${FLOW_URL}/internal/v1/auth/exchange`, {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, nonce }),
 });
 if (!exchange.ok) throw new Error(`exchange ${exchange.status}: ${await exchange.text()}`);

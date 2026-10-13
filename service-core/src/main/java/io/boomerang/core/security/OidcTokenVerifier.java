@@ -31,7 +31,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * Verifies id_tokens for the direct OIDC login path of {@code POST /api/v2/auth/exchange}:
+ * Verifies id_tokens for the direct OIDC login path of {@code POST /internal/v1/auth/exchange}:
  * fetches the configured issuer's JWKS (via standard
  * OIDC discovery), verifies the JWS signature, and checks {@code iss}, {@code aud}, {@code exp}
  * and {@code nonce} - the reference implementation this design is modelled on base64-decodes and
@@ -135,8 +135,8 @@ public class OidcTokenVerifier {
 
   /**
    * The configured trusted issuer, or {@code null} when unset - the lenient read behind {@code
-   * GET /api/v2/auth/config}'s mode derivation, which must never throw just because OIDC is not
-   * configured. Verification itself uses the throwing {@code requireSetting} form.
+   * GET /internal/v1/auth/config}'s mode derivation, which must never throw just because OIDC is
+   * not configured. Verification itself uses the throwing {@code requireSetting} form.
    */
   public String configuredIssuer() {
     return settingOrNull(ISSUER_CONFIG_KEY);

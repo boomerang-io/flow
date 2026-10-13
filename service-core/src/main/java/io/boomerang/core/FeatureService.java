@@ -79,7 +79,7 @@ public class FeatureService {
     features.put("workspace.single", !standalone);
     features.put("schedules", true);
     features.put("integrations", standalone);
-    // The sign-in surface (GET /api/v2/auth/config and the session exchange) exists only here.
+    // The sign-in surface (GET /internal/v1/auth/config and the session exchange) exists only here.
     features.put(
         "authentication", standalone && security);
 

@@ -41,7 +41,9 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
   // A session or user token only: a global token is the wrong kind, whatever it holds.
   private static final String PROFILE = "/api/v2/profile";
   // Exempt from a permission rule, and on the permit list: public.
-  private static final String AUTH_CONFIG = "/api/v2/auth/config";
+  private static final String AUTH_CONFIG = "/internal/v1/auth/config";
+  // Where it was served before the sign-in routes left the public API prefix.
+  private static final String FORMER_AUTH_CONFIG = "/api/v2/auth/config";
   // Exempt from a permission rule, but not on the permit list.
   private static final String SLACK_EVENTS = "/api/v2/integration/slack/events";
 
@@ -122,6 +124,16 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
     // The filter's skip list reads the servlet path, which a container sets to the whole path
     // and MockMvc leaves empty unless told.
     mockMvc.perform(get(AUTH_CONFIG).servletPath(AUTH_CONFIG)).andExpect(status().isOk());
+  }
+
+  @Test
+  void theSignInRoutesAreNotServedUnderThePublicApiPrefix() throws Exception {
+    SecurityContextHolder.clearContext();
+
+    // They live under /internal/v1, so a front door that routes /api/** cannot reach them.
+    mockMvc
+        .perform(get(FORMER_AUTH_CONFIG).servletPath(FORMER_AUTH_CONFIG))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

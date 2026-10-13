@@ -620,7 +620,7 @@ public class TokenService {
 
   /**
    * Same resolve-or-create-user + mint flow as {@link #createSessionToken}, but also returns the
-   * raw {@code bfs_<uuid>} value - needed by {@code POST /api/v2/auth/exchange} to set the
+   * raw {@code bfs_<uuid>} value - needed by {@code POST /internal/v1/auth/exchange} to set the
    * httpOnly session cookie. The entity only ever persists
    * the SHA-256 hash (see {@link #mintSessionToken}), so the raw value only ever exists on the
    * stack of the request that minted it.
@@ -669,7 +669,7 @@ public class TokenService {
 
   /**
    * Mints a session token for an ALREADY resolved user, skipping the get-or-register round trip -
-   * used by the proxy path of {@code POST /api/v2/auth/exchange}, where {@code
+   * used by the proxy path of {@code POST /internal/v1/auth/exchange}, where {@code
    * AuthenticationFilter} has already resolved (and, for a first-time caller, registered) the
    * user for this very request; re-deriving email/name from headers here would duplicate the
    * filter's own logic.

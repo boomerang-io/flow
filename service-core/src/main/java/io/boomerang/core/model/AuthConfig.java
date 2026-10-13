@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.Data;
 
 /**
- * The response of {@code GET /api/v2/auth/config} - the pre-auth bootstrap contract the webapp
+ * The response of {@code GET /internal/v1/auth/config} - the pre-auth bootstrap contract the webapp
  * reads BEFORE it holds any session, to learn how to sign in. {@code issuer} and {@code clientId}
  * are present only when {@code mode} is {@code oidc}; nothing else from the auth settings is ever
  * exposed through this shape.

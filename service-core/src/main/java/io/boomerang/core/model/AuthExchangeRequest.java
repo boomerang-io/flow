@@ -3,7 +3,7 @@ package io.boomerang.core.model;
 import lombok.Data;
 
 /**
- * The body of {@code POST /api/v2/auth/exchange}. Both
+ * The body of {@code POST /internal/v1/auth/exchange}. Both
  * fields are optional and empty is a valid, meaningful request: an empty body selects the
  * proxy-forwarded-identity path. A populated {@code idToken} selects the direct OIDC login path -
  * {@code nonce} must be the value the frontend generated for its PKCE authorize request, so it can

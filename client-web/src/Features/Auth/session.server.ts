@@ -1,6 +1,6 @@
 /*
  * Session lifecycle actions: the
- * browser no longer POSTs /api/v2/auth/exchange or /api/v2/auth/logout itself. Both were
+ * browser no longer POSTs /internal/v1/auth/exchange or /internal/v1/auth/logout itself. Both were
  * browser-side precisely because their responses' Set-Cookie must reach the browser - and the
  * server-side sign-in flow (oidc.server.ts) already proved the alternative mechanic: run the
  * Java call in a route action via serverFetch(request) (forwarding the inbound cookie) and relay
@@ -75,7 +75,7 @@ export async function signinRouteAction(args: ActionFunctionArgs) {
 
 /*
  * Logout: revoke the session server-side AND clear the cookie (the Java response's Set-Cookie
- * does both - see AuthControllerV2), relayed verbatim. A revoke failure is swallowed on purpose:
+ * does both - see InternalAuthControllerV1), relayed verbatim. A revoke failure is swallowed on purpose:
  * if the session is already dead, the user is signed out either way. The action also reads
  * GET /auth/config server-side to return where the browser must hard-navigate NEXT: in proxy
  * mode that is the proxy's own signOutUrl (revoking the Flow session alone is not an exit - the

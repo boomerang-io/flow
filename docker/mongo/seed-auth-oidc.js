@@ -1,7 +1,7 @@
 /*
  * Compose-stack-ONLY seed (run by the auth-oidc-seed one-shot service in docker-compose.yml,
  * once service-core is healthy, which it only is after its migrations ran): points the `auth`
- * settings document at the stack's local IDPZero so GET /api/v2/auth/config resolves mode=oidc.
+ * settings document at the stack's local IDPZero so GET /internal/v1/auth/config resolves mode=oidc.
  *
  * service-core's migrations deliberately seed oidc.issuer/oidc.clientId EMPTY - a fresh
  * non-compose install must stay unconfigured (mode=proxy) rather than trusting any default
