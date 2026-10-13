@@ -40,15 +40,8 @@ test.describe("for-each tasks on kubernetes", () => {
 
   const start = { name: "start", type: "start" };
   const mount = "/workspace/run";
-  const runStore = [
-    {
-      name: "run-store",
-      type: "workflowrun",
-      optional: false,
-      spec: { size: "1Gi", accessMode: "ReadWriteOnce", mountPath: mount },
-    },
-  ];
-  const taskStore = [{ name: "run-store", type: "workflowrun", mountPath: mount }];
+  // One workspace per run; every task mounts it unless it opts out.
+  const runStore = { size: "1Gi", accessMode: "ReadWriteOnce", mountPath: mount };
 
   // A shell task on the catalogue's execute-shell template; results go to $RESULTS_PATH as one
   // JSON object (see dispatcher-kube.spec.ts).
@@ -77,7 +70,7 @@ test.describe("for-each tasks on kubernetes", () => {
       `echo staged-by-stage > ${mount}/staged.txt`,
       `echo '{"batches":["a","b","c"]}' > "$RESULTS_PATH"`,
     ].join("\n"),
-    { results: [{ name: "batches" }], workspaces: taskStore },
+    { results: [{ name: "batches" }] },
   );
 
   // Each item sleeps long enough that parallel items overlap, proves it sees the workspace file,
@@ -97,7 +90,6 @@ test.describe("for-each tasks on kubernetes", () => {
       {
         foreach: { items: "$(tasks.stage.results.batches)" },
         results: [{ name: "out" }],
-        workspaces: taskStore,
       },
       [{ taskRef: "stage" }],
     );
@@ -146,7 +138,7 @@ test.describe("for-each tasks on kubernetes", () => {
     request,
   }) => {
     const r = await run(request, {
-      workspaces: runStore,
+      workspace: runStore,
       tasks: [start, stage, fan(), report(), { name: "end", type: "end", dependencies: [{ taskRef: "report" }] }],
     });
     expect(r.status, describe(r)).toBe("succeeded");
@@ -192,7 +184,7 @@ test.describe("for-each tasks on kubernetes", () => {
 
   test("one failed item fails the task, and an always connection still runs the next task", async ({ request }) => {
     const r = await run(request, {
-      workspaces: runStore,
+      workspace: runStore,
       tasks: [
         start,
         stage,
@@ -259,7 +251,7 @@ test.describe("for-each tasks on kubernetes", () => {
   test("a run paused during the fan-out completes after resume", async ({ request }) => {
     const wf = await createWorkflowFromSpec(request, workspace, {
       name: uniqueName("fe-pause"),
-      workspaces: runStore,
+      workspace: runStore,
       tasks: [start, stage, fan(), report(), { name: "end", type: "end", dependencies: [{ taskRef: "report" }] }],
     });
     const submitted = await submitAndStart(request, workspace, wf.name);
@@ -300,11 +292,11 @@ test.describe("for-each tasks on kubernetes", () => {
     const slowStage = shellTask(
       "stage",
       [`sleep 10`, `mkdir -p ${mount}`, `echo staged-by-stage > ${mount}/staged.txt`, `echo '{"batches":["a","b","c"]}' > "$RESULTS_PATH"`].join("\n"),
-      { results: [{ name: "batches" }], workspaces: taskStore },
+      { results: [{ name: "batches" }] },
     );
     const wf = await createWorkflowFromSpec(request, workspace, {
       name: uniqueName("fe-prepause"),
-      workspaces: runStore,
+      workspace: runStore,
       tasks: [start, slowStage, fan(), report(), { name: "end", type: "end", dependencies: [{ taskRef: "report" }] }],
     });
     const submitted = await submitAndStart(request, workspace, wf.name);
